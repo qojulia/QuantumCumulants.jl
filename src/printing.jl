@@ -28,6 +28,44 @@ function show(stream::IO,a::Transition)
     write(stream,string(a.j))
 end
 
+function show(stream::IO,i::Index)
+    if isempty(i.nid)
+        write(stream,string(i.label))
+    elseif length(i.nid)==1
+        write(stream,string(i.label))
+        write(stream, "≠")
+        j = IndexOrder[findfirst(x->x.id∈i.nid,IndexOrder)]
+        write(stream, string(j.label))
+    else
+        write(stream,string(i.label))
+        write(stream, "≠{")
+        js = IndexOrder[findall(x->x.id∈i.nid,IndexOrder)]
+        unique!((x->x.id), js)
+        for k=1:length(js)-1
+            write(stream, string(js[k].label))
+            write(stream, ",")
+        end
+        write(stream,string(js[end].label))
+        write(stream, "}")
+    end
+end
+function show(stream::IO,a::IndexedOperator{T,<:SymbolicIndex}) where T
+    show(stream,a.operator)
+    write(stream, "[")
+    show(stream,a.index)
+    write(stream, "]")
+end
+function show(stream::IO,a::IndexedOperator{T,<:Int}) where T
+    show(stream,a.operator)
+    write(stream, "[$(string(a.index))]")
+end
+
+function show(stream::IO,s::SumType)
+    write(stream, "Σ_"*"$(string(s.f.index.label))( ")
+    show(stream,s.args[1])
+    write(stream, " )")
+end
+
 function show(stream::IO,de::DifferentialEquation)
     write(stream, "∂ₜ(")
     show(stream, de.lhs)
@@ -37,6 +75,7 @@ end
 function show(stream::IO,de::DifferentialEquationSet)
     for i=1:length(de.lhs)
         show(stream,DifferentialEquation(de.lhs[i],de.rhs[i]))
+        write(stream,"\n")
     end
 end
 
@@ -59,5 +98,13 @@ function show(stream::IO, m::MIME"text/latex", x::Vector{<:DifferentialEquation}
         show(stream, m, sympify.(x))
     else
         show(stream, x)
+    end
+end
+
+function show(stream::IO, m::MIME"text/latex", i::SymbolicIndex)
+    if PPRINT
+        show(stream, m, sympify(i))
+    else
+        show(stream, i)
     end
 end

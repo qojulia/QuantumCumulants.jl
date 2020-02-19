@@ -60,44 +60,38 @@ end
 copy(a::Transition) = Transition(a.label,a.id,a.i,a.j,a.inds,a.GS)
 
 Base.adjoint(a::Transition) = Transition(a.label,a.j,a.i,a.inds;GS=a.GS)
-
-function commutation_relation(a::Transition,b::Transition)
-    (a.label == b.label && a.inds == b.inds && a.GS==b.GS) || error("Something went wrong here!")
-    if a==b
-        return zero(a)
-    else
-        if a.j==b.i
-            return Transition(a.label,a.i,b.j,a.inds;GS=a.GS)
-        elseif a.i==b.j
-            return -Transition(a.label,b.i,a.j,a.inds;GS=a.GS)
-        else
-            return a*b - b*a
-        end
-    end
-end
-
-function replace_commutator(a::Transition,b::Transition)
-    (a.label == b.label && a.inds == b.inds && a.GS==b.GS) || error("Something went wrong here!")
-    if a==b
-        return (true,simplify_operators(b*a))
-    elseif a.j == b.i
-        return (true,Transition(a.label,a.i,b.j,a.inds;GS=a.GS))
-    else
-        return (true,zero(a))
-    end
-end
-
 ishermitian(a::Transition) = (a.i==a.j)
 
+function *(a::Transition,b::Transition)
+    a.label == b.label || error("Something went wrong here!")
+    a.inds == b.inds || error("Something went wrong here!")
+    a.GS == b.GS || error("Something went wrong here!")
+    if a.j==b.i
+        return Transition(a.label,a.i,b.j,a.inds;GS=a.GS)
+    else
+        return zero(a)
+    end
+end
 
+# function replace_commutator(a::Transition,b::Transition)
+#     (a.label == b.label && a.inds == b.inds && a.GS==b.GS) || error("Something went wrong here!")
+#     if a==b
+#         return (true,simplify_operators(b*a))
+#     elseif a.j == b.i
+#         return (true,Transition(a.label,a.i,b.j,a.inds;GS=a.GS))
+#     else
+#         return (true,zero(a))
+#     end
+# end
 
-# Possible solution if we want to be able not to provide indices
-# TODO: should we do this?
-# import Base: in
-# struct EmptyInds end
-# in(a,::EmptyInds) = true
-# Base.getindex(::EmptyInds, args...) = gensym()
-# Base.lastindex(::EmptyInds) = gensym()
-# Base.firstindex(::EmptyInds) = gensym()
-# Base.isequal(::EmptyInds,::EmptyInds) = true
-# Transition(label,i,j) = Transition(label,i,j,EmptyInds())
+# function combine_prod(a::Transition,b::Transition)
+#     a.label == b.label || error("Something went wrong here!")
+#     a.inds == b.inds || error("Something went wrong here!")
+#     a.GS == b.GS || error("Something went wrong here!")
+    # if a.j==b.i
+    #     out = simplify_operators(Transition(a.label,a.i,b.j,a.inds;GS=a.GS))
+    # else
+    #     out = zero(a)
+    # end
+    # return true,out
+# end

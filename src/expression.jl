@@ -21,6 +21,7 @@ Expression(f,args...) = Expression(f,args)
 # ==(a::Expression,b::Expression) = Expression(==,[a,b])
 ==(a::Expression,b::Expression) = (a.f==b.f && a.args==b.args)
 Base.isapprox(a::Expression,b::Expression) = (a.f==b.f && isapprox(a.args,b.args))
+# TODO: Add general flag to Expression determining whether there are indexed objects in the expression
 
 const Add{argType} = Expression{typeof(+),argType}
 const Prod{argType} = Expression{typeof(*),argType}
@@ -70,8 +71,8 @@ function adjoint(a::Prod)
 end
 Base.iszero(a::Union{Prod,TensorProd}) = any(iszero.(a.args))
 Base.iszero(a::Add) = all(iszero.(a.args))
-Base.one(::Prod) = Identity()
-Base.zero(::Prod) = Zero()
+Base.one(a::Prod) = one(a.args[end])
+Base.zero(a::Prod) = zero(a.args[end])
 Base.one(a::Add) = one(a.args[1])
 Base.zero(a::Add) = zero(a.args[1])
 Base.one(a::TensorProd) = ⊗([one(a1) for a1=a.args]...)
@@ -112,7 +113,8 @@ Base.zero(a::TensorProd) = ⊗([zero(a1) for a1=a.args]...)
 *(a::TensorProd,x::Number) = x*a
 function *(a::TensorProd,b::TensorProd)
     length(a.args) == length(b.args) || error("Tensor products must have the same number of arguments in order to be multiplied!")
-    return Expression(⊗,[a.args[i]*b.args[i] for i=1:length(a.args)])
+    # return Expression(⊗,[a.args[i]*b.args[i] for i=1:length(a.args)])
+    return ⊗([a.args[i]*b.args[i] for i=1:length(a.args)]...)
 end
 
 # +
@@ -121,7 +123,7 @@ end
 +(a::Add,b::AbstractOperator) = Expression(+,[a.args;b])
 +(a::Add,b::Add) = Expression(+,[a.args;b.args])
 function +(a::TensorProd,b::TensorProd)
-    length(a.args) == length(b.args) || error("Tensor products must have the same number of arguments in order to be multiplied!")
+    length(a.args) == length(b.args) || error("Tensor products must have the same number of arguments in order to be added!")
     return Expression(+,[a,b])
 end
 +(a::TensorProd,b::BasicOperator) = throw(MethodError(+,a,b))
@@ -136,11 +138,11 @@ end
 *(a::AbstractOperator,b::Add) = Expression(+,[a*b1 for b1=b.args])
 *(a::Add,b::AbstractOperator) = Expression(+,[a1*b for a1=a.args])
 function *(a::Add,b::Add)
-    args = typejoin(eltype(a.args),eltype(b.args))[]
+    args = []#typejoin(eltype(a.args),eltype(b.args))[]
     for a1=a.args, b1=b.args
         push!(args, a1*b1)
     end
-    return Expression(+,args)
+    return sum(args)#Expression(+,args)
 end
 
 -(a::AbstractOperator) = -1*a

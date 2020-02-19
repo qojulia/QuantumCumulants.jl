@@ -3,7 +3,8 @@
 
 Compute the Heisenberg equation of the operator `op` under the Hamiltonian `H`.
 """
-function heisenberg(a::AbstractOperator,H)
+function heisenberg(a::AbstractOperator,H_)
+    H = simplify_operators(H_)
     a_ = simplify_operators(a)
     da = simplify_operators(1.0im*commutator(H,a))
     return DifferentialEquation(a_,da)
@@ -14,7 +15,8 @@ end
 Compute a set of Heisenberg equations of the operators in `ops`
 under the Hamiltonian `H`.
 """
-function heisenberg(a::Vector,H)
+function heisenberg(a::Vector,H_)
+    H = simplify_operators(H_)
     lhs = simplify_operators.(a)
     rhs = simplify_operators.([1.0im*commutator(H,a1) for a1=lhs])
     return DifferentialEquationSet(lhs,rhs)
@@ -79,15 +81,45 @@ function heisenberg(a::Vector,H,J;Jdagger::Vector=adjoint.(J),rates=ones(length(
     da_ = [simplify_operators(he.rhs[i] + da_diss[i]) for i=1:length(lhs)]
     return DifferentialEquationSet(lhs,da_)
 end
+
 function _master_lindblad(a_,J,Jdagger,rates)
     if isa(rates,Vector)
-        da_diss = sum(0.5*rates[i]*(Jdagger[i]*commutator(a_,J[i]) + commutator(Jdagger[i],a_)*J[i]) for i=1:length(J))
+        da_diss_list = []
+        for it=1:length(rates)
+            push!(da_diss_list, q_langevin_no_noise(a_,J[it],Jdagger[it],rates[it]))
+        end
+        da_diss = sum(da_diss_list)
     elseif isa(rates,Matrix)
+        error("Matrix not implemented!")
         da_diss = sum(0.5*rates[i,j]*(Jdagger[i]*commutator(a_,J[j]) + commutator(Jdagger[i],a_)*J[j]) for i=1:length(J), j=1:length(J))
     else
         error("Unknown rates type!")
     end
     return apply_comms(da_diss)
+end
+
+function q_langevin_no_noise(a_,J_::AbstractOperator,Jdagger_::AbstractOperator,rate)
+    c_inds = find_index(rate)[1]
+    op_inds = find_index(J_)[2]
+    if isempty(c_inds) #is there no IndexedOperator
+       return 0.5*rate*(Jdagger_*commutator(a_,J_) + commutator(Jdagger_,a_)*J_)
+   elseif length(c_inds) == 1
+       if isempty(op_inds)
+           error("Need IndexedOperator")
+       end
+       return Sum(0.5*rate*(Jdagger_*commutator(a_,J_) + commutator(Jdagger_,a_)*J_), op_inds[1])
+   elseif length(c_inds) == 2
+       if isempty(op_inds)
+           error("Need IndexedOperator")
+       end
+       idx1 = c_inds[1]
+       idx2 = c_inds[2]
+       J_idx2 = swap_index(J_, op_inds[1], idx2)
+       Jd_idx1 = swap_index(Jdagger_, op_inds[1], idx1)
+       return Sum(Sum( 0.5*rate*(Jd_idx1*commutator(a_,J_idx2) + commutator(Jd_idx1,a_)*J_idx2),idx1),idx2)
+   elseif length(c_inds) >= 3
+       error("triple sum not implemented")
+   end
 end
 
 commutator(a::AbstractOperator,b::AbstractOperator) = apply_comms(a*b - b*a)
@@ -123,7 +155,7 @@ acts_on(::Number) = Int[]
 function acts_on(a::Prod)
     args_ = isa(a.args[1],Number) ? a.args[2:end] : a.args
     for a1=args_
-        isa(a1,Identity) || return Int[1]
+        isone(a1) || return Int[1]
     end
     return Int[]
 end
@@ -140,20 +172,6 @@ function acts_on(a::Add)
     unique!(act)
     return act
 end
-
-# function _expand_operator(red_op::TensorProd,a,b,a_on,b_on,inds,n)
-#     # Get remainders
-#     filter!(i->!(i∈inds),a_on)
-#     filter!(i->!(i∈inds),b_on)
-#     id = Identity()
-#     args_ = typejoin(eltype(a.args),eltype(b.args),typeof(red_op))[id for i=1:n]
-#     args_[a_on] = a.args[a_on]
-#     args_[b_on] = b.args[b_on]
-#     args_[inds] = red_op.args
-#     return Expression(⊗,args_)
-# end
-# _expand_operator(red_op::Add,a,b,a_on,b_on,inds,n) = simplify_operators(sum(_expand_operator(r,a,b,a_on,b_on,inds,n) for r=red_op.args))
-
 
 replace_commutator(a::AbstractOperator,b::AbstractOperator) = (false,a)
 
@@ -195,7 +213,11 @@ end
 function apply_comms(a::Union{TensorProd,Add})
     a_ = simplify_operators(a)
     if isa(a_, Expression)
-        return simplify_operators(a_.f([apply_comms(a1) for a1=a_.args]...))
+        if isa(a_, SumType)
+            return simplify_operators(Sum([apply_comms(a1) for a1=a_.args]...,a_.f.index))
+        else
+            return simplify_operators(a_.f([apply_comms(a1) for a1=a_.args]...))
+        end
     else
         return a_
     end
@@ -203,18 +225,21 @@ end
 apply_comms(a::Number) = a
 
 function simplify_operators(a::Prod)
-    args = eltype(a.args)[]
+    # args = eltype(a.args)[]
+    args = []
     fac = 1
     for i=1:length(a.args)
         arg_ = simplify_operators(a.args[i])
         iszero(arg_) && return zero(a)
         if isa(arg_, AbstractOperator)
-            isa(arg_, Zero) && return arg_
-            isa(arg_, Identity) || push!(args, arg_)
+            iszero(arg_) && return arg_
+            isone(arg_) || push!(args, arg_)
         else
             fac *= arg_
         end
     end
+    fac = isa(fac, SymPy.Sym) ? SymPy.expand(fac) : fac
+    iszero(fac) && return Zero()
     isempty(args) && return fac*one(a)
 
     # Combine pairs where possible
@@ -235,13 +260,13 @@ function simplify_operators(a::Prod)
 
     p = prod(args2)
     # TODO: do we need recursion here?
-    # can_simplify = (a!=fac*p)
-    # if can_simplify
-    #     return simplify_operators(fac*p)
-    # else
+    can_simplify = (a!=fac*p)
+    if can_simplify
+        return simplify_operators(fac*p)
+    else
     isone(fac) && return p
     return fac*p
-    # end
+    end
 end
 function simplify_operators(a::TensorProd)
     args = []
@@ -257,10 +282,14 @@ function simplify_operators(a::TensorProd)
         end
     end
     out = ⊗(args...)
-    if isone(fac)
-        return out
+    # TODO: do we need recursion here?
+    fac = isa(fac, SymPy.Sym) ? SymPy.expand(fac) : fac
+    iszero(fac) && return zero(a)
+    if fac*out == a
+        isone(fac) && return out
+    return fac*out
     else
-        return fac*out
+        return simplify_operators(fac*out)
     end
 end
 function simplify_operators(a::Add)
@@ -321,6 +350,7 @@ function combine_add(a::BasicOperator,b::BasicOperator)
     end
 end
 function combine_add(a::BasicOperator,b::Prod)
+    # any([isa(b1,IndexedOperator) for b1=b.args]) && return _combine_add_indexed(a,b)
     if isa(b.args[1],Number) && length(b.args)==2 && a==b.args[2]
         arg_ = copy(b)
         arg_.args[1] += 1
@@ -338,17 +368,18 @@ function combine_add(a::Prod,b::BasicOperator)
     end
 end
 function combine_add(a::Prod,b::Prod)
-    if a.args == b.args
+    # (any([isa(a1,IndexedOperator) for a1=a.args]) || any([isa(b1,IndexedOperator) for b1=b.args])) && return _combine_add_indexed(a,b)
+    if a == b
         return true, 2*a
-    elseif isa(a.args[1],Number) && isa(b.args[1],Number) && (a.args[2:end]==b.args[2:end])
+    elseif isa(a.args[1],Number) && isa(b.args[1],Number) && isequal_prod_args(a.args[2:end],b.args[2:end])
         arg_ = copy(a)
         arg_.args[1] += b.args[1]
         return true, arg_
-    elseif isa(a.args[1],Number) && (a.args[2:end] == b.args)
+    elseif isa(a.args[1],Number) && isequal_prod_args(a.args[2:end], b.args)
         arg_ = copy(a)
         arg_.args[1] += 1
         return true, arg_
-    elseif isa(b.args[1],Number) && (a.args == b.args[2:end])
+    elseif isa(b.args[1],Number) && isequal_prod_args(a.args, b.args[2:end])
         arg_ = copy(b)
         arg_.args[1] += 1
         return true, arg_
@@ -357,6 +388,10 @@ function combine_add(a::Prod,b::Prod)
     end
 end
 function combine_add(a::TensorProd,b::TensorProd)
+    # TODO: Cleaner solution to combine indexed objects
+    # _, a_inds = find_index(a)
+    # _, b_inds = find_index(b)
+    # !(isempty(a_inds) && isempty(b_inds)) && return _combine_add_indexed(a,b)
     check, arg = combine_add(a.args[1],b.args[1])
     if check && (a.args[2:end] == b.args[2:end])
         args = [arg; a.args[2:end]]
@@ -368,14 +403,3 @@ end
 combine_add(a,b) = (false, a)
 
 combine_prod(a,b) = (false,a)
-function combine_prod(a::Transition,b::Transition)
-    a.label == b.label || error("Something went wrong here!")
-    a.inds == b.inds || error("Something went wrong here!")
-    a.GS == b.GS || error("Something went wrong here!")
-    if a.j==b.i
-        out = simplify_operators(Transition(a.label,a.i,b.j,a.inds;GS=a.GS))
-    else
-        out = zero(a)
-    end
-    return true,out
-end

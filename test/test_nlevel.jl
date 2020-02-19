@@ -9,6 +9,7 @@ using Test
 tmp = σ12*σ12
 @test simplify_operators(tmp) == zero(σ12)
 @test simplify_operators(σ12*σ12') == σ(1,1)
+@test σ12*σ12' == σ(1,1)
 
 σ(i,j) = Transition(:σ,i,j,(:g,:e))
 σge = σ(:g,:e)

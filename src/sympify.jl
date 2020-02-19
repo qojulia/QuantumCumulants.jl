@@ -7,7 +7,7 @@ function sympify(a::Create)
     return SymPy.symbols(string(a.label), commutative=false)'
 end
 function sympify(a::Transition)
-    return SymPy.symbols(string(a.label)*"_{"*string(a.i)*string(a.j)*"}",commutative=false)
+    return SymPy.symbols(string(a.label)*"^{"*string(a.i)*string(a.j)*"}",commutative=false)
 end
 sympify(::Identity) = SymPy.Sym(1)#SymPy.symbols("Id",commutative=false)
 sympify(::Zero) = SymPy.Sym(0)#SymPy.symbols("Zr",commutative=false)
@@ -19,14 +19,25 @@ function sympify(a::TensorProd)
 end
 sympify(a::Add) = sum(sympify.(a.args))
 
+function sympify(a::IndexedOperator)
+    op_ = sympify(a.operator)
+    if isone(op_)
+        return 1
+    end
+    op = SymPy.sympy.IndexedBase(op_)
+    i = sympify(a.index)
+    return PyCall.py"NCIndexed"(op,i)
+end
+function sympify(s::SumType)
+    arg = sympify(s.args[1])
+    i = sympify(s.f.index)
+    return SymPy.expand(SymPy.sympy.Sum(arg,(i,i.__pyobject__.lower,i.__pyobject__.upper)))
+end
+
 function sympify(de::DifferentialEquation{<:AbstractOperator,<:AbstractOperator};
                 tsym=:t)
-    t = SymPy.symbols(string(tsym))
-    lhs_sym = sympify(de.lhs)
-    func_label = replace_daggers(string(lhs_sym))
-    lhs_func = SymPy.sympy.Function(func_label)(t)
-    d_lhs = SymPy.sympy.diff(lhs_func, t)
-    return SymPy.Eq(d_lhs(t), sympify(de.rhs))
+    d = SymPy.symbols("\\frac{d}{d$(string(tsym))}",commutative=false)
+    return SymPy.Eq(d * sympify(de.lhs), sympify(de.rhs))
 end
 function sympify(de::DifferentialEquation{<:SymPy.Sym,<:SymPy.Sym};
                 tsym=:t)

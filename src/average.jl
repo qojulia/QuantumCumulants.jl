@@ -27,6 +27,7 @@ function get_order(a::TensorProd)
     return sum(get_order.(args_))::Int
 end
 get_order(a::Add) = maximum(get_order.(a.args))::Int
+get_order(s::SumType) = get_order(s.args[1])::Int
 
 """
     average(op::AbstractOperator,order::Int=get_order(op))
@@ -55,6 +56,12 @@ function average(a::Transition,order::Int=1)
 end
 average(::Identity,order::Int=1) = 1
 average(::Zero,order::Int=1) = 0
+function average(a::IndexedOperator,order::Int=1)
+    avg = average(a.operator,order)
+    i = sympify(a.index)
+    b = SymPy.sympy.IndexedBase(avg)
+    return b[i]
+end
 
 # Expression averaging
 function average(a::Prod,order::Int=get_order(a))
@@ -77,6 +84,13 @@ function average(a::TensorProd,order::Int=get_order(a))
     end
 end
 average(a::Add,order::Int=get_order(a)) = sum(average(a1,order) for a1=a.args)
+function average(s::SumType,order::Int=get_order(s))
+    arg = average(s.args[1],order)
+    i = sympify(s.f.index)
+    l = i.__pyobject__.lower
+    u = i.__pyobject__.upper
+    return SymPy.sympy.Sum(arg,(i,l,u))
+end
 
 """
     average(op::AbstractOperator,order::Vector{<:Int};mix_choice::Function=maximum)
@@ -205,7 +219,9 @@ function replace_adjoints(exprs::Vector{<:SymPy.Sym},ops::Vector{<:AbstractOpera
         for i=1:length(adj_avg)
             subs_adj[adj_avg[i]] = op_avg[i]'
         end
-        return [ex(subs_adj) for ex=exprs]
+        exprs_ = [ex(subs_adj) for ex=exprs]
+        # TODO: find cleaner solution to substitute in sums
+        return replace_adjoints_indexed(exprs_,subs_adj)
     else
         return exprs
     end
@@ -221,13 +237,39 @@ function replace_adjoints(exprs::Vector{<:SymPy.Sym},ops::Vector{<:AbstractOpera
         for i=1:length(adj_avg)
             subs_adj[adj_avg[i]] = op_avg[i]'
         end
-        return [ex(subs_adj) for ex=exprs]
+        exprs_ = [ex(subs_adj) for ex=exprs]
+        # TODO: find cleaner solution to substitute in sums
+        return replace_adjoints_indexed(exprs_,subs_adj)
     else
         return exprs
     end
 end
 replace_adjoints(expr::SymPy.Sym,ops::Vector,order;kwargs...) = replace_adjoints([expr],ops,order;kwargs...)
 replace_adjoints(expr::SymPy.Sym,ops::AbstractOperator,order;kwargs...) = replace_adjoints([expr],[ops],order;kwargs...)
+
+function replace_adjoints_indexed(exprs, subs)
+    exprs_ = SymPy.Sym[]
+    for i=1:length(exprs)
+        push!(exprs_, exprs[i])
+        for (keys,vals)=(subs)
+            # Check for indexed objects; others have already been replaced
+            if classname(keys)==classname(vals')=="Indexed"
+                k_inds = keys.__pyobject__.indices
+                m_inds = vals'.__pyobject__.indices
+                length(k_inds)==length(m_inds)==1 || continue# TODO: other cases
+                k_ = IndexOrder[findfirst(x->sympify(x)==k_inds[1],IndexOrder)]
+                m_ = IndexOrder[findfirst(x->sympify(x)==m_inds[1],IndexOrder)]
+                # Replace indices by any other known index and try to substitute adjoint in expression
+                for j=IndexOrder
+                    key_ = swap_index(keys, k_, j)
+                    val_ = swap_index(vals, m_, j)
+                    exprs_[i] = exprs_[i].__pyobject__.replace(key_,val_)
+                end
+            end
+        end
+    end
+    return exprs_
+end
 
 function _flatten_prods(args)
     c = 1
@@ -263,7 +305,14 @@ function _average_proper_order(a::Prod)
         return a.args[1]*_average_proper_order(prod(a.args[2:end]))
     else
         label = "⟨"*prod(gen_label.(a.args))*"⟩"
-        return SymPy.symbols(label)
+        s = SymPy.symbols(label)
+        if any([isa(a1,IndexedOperator) for a1=a.args])
+            _, inds = find_index(a)
+            av = SymPy.sympy.IndexedBase(s)
+            return av[sympify.(inds)...]
+        else
+            return s
+        end
     end
 end
 _average_proper_order(a::BasicOperator) = average(a)
@@ -275,7 +324,14 @@ function _average_proper_order(a::TensorProd)
         out = _average_proper_order(args_[1])
     else
         label = "⟨"*prod(gen_label.(args_))*"⟩"
-        out = SymPy.symbols(label)
+        out_ = SymPy.symbols(label)
+        _, inds = find_index(a)
+        if isempty(inds)
+            out = out_
+        else
+            av = SymPy.sympy.IndexedBase(out_)
+            out = av[sympify.(inds)...]
+        end
     end
     return c*out
 end
@@ -283,7 +339,8 @@ _average_proper_order(a::Add) = error("Something went wrong here!")
 
 gen_label(a::BasicOperator) = string(a.label)
 gen_label(a::Create) = string(a.label)*"ᵗ"
-gen_label(a::Transition) = string(a.label)*"_{"*string(a.i)*string(a.j)*"}"
+gen_label(a::Transition) = string(a.label)*"^{"*string(a.i)*string(a.j)*"}"
+gen_label(a::IndexedOperator) = gen_label(a.operator)
 
 
 """

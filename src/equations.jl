@@ -44,3 +44,5 @@ mutable struct DifferentialEquationSet{LHS,RHS} <: AbstractEquation{LHS,RHS}
 end
 
 Base.getindex(de::DifferentialEquationSet, i::Int) = DifferentialEquation(de.lhs[i],de.rhs[i])
+
+==(de1::AbstractEquation,de2::AbstractEquation) = (de1.lhs==de2.lhs && de1.rhs==de2.rhs)
