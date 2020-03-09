@@ -136,7 +136,7 @@ end
 *(a::AbstractOperator,b::Add) = Expression(+,[a*b1 for b1=b.args])
 *(a::Add,b::AbstractOperator) = Expression(+,[a1*b for a1=a.args])
 function *(a::Add,b::Add)
-    args = typejoin(eltype(a.args),eltype(b.args))[]
+    args = []
     for a1=a.args, b1=b.args
         push!(args, a1*b1)
     end
