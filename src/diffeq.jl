@@ -75,11 +75,11 @@ function build_ode(eqs::Vector{<:SymPy.Sym}, vs::Vector{<:SymPy.Sym}, ps=[], usy
 end
 
 function build_indexed_ode(eqs::Vector{<:SymPy.Sym}, vs::Vector{<:SymPy.Sym}, ps=[], usym=:u, psym=:p, tsym=:t;
-                    set_unknowns_zero::Bool=false, check_bounds::Bool=false)
+                    set_unknowns_zero::Bool=false, check_bounds::Bool=true)
     @assert length(eqs) == length(vs)
 
     # Check if there are unknown symbols
-    missed = check_missing(eqs,vs,ps)
+    missed = check_missing_idx(eqs,vs,ps)
     (isempty(missed) || set_unknowns_zero) || throw_missing_error(missed)
     eqs_ = remove_unknowns(eqs,missed)
 
@@ -107,35 +107,65 @@ function build_indexed_ode(eqs::Vector{<:SymPy.Sym}, vs::Vector{<:SymPy.Sym}, ps
     sp = sortperm(has_index_lhs)
     eqs_ = eqs_[sp]
     vs_ = vs[sp]
-    lhs_inds = lhs_ind[sp]
     has_index_lhs = has_index_lhs[sp]
-    rhs_inds = rhs_ind[sp]
     has_index_rhs = has_index_rhs[sp]
 
-
     # Loop depth
-    nloop = length.(lhs_ind)
+    nloop = length.(lhs_inds)
     # unique!(nloop)
-    i_loop = [Symbol("i$k") for k=nloop]
-    # (nloop[end] > 1) && error("Nested loops not yet implemented!")
+    i_loop = [l[1].label for l=lhs_inds]
+    # TODO: deeper loops
+    (nloop[end] > 1) && error("Nested loops not yet implemented!")
 
     n_no_index = sum(.!(has_index_lhs))
     u_index = Any[1:length(n_no_index);]
-    for i=1:length(vs)-n_no_index
-        push!(u_index, i_loop)
-    end
+    append!(u_index, i_loop)
+
+    # Loop offset
+    offset = length(vs_)-length(lhs_inds)
+
+    # Loop boundaries
+    lower = [l[1].lower for l=lhs_inds]
+    upper = [l[1].upper for l=lhs_inds]
 
     # Substitute using SymPy
-    lhs = [Symbol(string("d",usym,"[$i]")) for i=u_index]
-    u = [SymPy.symbols("$usym[$i]") for i=u_index]
+    dusym = Symbol(string("d",usym))
+    lhs = [:($dusym[$i]) for i=1:n_no_index]
+    push!(lhs, :($dusym[$(i_loop[1])+$offset]))
+    for i=2:length(i_loop)
+        push!(lhs, :($dusym[$(i_loop[1])+$offset+$(upper[i-1])]))
+    end
+    u = [SymPy.symbols("$usym[$i]") for i=1:n_no_index]
+    push!(u, SymPy.symbols("$usym[$(i_loop[1])+$offset]"))
+    for i=2:length(i_loop)
+        push!(u, SymPy.symbols("$usym[$(i_loop[i])+$offset+$(upper[i-1])]"))
+    end
+    # append!(u, [SymPy.symbols("$usym[$i+$offset]") for i=i_loop])
     p = [SymPy.symbols("$psym[$i]") for i=1:length(ps)]
-    subs_u = Dict(vs .=> u)
+    subs_u = Dict(vs_ .=> u)
     subs_p = Dict(ps .=> p)
     subs = merge(subs_u, subs_p)
-    rhs = [eq(subs) for eq=eqs]
+    rhs = [eq(subs) for eq=eqs_]
+
 
     # Replacement for arguments of symbolic sums
-    for i=1:length(eqs)
+    for i=1:n_no_index
+        for (keys,vals)=(subs)
+            # Check for indexed objects; others have already been replaced
+            if classname(keys)=="Indexed"
+                k_inds = keys.__pyobject__.indices
+                length(k_inds)==1 || continue # TODO: other cases
+                k_ = IndexOrder[findfirst(x->sympify(x)==k_inds[1],IndexOrder)]
+                # Replace indices by any other known index and try to substitute in expression
+                for j=IndexOrder
+                    key_ = swap_index(keys, k_, j)
+                    val_ = SymPy.symbols("$usym[$(string(j))+$offset]")
+                    rhs[i] = rhs[i].__pyobject__.replace(key_,val_)
+                end
+            end
+        end
+    end
+    for i=n_no_index+1:length(eqs)
         for (keys,vals)=(subs)
             # Check for indexed objects; others have already been replaced
             if classname(keys)=="Indexed"
@@ -146,24 +176,62 @@ function build_indexed_ode(eqs::Vector{<:SymPy.Sym}, vs::Vector{<:SymPy.Sym}, ps
                 for j=IndexOrder
                     key_ = swap_index(keys, k_, j)
                     val_ = swap_index(vals, k_, j)
-                    eqs[i] = eqs[i].__pyobject__.replace(key_,val_)
+                    rhs[i] = rhs[i].__pyobject__.replace(key_,val_)
                 end
             end
         end
     end
 
-    # From https://github.com/JuliaDiffEq/ModelingToolkit.jl/blob/dca5f38491ae6dea431cb2a7cceb055645086034/src/utils.jl#L44
     rhs_sym = parse_sympy(rhs)
-    line_eqs = [Expr(:(=), lhs[i], rhs_sym[i]) for i=1:length(lhs)]
-    var_eqs = build_expr(:block, line_eqs)
+    loop_eqs = [Expr(:(=), lhs[i], rhs_sym[i]) for i=n_no_index+1:length(lhs)]
+    loop_block = build_expr(:block, loop_eqs)
+
+    # TODO: nested loops
+    loop_ex = :(
+        for $(i_loop[1])=$(lower[1]) : $(upper[1])
+            $loop_block
+        end
+    )
+
+    # Non-indexed lines
+    line_eqs = [Expr(:(=), lhs[i], rhs_sym[i]) for i=1:n_no_index]
+    var_eqs = build_expr(:block, [line_eqs;loop_ex])
     var_eqs = MacroTools.postwalk(ex -> ex == :I ? :im : ex, var_eqs)
     var_eqs = MacroTools.postwalk(ex -> ex == :Dagger ? :adjoint : ex, var_eqs)
     var_eqs = MacroTools.postwalk(ex -> ex == :conjugate ? :conj : ex, var_eqs)
-    var_eqs = MacroTools.postwalk(ex -> ex == :Sum ? :sum : ex, var_eqs)
 
-    # for i=IndexOrder
-    #     # TODO: replace SymPy sums by actual sums with a for loop
-    #     var_eqs = MacroTools.postwalk(x -> @capture(x, Sum_(xs__)) ?
+    # Replace SymPy Sums by actual sums
+    var_eqs = MacroTools.postwalk(x -> MacroTools.@capture(x, Sumsym_(arg_, (i_,l_,u_))) ?
+                    :( sum($arg for $(i)=$(l):$(u)) ) : x,
+                        var_eqs)
+
+
+    # TODO: clean up
+    # Replace loop borders
+    if eltype(lower) <: Symbol
+        for l=lower
+            # Find substitute
+            for s=subs_p
+                if l==Symbol(s[1]+1)
+                    # TODO: avoid parsing
+                    s_ = Meta.parse(string(s[2]))
+                    var_eqs = MacroTools.postwalk(x -> x==l ? s_ : x, var_eqs)
+                end
+            end
+        end
+    end
+    if eltype(upper) <: Symbol
+        for l=upper
+            # Find substitute
+            for s=subs_p
+                if l==Symbol(s[1]+1)
+                    # TODO: avoid parsing
+                    s_ = Meta.parse(string(s[2]))
+                    var_eqs = MacroTools.postwalk(x -> x==l ? s_ : x, var_eqs)
+                end
+            end
+        end
+    end
 
     fargs = :($dusym,$usym,$psym,$tsym)
     if check_bounds
@@ -187,6 +255,7 @@ function build_indexed_ode(eqs::Vector{<:SymPy.Sym}, vs::Vector{<:SymPy.Sym}, ps
     end
     return f_ex
 end
+build_indexed_ode(eqs::DifferentialEquationSet, args...; kwargs...) = build_indexed_ode(eqs.rhs,eqs.lhs,args...;kwargs...)
 
 """
     build_ode(eqs::DifferentialEquationSet, ps=[], usym=:u,
@@ -260,6 +329,33 @@ function check_missing(eqs::Vector{<:SymPy.Sym}, vs::Vector{<:SymPy.Sym}, ps=[])
     end
     unique!(missed)
     filter!(x->!(x∈vs || x∈ps),missed)
+    return missed
+end
+function check_missing_idx(eqs::Vector{<:SymPy.Sym}, vs::Vector{<:SymPy.Sym}, ps=[])
+    missed = typejoin(SymPy.Sym,eltype(ps))[]
+    for e=eqs
+        append!(missed,SymPy.free_symbols(e))
+    end
+    unique!(missed)
+    filter!(x->!(classname(x)=="Indexed" || classname(x)=="Idx"),missed)
+
+    vars = eltype(vs)[]
+    for v=vs
+        append!(vars,SymPy.free_symbols(v))
+    end
+    unique!(vars)
+
+    pars = if eltype(ps) <: SymPy.Sym
+        pars_ = SymPy.Sym[]
+        for p=ps
+            append!(pars_,SymPy.free_symbols(p))
+        end
+        pars_
+    else
+        ps
+    end
+
+    filter!(x->!(x∈vars || x∈pars),missed)
     return missed
 end
 

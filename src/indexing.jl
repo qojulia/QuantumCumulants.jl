@@ -97,15 +97,9 @@ function *(a::IndexedOperator{<:Transition},b::IndexedOperator{<:Transition})
     if a.index==b.index
         return expression2index(op,a.index)
     elseif a.index.id==b.index.id # Don't share the same nid
-        index = if length(a.index.nid) > length(b.index.nid)
-            a.index
-        elseif length(a.index.nid) < length(b.index.nid)
-            b.index
-        else
-            nid = [a.index.nid;b.index.nid]
-            unique!(nid)
-            Index(a.label,a.lower,a.upper,nid)
-        end
+        nid = [a.index.nid;b.index.nid]
+        unique!(nid)
+        index = Index(a.label,a.lower,a.upper,nid)
         return expression2index(op,index)
     elseif a.index.id ∈ b.index.nid || b.index.id ∈ a.index.nid
         args = sort_by_inds([a,b])
