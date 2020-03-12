@@ -133,12 +133,12 @@ function build_indexed_ode(eqs::Vector{<:SymPy.Sym}, vs::Vector{<:SymPy.Sym}, ps
     lhs = [:($dusym[$i]) for i=1:n_no_index]
     push!(lhs, :($dusym[$(i_loop[1])+$offset]))
     for i=2:length(i_loop)
-        push!(lhs, :($dusym[$(i_loop[1])+$offset+$(upper[i-1])]))
+        push!(lhs, :($dusym[$(i_loop[1])+$offset+$(i-1)*$(upper[i-1])]))
     end
     u = [SymPy.symbols("$usym[$i]") for i=1:n_no_index]
     push!(u, SymPy.symbols("$usym[$(i_loop[1])+$offset]"))
     for i=2:length(i_loop)
-        push!(u, SymPy.symbols("$usym[$(i_loop[i])+$offset+$(upper[i-1])]"))
+        push!(u, SymPy.symbols("$usym[$(i_loop[i])+$offset+$(i-1)*$(upper[i-1])]"))
     end
     # append!(u, [SymPy.symbols("$usym[$i+$offset]") for i=i_loop])
     p = [SymPy.symbols("$psym[$i]") for i=1:length(ps)]
@@ -148,40 +148,35 @@ function build_indexed_ode(eqs::Vector{<:SymPy.Sym}, vs::Vector{<:SymPy.Sym}, ps
     rhs = [eq(subs) for eq=eqs_]
 
 
+    # TODO: parse before here and use MacroTools for replacements
+    u_sym_base = SymPy.sympy.IndexedBase("$usym")
     # Replacement for arguments of symbolic sums
-    for i=1:n_no_index
+    for i=1:length(eqs)#n_no_index
         for (keys,vals)=(subs)
             # Check for indexed objects; others have already been replaced
             if classname(keys)=="Indexed"
                 k_inds = keys.__pyobject__.indices
                 length(k_inds)==1 || continue # TODO: other cases
                 k_ = IndexOrder[findfirst(x->sympify(x)==k_inds[1],IndexOrder)]
-                # Replace indices by any other known index and try to substitute in expression
-                for j=IndexOrder
-                    key_ = swap_index(keys, k_, j)
-                    val_ = SymPy.symbols("$usym[$(string(j))+$offset]")
-                    rhs[i] = rhs[i].__pyobject__.replace(key_,val_)
-                end
-            end
-        end
-    end
-    for i=n_no_index+1:length(eqs)
-        for (keys,vals)=(subs)
-            # Check for indexed objects; others have already been replaced
-            if classname(keys)=="Indexed"
-                k_inds = keys.__pyobject__.indices
-                length(k_inds)==1 || continue # TODO: other cases
-                k_ = IndexOrder[findfirst(x->sympify(x)==k_inds[1],IndexOrder)]
-                # Replace indices by any other known index and try to substitute in expression
-                for j=IndexOrder
-                    key_ = swap_index(keys, k_, j)
-                    val_ = swap_index(vals, k_, j)
-                    rhs[i] = rhs[i].__pyobject__.replace(key_,val_)
-                end
-            end
-        end
-    end
 
+                # Get the correct offset
+                v_index = findfirst(isequal(keys), vs_) - n_no_index
+                off_ = SymPy.Sym(offset)
+                for vv=2:v_index
+                    off_ += SymPy.symbols("$(upper[vv-1])", integer=true)
+                end
+
+                # Replace indices by any other known index and try to substitute in expression
+                for j=IndexOrder
+                    key_ = swap_index(keys, k_, j)
+                    # val_ = swap_index(vals, k_, j)#SymPy.symbols("$usym[$(string(j))+$offset]")
+                    upper_ind = findfirst(isequal(j.label), i_loop)
+                    val_ = u_sym_base[sympify(j)+off_]
+                    rhs[i] = rhs[i].__pyobject__.replace(key_,val_)
+                end
+            end
+        end
+    end
     rhs_sym = parse_sympy(rhs)
     loop_eqs = [Expr(:(=), lhs[i], rhs_sym[i]) for i=n_no_index+1:length(lhs)]
     loop_block = build_expr(:block, loop_eqs)
@@ -205,6 +200,19 @@ function build_indexed_ode(eqs::Vector{<:SymPy.Sym}, vs::Vector{<:SymPy.Sym}, ps
                     :( sum($arg for $(i)=$(l):$(u)) ) : x,
                         var_eqs)
 
+    # TODO: only do this on LHS
+    # Account for neq indices
+    # Replace indexing of u with may have an offset
+    var_eqs = MacroTools.postwalk(x -> MacroTools.@capture(x, y_[c1_*c2_ + i_≠j_+off_]) ? :(Int($i ≠ $j) * $y[$c1*$c2 + $i+$off]) : x, var_eqs)
+    var_eqs = MacroTools.postwalk(x -> MacroTools.@capture(x, y_[i_≠j_+off_]) ? :(Int($i ≠ $j) * $y[$i+$off]) : x, var_eqs)
+    # Replace remaining indices (of parameters) without offset
+    var_eqs = MacroTools.postwalk(x -> MacroTools.@capture(x, y_[i_≠j_]) ? :(Int($i ≠ $j) * $y[$i]) : x, var_eqs)
+    # Replace != in sum loop iteration
+    var_eqs = MacroTools.postwalk(x -> MacroTools.@capture(x, i_ ≠ j_ = l_ : u_) ? :($(i)=$(l):$(u)) : x, var_eqs)
+
+    # TODO: cleaner solution when setting unknowns zero
+    # Remove (0)[j]
+    var_eqs = MacroTools.postwalk(x -> MacroTools.@capture(x, (0)[j_]) ? 0 : x, var_eqs)
 
     # TODO: clean up
     # Replace loop borders
