@@ -178,6 +178,23 @@ function build_indexed_ode(eqs::Vector{<:SymPy.Sym}, vs::Vector{<:SymPy.Sym}, ps
         end
     end
     rhs_sym = parse_sympy(rhs)
+
+    for ii=1:length(rhs_sym)
+        # Replace SymPy Sums by actual sums
+        rhs_sym[ii] = MacroTools.postwalk(x -> MacroTools.@capture(x, Sumsym_(arg_, (i_,l_,u_))) ?
+                        :( sum($arg for $(i)=$(l):$(u)) ) : x,
+                            rhs_sym[ii])
+
+        # Account for neq indices
+        # Replace indexing of u with may have an offset
+        rhs_sym[ii] = MacroTools.postwalk(x -> MacroTools.@capture(x, y_[c1_*c2_ + i_≠j_+off_]) ? :(Int($i ≠ $j) * $y[$c1*$c2 + $i+$off]) : x, rhs_sym[ii])
+        rhs_sym[ii] = MacroTools.postwalk(x -> MacroTools.@capture(x, y_[i_≠j_+off_]) ? :(Int($i ≠ $j) * $y[$i+$off]) : x, rhs_sym[ii])
+        # Replace remaining indices (of parameters) without offset
+        rhs_sym[ii] = MacroTools.postwalk(x -> MacroTools.@capture(x, y_[i_≠j_]) ? :(Int($i ≠ $j) * $y[$i]) : x, rhs_sym[ii])
+        # Replace != in sum loop iteration
+        rhs_sym[ii] = MacroTools.postwalk(x -> MacroTools.@capture(x, i_ ≠ j_ = l_ : u_) ? :($(i)=$(l):$(u)) : x, rhs_sym[ii])
+    end
+
     loop_eqs = [Expr(:(=), lhs[i], rhs_sym[i]) for i=n_no_index+1:length(lhs)]
     loop_block = build_expr(:block, loop_eqs)
 
@@ -194,21 +211,6 @@ function build_indexed_ode(eqs::Vector{<:SymPy.Sym}, vs::Vector{<:SymPy.Sym}, ps
     var_eqs = MacroTools.postwalk(ex -> ex == :I ? :im : ex, var_eqs)
     var_eqs = MacroTools.postwalk(ex -> ex == :Dagger ? :adjoint : ex, var_eqs)
     var_eqs = MacroTools.postwalk(ex -> ex == :conjugate ? :conj : ex, var_eqs)
-
-    # Replace SymPy Sums by actual sums
-    var_eqs = MacroTools.postwalk(x -> MacroTools.@capture(x, Sumsym_(arg_, (i_,l_,u_))) ?
-                    :( sum($arg for $(i)=$(l):$(u)) ) : x,
-                        var_eqs)
-
-    # TODO: only do this on LHS
-    # Account for neq indices
-    # Replace indexing of u with may have an offset
-    var_eqs = MacroTools.postwalk(x -> MacroTools.@capture(x, y_[c1_*c2_ + i_≠j_+off_]) ? :(Int($i ≠ $j) * $y[$c1*$c2 + $i+$off]) : x, var_eqs)
-    var_eqs = MacroTools.postwalk(x -> MacroTools.@capture(x, y_[i_≠j_+off_]) ? :(Int($i ≠ $j) * $y[$i+$off]) : x, var_eqs)
-    # Replace remaining indices (of parameters) without offset
-    var_eqs = MacroTools.postwalk(x -> MacroTools.@capture(x, y_[i_≠j_]) ? :(Int($i ≠ $j) * $y[$i]) : x, var_eqs)
-    # Replace != in sum loop iteration
-    var_eqs = MacroTools.postwalk(x -> MacroTools.@capture(x, i_ ≠ j_ = l_ : u_) ? :($(i)=$(l):$(u)) : x, var_eqs)
 
     # TODO: cleaner solution when setting unknowns zero
     # Remove (0)[j]
