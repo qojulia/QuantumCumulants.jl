@@ -152,7 +152,7 @@ function build_indexed_ode(eqs::Vector{<:SymPy.Sym}, vs::Vector{<:SymPy.Sym}, ps
     u_sym_base = SymPy.sympy.IndexedBase("$usym")
     # Replacement for arguments of symbolic sums
     for i=1:length(eqs)#n_no_index
-        for (keys,vals)=(subs)
+        for (keys,vals)=(subs_u)
             # Check for indexed objects; others have already been replaced
             if classname(keys)=="Indexed"
                 k_inds = keys.__pyobject__.indices
