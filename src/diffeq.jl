@@ -23,8 +23,15 @@ it. The variable vector `u` corresponds to the symbols provided in `vs`.
 *`check_bounds::Bool=false`: Choose whether the resulting function should contain
     the `@inbounds` flag, which skips bounds checking for performance.
 """
-function build_ode(eqs::Vector{<:SymPy.Sym}, vs::Vector{<:SymPy.Sym}, ps=[], usym=:u, psym=:p, tsym=:t;
-                    set_unknowns_zero::Bool=false, check_bounds::Bool=false)
+function build_ode(eqs, vs, args...; kwargs...)
+    if any(x->(classname(x)=="Indexed"), vs)
+        return build_indexed_ode(eqs, vs, args...; kwargs...)
+    else
+        _build_ode(eqs, vs, args...; kwargs...)
+    end
+end
+function _build_ode(eqs::Vector{<:SymPy.Sym}, vs::Vector{<:SymPy.Sym}, ps=[], usym=:u, psym=:p, tsym=:t;
+                    set_unknowns_zero::Bool=false, check_bounds::Bool=true)
     @assert length(eqs) == length(vs)
 
     # Check if there are unknown symbols
@@ -265,7 +272,6 @@ function build_indexed_ode(eqs::Vector{<:SymPy.Sym}, vs::Vector{<:SymPy.Sym}, ps
     end
     return f_ex
 end
-build_indexed_ode(eqs::DifferentialEquationSet, args...; kwargs...) = build_indexed_ode(eqs.rhs,eqs.lhs,args...;kwargs...)
 
 """
     build_ode(eqs::DifferentialEquationSet, ps=[], usym=:u,
