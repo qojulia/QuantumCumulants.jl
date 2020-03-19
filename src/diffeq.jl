@@ -24,7 +24,7 @@ it. The variable vector `u` corresponds to the symbols provided in `vs`.
     the `@inbounds` flag, which skips bounds checking for performance.
 """
 function build_ode(eqs, vs, args...; kwargs...)
-    if any(x->(classname(x)=="Indexed"), vs)
+    if any(x->(classname(x)=="Indexed"), vs) #TODO: check RHS for indexes
         return build_indexed_ode(eqs, vs, args...; kwargs...)
     else
         _build_ode(eqs, vs, args...; kwargs...)
@@ -121,8 +121,6 @@ function build_indexed_ode(eqs::Vector{<:SymPy.Sym}, vs::Vector{<:SymPy.Sym}, ps
     nloop = length.(lhs_inds)
     # unique!(nloop)
     i_loop = [l[1].label for l=lhs_inds]
-    # TODO: deeper loops
-    (nloop[end] > 1) && error("Nested loops not yet implemented!")
 
     n_no_index = sum(.!(has_index_lhs))
     u_index = Any[1:length(n_no_index);]
@@ -154,8 +152,6 @@ function build_indexed_ode(eqs::Vector{<:SymPy.Sym}, vs::Vector{<:SymPy.Sym}, ps
     subs = merge(subs_u, subs_p)
     rhs = [eq(subs) for eq=eqs_]
 
-
-    # TODO: parse before here and use MacroTools for replacements
     u_sym_base = SymPy.sympy.IndexedBase("$usym")
     # Replacement for arguments of symbolic sums
     for i=1:length(eqs)#n_no_index
@@ -163,8 +159,9 @@ function build_indexed_ode(eqs::Vector{<:SymPy.Sym}, vs::Vector{<:SymPy.Sym}, ps
             # Check for indexed objects; others have already been replaced
             if classname(keys)=="Indexed"
                 k_inds = keys.__pyobject__.indices
-                length(k_inds)==1 || continue # TODO: other cases
-                k_ = IndexOrder[findfirst(x->sympify(x)==k_inds[1],IndexOrder)]
+                # length(k_inds)==1 || continue # TODO: other cases
+                # k_ = IndexOrder[findfirst(x->sympify(x)==k_inds[1],IndexOrder)]
+                k_ = [IndexOrder[findfirst(x->sympify(x)==kk,IndexOrder)] for kk=k_inds]
 
                 # Get the correct offset
                 v_index = findfirst(isequal(keys), vs_) - n_no_index
@@ -173,12 +170,17 @@ function build_indexed_ode(eqs::Vector{<:SymPy.Sym}, vs::Vector{<:SymPy.Sym}, ps
                     off_ += SymPy.symbols("$(upper[vv-1])", integer=true)
                 end
 
+                inds_combs = combinations(IndexOrder,length(k_))
+
                 # Replace indices by any other known index and try to substitute in expression
-                for j=IndexOrder
-                    key_ = swap_index(keys, k_, j)
-                    # val_ = swap_index(vals, k_, j)#SymPy.symbols("$usym[$(string(j))+$offset]")
-                    upper_ind = findfirst(isequal(j.label), i_loop)
-                    val_ = u_sym_base[sympify(j)+off_]
+                for j=inds_combs
+                    key_ = swap_index(keys, k_[1], j[1])
+                    for kk=2:length(k_)
+                        key_ = swap_index(key_, k_[kk], j[kk])
+                    end
+                    upper_ind = [findfirst(isequal(j[kk].label), i_loop) for kk=1:length(k_)]
+                    # TODO: correct offset for deeper loops here!
+                    val_ = u_sym_base[[sympify(j[kk])+off_ for kk=1:length(k_)]...]
                     rhs[i] = rhs[i].__pyobject__.replace(key_,val_)
                 end
             end
@@ -201,6 +203,7 @@ function build_indexed_ode(eqs::Vector{<:SymPy.Sym}, vs::Vector{<:SymPy.Sym}, ps
         # Replace != in sum loop iteration
         rhs_sym[ii] = MacroTools.postwalk(x -> MacroTools.@capture(x, i_ ≠ j_ = l_ : u_) ? :($(i)=$(l):$(u)) : x, rhs_sym[ii])
     end
+    return rhs_sym
 
     loop_eqs = [Expr(:(=), lhs[i], rhs_sym[i]) for i=n_no_index+1:length(lhs)]
     loop_block = build_expr(:block, loop_eqs)

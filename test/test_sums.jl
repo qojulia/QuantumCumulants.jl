@@ -172,11 +172,17 @@ a = Destroy(:a) ⊗ Identity()
 # Define symbolic Indices
 i = Index(:i,1,:N)
 j = Index(:j,1,:N)
+k = Index(:k,1,:N;neq=[j])
 
 # Implement the Tavis-Cummings Hamiltonian and decay
 H_TC = Δ*(a'*a) + Sum(g[i]*(a'*σ(:g,:e,i) + a*σ(:e,:g,i)),i)
 J = [a,σ(:g,:e,i),σ(:e,:g,i)]
 
-k = Index(:k,1,:N;neq=[j]) # k!=j
-ops = [(a'*a),a'*σ(:g,:e,j),σ(:e,:e,j),σ(:e,:g,j)*σ(:g,:e,k)]
-he = heisenberg(ops[end],H_TC,J;rates=[κ,γ[i],ν[i]])
+ops = [(a'*a),a'*σ(:g,:e,j),σ(:e,:e,j),σ(:e,:g,k)*σ(:g,:e,j)]
+he = heisenberg(ops,H_TC,J;rates=[κ,γ[i],ν[i]])
+
+he_avg = average(he,2)
+
+n = symbols("N", integer=true)
+p = (Δ,κ,g,γ,ν,n-1)
+meta_f = build_ode(he_avg,p;set_unknowns_zero=true)
