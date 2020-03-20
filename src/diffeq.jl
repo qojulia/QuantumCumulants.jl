@@ -119,68 +119,57 @@ function build_indexed_ode(eqs::Vector{<:SymPy.Sym}, vs::Vector{<:SymPy.Sym}, ps
 
     # Loop depth
     nloop = length.(lhs_inds)
-    # unique!(nloop)
-    i_loop = [l[1].label for l=lhs_inds]
+
+    # Loop offset
+    offset0 = length(vs_)-length(lhs_inds)
+
+    # Loop boundaries
+    lower = [[l_.lower for l_=l] for l=lhs_inds]
+    upper = [[u_.upper for u_=l] for l=lhs_inds]
+
+    # Generate linear indices for u
+    lower_lin, upper_lin = _gen_lin_inds(lower,upper,offset0)
+    offset = cumsum([offset0; upper_lin .- lower_lin .+ 1])[1:end-1]
+
+    idxMap = _gen_idxMap(lower,upper,offset)
+
+    i_loop = [SymPy.symbols.([l.label for l=l1],integer=true) for l1=lhs_inds]
 
     n_no_index = sum(.!(has_index_lhs))
     u_index = Any[1:length(n_no_index);]
-    append!(u_index, i_loop)
-
-    # Loop offset
-    offset = length(vs_)-length(lhs_inds)
-
-    # Loop boundaries
-    lower = [l[1].lower for l=lhs_inds]
-    upper = [l[1].upper for l=lhs_inds]
+    append!(u_index, [idxMap(k,i_loop[k]) for k=1:length(i_loop)])
 
     # Substitute using SymPy
+    # TODO: substitute ⟨.⟩ with some variables losing the ⟨,⟩, parse, and use MacroTools from here on out
     dusym = Symbol(string("d",usym))
-    lhs = [:($dusym[$i]) for i=1:n_no_index]
-    push!(lhs, :($dusym[$(i_loop[1])+$offset]))
-    for i=2:length(i_loop)
-        push!(lhs, :($dusym[$(i_loop[1])+$offset+$(i-1)*$(upper[i-1])]))
-    end
-    u = [SymPy.symbols("$usym[$i]") for i=1:n_no_index]
-    push!(u, SymPy.symbols("$usym[$(i_loop[1])+$offset]"))
-    for i=2:length(i_loop)
-        push!(u, SymPy.symbols("$usym[$(i_loop[i])+$offset+$(i-1)*$(upper[i-1])]"))
-    end
-    # append!(u, [SymPy.symbols("$usym[$i+$offset]") for i=i_loop])
+    lhs = [:($dusym[$(i)]) for i=u_index]
+    u_sym_base = SymPy.sympy.IndexedBase("$usym")
+    u = [u_sym_base[i] for i=u_index]
+
     p = [SymPy.symbols("$psym[$i]") for i=1:length(ps)]
     subs_u = Dict(vs_ .=> u)
     subs_p = Dict(ps .=> p)
     subs = merge(subs_u, subs_p)
     rhs = [eq(subs) for eq=eqs_]
 
-    u_sym_base = SymPy.sympy.IndexedBase("$usym")
     # Replacement for arguments of symbolic sums
     for i=1:length(eqs)#n_no_index
-        for (keys,vals)=(subs_u)
+        for uu=1:length(i_loop)
+            keys = vs_[n_no_index+uu]
             # Check for indexed objects; others have already been replaced
             if classname(keys)=="Indexed"
                 k_inds = keys.__pyobject__.indices
-                # length(k_inds)==1 || continue # TODO: other cases
-                # k_ = IndexOrder[findfirst(x->sympify(x)==k_inds[1],IndexOrder)]
                 k_ = [IndexOrder[findfirst(x->sympify(x)==kk,IndexOrder)] for kk=k_inds]
-
-                # Get the correct offset
-                v_index = findfirst(isequal(keys), vs_) - n_no_index
-                off_ = SymPy.Sym(offset)
-                for vv=2:v_index
-                    off_ += SymPy.symbols("$(upper[vv-1])", integer=true)
-                end
-
                 inds_combs = combinations(IndexOrder,length(k_))
-
                 # Replace indices by any other known index and try to substitute in expression
                 for j=inds_combs
-                    key_ = swap_index(keys, k_[1], j[1])
-                    for kk=2:length(k_)
+                    key_ = keys
+                    for kk=1:length(k_)
                         key_ = swap_index(key_, k_[kk], j[kk])
                     end
-                    upper_ind = [findfirst(isequal(j[kk].label), i_loop) for kk=1:length(k_)]
-                    # TODO: correct offset for deeper loops here!
-                    val_ = u_sym_base[[sympify(j[kk])+off_ for kk=1:length(k_)]...]
+                    # Get value index from idxMap
+                    jval = idxMap(uu,sympify.(j))
+                    val_ = u_sym_base[jval]
                     rhs[i] = rhs[i].__pyobject__.replace(key_,val_)
                 end
             end
@@ -274,6 +263,44 @@ function build_indexed_ode(eqs::Vector{<:SymPy.Sym}, vs::Vector{<:SymPy.Sym}, ps
         )
     end
     return f_ex
+end
+
+function _gen_lin_inds(lower,upper,offset)
+    n = length.(lower)
+
+    # Convert symbolics to Sympy
+    lower_ = [eltype(l)<:Symbol ? SymPy.symbols.(l,integer=true) : l for l=lower]
+    upper_ = [eltype(u)<:Symbol ? SymPy.symbols.(u,integer=true) : u for u=upper]
+
+    # Size of each index space
+    nsize = [prod([lower_[i][j] - 1 + upper_[i][j] for j=1:n[i]]) for i=1:length(n)]
+
+    # Compute corresponding linear index boundaries
+    upper_lin = offset .+ cumsum(nsize)
+    lower_lin = upper_lin .- nsize .+ 1
+
+    return lower_lin, upper_lin
+end
+
+function _gen_idxMap(lower,upper,offset)
+    n = length.(lower)
+
+    # Convert symbolics to Sympy
+    lower_ = [eltype(l)<:Symbol ? SymPy.symbols.(l,integer=true) : l for l=lower]
+    upper_ = [eltype(u)<:Symbol ? SymPy.symbols.(u,integer=true) : u for u=upper]
+
+    # Size of each index space
+    nsize = [[lower_[i][j] - 1 + upper_[i][j] for j=1:n[i]] for i=1:length(n)]
+
+    # For each index space k, return a linear index from a set of indices of length corresponding to k
+    _idxMap(k,inds) = (offset[k] .+ _linear_index(inds,nsize[k]))
+    return _idxMap
+end
+function _linear_index(inds,nsize)
+    # TODO: test for dims > 3
+    strds = Base.size_to_strides(1, nsize...)
+    inds_ = inds .- 1
+    return sum(inds_ .* strds) + 1
 end
 
 """

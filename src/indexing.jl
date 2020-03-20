@@ -45,6 +45,11 @@ function Base.getindex(s::SymPy.Sym, inds...) #TODO: Type constraints
     b = SymPy.sympy.IndexedBase(s, real=isreal(s))
     return b[inds_...]
 end
+function Base.getindex(s::SymPy.Sym, i::Int) #TODO: Type constraints
+    i_ = sympify.(i)
+    b = SymPy.sympy.IndexedBase(s, real=isreal(s))
+    return b[i_]
+end
 function sympify(i::SymbolicIndex)
     u = i.upper
     N = isa(u,Symbol) ? SymPy.symbols(string(u),integer=true) : u

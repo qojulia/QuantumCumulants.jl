@@ -626,7 +626,23 @@ function swap_index(x::SymPy.Sym, i::Index, j::Index)
         return x
     end
 end
-swap_index(x::Number, args...) = x
+function swap_index(x::SymPy.Sym, i::SymPy.Sym, j::SymPy.Sym)
+    i_ = IndexOrder[findfirst(y->sympify(y)==i, IndexOrder)]
+    j_ = IndexOrder[findfirst(y->sympify(y)==j, IndexOrder)]
+    return swap_index(x, i_, j_)
+end
+function swap_index(x::SymPy.Sym, i::SymPy.Sym, j::Index)
+    i_ = IndexOrder[findfirst(y->sympify(y)==i, IndexOrder)]
+    return swap_index(x, i_, j)
+end
+function swap_index(x::SymPy.Sym, i::Index, j::SymPy.Sym)
+    j_ = IndexOrder[findfirst(y->sympify(y)==j, IndexOrder)]
+    return swap_index(x, i, j_)
+end
+function swap_index(x::Number, i, j)
+    isa(x,SymPy.Sym) && error("swap_index(::Number, args..) has been called with a SymPy.Sym! Report this issue.")
+    return x
+end
 
 function _find_sympy_ind_id(ind, i, j)
     is = filter(x->x.id==i.id,IndexOrder)
