@@ -170,9 +170,9 @@ a = Destroy(:a) ⊗ Identity()
 σ(i,j,k) = Identity() ⊗ Transition(:σ,i,j,(:g,:e))[k]
 
 # Define symbolic Indices
-i = Index(:i,1,:N)
-j = Index(:j,1,:N)
-k = Index(:k,1,:N;neq=[j])
+i = Index(:i,1,:n)
+j = Index(:j,1,:n)
+k = Index(:k,1,:n;neq=[j])
 
 # Implement the Tavis-Cummings Hamiltonian and decay
 H_TC = Δ*(a'*a) + Sum(g[i]*(a'*σ(:g,:e,i) + a*σ(:e,:g,i)),i)
@@ -183,6 +183,8 @@ he = heisenberg(ops,H_TC,J;rates=[κ,γ[i],ν[i]])
 
 he_avg = average(he,2)
 
-n = symbols("N", integer=true)
+n = symbols("n", integer=true)
 p = (Δ,κ,g,γ,ν,n-1)
 meta_f = build_ode(he_avg,p;set_unknowns_zero=true)
+using MacroTools
+MacroTools.inexpr(meta_f, :(k + 2 * p[6] + p[6] * (j - 1)))

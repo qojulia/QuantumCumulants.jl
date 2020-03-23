@@ -149,7 +149,7 @@ function combine_prod(a::IndexedOperator{<:Transition},b::IndexedOperator{<:Tran
         else
             nid = [a.index.nid;b.index.nid]
             unique!(nid)
-            Index(a.label,a.lower,a.upper,nid)
+            Index(a.index.label,a.index.lower,a.index.upper,nid)
         end
         op = a.operator*b.operator
         return (true,expression2index(op,index))
