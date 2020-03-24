@@ -132,13 +132,28 @@ function build_indexed_ode(eqs::Vector{<:SymPy.Sym}, vs::Vector{<:SymPy.Sym}, ps
 
     # Loop boundaries
     lower = [[l_.lower for l_=l] for l=lhs_inds]
-    upper = [[u_.upper for u_=l] for l=lhs_inds]
+    upper_ = [[u_.upper for u_=l] for l=lhs_inds]
     n_neq = [length.([j1.nid for j1=j]) for j=lhs_inds]
+    # Need to eliminate one loop step for each neq index
+    # TODO: clean up
+    upper = []
+    for i=1:length(upper_)
+        tmp_ = []
+        for j=1:length(upper_[i])
+            if iszero(n_neq[i][j])
+                push!(tmp_,upper_[i][j])
+            else
+                u_ = isa(upper_[i][j],Symbol) ? :($(upper_[i][j]) - $(n_neq[i][j])) : upper_[i][j]-n_neq[i][j]
+                push!(tmp_,u_)
+            end
+        end
+        push!(upper,tmp_)
+    end
 
     # Generate linear indices for u
-    lower_lin, upper_lin = _gen_lin_inds(lower,upper,n_neq,offset0)
+    lower_lin, upper_lin = _gen_lin_inds(lower,upper_,n_neq,offset0)
     offset = cumsum([offset0; upper_lin .- lower_lin .+ 1])[1:end-1]
-    idxMap = _gen_idxMap(lower,upper,n_neq,offset)
+    idxMap = _gen_idxMap(lower,upper_,n_neq,offset)
     i_loop = [SymPy.symbols.([l.label for l=l1],integer=true) for l1=lhs_inds]
     n_no_index = sum(.!(has_index_lhs))
     # TODO: avoid parsing
@@ -271,19 +286,42 @@ function build_indexed_ode(eqs::Vector{<:SymPy.Sym}, vs::Vector{<:SymPy.Sym}, ps
             loop_block_size[end] += 1
         end
     end
-    loop_block_inds = offset0 .+ cumsum(loop_block_size)
 
     # TODO: check whether one can partially combine loops
-    can_combine_loops = false#all([l1∈l for l1=lhs_inds[1], l=lhs_inds])
+    # TODO: check limits only; replace index label if needed to combine
+    can_combine_loops = all([l1∈l for l1=lhs_inds[1], l=lhs_inds])
 
     if can_combine_loops
-        # TODO
-        # loop_eqs = [Expr(:(=), lhs[i], rhs_sym[i]) for i=n_no_index+1:length(lhs)]
-        #
-        # loop_index = [[l1.label for l1=l] for l=lhs_inds]
-        # iter_ex = [[:( $(l[i].label) = $(l[i].lower) : $(l[i].upper) ) for i=1:length(l)] for l=lhs_inds]
-        # loop_ex_ = [build_expr(:for, [iter_ex[i], loop_eqs[i]]) for i=1:length(loop_eqs)]
-        # loop_ex = build_expr(:block, loop_ex_)
+        loop_eqs_ = reverse([Expr(:(=), lhs[i], rhs_sym[i]) for i=n_no_index+1:length(lhs)])
+
+        loop_blocks_ = reverse(loop_block_size)
+        nloop_ = reverse(nloop)
+        lhs_inds_ = reverse(lhs_inds)
+        _lower_ = reverse(lower)
+        _upper_ = reverse(upper)
+        loop_ex_ = Expr[]
+        ind0 = 1
+        for i=1:length(loop_block_size)
+            size = loop_blocks_[i]
+            depth = nloop_[i]
+            if depth > length(lhs_inds[1])
+                inds = lhs_inds_[i][findall(x->!(x∈lhs_inds[1]),lhs_inds_[i])]
+            else
+                inds = lhs_inds_[i]
+            end
+            if length(inds) == 1
+                l = inds[1]
+                iter_ex = :( $(l.label) = $(_lower_[i][1]) : $(_upper_[i][1]) )
+            else
+                exs = [:( $(inds[j].label) = $(_lower_[i][j]) : $(_upper_[i][j]) ) for j=1:length(inds)]
+                iter_ex = build_expr(:block, exs)
+            end
+            l_eqs_ = build_expr(:block, [reverse(loop_eqs_[ind0:size+ind0-1]);loop_ex_])
+            ind0 += size
+            isempty(loop_ex_) && push!(loop_ex_, build_expr(:for, [iter_ex, l_eqs_]))
+            loop_ex_[1] = build_expr(:for, [iter_ex, l_eqs_])
+        end
+        loop_ex = build_expr(:block, loop_ex_)
     else
         loop_eqs_ = [Expr(:(=), lhs[i], rhs_sym[i]) for i=n_no_index+1:length(lhs)]
         loop_eqs = [build_expr(:block,[:( $l )]) for l=loop_eqs_]
@@ -292,9 +330,9 @@ function build_indexed_ode(eqs::Vector{<:SymPy.Sym}, vs::Vector{<:SymPy.Sym}, ps
         for i=1:length(lhs_inds)
             if length(lhs_inds[i]) == 1
                 l = lhs_inds[i][1]
-                ex_ = :( $(l.label) = $(l.lower) : $(l.upper) )
+                ex_ = :( $(l.label) = $(_lower_[i][1]) : $(_upper_[i][1]) )
             else
-                exs = [:( $(l.label) = $(l.lower) : $(l.upper) ) for l=lhs_inds[i]]
+                exs = [:( $(lhs_inds[i][j].label) = $(_lower_[i][j]) : $(_upper_[i][j]) ) for j=1:length(lhs_inds[i])]
                 ex_ = build_expr(:block, exs)
             end
             push!(iter_ex, ex_)
@@ -376,7 +414,7 @@ function _gen_idxMap(lower,upper,n_neq,offset)
 
     n_neq_ = maximum.(n_neq)
     # For each index space k, return a linear index from a set of indices of length corresponding to k
-    _idxMap(k,inds) = (offset[k] .+ _linear_index(inds,nsize[k])) - n_neq_[k]
+    _idxMap(k,inds) = (offset[k] .+ _linear_index(inds,nsize[k]))# .- n_neq_[k]*_upper_[k])
     return _idxMap
 end
 function _linear_index(inds,nsize)

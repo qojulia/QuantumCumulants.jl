@@ -1,6 +1,7 @@
 using Qumulants
 using Test
 using SymPy
+using MacroTools
 
 δ(i,j) = SymPy.sympy.functions.special.tensor_functions.KroneckerDelta(sympify(i),sympify(j))
 #
@@ -186,5 +187,3 @@ he_avg = average(he,2)
 n = symbols("n", integer=true)
 p = (Δ,κ,g,γ,ν,n-1)
 meta_f = build_ode(he_avg,p;set_unknowns_zero=true)
-using MacroTools
-MacroTools.inexpr(meta_f, :(k + 2 * p[6] + p[6] * (j - 1)))
