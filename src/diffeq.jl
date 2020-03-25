@@ -177,6 +177,7 @@ function build_indexed_ode(eqs::Vector{<:SymPy.Sym}, vs::Vector{<:SymPy.Sym}, ps
     bool_fun = SymPy.Function(bool_sym)
     u_sym_base = SymPy.sympy.IndexedBase("$usym")
     # Replacement for arguments of symbolic sums
+    tmp_keys = SymPy.Sym[]
     for i=1:length(eqs)#n_no_index
         for uu=1:length(i_loop)
             keys = vs_[n_no_index+uu]
@@ -184,28 +185,32 @@ function build_indexed_ode(eqs::Vector{<:SymPy.Sym}, vs::Vector{<:SymPy.Sym}, ps
             if classname(keys)=="Indexed"
                 k_inds = keys.__pyobject__.indices
                 k_ = [IndexOrder[findfirst(x->sympify(x)==kk,IndexOrder)] for kk=k_inds]
-                inds_combs = combinations(IndexOrder,length(k_))
+
                 # Replace indices by any other known index and try to substitute in expression
-                for j=inds_combs
-                    key_ = keys
-                    for kk=1:length(k_)
-                        key_ = swap_index(key_, k_[kk], j[kk])
-                    end
-                    # Get value index from idxMap
-                    jsym = SymPy.symbols.([j1.label for j1=j],integer=true)
-                    jval = idxMap(uu,jsym)
-                    _neq = [j1.nid for j1=j]
-                    _check = 1
-                    for nn=1:length(j)
-                        length(_neq[nn]) > 0 || continue
-                        _i_neq = sympify.(IndexOrder[findall(x->(x.id∈_neq[nn]&&isempty(x.nid)),IndexOrder)])
-                        _j_nn = SymPy.symbols(j[nn].label)
-                        for _ii=_i_neq
-                            _check *= bool_fun(_j_nn,_ii)
+                inds_combs = combinations(IndexOrder,length(k_))
+                key_base = keys.__pyobject__.base
+                for j_=inds_combs
+                    for j=permutations(j_)
+                        key_ = key_base[sympify.(j)...]
+                        jsym = SymPy.symbols.([j1.label for j1=j],integer=true)
+                        # Get value index from idxMap
+                        jval = idxMap(uu,jsym)
+                        _neq = [j1.nid for j1=j]
+                        _check = 1
+                        for nn=1:length(j)
+                            length(_neq[nn]) > 0 || continue
+                            _i_neq = sympify.(IndexOrder[findall(x->(x.id∈_neq[nn]&&isempty(x.nid)),IndexOrder)])
+                            _j_nn = SymPy.symbols(j[nn].label)
+                            for _ii=_i_neq
+                                _check *= bool_fun(_j_nn,_ii)
+                            end
                         end
+                        val_ = _check*u_sym_base[jval]
+                        if length(k_) > 1
+                            push!(tmp_keys,key_)
+                        end
+                        rhs[i] = SymPy.expand(rhs[i].__pyobject__.replace(key_,val_))
                     end
-                    val_ = _check*u_sym_base[jval]
-                    rhs[i] = SymPy.expand(rhs[i].__pyobject__.replace(key_,val_))
                 end
             end
         end
@@ -216,27 +221,28 @@ function build_indexed_ode(eqs::Vector{<:SymPy.Sym}, vs::Vector{<:SymPy.Sym}, ps
         for pp=1:length(ps)
             keys = p[pp]
             for inds_combs=inds_combs_
-                for j=inds_combs
-                    _neq = [j1.nid for j1=j]
-                    all(isempty.(_neq)) && continue
-                    _check = 1
-                    for nn=1:length(j)
-                        length(_neq[nn]) > 0 || continue
-                        _i_neq = sympify.(IndexOrder[findall(x->(x.id∈_neq[nn]&&isempty(x.nid)),IndexOrder)])
-                        _j_nn = SymPy.symbols(j[nn].label)
-                        for _ii=_i_neq
-                            _check *= bool_fun(_j_nn,_ii)
+                for j_=inds_combs
+                    for j=permutations(j_)
+                        _neq = [j1.nid for j1=j]
+                        all(isempty.(_neq)) && continue
+                        _check = 1
+                        for nn=1:length(j)
+                            length(_neq[nn]) > 0 || continue
+                            _i_neq = sympify.(IndexOrder[findall(x->(x.id∈_neq[nn]&&isempty(x.nid)),IndexOrder)])
+                            _j_nn = SymPy.symbols(j[nn].label)
+                            for _ii=_i_neq
+                                _check *= bool_fun(_j_nn,_ii)
+                            end
                         end
+                        jsym = SymPy.symbols.([j1.label for j1=j], integer=true)
+                        key_ = keys[j...]
+                        val_ = _check*SymPy.sympy.IndexedBase(keys)[jsym...]
+                        rhs[i] = SymPy.expand(rhs[i].__pyobject__.replace(key_,val_))
                     end
-                    jsym = SymPy.symbols.([j1.label for j1=j], integer=true)
-                    key_ = keys[j...]
-                    val_ = _check*SymPy.sympy.IndexedBase(keys)[jsym...]
-                    rhs[i] = SymPy.expand(rhs[i].__pyobject__.replace(key_,val_))
                 end
             end
         end
     end
-
 
     rhs_sym = parse_sympy(rhs)
 
@@ -257,6 +263,8 @@ function build_indexed_ode(eqs::Vector{<:SymPy.Sym}, vs::Vector{<:SymPy.Sym}, ps
         if MacroTools.@capture(x, Sumsym_(arg_, (i_,l_,u_)))
             isa(arg,Number) && iszero(arg) && return 0
             if Sumsym==:Sum
+                # loop_index = IndexOrder[findfirst(x->Meta.parse(string(sympify(x)))==i,IndexOrder)]
+                # return :( sum($arg for $(loop_index.label)=$(l):($(u)-$(length(loop_index.nid)))) )
                 loop_index = MacroTools.@capture(i, j_ ≠ k_) ? j : i
                 return :( sum($arg for $(loop_index)=$(l):$(u)) )
             else

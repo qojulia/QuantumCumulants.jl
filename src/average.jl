@@ -1,5 +1,5 @@
 import SymPy
-using Combinatorics: partitions, combinations
+using Combinatorics: partitions, combinations, permutations
 
 """
     get_order(::AbstractOperator)
@@ -174,6 +174,7 @@ function average(de::DifferentialEquationSet,order::Int=maximum(get_order.(de.lh
     lhs_avg = average.(de.lhs,order)
     rhs_avg = average.(de.rhs,order)
     rhs_ = replace_adjoints(rhs_avg,de.lhs,order)
+    rhs_ = order_indexed(rhs_,de.lhs,order)
     return DifferentialEquationSet(lhs_avg,rhs_)
 end
 
@@ -192,6 +193,60 @@ function average(de::DifferentialEquationSet,order::Vector{<:Int};kwargs...)
     rhs_ = replace_adjoints(rhs_avg,de.lhs,order)
     return DifferentialEquationSet(lhs_avg,rhs_)
 end
+
+function order_indexed(exprs::Vector,ops::Vector,order::Int)
+    exprs_ = copy(exprs)
+    for o=ops
+        _, inds = find_index(o)
+        (length(inds)<2) && continue
+        if isa(o,Prod)
+            args = o.args
+        elseif isa(o,TensorProd)
+            aon = acts_on(o)
+            args_ = o.args[aon]
+            args = []
+            for a=args_
+                _, inds_ = find_index(a)
+                (length(inds)<2) && continue
+                isa(a,Prod) || error("Something went wrong here!")
+                append!(args,a.args)
+            end
+        else
+            continue
+        end
+
+        nid = [i.nid for i=inds]
+        ids = [i.id for i=inds]
+        can_reorder = false
+        for i=1:length(inds)
+            ids_ = [ids[1:i-1];ids[i+1:end]]
+            can_reorder = any(inds[i].id .∈ nid) || any([id ∈ inds[i].nid for id=ids_])
+            can_reorder || break
+        end
+        can_reorder || continue
+
+        arg_perms = permutations(args)
+        base = SymPy.Sym[]
+        for args_=arg_perms
+            label = "⟨"*prod(gen_label.(args_))*"⟩"
+            sym_ = SymPy.symbols(label)
+            av = SymPy.sympy.IndexedBase(sym_)
+            push!(base,av)
+        end
+
+        av_subs_base = SymPy.sympy.IndexedBase(SymPy.symbols("⟨"*prod(gen_label.(args))*"⟩"))
+        inds_combs = combinations(IndexOrder,length(inds))
+        for i=1:length(base)
+            for j=inds_combs
+                perm = collect(permutations(j))[i]
+                av = base[i][sympify.(j)...]
+                exprs_ = [ex.__pyobject__.replace(av,av_subs_base[sympify.(perm)...]) for ex=exprs_]
+            end
+        end
+    end
+    return exprs_
+end
+
 
 """
     replace_adjoints(exprs::Vector{<:SymPy.Sym},ops::Vector{<:AbstractOperator},order::Int)

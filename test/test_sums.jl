@@ -184,6 +184,17 @@ he = heisenberg(ops,H_TC,J;rates=[κ,γ[i],ν[i]])
 
 he_avg = average(he,2)
 
+# tmp = Qumulants.order_indexed(he_avg.rhs,ops,2)
+
 n = symbols("n", integer=true)
 p = (Δ,κ,g,γ,ν,n-1)
 meta_f = build_ode(he_avg,p;set_unknowns_zero=true)
+
+
+tmp3 = average(ops[end])
+tmp2 = tmp3.__pyobject__.base[sympify(Qumulants.IndexOrder[6]),sympify(Qumulants.IndexOrder[4])]
+
+tmp4 = meta_f[2].__pyobject__.replace(tmp2,SymPy.symbols("HERE"))
+
+using Combinatorics
+tmp2 = combinations(Qumulants.IndexOrder,2)
