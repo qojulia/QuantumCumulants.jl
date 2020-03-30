@@ -1,167 +1,8 @@
 using Qumulants
 using Test
-using SymPy
+using SymPy: symbols
 using MacroTools
-
-δ(i,j) = SymPy.sympy.functions.special.tensor_functions.KroneckerDelta(sympify(i),sympify(j))
-#
-# # @testset "sums" begin
-
-# # Test single mode
-# a = Destroy(:a)
-# σ(i,j) = Transition(:σ,i,j,2)
-# i = Index(:i,1,:N)
-# j = Index(:j,1,:N)
-#
-# S = Sum(a[i],i)
-# @test S==Sum(a[i])
-# @test S==simplify_operators(S)
-#
-# S = Sum(δ(i,j)*a[i],i)
-# @test simplify_operators(S)==a[j]
-# S = Sum(δ(i,j)*a[j],i)
-# @test simplify_operators(S)==a[j]
-# S = Sum(δ(i,j)*a[j],j)
-# @test simplify_operators(S)==a[i]
-#
-# g = symbols("g",real=true)
-# S = Sum(δ(i,j)*g[i]*a[i]*a[j],i)
-# @test simplify_operators(S)==g[j]*a[j]^2
-#
-# S = Sum(δ(i,j)*(1-δ(i,j))*g[i]*a[i]*a[j],i)
-# @test iszero(simplify_operators(S))
-# S = Sum((g[j] + 3.333 + δ(i,j))*g[i]*a[j],j)
-# @test simplify_operators(S)==g[i]*a[i] + Sum((g[j]*g[i]+3.333*g[i])*a[j],j)
-# S = Sum((g[j] + 2 + δ(i,j))*g[i]*a[j],i)
-# @test simplify_operators(S)== g[j]*a[j] + Sum((g[i]*g[j]+2*g[i])*a[j],i)
-#
-# S = Sum(g[j]*δ(i,j)*a'⊗σ(2,2)[i], j)
-# @test simplify_operators(S)==g[i]*a'⊗σ(2,2)[i]
-#
-# # Implement the Tavis-Cummings Hamiltonian
-# summand = g[i]*(a'⊗σ(1,2)[i] + a⊗σ(2,1)[i])
-#
-# @test Qumulants.swap_index(g[i]*a[i],i,j) == g[j]*a[j]
-# @test Qumulants.swap_index(-g[i]*a[i],i,j) == -g[j]*a[j]
-#
-# H_TC = Sum(summand,i)
-# @test H_TC == Sum(g[i]*a'⊗σ(1,2)[i],i) + Sum(g[i]*a⊗σ(2,1)[i],i)
-# @test iszero(simplify_operators(H_TC - H_TC))
-#
-# S1 = Sum(g[i]*a[i], i)
-# S2 = Sum(g[j]*a[j], j)
-# @test iszero(simplify_operators(S1 - S2))
-#
-# # Test heisenberg
-# ops = [a⊗Identity(),Identity()⊗σ(1,2)[j]]
-#
-# tmp = g[j]*a⊗σ(2,1)[j]
-#
-# S = Sum(tmp,j)
-# tmp2 = 1.0im*S*ops[2]
-# tmp3 = ops[2]*S
-#
-# da = heisenberg(ops[1],H_TC)
-# ds = heisenberg(ops[2],H_TC)
-#
-# ops = [a⊗Identity(),Identity()⊗σ(1,2)[j]]
-# he = heisenberg(ops,H_TC)
-#
-# tmp = (1 - δ(i,j))*g[i]*a ⊗(σ(2,1)[i])
-# _, tmp2 = Qumulants.resolve_kdelta(tmp,i)
-#
-# # tmp = g[j]*a⊗(δ(sympify(i),sympify(j))*σ(1,2)[j])
-#
-# tmp = (ops[2]*S.args[1]).args[1]
-# ci, ti = Qumulants.find_index(tmp)
-#
-# # end # testset
-#
-#
-# ##################################################################
-# #christoph tests
-# J_test = [a⊗Identity(),Identity()⊗σ(1,2)[i]]#[a,σ(2,1)[j]]
-# Jd_test = adjoint.(J_test)
-# master_test3 = heisenberg([J_test[1], Identity()⊗σ(1,2)[j]], H_TC, J_test;Jdagger=Jd_test)
-#
-# κ = symbols("κ",real=true,positive=true)
-# γ = symbols("γ",real=true,positive=true)
-# ops = [a⊗Identity(),Identity()⊗σ(1,2)[j],a'*a⊗Identity(),a'⊗σ(1,2)[j]]
-# me = heisenberg(ops[end], H_TC, J_test;Jdagger=Jd_test,rates=[κ,γ[i]])
-# he = heisenberg(ops[end],H_TC)
-#
-# tmp = simplify_operators(1.0im*(Sum(g[i]*a⊗σ(2,1)[i],i)*(a'⊗σ(1,2)[j]) - (a'⊗σ(1,2)[j])*Sum(g[i]*a⊗σ(2,1)[i],i)))
-# tmp2 = Qumulants.resolve_kdelta(simplify_operators(tmp.args[1].args[1]),i)[2]
-#
-#
-# # Test second order indexed
-# k = Index(:k,1,:N)
-# he = heisenberg(Identity()⊗(σ(1,2)[j]*σ(2,1)[k]),H_TC)
-#
-# tmp = Sum((-δ(j,k)*g[i] + g[i])*a⊗(σ(2,1)[i]*σ(1,2)[j]*σ(2,1)[k]),i)
-#
-#
-# # Test double sums
-# σ(i,j) = Transition(:σ,i,j,2)
-# i = Index(:i,1,:N)
-# j = Index(:j,1,:N)
-#
-# Ω = symbols("Ω",real=true)
-# Δ = symbols("Δ",real=true)
-# γ = symbols("γ",real=true,positive=true)
-#
-# H0 = Sum(Δ[i]*σ(2,2)[i],i)
-# H = Sum(Sum(Ω[i,j]*σ(2,1)[i]*σ(1,2)[j],i),j)
-#
-# r = Index(:r,1,:N)
-# s = Index(:s,1,:N; neq=[r])
-# ops = [σ(1,2)[r], σ(2,2)[r], σ(2,1)[r]*σ(1,2)[s]]
-# he = heisenberg(ops,H)
-#
-# tmp = Sum(Sum(δ(i,r)*σ(2,1)[i]*σ(1,2)[j],i),j)
-# tmp2 = Sum(simplify_operators(tmp.args[1]), j)
-#
-#
-# J = [σ(1,2)[i]]
-# rates = [γ[i,j]]
-# # ops = [σ(2,1)[r]*σ(1,2)[s]]
-# he = heisenberg(ops[1],H)
-#
-# tmp = he.rhs.args[2]
-#
-# he1 = heisenberg(σ(2,2)[r],simplify_operators(H))
-#
-# he2 = heisenberg(σ(1,2)[r],H)
-# tmp1, tmp2 = he2.rhs.args[3], he2.rhs.args[5]
-#
-# me = heisenberg(ops[1], 0H, J; rates=rates)
-#
-# op1 = σ(2,1)[i]
-# op2 = σ(1,2)[j]
-# tmp = γ[i,j]*(Qumulants.commutator(σ(1,2)[r],op1)*op2)
-# tmp2 = Sum(Sum((tmp),i), j).args[3]
-
-
-# # heisenberg equation up to 2nd order
-# a = Destroy(:a)
-# σ(i,j) = Transition(:σ,i,j,2)
-# i = Index(:i,1,:N)
-# j = Index(:j,1,:N)
-# k = Index(:k,1,:N;neq=[j])
-#
-# g = symbols("g",real=true)
-# Δ = symbols("Δ",real=true)
-# κ = symbols("κ",real=true,positive=true)
-# γ = symbols("γ",real=true,positive=true)
-#
-# # Implement the Tavis-Cummings Hamiltonian
-# H_int_i = g[i]*(a'⊗σ(1,2)[i] + a⊗σ(2,1)[i])
-# H_TC = Δ*(a'*a)⊗Identity() + Sum(H_int_i,i)
-# J = [a⊗Identity(),Identity()⊗σ(1,2)[i]];
-# ops = [a⊗Identity(),Identity()⊗σ(1,2)[j],(a'*a)⊗Identity(),a'⊗σ(1,2)[j],
-#     Identity()⊗σ(2,2)[j],Identity()⊗(σ(2,1)[j]*σ(1,2)[k])]
-# me = heisenberg(ops,H_TC,J;rates=[κ,γ[i]])
-# tmp = me.rhs[end].args[1]
+using OrdinaryDiffEq
 
 # Define Parameters
 g, Δ, κ, γ, ν = symbols("g Δ κ γ ν", real=true)
@@ -176,25 +17,111 @@ j = Index(:j,1,:n)
 k = Index(:k,1,:n;neq=[j])
 
 # Implement the Tavis-Cummings Hamiltonian and decay
-H_TC = Δ*(a'*a) + Sum(g[i]*(a'*σ(:g,:e,i) + a*σ(:e,:g,i)),i)
+H_TC = Sum(Δ[i]*σ(:e,:e,i),i) + Sum(g[i]*(a'*σ(:g,:e,i) + a*σ(:e,:g,i)),i)
 J = [a,σ(:g,:e,i),σ(:e,:g,i)]
 
 ops = [(a'*a),a'*σ(:g,:e,j),σ(:e,:e,j),σ(:e,:g,k)*σ(:g,:e,j)]
-he = heisenberg(ops,H_TC,J;rates=[κ,γ[i],ν[i]])
+he = heisenberg(ops,H_TC,J;rates=[2κ,γ[i],ν[i]])
 
 he_avg = average(he,2)
 
 # tmp = Qumulants.order_indexed(he_avg.rhs,ops,2)
 
 n = symbols("n", integer=true)
-p = (Δ,κ,g,γ,ν,n-1)
+p = (g,Δ,κ,γ,ν,n-1)
 meta_f = build_ode(he_avg,p;set_unknowns_zero=true)
+f = Meta.eval(meta_f)
 
 
-tmp3 = average(ops[end])
-tmp2 = tmp3.__pyobject__.base[sympify(Qumulants.IndexOrder[6]),sympify(Qumulants.IndexOrder[4])]
+# Implementation by hand
+function f2(du,u,t,p)
+    # Assign stuff
+    n = u[1,1]
+    adσ = @view u[1,2:end]
+    dadσ = @view du[1,2:end]
+    σpσ = @view u[2:end,2:end]
+    dσpσ = @view du[2:end,2:end]
 
-tmp4 = meta_f[2].__pyobject__.replace(tmp2,SymPy.symbols("HERE"))
+    (g,Δ,κ,γ,ν,N) = p0
 
-using Combinatorics
-tmp2 = combinations(Qumulants.IndexOrder,2)
+    # Photon number
+    du[1,1] = -2κ*n
+
+    # σ_i⁺σ_j
+    for j=1:N
+
+        # Add terms to photon number
+        du[1,1] += 2.0*g[j]*imag(adσ[j])
+
+        # adσ
+        dadσ[j] = -(1.0im*Δ[j] + κ + (ν[j] + γ[j])/2.0)*adσ[j] + 1.0im*g[j]*(2σpσ[j,j] - 1.0)*n
+        for m=1:N
+            dadσ[j] += 1.0im*g[m]*σpσ[m,j]
+        end
+
+        # Diagonal σpσm elements
+        dσpσ[j,j] = -(γ[j] + ν[j])*σpσ[j,j] + ν[j] - 2.0*g[j]*imag(adσ[j])
+
+        # Off-diagonal elements
+        for k=j+1:N
+            dσpσ[j,k] = ( (1.0im*(Δ[j] - Δ[k]) - (ν[j] + ν[k] + γ[j] + γ[k])/2.0)*σpσ[j,k] +
+                            -1.0im*g[j]*(2σpσ[j,j] - 1.0)*adσ[k] + 1.0im*g[k]*(2σpσ[k,k] - 1.0)*conj(adσ[j])
+                        )
+        end
+
+        # Lower triangle of σpσ is trivial
+        for k=1:j-1
+            dσpσ[j,k] = conj(dσpσ[k,j])
+        end
+
+        for k=1:N
+            du[k+1,1] = conj(dadσ[k])
+        end
+
+    end
+end
+
+meta_tmp = :( sum((-0.5 * Int(i != j) * Int(j != i) * Int(k != j) * (p[5])[i] * u[k + p[6] * (j - 1) + 2 * p[6] + 1] for i = 1:p[6])) + sum((0.5 * Int(i != j) * Int(j != i) * Int(k != i) * Int(k != j) * (p[5])[i] * u[k + p[6] * (j - 1) + 2 * p[6] + 1] for i = 1:p[6])) + sum((-0.5 * Int(i != j) ^ 2 * Int(j != i) * Int(k != j) * (p[4])[i] * u[i + p[6] + 1] * u[k + p[6] * (j - 1) + 2 * p[6] + 1] for i = 1:p[6])) + sum((0.5 * Int(i != j) ^ 2 * Int(j != i) * Int(k != j) * (p[5])[i] * u[i + p[6] + 1] * u[k + p[6] * (j - 1) + 2 * p[6] + 1] for i = 1:p[6])) + sum((-1.0 * im * Int(i != j) ^ 2 * Int(j != i) * Int(k != j) * (p[1])[i] * u[i + 1] * u[k + p[6] * (j - 1) + 2 * p[6] + 1] for i = 1:p[6])) + sum((-1.0 * im * Int(i != j) ^ 2 * Int(j != i) * Int(k != j) * (p[1])[i] * u[j + 1] * u[k + p[6] * (i - 1) + 2 * p[6] + 1] for i = 1:p[6])) + sum((-1.0 * im * Int(i != j) ^ 2 * Int(j != i) * Int(k != j) * (p[2])[i] * u[i + p[6] + 1] * u[k + p[6] * (j - 1) + 2 * p[6] + 1] for i = 1:p[6])) + sum((-1.0 * im * Int(i != j) ^ 2 * Int(j != i) * adjoint(Int(k != j)) * adjoint(u[k + 1]) * (p[1])[i] * u[i + p[6] * (j - 1) + 2 * p[6] + 1] for i = 1:p[6])) + sum((0.5 * Int(i != j) ^ 2 * Int(j != i) * Int(k != i) * Int(k != j) * (p[4])[i] * u[i + p[6] + 1] * u[k + p[6] * (j - 1) + 2 * p[6] + 1] for i = 1:p[6])) + sum((-0.5 * Int(i != j) ^ 2 * Int(j != i) * Int(k != i) * Int(k != j) * (p[5])[i] * u[i + p[6] + 1] * u[k + p[6] * (j - 1) + 2 * p[6] + 1] for i = 1:p[6])) + sum((-1.0 * im * Int(i != j) * Int(j != i) * Int(k != j) * adjoint(Int(i != j)) * adjoint(u[i + 1]) * (p[1])[i] * u[k + p[6] * (j - 1) + 2 * p[6] + 1] for i = 1:p[6])) + sum((1.0 * im * Int(i != j) ^ 2 * Int(j != i) * Int(k != i) * Int(k != j) * (p[1])[i] * u[i + 1] * u[k + p[6] * (j - 1) + 2 * p[6] + 1] for i = 1:p[6])) + sum((1.0 * im * Int(i != j) ^ 2 * Int(j != i) * Int(k != i) * Int(k != j) * (p[1])[i] * u[j + 1] * u[k + p[6] * (i - 1) + 2 * p[6] + 1] for i = 1:p[6])) + sum((1.0 * im * Int(i != j) ^ 2 * Int(j != i) * Int(k != i) * Int(k != j) * (p[2])[i] * u[i + p[6] + 1] * u[k + p[6] * (j - 1) + 2 * p[6] + 1] for i = 1:p[6])) + sum((1.0 * im * Int(i != j) ^ 2 * Int(j != i) * adjoint(Int(k != i)) * adjoint(Int(k != j)) * adjoint(u[k + 1]) * (p[1])[i] * u[i + p[6] * (j - 1) + 2 * p[6] + 1] for i = 1:p[6])) + sum((1.0 * im * Int(i != j) * Int(j != i) * Int(k != i) * Int(k != j) * adjoint(Int(i != j)) * adjoint(u[i + 1]) * (p[1])[i] * u[k + p[6] * (j - 1) + 2 * p[6] + 1] for i = 1:p[6])))
+using MacroTools
+MacroTools.postwalk(x->MacroTools.@capture(x, Sumsym_(arg_ for i_=l_:u_)) ? 0 : x, meta_tmp)
+
+function f3(du, u, p, t)
+          begin
+              begin
+                  du[1] = -2.0 * p[3] * u[1] + sum((1.0 * im * adjoint(u[i + 1]) * (p[1])[i] for i = 1:p[6])) + sum((-1.0 * im * (p[1])[i] * u[i + 1] for i = 1:p[6]))
+                  begin
+                      for j = 1:p[6]
+                          du[j + 1] = ((((((-1.0 * p[3] * u[j + 1] + 2.0 * im * u[1] * (p[1])[j] * u[j + p[6] + 1]) - 1.0 * im * u[1] * (p[1])[j]) + 1.0 * im * (p[1])[j] * u[j + p[6] + 1]) - 1.0 * im * (p[2])[j] * u[j + 1]) - 0.5 * (p[4])[j] * u[j + 1]) - 0.5 * (p[5])[j] * u[j + 1]) + sum((1.0 * im * Int(i != j) ^ 2 * Int(j != i) * (p[1])[i] * u[i + p[6] * (j - 1) + 2 * p[6] + 1] for i = 1:p[6]))
+                          du[j + p[6] + 1] = (((-1.0 * im * adjoint(u[j + 1]) * (p[1])[j] + 1.0 * im * (p[1])[j] * u[j + 1]) - 1.0 * (p[4])[j] * u[j + p[6] + 1]) - 1.0 * (p[5])[j] * u[j + p[6] + 1]) + 1.0 * (p[5])[j]
+                          for k = 1:p[6]
+                              k != j && (du[k + p[6] * (j - 1) + 2 * p[6] + 1] = ((((((((-1.0 * im * Int(k != j) ^ 2 * (p[1])[k] * u[j + 1] * u[k + p[6] + 1] + 1.0 * im * Int(k != j) ^ 2 * (p[2])[k] * u[k + p[6] * (j - 1) + 2 * p[6] + 1]) - 0.5 * Int(k != j) ^ 2 * (p[4])[k] * u[k + p[6] * (j - 1) + 2 * p[6] + 1]) + 1.0 * im * Int(k != j) * (p[1])[k] * u[j + 1]) - 1.0 * im * Int(k != j) * (p[2])[j] * u[k + p[6] * (j - 1) + 2 * p[6] + 1]) - 0.5 * Int(k != j) * (p[4])[j] * u[k + p[6] * (j - 1) + 2 * p[6] + 1]) - 0.5 * Int(k != j) * (p[5])[j] * u[k + p[6] * (j - 1) + 2 * p[6] + 1]) + 2.0 * im * adjoint(Int(k != j)) * adjoint(u[k + 1]) * (p[1])[j] * u[j + p[6] + 1]) - 1.0 * im * adjoint(Int(k != j)) * adjoint(u[k + 1]) * (p[1])[j]) )
+                          end
+                      end
+                  end
+              end
+          end
+          return nothing
+end
+
+
+# Test numerical result
+N = 2
+
+κn = 1
+Δn = zeros(N)
+gn = ones(N)
+γn = zeros(N)
+νn = 3 .* ones(N)
+p0 = (gn,Δn,κn,γn,νn,N)
+tmax = 10.0
+
+u0 = zeros(ComplexF64,(N+1)^2)
+u2 = zeros(ComplexF64, 1+N,1+N)
+
+prob = ODEProblem(f,u0,(0.0,tmax),p0)
+prob2 = ODEProblem(f2,u2,(0.0,tmax),p0)
+prob3 = ODEProblem(f3,u0,(0.0,tmax),p0)
+
+sol = solve(prob,Tsit5())
+sol2 = solve(prob2,Tsit5())
+sol3 = solve(prob3,Tsit5())
