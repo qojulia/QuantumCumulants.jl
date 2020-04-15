@@ -111,6 +111,8 @@ Base.iszero(s::SumType) = iszero(s.args[1])
 Base.zero(s::SumType) = zero(s.args[1])
 Base.one(s::SumType) = one(s.args[1])
 
+remove_dontsimplify(s::SumType) = Sum(remove_dontsimplify(s.args[1]),s.f.index)
+
 # Algebra
 # +
 +(s1::SumType,s2::SumType) = Expression(+,[s1,s2])
@@ -202,13 +204,16 @@ function simplify_operators(s::SumType)
     end
 end
 
-
-function resolve_kdelta(ex::SumType,index)
-    check, arg = resolve_kdelta(ex.args[1],index)
+function resolve_kdelta(ex::AbstractOperator,args...)
+    # ex_ = remove_dontsimplify(ex)
+    return _resolve_kdelta(ex,args...)
+end
+function _resolve_kdelta(ex::SumType,index)
+    check, arg = _resolve_kdelta(ex.args[1],index)
     !check && return (false, Sum(arg, ex.f.index))
     return (check, Sum(arg, ex.f.index))
 end
-function resolve_kdelta(ex::Prod,index)
+function _resolve_kdelta(ex::Prod,index)
     if isa(ex.args[1],SymPy.Sym)
         arg = SymPy.expand(ex.args[1])
         iszero(arg) && return (true,Zero())
@@ -216,8 +221,8 @@ function resolve_kdelta(ex::Prod,index)
     end
     return (false,ex)
 end
-resolve_kdelta(op::BasicOperator,args...) = (false,op)
-function resolve_kdelta(ex::TensorProd,index)
+_resolve_kdelta(op::BasicOperator,args...) = (false,op)
+function _resolve_kdelta(ex::TensorProd,index)
     if isa(ex.args[1],Prod)
         arg_ = ex.args[1].args[1]
         if isa(arg_,SymPy.Sym)
@@ -226,6 +231,12 @@ function resolve_kdelta(ex::TensorProd,index)
             return _resolve_kdelta(ex,index,arg)
         end
     end
+    return (false,ex)
+end
+function _resolve_kdelta(ex::DontSimplify,index)
+    i = ex.args[1].index
+    j = ex.args[2].index
+    (i==j) && return (true,zero(ex.args[1]))
     return (false,ex)
 end
 function _resolve_kdelta(ex::Prod,index,arg::SymPy.Sym)
@@ -390,7 +401,7 @@ function swap_index(ex::SumType, i::Index, j::Index)
         return Sum(arg, ex.f.index)
     end
 end
-swap_index(ex::DontSimplify, i::Index, j::Index) = dont_simplify(swap_index(ex.args[1],i,j))
+swap_index(ex::DontSimplify, i::Index, j::Index) = Expression(dont_simplify, [swap_index(a,i,j) for a=ex.args])
 
 function swap_index(x::SymPy.Sym, i::Index, j::Index)
     if classname(x) == "Indexed"

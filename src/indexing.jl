@@ -88,7 +88,7 @@ function combine_prod(a::IndexedOperator{<:Transition},b::IndexedOperator{<:Tran
         args = sort_by_inds([a,b])
         ex = Expression(*,args)
 
-        return (true,op[a.index]*δ + (1-δ)*dont_simplify(ex))
+        return (true,op[a.index]*δ + dont_simplify(ex))
     end
 end
 
@@ -120,11 +120,9 @@ expression2index(x::Number,i...) = x
 
 # TODO: optimize for non-indexed operators
 function ==(a::Prod,b::Prod)
-    a_ = remove_dontsimplify(a)
-    b_ = remove_dontsimplify(b)
-    length(a_.args) == length(b_.args) || return false
-    a_args = sort_by_inds(a_.args)
-    b_args = sort_by_inds(b_.args)
+    length(a.args) == length(b.args) || return false
+    a_args = sort_by_inds(a.args)
+    b_args = sort_by_inds(b.args)
     return all(a_args .== b_args)
 end
 function sort_by_inds(args::Vector)
@@ -132,7 +130,7 @@ function sort_by_inds(args::Vector)
     if !isempty(args_num)
         args_remain = filter(x->!isa(x,Number),args)
         return [args_num;sort_by_inds(args_remain)]
-    elseif isa(args[1],IndexedOperator)
+    elseif all(isa.(args,IndexedOperator))
         inds = Int[]
         for a1=args
             if (iszero(a1)||isone(a1))
@@ -183,4 +181,85 @@ end
 function KroneckerDelta(i::SymPy.Sym,j::SymPy.Sym)
     @assert classname(i)==classname(j)=="Idx"
     return SymPy.sympy.functions.special.tensor_functions.KroneckerDelta(i,j)
+end
+
+
+
+# Sometimes it is necessary to avoid simplification
+dont_simplify(ex::Prod) = Expression(dont_simplify, ex.args)
+dont_simplify(x::Number) = x
+const DontSimplify{ARGS} = Expression{typeof(dont_simplify),ARGS}
+dont_simplify(ex::DontSimplify) = ex
+
+remove_dontsimplify(x::Number) = x
+remove_dontsimplify(a::DontSimplify) = prod(a.args)
+remove_dontsimplify(a::AbstractOperator) = a
+remove_dontsimplify(ex::Expression) = ex.f(remove_dontsimplify.(ex.args)...)
+
+==(a::DontSimplify,b::DontSimplify) = (a.args==b.args)
+
+Base.one(ex::DontSimplify) = one(ex.args[1])
+Base.zero(ex::DontSimplify) = zero(ex.args[1])
+Base.iszero(ex::DontSimplify) = iszero(ex.args[1])
+Base.isone(ex::DontSimplify) = isone(ex.args[1])
+
+*(x::Number,ex::DontSimplify) = Expression(*, [x,ex])
+*(ex::DontSimplify,x::Number) = x*ex
+*(ex::DontSimplify,a::BasicOperator) = Expression(*,[ex,a])
+*(a::BasicOperator,ex::DontSimplify) = Expression(*,[a,ex])
+*(a::DontSimplify,b::DontSimplify) = Expression(*,[a,b])
+*(ex::DontSimplify,a::Prod) = Expression(*,[ex,a])
+*(a::Prod,ex::DontSimplify) = Expression(*,[a,ex])
+
+function combine_add(a::DontSimplify,b::DontSimplify)
+    a_args = sort_by_inds(a.args)
+    b_args = sort_by_inds(b.args)
+    for i=1:length(a.args)
+        check, arg = combine_add(a_args[i],b_args[i])
+        check || break
+    end
+    if check
+        return (true,2*a)
+    else
+        return (false,a)
+    end
+end
+function combine_prod(a::DontSimplify,b::DontSimplify)
+    @assert length(a.args)==length(b.args)==2
+    for i=1:length(a.args), j=1:length(b.args)
+        if a.args[i].index==b.args[j].index
+            check, arg = combine_prod(a.args[i],b.args[j])
+            if check
+                iszero(arg) && return (true,zero(a))
+                return (true,arg*dont_simplify(a.args[1+mod(i,2)]*b.args[1+mod(j,2)]))
+            end
+        end
+    end
+    return (false,a)
+end
+function combine_prod(a::DontSimplify,b::IndexedOperator{<:Transition})
+    i = findfirst(x->x.index==b.index,a.args)
+    if isa(i,Nothing)
+        return (false,a)
+    else
+        check, arg = combine_prod(a.args[i],b)
+        if check
+            iszero(arg) && return (true,zero(a))
+            return (true, dont_simplify(a.args[1+mod(i,2)]*arg))
+        end
+    end
+    return (false,a)
+end
+function combine_prod(a::IndexedOperator{<:Transition},b::DontSimplify)
+    i = findfirst(x->x.index==a.index,b.args)
+    if isa(i,Nothing)
+        return (false,a)
+    else
+        check, arg = combine_prod(a,b.args[i])
+        if check
+            iszero(arg) && return (true,zero(a))
+            return (true, dont_simplify(arg*b.args[1+mod(i,2)]))
+        end
+    end
+    return (false,a)
 end

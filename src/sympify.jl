@@ -11,7 +11,11 @@ function sympify(a::Transition)
 end
 sympify(::Identity) = SymPy.Sym(1)#SymPy.symbols("Id",commutative=false)
 sympify(::Zero) = SymPy.Sym(0)#SymPy.symbols("Zr",commutative=false)
-sympify(a::DontSimplify) = sympify(a.args[1])
+function sympify(a::DontSimplify)
+    i = a.args[1].index
+    j = a.args[2].index
+    return sympify(prod(a.args))#*(1-KroneckerDelta(i,j))
+end
 
 sympify(a::Prod) = prod(sympify.(a.args))
 function sympify(a::TensorProd)

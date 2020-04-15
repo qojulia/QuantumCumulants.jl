@@ -28,7 +28,11 @@ function show(stream::IO,a::Transition)
     write(stream,string(a.j))
 end
 function show(stream::IO,a::DontSimplify)
-    show(stream,a.args[1])
+    show(stream,prod(a.args))
+    i = a.args[1].index
+    j = a.args[2].index
+    sym = string("{", i.label, "≠", j.label, "}")
+    write(stream, sym)
 end
 
 function show(stream::IO,i::Index)

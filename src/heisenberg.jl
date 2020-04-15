@@ -165,12 +165,11 @@ function acts_on(a::TensorProd)
     end
     return act
 end
-function acts_on(a::Add)
+function acts_on(a::Union{Add,DontSimplify})
     act = collect(Iterators.flatten(acts_on.(a.args)))
     unique!(act)
     return act
 end
-acts_on(a::DontSimplify) = acts_on(a.args[1])
 
 replace_commutator(a::AbstractOperator,b::AbstractOperator) = (false,a)
 
@@ -230,11 +229,16 @@ function simplify_operators(a::Prod)
     for i=1:length(a.args)
         arg_ = simplify_operators(a.args[i])
         iszero(arg_) && return zero(a)
-        if isa(arg_, AbstractOperator)
+        if isa(arg_,Number)
+            fac *= arg_
+        elseif isa(arg_,Prod)
+            c_ = filter(x->isa(x,Number),arg_.args)
+            isempty(c_) || (fac *= prod(c_))
+            _args_ = filter(x->isa(x,AbstractOperator),arg_.args)
+            isempty(_args_) || append!(args,_args_)
+        else
             iszero(arg_) && return arg_
             isone(arg_) || push!(args, arg_)
-        else
-            fac *= arg_
         end
     end
     fac = isa(fac, SymPy.Sym) ? SymPy.expand(fac) : fac
@@ -269,27 +273,20 @@ function simplify_operators(a::Prod)
     end
 end
 function simplify_operators(a::TensorProd)
+    a_ = simplify_constants(a)
+    iszero(a_) && return a_
     args = []
-    fac = 1
     for i=1:length(a.args)
-        arg_ = simplify_operators(a.args[i])
-        iszero(arg_) && return zero(a)
-        if isa(arg_, Prod) && isa(arg_.args[1],Number)
-            fac *= arg_.args[1]
-            push!(args, prod(arg_.args[2:end]))
-        else
-            push!(args, arg_)
-        end
+        arg_ = simplify_operators(a_.args[i])
+        iszero(arg_) && return zero(a_)
+        push!(args, arg_)
     end
     out = ⊗(args...)
     # TODO: do we need recursion here?
-    fac = isa(fac, SymPy.Sym) ? SymPy.expand(fac) : fac
-    iszero(fac) && return zero(a)
-    if fac*out == a
-        isone(fac) && return out
-        return fac*out
+    if out == a_
+        return out
     else
-        return simplify_operators(fac*out)
+        return simplify_operators(out)
     end
 end
 function simplify_operators(a::Add)
@@ -404,17 +401,50 @@ combine_add(a,b) = (false, a)
 
 combine_prod(a,b) = (false,a)
 
-simplify_operators(a::DontSimplify) = dont_simplify(simplify_constants(a.args[1]))
+function simplify_operators(a::DontSimplify)
+    i = a.args[1].index
+    j = a.args[2].index
+    if i==j
+        return zero(a.args[1])
+    else
+        return a
+    end
+end
 simplify_constants(a::BasicOperator) = a
 function simplify_constants(a::Prod)
-    c = prod(filter(x->isa(x,Number),a.args))
-    iszero(c) && return 0
+    cs = filter(x->isa(x,Number),a.args)
+    isempty(cs) && return a
+    c = prod(cs)
     c_ = isa(c,SymPy.Sym) ? SymPy.expand(c) : c
+    iszero(c_) && return zero(a)
     args_ = filter(x->!isa(x,Number),a.args)
-    if isone(c_)
-        return prod(args_)
+    if isempty(args_)
+        return isone(c_) ? one(a) : c_*one(a)
     else
-        return c_*prod(args_)
+        return isone(c_) ? prod(args_) : c_*prod(args_)
+    end
+end
+function simplify_constants(a::TensorProd)
+    c = 1
+    args_ = []
+    for a1=a.args
+        if isa(a1,Prod) && isa(a1.args[1],Number)
+            c*=a1.args[1]
+            push!(args_,prod(a1.args[2:end]))
+        # elseif isa(a1,DontSimplify) && isa(a1.args[1],Prod) && isa(a1.args[1].args[1],Number)
+        #     c*=a1.args[1].args[1]
+        #     push!(args_,dont_simplify(prod(a1.args[1].args[2:end])))
+        else
+            push!(args_,a1)
+        end
+    end
+    c_ = isa(c,SymPy.Sym) ? SymPy.expand(c) : c
+    iszero(c_) && return zero(a)
+    out = ⊗(args_...)
+    if isone(c_)
+        return out
+    else
+        return c_*out
     end
 end
 simplify_constants(ex::Expression) = ex.f(simplify_constants.(ex.args)...)

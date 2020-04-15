@@ -178,34 +178,3 @@ function embed(a::Vector{<:AbstractOperator},i::Vector{<:Int},n::Int)
 end
 
 ishermitian(a::TensorProd) = all(ishermitian.(a.args))
-
-
-# Sometimes it is necessary to avoid simplification
-dont_simplify(ex::AbstractOperator) = Expression(dont_simplify, [ex])
-dont_simplify(x::Number) = x
-const DontSimplify{ARGS} = Expression{typeof(dont_simplify),ARGS}
-dont_simplify(ex::DontSimplify) = ex
-
-remove_dontsimplify(x::Number) = x
-remove_dontsimplify(a::DontSimplify) = a.args[1]
-remove_dontsimplify(a::AbstractOperator) = a
-remove_dontsimplify(ex::Expression) = ex.f(remove_dontsimplify.(ex.args)...)
-
-==(a::DontSimplify,b::DontSimplify) = (a.args==b.args)
-==(a::AbstractOperator,b::DontSimplify) = (a==b.args[1])
-==(a::DontSimplify,b::AbstractOperator) = (a.args[1]==b)
-==(a::Expression,b::DontSimplify) = (a==b.args[1])
-==(a::DontSimplify,b::Expression) = (a.args[1]==b)
-
-Base.one(ex::DontSimplify) = one(ex.args[1])
-Base.zero(ex::DontSimplify) = zero(ex.args[1])
-Base.iszero(ex::DontSimplify) = iszero(ex.args[1])
-Base.isone(ex::DontSimplify) = isone(ex.args[1])
-
-*(x::Number,ex::DontSimplify) = dont_simplify(x*ex.args[1])
-*(ex::DontSimplify,x::Number) = x*ex
-*(ex::DontSimplify,a::BasicOperator) = Expression(*,[ex,a])
-*(a::BasicOperator,ex::DontSimplify) = Expression(*,[a,ex])
-*(a::DontSimplify,b::DontSimplify) = dont_simplify(a.args[1]*b.args[1])
-*(ex::DontSimplify,a::Prod) = Expression(*,[ex,a])
-*(a::Prod,ex::DontSimplify) = Expression(*,[a,ex])

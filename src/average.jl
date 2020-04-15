@@ -28,7 +28,7 @@ function get_order(a::TensorProd)
 end
 get_order(a::Add) = maximum(get_order.(a.args))::Int
 get_order(s::SumType) = get_order(s.args[1])::Int
-get_order(a::DontSimplify) = get_order(a.args[1])
+get_order(a::DontSimplify) = 2#get_order(a.args[1])
 
 """
     average(op::AbstractOperator,order::Int=get_order(op))
@@ -92,7 +92,7 @@ function average(s::SumType,order::Int=get_order(s))
     u = i.__pyobject__.upper
     return SymPy.sympy.Sum(arg,(i,l,u))
 end
-average(a::DontSimplify,args...) = average(a.args[1],args...)
+# average(a::DontSimplify,args...) = average(a.args[1],args...)
 
 """
     average(op::AbstractOperator,order::Vector{<:Int};mix_choice::Function=maximum)
@@ -393,7 +393,7 @@ function _average_proper_order(a::TensorProd)
     return c*out
 end
 _average_proper_order(a::Add) = error("Something went wrong here!")
-_average_proper_order(a::DontSimplify) = _average_proper_order(a.args[1])
+# _average_proper_order(a::DontSimplify) = _average_proper_order(a.args[1])
 
 gen_label(a::BasicOperator) = string(a.label)
 gen_label(a::Create) = string(a.label)*"ᵗ"
