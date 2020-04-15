@@ -5,9 +5,8 @@ Compute the Heisenberg equation of the operator `op` under the Hamiltonian `H`.
 """
 function heisenberg(a::AbstractOperator,H_)
     H = simplify_operators(H_)
-    a_ = simplify_operators(a)
     da = simplify_operators(1.0im*commutator(H,a))
-    return DifferentialEquation(a_,da)
+    return DifferentialEquation(a,da)
 end
 """
     heisenberg(ops::Vector,H::AbstractOperator)
@@ -17,9 +16,8 @@ under the Hamiltonian `H`.
 """
 function heisenberg(a::Vector,H_)
     H = simplify_operators(H_)
-    lhs = simplify_operators.(a)
-    rhs = simplify_operators.([1.0im*commutator(H,a1) for a1=lhs])
-    return DifferentialEquationSet(lhs,rhs)
+    rhs = simplify_operators.([1.0im*commutator(H,a1) for a1=a])
+    return DifferentialEquationSet(a,rhs)
 end
 
 """
@@ -240,16 +238,22 @@ function simplify_operators(a::Prod)
     end
     fac = isa(fac, SymPy.Sym) ? SymPy.expand(fac) : fac
     iszero(fac) && return Zero()
-    isempty(args) && return fac*one(a)
+    isempty(args) && return (isone(fac) ? one(a) : fac*one(a))
 
     # Combine pairs where possible
     i = 1
     args2 = AbstractOperator[]
+    rest = []
     while i < length(args)
         can_combine, arg_ = combine_prod(args[i],args[i+1])
-        # _arg_ = simplify_operators(arg_)
         iszero(arg_) && return zero(a)
         isone(arg_) || push!(args2, arg_)
+        if !isa(can_combine,Bool)
+            push!(rest, can_combine)
+            i += 2
+            continue
+        end
+        # _arg_ = simplify_operators(arg_)
         i += 1 + Int(can_combine)
     end
 
@@ -260,12 +264,16 @@ function simplify_operators(a::Prod)
 
     p = prod(args2)
     # TODO: do we need recursion here?
-    can_simplify = (a!=fac*p)
-    if can_simplify
-        return simplify_operators(fac*p)
+    if isempty(rest)
+        can_simplify = (a!=fac*p)
+        if can_simplify
+            return simplify_operators(fac*p)
+        else
+            isone(fac) && return p
+            return fac*p
+        end
     else
-    isone(fac) && return p
-    return fac*p
+        return simplify_operators(fac*p)+sum(rest)
     end
 end
 function simplify_operators(a::TensorProd)

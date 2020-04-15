@@ -29,25 +29,7 @@ function show(stream::IO,a::Transition)
 end
 
 function show(stream::IO,i::Index)
-    if isempty(i.nid)
-        write(stream,string(i.label))
-    elseif length(i.nid)==1
-        write(stream,string(i.label))
-        write(stream, "≠")
-        j = IndexOrder[findfirst(x->x.id∈i.nid,IndexOrder)]
-        write(stream, string(j.label))
-    else
-        write(stream,string(i.label))
-        write(stream, "≠{")
-        js = IndexOrder[findall(x->x.id∈i.nid,IndexOrder)]
-        unique!((x->x.id), js)
-        for k=1:length(js)-1
-            write(stream, string(js[k].label))
-            write(stream, ",")
-        end
-        write(stream,string(js[end].label))
-        write(stream, "}")
-    end
+    write(stream,string(i.label))
 end
 function show(stream::IO,a::IndexedOperator{T,<:SymbolicIndex}) where T
     show(stream,a.operator)
