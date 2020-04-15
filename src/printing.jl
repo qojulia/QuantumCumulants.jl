@@ -27,6 +27,9 @@ function show(stream::IO,a::Transition)
     write(stream,string(a.i))
     write(stream,string(a.j))
 end
+function show(stream::IO,a::DontSimplify)
+    show(stream,a.args[1])
+end
 
 function show(stream::IO,i::Index)
     write(stream,string(i.label))

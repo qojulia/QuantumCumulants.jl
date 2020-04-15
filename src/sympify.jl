@@ -11,6 +11,7 @@ function sympify(a::Transition)
 end
 sympify(::Identity) = SymPy.Sym(1)#SymPy.symbols("Id",commutative=false)
 sympify(::Zero) = SymPy.Sym(0)#SymPy.symbols("Zr",commutative=false)
+sympify(a::DontSimplify) = sympify(a.args[1])
 
 sympify(a::Prod) = prod(sympify.(a.args))
 function sympify(a::TensorProd)

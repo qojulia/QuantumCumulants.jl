@@ -70,4 +70,7 @@ rhs3 = simplify_operators(1.0im*(ωc - ωa)*a'*s - 0.5*(κ + ν + γ)*a'*s + 1.0
 eqs_test = DifferentialEquationSet(ops,simplify_operators.([rhs1,rhs2,rhs3]))
 @test eqs == eqs_test
 
+ex = Identity()⊗(σ(2,1)[i]*σ(1,2)[j])
+simplify_operators(ex)
+
 end # testset

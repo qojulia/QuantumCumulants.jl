@@ -170,6 +170,7 @@ function acts_on(a::Add)
     unique!(act)
     return act
 end
+acts_on(a::DontSimplify) = acts_on(a.args[1])
 
 replace_commutator(a::AbstractOperator,b::AbstractOperator) = (false,a)
 
@@ -248,11 +249,6 @@ function simplify_operators(a::Prod)
         can_combine, arg_ = combine_prod(args[i],args[i+1])
         iszero(arg_) && return zero(a)
         isone(arg_) || push!(args2, arg_)
-        if !isa(can_combine,Bool)
-            push!(rest, can_combine)
-            i += 2
-            continue
-        end
         # _arg_ = simplify_operators(arg_)
         i += 1 + Int(can_combine)
     end
@@ -264,16 +260,12 @@ function simplify_operators(a::Prod)
 
     p = prod(args2)
     # TODO: do we need recursion here?
-    if isempty(rest)
-        can_simplify = (a!=fac*p)
-        if can_simplify
-            return simplify_operators(fac*p)
-        else
-            isone(fac) && return p
-            return fac*p
-        end
+    can_simplify = (a!=fac*p)
+    if can_simplify
+        return simplify_operators(fac*p)
     else
-        return simplify_operators(fac*p)+sum(rest)
+        isone(fac) && return p
+        return fac*p
     end
 end
 function simplify_operators(a::TensorProd)
@@ -295,7 +287,7 @@ function simplify_operators(a::TensorProd)
     iszero(fac) && return zero(a)
     if fac*out == a
         isone(fac) && return out
-    return fac*out
+        return fac*out
     else
         return simplify_operators(fac*out)
     end
@@ -411,3 +403,18 @@ end
 combine_add(a,b) = (false, a)
 
 combine_prod(a,b) = (false,a)
+
+simplify_operators(a::DontSimplify) = dont_simplify(simplify_constants(a.args[1]))
+simplify_constants(a::BasicOperator) = a
+function simplify_constants(a::Prod)
+    c = prod(filter(x->isa(x,Number),a.args))
+    iszero(c) && return 0
+    c_ = isa(c,SymPy.Sym) ? SymPy.expand(c) : c
+    args_ = filter(x->!isa(x,Number),a.args)
+    if isone(c_)
+        return prod(args_)
+    else
+        return c_*prod(args_)
+    end
+end
+simplify_constants(ex::Expression) = ex.f(simplify_constants.(ex.args)...)

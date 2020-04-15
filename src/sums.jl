@@ -47,7 +47,11 @@ Sum(ex::Add,i::Index) = sum([Sum(a1,i) for a1=ex.args])
 function Sum(s::SumType,i::Index)
     sym_inds, op_inds = find_index(s)
     if i∈op_inds || i∈sym_inds
-        return Expression(Sum(i),[s])
+        inds = [s.f.index,i]
+        p = sortperm(indexin(inds, IndexOrder)) # ensure same order in double sums
+        inds_ = inds[p]
+        s_ = Expression(Sum(inds_[2]), s.args)
+        return Expression(Sum(inds_[1]),[s_])
     else
         u = i.upper
         N = isa(u,Symbol) ? SymPy.symbols(string(u),integer=true) : u
@@ -386,6 +390,7 @@ function swap_index(ex::SumType, i::Index, j::Index)
         return Sum(arg, ex.f.index)
     end
 end
+swap_index(ex::DontSimplify, i::Index, j::Index) = dont_simplify(swap_index(ex.args[1],i,j))
 
 function swap_index(x::SymPy.Sym, i::Index, j::Index)
     if classname(x) == "Indexed"

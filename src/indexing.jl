@@ -31,7 +31,7 @@ const SymbolicIndex{L,U,ID} = Index{<:Symbol,L,U,ID}
 Base.copy(i::Index) = Index(i.label,i.lower,i.upper,copy(i.id))
 
 # Indexing of symbolic variables
-function Base.getindex(s::SymPy.Sym, inds::Int...)
+function Base.getindex(s::SymPy.Sym, inds::Index...)
     inds_ = sympify.(inds)
     b = SymPy.sympy.IndexedBase(s, real=isreal(s))
     return b[inds_...]
@@ -63,6 +63,7 @@ ishermitian(a::IndexedOperator) = ishermitian(a.operator)
 Base.iszero(x::IndexedOperator) = iszero(x.operator)
 Base.isone(x::IndexedOperator) = isone(x.operator)
 
+# Base.getindex(ex::DontSimplify, args...) = dont_simplify(getindex(ex.args[1], args...))
 
 replace_commutator(a::IndexedOperator,::IndexedOperator) = (false,a)
 function replace_commutator(a::IndexedOperator{<:Destroy},b::IndexedOperator{<:Create})
@@ -87,7 +88,7 @@ function combine_prod(a::IndexedOperator{<:Transition},b::IndexedOperator{<:Tran
         args = sort_by_inds([a,b])
         ex = Expression(*,args)
 
-        return ((1-δ)*ex,op[a.index]*δ) # TODO: avoid infinite recursion
+        return (true,op[a.index]*δ + (1-δ)*dont_simplify(ex))
     end
 end
 
@@ -119,9 +120,11 @@ expression2index(x::Number,i...) = x
 
 # TODO: optimize for non-indexed operators
 function ==(a::Prod,b::Prod)
-    length(a.args) == length(b.args) || return false
-    a_args = sort_by_inds(a.args)
-    b_args = sort_by_inds(b.args)
+    a_ = remove_dontsimplify(a)
+    b_ = remove_dontsimplify(b)
+    length(a_.args) == length(b_.args) || return false
+    a_args = sort_by_inds(a_.args)
+    b_args = sort_by_inds(b_.args)
     return all(a_args .== b_args)
 end
 function sort_by_inds(args::Vector)
