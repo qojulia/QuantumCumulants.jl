@@ -29,9 +29,12 @@ function show(stream::IO,a::Transition)
 end
 function show(stream::IO,a::DontSimplify)
     show(stream,prod(a.args))
-    i = a.args[1].index
-    j = a.args[2].index
-    sym = string("{", i.label, "≠", j.label, "}")
+    inds = combinations([a1.index for a1=a.args],2)
+    sym = "{"
+    for ij=inds
+        sym *= string(ij[1].label, "≠", ij[2].label, ",")
+    end
+    sym = string(sym[1:end-1],"}")
     write(stream, sym)
 end
 

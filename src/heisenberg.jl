@@ -385,10 +385,18 @@ function combine_add(a::Prod,b::Prod)
     end
 end
 function combine_add(a::TensorProd,b::TensorProd)
-    # TODO: Cleaner solution to combine indexed objects
-    # _, a_inds = find_index(a)
-    # _, b_inds = find_index(b)
-    # !(isempty(a_inds) && isempty(b_inds)) && return _combine_add_indexed(a,b)
+    # check = false
+    # args = []
+    # for i=1:length(a.args)
+    #     check, arg = combine_add(a.args[i],b.args[i])
+    #     check || break
+    #     push!(args,arg)
+    # end
+    # if check
+    #     return (true,⊗(args...))
+    # else
+    #     return (false,a)
+    # end
     check, arg = combine_add(a.args[1],b.args[1])
     if check && (a.args[2:end] == b.args[2:end])
         args = [arg; a.args[2:end]]
@@ -402,13 +410,34 @@ combine_add(a,b) = (false, a)
 combine_prod(a,b) = (false,a)
 
 function simplify_operators(a::DontSimplify)
-    i = a.args[1].index
-    j = a.args[2].index
-    if i==j
-        return zero(a.args[1])
-    else
-        return a
+    iszero(a) && return zero(a.args[1])
+    inds = [a1.index for a1=a.args]
+    check = false
+    for i=1:length(inds)
+        check = (inds[i]∈inds[i+1:end])
+        check && break
     end
+    check && return zero(a.args[1])
+    args_ = simplify_operators.(a.args) # simplify projector on ground state
+    if args_ != a.args
+        for i=1:length(args_)
+            args_out = []
+            if isa(args_[i],Add)
+                @assert isone(args_[i].args[1])
+                inds_ = filter(!isequal(i),1:length(args_))
+                _args_ = prod(args_[inds_])
+                push!(args_out, _args_)
+                _arg2 = simplify_constants(args_[i].args[2]*_args_)
+                if isa(_arg2.args[1], Number)
+                    push!(args_out, _arg2.args[1]*dont_simplify(_arg2.args[2:end]))
+                else
+                    push!(args_out, dont_simplify(_arg2.args))
+                end
+                return sum(args_out)
+            end
+        end
+    end
+    return a
 end
 simplify_constants(a::BasicOperator) = a
 function simplify_constants(a::Prod)

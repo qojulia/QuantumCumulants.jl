@@ -63,8 +63,6 @@ ishermitian(a::IndexedOperator) = ishermitian(a.operator)
 Base.iszero(x::IndexedOperator) = iszero(x.operator)
 Base.isone(x::IndexedOperator) = isone(x.operator)
 
-# Base.getindex(ex::DontSimplify, args...) = dont_simplify(getindex(ex.args[1], args...))
-
 replace_commutator(a::IndexedOperator,::IndexedOperator) = (false,a)
 function replace_commutator(a::IndexedOperator{<:Destroy},b::IndexedOperator{<:Create})
     check, op = replace_commutator(a.operator,b.operator)
@@ -186,10 +184,31 @@ end
 
 
 # Sometimes it is necessary to avoid simplification
-dont_simplify(ex::Prod) = Expression(dont_simplify, ex.args)
+dont_simplify(ex::Prod) = dont_simplify(ex.args)
+dont_simplify(ex::Add) = sum(dont_simplify.(ex.args))
 dont_simplify(x::Number) = x
 const DontSimplify{ARGS} = Expression{typeof(dont_simplify),ARGS}
 dont_simplify(ex::DontSimplify) = ex
+
+function dont_simplify(args::Vector)
+    args_ = []
+    cs = Number[]
+    for a=args
+        if isa(a,DontSimplify)
+            append!(args_,a.args)
+        elseif isa(a,Number)
+            push!(cs,a)
+        else
+            push!(args_,a)
+        end
+    end
+    if isempty(cs)
+        return Expression(dont_simplify, sort_by_inds(args_))
+    else
+        return prod(cs)*Expression(dont_simplify, sort_by_inds(args_))
+    end
+end
+
 
 remove_dontsimplify(x::Number) = x
 remove_dontsimplify(a::DontSimplify) = prod(a.args)
@@ -212,8 +231,10 @@ Base.isone(ex::DontSimplify) = isone(ex.args[1])
 *(a::Prod,ex::DontSimplify) = Expression(*,[a,ex])
 
 function combine_add(a::DontSimplify,b::DontSimplify)
+    length(a.args)==length(b.args) || return (false,a)
     a_args = sort_by_inds(a.args)
     b_args = sort_by_inds(b.args)
+    check = false
     for i=1:length(a.args)
         check, arg = combine_add(a_args[i],b_args[i])
         check || break
@@ -225,27 +246,54 @@ function combine_add(a::DontSimplify,b::DontSimplify)
     end
 end
 function combine_prod(a::DontSimplify,b::DontSimplify)
-    @assert length(a.args)==length(b.args)==2
+    # Try to combine any equal indices
+    args_out = []
+    checks_a = ones(Bool, length(a.args))
+    checks_b = ones(Bool, length(b.args))
     for i=1:length(a.args), j=1:length(b.args)
         if a.args[i].index==b.args[j].index
             check, arg = combine_prod(a.args[i],b.args[j])
             if check
+                checks_a[i] = false
+                checks_b[j] = false
                 iszero(arg) && return (true,zero(a))
-                return (true,arg*dont_simplify(a.args[1+mod(i,2)]*b.args[1+mod(j,2)]))
+                push!(args_out, arg)
             end
         end
     end
+
+    if !all(checks_a) || !all(checks_b)
+        append!(args_out, a.args[checks_a])
+        append!(args_out, b.args[checks_b])
+        arg = prod(args_out)
+        iszero(arg) && return (true,zero(a))
+        return (true,dont_simplify(arg))
+    end
+
+    # Otherwise try to combine other indices
+    # TODO
+
     return (false,a)
 end
 function combine_prod(a::DontSimplify,b::IndexedOperator{<:Transition})
     i = findfirst(x->x.index==b.index,a.args)
     if isa(i,Nothing)
-        return (false,a)
+        for j=1:length(a.args)
+            check, arg = combine_prod(a.args[j],b)
+            if check
+                iszero(arg) && return (true,zero(b))
+                inds_ = filter(!isequal(j),1:length(a.args))
+                args_out = sort_by_inds([arg;a.args[inds_]])
+                return (true, dont_simplify(prod(args_out)))
+            end
+        end
     else
         check, arg = combine_prod(a.args[i],b)
         if check
             iszero(arg) && return (true,zero(a))
-            return (true, dont_simplify(a.args[1+mod(i,2)]*arg))
+            inds = filter(!isequal(i),1:length(a.args))
+            args_out = sort_by_inds([arg;a.args[inds]])
+            return (true, dont_simplify(prod(args_out)))
         end
     end
     return (false,a)
@@ -253,12 +301,22 @@ end
 function combine_prod(a::IndexedOperator{<:Transition},b::DontSimplify)
     i = findfirst(x->x.index==a.index,b.args)
     if isa(i,Nothing)
-        return (false,a)
+        for j=1:length(b.args)
+            check, arg = combine_prod(a,b.args[j])
+            if check
+                iszero(arg) && return (true,zero(a))
+                inds_ = filter(!isequal(j),1:length(b.args))
+                args_out = sort_by_inds([arg;b.args[inds_]])
+                return (true, dont_simplify(prod(args_out)))
+            end
+        end
     else
         check, arg = combine_prod(a,b.args[i])
         if check
             iszero(arg) && return (true,zero(a))
-            return (true, dont_simplify(arg*b.args[1+mod(i,2)]))
+            inds = filter(!isequal(i),1:length(b.args))
+            args_out = sort_by_inds([arg;b.args[inds]])
+            return (true, dont_simplify(prod(args_out)))
         end
     end
     return (false,a)

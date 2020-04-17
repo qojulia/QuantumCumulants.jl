@@ -28,7 +28,7 @@ function get_order(a::TensorProd)
 end
 get_order(a::Add) = maximum(get_order.(a.args))::Int
 get_order(s::SumType) = get_order(s.args[1])::Int
-get_order(a::DontSimplify) = 2#get_order(a.args[1])
+get_order(a::DontSimplify) = length(a.args)
 
 """
     average(op::AbstractOperator,order::Int=get_order(op))

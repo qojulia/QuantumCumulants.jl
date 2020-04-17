@@ -12,9 +12,13 @@ end
 sympify(::Identity) = SymPy.Sym(1)#SymPy.symbols("Id",commutative=false)
 sympify(::Zero) = SymPy.Sym(0)#SymPy.symbols("Zr",commutative=false)
 function sympify(a::DontSimplify)
-    i = a.args[1].index
-    j = a.args[2].index
-    return sympify(prod(a.args))#*(1-KroneckerDelta(i,j))
+    inds = [a1.index for a1=a.args]
+    ind_combs = combinations(inds,2)
+    fac = SymPy.Sym(1)
+    for ij=ind_combs
+        fac *= (1-KroneckerDelta(ij[1],ij[2]))
+    end
+    return sympify(prod(a.args))*fac
 end
 
 sympify(a::Prod) = prod(sympify.(a.args))
