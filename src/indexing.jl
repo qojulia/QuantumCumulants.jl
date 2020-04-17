@@ -86,7 +86,7 @@ function combine_prod(a::IndexedOperator{<:Transition},b::IndexedOperator{<:Tran
         args = sort_by_inds([a,b])
         ex = Expression(*,args)
 
-        return (true,op[a.index]*δ + dont_simplify(ex))
+        return (true,op[a.index]*δ + neq_inds_prod(ex))
     end
 end
 
@@ -184,17 +184,17 @@ end
 
 
 # Sometimes it is necessary to avoid simplification
-dont_simplify(ex::Prod) = dont_simplify(ex.args)
-dont_simplify(ex::Add) = sum(dont_simplify.(ex.args))
-dont_simplify(x::Number) = x
-const DontSimplify{ARGS} = Expression{typeof(dont_simplify),ARGS}
-dont_simplify(ex::DontSimplify) = ex
+neq_inds_prod(ex::Prod) = neq_inds_prod(ex.args)
+neq_inds_prod(ex::Add) = sum(neq_inds_prod.(ex.args))
+neq_inds_prod(x::Number) = x
+const NeqIndsProd{ARGS} = Expression{typeof(neq_inds_prod),ARGS}
+neq_inds_prod(ex::NeqIndsProd) = ex
 
-function dont_simplify(args::Vector)
+function neq_inds_prod(args::Vector)
     args_ = []
     cs = Number[]
     for a=args
-        if isa(a,DontSimplify)
+        if isa(a,NeqIndsProd)
             append!(args_,a.args)
         elseif isa(a,Number)
             push!(cs,a)
@@ -203,34 +203,34 @@ function dont_simplify(args::Vector)
         end
     end
     if isempty(cs)
-        return Expression(dont_simplify, sort_by_inds(args_))
+        return Expression(neq_inds_prod, sort_by_inds(args_))
     else
-        return prod(cs)*Expression(dont_simplify, sort_by_inds(args_))
+        return prod(cs)*Expression(neq_inds_prod, sort_by_inds(args_))
     end
 end
 
 
-remove_dontsimplify(x::Number) = x
-remove_dontsimplify(a::DontSimplify) = prod(a.args)
-remove_dontsimplify(a::AbstractOperator) = a
-remove_dontsimplify(ex::Expression) = ex.f(remove_dontsimplify.(ex.args)...)
+remove_NeqIndsProd(x::Number) = x
+remove_NeqIndsProd(a::NeqIndsProd) = prod(a.args)
+remove_NeqIndsProd(a::AbstractOperator) = a
+remove_NeqIndsProd(ex::Expression) = ex.f(remove_NeqIndsProd.(ex.args)...)
 
-==(a::DontSimplify,b::DontSimplify) = (a.args==b.args)
+==(a::NeqIndsProd,b::NeqIndsProd) = (a.args==b.args)
 
-Base.one(ex::DontSimplify) = one(ex.args[1])
-Base.zero(ex::DontSimplify) = zero(ex.args[1])
-Base.iszero(ex::DontSimplify) = iszero(ex.args[1])
-Base.isone(ex::DontSimplify) = isone(ex.args[1])
+Base.one(ex::NeqIndsProd) = one(ex.args[1])
+Base.zero(ex::NeqIndsProd) = zero(ex.args[1])
+Base.iszero(ex::NeqIndsProd) = iszero(ex.args[1])
+Base.isone(ex::NeqIndsProd) = isone(ex.args[1])
 
-*(x::Number,ex::DontSimplify) = Expression(*, [x,ex])
-*(ex::DontSimplify,x::Number) = x*ex
-*(ex::DontSimplify,a::BasicOperator) = Expression(*,[ex,a])
-*(a::BasicOperator,ex::DontSimplify) = Expression(*,[a,ex])
-*(a::DontSimplify,b::DontSimplify) = Expression(*,[a,b])
-*(ex::DontSimplify,a::Prod) = Expression(*,[ex,a])
-*(a::Prod,ex::DontSimplify) = Expression(*,[a,ex])
+*(x::Number,ex::NeqIndsProd) = Expression(*, [x,ex])
+*(ex::NeqIndsProd,x::Number) = x*ex
+*(ex::NeqIndsProd,a::BasicOperator) = Expression(*,[ex,a])
+*(a::BasicOperator,ex::NeqIndsProd) = Expression(*,[a,ex])
+*(a::NeqIndsProd,b::NeqIndsProd) = Expression(*,[a,b])
+*(ex::NeqIndsProd,a::Prod) = Expression(*,[ex,a])
+*(a::Prod,ex::NeqIndsProd) = Expression(*,[a,ex])
 
-function combine_add(a::DontSimplify,b::DontSimplify)
+function combine_add(a::NeqIndsProd,b::NeqIndsProd)
     length(a.args)==length(b.args) || return (false,a)
     a_args = sort_by_inds(a.args)
     b_args = sort_by_inds(b.args)
@@ -245,7 +245,7 @@ function combine_add(a::DontSimplify,b::DontSimplify)
         return (false,a)
     end
 end
-function combine_prod(a::DontSimplify,b::DontSimplify)
+function combine_prod(a::NeqIndsProd,b::NeqIndsProd)
     # Try to combine any equal indices
     args_out = []
     checks_a = ones(Bool, length(a.args))
@@ -267,7 +267,7 @@ function combine_prod(a::DontSimplify,b::DontSimplify)
         append!(args_out, b.args[checks_b])
         arg = prod(args_out)
         iszero(arg) && return (true,zero(a))
-        return (true,dont_simplify(arg))
+        return (true,neq_inds_prod(arg))
     end
 
     # Otherwise try to combine other indices
@@ -275,7 +275,7 @@ function combine_prod(a::DontSimplify,b::DontSimplify)
 
     return (false,a)
 end
-function combine_prod(a::DontSimplify,b::IndexedOperator{<:Transition})
+function combine_prod(a::NeqIndsProd,b::IndexedOperator{<:Transition})
     i = findfirst(x->x.index==b.index,a.args)
     if isa(i,Nothing)
         for j=1:length(a.args)
@@ -284,7 +284,7 @@ function combine_prod(a::DontSimplify,b::IndexedOperator{<:Transition})
                 iszero(arg) && return (true,zero(b))
                 inds_ = filter(!isequal(j),1:length(a.args))
                 args_out = sort_by_inds([arg;a.args[inds_]])
-                return (true, dont_simplify(prod(args_out)))
+                return (true, neq_inds_prod(prod(args_out)))
             end
         end
     else
@@ -293,12 +293,12 @@ function combine_prod(a::DontSimplify,b::IndexedOperator{<:Transition})
             iszero(arg) && return (true,zero(a))
             inds = filter(!isequal(i),1:length(a.args))
             args_out = sort_by_inds([arg;a.args[inds]])
-            return (true, dont_simplify(prod(args_out)))
+            return (true, neq_inds_prod(prod(args_out)))
         end
     end
     return (false,a)
 end
-function combine_prod(a::IndexedOperator{<:Transition},b::DontSimplify)
+function combine_prod(a::IndexedOperator{<:Transition},b::NeqIndsProd)
     i = findfirst(x->x.index==a.index,b.args)
     if isa(i,Nothing)
         for j=1:length(b.args)
@@ -307,7 +307,7 @@ function combine_prod(a::IndexedOperator{<:Transition},b::DontSimplify)
                 iszero(arg) && return (true,zero(a))
                 inds_ = filter(!isequal(j),1:length(b.args))
                 args_out = sort_by_inds([arg;b.args[inds_]])
-                return (true, dont_simplify(prod(args_out)))
+                return (true, neq_inds_prod(prod(args_out)))
             end
         end
     else
@@ -316,7 +316,7 @@ function combine_prod(a::IndexedOperator{<:Transition},b::DontSimplify)
             iszero(arg) && return (true,zero(a))
             inds = filter(!isequal(i),1:length(b.args))
             args_out = sort_by_inds([arg;b.args[inds]])
-            return (true, dont_simplify(prod(args_out)))
+            return (true, neq_inds_prod(prod(args_out)))
         end
     end
     return (false,a)

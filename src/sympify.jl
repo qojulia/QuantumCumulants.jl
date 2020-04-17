@@ -11,7 +11,7 @@ function sympify(a::Transition)
 end
 sympify(::Identity) = SymPy.Sym(1)#SymPy.symbols("Id",commutative=false)
 sympify(::Zero) = SymPy.Sym(0)#SymPy.symbols("Zr",commutative=false)
-function sympify(a::DontSimplify)
+function sympify(a::NeqIndsProd)
     inds = [a1.index for a1=a.args]
     ind_combs = combinations(inds,2)
     fac = SymPy.Sym(1)

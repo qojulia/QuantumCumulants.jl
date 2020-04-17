@@ -111,7 +111,7 @@ Base.iszero(s::SumType) = iszero(s.args[1])
 Base.zero(s::SumType) = zero(s.args[1])
 Base.one(s::SumType) = one(s.args[1])
 
-remove_dontsimplify(s::SumType) = Sum(remove_dontsimplify(s.args[1]),s.f.index)
+remove_NeqIndsProd(s::SumType) = Sum(remove_NeqIndsProd(s.args[1]),s.f.index)
 
 # Algebra
 # +
@@ -205,7 +205,7 @@ function simplify_operators(s::SumType)
 end
 
 function resolve_kdelta(ex::AbstractOperator,args...)
-    # ex_ = remove_dontsimplify(ex)
+    # ex_ = remove_NeqIndsProd(ex)
     return _resolve_kdelta(ex,args...)
 end
 function _resolve_kdelta(ex::SumType,index)
@@ -233,7 +233,7 @@ function _resolve_kdelta(ex::TensorProd,index)
     end
     return (false,ex)
 end
-function _resolve_kdelta(ex::DontSimplify,index)
+function _resolve_kdelta(ex::NeqIndsProd,index)
     i = ex.args[1].index
     j = ex.args[2].index
     (i==j) && return (true,zero(ex.args[1]))
@@ -401,7 +401,7 @@ function swap_index(ex::SumType, i::Index, j::Index)
         return Sum(arg, ex.f.index)
     end
 end
-swap_index(ex::DontSimplify, i::Index, j::Index) = Expression(dont_simplify, [swap_index(a,i,j) for a=ex.args])
+swap_index(ex::NeqIndsProd, i::Index, j::Index) = Expression(neq_inds_prod, [swap_index(a,i,j) for a=ex.args])
 
 function swap_index(x::SymPy.Sym, i::Index, j::Index)
     if classname(x) == "Indexed"

@@ -165,7 +165,7 @@ function acts_on(a::TensorProd)
     end
     return act
 end
-function acts_on(a::Union{Add,DontSimplify})
+function acts_on(a::Union{Add,NeqIndsProd})
     act = collect(Iterators.flatten(acts_on.(a.args)))
     unique!(act)
     return act
@@ -409,7 +409,7 @@ combine_add(a,b) = (false, a)
 
 combine_prod(a,b) = (false,a)
 
-function simplify_operators(a::DontSimplify)
+function simplify_operators(a::NeqIndsProd)
     iszero(a) && return zero(a.args[1])
     inds = [a1.index for a1=a.args]
     check = false
@@ -429,9 +429,9 @@ function simplify_operators(a::DontSimplify)
                 push!(args_out, _args_)
                 _arg2 = simplify_constants(args_[i].args[2]*_args_)
                 if isa(_arg2.args[1], Number)
-                    push!(args_out, _arg2.args[1]*dont_simplify(_arg2.args[2:end]))
+                    push!(args_out, _arg2.args[1]*neq_inds_prod(_arg2.args[2:end]))
                 else
-                    push!(args_out, dont_simplify(_arg2.args))
+                    push!(args_out, neq_inds_prod(_arg2.args))
                 end
                 return sum(args_out)
             end
@@ -460,9 +460,9 @@ function simplify_constants(a::TensorProd)
         if isa(a1,Prod) && isa(a1.args[1],Number)
             c*=a1.args[1]
             push!(args_,prod(a1.args[2:end]))
-        # elseif isa(a1,DontSimplify) && isa(a1.args[1],Prod) && isa(a1.args[1].args[1],Number)
+        # elseif isa(a1,NeqIndsProd) && isa(a1.args[1],Prod) && isa(a1.args[1].args[1],Number)
         #     c*=a1.args[1].args[1]
-        #     push!(args_,dont_simplify(prod(a1.args[1].args[2:end])))
+        #     push!(args_,neq_inds_prod(prod(a1.args[1].args[2:end])))
         else
             push!(args_,a1)
         end

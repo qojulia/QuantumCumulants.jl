@@ -27,7 +27,7 @@ function show(stream::IO,a::Transition)
     write(stream,string(a.i))
     write(stream,string(a.j))
 end
-function show(stream::IO,a::DontSimplify)
+function show(stream::IO,a::NeqIndsProd)
     show(stream,prod(a.args))
     inds = combinations([a1.index for a1=a.args],2)
     sym = "{"
