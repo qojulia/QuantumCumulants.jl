@@ -92,7 +92,18 @@ function average(s::SumType,order::Int=get_order(s))
     u = i.__pyobject__.upper
     return SymPy.sympy.Sum(arg,(i,l,u))
 end
-# average(a::NeqIndsProd,args...) = average(a.args[1],args...)
+function average(a::NeqIndsProd,order::Int=get_order(a))
+    inds = combinations([a1.index for a1=a.args],2)
+    fac = SymPy.Sym(1)
+    for ij=inds
+        fac *= (1-KroneckerDelta(ij[1],ij[2]))
+    end
+    if get_order(a) <= order
+        return fac*_average_proper_order(prod(a.args))
+    else
+        return fac*cumulant_expansion(*,a.args,order)
+    end
+end
 
 """
     average(op::AbstractOperator,order::Vector{<:Int};mix_choice::Function=maximum)
@@ -173,10 +184,10 @@ function average(de::DifferentialEquationSet,order::Int=maximum(get_order.(de.lh
     maximum(get_order.(de.lhs)) <= order || error("The left-hand-side operator is larger than the given order!")
 
     # Average over equations
+    rhs = order_indexed(de.lhs,de.rhs)
     lhs_avg = average.(de.lhs,order)
-    rhs_avg = average.(de.rhs,order)
+    rhs_avg = average.(rhs,order)
     rhs_ = replace_adjoints(rhs_avg,de.lhs,order)
-    rhs_ = order_indexed(rhs_,de.lhs,order)
     return DifferentialEquationSet(lhs_avg,rhs_)
 end
 
@@ -194,59 +205,6 @@ function average(de::DifferentialEquationSet,order::Vector{<:Int};kwargs...)
     rhs_avg = [average(de.rhs[i],order;kwargs...) for i=1:length(de.lhs)]
     rhs_ = replace_adjoints(rhs_avg,de.lhs,order)
     return DifferentialEquationSet(lhs_avg,rhs_)
-end
-
-function order_indexed(exprs::Vector,ops::Vector,order::Int)
-    exprs_ = copy(exprs)
-    for o=ops
-        _, inds = find_index(o)
-        (length(inds)<2) && continue
-        if isa(o,Prod)
-            args = o.args
-        elseif isa(o,TensorProd)
-            aon = acts_on(o)
-            args_ = o.args[aon]
-            args = []
-            for a=args_
-                _, inds_ = find_index(a)
-                (length(inds)<2) && continue
-                isa(a,Prod) || error("Something went wrong here!")
-                append!(args,a.args)
-            end
-        else
-            continue
-        end
-
-        nid = [i.nid for i=inds]
-        ids = [i.id for i=inds]
-        can_reorder = false
-        for i=1:length(inds)
-            ids_ = [ids[1:i-1];ids[i+1:end]]
-            can_reorder = any(inds[i].id .∈ nid) || any([id ∈ inds[i].nid for id=ids_])
-            can_reorder || break
-        end
-        can_reorder || continue
-
-        arg_perms = permutations(args)
-        base = SymPy.Sym[]
-        for args_=arg_perms
-            label = "⟨"*prod(gen_label.(args_))*"⟩"
-            sym_ = SymPy.symbols(label)
-            av = SymPy.sympy.IndexedBase(sym_)
-            push!(base,av)
-        end
-
-        av_subs_base = SymPy.sympy.IndexedBase(SymPy.symbols("⟨"*prod(gen_label.(args))*"⟩"))
-        inds_combs = combinations(IndexOrder,length(inds))
-        for i=1:length(base)
-            for j=inds_combs
-                perm = collect(permutations(j))[i]
-                av = base[i][sympify.(j)...]
-                exprs_ = [ex.__pyobject__.replace(av,av_subs_base[sympify.(perm)...]) for ex=exprs_]
-            end
-        end
-    end
-    return exprs_
 end
 
 
@@ -350,6 +308,12 @@ function _flatten_prods(args)
             isa(a1,Identity) || push!(args_,a1)
         elseif isa(a1,Number)
             c *= a1
+        elseif isa(a1,NeqIndsProd)
+            inds = combinations([a2.index for a2=a1.args],2)
+            for ij=inds
+                c*=(1-KroneckerDelta(ij[1],ij[2]))
+            end
+            append!(args_,a1.args)
         else
             error()
         end

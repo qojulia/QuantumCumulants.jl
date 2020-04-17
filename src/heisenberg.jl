@@ -17,7 +17,7 @@ under the Hamiltonian `H`.
 function heisenberg(a::Vector,H_)
     H = simplify_operators(H_)
     rhs = simplify_operators.([1.0im*commutator(H,a1) for a1=a])
-    return DifferentialEquationSet(a,rhs)
+    return order_indexed(DifferentialEquationSet(a,rhs))
 end
 
 """
@@ -77,7 +77,7 @@ function heisenberg(a::Vector,H,J;Jdagger::Vector=adjoint.(J),rates=ones(length(
     lhs = he.lhs
     da_diss = [_master_lindblad(a_,J,Jdagger,rates) for a_=lhs]
     da_ = [simplify_operators(he.rhs[i] + da_diss[i]) for i=1:length(lhs)]
-    return DifferentialEquationSet(lhs,da_)
+    return order_indexed(DifferentialEquationSet(lhs,da_))
 end
 
 function _master_lindblad(a_,J,Jdagger,rates)
@@ -365,7 +365,6 @@ function combine_add(a::Prod,b::BasicOperator)
     end
 end
 function combine_add(a::Prod,b::Prod)
-    # (any([isa(a1,IndexedOperator) for a1=a.args]) || any([isa(b1,IndexedOperator) for b1=b.args])) && return _combine_add_indexed(a,b)
     if a == b
         return true, 2*a
     elseif isa(a.args[1],Number) && isa(b.args[1],Number) && isequal_prod_args(a.args[2:end],b.args[2:end])
@@ -385,18 +384,6 @@ function combine_add(a::Prod,b::Prod)
     end
 end
 function combine_add(a::TensorProd,b::TensorProd)
-    # check = false
-    # args = []
-    # for i=1:length(a.args)
-    #     check, arg = combine_add(a.args[i],b.args[i])
-    #     check || break
-    #     push!(args,arg)
-    # end
-    # if check
-    #     return (true,⊗(args...))
-    # else
-    #     return (false,a)
-    # end
     check, arg = combine_add(a.args[1],b.args[1])
     if check && (a.args[2:end] == b.args[2:end])
         args = [arg; a.args[2:end]]
@@ -477,3 +464,34 @@ function simplify_constants(a::TensorProd)
     end
 end
 simplify_constants(ex::Expression) = ex.f(simplify_constants.(ex.args)...)
+
+
+
+order_indexed(de::DifferentialEquationSet) = DifferentialEquationSet(de.lhs,order_indexed(de.lhs,de.rhs))
+function order_indexed(lhs,rhs)
+    rhs_ = copy(rhs)
+    for op=lhs
+        args = _get_indexed_args(op)
+        length(args)<2 && continue
+        for i=1:length(rhs_)
+            rhs_[i] = _order_indexed(rhs_[i],args)
+        end
+    end
+    return rhs_
+end
+_order_indexed(ex::Expression,args) = ex.f([_order_indexed(arg,args) for arg=ex.args]...)
+_order_indexed(s::SumType,args) = Sum(_order_indexed(s.args[1],args),s.f.index)
+function _order_indexed(ex::NeqIndsProd,args)
+    ex_args = [a.operator for a=ex.args]
+    (length(ex_args)==length(args) && all(ex_args[i]∈args for i=1:length(ex_args))) || return ex
+    p = [findfirst(isequal(ex_args[i]),args) for i=1:length(ex_args)]
+    inds = [a.index for a=ex.args]
+    args_ = [IndexedOperator(a,i) for (a,i)=zip(ex.args[p],inds[p])]
+    return Expression(neq_inds_prod,ex.args[p])
+end
+_order_indexed(a::BasicOperator,args) = a
+_order_indexed(x::Number,args) = x
+
+_get_indexed_args(ex::Expression) = collect(Iterators.flatten(_get_indexed_args.(ex.args)))
+_get_indexed_args(a::BasicOperator) = BasicOperator[]
+_get_indexed_args(a::IndexedOperator) = [a.operator]

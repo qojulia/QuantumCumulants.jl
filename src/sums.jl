@@ -401,7 +401,7 @@ function swap_index(ex::SumType, i::Index, j::Index)
         return Sum(arg, ex.f.index)
     end
 end
-swap_index(ex::NeqIndsProd, i::Index, j::Index) = Expression(neq_inds_prod, [swap_index(a,i,j) for a=ex.args])
+swap_index(ex::NeqIndsProd, i::Index, j::Index) = Expression(neq_inds_prod, sort_by_inds([swap_index(a,i,j) for a=ex.args]))
 
 function swap_index(x::SymPy.Sym, i::Index, j::Index)
     if classname(x) == "Indexed"
