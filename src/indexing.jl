@@ -31,7 +31,7 @@ const SymbolicIndex{L,U,ID} = Index{<:Symbol,L,U,ID}
 Base.copy(i::Index) = Index(i.label,i.lower,i.upper,copy(i.id))
 
 # Indexing of symbolic variables
-function Base.getindex(s::SymPy.Sym, inds::Index...)
+function Base.getindex(s::SymPy.Sym, inds...)
     inds_ = sympify.(inds)
     b = SymPy.sympy.IndexedBase(s, real=isreal(s))
     return b[inds_...]

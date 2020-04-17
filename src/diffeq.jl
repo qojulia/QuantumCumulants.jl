@@ -85,10 +85,12 @@ function build_indexed_ode(eqs::Vector{<:SymPy.Sym}, vs::Vector{<:SymPy.Sym}, ps
                     set_unknowns_zero::Bool=false, check_bounds::Bool=true)
     @assert length(eqs) == length(vs)
 
+    eqs_ = _rewrite_eq_indices(eqs,vs)
+
     # Check if there are unknown symbols
-    missed = check_missing_idx(eqs,vs,ps)
+    missed = check_missing_idx(eqs_,vs,ps)
     (isempty(missed) || set_unknowns_zero) || throw_missing_error(missed)
-    eqs_ = remove_unknowns(eqs,missed)
+    eqs_ = remove_unknowns(eqs_,missed)
 
     # Check for indices
     rhs_inds = Vector{Index}[]
@@ -133,25 +135,10 @@ function build_indexed_ode(eqs::Vector{<:SymPy.Sym}, vs::Vector{<:SymPy.Sym}, ps
     # Loop boundaries
     lower = [[l_.lower for l_=l] for l=lhs_inds]
     upper_ = [[u_.upper for u_=l] for l=lhs_inds]
-    n_neq = [length.([j1.nid for j1=j]) for j=lhs_inds]
-    # Need to eliminate one loop step for each neq index
-    # TODO: change loop boundaries to skip neq indices
-    upper = upper_#[]
-    # for i=1:length(upper_)
-    #     tmp_ = []
-    #     for j=1:length(upper_[i])
-    #         if iszero(n_neq[i][j])
-    #             push!(tmp_,upper_[i][j])
-    #         else
-    #             u_ = isa(upper_[i][j],Symbol) ? :($(upper_[i][j]) - $(n_neq[i][j])) : upper_[i][j]-n_neq[i][j]
-    #             push!(tmp_,u_)
-    #         end
-    #     end
-    #     push!(upper,tmp_)
-    # end
+    upper = upper_
 
     # Generate linear indices for u
-    idxMap = _gen_idxMap(lower,upper_,n_neq,offset0)
+    idxMap = _gen_idxMap(lower,upper_,offset0)
     i_loop = [SymPy.symbols.([l.label for l=l1],integer=true) for l1=lhs_inds]
     n_no_index = sum(.!(has_index_lhs))
     # TODO: avoid parsing
@@ -161,32 +148,32 @@ function build_indexed_ode(eqs::Vector{<:SymPy.Sym}, vs::Vector{<:SymPy.Sym}, ps
     # TODO: substitute ⟨.⟩ with some variables losing the ⟨,⟩, parse, and use MacroTools from here on out
     dusym = Symbol(string("d",usym))
     lhs = [:($dusym[$(i)]) for i=u_index]
-    # TODO: intrinsically skip indices where indices cannot be equal
-    lhs_check = []
-    for j=1:length(i_loop)
-        nid = [l.nid for l=lhs_inds[j]]
-        nid_ind = findall(!isempty,nid)
-        if isempty(nid_ind)
-            push!(lhs_check, nothing)
-        else
-            inds = [l.label for l=lhs_inds[j]]
-            inds1 = Symbol[]
-            inds2 = Symbol[]
-            for i=1:length(inds)
-                if i∈nid_ind
-                    inds_neq = IndexOrder[findall(x->x.id∈nid[i],IndexOrder)]
-                    inds_neq_sym = unique([ii.label for ii=inds_neq])
-                    append!(inds2,inds_neq_sym)
-                    append!(inds1,[inds[i] for ii=1:length(inds_neq_sym)])
-                end
-            end
-            check_ex = :( (( $(inds1[1]) != $(inds2[1]))) )
-            for jj=2:length(inds1)
-                check_ex = :( $check_ex && ($(inds1[jj]) != $(inds2[jj])) )
-            end
-            push!(lhs_check, check_ex)
-        end
-    end
+    # # TODO: intrinsically skip indices where indices cannot be equal
+    # lhs_check = []
+    # for j=1:length(i_loop)
+    #     nid = [l.nid for l=lhs_inds[j]]
+    #     nid_ind = findall(!isempty,nid)
+    #     if isempty(nid_ind)
+    #         push!(lhs_check, nothing)
+    #     else
+    #         inds = [l.label for l=lhs_inds[j]]
+    #         inds1 = Symbol[]
+    #         inds2 = Symbol[]
+    #         for i=1:length(inds)
+    #             if i∈nid_ind
+    #                 inds_neq = IndexOrder[findall(x->x.id∈nid[i],IndexOrder)]
+    #                 inds_neq_sym = unique([ii.label for ii=inds_neq])
+    #                 append!(inds2,inds_neq_sym)
+    #                 append!(inds1,[inds[i] for ii=1:length(inds_neq_sym)])
+    #             end
+    #         end
+    #         check_ex = :( (( $(inds1[1]) != $(inds2[1]))) )
+    #         for jj=2:length(inds1)
+    #             check_ex = :( $check_ex && ($(inds1[jj]) != $(inds2[jj])) )
+    #         end
+    #         push!(lhs_check, check_ex)
+    #     end
+    # end
     u = [SymPy.symbols("$usym[$i]") for i=1:n_no_index]
 
     p = [SymPy.symbols("$psym[$i]") for i=1:length(ps)]
@@ -196,12 +183,8 @@ function build_indexed_ode(eqs::Vector{<:SymPy.Sym}, vs::Vector{<:SymPy.Sym}, ps
     rhs = [eq(subs) for eq=eqs_]
 
     # Symbolic sympy function; place-holder for bool-check of neq indices; can use sympy simplification to reduce number of bools computed
-    # TODO: unique symbol, which can still be parsed
-    bool_sym = SymPy.symbols("_BOOL_VAR")
-    bool_fun = SymPy.Function(bool_sym)
     u_sym_base = SymPy.sympy.IndexedBase("$usym")
     # Replacement for arguments of symbolic sums
-    tmp_keys = SymPy.Sym[]
     for i=1:length(eqs)#n_no_index
         for uu=1:length(i_loop)
             keys = vs_[n_no_index+uu]
@@ -219,48 +202,7 @@ function build_indexed_ode(eqs::Vector{<:SymPy.Sym}, vs::Vector{<:SymPy.Sym}, ps
                         jsym = SymPy.symbols.([j1.label for j1=j],integer=true)
                         # Get value index from idxMap
                         jval = idxMap(uu,jsym)
-                        _neq = [j1.nid for j1=j]
-                        _check = 1
-                        for nn=1:length(j)
-                            length(_neq[nn]) > 0 || continue
-                            _i_neq = sympify.(IndexOrder[findall(x->(x.id∈_neq[nn]&&isempty(x.nid)),IndexOrder)])
-                            _j_nn = SymPy.symbols(j[nn].label)
-                            for _ii=_i_neq
-                                _check *= bool_fun(_j_nn,_ii)
-                            end
-                        end
-                        val_ = _check*u_sym_base[jval]
-                        if length(k_) > 1
-                            push!(tmp_keys,key_)
-                        end
-                        rhs[i] = SymPy.expand(rhs[i].__pyobject__.replace(key_,val_))
-                    end
-                end
-            end
-        end
-    end
-
-    # Replace neq indices in ps; TODO: clean up; use postwalk
-    for i=1:length(eqs)
-        for pp=1:length(ps)
-            keys = p[pp]
-            for inds_combs=inds_combs_
-                for j_=inds_combs
-                    for j=permutations(j_)
-                        _neq = [j1.nid for j1=j]
-                        all(isempty.(_neq)) && continue
-                        _check = 1
-                        for nn=1:length(j)
-                            length(_neq[nn]) > 0 || continue
-                            _i_neq = sympify.(IndexOrder[findall(x->(x.id∈_neq[nn]&&isempty(x.nid)),IndexOrder)])
-                            _j_nn = SymPy.symbols(j[nn].label)
-                            for _ii=_i_neq
-                                _check *= bool_fun(_j_nn,_ii)
-                            end
-                        end
-                        jsym = SymPy.symbols.([j1.label for j1=j], integer=true)
-                        key_ = keys[j...]
-                        val_ = _check*SymPy.sympy.IndexedBase(keys)[jsym...]
+                        val_ = u_sym_base[jval]
                         rhs[i] = SymPy.expand(rhs[i].__pyobject__.replace(key_,val_))
                     end
                 end
@@ -272,14 +214,11 @@ function build_indexed_ode(eqs::Vector{<:SymPy.Sym}, vs::Vector{<:SymPy.Sym}, ps
 
     # Postwalk function to replace _BOOL_VAR(i,j) by Int(i!=j)
     function _pw_neq_func(x)
-        if MacroTools.@capture(x, F_(i_, j_))
-            if F == :_BOOL_VAR
-                return :( Int($i != $j) )
-            else
-                return x
-            end
+        if MacroTools.@capture(x, KroneckerDelta(i_, j_))
+            return :( Int($i == $j) )
+        else
+            return x
         end
-        return x
     end
 
     # Postwalk function to replace SymPy sums by actual sums
@@ -287,8 +226,7 @@ function build_indexed_ode(eqs::Vector{<:SymPy.Sym}, vs::Vector{<:SymPy.Sym}, ps
         if MacroTools.@capture(x, Sumsym_(arg_, (i_,l_,u_)))
             isa(arg,Number) && iszero(arg) && return 0
             if Sumsym==:Sum
-                loop_index = MacroTools.@capture(i, j_ ≠ k_) ? j : i
-                return :( sum($arg for $(loop_index)=$(l):$(u)) )
+                return :( sum($arg for $(i)=$(l):$(u)) )
             else
                 return x
             end
@@ -321,12 +259,6 @@ function build_indexed_ode(eqs::Vector{<:SymPy.Sym}, vs::Vector{<:SymPy.Sym}, ps
     # TODO: check limits only; replace index label if needed to combine
     can_combine_loops = all([l1∈l for l1=lhs_inds[1], l=lhs_inds])
     loop_eqs_ = [Expr(:(=), lhs[i], rhs_sym[i]) for i=n_no_index+1:length(lhs)]
-    # Skip entries of neq indices
-    for i=1:length(loop_eqs_)
-        if !isa(lhs_check[i], Nothing)
-            loop_eqs_[i] = :( ($(lhs_check[i])) && ($(loop_eqs_[i])) )
-        end
-    end
 
     if can_combine_loops
         _loop_eqs_ = reverse(loop_eqs_)
@@ -361,7 +293,6 @@ function build_indexed_ode(eqs::Vector{<:SymPy.Sym}, vs::Vector{<:SymPy.Sym}, ps
         loop_ex = build_expr(:block, loop_ex_)
     else
         loop_eqs = [build_expr(:block,[:( $l )]) for l=loop_eqs_]
-        # iter_ex = [[:( $(l[i].label) = $(l[i].lower) : $(l[i].upper) ) for i=1:length(l)] for l=lhs_inds]
         iter_ex = Expr[]
         for i=1:length(lhs_inds)
             if length(lhs_inds[i]) == 1
@@ -420,7 +351,7 @@ function build_indexed_ode(eqs::Vector{<:SymPy.Sym}, vs::Vector{<:SymPy.Sym}, ps
     return f_ex
 end
 
-function _gen_idxMap(lower,upper,n_neq,offset0)
+function _gen_idxMap(lower,upper,offset0)
     n = length.(lower)
 
     # Convert symbolics to Sympy
@@ -429,12 +360,11 @@ function _gen_idxMap(lower,upper,n_neq,offset0)
 
     # Size of each index space
     # TODO: reduce size to account for neq indices
-    nsize = [[lower_[i][j] - 1 + upper_[i][j] - 0n_neq[i][j] for j=1:n[i]] for i=1:length(n)]
+    nsize = [[lower_[i][j] - 1 + upper_[i][j] for j=1:n[i]] for i=1:length(n)]
     offset = cumsum([offset0;prod.(nsize)])
 
-    n_neq_ = maximum.(n_neq)
     # For each index space k, return a linear index from a set of indices of length corresponding to k
-    _idxMap(k,inds) = (offset[k] .+ _linear_index(inds,nsize[k]))# .- n_neq_[k]*_upper_[k])
+    _idxMap(k,inds) = (offset[k] .+ _linear_index(inds,nsize[k]))
     return _idxMap
 end
 function _linear_index(inds,nsize)
@@ -442,6 +372,17 @@ function _linear_index(inds,nsize)
     strds = Base.size_to_strides(1, nsize...)
     inds_ = inds .- 1
     return sum(inds_ .* strds) + 1
+end
+
+function _rewrite_eq_indices(eqs_,vs)
+    eqs = copy(eqs_)
+    for v=vs
+        if classname(v)=="Indexed"
+            inds = v.__pyobject__.indices
+            length(inds)<2 && continue
+        end
+    end
+    return eqs_
 end
 
 """
