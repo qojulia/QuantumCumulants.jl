@@ -189,7 +189,7 @@ function build_indexed_ode(eqs::Vector{<:SymPy.Sym}, vs::Vector{<:SymPy.Sym}, ps
     end
     u = [SymPy.symbols("$usym[$i]") for i=1:n_no_index]
 
-    p = [SymPy.symbols("$psym[$i]") for i=1:length(ps)]
+    p = [classname(ps[i])=="Indexed" ? SymPy.sympy.IndexedBase(SymPy.symbols("($psym[$i])"))[ps[i].__pyobject__.indices...] : SymPy.symbols("$psym[$i]") for i=1:length(ps)]
     subs_u = Dict(vs_[1:n_no_index] .=> u)
     subs_p = Dict(ps .=> p)
     subs = merge(subs_u, subs_p)
