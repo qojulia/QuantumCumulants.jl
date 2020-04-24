@@ -223,7 +223,6 @@ end
 apply_comms(a::Number) = a
 
 function simplify_operators(a::Prod)
-    # args = eltype(a.args)[]
     args = []
     fac = 1
     for i=1:length(a.args)
@@ -262,6 +261,9 @@ function simplify_operators(a::Prod)
         push!(args2, args[end])
     end
 
+    # See if there are any KroneckerDeltas to be resolved
+    _resolve_delta_neq_inds(args2) && return zero(a)
+
     p = prod(args2)
     # TODO: do we need recursion here?
     can_simplify = (a!=fac*p)
@@ -281,7 +283,18 @@ function simplify_operators(a::TensorProd)
         iszero(arg_) && return zero(a_)
         push!(args, arg_)
     end
+
+    # See if there are KroneckerDeltas to be resolved
+    if isa(a.args[1],Prod) && isa(a.args[1].args[1],SymPy.Sym)
+        _resolve_delta_neq_inds(a.args[1].args) && return zero(a)
+        c = a.args[1].args[1]
+        for i=2:length(a.args)
+            _resolve_delta_neq_inds((c*a.args[i]).args) && return zero(a)
+        end
+    end
+
     out = ⊗(args...)
+
     # TODO: do we need recursion here?
     if out == a_
         return out
@@ -289,6 +302,28 @@ function simplify_operators(a::TensorProd)
         return simplify_operators(out)
     end
 end
+function _resolve_delta_neq_inds(args)
+    cs = filter(x->isa(x,SymPy.Sym), args)
+    isempty(cs) && return false
+    c = prod(cs)
+    δs = filter(x->classname(x)=="KroneckerDelta", c.args)
+    isempty(δs) && return false
+
+    neqs = filter(x->isa(x,NeqIndsProd),args)
+    isempty(neqs) && return false
+    neq_inds = [sympify.([a1.index for a1=a.args]) for a=neqs]
+    for δ=δs
+        δ_inds = δ.indices
+        for inds=neq_inds
+            if δ_inds[1]∈inds && δ_inds[2]∈inds
+                return true
+            end
+        end
+    end
+
+    return false
+end
+
 function simplify_operators(a::Add)
     args = []
 

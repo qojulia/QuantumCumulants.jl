@@ -195,7 +195,7 @@ function simplify_operators(s::SumType)
         N = isa(u,Symbol) ? SymPy.symbols(string(u),integer=true) : u
         return N*op
     else
-        check, arg = resolve_kdelta(op,s_index)
+        check, arg = _resolve_kdelta(op,s_index)
         if check
             return arg
         else
@@ -204,10 +204,6 @@ function simplify_operators(s::SumType)
     end
 end
 
-function resolve_kdelta(ex::AbstractOperator,args...)
-    # ex_ = remove_NeqIndsProd(ex)
-    return _resolve_kdelta(ex,args...)
-end
 function _resolve_kdelta(ex::SumType,index)
     check, arg = _resolve_kdelta(ex.args[1],index)
     !check && return (false, Sum(arg, ex.f.index))
@@ -231,12 +227,6 @@ function _resolve_kdelta(ex::TensorProd,index)
             return _resolve_kdelta(ex,index,arg)
         end
     end
-    return (false,ex)
-end
-function _resolve_kdelta(ex::NeqIndsProd,index)
-    i = ex.args[1].index
-    j = ex.args[2].index
-    (i==j) && return (true,zero(ex.args[1]))
     return (false,ex)
 end
 function _resolve_kdelta(ex::Prod,index,arg::SymPy.Sym)
