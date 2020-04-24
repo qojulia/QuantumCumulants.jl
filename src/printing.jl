@@ -29,13 +29,18 @@ function show(stream::IO,a::Transition)
 end
 function show(stream::IO,a::NeqIndsProd)
     show(stream,prod(a.args))
-    inds = combinations([a1.index for a1=a.args],2)
-    sym = "{"
-    for ij=inds
-        sym *= string(ij[1].label, "≠", ij[2].label, ",")
+    args_ = filter(!iszero, a.args)
+    if isempty(args_)
+        write(stream, 0)
+    else
+        inds = combinations([a1.index for a1=args_],2)
+        sym = "{"
+        for ij=inds
+            sym *= string(ij[1].label, "≠", ij[2].label, ",")
+        end
+        sym = string(sym[1:end-1],"}")
+        write(stream, sym)
     end
-    sym = string(sym[1:end-1],"}")
-    write(stream, sym)
 end
 
 function show(stream::IO,i::Index)

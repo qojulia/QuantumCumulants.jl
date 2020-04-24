@@ -100,9 +100,6 @@ end
 function combine_add(a::IndexedOperator,b::IndexedOperator)
     if a==b
         return (true,2*a)
-    # elseif a.operator==b.operator
-    #     δ = KroneckerDelta(sympify(a.index),sympify(b.index))
-    #     return (true,2*a.operator[a.index]*δ + (1-δ)*a*b) # TODO: avoid infinite recursion
     else
         return (false,a)
     end
@@ -181,11 +178,7 @@ function KroneckerDelta(i::SymPy.Sym,j::SymPy.Sym)
     return SymPy.sympy.functions.special.tensor_functions.KroneckerDelta(i,j)
 end
 
-
-
 # Sometimes it is necessary to avoid simplification
-neq_inds_prod(ex::Prod) = neq_inds_prod(ex.args)
-neq_inds_prod(ex::Add) = sum(neq_inds_prod.(ex.args))
 neq_inds_prod(x::Number) = x
 const NeqIndsProd{ARGS} = Expression{typeof(neq_inds_prod),ARGS}
 neq_inds_prod(ex::NeqIndsProd) = ex
@@ -198,8 +191,10 @@ function neq_inds_prod(args::Vector)
             append!(args_,a.args)
         elseif isa(a,Number)
             push!(cs,a)
-        else
+        elseif isa(a,BasicOperator)
             push!(args_,a)
+        else
+            error("Something went wrong here!")
         end
     end
     if isempty(cs)
@@ -208,7 +203,8 @@ function neq_inds_prod(args::Vector)
         return prod(cs)*Expression(neq_inds_prod, sort_by_inds(args_))
     end
 end
-
+neq_inds_prod(ex::Prod) = neq_inds_prod(ex.args)
+neq_inds_prod(ex::Add) = sum(neq_inds_prod.(ex.args))
 
 remove_NeqIndsProd(x::Number) = x
 remove_NeqIndsProd(a::NeqIndsProd) = prod(a.args)
@@ -219,16 +215,16 @@ remove_NeqIndsProd(ex::Expression) = ex.f(remove_NeqIndsProd.(ex.args)...)
 
 Base.one(ex::NeqIndsProd) = one(ex.args[1])
 Base.zero(ex::NeqIndsProd) = zero(ex.args[1])
-Base.iszero(ex::NeqIndsProd) = iszero(ex.args[1])
-Base.isone(ex::NeqIndsProd) = isone(ex.args[1])
+Base.iszero(ex::NeqIndsProd) = any(iszero.(ex.args))
+Base.isone(ex::NeqIndsProd) = all(isone.(ex.args))
 
 *(x::Number,ex::NeqIndsProd) = Expression(*, [x,ex])
 *(ex::NeqIndsProd,x::Number) = x*ex
 *(ex::NeqIndsProd,a::BasicOperator) = Expression(*,[ex,a])
 *(a::BasicOperator,ex::NeqIndsProd) = Expression(*,[a,ex])
 *(a::NeqIndsProd,b::NeqIndsProd) = Expression(*,[a,b])
-*(ex::NeqIndsProd,a::Prod) = Expression(*,[ex,a])
-*(a::Prod,ex::NeqIndsProd) = Expression(*,[a,ex])
+*(ex::NeqIndsProd,a::Prod) = Expression(*,[ex;a.args])
+*(a::Prod,ex::NeqIndsProd) = Expression(*,[a.args;ex])
 
 function combine_add(a::NeqIndsProd,b::NeqIndsProd)
     length(a.args)==length(b.args) || return (false,a)
@@ -265,59 +261,122 @@ function combine_prod(a::NeqIndsProd,b::NeqIndsProd)
     if !all(checks_a) || !all(checks_b)
         append!(args_out, a.args[checks_a])
         append!(args_out, b.args[checks_b])
-        arg = prod(args_out)
-        iszero(arg) && return (true,zero(a))
-        return (true,neq_inds_prod(arg))
+        return (true,neq_inds_prod(args_out))
     end
 
-    # Otherwise try to combine other indices
-    # TODO
+    # TODO: Combine elements if no equal indices occur
+    # arg_a = copy(a.args[end])
+    # arg_b = copy(b.args[1])
+    # check = false
+    # args_out = [AbstractOperator[]]
+    # for i=0:length(a.args)-1
+    #     check, arg_a = combine_prod(a.args[end-i],arg_b)
+    #     check || break
+    #     iszero(arg) && return (true,zero(a))
+    #     for j=1:length(b.args)
+    #         check, arg_ = combine_prod(arg_a,b.args[j])
+    #         check || break
+    #         iszero(arg_) && return (true,zero(b))
+    #         push!(args_out[i+1], arg_)
+    #     end
+    #     check || break
+    #     arg_b = neq_inds_prod((args_out[i+1]))
+    # end
+    # if check
+    #     reverse!(args_out)
+    #     out = neq_inds_prod(prod(prod.(args_out)))
+    #     return (true,out)
+    # end
 
     return (false,a)
 end
 function combine_prod(a::NeqIndsProd,b::IndexedOperator{<:Transition})
-    i = findfirst(x->x.index==b.index,a.args)
-    if isa(i,Nothing)
-        for j=1:length(a.args)
-            check, arg = combine_prod(a.args[j],b)
-            if check
-                iszero(arg) && return (true,zero(b))
-                inds_ = filter(!isequal(j),1:length(a.args))
-                args_out = sort_by_inds([arg;a.args[inds_]])
-                return (true, neq_inds_prod(prod(args_out)))
-            end
-        end
-    else
+    # Try to combine equal indices
+    inds = [a1.index for a1=a.args]
+    i = findfirst(isequal(b.index), inds)
+    if !isa(i,Nothing)
         check, arg = combine_prod(a.args[i],b)
-        if check
-            iszero(arg) && return (true,zero(a))
-            inds = filter(!isequal(i),1:length(a.args))
-            args_out = sort_by_inds([arg;a.args[inds]])
-            return (true, neq_inds_prod(prod(args_out)))
-        end
+        check || return (false,a)
+        iszero(arg) && return (true,zero(b))
+        args = sort_by_inds([a.args[1:i-1];arg;a.args[i+1:end]])
+        out = prod(args)
+        return (true,neq_inds_prod(out))
     end
+
+    #Otherwise step through and combine other indices
+    check, arg = combine_prod(a.args[end],b)
+    if check
+        iszero(arg) && return (true,zero(b))
+        for i=1:length(a.args)-1
+            check, arg = _combine_neq_inds_prod_rtl(a.args[end-i],arg,inds[end-1+i])
+            check || break
+        end
+        check && return (true,arg)
+    end
+
     return (false,a)
 end
 function combine_prod(a::IndexedOperator{<:Transition},b::NeqIndsProd)
-    i = findfirst(x->x.index==a.index,b.args)
-    if isa(i,Nothing)
-        for j=1:length(b.args)
-            check, arg = combine_prod(a,b.args[j])
-            if check
-                iszero(arg) && return (true,zero(a))
-                inds_ = filter(!isequal(j),1:length(b.args))
-                args_out = sort_by_inds([arg;b.args[inds_]])
-                return (true, neq_inds_prod(prod(args_out)))
-            end
-        end
-    else
+    # Try to combine equal indices
+    inds = [b1.index for b1=b.args]
+    i = findfirst(isequal(a.index),inds)
+    if !isa(i,Nothing)
         check, arg = combine_prod(a,b.args[i])
-        if check
-            iszero(arg) && return (true,zero(a))
-            inds = filter(!isequal(i),1:length(b.args))
-            args_out = sort_by_inds([arg;b.args[inds]])
-            return (true, neq_inds_prod(prod(args_out)))
-        end
+        check || return (false,a)
+        iszero(arg) && return (true,zero(a))
+        args = sort_by_inds([b.args[1:i-1];arg;b.args[i+1:end]])
+        out = prod(args)
+        return (true,neq_inds_prod(out))
     end
+
+    #Otherwise step through and combine other indices
+    check, arg = combine_prod(a,b.args[1])
+    if check
+        iszero(arg) && return (true,zero(a))
+        for i=2:length(b.args)
+            check, arg = _combine_neq_inds_prod_ltr(arg,b.args[i],inds[i-1])
+            check || break
+        end
+        check && return (true,arg)
+    end
+
     return (false,a)
+end
+function _combine_neq_inds_prod_rtl(a_arg,arg,index)
+    @assert isa(arg,Add)
+
+    # Combine the second argument
+    args_ = filter(x->x.index!=index, arg.args[2].args)
+    @assert length(args_)==1
+    check, arg_ = combine_prod(a_arg,args_[1])
+    @assert check
+    args_remain = filter(x->x.index==index, arg.args[2].args)
+    arg2 = neq_inds_prod(prod([arg_; args_remain]))
+
+    # Add the first argument multiplied with a_arg if non-zero
+    if iszero(arg.args[1])
+        return (true, arg2)
+    else
+        arg1 = neq_inds_prod(prod([a_arg,arg.args[1]]))
+        return (true, arg1+arg2)
+    end
+end
+function _combine_neq_inds_prod_ltr(arg,b_arg,index)
+    @assert isa(arg,Add)
+
+    # Combine the second argument
+    args_ = filter(x->x.index!=index, arg.args[2].args)
+    @assert length(args_)==1
+    check, arg_ = combine_prod(args_[1],b_arg)
+    @assert check
+    args_remain = filter(x->x.index==index, arg.args[2].args)
+    arg2 = neq_inds_prod(prod([arg_; args_remain]))
+
+    # Add the first argument multiplied with a_arg if non-zero
+    if iszero(arg.args[1])
+        return (true, arg2)
+    else
+        arg1 = neq_inds_prod(prod([arg.args[1],b_arg]))
+        return (true, arg1+arg2)
+    end
 end

@@ -24,7 +24,7 @@ end
 sympify(a::Prod) = prod(sympify.(a.args))
 function sympify(a::TensorProd)
     args_ = sympify.(a.args)
-    return prod(args_)#spq.TensorProduct(args_...)
+    return prod(args_)
 end
 sympify(a::Add) = sum(sympify.(a.args))
 
