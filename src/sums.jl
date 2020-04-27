@@ -366,7 +366,8 @@ swap_index(op::BasicOperator, args...) = op
 function swap_index(ex::Prod, i::Index, j::Index)
     @assert i.lower==j.lower && i.upper==j.upper
     sym_inds, op_inds = find_index(ex)
-    ops = filter(x->isa(x,BasicOperator),ex.args)
+    ops = filter(x->isa(x,AbstractOperator),ex.args)
+    @assert !isempty(ops)
     cs = filter(x->isa(x,Number),ex.args)
     if i∈op_inds
         ops = [swap_index(op, i, j) for op=ops]
@@ -374,8 +375,12 @@ function swap_index(ex::Prod, i::Index, j::Index)
     if i∈sym_inds
         cs = [swap_index(c, i, j) for c=cs]
     end
-    args = [cs;ops]
-    return Expression(ex.f,args)
+    if !isempty(cs)
+        c = prod(cs)
+        return c*Expression(ex.f,ops)
+    else
+        return Expression(ex.f,ops)
+    end
 end
 function swap_index(ex::TensorProd, i::Index, j::Index)
     args = [swap_index(a, i, j) for a=ex.args]
