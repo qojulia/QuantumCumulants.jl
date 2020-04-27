@@ -447,8 +447,15 @@ function simplify_operators(a::NeqIndsProd)
             if isa(args_[i],Add)
                 @assert isone(args_[i].args[1])
                 inds_ = filter(!isequal(i),1:length(args_))
-                _args_ = prod(args_[inds_])
+                index_i = a.args[i].index
+                fac = SymPy.Sym(1)
+                for j=inds_
+                    index_j = args_[j].index
+                    fac *= (1-KroneckerDelta(index_i,index_j))
+                end
+                _args_ = fac*prod(args_[inds_])
                 push!(args_out, _args_)
+
                 _arg2 = simplify_constants(args_[i].args[2]*_args_)
                 if isa(_arg2.args[1], Number)
                     push!(args_out, _arg2.args[1]*neq_inds_prod(_arg2.args[2:end]))
