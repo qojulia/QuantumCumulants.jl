@@ -84,6 +84,7 @@ end
 
 function _master_lindblad(a_,J,Jdagger,rates)
     if isa(rates,Vector)
+        @assert length(rates)==length(J)==length(Jdagger)
         da_diss_list = []
         for it=1:length(rates)
             push!(da_diss_list, q_langevin_no_noise(a_,J[it],Jdagger[it],rates[it]))
