@@ -148,34 +148,7 @@ function build_indexed_ode(eqs::Vector{<:SymPy.Sym}, vs::Vector{<:SymPy.Sym}, ps
     # TODO: substitute ⟨.⟩ with some variables losing the ⟨,⟩, parse, and use MacroTools from here on out
     dusym = Symbol(string("d",usym))
     lhs = [:($dusym[$(i)]) for i=u_index]
-    # # TODO: intrinsically skip indices where indices cannot be equal
-    # lhs_check = []
-    # for j=1:length(i_loop)
-    #     nid = [l.nid for l=lhs_inds[j]]
-    #     nid_ind = findall(!isempty,nid)
-    #     if isempty(nid_ind)
-    #         push!(lhs_check, nothing)
-    #     else
-    #         inds = [l.label for l=lhs_inds[j]]
-    #         inds1 = Symbol[]
-    #         inds2 = Symbol[]
-    #         for i=1:length(inds)
-    #             if i∈nid_ind
-    #                 inds_neq = IndexOrder[findall(x->x.id∈nid[i],IndexOrder)]
-    #                 inds_neq_sym = unique([ii.label for ii=inds_neq])
-    #                 append!(inds2,inds_neq_sym)
-    #                 append!(inds1,[inds[i] for ii=1:length(inds_neq_sym)])
-    #             end
-    #         end
-    #         check_ex = :( (( $(inds1[1]) != $(inds2[1]))) )
-    #         for jj=2:length(inds1)
-    #             check_ex = :( $check_ex && ($(inds1[jj]) != $(inds2[jj])) )
-    #         end
-    #         push!(lhs_check, check_ex)
-    #     end
-    # end
     u = [SymPy.symbols("$usym[$i]") for i=1:n_no_index]
-
     p = [SymPy.symbols("$psym[$i]") for i=1:length(ps)]
     subs_u = Dict(vs_[1:n_no_index] .=> u)
     subs_p = Dict(ps .=> p)
@@ -257,7 +230,7 @@ function build_indexed_ode(eqs::Vector{<:SymPy.Sym}, vs::Vector{<:SymPy.Sym}, ps
 
     # TODO: check whether one can partially combine loops
     # TODO: check limits only; replace index label if needed to combine
-    can_combine_loops = all([l1∈l for l1=lhs_inds[1], l=lhs_inds])
+    can_combine_loops = false#all([l1∈l for l1=lhs_inds[1], l=lhs_inds])
     loop_eqs_ = [Expr(:(=), lhs[i], rhs_sym[i]) for i=n_no_index+1:length(lhs)]
 
     if can_combine_loops
@@ -287,8 +260,12 @@ function build_indexed_ode(eqs::Vector{<:SymPy.Sym}, vs::Vector{<:SymPy.Sym}, ps
             end
             l_eqs_ = build_expr(:block, [reverse(_loop_eqs_[ind0:size+ind0-1]);loop_ex_])
             ind0 += size
-            isempty(loop_ex_) && push!(loop_ex_, build_expr(:for, [iter_ex, l_eqs_]))
-            loop_ex_[1] = build_expr(:for, [iter_ex, l_eqs_])
+            if isempty(loop_ex_)
+                push!(loop_ex_, build_expr(:for, [iter_ex, l_eqs_]))
+            else
+                i > 1 || error("Something went wrong here!")
+                loop_ex_[1] = build_expr(:for, [iter_ex, l_eqs_])
+            end
         end
         loop_ex = build_expr(:block, loop_ex_)
     else
@@ -297,9 +274,9 @@ function build_indexed_ode(eqs::Vector{<:SymPy.Sym}, vs::Vector{<:SymPy.Sym}, ps
         for i=1:length(lhs_inds)
             if length(lhs_inds[i]) == 1
                 l = lhs_inds[i][1]
-                ex_ = :( $(l.label) = $(_lower_[i][1]) : $(_upper_[i][1]) )
+                ex_ = :( $(l.label) = $(lower[i][1]) : $(upper_[i][1]) )
             else
-                exs = [:( $(lhs_inds[i][j].label) = $(_lower_[i][j]) : $(_upper_[i][j]) ) for j=1:length(lhs_inds[i])]
+                exs = [:( $(lhs_inds[i][j].label) = $(lower[i][j]) : $(upper_[i][j]) ) for j=1:length(lhs_inds[i])]
                 ex_ = build_expr(:block, exs)
             end
             push!(iter_ex, ex_)
