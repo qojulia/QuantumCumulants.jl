@@ -1,79 +1,96 @@
-import Base: +,-,*,==,copy
-import LinearAlgebra: ishermitian
-
-"""
-    AbstractOperator
-
-Abstract type for all operators and expressions.
-"""
-abstract type AbstractOperator end# <: Number end
-
-"""
-    BasicOperator <: AbstractOperator
-
-Abstract type which is supertype to all fundamental operators, i.e. all operators
-that are not `<:Expression`.
-"""
+# Abstract types
+abstract type AbstractOperator end
 abstract type BasicOperator <: AbstractOperator end
 
+isoperator(x) = false
+isoperator(x::Union{T,SymbolicUtils.Symbolic{T}}) where T<:AbstractOperator = true
+
+# Keep track of operators when converting to SymbolicUtils
+const OPERATORS_TO_SYMS = Dict{BasicOperator,SymbolicUtils.Sym}()
+const SYMS_TO_OPERATORS = Dict{SymbolicUtils.Sym,BasicOperator}()
+
+# Operator expressions
+struct OperatorTerm{F,ARGS} <: AbstractOperator
+    f::F
+    arguments::ARGS
+end
+Base.:(==)(t1::OperatorTerm,t2::OperatorTerm) = (t1.f===t2.f && t1.arguments==t2.arguments)
+
+for f = [:+,:-,:*]
+    @eval Base.$f(a::AbstractOperator,b::AbstractOperator) = (check_hilbert(a,b); OperatorTerm($f, [a,b]))
+end
+Base.:*(a::AbstractOperator,b::Number) = OperatorTerm(*, [a,b])
+Base.:*(a::Number,b::AbstractOperator) = OperatorTerm(*, [a,b])
+Base.:*(a::AbstractOperator,b::SymbolicUtils.Symbolic{<:Number}) = OperatorTerm(*, [a,b])
+Base.:*(a::SymbolicUtils.Symbolic{<:Number},b::AbstractOperator) = OperatorTerm(*, [a,b])
+Base.:^(a::AbstractOperator,b::Int) = OperatorTerm(^, [a,b])
+
+# Variadic methods
+Base.:+(x::AbstractOperator) = x
+Base.:-(x::AbstractOperator) = -1*x
+Base.:+(x::AbstractOperator, w::AbstractOperator...) = (rec_check_hilbert(x,w); OperatorTerm(+, [x;w...]))
+
+Base.:*(x::AbstractOperator) = x
+Base.:*(x::AbstractOperator, w...) = (rec_check_hilbert(x,w); OperatorTerm(*, [x;w...]))
+Base.:*(x, y::AbstractOperator, w...) = (rec_check_hilbert(x,y,w); OperatorTerm(*, [x;y;w...]))
+Base.:*(x::AbstractOperator, y::AbstractOperator, w...) = (rec_check_hilbert(x,y,w); OperatorTerm(*, [x;y;w...]))
+
+Base.adjoint(t::OperatorTerm) = OperatorTerm(t.f, adjoint.(t.arguments))
+Base.adjoint(t::OperatorTerm{<:typeof(*)}) = OperatorTerm(t.f, reverse(adjoint.(t.arguments)))
+
+check_hilbert(a,b) = nothing # TODO
+rec_check_hilbert(args...) = nothing
+
+# Tensor product
+⊗(a::AbstractOperator,b::AbstractOperator) = OperatorTerm(⊗, [a,b])
+⊗(a::SymbolicUtils.Symbolic{<:AbstractOperator},b::SymbolicUtils.Symbolic{<:AbstractOperator}) = SymbolicUtils.Term(⊗, [a,b])
+
+# Variadic ⊗
+⊗(a::AbstractOperator) = a
+⊗(a::AbstractOperator,b::AbstractOperator...) = OperatorTerm(⊗, [a;b...])
+⊗(a::SymbolicUtils.Symbolic{<:AbstractOperator},b::SymbolicUtils.Symbolic{<:AbstractOperator}...) = SymbolicUtils.Term(⊗, [a;b...])
+
+# General basic operator types
+struct Identity{H,S} <: BasicOperator
+    hilbert::H
+    name::S
+    function Identity{H,S}(hilbert::H,name::S) where {H,S}
+        op = new(hilbert,name)
+        if !haskey(OPERATORS_TO_SYMS,op)
+            sym = SymbolicUtils.Sym{Identity}(gensym(:Identity))
+            OPERATORS_TO_SYMS[op] = sym
+            SYMS_TO_OPERATORS[sym] = op
+        end
+        return op
+    end
+end
+Identity(hilbert::H,name::S) where {H,S} = Identity{H,S}(hilbert,name)
+Identity(hilbert::HilbertSpace) = Identity(hilbert, :𝟙)
+Base.one(hilbert::HilbertSpace) = Identity(hilbert)
+Base.one(a::BasicOperator) = one(a.hilbert)
+Base.isone(::AbstractOperator) = false
+Base.isone(::Identity) = true
+Base.adjoint(x::Identity) = x
+isidentity(x) = false
+isidentity(x::Union{T,SymbolicUtils.Sym{T}}) where T<:Identity = true
+
+struct Zero{H,S} <: BasicOperator
+    hilbert::H
+    name::S
+    function Zero{H,S}(hilbert::H,name::S) where {H,S}
+        op = new(hilbert,name)
+        if !haskey(OPERATORS_TO_SYMS,op)
+            sym = SymbolicUtils.Sym{Zero}(gensym(:Zero))
+            OPERATORS_TO_SYMS[op] = sym
+            SYMS_TO_OPERATORS[sym] = op
+        end
+        return op
+    end
+end
+Zero(hilbert::H,name::S) where {H,S} = Zero{H,S}(hilbert,name)
+Zero(hilbert::HilbertSpace) = Zero(hilbert, 0)
+Base.zero(hilbert::HilbertSpace) = Zero(hilbert)
+Base.zero(a::BasicOperator) = one(a.hilbert)
 Base.iszero(::AbstractOperator) = false
-Base.isapprox(a::AbstractOperator,b::AbstractOperator) = isequal(a,b)
-
-"""
-    Identity <: BasicOperator
-    Identity()
-    Base.one(::AbstractOperator)
-
-The identity operator (shown as `𝟙`). This operator leaves any other operator
-invariant under multiplication.
-
-# Fields:
-*`label`: Symbolic label.
-*`id`: Identifier.
-"""
-mutable struct Identity{L,I} <: BasicOperator
-    label::L
-    id::I
-end
-Identity() = Identity(:id,1)
-==(::Identity,::Identity) = true
-
-*(a::Identity,b::BasicOperator) = b
-*(a::BasicOperator,b::Identity) = a
-*(a::Identity,b::Identity) = a
-Base.adjoint(a::Identity) = a
-Base.one(::BasicOperator) = Identity()
-copy(::Identity) = Identity()
-
-"""
-    Zero <: BasicOperator
-    Zero()
-    Base.zero(::AbstractOperator)
-
-The zero operator (shown as `0`). This operator leaves any other operator invariant
-under addition. When multiplying any operator with it, however, `Zero()` is returned.
-"""
-mutable struct Zero{L,I} <: BasicOperator
-    label::L
-    id::I
-end
-Zero() = Zero(:Zr,0)
-==(::Zero,::Zero) = true
-
-*(a::Zero,b::BasicOperator) = a
-*(a::BasicOperator,b::Zero) = b
-*(a::Zero,::Identity) = a
-*(::Identity,a::Zero) = a
-+(a::Zero,b::BasicOperator) = b
-+(a::BasicOperator,b::Zero) = a
-+(a::Zero,::Zero) = a
-Base.adjoint(a::Zero) = a
-Base.zero(::BasicOperator) = Zero()
 Base.iszero(::Zero) = true
-copy(::Zero) = Zero()
-
-*(a::AbstractOperator) = a
-
-ishermitian(a::AbstractOperator) = (a==a')
-ishermitian(::Identity) = true
-ishermitian(::Zero) = true
+Base.adjoint(x::Zero) = x

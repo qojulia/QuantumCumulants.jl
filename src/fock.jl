@@ -1,61 +1,78 @@
-
-"""
-    PhotonicOperator <: BasicOperator
-
-Abstract type which is supertype to `Create` and `Destroy`.
-"""
-abstract type PhotonicOperator <: BasicOperator end
-
-"""
-    Destroy <: PhotonicOperator
-    Destroy(label::Symbol)
-
-Type defining the photonic annihilation operator.
-
-# Arguments:
-*`label::Symbol`: The symbol labelling the operator.
-
-# Fields
-*`label`: See above.
-*`id`: An identifier unique to the symbol given to the operator. Used for `isequal`.
-"""
-mutable struct Destroy{L,I} <: PhotonicOperator
-    label::L
-    id::I
+struct FockSpace{S} <: HilbertSpace
+    name::S
+    function FockSpace(name::S) where S
+        r = SymbolicUtils.@rule(*(~~x::has_destroy_create) => commute_bosonic(*, ~~x))
+        (r ∈ COMMUTATOR_RULES.rules) || push!(COMMUTATOR_RULES.rules, r)
+        new{S}(name)
+    end
 end
-Destroy(label::Symbol) = Destroy(label,hash(label))
-==(a::Destroy,b::Destroy) = (a.id==b.id)
-copy(a::Destroy) = Destroy(a.label,a.id)
+Base.:(==)(h1::T,h2::T) where T<:FockSpace = (h1.name==h2.name)
 
-"""
-    Create <: PhotonicOperator
-    Create(label::Symbol)
 
-Type defining the photonic annihilation operator.
-
-# Arguments:
-*`label::Symbol`: The symbol labelling the operator.
-
-# Fields
-*`label`: See above.
-*`id`: An identifier unique to the symbol given to the operator. Used for `isequal`.
-"""
-mutable struct Create{L,I} <: PhotonicOperator
-    label::L
-    id::I
+struct Destroy{H<:FockSpace,S} <: BasicOperator
+    hilbert::H
+    name::S
+    function Destroy{H,S}(hilbert::H,name::S) where {H,S}
+        op = new(hilbert,name)
+        if !haskey(OPERATORS_TO_SYMS,op)
+            sym = SymbolicUtils.Sym{Destroy}(gensym(:Destroy))
+            OPERATORS_TO_SYMS[op] = sym
+            SYMS_TO_OPERATORS[sym] = op
+        end
+        return op
+    end
 end
-Create(label::Symbol) = Create(label,hash(label))
-==(a::Create,b::Create) = (a.id==b.id)
-copy(a::Create) = Create(a.label,a.id)
+Destroy(hilbert::H,name::S) where {H,S} = Destroy{H,S}(hilbert,name)
+isdestroy(a) = false
+isdestroy(a::Union{SymbolicUtils.Sym{T},T}) where T<:Destroy = true
 
-Base.adjoint(a::Destroy) = Create(a.label,a.id)
-Base.adjoint(a::Create) = Destroy(a.label,a.id)
 
-function commutation_relation(a::Destroy,b::Create)
-    a.id == b.id || error("Something went wrong here!")
-    return one(a)
+struct Create{H<:FockSpace,S} <: BasicOperator
+    hilbert::H
+    name::S
+    function Create{H,S}(hilbert::H,name::S) where {H,S}
+        op = new(hilbert,name)
+        if !haskey(OPERATORS_TO_SYMS,op)
+            sym = SymbolicUtils.Sym{Create}(gensym(:Create))
+            OPERATORS_TO_SYMS[op] = sym
+            SYMS_TO_OPERATORS[sym] = op
+        end
+        return op
+    end
 end
-function replace_commutator(a::Destroy,b::Create)
-    a.id == b.id || error("Something went wrong here!")
-    return (true,b*a + one(a))
+Create(hilbert::H,name::S) where {H,S} = Create{H,S}(hilbert,name)
+iscreate(a) = false
+iscreate(a::Union{SymbolicUtils.Sym{T},T}) where T<:Create = true
+
+Base.adjoint(op::Destroy) = Create(op.hilbert,op.name)
+Base.adjoint(op::Create) = Destroy(op.hilbert,op.name)
+Base.isone(::BasicOperator) = false
+Base.iszero(::BasicOperator) = false
+
+# Commutation relation in simplification
+function has_destroy_create(args)
+    length(args) <= 1 && return false
+    for i=1:length(args)-1
+        if isdestroy(args[i])&&iscreate(args[i+1])
+            return true
+        end
+    end
+    return false
+end
+function commute_bosonic(f,args)
+    commuted_args = []
+    i = 1
+    last_commute = false
+    while i < length(args)
+        if isdestroy(args[i]) && iscreate(args[i+1])
+            push!(commuted_args, args[i+1]*args[i] + one(args[i]))
+            i += 2
+            last_commute = (i==length(args))
+        else
+            push!(commuted_args, args[i])
+            i += 1
+        end
+    end
+    last_commute && push!(commuted_args, args[end])
+    return SymbolicUtils.Term(f, commuted_args)
 end

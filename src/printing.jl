@@ -1,63 +1,14 @@
-global PPRINT = true
-set_pprint(val::Bool) = (global PPRINT=val)
+Base.show(io::IO,x::BasicOperator) = write(io, x.name)
+Base.show(io::IO,x::Create) = write(io, string(x.name, "′"))
+Base.show(io::IO,x::Transition) = write(io, Symbol(x.name,x.i,x.j))
 
-import Base: show
-
-function show(stream::IO,a::BasicOperator)
-    write(stream,string(a.label))
-end
-function show(stream::IO,a::Create)
-    write(stream,String(a.label))
-    write(stream,"ᵗ")
-end
-function show(stream::IO,a::Expression)
-    write(stream, "(")
-    for i=1:length(a.args)-1
-        show(stream,a.args[i])
-        show(stream,a.f)
+Base.show(io::IO, ::typeof(⊗)) = write(io, " ⊗ ")
+function Base.show(io::IO,x::OperatorTerm)
+    write(io,"(")
+    show(io, x.arguments[1])
+    for i=2:length(x.arguments)
+        show(io, x.f)
+        show(io, x.arguments[i])
     end
-    show(stream,a.args[end])
-    write(stream, ")")
-end
-show(stream::IO,f::typeof(⊗)) = write(stream,"⊗")
-show(stream::IO,a::Identity) = write(stream,"𝟙")
-show(stream::IO,::Zero) = show(stream,0)
-function show(stream::IO,a::Transition)
-    write(stream,string(a.label))
-    write(stream,string(a.i))
-    write(stream,string(a.j))
-end
-
-function show(stream::IO,de::DifferentialEquation)
-    write(stream, "∂ₜ(")
-    show(stream, de.lhs)
-    write(stream, ") = ")
-    show(stream, de.rhs)
-end
-function show(stream::IO,de::DifferentialEquationSet)
-    for i=1:length(de.lhs)
-        show(stream,DifferentialEquation(de.lhs[i],de.rhs[i]))
-    end
-end
-
-function show(stream::IO, m::MIME"text/latex", x::AbstractOperator)
-    if PPRINT
-        show(stream, m, sympify(x))
-    else
-        show(stream, x)
-    end
-end
-function show(stream::IO, m::MIME"text/latex", x::AbstractEquation)
-    if PPRINT
-        show(stream, m, sympify(x))
-    else
-        show(stream, x)
-    end
-end
-function show(stream::IO, m::MIME"text/latex", x::Vector{<:DifferentialEquation})
-    if PPRINT
-        show(stream, m, sympify.(x))
-    else
-        show(stream, x)
-    end
+    write(io,")")
 end
