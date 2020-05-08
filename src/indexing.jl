@@ -113,13 +113,6 @@ expression2index(a::BasicOperator,i) = getindex(a,i)
 expression2index(a::IndexedOperator,i...) = error()
 expression2index(x::Number,i...) = x
 
-# TODO: optimize for non-indexed operators
-function ==(a::Prod,b::Prod)
-    length(a.args) == length(b.args) || return false
-    a_args = sort_by_inds(a.args)
-    b_args = sort_by_inds(b.args)
-    return all(a_args .== b_args)
-end
 function sort_by_inds(args::Vector)
     args_num = filter(x->isa(x,Number),args)
     if !isempty(args_num)
@@ -147,9 +140,7 @@ function sort_by_inds(args::Vector)
 end
 function isequal_prod_args(as,bs)
     length(as) == length(bs) || return false
-    as_ = sort_by_inds(as)
-    bs_ = sort_by_inds(bs)
-    return all(as_ .== bs_)
+    return all(as .== bs)
 end
 
 function acts_on(op::IndexedOperator)
