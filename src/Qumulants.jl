@@ -16,9 +16,8 @@ export HilbertSpace,
         # build_ode, generate_ode, check_missing, remove_unknowns
 
 include("operator.jl")
-# include("expression.jl")
-include("rules.jl")
 include("simplify.jl")
+include("rules.jl")
 include("fock.jl")
 include("nlevel.jl")
 include("equations.jl")
