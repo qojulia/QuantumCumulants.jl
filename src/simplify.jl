@@ -10,8 +10,9 @@ _to_operator(x::Number) = x
 _to_operator(s::SymbolicUtils.Symbolic{<:Number}) = s
 
 # Interfacing with SymbolicUtils
+SymbolicUtils.promote_symtype(f, Ts::Type{<:AbstractOperator}...) = promote_type(Ts...)
 SymbolicUtils.promote_symtype(f, T::Type{<:AbstractOperator}, Ts...) = T
-SymbolicUtils._isone(x::SymbolicUtils.Sym{T}) where T<:AbstractOperator = T <: Identity
+# SymbolicUtils._isone(x::SymbolicUtils.Sym{T}) where T<:AbstractOperator = T <: Identity
 SymbolicUtils._iszero(x::SymbolicUtils.Sym{T}) where T<:AbstractOperator = T <: Zero
 
 # Symbolic type promotion
@@ -29,10 +30,11 @@ end
 
 Base.one(x::SymbolicUtils.Sym{T}) where T<:BasicOperator = _to_symbolic(one(_to_operator(x)))
 
-function simplify_operators(op::AbstractOperator; kwargs...)
+function simplify_operators(op::AbstractOperator; rules=SIMPLIFY_OPERATOR_RULES, kwargs...)
     s = _to_symbolic(op)
-    s_ = SymbolicUtils.simplify(s, rules=SIMPLIFY_OPERATOR_RULES; kwargs...)
+    s_ = SymbolicUtils.simplify(s; rules=rules, kwargs...)
     (SymbolicUtils.symtype(s_) == Any) && @warn "SymbolicUtils.simplify returned symtype Any; recursion failed!"
-    s_c = SymbolicUtils.simplify(s_, rules=SIMPLIFY_COMMUTATOR_RULES; kwargs...)
-    return _to_operator(s_c)
+    # s_c = SymbolicUtils.simplify(s_, rules=SIMPLIFY_COMMUTATOR_RULES; kwargs...)
+    # return s_
+    return _to_operator(s_)
 end

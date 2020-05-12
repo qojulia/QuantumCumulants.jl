@@ -1,3 +1,4 @@
+import SymbolicUtils
 # Abstract types
 abstract type AbstractOperator end
 abstract type BasicOperator <: AbstractOperator end
@@ -23,7 +24,7 @@ Base.:*(a::AbstractOperator,b::Number) = OperatorTerm(*, [a,b])
 Base.:*(a::Number,b::AbstractOperator) = OperatorTerm(*, [a,b])
 Base.:*(a::AbstractOperator,b::SymbolicUtils.Symbolic{<:Number}) = OperatorTerm(*, [a,b])
 Base.:*(a::SymbolicUtils.Symbolic{<:Number},b::AbstractOperator) = OperatorTerm(*, [a,b])
-Base.:^(a::AbstractOperator,b::Int) = OperatorTerm(^, [a,b])
+Base.:^(a::AbstractOperator,b) = OperatorTerm(^, [a,b])
 
 # Variadic methods
 Base.:+(x::AbstractOperator) = x
@@ -49,6 +50,22 @@ rec_check_hilbert(args...) = nothing
 ⊗(a::AbstractOperator) = a
 ⊗(a::AbstractOperator,b::AbstractOperator...) = OperatorTerm(⊗, [a;b...])
 ⊗(a::SymbolicUtils.Symbolic{<:AbstractOperator},b::SymbolicUtils.Symbolic{<:AbstractOperator}...) = SymbolicUtils.Term(⊗, [a;b...])
+
+# Function hierarchy * < ⊗ < +
+import Base: *, +
+fs = [:⊗, :*]
+for f in fs
+    @eval $(f)(a::AbstractOperator, b::OperatorTerm{<:typeof(+)}) = OperatorTerm(+, [$(f)(a,b_) for b_ in b.arguments])
+    @eval $(f)(a::OperatorTerm{<:typeof(+)}, b::AbstractOperator) = OperatorTerm(+, [$(f)(a_,b) for a_ in a.arguments])
+    @eval $(f)(a::OperatorTerm{<:typeof(+)}, b::OperatorTerm{<:typeof(+)}) = OperatorTerm(+, [$(f)(a_,b_) for a_ in a.arguments, b_ in b.arguments][:])
+end
+*(a::Number, b::OperatorTerm{<:typeof(+)}) = OperatorTerm(+, [*(a,b_) for b_ in b.arguments])
+function *(a::OperatorTerm{<:typeof(⊗)}, b::OperatorTerm{<:typeof(⊗)})
+    @assert length(a.arguments)==length(b.arguments)
+    OperatorTerm(⊗, [*(a_,b_) for (a_,b_) in zip(a.arguments,b.arguments)])
+end
+*(a::Number, b::OperatorTerm{<:typeof(⊗)}) = OperatorTerm(⊗, [*(a,b.arguments[1]); b.arguments[2:end]])
+Base.:^(a::OperatorTerm{<:typeof(⊗)}, b) = OperatorTerm(⊗, [^(a_,b) for a_ in a.arguments])
 
 # General basic operator types
 struct Identity{H,S} <: BasicOperator
@@ -90,7 +107,7 @@ end
 Zero(hilbert::H,name::S) where {H,S} = Zero{H,S}(hilbert,name)
 Zero(hilbert::HilbertSpace) = Zero(hilbert, 0)
 Base.zero(hilbert::HilbertSpace) = Zero(hilbert)
-Base.zero(a::BasicOperator) = one(a.hilbert)
+Base.zero(a::BasicOperator) = zero(a.hilbert)
 Base.iszero(::AbstractOperator) = false
 Base.iszero(::Zero) = true
 Base.adjoint(x::Zero) = x

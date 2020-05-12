@@ -44,3 +44,4 @@ mutable struct DifferentialEquationSet{LHS,RHS} <: AbstractEquation{LHS,RHS}
 end
 
 Base.getindex(de::DifferentialEquationSet, i::Int) = DifferentialEquation(de.lhs[i],de.rhs[i])
+Base.lastindex(de::DifferentialEquationSet) = lastindex(de.lhs)

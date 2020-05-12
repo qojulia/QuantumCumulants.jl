@@ -68,7 +68,7 @@ function merge_transitions(σ1::Transition,σ2::Transition)
     if σ1.j==σ2.i
         return Transition(σ1.hilbert,σ1.name,σ1.i,σ2.j)
     else
-        return Zero(σ1)
+        return zero(σ1)
     end
 end
 function merge_transitions(σ1::SymbolicUtils.Sym{<:Transition},σ2::SymbolicUtils.Sym{<:Transition})
@@ -82,7 +82,7 @@ function rewrite_gs(x)
         op_ = one(op)
         for i in op.hilbert.levels
             if i!=op.hilbert.GS
-                op_ -= Transition(op.hilbert,op.name,i,i)
+                op_ += (-1*Transition(op.hilbert,op.name,i,i))
             end
         end
         return _to_symbolic(op_)
