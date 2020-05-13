@@ -13,3 +13,7 @@ function Base.show(io::IO,x::OperatorTerm)
     end
     write(io,")")
 end
+
+
+Base.show(io::IO, ::MIME"text/latex", op::AbstractOperator) = write(io, latexify(op))
+Base.show(io::IO, ::MIME"text/latex", de::AbstractEquation) = write(io, latexify(de))

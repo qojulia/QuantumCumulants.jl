@@ -51,8 +51,18 @@ function simplify_operators(op::AbstractOperator; rules=default_rules(), kwargs.
     (SymbolicUtils.symtype(s_) == Any) && @warn "SymbolicUtils.simplify returned symtype Any; recursion failed!"
     return _to_operator(s_)
 end
-
 default_rules() = SIMPLIFY_OPERATOR_RULES
+
+function substitute(op::BasicOperator, dict)
+    if haskey(dict, op)
+        op_ = dict[op]
+        check_hilbert(op_,op)
+        return op_
+    else
+        return op
+    end
+end
+substitute(t::OperatorTerm, dict) = OperatorTerm(t.f, [substitute(arg, dict) for arg in t.arguments])
 
 ### Functions needed for simplification
 

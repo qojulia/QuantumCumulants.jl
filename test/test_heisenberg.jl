@@ -23,6 +23,7 @@ he = heisenberg([a,σ],H)
 @test he.rhs[1] == da
 @test he.rhs[2] == ds
 
+# Lossy JC
 κ,γ = 3.333,0.1313131313
 J = [a,σ]
 he_diss = heisenberg([a,σ,σ'*σ],H,J;rates=[κ,γ])
@@ -30,3 +31,8 @@ he_diss = heisenberg([a,σ,σ'*σ],H,J;rates=[κ,γ])
 @test he_diss.rhs[1] == (-1.0im*ωc - 0.5κ)*a + (-1.0im*g)*σ
 @test he_diss.rhs[2] == (-1.0im*g)*a + (2.0im*g)*a_⊗Transition(ha,:σ,:e,:e) + (-1.0im*ωa - 0.5γ)*σ
 @test he_diss.rhs[3] == (1.0im*g*a_')⊗σ_ + (-1.0im*g*a_)⊗σ_' + (-γ*one(a_))⊗Transition(ha,:σ,:e,:e)
+
+# Single-atom laser
+ν = 3.44444444
+J = [a,σ,σ']
+he_laser = heisenberg([a'*a,σ'*σ,a'*σ],H,J;rates=[κ,γ,ν])
