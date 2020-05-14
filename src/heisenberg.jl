@@ -456,11 +456,13 @@ function simplify_operators(a::NeqIndsProd)
                 _args_ = fac*prod(args_[inds_])
                 push!(args_out, _args_)
 
-                _arg2 = simplify_constants(args_[i].args[2]*_args_)
-                if isa(_arg2.args[1], Number)
-                    push!(args_out, _arg2.args[1]*neq_inds_prod(_arg2.args[2:end]))
-                else
-                    push!(args_out, neq_inds_prod(_arg2.args))
+                for arg2 = args_[i].args[2:end]
+                    _arg2 = simplify_constants(arg2*_args_)
+                    if isa(_arg2.args[1], Number)
+                        push!(args_out, _arg2.args[1]*neq_inds_prod(_arg2.args[2:end]))
+                    else
+                        push!(args_out, neq_inds_prod(_arg2.args))
+                    end
                 end
                 return sum(args_out)
             end
