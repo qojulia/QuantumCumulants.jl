@@ -5,10 +5,9 @@ _to_symbolic(t::T) where T<:OperatorTerm = SymbolicUtils.Term{AbstractOperator}(
 _to_symbolic(x::Number) = x
 _to_symbolic(x::SymbolicUtils.Symbolic) = x
 
-_to_operator(s::SymbolicUtils.Sym{T}) where T<:AbstractOperator = SYMS_TO_OPERATORS[s]
-_to_operator(t::SymbolicUtils.Term) = OperatorTerm(t.f, _to_operator.(t.arguments))
-_to_operator(x::Number) = x
-_to_operator(s::SymbolicUtils.Symbolic{<:Number}) = s
+_to_qumulants(s::SymbolicUtils.Sym{T}) where T<:AbstractOperator = SYMS_TO_OPERATORS[s]
+_to_qumulants(t::SymbolicUtils.Term{T}) where T<:AbstractOperator = OperatorTerm(t.f, _to_qumulants.(t.arguments))
+_to_qumulants(x::Number) = x
 
 # Interfacing with SymbolicUtils
 SymbolicUtils.promote_symtype(f, Ts::Type{<:AbstractOperator}...) = promote_type(Ts...)
@@ -29,7 +28,7 @@ for f in [+,-,*,/,^]
                    S::Type{<:AbstractOperator}) = promote_type(T,S)
 end
 
-Base.one(x::SymbolicUtils.Sym{T}) where T<:BasicOperator = _to_symbolic(one(_to_operator(x)))
+Base.one(x::SymbolicUtils.Sym{T}) where T<:BasicOperator = _to_symbolic(one(_to_qumulants(x)))
 
 ### End of interface
 
@@ -49,7 +48,7 @@ function simplify_operators(op::AbstractOperator; rules=default_rules(), kwargs.
     s = _to_symbolic(op)
     s_ = SymbolicUtils.simplify(s; rules=rules, kwargs...)
     (SymbolicUtils.symtype(s_) == Any) && @warn "SymbolicUtils.simplify returned symtype Any; recursion failed!"
-    return _to_operator(s_)
+    return _to_qumulants(s_)
 end
 default_rules() = SIMPLIFY_OPERATOR_RULES
 
@@ -88,7 +87,6 @@ end
 
 separate_constants(x) = [x],[]
 separate_constants(x::SymbolicUtils.Sym{<:AbstractOperator}) = [],[x]
-separate_constants(x::SymbolicUtils.Sym{<:Number}) = [x],[]
 function separate_constants(t::SymbolicUtils.Term)
     c, x = (Any[],Any[])
     for a in t.arguments
@@ -126,16 +124,14 @@ function merge_repeats(f,xs)
         for j=i+1:length(xs)
             c2, x2 = separate_constants(xs[j])
             if isequal(x1,x2)
-                if !isempty(c2)
-                    c = +(c,prod(c2))
-                end
+                c = isempty(c2) ? (c+1) : +(c,prod(c2))
                 l += 1
             else
                 break
             end
         end
         if l > 1
-            if !isone(c)
+            if !(SymbolicUtils._isone(c))
                 push!(merged, c*f(x1...))
             else
                 push!(merged, f(x1...))
@@ -172,7 +168,7 @@ end
 has_inner(f) = x -> has_inner(f,x)
 function has_inner(f,args)
     for t in args
-        if t isa SymbolicUtils.Term && SymbolicUtils.operation(t) === (f)
+        if t isa SymbolicUtils.Term{<:AbstractOperator} && SymbolicUtils.operation(t) === (f)
             return true
         end
     end

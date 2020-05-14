@@ -72,12 +72,12 @@ function merge_transitions(σ1::Transition,σ2::Transition)
     end
 end
 function merge_transitions(σ1::SymbolicUtils.Sym{<:Transition},σ2::SymbolicUtils.Sym{<:Transition})
-    op1 = _to_operator(σ1)
-    op2 = _to_operator(σ2)
+    op1 = _to_qumulants(σ1)
+    op2 = _to_qumulants(σ2)
     return _to_symbolic(merge_transitions(op1,op2))
 end
 function rewrite_gs(x)
-    op = _to_operator(x)
+    op = _to_qumulants(x)
     if op.i==op.j==op.hilbert.GS
         op_ = one(op)
         for i in op.hilbert.levels

@@ -22,8 +22,6 @@ for f = [:+,:-,:*]
 end
 Base.:*(a::AbstractOperator,b::Number) = OperatorTerm(*, [a,b])
 Base.:*(a::Number,b::AbstractOperator) = OperatorTerm(*, [a,b])
-Base.:*(a::AbstractOperator,b::SymbolicUtils.Symbolic{<:Number}) = OperatorTerm(*, [a,b])
-Base.:*(a::SymbolicUtils.Symbolic{<:Number},b::AbstractOperator) = OperatorTerm(*, [a,b])
 Base.:^(a::AbstractOperator,b) = OperatorTerm(^, [a,b])
 
 # Variadic methods
