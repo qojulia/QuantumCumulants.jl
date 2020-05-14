@@ -12,7 +12,7 @@
 The package can be installed with
 
 ```julia
-|pkg> add git@github.com:david-pl/Qumulants.jl.git
+|pkg> add https://github.com/david-pl/Qumulants.jl.git
 ```
 
 The basic usage is probably best illustrated with a brief example. In the following, we solve a simple model for a single-atom laser.
