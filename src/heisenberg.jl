@@ -527,9 +527,11 @@ _order_indexed(ex::Expression,args) = ex.f([_order_indexed(arg,args) for arg=ex.
 _order_indexed(s::SumType,args) = Sum(_order_indexed(s.args[1],args),s.f.index)
 function _order_indexed(ex::NeqIndsProd,args)
     ex_args = [a.operator for a=ex.args]
-    (length(ex_args)==length(args) && all(ex_args[i]∈args for i=1:length(ex_args))) && all(args[i]∈ex_args for i=1:length(args)) || return ex
-    p = [findfirst(isequal(ex_args[i]),args) for i=1:length(ex_args)]
+    length(ex_args)==length(args) || return ex
+    all(x -> x==ex_args[1], ex_args) && return ex
+    (sort_by_inds(ex_args) == sort_by_inds(args)) || return ex
     inds = [a.index for a=ex.args]
+    p = [findfirst(isequal(ex_args[i]),args) for i=1:length(ex_args)]
     args_ = [IndexedOperator(a,i) for (a,i)=zip(ex.args[p],inds[p])]
     return Expression(neq_inds_prod,ex.args[p])
 end
