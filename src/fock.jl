@@ -15,7 +15,7 @@ struct Destroy{H<:FockSpace,S} <: BasicOperator
     function Destroy{H,S}(hilbert::H,name::S) where {H,S}
         op = new(hilbert,name)
         if !haskey(OPERATORS_TO_SYMS,op)
-            sym = SymbolicUtils.Sym{Destroy}(gensym(:Destroy))
+            sym = generate_symbolic(op)
             OPERATORS_TO_SYMS[op] = sym
             SYMS_TO_OPERATORS[sym] = op
         end
@@ -24,8 +24,7 @@ struct Destroy{H<:FockSpace,S} <: BasicOperator
 end
 Destroy(hilbert::H,name::S) where {H,S} = Destroy{H,S}(hilbert,name)
 isdestroy(a) = false
-isdestroy(a::Union{SymbolicUtils.Sym{T},T}) where T<:Destroy = true
-
+isdestroy(a::SymbolicUtils.Term{T}) where {T<:Destroy} = true
 
 struct Create{H<:FockSpace,S} <: BasicOperator
     hilbert::H
@@ -33,7 +32,7 @@ struct Create{H<:FockSpace,S} <: BasicOperator
     function Create{H,S}(hilbert::H,name::S) where {H,S}
         op = new(hilbert,name)
         if !haskey(OPERATORS_TO_SYMS,op)
-            sym = SymbolicUtils.Sym{Create}(gensym(:Create))
+            sym = SymbolicUtils.Sym{SymbolicUtils.FnType{Tuple{Int},Create}}(gensym(:Create))
             OPERATORS_TO_SYMS[op] = sym
             SYMS_TO_OPERATORS[sym] = op
         end
@@ -42,18 +41,21 @@ struct Create{H<:FockSpace,S} <: BasicOperator
 end
 Create(hilbert::H,name::S) where {H,S} = Create{H,S}(hilbert,name)
 iscreate(a) = false
-iscreate(a::Union{SymbolicUtils.Sym{T},T}) where T<:Create = true
+iscreate(a::SymbolicUtils.Term{T}) where {T<:Create} = true
 
 Base.adjoint(op::Destroy) = Create(op.hilbert,op.name)
 Base.adjoint(op::Create) = Destroy(op.hilbert,op.name)
-Base.isone(::BasicOperator) = false
-Base.iszero(::BasicOperator) = false
+
+generate_symbolic(::Destroy) =
+    SymbolicUtils.Sym{SymbolicUtils.FnType{Tuple{Int},Destroy}}(gensym(:Destroy))
+generate_symbolic(::Create) =
+    SymbolicUtils.Sym{SymbolicUtils.FnType{Tuple{Int},Create}}(gensym(:Create))
 
 # Commutation relation in simplification
 function has_destroy_create(args)
     length(args) <= 1 && return false
     for i=1:length(args)-1
-        if isdestroy(args[i])&&iscreate(args[i+1])
+        if isdestroy(args[i])&&iscreate(args[i+1])&&(acts_on(args[i])==acts_on(args[i+1]))
             return true
         end
     end
@@ -64,8 +66,8 @@ function commute_bosonic(f,args)
     i = 1
     last_commute = false
     while i < length(args)
-        if isdestroy(args[i]) && iscreate(args[i+1])
-            push!(commuted_args, args[i+1]*args[i] + one(args[i]))
+        if isdestroy(args[i]) && iscreate(args[i+1]) && (acts_on(args[i])==acts_on(args[i+1]))
+            push!(commuted_args, args[i+1]*args[i] + 1)
             i += 2
             last_commute = (i==length(args))
         else
@@ -74,5 +76,6 @@ function commute_bosonic(f,args)
         end
     end
     last_commute && push!(commuted_args, args[end])
-    return SymbolicUtils.Term(f, commuted_args)
+
+    return f(commuted_args...)
 end
