@@ -26,21 +26,12 @@ end
 
 # Variadic methods
 Base.:-(x::AbstractOperator) = -1*x
-# Base.:+(x::AbstractOperator, w::AbstractOperator...) = (check_hilbert(x,w...); OperatorTerm(+, [x;w...]))
-
 for f in [:+,:*]
     @eval Base.$f(x::AbstractOperator) = x
     @eval Base.$f(x::AbstractOperator, w::AbstractOperator...) = (check_hilbert(x,w...); OperatorTerm($f, [x;w...]))
     @eval Base.$f(x, y::AbstractOperator, w...) = (check_hilbert(x,y,w...); OperatorTerm($f, [x;y;w...]))
     @eval Base.$f(x::AbstractOperator, y::AbstractOperator, w...) = (check_hilbert(x,y,w...); OperatorTerm($f, [x;y;w...]))
-
-    # @eval Base.$f(x::AbstractOperator...) = (check_hilbert(x...); reduce($f, x))
 end
-
-# Base.:*(x::AbstractOperator) = x
-# Base.:*(x::AbstractOperator...) = (check_hilbert(x...); reduce(*, x))
-# Base.:*(x, y::AbstractOperator, w...) = (check_hilbert(x,y,w...); OperatorTerm(*, [x;y;w...]))
-# Base.:*(x::AbstractOperator, y::AbstractOperator, w...) = (check_hilbert(x,y,w...); OperatorTerm(*, [x;y;w...]))
 
 Base.adjoint(t::OperatorTerm) = OperatorTerm(t.f, adjoint.(t.arguments))
 Base.adjoint(t::OperatorTerm{<:typeof(*)}) = OperatorTerm(t.f, reverse(adjoint.(t.arguments)))
@@ -79,13 +70,25 @@ struct EmbeddedOperator{H<:ProductSpace,OP<:BasicOperator,A} <: BasicOperator
     end
 end
 EmbeddedOperator(hilbert::H,operator::OP,aon::A) where {H,OP,A} = EmbeddedOperator{H,OP,A}(hilbert,operator,aon)
+Base.:(==)(a::EmbeddedOperator,b::EmbeddedOperator) = (a.hilbert==b.hilbert && a.aon==b.aon && a.operator==b.operator)
 Base.adjoint(op::EmbeddedOperator) = embed(op.hilbert,adjoint(op.operator),op.aon)
 
 acts_on(::BasicOperator) = 1
 acts_on(op::EmbeddedOperator) = op.aon
+function acts_on(t::OperatorTerm)
+    ops = filter(isoperator, t.arguments)
+    aon = Int[]
+    for op in ops
+        append!(aon, acts_on(op))
+    end
+    unique!(aon)
+    sort!(aon)
+    return aon
+end
 
 # embed into product spaces
 function embed(h::ProductSpace,op::BasicOperator,aon::Int)
+    check_hilbert(h.spaces[aon],op.hilbert)
     EmbeddedOperator(h,op,aon)
 end
 function ⊗(a::BasicOperator,b::BasicOperator)
@@ -107,80 +110,9 @@ function ⊗(a::EmbeddedOperator,b::EmbeddedOperator)
     return a_*b_
 end
 
-
-# # Tensor product
-# ⊗(a::AbstractOperator,b::AbstractOperator) = OperatorTerm(⊗, [a,b])
-# ⊗(a::SymbolicUtils.Symbolic{<:AbstractOperator},b::SymbolicUtils.Symbolic{<:AbstractOperator}) = SymbolicUtils.Term(⊗, [a,b])
-#
-# # Variadic ⊗
-# ⊗(a::AbstractOperator) = a
-# ⊗(a::AbstractOperator,b::AbstractOperator...) = OperatorTerm(⊗, [a;b...])
-# ⊗(a::SymbolicUtils.Symbolic{<:AbstractOperator},b::SymbolicUtils.Symbolic{<:AbstractOperator}...) = SymbolicUtils.Term(⊗, [a;b...])
-
-# Function hierarchy * < ⊗ < +
-# import Base: *, +
-# # fs = [:⊗, :*]
-# for f in fs
-#     @eval $(f)(a::AbstractOperator, b::OperatorTerm{<:typeof(+)}) = OperatorTerm(+, [$(f)(a,b_) for b_ in b.arguments])
-#     @eval $(f)(a::OperatorTerm{<:typeof(+)}, b::AbstractOperator) = OperatorTerm(+, [$(f)(a_,b) for a_ in a.arguments])
-#     @eval $(f)(a::OperatorTerm{<:typeof(+)}, b::OperatorTerm{<:typeof(+)}) = OperatorTerm(+, [$(f)(a_,b_) for a_ in a.arguments, b_ in b.arguments][:])
-# end
-# *(a::Number, b::OperatorTerm{<:typeof(+)}) = OperatorTerm(+, [*(a,b_) for b_ in b.arguments])
-# function *(a::OperatorTerm{<:typeof(⊗)}, b::OperatorTerm{<:typeof(⊗)})
-#     @assert length(a.arguments)==length(b.arguments)
-#     OperatorTerm(⊗, [*(a_,b_) for (a_,b_) in zip(a.arguments,b.arguments)])
-# end
-# *(a::Number, b::OperatorTerm{<:typeof(⊗)}) = OperatorTerm(⊗, [*(a,b.arguments[1]); b.arguments[2:end]])
-# Base.:^(a::OperatorTerm{<:typeof(⊗)}, b) = OperatorTerm(⊗, [^(a_,b) for a_ in a.arguments])
-
 Base.one(::T) where T<:AbstractOperator = one(T)
 Base.one(::Type{<:AbstractOperator}) = 1
 Base.isone(::AbstractOperator) = false
 Base.zero(::T) where T<:AbstractOperator = zero(T)
 Base.zero(::Type{<:AbstractOperator}) = 0
 Base.iszero(::AbstractOperator) = false
-
-# # General basic operator types
-# struct Identity{H,S} <: BasicOperator
-#     hilbert::H
-#     name::S
-#     function Identity{H,S}(hilbert::H,name::S) where {H,S}
-#         op = new(hilbert,name)
-#         if !haskey(OPERATORS_TO_SYMS,op)
-#             sym = SymbolicUtils.Sym{Identity}(gensym(:Identity))
-#             OPERATORS_TO_SYMS[op] = sym
-#             SYMS_TO_OPERATORS[sym] = op
-#         end
-#         return op
-#     end
-# end
-# Identity(hilbert::H,name::S) where {H,S} = Identity{H,S}(hilbert,name)
-# Identity(hilbert::HilbertSpace) = Identity(hilbert, :𝟙)
-# Base.one(hilbert::HilbertSpace) = Identity(hilbert)
-# Base.one(a::BasicOperator) = one(a.hilbert)
-# Base.isone(::AbstractOperator) = false
-# Base.isone(::Identity) = true
-# Base.adjoint(x::Identity) = x
-# isidentity(x) = false
-# isidentity(x::Union{T,SymbolicUtils.Sym{T}}) where T<:Identity = true
-#
-# struct Zero{H,S} <: BasicOperator
-#     hilbert::H
-#     name::S
-#     function Zero{H,S}(hilbert::H,name::S) where {H,S}
-#         op = new(hilbert,name)
-#         if !haskey(OPERATORS_TO_SYMS,op)
-#             sym = SymbolicUtils.Sym{Zero}(gensym(:Zero))
-#             OPERATORS_TO_SYMS[op] = sym
-#             SYMS_TO_OPERATORS[sym] = op
-#         end
-#         return op
-#     end
-# end
-# Zero(hilbert::H,name::S) where {H,S} = Zero{H,S}(hilbert,name)
-# Zero(hilbert::HilbertSpace) = Zero(hilbert, 0)
-# Base.zero(hilbert::HilbertSpace) = Zero(hilbert)
-# Base.zero(a::BasicOperator) = zero(a.hilbert)
-# Base.iszero(::AbstractOperator) = false
-# Base.iszero(::Zero) = true
-# Base.adjoint(x::Zero) = x

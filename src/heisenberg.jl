@@ -90,43 +90,11 @@ function _master_lindblad(a_,J,Jdagger,rates)
     return simplify_operators(da_diss)
 end
 
-commutator(a::AbstractOperator,b::AbstractOperator) = simplify_operators(a*b - b*a)
-function commutator(a::OperatorTerm{<:typeof(⊗)},b::OperatorTerm{<:typeof(⊗)})
+function commutator(a::AbstractOperator,b::AbstractOperator)
     # Check on which subspaces each of the operators act
-    a_on = acts_on(simplify_operators(a))
-    b_on = acts_on(simplify_operators(b))
+    a_on = acts_on(a)
+    b_on = acts_on(b)
     inds = intersect(a_on,b_on)
-    isempty(inds) && return 0#zero(a) # Do not act on same hilbert space
+    isempty(inds) && return zero(a)
     return simplify_operators(a*b - b*a)
-end
-
-"""
-    acts_on(::AbstractOperator)
-
-Computes on which subspaces the given operator acts nontrivially. Returns a
-vector containing the corresponding indices.
-"""
-acts_on(::BasicOperator) = Int[1]
-acts_on(::Identity) = Int[]
-acts_on(::Zero) = Int[]
-acts_on(x) = Int[]
-function acts_on(a::OperatorTerm{<:typeof(*)})
-    args = filter(!SymbolicUtils.sym_isa(Number), a.arguments)
-    for a1=args
-        isa(a1,Identity) || return Int[1]
-    end
-    return Int[]
-end
-function acts_on(a::OperatorTerm{<:typeof(⊗)})
-    act = Int[]
-    for i=1:length(a.arguments)
-        aon = acts_on(a.arguments[i])
-        isempty(aon) || push!(act,i)
-    end
-    return act
-end
-function acts_on(a::OperatorTerm)
-    act = collect(Iterators.flatten(acts_on.(a.arguments)))
-    unique!(act)
-    return act
 end

@@ -23,6 +23,8 @@ b = Destroy(hf,:b)
 @test simplify_operators(a*a') == 1+a'*a
 @test simplify_operators(a*a' + 1) == 2 + a'*a
 
+@test simplify_operators(-1*(a'*a + 1)*a + a) == -1*a'*a*a
+@test simplify_operators(a'*a*a - a*a'*a) == -1*a
 
 # @syms x
 # ex = x*a+x*a

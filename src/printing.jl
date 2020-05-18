@@ -26,7 +26,7 @@ end
 
 # Base.show(io::IO, x::Parameter) = write(io, x.name)
 
-# Base.show(io::IO, ::MIME"text/latex", op::AbstractOperator) = write(io, latexify(op))
-# Base.show(io::IO, ::MIME"text/latex", de::AbstractEquation) = write(io, latexify(de))
+Base.show(io::IO, ::MIME"text/latex", op::AbstractOperator) = write(io, latexify(op))
+Base.show(io::IO, ::MIME"text/latex", de::AbstractEquation) = write(io, latexify(de))
 # Base.show(io::IO, ::MIME"text/latex", avg::AbstractAverage) = write(io, latexify(avg))
 # Base.show(io::IO, ::MIME"text/latex", p::Parameter) = write(io, latexify(p))

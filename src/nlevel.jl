@@ -12,6 +12,7 @@ struct NLevelSpace{S,L,G} <: HilbertSpace
 end
 NLevelSpace(name::S,levels::L,GS::G) where {S,L,G} = NLevelSpace{S,L,G}(name,levels,GS)
 NLevelSpace(name,N::Int,GS) = NLevelSpace(name,1:N,GS)
+NLevelSpace(name,N::Int) = NLevelSpace(name,1:N,1)
 NLevelSpace(name,levels) = NLevelSpace(name,levels,levels[1])
 Base.:(==)(h1::T,h2::T) where T<:NLevelSpace = (h1.name==h2.name && h1.levels==h2.levels && h1.GS==h2.GS)
 
@@ -73,6 +74,11 @@ function merge_transitions(σ1::Transition,σ2::Transition)
         return zero(σ1)
     end
 end
+function merge_transitions(σ1::EmbeddedOperator{H,<:Transition},σ2::EmbeddedOperator{H,<:Transition}) where H
+    op = merge_transitions(σ1.operator,σ2.operator)
+    iszero(op) && return zero(σ1)
+    return embed(σ1.hilbert,op,acts_on(σ1))
+end
 function merge_transitions(σ1::SymbolicUtils.Term{<:Transition},σ2::SymbolicUtils.Term{<:Transition})
     op1 = _to_qumulants(σ1)
     op2 = _to_qumulants(σ2)
@@ -80,15 +86,33 @@ function merge_transitions(σ1::SymbolicUtils.Term{<:Transition},σ2::SymbolicUt
 end
 function rewrite_gs(x)
     op = _to_qumulants(x)
+    return _to_symbolic(rewrite_gs(op))
+end
+function rewrite_gs(op::Transition)
     if op.i==op.j==op.hilbert.GS
-        op_ = one(op)
+        args = Any[one(op)]
         for i in op.hilbert.levels
-            if i!=op.hilbert.GS
-                op_ += (-1*Transition(op.hilbert,op.name,i,i))
+            (i==op.i) || push!(args, -1*Transition(op.hilbert,op.name,i,i))
+        end
+        return +(args...)
+    else
+        return op
+    end
+end
+function rewrite_gs(op_embed::EmbeddedOperator{<:HilbertSpace,<:Transition})
+    op = op_embed.operator
+    if op.i==op.j==op.hilbert.GS
+        h = op_embed.hilbert
+        aon = acts_on(op_embed)
+        args = Any[one(op)]
+        for i in op.hilbert.levels
+            if i!=op.i
+                op_e = embed(h,Transition(op.hilbert,op.name,i,i),aon)
+                push!(args, -1*op_e)
             end
         end
-        return _to_symbolic(op_)
+        return +(args...)
     else
-        return x
+        return op_embed
     end
 end

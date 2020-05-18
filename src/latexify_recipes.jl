@@ -3,7 +3,6 @@ using MacroTools
 using LaTeXStrings
 
 tsym_latex = Ref(:t)
-simplified_tensor_latex = Ref(true)
 
 function _postwalk_func(x)
     if x==:𝟙
@@ -87,15 +86,15 @@ end
     return ex
 end
 
-@latexrecipe function f(avg::AbstractAverage)
-    # Options
-    cdot --> false
-
-    ex = _to_expression(avg)
-    ex = MacroTools.postwalk(_postwalk_func, ex)
-    ex = MacroTools.postwalk(_postwalk_average, ex)
-    return ex
-end
+# @latexrecipe function f(avg::AbstractAverage)
+#     # Options
+#     cdot --> false
+#
+#     ex = _to_expression(avg)
+#     ex = MacroTools.postwalk(_postwalk_func, ex)
+#     ex = MacroTools.postwalk(_postwalk_average, ex)
+#     return ex
+# end
 
 _to_expression(x::Number) = x
 function _to_expression(x::Complex)
@@ -109,22 +108,14 @@ function _to_expression(x::Complex)
     end
 end
 _to_expression(op::BasicOperator) = op.name
+_to_expression(op::EmbeddedOperator) = _to_expression(op.operator)
 _to_expression(op::Create) = :(dagger($(op.name)))
 _to_expression(op::Transition) = :(Transition($(op.name),$(op.i),$(op.j)) )
 _to_expression(t::OperatorTerm) = :( $(Symbol(t.f))($(_to_expression.(t.arguments)...)) )
-function _to_expression(t::OperatorTerm{<:typeof(⊗)})
-    if simplified_tensor_latex[]
-        # Replace ⊗ by * and simplify to get rid of identities
-        t_ = simplify_operators(OperatorTerm(*, t.arguments))
-        return _to_expression(t_)
-    else
-        return :( $(Symbol(t.f))($(_to_expression.(t.arguments)...)) )
-    end
-end
 
-function _to_expression(avg::Average)
-    ex = _to_expression(avg.operator)
-    # ex = MacroTools.postwalk(_postwalk_func, ex)
-    return :(AVERAGE($ex))
-end
-_to_expression(t::AverageTerm) = :( $(Symbol(t.f))($(_to_expression.(t.arguments)...)) )
+# function _to_expression(avg::Average)
+#     ex = _to_expression(avg.operator)
+#     # ex = MacroTools.postwalk(_postwalk_func, ex)
+#     return :(AVERAGE($ex))
+# end
+# _to_expression(t::AverageTerm) = :( $(Symbol(t.f))($(_to_expression.(t.arguments)...)) )
