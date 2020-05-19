@@ -1,48 +1,56 @@
 using Qumulants
-using SymbolicUtils
 using Test
+using SymbolicUtils
+
+@testset "parameters" begin
 
 hf = FockSpace(:cavity)
 ha = NLevelSpace(:atom,(:g,:e))
+h = hf⊗ha
 
 a_ = Destroy(hf,:a)
-a = a_⊗one(ha)
+
+@parameters p q
+@test p*q isa NumberTerm
+@test p*q*a_ isa OperatorTerm
+
+a = embed(h,a_,1)
 σ_ = Transition(ha,:σ,:g,:e)
-σ = one(hf)⊗σ_
-
-SymPy.@syms p q
-
-p, q = Parameter(:p), Parameter(:q)
-
-ex = p*a + a
-ex2 = simplify_operators(ex;fixpoint=false)
-
-ex_sym = Qumulants._to_symbolic(ex)
-ex_sym2 = ex_sym.f(Qumulants.merge_repeats(ex_sym.arguments)...)
+σ = embed(h,σ_,2)
+σee = embed(h,Transition(ha,:σ,:e,:e),2)
 
 # JC
-(ωc,ωa,g) = Parameter(:ωc), Parameter(:ωa), Parameter(:g)
+@parameters ωc ωa g
 H = ωc*a'*a + ωa*σ'*σ + g*(a'*σ + σ'*a)
 
 da = commutator(1.0im*H,a)
-@test da == -1.0im*ωc*a + (-1.0im*g)*σ
+@test da == simplify_operators((-1.0im*g)*σ + (-1.0im*ωc)*a)
 ds = commutator(1.0im*H,σ)
-@test ds == (-1.0im*g)*a + (2.0im*g)*a_⊗Transition(ha,:σ,:e,:e) + (-1.0im*ωa)*σ
+@test ds == simplify_operators((-1.0im*g)*a + (-1.0im*ωa)*σ + (2.0im*g)*a*σee)
+dn = commutator(1.0im*H,a'*a)
+@test dn == simplify_operators((-1.0im*g)*a'*σ + (1.0im*g)*a*σ')
 
-he = heisenberg([a,σ],H)
+he = heisenberg([a,σ,a'*a],H)
 @test he.rhs[1] == da
 @test he.rhs[2] == ds
+@test he.rhs[3] == dn
 
 # Lossy JC
-κ,γ = 3.333,0.1313131313
+@parameters κ γ
 J = [a,σ]
 he_diss = heisenberg([a,σ,σ'*σ],H,J;rates=[κ,γ])
 
-@test he_diss.rhs[1] == (-1.0im*ωc - 0.5κ)*a + (-1.0im*g)*σ
-@test he_diss.rhs[2] == (-1.0im*g)*a + (2.0im*g)*a_⊗Transition(ha,:σ,:e,:e) + (-1.0im*ωa - 0.5γ)*σ
-@test he_diss.rhs[3] == (1.0im*g*a_')⊗σ_ + (-1.0im*g*a_)⊗σ_' + (-γ*one(a_))⊗Transition(ha,:σ,:e,:e)
+@test he_diss.rhs[1] == simplify_operators((-1.0im*ωc - 0.5κ)*a + (-1.0im*g)*σ)
+@test he_diss.rhs[2] == simplify_operators((-1.0im*g)*a + (-1.0im*ωa - 0.5γ)*σ + (2.0im*g)*a*σee)
+@test he_diss.rhs[3] == simplify_operators((-γ)*σee + (1.0im*g)*a'*σ + (-1.0im*g)*a*σ')
 
 # Single-atom laser
-ν = 3.44444444
+@parameters ν
 J = [a,σ,σ']
 he_laser = heisenberg([a'*a,σ'*σ,a'*σ],H,J;rates=[κ,γ,ν])
+
+@test he_laser.rhs[1] == simplify_operators((-κ)*a'*a + (-1.0im*g)*a'*σ + (1.0im*g)*a*σ')
+@test he_laser.rhs[2] == simplify_operators(ν + (-ν - γ)*σee + (1.0im*g)*a'*σ + (-1.0im*g)*a*σ')
+@test he_laser.rhs[3] == simplify_operators((1.0im*g)*σee + (-1.0im*g)*a'*a + (1.0im*(ωc - ωa) - 0.5*(κ + γ + ν))*a'*σ + (2.0im*g)*a'*a*σee)
+
+end # testset

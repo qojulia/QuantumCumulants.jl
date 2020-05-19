@@ -6,7 +6,7 @@ Base.show(io::IO,x::EmbeddedOperator) = show(io,x.operator)
 
 Base.show(io::IO, ::typeof(⊗)) = write(io, " ⊗ ")
 show_brackets = Ref(true)
-function Base.show(io::IO,x::OperatorTerm)
+function Base.show(io::IO,x::Union{OperatorTerm,NumberTerm})
     show_brackets[] && write(io,"(")
     show(io, x.arguments[1])
     for i=2:length(x.arguments)
@@ -24,7 +24,7 @@ end
 #     write(io,"⟩")
 # end
 
-# Base.show(io::IO, x::Parameter) = write(io, x.name)
+Base.show(io::IO, x::Parameter) = write(io, x.name)
 
 Base.show(io::IO, ::MIME"text/latex", op::AbstractOperator) = write(io, latexify(op))
 Base.show(io::IO, ::MIME"text/latex", de::AbstractEquation) = write(io, latexify(de))
