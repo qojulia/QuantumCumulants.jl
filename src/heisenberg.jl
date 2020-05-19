@@ -84,7 +84,7 @@ function _master_lindblad(a_,J,Jdagger,rates)
     if isa(rates,Vector)
         da_diss_list = []
         for it=1:length(rates)
-            push!(da_diss_list, q_langevin_no_noise(a_,J[it],Jdagger[it],rates[it]))
+            push!(da_diss_list, simplify_operators(q_langevin_no_noise(a_,J[it],Jdagger[it],rates[it])))
         end
         da_diss = sum(da_diss_list)
     elseif isa(rates,Matrix)
