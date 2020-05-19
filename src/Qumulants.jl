@@ -3,14 +3,15 @@ module Qumulants
 import SymbolicUtils
 
 export HilbertSpace,
-        simplify_operators,
+        simplify_operators, substitute,
         AbstractOperator, BasicOperator, Identity, Zero, OperatorTerm, ⊗, embed,
         FockSpace, Destroy, Create,
         NLevelSpace, Transition,
         AbstractEquation, DifferentialEquation, DifferentialEquationSet,
         heisenberg, commutator, acts_on,
-        SymbolicNumber, NumberTerm, Parameter, @parameters, parameters
-        # Average, AverageTerm, average#, replace_adjoints,
+        SymbolicNumber, NumberTerm, Parameter, @parameters, parameters,
+                simplify_constants,
+        Average, average, cumulant_expansion
         # build_ode, generate_ode, check_missing, remove_unknowns
 
 include("hilbertspace.jl")
@@ -22,7 +23,7 @@ include("nlevel.jl")
 include("equations.jl")
 include("heisenberg.jl")
 include("parameters.jl")
-# include("average.jl")
+include("average.jl")
 # include("diffeq.jl")
 # include("sympify.jl")
 include("latexify_recipes.jl")

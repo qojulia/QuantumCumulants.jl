@@ -85,18 +85,19 @@ end
 
     ex = _to_expression(op)
     ex = MacroTools.postwalk(_postwalk_func, ex)
+    ex = MacroTools.postwalk(_postwalk_average, ex)
     return ex
 end
 
-# @latexrecipe function f(avg::AbstractAverage)
-#     # Options
-#     cdot --> false
-#
-#     ex = _to_expression(avg)
-#     ex = MacroTools.postwalk(_postwalk_func, ex)
-#     ex = MacroTools.postwalk(_postwalk_average, ex)
-#     return ex
-# end
+@latexrecipe function f(s::SymbolicNumber)
+    # Options
+    cdot --> false
+
+    ex = _to_expression(s)
+    ex = MacroTools.postwalk(_postwalk_func, ex)
+    ex = MacroTools.postwalk(_postwalk_average, ex)
+    return ex
+end
 
 _to_expression(x::Number) = x
 function _to_expression(x::Complex)
@@ -113,11 +114,9 @@ _to_expression(op::BasicOperator) = op.name
 _to_expression(op::EmbeddedOperator) = _to_expression(op.operator)
 _to_expression(op::Create) = :(dagger($(op.name)))
 _to_expression(op::Transition) = :(Transition($(op.name),$(op.i),$(op.j)) )
-_to_expression(t::OperatorTerm) = :( $(Symbol(t.f))($(_to_expression.(t.arguments)...)) )
-
-# function _to_expression(avg::Average)
-#     ex = _to_expression(avg.operator)
-#     # ex = MacroTools.postwalk(_postwalk_func, ex)
-#     return :(AVERAGE($ex))
-# end
-# _to_expression(t::AverageTerm) = :( $(Symbol(t.f))($(_to_expression.(t.arguments)...)) )
+_to_expression(t::Union{OperatorTerm,NumberTerm}) = :( $(Symbol(t.f))($(_to_expression.(t.arguments)...)) )
+_to_expression(p::Parameter) = p.name
+function _to_expression(avg::Average)
+    ex = _to_expression(avg.operator)
+    return :(AVERAGE($ex))
+end

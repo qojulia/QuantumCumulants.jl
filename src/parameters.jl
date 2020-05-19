@@ -1,5 +1,9 @@
 abstract type SymbolicNumber <: Number end
 
+Base.:(==)(s::SymbolicNumber,x::Number) = false
+Base.:(==)(x::Number,s::SymbolicNumber) = false
+Base.:(==)(s1::SymbolicNumber,s2::SymbolicNumber) = false
+
 struct NumberTerm{T<:Number} <: SymbolicNumber
     f::Function
     arguments::Vector
@@ -17,6 +21,7 @@ struct Parameter{T<:Number} <: SymbolicNumber
     name::Symbol
 end
 Parameter(name::Symbol) = Parameter{Number}(name)
+Base.:(==)(p::T, q::T) where T<:Parameter = (p.name==q.name)
 
 # Methods
 Base.conj(p::Parameter{<:Real}) = p
@@ -39,8 +44,15 @@ for f in [:+,:*]
     @eval Base.$f(x::SymbolicNumber, y::SymbolicNumber, w::Number...) = NumberTerm($f, [x;y;w...])
 end
 
-# Base.promote_rule(::Type{T},::Type{S}) where {T<:Number,S<:SymbolicNumber} = S
-# Base.promote_rule(::Type{T},::Type{S}) where {T<:AbstractOperator,S<:SymbolicNumber} = T
+# Substitution
+function substitute(t::NumberTerm, dict)
+    if haskey(dict, t)
+        return dict[t]
+    else
+        return NumberTerm(t.f, [substitute(arg, dict) for arg in t.arguments])
+    end
+end
+substitute(x::SymbolicNumber, dict) = haskey(dict, x) ? dict[x] : x
 
 # Conversion to SymbolicUtils
 _to_symbolic(p::Parameter{T}) where T = SymbolicUtils.Sym{T}(p.name)
@@ -48,8 +60,6 @@ _to_symbolic(n::NumberTerm{T}) where T = SymbolicUtils.Term{T}(n.f, _to_symbolic
 function _to_qumulants(s::SymbolicUtils.Sym{T}) where T<:Number
     return Parameter{T}(s.name)
 end
-_to_qumulants(t::SymbolicUtils.Term{T}) where T<:Number = NumberTerm{T}(t.f, _to_qumulants.(t.arguments))
-
 
 macro parameters(ps...)
     ex = Expr(:block)
@@ -71,4 +81,11 @@ end
 function parameters(s::String)
     syms = [Symbol(p) for p in split(s, " ")]
     return parameters(syms...)
+end
+
+simplify_constants(s::SymbolicNumber;kwargs...) = s
+function simplify_constants(t::NumberTerm;kwargs...)
+    s = _to_symbolic(t)
+    s_ = SymbolicUtils.simplify(s;kwargs...)
+    return _to_qumulants(s_)
 end

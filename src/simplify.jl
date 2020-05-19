@@ -65,6 +65,7 @@ end
 default_rules() = SIMPLIFY_OPERATOR_RULES
 default_commutator_rules() = SIMPLIFY_COMMUTATOR_RULES
 
+# Substitution
 function substitute(op::BasicOperator, dict)
     if haskey(dict, op)
         op_ = dict[op]
@@ -74,7 +75,14 @@ function substitute(op::BasicOperator, dict)
         return op
     end
 end
-substitute(t::OperatorTerm, dict) = OperatorTerm(t.f, [substitute(arg, dict) for arg in t.arguments])
+function substitute(t::OperatorTerm, dict)
+    if haskey(dict, t)
+        return dict[t]
+    else
+        return OperatorTerm(t.f, [substitute(arg, dict) for arg in t.arguments])
+    end
+end
+substitute(x::Number, dict) = x
 
 ### Functions needed for simplification
 
