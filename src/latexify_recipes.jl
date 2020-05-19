@@ -7,6 +7,8 @@ tsym_latex = Ref(:t)
 function _postwalk_func(x)
     if x==:𝟙
         return "\\mathbb{1}"
+    elseif x==:im
+        return :i
     elseif MacroTools.@capture(x, dagger(arg_))
         s = "$(arg)^\\dagger"
         return s

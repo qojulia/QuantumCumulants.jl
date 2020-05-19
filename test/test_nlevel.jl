@@ -2,6 +2,8 @@ using Qumulants
 using Test
 using SymbolicUtils
 
+@testset "nlevel" begin
+
 # Symbolic levels
 ha = NLevelSpace(:atom, (:g,:e))
 @test ha.GS == :g
@@ -60,3 +62,5 @@ hprod = ha1⊗ha2
 @test simplify_operators(σ1'*σ1)==embed(hprod,Transition(ha1,:σ,:e,:e),1)
 @test simplify_operators(σ2*σ2')==simplify_operators(1 -embed(hprod,Transition(ha2,:σ,2,2),2))
 @test simplify_operators(σ1*σ2)==σ1*σ2
+
+end # testset

@@ -50,20 +50,16 @@ function has_transitions(args)
 end
 function merge_transitions(f::Function, args)
     merged = Any[]
-
     i = 1
-    last_merge = false
-    while i<length(args)
-       if istransition(args[i])&&istransition(args[i+1])&&(acts_on(args[i])==acts_on(args[i+1]))
+    while i <= length(args)
+       if istransition(args[i])&&(i<length(args))&&istransition(args[i+1])&&(acts_on(args[i])==acts_on(args[i+1]))
            push!(merged, merge_transitions(args[i],args[i+1]))
            i += 2
-           last_merge = (i==length(args))
        else
            push!(merged, args[i])
            i += 1
        end
    end
-   last_merge && push!(merged, args[i])
    return f(merged...)
 end
 function merge_transitions(σ1::Transition,σ2::Transition)

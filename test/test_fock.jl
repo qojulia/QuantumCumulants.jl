@@ -3,6 +3,8 @@ using SymbolicUtils
 SymbolicUtils.show_simplified[]=false
 using Test
 
+@testset "fock" begin
+
 # Test
 hf = FockSpace(:c)
 
@@ -26,13 +28,10 @@ b = Destroy(hf,:b)
 @test simplify_operators(-1*(a'*a + 1)*a + a) == -1*a'*a*a
 @test simplify_operators(a'*a*a - a*a'*a) == -1*a
 
-# @syms x
-# ex = x*a+x*a
-# @test simplify_operators(ex)==simplify_operators((2*a)*x)
-# @test isa(2*x*a, OperatorTerm) # TODO: Variadic methods -- use own Constants type
-
 # Single mode
 ωc = 0.1313
 H = ωc*a'*a
 da = simplify_operators(1.0im*(H*a - a*H))
 @test da == -1.0im*ωc*a
+
+end # testset

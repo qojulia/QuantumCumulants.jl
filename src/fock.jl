@@ -64,18 +64,14 @@ end
 function commute_bosonic(f,args)
     commuted_args = []
     i = 1
-    last_commute = false
-    while i < length(args)
-        if isdestroy(args[i]) && iscreate(args[i+1]) && (acts_on(args[i])==acts_on(args[i+1]))
+    while i <= length(args)
+        if isdestroy(args[i]) && i<length(args) && iscreate(args[i+1]) && (acts_on(args[i])==acts_on(args[i+1]))
             push!(commuted_args, args[i+1]*args[i] + 1)
             i += 2
-            last_commute = (i==length(args))
         else
             push!(commuted_args, args[i])
             i += 1
         end
     end
-    last_commute && push!(commuted_args, args[end])
-
     return f(commuted_args...)
 end

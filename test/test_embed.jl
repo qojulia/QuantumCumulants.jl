@@ -3,7 +3,8 @@ using SymbolicUtils
 SymbolicUtils.show_simplified[]=false
 using Test
 
-# Test
+@testset "embed" begin
+
 hf = FockSpace(:c)
 
 a = Destroy(hf,:a)
@@ -44,3 +45,5 @@ da = commutator(1.0im*H,a)
 @test da == -1.0im*ωc*a + (-1.0im*g)*σ
 ds = commutator(1.0im*H,σ)
 @test ds == ((0.0-1.0im)*g)*a + ((0.0-1.0im)*ωa)*σ  + (2.0im*g)*a*embed(h,Transition(ha,:σ,:e,:e),2)
+
+end # testset
