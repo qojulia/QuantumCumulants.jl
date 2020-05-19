@@ -18,19 +18,17 @@ it. The variable vector `u` corresponds to the symbols provided in `vs`.
 *`tsym=:t`: The symbol used for the time parameter.
 
 # Optional arguments
-*`set_unknowns_zero::Bool=false`: Choose whether encountered symbols which are not
-    contained in either `vs` or `ps` should be neglected (set to 0).
 *`check_bounds::Bool=false`: Choose whether the resulting function should contain
     the `@inbounds` flag, which skips bounds checking for performance.
 """
 function build_ode(rhs::Vector, vs::Vector, ps=[], usym=:u, psym=:p, tsym=:t;
-                    set_unknowns_zero::Bool=false, check_bounds::Bool=false)
+                    check_bounds::Bool=false)
     @assert length(rhs) == length(vs)
 
     vs_adj_ = average_adj.(vs)
 
     # Check if there are unknown symbols
-    missed = find_missing(eqs,vs;vs_adj=vs_adj_,ps=ps)
+    missed = find_missing(rhs,vs;vs_adj=vs_adj_,ps=ps)
     isempty(missed) || throw_missing_error(missed)
 
     dusym = Symbol(:d,usym)
@@ -103,8 +101,6 @@ in order to solve it.
 *`tsym=:t`: The symbol used for the time parameter.
 
 # Optional arguments
-*`set_unknowns_zero::Bool=false`: Choose whether encountered symbols which are not
-    contained in either `vs` or `ps` should be neglected (set to 0).
 *`check_bounds::Bool=false`: Choose whether the resulting function should contain
     the `@inbounds` flag, which skips bounds checking for performance.
 """
@@ -127,8 +123,6 @@ on the output of the `build_ode` function.
 *`tsym=:t`: The symbol used for the time parameter.
 
 # Optional arguments
-*`set_unknowns_zero::Bool=false`: Choose whether encountered symbols which are not
-    contained in either `vs` or `ps` should be neglected (set to 0).
 *`check_bounds::Bool=false`: Choose whether the resulting function should contain
     the `@inbounds` flag, which skips bounds checking for performance.
 
@@ -182,11 +176,9 @@ function build_expr(head::Symbol, args)
 end
 
 function throw_missing_error(missed)
-    error_msg = "The following symbols (either parameters or averages) are missing: "
+    error_msg = "The following symbols parameters or averages are missing: "
     for p1=missed
         error_msg *= "$p1 "
     end
-    error_msg *= "\n"
-    error_msg *= "If you want to neglect those, set the `set_unknowns_zero` kwarg to `true`.\n"
     error(error_msg)
 end

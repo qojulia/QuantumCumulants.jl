@@ -2,6 +2,7 @@
 Abstract type for equations.
 """
 abstract type AbstractEquation{LHS,RHS} end
+Base.:(==)(eq1::T,eq2::T) where T<:AbstractEquation = (eq1.lhs==eq2.lhs && eq1.rhs==eq2.rhs)
 
 """
     DifferentialEquation{LHS,RHS} <: AbstractEquation{LHS,RHS}

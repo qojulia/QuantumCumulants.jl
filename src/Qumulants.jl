@@ -25,7 +25,6 @@ include("heisenberg.jl")
 include("parameters.jl")
 include("average.jl")
 include("diffeq.jl")
-# include("sympify.jl")
 include("latexify_recipes.jl")
 include("printing.jl")
 

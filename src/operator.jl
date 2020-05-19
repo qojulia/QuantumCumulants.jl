@@ -1,4 +1,5 @@
 import SymbolicUtils
+
 # Abstract types
 abstract type AbstractOperator end
 abstract type BasicOperator <: AbstractOperator end

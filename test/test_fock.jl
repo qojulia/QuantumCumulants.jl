@@ -1,6 +1,4 @@
 using Qumulants
-using SymbolicUtils
-SymbolicUtils.show_simplified[]=false
 using Test
 
 @testset "fock" begin

@@ -1,6 +1,5 @@
 using Qumulants
 using Test
-using SymbolicUtils
 
 @testset "nlevel" begin
 
