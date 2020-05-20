@@ -5,7 +5,7 @@ Compute the Heisenberg equation of the operator `op` under the Hamiltonian `H`.
 """
 function heisenberg(a::AbstractOperator,H)
     a_ = simplify_operators(a)
-    da = simplify_operators(1.0im*commutator(H,a))
+    da = simplify_operators(1.0im*commutator(H,a;simplify=false))
     return DifferentialEquation(a_,da)
 end
 """
@@ -16,7 +16,7 @@ under the Hamiltonian `H`.
 """
 function heisenberg(a::Vector,H)
     lhs = simplify_operators.(a)
-    rhs = simplify_operators.([1.0im*commutator(H,a1) for a1=lhs])
+    rhs = simplify_operators.([1.0im*commutator(H,a1;simplify=false) for a1=lhs])
     return DifferentialEquationSet(lhs,rhs)
 end
 
@@ -81,20 +81,24 @@ function heisenberg(a::Vector,H,J;Jdagger::Vector=adjoint.(J),rates=ones(length(
 end
 function _master_lindblad(a_,J,Jdagger,rates)
     if isa(rates,Vector)
-        da_diss = sum(0.5*rates[i]*(Jdagger[i]*commutator(a_,J[i]) + commutator(Jdagger[i],a_)*J[i]) for i=1:length(J))
+        da_diss = sum(0.5*rates[i]*(Jdagger[i]*commutator(a_,J[i];simplify=false) + commutator(Jdagger[i],a_;simplify=false)*J[i]) for i=1:length(J))
     elseif isa(rates,Matrix)
-        da_diss = sum(0.5*rates[i,j]*(Jdagger[i]*commutator(a_,J[j]) + commutator(Jdagger[i],a_)*J[j]) for i=1:length(J), j=1:length(J))
+        da_diss = sum(0.5*rates[i,j]*(Jdagger[i]*commutator(a_,J[j];simplify=false) + commutator(Jdagger[i],a_;simplify=false)*J[j]) for i=1:length(J), j=1:length(J))
     else
         error("Unknown rates type!")
     end
     return simplify_operators(da_diss)
 end
 
-function commutator(a::AbstractOperator,b::AbstractOperator)
+function commutator(a::AbstractOperator,b::AbstractOperator; simplify=true, kwargs...)
     # Check on which subspaces each of the operators act
     a_on = acts_on(a)
     b_on = acts_on(b)
     inds = intersect(a_on,b_on)
     isempty(inds) && return zero(a)
-    return simplify_operators(a*b - b*a)
+    if simplify
+        return simplify_operators(a*b - b*a; kwargs...)
+    else
+        return a*b - b*a
+    end
 end
