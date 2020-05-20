@@ -8,10 +8,8 @@ hf = FockSpace(:cavity)
 ha = NLevelSpace(:atom,(:g,:e))
 h = hf⊗ha
 
-a_ = Destroy(hf,:a)
-a = embed(h, a_, 1)
-σ_ = Transition(ha,:σ,:g,:e)
-σ = embed(h, σ_, 2)
+a = Destroy(h,:a)
+σ = Transition(h,:σ,:g,:e)
 
 # Single-atom laser
 @parameters Δ g κ γ ν

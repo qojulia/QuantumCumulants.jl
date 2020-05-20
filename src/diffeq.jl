@@ -25,7 +25,7 @@ function build_ode(rhs::Vector, vs::Vector, ps=[], usym=:u, psym=:p, tsym=:t;
                     check_bounds::Bool=false)
     @assert length(rhs) == length(vs)
 
-    vs_adj_ = average_adj.(vs)
+    vs_adj_ = adjoint.(vs)
 
     # Check if there are unknown symbols
     missed = find_missing(rhs,vs;vs_adj=vs_adj_,ps=ps)
@@ -140,7 +140,7 @@ For a list of expressions contained in `rhs`, check whether all occurring symbol
 are contained either in the variables given in `vs` or `ps`. Returns a list of
 missing symbols.
 """
-function find_missing(rhs::Vector, vs::Vector; vs_adj::Vector=average_adj.(vs), ps=[])
+function find_missing(rhs::Vector, vs::Vector; vs_adj::Vector=adjoint.(vs), ps=[])
     missed = Number[]
     for e=rhs
         append!(missed,get_symbolics(e))
@@ -160,13 +160,6 @@ function get_symbolics(t::NumberTerm)
         append!(syms, get_symbolics(arg))
     end
     return unique(syms)
-end
-
-function average_adj(avg::Average)
-    # Adjoint reverses order in product; need to simplify to re-order
-    # TODO: improve
-    op_adj = simplify_operators(adjoint(avg.operator))
-    return average(op_adj)
 end
 
 function build_expr(head::Symbol, args)

@@ -35,7 +35,13 @@ for f in [:+,:*]
 end
 
 Base.adjoint(t::OperatorTerm) = OperatorTerm(t.f, adjoint.(t.arguments))
-Base.adjoint(t::OperatorTerm{<:typeof(*)}) = OperatorTerm(t.f, reverse(adjoint.(t.arguments)))
+function Base.adjoint(t::OperatorTerm{<:typeof(*)})
+    args = reverse(adjoint.(t.arguments))
+    is_c = iscommutative.(*,args)
+    args_c = args[is_c]
+    args_nc = sort(args[.!is_c], by=acts_on)
+    return OperatorTerm(t.f, [args_c;args_nc])
+end
 
 # Hilbert space checks
 check_hilbert(a::BasicOperator,b::BasicOperator) = (a.hilbert == b.hilbert) || error("Incompatible Hilbert spaces $(a.hilbert) and $(b.hilbert)!")
