@@ -133,35 +133,7 @@ on the output of the `build_ode` function.
 generate_ode(args...;kwargs...) = Meta.eval(build_ode(args...;kwargs...))
 
 
-"""
-    find_missing(rhs::Vector, vs::Vector, vs_adj=adjoint.(vs) ps=[])
-
-For a list of expressions contained in `rhs`, check whether all occurring symbols
-are contained either in the variables given in `vs` or `ps`. Returns a list of
-missing symbols.
-"""
-function find_missing(rhs::Vector, vs::Vector; vs_adj::Vector=adjoint.(vs), ps=[])
-    missed = Number[]
-    for e=rhs
-        append!(missed,get_symbolics(e))
-    end
-    unique!(missed)
-    filter!(x->!(x∈vs || x∈ps || x∈vs_adj),missed)
-    return missed
-end
-find_missing(de::DifferentialEquationSet; kwargs...) = find_missing(de.rhs, de.lhs; kwargs...)
-
 # Auxiliary functions
-get_symbolics(x::Number) = Number[]
-get_symbolics(x::SymbolicNumber) = [x]
-function get_symbolics(t::NumberTerm)
-    syms = Number[]
-    for arg in t.arguments
-        append!(syms, get_symbolics(arg))
-    end
-    return unique(syms)
-end
-
 function build_expr(head::Symbol, args)
     ex = Expr(head)
     append!(ex.args, args)

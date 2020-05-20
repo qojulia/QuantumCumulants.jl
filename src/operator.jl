@@ -83,3 +83,11 @@ Base.isone(::AbstractOperator) = false
 Base.zero(::T) where T<:AbstractOperator = zero(T)
 Base.zero(::Type{<:AbstractOperator}) = 0
 Base.iszero(::AbstractOperator) = false
+
+function Base.copy(op::T) where T<:BasicOperator
+    fields = [getfield(op, n) for n in fieldnames(T)]
+    return T(fields...)
+end
+function Base.copy(t::OperatorTerm)
+    return OperatorTerm(t.f, copy.(t.arguments))
+end

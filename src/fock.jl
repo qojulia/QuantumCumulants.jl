@@ -1,11 +1,12 @@
 struct FockSpace{S} <: HilbertSpace
     name::S
-    function FockSpace(name::S) where S
+    function FockSpace{S}(name::S) where S
         r = SymbolicUtils.@rule(*(~~x::has_destroy_create) => commute_bosonic(*, ~~x))
         (r ∈ COMMUTATOR_RULES.rules) || push!(COMMUTATOR_RULES.rules, r)
-        new{S}(name)
+        new(name)
     end
 end
+FockSpace(name::S) where S = FockSpace{S}(name)
 Base.:(==)(h1::T,h2::T) where T<:FockSpace = (h1.name==h2.name)
 
 struct Destroy{H<:HilbertSpace,S,A} <: BasicOperator

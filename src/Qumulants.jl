@@ -2,7 +2,7 @@ module Qumulants
 
 import SymbolicUtils
 
-export HilbertSpace,
+export HilbertSpace, ProductSpace,
         simplify_operators, substitute,
         AbstractOperator, BasicOperator, Identity, Zero, OperatorTerm, ⊗, embed,
         FockSpace, Destroy, Create,
@@ -11,8 +11,9 @@ export HilbertSpace,
         heisenberg, commutator, acts_on,
         SymbolicNumber, NumberTerm, Parameter, @parameters, parameters,
                 simplify_constants,
-        Average, average, cumulant_expansion,
-        build_ode, generate_ode, find_missing
+        Average, average, cumulant_expansion, get_order,
+        find_missing, complete, find_operators, fundamental_operators,
+        build_ode, generate_ode
 
 include("hilbertspace.jl")
 include("operator.jl")
@@ -24,6 +25,7 @@ include("equations.jl")
 include("heisenberg.jl")
 include("parameters.jl")
 include("average.jl")
+include("utils.jl")
 include("diffeq.jl")
 include("latexify_recipes.jl")
 include("printing.jl")
