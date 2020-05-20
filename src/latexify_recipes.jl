@@ -96,7 +96,6 @@ function _to_expression(x::Complex)
     end
 end
 _to_expression(op::BasicOperator) = op.name
-_to_expression(op::EmbeddedOperator) = _to_expression(op.operator)
 _to_expression(op::Create) = :(dagger($(op.name)))
 _to_expression(op::Transition) = :(Transition($(op.name),$(op.i),$(op.j)) )
 _to_expression(t::Union{OperatorTerm,NumberTerm}) = :( $(Symbol(t.f))($(_to_expression.(t.arguments)...)) )

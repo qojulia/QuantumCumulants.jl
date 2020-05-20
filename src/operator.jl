@@ -55,27 +55,7 @@ end
 check_hilbert(args...) = nothing#reduce(check_hilbert, args) # TODO
 
 
-# Tensor product via embedding operators
-struct EmbeddedOperator{H<:ProductSpace,OP<:BasicOperator,A} <: BasicOperator
-    hilbert::H
-    operator::OP
-    aon::A
-    function EmbeddedOperator{H,OP,A}(hilbert::H,operator::OP,aon::A) where {H,OP,A}
-        op = new(hilbert,operator,aon)
-        if !haskey(OPERATORS_TO_SYMS, op)
-            sym = generate_symbolic(operator)
-            OPERATORS_TO_SYMS[op] = sym
-            SYMS_TO_OPERATORS[sym] = op
-        end
-        return op
-    end
-end
-EmbeddedOperator(hilbert::H,operator::OP,aon::A) where {H,OP,A} = EmbeddedOperator{H,OP,A}(hilbert,operator,aon)
-Base.:(==)(a::EmbeddedOperator,b::EmbeddedOperator) = (a.hilbert==b.hilbert && a.aon==b.aon && a.operator==b.operator)
-Base.adjoint(op::EmbeddedOperator) = embed(op.hilbert,adjoint(op.operator),op.aon)
-
-acts_on(::BasicOperator) = 1
-acts_on(op::EmbeddedOperator) = op.aon
+acts_on(op::BasicOperator) = op.aon
 function acts_on(t::OperatorTerm)
     ops = filter(isoperator, t.arguments)
     aon = Int[]
@@ -88,26 +68,10 @@ function acts_on(t::OperatorTerm)
 end
 
 # embed into product spaces
-function embed(h::ProductSpace,op::BasicOperator,aon::Int)
-    check_hilbert(h.spaces[aon],op.hilbert)
-    EmbeddedOperator(h,op,aon)
-end
 function ⊗(a::BasicOperator,b::BasicOperator)
     h = a.hilbert⊗b.hilbert
-    a_ = embed(h,a,1)
-    b_ = embed(h,b,2)
-    return a_*b_
-end
-function ⊗(a::EmbeddedOperator,b::BasicOperator)
-    h = a.hilbert⊗b.hilbert
-    a_ = embed(h,a.operator,a.aon)
-    b_ = embed(h,b,a.aon+1)
-    return a_*b_
-end
-function ⊗(a::EmbeddedOperator,b::EmbeddedOperator)
-    h = a.hilbert⊗b.hilbert
-    a_ = embed(h,a.operator,a.aon)
-    b_ = embed(h,b.operator,a.aon+b.aon+1)
+    a_ = embed(h,a.operator,acts_on(a))
+    b_ = embed(h,b.operator,acts_on(a)+acts_on(b)+1)
     return a_*b_
 end
 

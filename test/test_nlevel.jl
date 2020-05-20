@@ -62,4 +62,9 @@ hprod = ha1⊗ha2
 @test simplify_operators(σ2*σ2')==simplify_operators(1 -embed(hprod,Transition(ha2,:σ,2,2),2))
 @test simplify_operators(σ1*σ2)==σ1*σ2
 
+@test_throws ErrorException Transition(hprod,:σ,:g,:e)
+@test Transition(hprod,:σ,:g,:e,1)==σ1
+@test Transition(hprod,:σ,1,2,2)==σ2
+@test_throws AssertionError Transition(hprod,:σ,1,2,1)
+
 end # testset
