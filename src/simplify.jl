@@ -1,16 +1,14 @@
 ### Conversion to SymbolicUtils
 
-_to_symbolic(op::BasicOperator) = OPERATORS_TO_SYMS[op](acts_on(op))
 _to_symbolic(t::T) where T<:OperatorTerm = SymbolicUtils.Term{AbstractOperator}(t.f, _to_symbolic.(t.arguments))
 _to_symbolic(x::Number) = x
 _to_symbolic(x::SymbolicUtils.Symbolic) = x
 
+function _to_qumulants(t::SymbolicUtils.Term{T}) where T<:BasicOperator
+    return t.f(t.arguments...)
+end
 function _to_qumulants(t::SymbolicUtils.Term{T}) where T<:AbstractOperator
-    if haskey(SYMS_TO_OPERATORS, t.f)
-        return SYMS_TO_OPERATORS[t.f]
-    else
-        return OperatorTerm(t.f, _to_qumulants.(t.arguments))
-    end
+    return OperatorTerm(t.f, _to_qumulants.(t.arguments))
 end
 _to_qumulants(x::Number) = x
 
@@ -124,7 +122,7 @@ function acts_on(t::SymbolicUtils.Term{T}) where T<:AbstractOperator
     return aon
 end
 function acts_on(t::SymbolicUtils.Term{T}) where T<:BasicOperator
-    return t.arguments[1]
+    return t.arguments[end]
 end
 
 function sort_args_nc(f::typeof(*), args)

@@ -1,3 +1,12 @@
+Base.show(io::IO,h::HilbertSpace) = write(io, h.name)
+function Base.show(io::IO,h::ProductSpace)
+    show(io, h.spaces[1])
+    for i=2:length(h.spaces)
+        write(io, " ⊗ ")
+        show(io, h.spaces[i])
+    end
+end
+
 Base.show(io::IO,x::BasicOperator) = write(io, x.name)
 Base.show(io::IO,x::Create) = write(io, string(x.name, "′"))
 Base.show(io::IO,x::Transition) = write(io, Symbol(x.name,x.i,x.j))

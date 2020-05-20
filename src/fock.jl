@@ -12,39 +12,17 @@ struct Destroy{H<:HilbertSpace,S,A} <: BasicOperator
     hilbert::H
     name::S
     aon::A
-    function Destroy{H,S,A}(hilbert::H,name::S,aon::A) where {H,S,A}
-        op = new(hilbert,name,aon)
-        if !haskey(OPERATORS_TO_SYMS,op)
-            sym = generate_symbolic(op)
-            OPERATORS_TO_SYMS[op] = sym
-            SYMS_TO_OPERATORS[sym] = op
-        end
-        return op
-    end
 end
 isdestroy(a) = false
 isdestroy(a::SymbolicUtils.Term{T}) where {T<:Destroy} = true
-generate_symbolic(::Destroy) =
-    SymbolicUtils.Sym{SymbolicUtils.FnType{Tuple{Int},Destroy}}(gensym(:Destroy))
 
 struct Create{H<:HilbertSpace,S,A} <: BasicOperator
     hilbert::H
     name::S
     aon::A
-    function Create{H,S,A}(hilbert::H,name::S,aon::A) where {H,S,A}
-        op = new(hilbert,name,aon)
-        if !haskey(OPERATORS_TO_SYMS,op)
-            sym = SymbolicUtils.Sym{SymbolicUtils.FnType{Tuple{Int},Create}}(gensym(:Create))
-            OPERATORS_TO_SYMS[op] = sym
-            SYMS_TO_OPERATORS[sym] = op
-        end
-        return op
-    end
 end
 iscreate(a) = false
 iscreate(a::SymbolicUtils.Term{T}) where {T<:Create} = true
-generate_symbolic(::Create) =
-    SymbolicUtils.Sym{SymbolicUtils.FnType{Tuple{Int},Create}}(gensym(:Create))
 
 for f in [:Destroy,:Create]
     @eval $(f)(hilbert::H,name::S,aon::A) where {H,S,A} = $(f){H,S,A}(hilbert,name,aon)
@@ -62,6 +40,10 @@ for f in [:Destroy,:Create]
         check_hilbert(h.spaces[aon],op.hilbert)
         op_ = $(f)(h,op.name,aon)
         return op_
+    end
+    @eval function _to_symbolic(op::T) where T<:($(f))
+        sym = SymbolicUtils.term($(f), op.hilbert, op.name, acts_on(op); type=$(f))
+        return sym
     end
 end
 

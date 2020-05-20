@@ -31,13 +31,7 @@ struct Transition{H,S,I,A} <: BasicOperator
     aon::A
     function Transition{H,S,I,A}(hilbert::H,name::S,i::I,j::I,aon::A) where {H,S,I,A}
         @assert i∈levels(hilbert,aon) && j∈levels(hilbert,aon)
-        op = new(hilbert,name,i,j,aon)
-        if !haskey(OPERATORS_TO_SYMS,op)
-            sym = generate_symbolic(op)
-            OPERATORS_TO_SYMS[op] = sym
-            SYMS_TO_OPERATORS[sym] = op
-        end
-        return op
+        return new(hilbert,name,i,j,aon)
     end
 end
 Transition(hilbert::H,name::S,i::I,j::I,aon::A) where {H,S,I,A} = Transition{H,S,I,A}(hilbert,name,i,j,aon)
@@ -60,11 +54,15 @@ end
 levels(t::Transition,args...) = levels(t.hilbert,args...)
 ground_state(t::Transition,args...) = ground_state(t.hilbert,args...)
 
+function _to_symbolic(op::T) where T<:Transition
+    sym = SymbolicUtils.term(Transition, op.hilbert, op.name, op.i, op.j, acts_on(op); type=Transition)
+    return sym
+end
+
 Base.adjoint(t::Transition) = Transition(t.hilbert,t.name,t.j,t.i,acts_on(t))
 Base.:(==)(t1::Transition,t2::Transition) = (t1.hilbert==t2.hilbert && t1.name==t2.name && t1.i==t2.i && t1.j==t2.j)
 
-generate_symbolic(op::Transition) = SymbolicUtils.Sym{SymbolicUtils.FnType{Tuple{Int},Transition}}(gensym(:Transition))
-
+# Simplification
 istransition(x) = false
 istransition(x::Union{T,SymbolicUtils.Term{T}}) where T<:Transition = true
 
@@ -90,31 +88,27 @@ function merge_transitions(f::Function, args)
    end
    return f(merged...)
 end
-function merge_transitions(σ1::Transition,σ2::Transition)
-    check_hilbert(σ1,σ2)
-    if σ1.j==σ2.i
-        return Transition(σ1.hilbert,σ1.name,σ1.i,σ2.j,acts_on(σ1))
+function merge_transitions(σ1::SymbolicUtils.Term{<:Transition},σ2::SymbolicUtils.Term{<:Transition})
+    i1,j1 = σ1.arguments[3:4]
+    i2,j2 = σ2.arguments[3:4]
+    if j1==i2
+        return SymbolicUtils.term(σ1.f, σ1.arguments[1], σ1.arguments[2], i1, j2, acts_on(σ1); type=Transition)
     else
-        return zero(σ1)
+        return 0
     end
 end
-function merge_transitions(σ1::SymbolicUtils.Term{<:Transition},σ2::SymbolicUtils.Term{<:Transition})
-    op1 = _to_qumulants(σ1)
-    op2 = _to_qumulants(σ2)
-    return _to_symbolic(merge_transitions(op1,op2))
-end
-function rewrite_gs(x)
-    op = _to_qumulants(x)
-    return _to_symbolic(rewrite_gs(op))
-end
-function rewrite_gs(op::Transition)
-    if op.i==op.j==ground_state(op.hilbert,acts_on(op))
-        args = Any[one(op)]
-        for i in levels(op.hilbert,acts_on(op))
-            (i==op.i) || push!(args, -1*Transition(op.hilbert,op.name,i,i,acts_on(op)))
+function rewrite_gs(t::SymbolicUtils.Term{<:Transition})
+    h = t.arguments[1]
+    aon = acts_on(t)
+    gs = ground_state(h,aon)
+    i,j = t.arguments[3:4]
+    if i==j==gs
+        args = Any[1]
+        for k in levels(h,aon)
+            (k==i) || push!(args, -1*SymbolicUtils.term(t.f, h, t.arguments[2], k, k, aon; type=Transition))
         end
         return +(args...)
     else
-        return op
+        return t
     end
 end

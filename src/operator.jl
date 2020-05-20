@@ -7,10 +7,6 @@ abstract type BasicOperator <: AbstractOperator end
 isoperator(x) = false
 isoperator(x::Union{T,SymbolicUtils.Symbolic{T}}) where {A,T<:AbstractOperator} = true
 
-# Keep track of operators when converting to SymbolicUtils
-const OPERATORS_TO_SYMS = Dict{BasicOperator,SymbolicUtils.Sym}()
-const SYMS_TO_OPERATORS = Dict{SymbolicUtils.Sym,BasicOperator}()
-
 # Operator expressions
 struct OperatorTerm{F,ARGS} <: AbstractOperator
     f::F
