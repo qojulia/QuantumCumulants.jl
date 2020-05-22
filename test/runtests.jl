@@ -6,7 +6,7 @@ names = [
     "test_parameters.jl"
     "test_average.jl"
     "test_diffeq.jl"
-    # "test_v-level.jl"
+    "test_v-level.jl"
     # "test_multisystems.jl"
     # "test_higher-order.jl"
     # "test_mixed-order-average.jl"

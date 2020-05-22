@@ -13,6 +13,7 @@ export HilbertSpace, ProductSpace,
                 simplify_constants,
         Average, average, cumulant_expansion, get_order,
         find_missing, complete, find_operators, fundamental_operators,
+            unique_ops, get_symbolics, get_operators,
         build_ode, generate_ode
 
 include("hilbertspace.jl")

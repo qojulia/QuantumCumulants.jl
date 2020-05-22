@@ -83,24 +83,3 @@ end
     ex = isa(ex,String) ? LaTeXString(ex) : ex
     return ex
 end
-
-_to_expression(x::Number) = x
-function _to_expression(x::Complex)
-    iszero(x) && return x
-    if iszero(real(x))
-        return :( $(imag(x))*im )
-    elseif iszero(imag(x))
-        return real(x)
-    else
-        return :( $(real(x)) + $(imag(x))*im )
-    end
-end
-_to_expression(op::BasicOperator) = op.name
-_to_expression(op::Create) = :(dagger($(op.name)))
-_to_expression(op::Transition) = :(Transition($(op.name),$(op.i),$(op.j)) )
-_to_expression(t::Union{OperatorTerm,NumberTerm}) = :( $(Symbol(t.f))($(_to_expression.(t.arguments)...)) )
-_to_expression(p::Parameter) = p.name
-function _to_expression(avg::Average)
-    ex = _to_expression(avg.operator)
-    return :(AVERAGE($ex))
-end
