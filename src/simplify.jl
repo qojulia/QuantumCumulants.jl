@@ -159,3 +159,16 @@ function expand_term(f_outer, f_inner, args)
         end
     end
 end
+
+# Check if specific consecutive arguments occur
+has_consecutive(isthis) = has_consecutive(isthis,isthis)
+has_consecutive(isthis,isthat) = x -> has_consecutive(isthis,isthat,x)
+function has_consecutive(isthis,isthat,args)
+    length(args) <= 1 && return false
+    for i=1:length(args)-1
+        if isthis(args[i])&&isthat(args[i+1])&&(acts_on(args[i])==acts_on(args[i+1]))
+            return true
+        end
+    end
+    return false
+end

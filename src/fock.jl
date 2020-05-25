@@ -1,7 +1,7 @@
 struct FockSpace{S} <: HilbertSpace
     name::S
     function FockSpace{S}(name::S) where S
-        r = SymbolicUtils.@rule(*(~~x::has_destroy_create) => commute_bosonic(*, ~~x))
+        r = SymbolicUtils.@rule(*(~~x::has_consecutive(isdestroy,iscreate)) => commute_bosonic(*, ~~x))
         (r ∈ COMMUTATOR_RULES.rules) || push!(COMMUTATOR_RULES.rules, r)
         new(name)
     end
@@ -52,15 +52,6 @@ Base.adjoint(op::Destroy) = Create(op.hilbert,op.name,acts_on(op))
 Base.adjoint(op::Create) = Destroy(op.hilbert,op.name,acts_on(op))
 
 # Commutation relation in simplification
-function has_destroy_create(args)
-    length(args) <= 1 && return false
-    for i=1:length(args)-1
-        if isdestroy(args[i])&&iscreate(args[i+1])&&(acts_on(args[i])==acts_on(args[i+1]))
-            return true
-        end
-    end
-    return false
-end
 function commute_bosonic(f,args)
     commuted_args = []
     i = 1
