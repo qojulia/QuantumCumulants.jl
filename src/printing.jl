@@ -31,6 +31,16 @@ function Base.show(io::IO,x::Average)
     write(io,"⟩")
 end
 
+function Base.show(io::IO,de::DifferentialEquation)
+    for i=1:length(de)
+        write(io, "∂ₜ(")
+        show(io, de.lhs[i])
+        write(io, ") = ")
+        show(io, de.rhs[i])
+        write(io, "\n")
+    end
+end
+
 Base.show(io::IO, ::MIME"text/latex", op::AbstractOperator) = write(io, latexify(op))
 Base.show(io::IO, ::MIME"text/latex", de::AbstractEquation) = write(io, latexify(de))
 Base.show(io::IO, ::MIME"text/latex", p::SymbolicNumber) = write(io, latexify(p))

@@ -41,14 +41,9 @@ function separate_constants(op::OperatorTerm)
 end
 
 function average(de::DifferentialEquation)
-    lhs = average(de.lhs)
-    rhs = average(de.rhs)
-    return DifferentialEquation(lhs,rhs)
-end
-function average(de::DifferentialEquationSet)
     lhs = average.(de.lhs)
     rhs = average.(de.rhs)
-    return DifferentialEquationSet(lhs,rhs)
+    return DifferentialEquation(lhs,rhs)
 end
 average(arg,order::Int) = cumulant_expansion(average(arg),order)
 
@@ -92,18 +87,16 @@ function cumulant_expansion(x::NumberTerm,order;kwargs...)
     return simplify_constants(x.f(cumulants...);kwargs...)
 end
 function cumulant_expansion(de::DifferentialEquation,order;kwargs...)
-    return DifferentialEquation(cumulant_expansion(de.lhs,order;kwargs...),cumulant_expansion(de.rhs,order;kwargs...))
-end
-function cumulant_expansion(de::DifferentialEquationSet,order;kwargs...)
     lhs = Number[]
     rhs = Number[]
     for i=1:length(de.lhs)
-        cl = cumulant_expansion(de.lhs[i],order;kwargs...)
+        (get_order(de.lhs[i]) > order) && error("Cannot form cumulant expansion of derivative! Check the left-hand-side of your equations; you may want to use a higher order!")
+        cl = average(de.lhs[i])
         cr = cumulant_expansion(de.rhs[i],order;kwargs...)
         push!(lhs, cl)
         push!(rhs, cr)
     end
-    return DifferentialEquationSet(lhs,rhs)
+    return DifferentialEquation(lhs,rhs)
 end
 
 function _cumulant_expansion(args::Vector,order::Int)

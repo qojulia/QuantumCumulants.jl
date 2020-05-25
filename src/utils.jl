@@ -14,11 +14,8 @@ function find_missing(rhs::Vector{<:Number}, vs::Vector{<:Number}; vs_adj::Vecto
     filter!(x->!(x∈vs || x∈ps || x∈vs_adj),missed)
     return missed
 end
-function find_missing(de::DifferentialEquationSet{<:Number,<:Number}; kwargs...)
-    find_missing(de.rhs, de.lhs; kwargs...)
-end
 function find_missing(de::DifferentialEquation{<:Number,<:Number}; kwargs...)
-    find_missing([de.rhs], [de.lhs]; kwargs...)
+    find_missing(de.rhs, de.lhs; kwargs...)
 end
 
 """
@@ -37,19 +34,19 @@ function get_symbolics(t::NumberTerm)
 end
 
 """
-    complete(de::DifferentialEquationSet,H)
-    complete(de::DifferentialEquationSet,H,J)
+    complete(de::DifferentialEquation,H)
+    complete(de::DifferentialEquation,H,J)
 
 From a set of differential equation of averages, find all averages that are missing
 and derive the corresponding equations of motion.
 """
-function complete(de::DifferentialEquationSet{<:Number,<:Number},H::AbstractOperator;kwargs...)
+function complete(de::DifferentialEquation{<:Number,<:Number},H::AbstractOperator;kwargs...)
     rhs_, lhs_ = complete(de.rhs,de.lhs, [H], [];kwargs...)
-    return DifferentialEquationSet(lhs_,rhs_)
+    return DifferentialEquation(lhs_,rhs_)
 end
-function complete(de::DifferentialEquationSet{<:Number,<:Number},H::AbstractOperator,J::Vector;kwargs...)
+function complete(de::DifferentialEquation{<:Number,<:Number},H::AbstractOperator,J::Vector;kwargs...)
     rhs_, lhs_ = complete(de.rhs,de.lhs, [H,J]; kwargs...)
-    return DifferentialEquationSet(lhs_,rhs_)
+    return DifferentialEquation(lhs_,rhs_)
 end
 function complete(rhs::Vector{<:Number}, vs::Vector{<:Number}, he_args; order=maximum(get_order.(vs)), kwargs...)
     rhs_ = copy(rhs)

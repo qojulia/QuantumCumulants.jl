@@ -85,7 +85,7 @@ function build_ode(rhs::Vector, vs::Vector, ps=[], usym=:u, psym=:p, tsym=:t;
 end
 
 """
-    build_ode(eqs::DifferentialEquationSet, ps=[], usym=:u,
+    build_ode(eqs::DifferentialEquation, ps=[], usym=:u,
                 psym=:p, tsym=:t; set_unknowns_zero::Bool=false, check_bounds::Bool=false)
 
 From a set of differential equations`eqs` of averages, generate a `Meta.Expr`
@@ -93,7 +93,7 @@ containing the code for a function which can be directly passed to `OrdinaryDiff
 in order to solve it.
 
 # Arguments
-*`eqs::DifferentialEquationSet`: The set of (average) equations.
+*`eqs::DifferentialEquation`: The set of (average) equations.
 *`ps=[]`: List of parameters (possibly `SymPy.Sym`s), which are parsed into parameters
     used in DiffEq functions.
 *`usym=:u`: The symbol used for the variable vector.
@@ -104,10 +104,10 @@ in order to solve it.
 *`check_bounds::Bool=false`: Choose whether the resulting function should contain
     the `@inbounds` flag, which skips bounds checking for performance.
 """
-build_ode(eqs::DifferentialEquationSet, args...; kwargs...) = build_ode(eqs.rhs,eqs.lhs,args...;kwargs...)
+build_ode(eqs::DifferentialEquation, args...; kwargs...) = build_ode(eqs.rhs,eqs.lhs,args...;kwargs...)
 
 """
-    generate_ode(eqs::DifferentialEquationSet, ps=[], usym=:u,
+    generate_ode(eqs::DifferentialEquation, ps=[], usym=:u,
                 psym=:p, tsym=:t; set_unknowns_zero::Bool=false, check_bounds::Bool=false)
 
 From a set of differential equations `eqs` of averages, generate a `Function`
@@ -115,7 +115,7 @@ which can be directly used in `OrdinaryDiffEq`. Essentially, this calls `Meta.ev
 on the output of the `build_ode` function.
 
 # Arguments
-*`eqs::DifferentialEquationSet`: The set of (average) equations.
+*`eqs::DifferentialEquation`: The set of (average) equations.
 *`ps=[]`: List of parameters (possibly `SymPy.Sym`s), which are parsed into parameters
     used in DiffEq functions.
 *`usym=:u`: The symbol used for the variable vector.
