@@ -45,7 +45,7 @@ function average(de::DifferentialEquation)
     rhs = average.(de.rhs)
     return DifferentialEquation(lhs,rhs)
 end
-average(arg,order::Int) = cumulant_expansion(average(arg),order)
+average(arg,order;kwargs...) = cumulant_expansion(average(arg),order;kwargs...)
 
 # Conversion to SymbolicUtils
 _to_symbolic(a::Average{T}) where T<:Number = SymbolicUtils.term(average, _to_symbolic(a.operator); type=T)
@@ -66,7 +66,7 @@ of moments up to `order` neglecting their joint cumulant.
 
 See also: https://en.wikipedia.org/wiki/Cumulant#Joint_cumulants
 """
-function cumulant_expansion(avg::Average,order::Int;simplify=true)
+function cumulant_expansion(avg::Average,order::Int;simplify=true,kwargs...)
     @assert order > 0
     ord = get_order(avg)
     if ord <= order
@@ -81,22 +81,38 @@ function cumulant_expansion(avg::Average,order::Int;simplify=true)
         end
     end
 end
+function cumulant_expansion(avg::Average,order::Vector;mix_choice=maximum,kwargs...)
+    aon = acts_on(avg.operator)
+    order_ = mix_choice(order[i] for i in aon)
+    return cumulant_expansion(avg,order_;kwargs...)
+end
 cumulant_expansion(x::Number,order;kwargs...) = x
-function cumulant_expansion(x::NumberTerm,order;kwargs...)
-    cumulants = [cumulant_expansion(arg,order;simplify=false) for arg in x.arguments]
+function cumulant_expansion(x::NumberTerm,order;mix_choice=maximum, kwargs...)
+    cumulants = [cumulant_expansion(arg,order;simplify=false,mix_choice=mix_choice) for arg in x.arguments]
     return simplify_constants(x.f(cumulants...);kwargs...)
 end
-function cumulant_expansion(de::DifferentialEquation,order;kwargs...)
+function cumulant_expansion(de::DifferentialEquation{<:Average,<:Number},order;mix_choice=maximum,kwargs...)
     lhs = Number[]
     rhs = Number[]
     for i=1:length(de.lhs)
-        (get_order(de.lhs[i]) > order) && error("Cannot form cumulant expansion of derivative! Check the left-hand-side of your equations; you may want to use a higher order!")
-        cl = average(de.lhs[i])
-        cr = cumulant_expansion(de.rhs[i],order;kwargs...)
+        check_lhs(de.lhs[i],order;mix_choice=mix_choice)
+        cl = average(de.lhs[i].operator)
+        cr = cumulant_expansion(de.rhs[i],order;mix_choice=mix_choice,kwargs...)
         push!(lhs, cl)
         push!(rhs, cr)
     end
     return DifferentialEquation(lhs,rhs)
+end
+
+function check_lhs(lhs,order::Int;kwargs...)
+    (get_order(lhs) > order) && error("Cannot form cumulant expansion of derivative! Check the left-hand-side of your equations; you may want to use a higher order!")
+    return nothing
+end
+function check_lhs(lhs,order::Vector;mix_choice=maximum)
+    aon = acts_on(lhs.operator)
+    order_ = mix_choice(order[i] for i in aon)
+    (get_order(lhs) > order_) && error("Cannot form cumulant expansion of derivative! Check the left-hand-side of your equations; you may want to use a higher order!")
+    return nothing
 end
 
 function _cumulant_expansion(args::Vector,order::Int)

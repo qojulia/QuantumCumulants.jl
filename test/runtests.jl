@@ -7,9 +7,9 @@ names = [
     "test_average.jl"
     "test_diffeq.jl"
     "test_v-level.jl"
+    "test_mixed-order.jl"
     # "test_multisystems.jl"
     # "test_higher-order.jl"
-    # "test_mixed-order-average.jl"
 ]
 
 detected_tests = filter(
