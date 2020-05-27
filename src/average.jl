@@ -40,9 +40,20 @@ function separate_constants(op::OperatorTerm)
     return cs, ops
 end
 
-function average(de::DifferentialEquation)
-    lhs = average.(de.lhs)
-    rhs = average.(de.rhs)
+function average(de::DifferentialEquation;multithread=false)
+    lhs = Vector{Number}(undef, length(de.lhs))
+    rhs = Vector{Number}(undef, length(de.lhs))
+    if multithread
+        Threads.@threads for i=1:length(de.lhs)
+            lhs[i] = average(de.lhs[i])
+            rhs[i] = average(de.rhs[i])
+        end
+    else
+        for i=1:length(de.lhs)
+            lhs[i] = average(de.lhs[i])
+            rhs[i] = average(de.rhs[i])
+        end
+    end
     return DifferentialEquation(lhs,rhs)
 end
 average(arg,order;kwargs...) = cumulant_expansion(average(arg),order;kwargs...)
@@ -91,15 +102,25 @@ function cumulant_expansion(x::NumberTerm,order;mix_choice=maximum, kwargs...)
     cumulants = [cumulant_expansion(arg,order;simplify=false,mix_choice=mix_choice) for arg in x.arguments]
     return simplify_constants(x.f(cumulants...);kwargs...)
 end
-function cumulant_expansion(de::DifferentialEquation{<:Average,<:Number},order;mix_choice=maximum,kwargs...)
-    lhs = Number[]
-    rhs = Number[]
-    for i=1:length(de.lhs)
-        check_lhs(de.lhs[i],order;mix_choice=mix_choice)
-        cl = average(de.lhs[i].operator)
-        cr = cumulant_expansion(de.rhs[i],order;mix_choice=mix_choice,kwargs...)
-        push!(lhs, cl)
-        push!(rhs, cr)
+function cumulant_expansion(de::DifferentialEquation{<:Number,<:Number},order;multithread=false,mix_choice=maximum,kwargs...)
+    lhs = Vector{Number}(undef, length(de.lhs))
+    rhs = Vector{Number}(undef, length(de.lhs))
+    if multithread
+        Threads.@threads for i=1:length(de.lhs)
+            check_lhs(de.lhs[i],order;mix_choice=mix_choice)
+            cl = average(de.lhs[i].operator)
+            cr = cumulant_expansion(de.rhs[i],order;mix_choice=mix_choice,kwargs...)
+            lhs[i] = cl
+            rhs[i] = cr
+        end
+    else
+        for i=1:length(de.lhs)
+            check_lhs(de.lhs[i],order;mix_choice=mix_choice)
+            cl = average(de.lhs[i].operator)
+            cr = cumulant_expansion(de.rhs[i],order;mix_choice=mix_choice,kwargs...)
+            lhs[i] = cl
+            rhs[i] = cr
+        end
     end
     return DifferentialEquation(lhs,rhs)
 end

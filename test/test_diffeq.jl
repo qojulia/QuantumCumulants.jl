@@ -16,10 +16,10 @@ a = Destroy(h,:a)
 
 H = Δ*a'*a + g*(a'*σ + σ'*a)
 J = [a,σ,σ']
-he_laser = heisenberg([a'*a,σ'*σ,a*σ'],H,J;rates=[κ,γ,ν])
+he_laser = heisenberg([a'*a,σ'*σ,a*σ'],H,J;rates=[κ,γ,ν],multithread=true)
 
-he_avg = average(he_laser)
-he_exp = cumulant_expansion(he_avg,2)
+he_avg = average(he_laser;multithread=true)
+he_exp = cumulant_expansion(he_avg,2;multithread=true)
 @test he_exp == average(he_laser,2)
 
 ps = [Δ,g,κ,γ,ν]
