@@ -1,5 +1,5 @@
 # Qumulants.jl
-**Qumulants.jl** is a package for the symbolic derivation of Heisenberg equations equation in Julia. Averages over the resulting equations can be automatically expanded in terms of cumulants to an arbitrary order. This procedure yields a system of symbolic *c*-number differential equations. Finally, these *c*-number equations can be mapped to a function which can be solved using [DifferentialEquations.jl](http://docs.juliadiffeq.org/latest/).
+**Qumulants.jl** is a package for the symbolic derivation of Heisenberg equations in Julia. Averages over the resulting equations can be automatically expanded in terms of cumulants to an arbitrary order. This procedure yields a system of symbolic *c*-number differential equations. Finally, these *c*-number equations can be mapped to a function which can be solved using [DifferentialEquations.jl](http://docs.juliadiffeq.org/latest/).
 
 For the application of commutation relations and general simplification, **Qumulants.jl** uses [SymbolicUtils.jl](https://github.com/JuliaSymbolics/SymbolicUtils.jl) (:heart:).
 
