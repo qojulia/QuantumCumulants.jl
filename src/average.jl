@@ -1,5 +1,11 @@
 using Combinatorics: partitions, combinations
 
+"""
+    Average <: SymbolicNumber
+
+Symbolic number representing the average over an operator.
+See also: [`average`](@ref)
+"""
 struct Average{T<:Number,OP} <: SymbolicNumber
     operator::OP
 end
@@ -8,6 +14,13 @@ Base.:(==)(a1::Average,a2::Average) = (a1.operator==a2.operator)
 
 Base.conj(a::Average) = Average(adjoint(a.operator))
 
+"""
+    average(::AbstractOperator)
+    average(::AbstractOperator,order::Int)
+
+Compute the average of an operator. If `order` is given, the [`cumulant_expansion`](@ref)
+up to that order is computed immediately.
+"""
 average(op::BasicOperator) = Average(op)
 function average(op::OperatorTerm)
     if op.f ∈ [+,-] # linearity
@@ -40,6 +53,16 @@ function separate_constants(op::OperatorTerm)
     return cs, ops
 end
 
+"""
+    average(::DifferentialEquation;multithread=false)
+    average(::DifferentialEquation,order::Int;multithread=false)
+
+Compute the average of a [`DifferentialEquation`](@ref) (or a set of equations).
+Returns a [`DifferentialEquation`](@ref) with containing the corresponding equations
+for averages. If `order` is specified, the [`cumulant_expansion`](@ref) up to
+that order is computed immediately. The keyword `multithread` specifies whether
+the averaging (and [`cumulant_expansion`](@ref)) should be parallelized (defaults to `false`).
+"""
 function average(de::DifferentialEquation;multithread=false)
     lhs = Vector{Number}(undef, length(de.lhs))
     rhs = Vector{Number}(undef, length(de.lhs))
@@ -72,10 +95,31 @@ end
 """
     cumulant_expansion(avg, order::Int)
 
-For a product of operators whose constituents are given in `args`, expand it in terms
+For an [`Average`](@ref) of an operator, expand it in terms
 of moments up to `order` neglecting their joint cumulant.
 
 See also: https://en.wikipedia.org/wiki/Cumulant#Joint_cumulants
+
+Examples
+=======
+```
+julia> avg = average(a*b)
+⟨a*b⟩
+
+julia> cumulant_expansion(avg,1)
+(⟨a⟩*⟨b⟩)
+
+julia> avg = average(a*b*c)
+⟨a*b*c⟩
+
+julia> cumulant_expansion(avg,2)
+((⟨a*b⟩*⟨c⟩)+(⟨a*c⟩*⟨b⟩)+(⟨a⟩*⟨b*c⟩)+(-2*⟨a⟩*⟨b⟩*⟨c⟩))
+```
+
+Optional arguments
+=================
+*simplify=true: Specify whether the result should be simplified.
+*kwargs...: Further keyword arguments being passed to [`simplify_constants`](@ref)
 """
 function cumulant_expansion(avg::Average,order::Int;simplify=true,kwargs...)
     @assert order > 0
@@ -86,7 +130,7 @@ function cumulant_expansion(avg::Average,order::Int;simplify=true,kwargs...)
         op = avg.operator
         @assert op.f === (*)
         if simplify
-            return simplify_constants(_cumulant_expansion(op.arguments, order))
+            return simplify_constants(_cumulant_expansion(op.arguments, order), kwargs...)
         else
             _cumulant_expansion(op.arguments, order)
         end
@@ -161,6 +205,25 @@ function _cumulant_expansion(args::Vector,order::Int)
     return average(+(args_sum...))
 end
 
+"""
+    get_order(arg)
+
+Compute the order of a given argument. This is the order used to decide whether
+something should be expanded using a [`cumulant_expansion`](@ref) method.
+
+Examples
+=======
+```
+julia> get_order(a)
+1
+
+julia> get_order(a*b)
+2
+
+julia> get_order(1)
+0
+```
+"""
 get_order(avg::Average) = get_order(avg.operator)
 get_order(t::NumberTerm) = maximum(get_order.(t.arguments))
 get_order(::Number) = 0

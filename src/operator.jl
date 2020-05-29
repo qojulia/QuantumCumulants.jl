@@ -2,12 +2,23 @@ import SymbolicUtils
 
 # Abstract types
 abstract type AbstractOperator end
+
+"""
+    BasicOperator <: AbstractOperator
+
+Abstract type representing fundamental operator types.
+"""
 abstract type BasicOperator <: AbstractOperator end
 
 isoperator(x) = false
 isoperator(x::Union{T,SymbolicUtils.Symbolic{T}}) where {A,T<:AbstractOperator} = true
 
-# Operator expressions
+"""
+    OperatorTerm <: AbstractOperator
+
+Symbolic expression tree consisting of [`AbstractOperator`](@ref) and `Number`
+arguments.
+"""
 struct OperatorTerm{F,ARGS} <: AbstractOperator
     f::F
     arguments::ARGS

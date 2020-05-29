@@ -63,7 +63,23 @@ end
 default_rules() = SIMPLIFY_OPERATOR_RULES
 default_commutator_rules() = SIMPLIFY_COMMUTATOR_RULES
 
-# Substitution
+"""
+    substitute(arg, subs)
+
+Substitute the symbolic argument, i.e. any subtype to [`AbstractOperator`](@ref)
+or [`SymbolicNumber`](@ref) according to the substitutions stored in a `Dict`.
+Also works on [`DifferentialEquation`](@ref).
+
+Examples
+=======
+```
+julia> @parameters p
+(p,)
+
+julia> substitute(p, Dict(p=>2))
+2
+```
+"""
 function substitute(op::BasicOperator, dict)
     if haskey(dict, op)
         op_ = dict[op]

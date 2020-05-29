@@ -1,9 +1,20 @@
+"""
+    SymbolicNumber <: Number
+
+Abstract type for all symbolic numbers, i.e. [`Parameter`](@ref), [`Average`](@ref)
+and corresponding expression trees.
+"""
 abstract type SymbolicNumber <: Number end
 
 Base.:(==)(s::SymbolicNumber,x::Number) = false
 Base.:(==)(x::Number,s::SymbolicNumber) = false
 Base.:(==)(s1::SymbolicNumber,s2::SymbolicNumber) = false
 
+"""
+    NumberTerm <: SymbolicNumber
+
+Expression tree consisting of [`SymbolicNumber`](@ref) variables.
+"""
 struct NumberTerm{T<:Number} <: SymbolicNumber
     f::Function
     arguments::Vector
@@ -17,6 +28,12 @@ Base.zero(::Type{<:SymbolicNumber}) = 0
 Base.one(::Type{<:SymbolicNumber}) = 1
 Base.conj(t::NumberTerm) = NumberTerm(t.f, conj.(t.arguments))
 
+"""
+    Parameter <: SymbolicNumber
+
+A parameter represented as a symbolic.
+See also: [`parameters`](@ref), [`@parameters`](@ref)
+"""
 struct Parameter{T<:Number} <: SymbolicNumber
     name::Symbol
 end
@@ -61,6 +78,18 @@ function _to_qumulants(s::SymbolicUtils.Sym{T}) where T<:Number
     return Parameter{T}(s.name)
 end
 
+"""
+    @parameters(ps...)
+
+Convenience macro to quickly define symbolic parameters.
+
+Examples
+========
+```
+julia> @parameters ω κ
+(ω, κ)
+```
+"""
 macro parameters(ps...)
     ex = Expr(:block)
     pnames = []
@@ -74,6 +103,22 @@ macro parameters(ps...)
     return ex
 end
 
+"""
+    parameters(symbols::Symbol...)
+    paramters(s::String)
+
+Create symbolic parameters.
+
+Expamples
+=========
+```
+julia> ps = parameters(:a, :b)
+(a, b)
+
+julia> parameters("a b") == ps
+true
+```
+"""
 function parameters(syms::Symbol...)
     ps = Tuple(Parameter{Number}(s) for s in syms)
     return ps

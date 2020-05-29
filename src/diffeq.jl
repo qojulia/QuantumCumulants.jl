@@ -94,7 +94,7 @@ in order to solve it.
 
 # Arguments
 *`eqs::DifferentialEquation`: The set of (average) equations.
-*`ps=[]`: List of parameters (possibly `SymPy.Sym`s), which are parsed into parameters
+*`ps=[]`: List of symbolic parameters, which are parsed into parameters
     used in DiffEq functions.
 *`usym=:u`: The symbol used for the variable vector.
 *`psym=:p`: The symbol used for the parameter vector.
@@ -116,7 +116,7 @@ on the output of the `build_ode` function.
 
 # Arguments
 *`eqs::DifferentialEquation`: The set of (average) equations.
-*`ps=[]`: List of parameters (possibly `SymPy.Sym`s), which are parsed into parameters
+*`ps=[]`: List of symbolic parameters, which are parsed into parameters
     used in DiffEq functions.
 *`usym=:u`: The symbol used for the variable vector.
 *`psym=:p`: The symbol used for the parameter vector.

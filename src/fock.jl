@@ -1,3 +1,9 @@
+"""
+    FockSpace <: HilbertSpace
+
+[`HilbertSpace`](@ref) defining a Fock space for bosonic operators.
+See also: [`Destroy`](@ref), [`Create`](@ref)
+"""
 struct FockSpace{S} <: HilbertSpace
     name::S
     function FockSpace{S}(name::S) where S
@@ -9,6 +15,12 @@ end
 FockSpace(name::S) where S = FockSpace{S}(name)
 Base.:(==)(h1::T,h2::T) where T<:FockSpace = (h1.name==h2.name)
 
+"""
+    Destroy <: BasicOperator
+
+Bosonic operator on a [`FockSpace`](@ref) representing the quantum harmonic
+oscillator annihilation operator.
+"""
 struct Destroy{H<:HilbertSpace,S,A} <: BasicOperator
     hilbert::H
     name::S
@@ -17,6 +29,12 @@ end
 isdestroy(a) = false
 isdestroy(a::SymbolicUtils.Term{T}) where {T<:Destroy} = true
 
+"""
+    Create <: BasicOperator
+
+Bosonic operator on a [`FockSpace`](@ref) representing the quantum harmonic
+oscillator creation operator.
+"""
 struct Create{H<:HilbertSpace,S,A} <: BasicOperator
     hilbert::H
     name::S
