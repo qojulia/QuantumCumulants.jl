@@ -1,36 +1,51 @@
 using Qumulants
+using OrdinaryDiffEq
 using Test
-import OrdinaryDiffEq
-ODE = OrdinaryDiffEq
 
 @testset "diffeq" begin
 
-# Test single-atom laser
-σ(i,j) = Transition(:σ,i,j,2;GS=1)
-a = Destroy(:a) ⊗ Identity()
-s = Identity() ⊗ σ(1,2)
-sz = simplify_operators(2*s'*s - one(s))
-sps = simplify_operators(s'*s)
-ωc, ωa, g, γ, κ, ν = (0.1, 3, 0.5, 0.25, 1.0, 4)
-H = ωc*a'*a + ωa*s'*s + g*(a'*s + a*s')
-J = [sqrt(κ)*a,sqrt(γ)*s,sqrt(ν)*s']
+hf = FockSpace(:cavity)
+ha = NLevelSpace(:atom,(:g,:e))
+h = hf⊗ha
 
-ops = [a'*a,sps,a'*s]
-eqs_op = heisenberg(ops,H,J)
-eqs_avg = average(eqs_op,2)
+a = Destroy(h,:a)
+σ = Transition(h,:σ,:g,:e)
 
-meta_f = build_ode(eqs_avg,set_unknowns_zero=true)
-f = generate_ode(eqs_avg,set_unknowns_zero=true)
+# Single-atom laser
+@parameters Δ g κ γ ν
 
+H = Δ*a'*a + g*(a'*σ + σ'*a)
+J = [a,σ,σ']
+he_laser = heisenberg([a'*a,σ'*σ,a*σ'],H,J;rates=[κ,γ,ν],multithread=true)
+
+he_avg = average(he_laser;multithread=true)
+he_exp = cumulant_expansion(he_avg,2;multithread=true)
+@test he_exp == average(he_laser,2)
+
+ps = [Δ,g,κ,γ,ν]
+missed = find_missing(he_exp;ps=ps)
+@test !any(p in missed for p=ps)
+
+# Exploit phase invariance
+subs = Dict(missed .=> 0)
+he_nophase = simplify_constants(substitute(he_exp, subs))
+@test isempty(find_missing(he_nophase;ps=ps))
+
+f = generate_ode(he_nophase,ps)
+
+# Numerical solution
+p0 = [0.0,0.5,1.0,0.1,0.9]
 u0 = zeros(ComplexF64,3)
-prob = ODE.ODEProblem{true}(f,u0,(0.0,10.0))
-sol = ODE.solve(prob,ODE.Tsit5())
+tmax = 10.0
 
+prob = ODEProblem(f,u0,(0.0,tmax),p0)
+sol = solve(prob,RK4());
 n = getindex.(sol.u,1)
-p = getindex.(sol.u,2)
-@test imag.(n) == zeros(length(n))
+pe = getindex.(sol.u,2)
+
+@test all(iszero.(imag.(n)))
+@test all(iszero.(imag.(pe)))
 @test all(real.(n) .>= 0.0)
-@test imag.(p) == zeros(length(p))
-@test all(0.0 .<= real.(p) .<= 1.0)
+@test all(1.0 .>= real.(pe) .>= 0.0)
 
 end # testset

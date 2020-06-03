@@ -3,67 +3,48 @@ using Test
 
 @testset "heisenberg" begin
 
-# Test single mode
-a = Destroy(:a)
+hf = FockSpace(:cavity)
+ha = NLevelSpace(:atom,(:g,:e))
+h = hf⊗ha
 
+a_ = Destroy(hf,:a)
+a = embed(h,a_,1)
+σ_ = Transition(ha,:σ,:g,:e)
+σ = embed(h,σ_,2)
+σee = embed(h,Transition(ha,:σ,:e,:e),2)
 
-tmp = a*a'
-tmp2 = Qumulants.apply_comms(tmp)
-@test tmp2 == a'*a + one(a)
+# JC
+(ωc,ωa,g) = (1.1341,0.4321,2.15013)
+H = ωc*a'*a + ωa*σ'*σ + g*(a'*σ + σ'*a)
 
-# Without SymPy
-ω, κ = (10.0, 0.1)
-H = ω*a'*a
-J = [sqrt(κ)*a]
+da = commutator(1.0im*H,a)
+@test da == -1.0im*ωc*a + (-1.0im*g)*σ
+ds = commutator(1.0im*H,σ)
+@test ds == (-1.0im*g)*a + (-1.0im*ωa)*σ + (2.0im*g)*a*σee
+dn = commutator(1.0im*H,a'*a)
+@test dn == (-1.0im*g)*a'*σ + (1.0im*g)*a*σ'
 
-tmp = simplify_operators(a*H)
-tmp2 = Qumulants.apply_comms(tmp)
-@test tmp2 == H*a + ω*a
+he = heisenberg([a,σ,a'*a],H)
+@test he.rhs[1] == da
+@test he.rhs[2] == ds
+@test he.rhs[3] == dn
 
-da = 1.0im*(H*a - a*H)
-da_sim = Qumulants.apply_comms(da)
-@test heisenberg(a,H).rhs == da_sim == -1.0im*ω*a
-da_qle = simplify_operators(1.0im*(H*a - a*H) + sum(j'*a*j - 0.5*(j'*j*a + a*j'*j) for j=J))
-da_qle_sim = Qumulants.apply_comms(da_qle)
-@test heisenberg(a,H,J).rhs == da_qle_sim == -(1.0im*ω + 0.5κ)*a
+# Lossy JC
+κ,γ = 3.333,0.1313131313
+J = [a,σ]
+he_diss = heisenberg([a,σ,σ'*σ],H,J;rates=[κ,γ])
 
-# Test composite system
-b = Destroy(:b)
-id = Identity()
+@test he_diss.rhs[1] == (-1.0im*ωc - 0.5κ)*a + (-1.0im*g)*σ
+@test he_diss.rhs[2] == (-1.0im*g)*a + (-1.0im*ωa - 0.5γ)*σ + (2.0im*g)*a*σee
+@test he_diss.rhs[3] == (-γ)*σee + (1.0im*g)*a'*σ + (-1.0im*g)*a*σ'
 
-# With zero coupling -- should result in the same as before (⊗𝟙)
-ωa, ωb, κa, κb, g = (10.0,6.0,1.0,1.1,0.0)
+# Single-atom laser
+ν = 3.44444444
+J = [a,σ,σ']
+he_laser = heisenberg([a'*a,σ'*σ,a'*σ],H,J;rates=[κ,γ,ν])
 
-H = ωa*(a'*a)⊗id + ωb*id⊗(b'*b) + g*(a'⊗b + a⊗b')
-J = [sqrt(κa)*a⊗id,sqrt(κb)*id⊗b]
-
-a_ = a⊗id
-da = simplify_operators(1.0im*(H*a_ - a_*H))
-da_sim = Qumulants.apply_comms(da)
-da_qle = simplify_operators(1.0im*(H*a_ - a_*H) + sum(j'*a_*j - 0.5*(j'*j*a_ + a_*j'*j) for j=J))
-da_qle_sim = Qumulants.apply_comms(da_qle)
-@test da_qle_sim == heisenberg(a_,H,J).rhs == -(0.5κa + 1.0im*ωa)*a_
-
-# With coupling
-ωa, ωb, κa, κb, g = (10.0,6.0,1.0,1.1,0.33)
-
-H = ωa*(a'*a)⊗id + ωb*id⊗(b'*b) + g*(a'⊗b + a⊗b')
-J = [sqrt(κa)*a⊗id,sqrt(κb)*id⊗b]
-
-a_ = a⊗id
-b_ = id⊗b
-da = simplify_operators(1.0im*(H*a_ - a_*H))
-da_sim = Qumulants.apply_comms(da)
-da_qle = simplify_operators(1.0im*(H*a_ - a_*H) + sum(j'*a_*j - 0.5*(j'*j*a_ + a_*j'*j) for j=J))
-da_qle_sim = Qumulants.apply_comms(da_qle)
-@test da_qle_sim == heisenberg(a_,H,J).rhs == simplify_operators(-(0.5κa + 1.0im*ωa)*a_ - 1.0im*g*b_)
-
-c = a'⊗b
-dc = simplify_operators(1.0im*(H*c - c*H))
-dc_sim = Qumulants.apply_comms(dc)
-@test dc_sim == simplify_operators(1.0im*(ωa - ωb)*c + 1.0im*g*(b_'*b_ - a_'*a_))
-dc_qle = simplify_operators(1.0im*(H*c - c*H) + sum(j'*c*j - 0.5*(j'*j*c + c*j'*j) for j=J))
-dc_qle_sim = Qumulants.apply_comms(dc_qle)
-@test dc_qle_sim == simplify_operators(1.0im*(ωa - ωb)*c + 1.0im*g*(b_'*b_ - a_'*a_) - 0.5*(κa + κb)*c)
+@test he_laser.rhs[1] == (-κ)*a'*a + (-1.0im*g)*a'*σ + (1.0im*g)*a*σ'
+@test he_laser.rhs[2] == ν + (-ν - γ)*σee + (1.0im*g)*a'*σ + (-1.0im*g)*a*σ'
+@test he_laser.rhs[3] == (1.0im*g)*σee + (-1.0im*g)*a'*a + (1.0im*(ωc - ωa) - 0.5*(κ + γ + ν))*a'*σ + (2.0im*g)*a'*a*σee
 
 end # testset

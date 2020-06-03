@@ -1,63 +1,46 @@
-global PPRINT = true
-set_pprint(val::Bool) = (global PPRINT=val)
-
-import Base: show
-
-function show(stream::IO,a::BasicOperator)
-    write(stream,string(a.label))
-end
-function show(stream::IO,a::Create)
-    write(stream,String(a.label))
-    write(stream,"ᵗ")
-end
-function show(stream::IO,a::Expression)
-    write(stream, "(")
-    for i=1:length(a.args)-1
-        show(stream,a.args[i])
-        show(stream,a.f)
-    end
-    show(stream,a.args[end])
-    write(stream, ")")
-end
-show(stream::IO,f::typeof(⊗)) = write(stream,"⊗")
-show(stream::IO,a::Identity) = write(stream,"𝟙")
-show(stream::IO,::Zero) = show(stream,0)
-function show(stream::IO,a::Transition)
-    write(stream,string(a.label))
-    write(stream,string(a.i))
-    write(stream,string(a.j))
-end
-
-function show(stream::IO,de::DifferentialEquation)
-    write(stream, "∂ₜ(")
-    show(stream, de.lhs)
-    write(stream, ") = ")
-    show(stream, de.rhs)
-end
-function show(stream::IO,de::DifferentialEquationSet)
-    for i=1:length(de.lhs)
-        show(stream,DifferentialEquation(de.lhs[i],de.rhs[i]))
+Base.show(io::IO,h::HilbertSpace) = write(io, "ℋ(", h.name, ")")
+function Base.show(io::IO,h::ProductSpace)
+    show(io, h.spaces[1])
+    for i=2:length(h.spaces)
+        write(io, " ⊗ ")
+        show(io, h.spaces[i])
     end
 end
 
-function show(stream::IO, m::MIME"text/latex", x::AbstractOperator)
-    if PPRINT
-        show(stream, m, sympify(x))
-    else
-        show(stream, x)
+Base.show(io::IO,x::BasicOperator) = write(io, x.name)
+Base.show(io::IO,x::Create) = write(io, string(x.name, "′"))
+Base.show(io::IO,x::Transition) = write(io, Symbol(x.name,x.i,x.j))
+
+show_brackets = Ref(true)
+function Base.show(io::IO,x::Union{OperatorTerm,NumberTerm})
+    show_brackets[] && write(io,"(")
+    show(io, x.arguments[1])
+    for i=2:length(x.arguments)
+        show(io, x.f)
+        show(io, x.arguments[i])
+    end
+    show_brackets[] && write(io,")")
+end
+
+Base.show(io::IO, x::Parameter) = write(io, x.name)
+function Base.show(io::IO,x::Average)
+    write(io,"⟨")
+    show_brackets[] = false
+    show(io, x.operator)
+    show_brackets[] = true
+    write(io,"⟩")
+end
+
+function Base.show(io::IO,de::DifferentialEquation)
+    for i=1:length(de)
+        write(io, "∂ₜ(")
+        show(io, de.lhs[i])
+        write(io, ") = ")
+        show(io, de.rhs[i])
+        write(io, "\n")
     end
 end
-function show(stream::IO, m::MIME"text/latex", x::AbstractEquation)
-    if PPRINT
-        show(stream, m, sympify(x))
-    else
-        show(stream, x)
-    end
-end
-function show(stream::IO, m::MIME"text/latex", x::Vector{<:DifferentialEquation})
-    if PPRINT
-        show(stream, m, sympify.(x))
-    else
-        show(stream, x)
-    end
-end
+
+Base.show(io::IO, ::MIME"text/latex", op::AbstractOperator) = write(io, latexify(op))
+Base.show(io::IO, ::MIME"text/latex", de::AbstractEquation) = write(io, latexify(de))
+Base.show(io::IO, ::MIME"text/latex", p::SymbolicNumber) = write(io, latexify(p))
