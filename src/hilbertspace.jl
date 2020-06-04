@@ -1,5 +1,6 @@
 abstract type HilbertSpace end
 Base.:(==)(h1::HilbertSpace,h2::HilbertSpace) = false
+Base.length(h::HilbertSpace,args...) = h.n
 
 """
     ProductSpace <: HilbertSpace
@@ -11,6 +12,9 @@ struct ProductSpace{S} <: HilbertSpace
     spaces::S
 end
 Base.:(==)(h1::T,h2::T) where T<:ProductSpace = h1.spaces==h2.spaces
+Base.length(h::ProductSpace) = sum(length.(h.spaces))
+Base.length(h::ProductSpace,aon::Int) = length(h.spaces[aon])
+Base.length(h::ProductSpace,aon::Vector) = sum(length.(h.spaces[aon]))
 
 """
     ⊗(spaces::HilbertSpace...)

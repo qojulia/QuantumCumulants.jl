@@ -4,16 +4,17 @@
 [`HilbertSpace`](@ref) defining a Fock space for bosonic operators.
 See also: [`Destroy`](@ref), [`Create`](@ref)
 """
-struct FockSpace{S} <: HilbertSpace
+struct FockSpace{S,N} <: HilbertSpace
     name::S
-    function FockSpace{S}(name::S) where S
+    n::N
+    function FockSpace{S,N}(name::S,n::N) where {S,N}
         r = SymbolicUtils.@rule(*(~~x::has_consecutive(isdestroy,iscreate)) => commute_bosonic(*, ~~x))
         (r ∈ COMMUTATOR_RULES.rules) || push!(COMMUTATOR_RULES.rules, r)
-        new(name)
+        new(name,n)
     end
 end
-FockSpace(name::S) where S = FockSpace{S}(name)
-Base.:(==)(h1::T,h2::T) where T<:FockSpace = (h1.name==h2.name)
+FockSpace(name::S,n::N=1) where {S,N} = FockSpace{S,N}(name,n)
+Base.:(==)(h1::T,h2::T) where T<:FockSpace = (h1.name==h2.name && h1.name==h2.name)
 
 """
     Destroy <: BasicOperator
@@ -21,10 +22,11 @@ Base.:(==)(h1::T,h2::T) where T<:FockSpace = (h1.name==h2.name)
 Bosonic operator on a [`FockSpace`](@ref) representing the quantum harmonic
 oscillator annihilation operator.
 """
-struct Destroy{H<:HilbertSpace,S,A} <: BasicOperator
+struct Destroy{H<:HilbertSpace,S,A,IND} <: BasicOperator
     hilbert::H
     name::S
     aon::A
+    index::IND
 end
 isdestroy(a) = false
 isdestroy(a::SymbolicUtils.Term{T}) where {T<:Destroy} = true
@@ -35,17 +37,18 @@ isdestroy(a::SymbolicUtils.Term{T}) where {T<:Destroy} = true
 Bosonic operator on a [`FockSpace`](@ref) representing the quantum harmonic
 oscillator creation operator.
 """
-struct Create{H<:HilbertSpace,S,A} <: BasicOperator
+struct Create{H<:HilbertSpace,S,A,IND} <: BasicOperator
     hilbert::H
     name::S
     aon::A
+    index::IND
 end
 iscreate(a) = false
 iscreate(a::SymbolicUtils.Term{T}) where {T<:Create} = true
 
 for f in [:Destroy,:Create]
-    @eval $(f)(hilbert::H,name::S,aon::A) where {H,S,A} = $(f){H,S,A}(hilbert,name,aon)
-    @eval $(f)(hilbert::FockSpace,name) = $(f)(hilbert,name,1)
+    @eval $(f)(hilbert::H,name::S,aon::A,index::IND=1) where {H,S,A,IND} = $(f){H,S,A,IND}(hilbert,name,aon,index)
+    @eval $(f)(hilbert::FockSpace,name) = $(f)(hilbert,name,1,1)
     @eval function $(f)(hilbert::ProductSpace,name)
         i = findall(x->isa(x,FockSpace),hilbert.spaces)
         if length(i)==1

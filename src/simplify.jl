@@ -137,9 +137,11 @@ function acts_on(t::SymbolicUtils.Term{T}) where T<:AbstractOperator
     sort!(aon)
     return aon
 end
-function acts_on(t::SymbolicUtils.Term{T}) where T<:BasicOperator
-    return t.arguments[end]
+function acts_on(t::SymbolicUtils.Term{T}) where T<:BasicOperator # For Create, Destroy
+    return t.arguments[3]
 end
+
+get_index(t::SymbolicUtils.Term{<:BasicOperator}) = t.arguments[end]
 
 function sort_args_nc(f::typeof(*), args)
     is_c = iscommutative.(f, args)

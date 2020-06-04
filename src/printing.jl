@@ -9,7 +9,12 @@ end
 
 Base.show(io::IO,x::BasicOperator) = write(io, x.name)
 Base.show(io::IO,x::Create) = write(io, string(x.name, "′"))
-Base.show(io::IO,x::Transition) = write(io, Symbol(x.name,x.i,x.j))
+function Base.show(io::IO,x::Transition)
+    write(io, Symbol(x.name,x.i,x.j))
+    if length(hilbert(x), acts_on(x)) > 1
+        write(io, string("(", x.index, ")"))
+    end
+end
 
 show_brackets = Ref(true)
 function Base.show(io::IO,x::Union{OperatorTerm,NumberTerm})

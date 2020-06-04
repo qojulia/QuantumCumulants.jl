@@ -14,7 +14,8 @@ export HilbertSpace, ProductSpace,
         Average, average, cumulant_expansion, get_order,
         find_missing, complete, find_operators, fundamental_operators,
             unique_ops, get_symbolics, get_operators,
-        build_ode, generate_ode
+        build_ode, generate_ode,
+        build_duplicates
 
 include("hilbertspace.jl")
 include("operator.jl")
@@ -28,6 +29,7 @@ include("parameters.jl")
 include("average.jl")
 include("utils.jl")
 include("diffeq.jl")
+include("ncopy.jl")
 include("latexify_recipes.jl")
 include("printing.jl")
 

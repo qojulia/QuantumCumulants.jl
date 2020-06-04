@@ -11,7 +11,7 @@ Abstract type representing fundamental operator types.
 abstract type BasicOperator <: AbstractOperator end
 
 isoperator(x) = false
-isoperator(x::Union{T,SymbolicUtils.Symbolic{T}}) where {A,T<:AbstractOperator} = true
+isoperator(x::Union{T,SymbolicUtils.Symbolic{T}}) where {T<:AbstractOperator} = true
 
 """
     OperatorTerm <: AbstractOperator
@@ -67,7 +67,6 @@ function check_hilbert(a::OperatorTerm,b::OperatorTerm)
 end
 check_hilbert(args...) = nothing#reduce(check_hilbert, args) # TODO
 
-
 acts_on(op::BasicOperator) = op.aon
 function acts_on(t::OperatorTerm)
     ops = filter(isoperator, t.arguments)
@@ -79,6 +78,17 @@ function acts_on(t::OperatorTerm)
     sort!(aon)
     return aon
 end
+acts_on(::Number) = Int[]
+
+get_index(t::BasicOperator) = t.index
+function get_index(op::OperatorTerm)
+    idx = Int[]
+    for arg in op.arguments
+        append!(idx, get_index(arg))
+    end
+    return idx
+end
+get_index(::Number) = Int[]
 
 # embed into product spaces
 function ⊗(a::BasicOperator,b::BasicOperator)

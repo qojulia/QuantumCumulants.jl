@@ -19,23 +19,24 @@ julia> ha = NLevelSpace(:a,(:g,:e))
 ℋ(a)
 ```
 """
-struct NLevelSpace{S,L,G} <: HilbertSpace
+struct NLevelSpace{S,L,G,N} <: HilbertSpace
     name::S
     levels::L
     GS::G
-    function NLevelSpace{S,L,G}(name::S,levels::L,GS::G) where {S,L,G}
+    n::N
+    function NLevelSpace{S,L,G,N}(name::S,levels::L,GS::G,n::N) where {S,L,G,N}
         r1 = SymbolicUtils.@rule(*(~~x::has_consecutive(istransition)) => merge_transitions(*, ~~x))
         r2 = SymbolicUtils.@rule(~x::istransition => rewrite_gs(~x))
         (r1 ∈ COMMUTATOR_RULES.rules) || push!(COMMUTATOR_RULES.rules, r1)
         (r2 ∈ COMMUTATOR_RULES.rules) || push!(COMMUTATOR_RULES.rules, r2)
-        new(name,levels,GS)
+        new(name,levels,GS,n)
     end
 end
-NLevelSpace(name::S,levels::L,GS::G) where {S,L,G} = NLevelSpace{S,L,G}(name,levels,GS)
-NLevelSpace(name,N::Int,GS) = NLevelSpace(name,1:N,GS)
-NLevelSpace(name,N::Int) = NLevelSpace(name,1:N,1)
-NLevelSpace(name,levels) = NLevelSpace(name,levels,levels[1])
-Base.:(==)(h1::T,h2::T) where T<:NLevelSpace = (h1.name==h2.name && h1.levels==h2.levels && h1.GS==h2.GS)
+NLevelSpace(name::S,levels::L,GS::G,n::N) where {S,L,G,N} = NLevelSpace{S,L,G,N}(name,levels,GS,n)
+NLevelSpace(name,N::Int,GS;n=1) = NLevelSpace(name,1:N,GS,n)
+NLevelSpace(name,N::Int;n=1) = NLevelSpace(name,1:N,1,n)
+NLevelSpace(name,levels;n=1) = NLevelSpace(name,levels,levels[1],n)
+Base.:(==)(h1::T,h2::T) where T<:NLevelSpace = (h1.name==h2.name && h1.levels==h2.levels && h1.GS==h2.GS && h1.n==h2.n)
 
 levels(h::NLevelSpace) = h.levels
 levels(h::NLevelSpace,aon) = levels(h)
@@ -62,23 +63,25 @@ julia> σ = Transition(ha,:σ,:g,:e)
 σge
 ```
 """
-struct Transition{H,S,I,A} <: BasicOperator
+struct Transition{H,S,I,A,IND} <: BasicOperator
     hilbert::H
     name::S
     i::I
     j::I
     aon::A
-    function Transition{H,S,I,A}(hilbert::H,name::S,i::I,j::I,aon::A) where {H,S,I,A}
+    index::IND
+    function Transition{H,S,I,A,IND}(hilbert::H,name::S,i::I,j::I,aon::A,index::IND) where {H,S,I,A,IND}
         @assert i∈levels(hilbert,aon) && j∈levels(hilbert,aon)
-        return new(hilbert,name,i,j,aon)
+        @assert 0 < index <= length(hilbert,aon)
+        return new(hilbert,name,i,j,aon,index)
     end
 end
-Transition(hilbert::H,name::S,i::I,j::I,aon::A) where {H,S,I,A} = Transition{H,S,I,A}(hilbert,name,i,j,aon)
-Transition(hilbert::NLevelSpace,name,i,j) = Transition(hilbert,name,i,j,1)
-function Transition(hilbert::ProductSpace,name,i,j)
+Transition(hilbert::H,name::S,i::I,j::I,aon::A,index::IND=1) where {H,S,I,A,IND} = Transition{H,S,I,A,IND}(hilbert,name,i,j,aon,index)
+Transition(hilbert::NLevelSpace,name,i,j) = Transition(hilbert,name,i,j,1,1)
+function Transition(hilbert::ProductSpace,name,i,j;index=1)
     inds = findall(x->isa(x,NLevelSpace),hilbert.spaces)
     if length(inds)==1
-        return Transition(hilbert,name,i,j,inds[1])
+        return Transition(hilbert,name,i,j,inds[1],index)
     else
         isempty(inds) && error("Can only create Transition on NLevelSpace! Not included in $(hilbert)")
         length(inds)>1 && error("More than one NLevelSpace in $(hilbert)! Specify on which Hilbert space Transition should be created with Transition(hilbert,name,i,j,acts_on)!")
@@ -94,12 +97,20 @@ levels(t::Transition,args...) = levels(t.hilbert,args...)
 ground_state(t::Transition,args...) = ground_state(t.hilbert,args...)
 
 function _to_symbolic(op::T) where T<:Transition
-    sym = SymbolicUtils.term(Transition, op.hilbert, op.name, op.i, op.j, acts_on(op); type=Transition)
+    aon = acts_on(op) - 1 + get_index(op)
+    sym = SymbolicUtils.term(Transition, op.hilbert, op.name, op.i, op.j, aon, op.index; type=Transition)
     return sym
 end
+function _to_qumulants(t::SymbolicUtils.Term{T}) where T<:Transition
+    aon = acts_on(t) + 1 - get_index(t)
+    return t.f(t.arguments...)
+end
+function acts_on(t::SymbolicUtils.Term{T}) where T<:Transition
+    return t.arguments[5]
+end
 
-Base.adjoint(t::Transition) = Transition(t.hilbert,t.name,t.j,t.i,acts_on(t))
-Base.:(==)(t1::Transition,t2::Transition) = (t1.hilbert==t2.hilbert && t1.name==t2.name && t1.i==t2.i && t1.j==t2.j)
+Base.adjoint(t::Transition) = Transition(t.hilbert,t.name,t.j,t.i,acts_on(t),get_index(t))
+Base.:(==)(t1::Transition,t2::Transition) = (t1.hilbert==t2.hilbert && t1.name==t2.name && t1.i==t2.i && t1.j==t2.j && t1.aon==t2.aon && t1.index==t2.index)
 
 # Simplification
 istransition(x) = false
@@ -123,7 +134,7 @@ function merge_transitions(σ1::SymbolicUtils.Term{<:Transition},σ2::SymbolicUt
     i1,j1 = σ1.arguments[3:4]
     i2,j2 = σ2.arguments[3:4]
     if j1==i2
-        return SymbolicUtils.term(σ1.f, σ1.arguments[1], σ1.arguments[2], i1, j2, acts_on(σ1); type=Transition)
+        return SymbolicUtils.term(σ1.f, σ1.arguments[1], σ1.arguments[2], i1, j2, acts_on(σ1), get_index(σ1); type=Transition)
     else
         return 0
     end
@@ -131,12 +142,14 @@ end
 function rewrite_gs(t::SymbolicUtils.Term{<:Transition})
     h = t.arguments[1]
     aon = acts_on(t)
-    gs = ground_state(h,aon)
+    index = get_index(t)
+    aon_h = aon - index + 1
+    gs = ground_state(h,aon_h)
     i,j = t.arguments[3:4]
     if i==j==gs
         args = Any[1]
-        for k in levels(h,aon)
-            (k==i) || push!(args, -1*SymbolicUtils.term(t.f, h, t.arguments[2], k, k, aon; type=Transition))
+        for k in levels(h,aon_h)
+            (k==i) || push!(args, -1*SymbolicUtils.term(t.f, h, t.arguments[2], k, k, aon, index; type=Transition))
         end
         return +(args...)
     else
