@@ -25,6 +25,10 @@ struct Destroy{H<:HilbertSpace,S,A} <: BasicOperator
     hilbert::H
     name::S
     aon::A
+    function Destroy{H,S,A}(hilbert::H,name::S,aon::A) where {H,S,A}
+        @assert has_hilbert(FockSpace,hilbert,aon)
+        new(hilbert,name,aon)
+    end
 end
 isdestroy(a) = false
 isdestroy(a::SymbolicUtils.Term{T}) where {T<:Destroy} = true
@@ -39,6 +43,10 @@ struct Create{H<:HilbertSpace,S,A} <: BasicOperator
     hilbert::H
     name::S
     aon::A
+    function Create{H,S,A}(hilbert::H,name::S,aon::A) where {H,S,A}
+        @assert has_hilbert(FockSpace,hilbert,aon)
+        new(hilbert,name,aon)
+    end
 end
 iscreate(a) = false
 iscreate(a::SymbolicUtils.Term{T}) where {T<:Create} = true

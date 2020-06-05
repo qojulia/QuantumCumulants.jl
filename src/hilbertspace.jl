@@ -44,3 +44,7 @@ function Base.copy(h::T) where T<:HilbertSpace
     fields = [getfield(h, n) for n in fieldnames(T)]
     return T(fields...)
 end
+
+has_hilbert(::Type{T},::T,args...) where T<:HilbertSpace = true
+has_hilbert(T::Type{<:HilbertSpace},h::ProductSpace,aon) = has_hilbert(T,h.spaces[aon])
+has_hilbert(::Type{<:HilbertSpace},::HilbertSpace,args...) = false

@@ -69,6 +69,7 @@ struct Transition{H,S,I,A} <: BasicOperator
     j::I
     aon::A
     function Transition{H,S,I,A}(hilbert::H,name::S,i::I,j::I,aon::A) where {H,S,I,A}
+        @assert has_hilbert(NLevelSpace,hilbert,aon)
         @assert i∈levels(hilbert,aon) && j∈levels(hilbert,aon)
         return new(hilbert,name,i,j,aon)
     end
