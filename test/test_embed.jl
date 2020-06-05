@@ -31,6 +31,10 @@ a = Destroy(h,:a)
 @test embed(h,Destroy(hf,:a),1)==a
 @test embed(h,Transition(ha,:σ,:g,:e),2)==σ
 
+@test_throws AssertionError Destroy(h,:a,2)
+@test_throws AssertionError Create(h,:a,2)
+@test_throws AssertionError Transition(h,:σ,:g,:e,1)
+
 @test commutator(a'*a,a) == -1*a
 @test commutator(σ'*σ,σ) == -1*σ
 

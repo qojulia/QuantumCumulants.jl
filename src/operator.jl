@@ -90,14 +90,6 @@ function get_index(op::OperatorTerm)
 end
 get_index(::Number) = Int[]
 
-# embed into product spaces
-function ⊗(a::BasicOperator,b::BasicOperator)
-    h = a.hilbert⊗b.hilbert
-    a_ = embed(h,a.operator,acts_on(a))
-    b_ = embed(h,b.operator,acts_on(a)+acts_on(b)+1)
-    return a_*b_
-end
-
 Base.one(::T) where T<:AbstractOperator = one(T)
 Base.one(::Type{<:AbstractOperator}) = 1
 Base.isone(::AbstractOperator) = false
