@@ -85,6 +85,9 @@ function commutator(a::AbstractOperator,b::AbstractOperator; simplify=true, kwar
     b_on = acts_on(b)
     inds = intersect(a_on,b_on)
     isempty(inds) && return zero(a)
+    idx1 = get_index(a)
+    idx2 = get_index(b)
+    isempty(intersect(idx1,idx2)) && return zero(a)
     if simplify
         return simplify_operators(a*b + -1*b*a; kwargs...)
     else

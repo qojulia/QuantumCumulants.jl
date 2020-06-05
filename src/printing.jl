@@ -11,9 +11,7 @@ Base.show(io::IO,x::BasicOperator) = write(io, x.name)
 Base.show(io::IO,x::Create) = write(io, string(x.name, "′"))
 function Base.show(io::IO,x::Transition)
     write(io, Symbol(x.name,x.i,x.j))
-    if length(hilbert(x), acts_on(x)) > 1
-        write(io, string("(", x.index, ")"))
-    end
+    show_index(io, x.index)
 end
 
 show_brackets = Ref(true)
@@ -27,13 +25,36 @@ function Base.show(io::IO,x::Union{OperatorTerm,NumberTerm})
     show_brackets[] && write(io,")")
 end
 
-Base.show(io::IO, x::Parameter) = write(io, x.name)
+function show_index(io::IO, index)
+    if index != default_index()
+        write(io, "[")
+        show(io, index[1])
+        for i=2:length(index)
+            write(io, ",")
+            show(io, index[i])
+        end
+        write(io, "]")
+    end
+end
+
+function Base.show(io::IO, x::Parameter)
+    write(io, x.name)
+    show_index(io, x.index)
+end
+
 function Base.show(io::IO,x::Average)
     write(io,"⟨")
     show_brackets[] = false
     show(io, x.operator)
     show_brackets[] = true
     write(io,"⟩")
+end
+
+Base.show(io::IO, i::Index) = Base.show(io, i.i)
+function Base.show(io::IO, s::IndexSet)
+    write(io, s.name, "(")
+    show(io, s.lower:s.upper)
+    write(io, ")")
 end
 
 function Base.show(io::IO,de::DifferentialEquation)

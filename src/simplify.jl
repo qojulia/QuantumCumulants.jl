@@ -118,10 +118,14 @@ end
 function lt_aon(t1::SymbolicUtils.Term{<:AbstractOperator},t2::SymbolicUtils.Term{<:AbstractOperator})
     aon1 = acts_on(t1)
     aon2 = acts_on(t2)
-    if any(a1 ∈ aon2 for a1 in aon1)
-        return false
-    elseif any(a2 ∈ aon1 for a2 in aon2)
-        return false
+    if any(a1 ∈ aon2 for a1 in aon1) || any(a2 ∈ aon1 for a2 in aon2)
+        idx1 = get_index(t1)
+        idx2 = get_index(t2)
+        if any(i1 ∈ idx2 for i1 in idx1) || any(i2 ∈ idx1 for i2 in idx2)
+            return false
+        else
+            return idx1 < idx2
+        end
     else
         return maximum(aon1)<maximum(aon2)
     end
@@ -140,8 +144,24 @@ end
 function acts_on(t::SymbolicUtils.Term{T}) where T<:BasicOperator # For Create, Destroy
     return t.arguments[3]
 end
+acts_on_index(t::SymbolicUtils.Term{<:BasicOperator}) = t.arguments[3:4]
+function acts_on_index(t::SymbolicUtils.Term{T}) where T<:AbstractOperator
+    aon = acts_on(t)
+    for arg in t.arguments
+        append!(aon, get_index(arg))
+    end
+    return aon
+end
 
 get_index(t::SymbolicUtils.Term{<:BasicOperator}) = t.arguments[end]
+function get_index(t::SymbolicUtils.Term{<:AbstractOperator})
+    idx = Index[]
+    for arg in t.arguments
+        append!(idx, get_index(arg))
+    end
+    return idx
+end
+get_index(t::SymbolicUtils.Symbolic{T}) where T<:Number = Index[]
 
 function sort_args_nc(f::typeof(*), args)
     is_c = iscommutative.(f, args)
@@ -184,7 +204,7 @@ has_consecutive(isthis,isthat) = x -> has_consecutive(isthis,isthat,x)
 function has_consecutive(isthis,isthat,args)
     length(args) <= 1 && return false
     for i=1:length(args)-1
-        if isthis(args[i])&&isthat(args[i+1])&&(acts_on(args[i])==acts_on(args[i+1]))
+        if isthis(args[i])&&isthat(args[i+1])&&(acts_on_index(args[i])==acts_on_index(args[i+1]))
             return true
         end
     end

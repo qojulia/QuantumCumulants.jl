@@ -36,9 +36,13 @@ See also: [`parameters`](@ref), [`@parameters`](@ref)
 """
 struct Parameter{T<:Number} <: SymbolicNumber
     name::Symbol
+    index
 end
+Parameter{T}(name::Symbol) where T = Parameter{T}(name, default_index())
 Parameter(name::Symbol) = Parameter{Number}(name)
-Base.:(==)(p::T, q::T) where T<:Parameter = (p.name==q.name)
+Base.getindex(p::Parameter{T},index::Index) where T = Parameter{T}(p.name, index)
+Base.getindex(p::Parameter{T},index::Index...) where T = Parameter{T}(p.name, index)
+Base.:(==)(p::T, q::T) where T<:Parameter = (p.name==q.name && p.index==q.index)
 
 # Methods
 Base.conj(p::Parameter{<:Real}) = p
@@ -72,10 +76,22 @@ end
 substitute(x::SymbolicNumber, dict) = haskey(dict, x) ? dict[x] : x
 
 # Conversion to SymbolicUtils
-_to_symbolic(p::Parameter{T}) where T = SymbolicUtils.Sym{T}(p.name)
+function parameter end
+function average end
+function _to_symbolic(p::Parameter{T}) where T
+    SymbolicUtils.term(parameter, p.name, p.index; type=T)
+end
 _to_symbolic(n::NumberTerm{T}) where T = SymbolicUtils.Term{T}(n.f, _to_symbolic.(n.arguments))
-function _to_qumulants(s::SymbolicUtils.Sym{T}) where T<:Number
-    return Parameter{T}(s.name)
+
+# Convert back
+function _to_qumulants(t::SymbolicUtils.Term{T}) where T<:Number
+    if t.f===parameter
+        return Parameter{T}(t.arguments...)
+    elseif t.f===average
+        return average(_to_qumulants(t.arguments[1]))
+    else
+        return NumberTerm(t.f, _to_qumulants.(t.arguments))
+    end
 end
 
 """

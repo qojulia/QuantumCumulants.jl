@@ -46,7 +46,7 @@ function Base.adjoint(t::OperatorTerm{<:typeof(*)})
     args = reverse(adjoint.(t.arguments))
     is_c = iscommutative.(*,args)
     args_c = args[is_c]
-    args_nc = sort(args[.!is_c], by=acts_on)
+    args_nc = sort(args[.!is_c], by=acts_on_index)
     return OperatorTerm(t.f, [args_c;args_nc])
 end
 
@@ -80,15 +80,19 @@ function acts_on(t::OperatorTerm)
 end
 acts_on(::Number) = Int[]
 
+acts_on_index(op::BasicOperator) = [getfield(op, :aon), getfield(op, :index)]
+acts_on_index(::Number) = []
+acts_on_index(op::OperatorTerm) = [acts_on(op);get_index(op)]
+
 get_index(t::BasicOperator) = t.index
 function get_index(op::OperatorTerm)
-    idx = Int[]
+    idx = []
     for arg in op.arguments
         append!(idx, get_index(arg))
     end
     return idx
 end
-get_index(::Number) = Int[]
+get_index(::Number) = Index[]
 
 Base.one(::T) where T<:AbstractOperator = one(T)
 Base.one(::Type{<:AbstractOperator}) = 1

@@ -83,12 +83,8 @@ average(arg,order;kwargs...) = cumulant_expansion(average(arg),order;kwargs...)
 
 # Conversion to SymbolicUtils
 _to_symbolic(a::Average{T}) where T<:Number = SymbolicUtils.term(average, _to_symbolic(a.operator); type=T)
-function _to_qumulants(t::SymbolicUtils.Term{T}) where T<:Number
-    if t.f===average
-        return Average(_to_qumulants(t.arguments[1]))
-    else
-        return NumberTerm{T}(t.f, _to_qumulants.(t.arguments))
-    end
+function _to_qumulants(f::typeof(average), t::SymbolicUtils.Term{T}) where T<:Number
+    return Average(_to_qumulants(t.arguments[1]))
 end
 
 # Cumulant expansion

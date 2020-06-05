@@ -3,6 +3,7 @@ module Qumulants
 import SymbolicUtils
 
 export HilbertSpace, ProductSpace,
+        IndexSet, Index,
         simplify_operators, substitute,
         AbstractOperator, BasicOperator, Identity, Zero, OperatorTerm, ⊗, embed,
         FockSpace, Destroy, Create,
@@ -18,6 +19,7 @@ export HilbertSpace, ProductSpace,
         build_duplicates
 
 include("hilbertspace.jl")
+include("index.jl")
 include("operator.jl")
 include("simplify.jl")
 include("rules.jl")

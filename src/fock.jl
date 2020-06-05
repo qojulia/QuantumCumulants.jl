@@ -4,16 +4,15 @@
 [`HilbertSpace`](@ref) defining a Fock space for bosonic operators.
 See also: [`Destroy`](@ref), [`Create`](@ref)
 """
-struct FockSpace{S,N} <: HilbertSpace
+struct FockSpace{S} <: HilbertSpace
     name::S
-    n::N
-    function FockSpace{S,N}(name::S,n::N) where {S,N}
+    function FockSpace{S}(name::S) where {S}
         r = SymbolicUtils.@rule(*(~~x::has_consecutive(isdestroy,iscreate)) => commute_bosonic(*, ~~x))
         (r ∈ COMMUTATOR_RULES.rules) || push!(COMMUTATOR_RULES.rules, r)
-        new(name,n)
+        new(name)
     end
 end
-FockSpace(name::S,n::N=1) where {S,N} = FockSpace{S,N}(name,n)
+FockSpace(name::S) where {S} = FockSpace{S}(name)
 Base.:(==)(h1::T,h2::T) where T<:FockSpace = (h1.name==h2.name && h1.name==h2.name)
 
 """
@@ -27,9 +26,9 @@ struct Destroy{H<:HilbertSpace,S,A,IND} <: BasicOperator
     name::S
     aon::A
     index::IND
-    function Destroy{H,S,A}(hilbert::H,name::S,aon::A) where {H,S,A}
+    function Destroy{H,S,A,IND}(hilbert::H,name::S,aon::A,index::IND) where {H,S,A,IND}
         @assert has_hilbert(FockSpace,hilbert,aon)
-        new(hilbert,name,aon)
+        new(hilbert,name,aon,index)
     end
 end
 isdestroy(a) = false
@@ -46,17 +45,17 @@ struct Create{H<:HilbertSpace,S,A,IND} <: BasicOperator
     name::S
     aon::A
     index::IND
-    function Create{H,S,A}(hilbert::H,name::S,aon::A) where {H,S,A}
+    function Create{H,S,A,IND}(hilbert::H,name::S,aon::A,index::IND) where {H,S,A,IND}
         @assert has_hilbert(FockSpace,hilbert,aon)
-        new(hilbert,name,aon)
+        new(hilbert,name,aon,index)
     end
 end
 iscreate(a) = false
 iscreate(a::SymbolicUtils.Term{T}) where {T<:Create} = true
 
 for f in [:Destroy,:Create]
-    @eval $(f)(hilbert::H,name::S,aon::A,index::IND=1) where {H,S,A,IND} = $(f){H,S,A,IND}(hilbert,name,aon,index)
-    @eval $(f)(hilbert::FockSpace,name) = $(f)(hilbert,name,1,1)
+    @eval $(f)(hilbert::H,name::S,aon::A,index::IND=default_index()) where {H,S,A,IND} = $(f){H,S,A,IND}(hilbert,name,aon,index)
+    @eval $(f)(hilbert::FockSpace,name) = $(f)(hilbert,name,1)
     @eval function $(f)(hilbert::ProductSpace,name)
         i = findall(x->isa(x,FockSpace),hilbert.spaces)
         if length(i)==1
@@ -72,20 +71,20 @@ for f in [:Destroy,:Create]
         return op_
     end
     @eval function _to_symbolic(op::T) where T<:($(f))
-        sym = SymbolicUtils.term($(f), op.hilbert, op.name, acts_on(op); type=$(f))
+        sym = SymbolicUtils.term($(f), op.hilbert, op.name, acts_on(op), get_index(op); type=$(f))
         return sym
     end
 end
 
-Base.adjoint(op::Destroy) = Create(op.hilbert,op.name,acts_on(op))
-Base.adjoint(op::Create) = Destroy(op.hilbert,op.name,acts_on(op))
+Base.adjoint(op::Destroy) = Create(op.hilbert,op.name,acts_on(op),get_index(op))
+Base.adjoint(op::Create) = Destroy(op.hilbert,op.name,acts_on(op),get_index(op))
 
 # Commutation relation in simplification
 function commute_bosonic(f,args)
     commuted_args = []
     i = 1
     while i <= length(args)
-        if isdestroy(args[i]) && i<length(args) && iscreate(args[i+1]) && (acts_on(args[i])==acts_on(args[i+1]))
+        if isdestroy(args[i]) && i<length(args) && iscreate(args[i+1]) && (acts_on_index(args[i])==acts_on_index(args[i+1]))
             push!(commuted_args, args[i+1]*args[i] + 1)
             i += 2
         else
