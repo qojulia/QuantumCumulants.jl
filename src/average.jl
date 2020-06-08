@@ -11,6 +11,7 @@ struct Average{T<:Number,OP} <: SymbolicNumber
 end
 Average(operator::OP) where OP = Average{Number,OP}(operator)
 Base.:(==)(a1::Average,a2::Average) = (a1.operator==a2.operator)
+Base.hash(a::Average{T}, h::UInt) where T = hash(a.operator, hash(T, h))
 
 Base.conj(a::Average) = Average(adjoint(a.operator))
 

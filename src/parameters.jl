@@ -23,6 +23,7 @@ function NumberTerm(f,args;type=promote_type(typeof.(args)...))
     return NumberTerm{type}(f,args)
 end
 Base.:(==)(t1::NumberTerm,t2::NumberTerm) = (t1.f===t2.f && t1.arguments==t2.arguments)
+Base.hash(t::NumberTerm{T}, h::UInt) where T = hash(t.arguments, hash(t.f, hash(T, h)))
 
 Base.zero(::Type{<:SymbolicNumber}) = 0
 Base.one(::Type{<:SymbolicNumber}) = 1
@@ -39,6 +40,7 @@ struct Parameter{T<:Number} <: SymbolicNumber
 end
 Parameter(name::Symbol) = Parameter{Number}(name)
 Base.:(==)(p::T, q::T) where T<:Parameter = (p.name==q.name)
+Base.hash(p::Parameter{T}, h::UInt) where T = hash(p.name, hash(T, h))
 
 # Methods
 Base.conj(p::Parameter{<:Real}) = p
@@ -128,7 +130,7 @@ function parameters(s::String)
     return parameters(syms...)
 end
 
-simplify_constants(s::SymbolicNumber;kwargs...) = s
+simplify_constants(s::Number;kwargs...) = s
 function simplify_constants(t::NumberTerm;kwargs...)
     s = _to_symbolic(t)
     s_ = SymbolicUtils.simplify(s;kwargs...)

@@ -72,6 +72,9 @@ for f in [:Destroy,:Create]
         sym = SymbolicUtils.term($(f), op.hilbert, op.name, acts_on(op); type=$(f))
         return sym
     end
+    @eval function Base.hash(op::T, h::UInt) where T<:($(f))
+        hash(op.hilbert, hash(op.name, hash(op.aon, h)))
+    end
 end
 
 Base.adjoint(op::Destroy) = Create(op.hilbert,op.name,acts_on(op))

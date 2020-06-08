@@ -36,6 +36,7 @@ NLevelSpace(name,N::Int,GS) = NLevelSpace(name,1:N,GS)
 NLevelSpace(name,N::Int) = NLevelSpace(name,1:N,1)
 NLevelSpace(name,levels) = NLevelSpace(name,levels,levels[1])
 Base.:(==)(h1::T,h2::T) where T<:NLevelSpace = (h1.name==h2.name && h1.levels==h2.levels && h1.GS==h2.GS)
+Base.hash(n::NLevelSpace, h::UInt) = hash(n.name, hash(n.levels, hash(n.GS, h)))
 
 levels(h::NLevelSpace) = h.levels
 levels(h::NLevelSpace,aon) = levels(h)
@@ -101,6 +102,7 @@ end
 
 Base.adjoint(t::Transition) = Transition(t.hilbert,t.name,t.j,t.i,acts_on(t))
 Base.:(==)(t1::Transition,t2::Transition) = (t1.hilbert==t2.hilbert && t1.name==t2.name && t1.i==t2.i && t1.j==t2.j)
+Base.hash(t::Transition, h::UInt) = hash(t.hilbert, hash(t.name, hash(t.i, hash(t.j, hash(t.aon, h)))))
 
 # Simplification
 istransition(x) = false
