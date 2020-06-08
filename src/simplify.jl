@@ -123,8 +123,10 @@ function lt_aon(t1::SymbolicUtils.Term{<:AbstractOperator},t2::SymbolicUtils.Ter
         idx2 = get_index(t2)
         if any(i1 ∈ idx2 for i1 in idx1) || any(i2 ∈ idx1 for i2 in idx2)
             return false
-        else
+        elseif length(idx1)==length(idx2)
             return idx1 < idx2
+        else
+            return length(idx1) < length(idx2)
         end
     else
         return maximum(aon1)<maximum(aon2)

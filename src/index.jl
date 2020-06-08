@@ -10,6 +10,7 @@ end
 IndexSet(name::S, lower::T, upper::T) where {S,T} = IndexSet{S,T}(name,lower,upper)
 IndexSet(name,upper::Int) = IndexSet(name,1,upper)
 IndexSet(name,r::UnitRange{<:Int}) = IndexSet(name,r.start,r.stop)
+Base.isequal(i::IndexSet,j::IndexSet) = (i.name==j.name && i.lower==j.lower && i.upper==j.upper)
 
 # Iterator interface
 for f in [:IteratorSize, :IteratorEltype, :eltype, :length, :size]
@@ -26,6 +27,9 @@ struct Index{I,S} <: Number
 end
 Index(i::I,set::S) where {I,S} = Index{I,S}(i,set)
 Base.isless(i::Index, j::Index) = isless(i.i, j.i)
+Base.isequal(::Number,::Index) = false
+Base.isequal(::Index,::Number) = false
+Base.isequal(i::Index,j::Index) = (i.i==j.i && i.set==j.set)
 
 Base.getindex(I::IndexSet, i::Int) = Index(i,I)
 Base.getindex(I::IndexSet, is::Int...) = [Index(i,I) for i in is]

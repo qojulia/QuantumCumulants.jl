@@ -44,6 +44,15 @@ Base.getindex(p::Parameter{T},index::Index) where T = Parameter{T}(p.name, index
 Base.getindex(p::Parameter{T},index::Index...) where T = Parameter{T}(p.name, index)
 Base.:(==)(p::T, q::T) where T<:Parameter = (p.name==q.name && p.index==q.index)
 
+get_index(p::Parameter) = p.index
+function get_index(t::NumberTerm)
+    idx = Index[]
+    for arg in t.arguments
+        append!(idx, get_index(arg))
+    end
+    return idx
+end
+
 # Methods
 Base.conj(p::Parameter{<:Real}) = p
 

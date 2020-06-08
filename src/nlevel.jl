@@ -75,7 +75,7 @@ struct Transition{H,S,I,A,IND} <: BasicOperator
         return new(hilbert,name,i,j,aon,index)
     end
 end
-Transition(hilbert::H,name::S,i::I,j::I,aon::A,index::IND=default_index()) where {H,S,I,A,IND} = Transition{H,S,I,A,IND}(hilbert,name,i,j,aon,index)
+Transition(hilbert::H,name::S,i::I,j::I,aon::A,index::IND=default_index()) where {H,S,I,A,IND<:Index} = Transition{H,S,I,A,IND}(hilbert,name,i,j,aon,index)
 Transition(hilbert::NLevelSpace,name,i,j) = Transition(hilbert,name,i,j,1)
 function Transition(hilbert::ProductSpace,name,i,j;index=default_index())
     inds = findall(x->isa(x,NLevelSpace),hilbert.spaces)

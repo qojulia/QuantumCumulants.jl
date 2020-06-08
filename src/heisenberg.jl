@@ -140,3 +140,37 @@ function commutator(a::OperatorTerm{<:typeof(+)},b::OperatorTerm{<:typeof(+)}; s
         return out
     end
 end
+
+"""
+    build_duplicates(::DifferentialEquation)
+
+Construct equations for indexed operators when given only one index. This assumes
+the equations are equivalent for each index.
+"""
+function build_duplicates(de::DifferentialEquation{<:AbstractOperator,<:AbstractOperator})
+    lhs, rhs = build_duplicates(de.lhs, de.rhs)
+    return DifferentialEquation(lhs,rhs)
+end
+
+function build_duplicates(lhs,rhs)
+    lhs_ = copy(lhs)
+    rhs_ = copy(rhs)
+    for i=1:length(lhs)
+        idx = get_index(lhs[i])
+        aon = acts_on(lhs[i])
+        sets = getfield.(idx, :set)
+        combs = Iterators.product(sets...)
+        for js in combs
+            for j in js
+                for k in idx
+                    l = swap_idx(lhs[i], k, j)
+                    (l in lhs_ || l' in lhs_) && continue
+                    r = swap_idx(rhs[i], k, j)
+                    push!(lhs_, l)
+                    push!(rhs_, r)
+                end
+            end
+        end
+    end
+    return lhs_, rhs_
+end

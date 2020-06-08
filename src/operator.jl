@@ -86,7 +86,7 @@ acts_on_index(op::OperatorTerm) = [acts_on(op);get_index(op)]
 
 get_index(t::BasicOperator) = t.index
 function get_index(op::OperatorTerm)
-    idx = []
+    idx = Index[]
     for arg in op.arguments
         append!(idx, get_index(arg))
     end

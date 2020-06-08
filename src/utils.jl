@@ -197,6 +197,31 @@ function unique_ops(ops)
     return seen
 end
 
+"""
+    swap_idx(x, i::Index, j::Index)
+
+Swap all indices `i` in the expression `x` with `j`. If the index does not match,
+the expression is left unchanged.
+"""
+function swap_idx(x::T, i::Index, j::Index) where T<:Union{BasicOperator,Parameter}
+    if get_index(x)==i
+        fields = [getfield(x, name) for name in fieldnames(T)]
+        fields[end] = j
+        return T(fields...)
+    else
+        return x
+    end
+end
+function swap_idx(t::Union{OperatorTerm,NumberTerm}, i::Index, j::Index)
+    args = Any[]
+    for arg in t.arguments
+        push!(args, swap_idx(arg, i, j))
+    end
+    return t.f(args...)
+end
+swap_idx(x::Number, args...) = x
+
+
 
 _to_expression(x::Number) = x
 function _to_expression(x::Complex) # For brackets when using latexify
