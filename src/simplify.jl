@@ -59,6 +59,7 @@ function _simplify_operators(s, rules, commutator_rules; kwargs...)
     s_ = SymbolicUtils.simplify(s_; rules=rules, kwargs...)
     return s_
 end
+simplify_operators(x::Number, args...; kwargs...) = x
 
 default_rules() = SIMPLIFY_OPERATOR_RULES
 default_commutator_rules() = SIMPLIFY_COMMUTATOR_RULES
@@ -111,7 +112,7 @@ function issorted_nc(f::typeof(*), args)
     is_c = iscommutative.(f, args)
     args_c = args[is_c]
     args_nc = args[.!is_c]
-    return  issorted(is_c, lt=(>)) && SymbolicUtils.issortedₑ(args_c) && issorted(args_nc, lt=lt_aon)
+    return issorted(is_c, lt=(>)) && SymbolicUtils.issortedₑ(args_c) && issorted(args_nc, lt=lt_aon)
 end
 
 # Comparison for sorting according to Hilbert spaces
@@ -122,6 +123,10 @@ function lt_aon(t1::SymbolicUtils.Term{<:AbstractOperator},t2::SymbolicUtils.Ter
         return false
     elseif any(a2 ∈ aon1 for a2 in aon2)
         return false
+    elseif isempty(aon1)
+        return isempty(aon2)
+    elseif isempty(aon2)
+        return isempty(aon1)
     else
         return maximum(aon1)<maximum(aon2)
     end
@@ -145,7 +150,7 @@ function sort_args_nc(f::typeof(*), args)
     is_c = iscommutative.(f, args)
     args_c = SymbolicUtils.sort_args(f, args[is_c]).arguments
     args_nc = sort(args[.!is_c], lt=lt_aon)
-    return SymbolicUtils.Term(f, [args_c; args_nc])
+    return f(args_c..., args_nc...)
 end
 
 # Expand products involving sums into sums of products, e.g. x*(y+z) => x*y + x*z; needed to apply commutator rules
