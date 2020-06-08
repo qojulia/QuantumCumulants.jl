@@ -23,6 +23,7 @@ function NumberTerm(f,args;type=promote_type(typeof.(args)...))
     return NumberTerm{type}(f,args)
 end
 Base.:(==)(t1::NumberTerm,t2::NumberTerm) = (t1.f===t2.f && t1.arguments==t2.arguments)
+Base.hash(t::NumberTerm{T}, h::UInt) where T = hash(t.arguments, hash(t.f, hash(T, h)))
 
 Base.zero(::Type{<:SymbolicNumber}) = 0
 Base.one(::Type{<:SymbolicNumber}) = 1
@@ -43,6 +44,7 @@ Parameter(name::Symbol) = Parameter{Number}(name)
 Base.getindex(p::Parameter{T},index::Index) where T = Parameter{T}(p.name, index)
 Base.getindex(p::Parameter{T},index::Index...) where T = Parameter{T}(p.name, index)
 Base.:(==)(p::T, q::T) where T<:Parameter = (p.name==q.name && p.index==q.index)
+Base.hash(p::Parameter{T}, h::UInt) where T = hash(p.name, hash(p.index, hash(T, h)))
 
 get_index(p::Parameter) = p.index
 function get_index(t::NumberTerm)
@@ -153,7 +155,7 @@ function parameters(s::String)
     return parameters(syms...)
 end
 
-simplify_constants(s::SymbolicNumber;kwargs...) = s
+simplify_constants(x::Number;kwargs...) = x
 function simplify_constants(t::NumberTerm;kwargs...)
     s = _to_symbolic(t)
     s_ = SymbolicUtils.simplify(s;kwargs...)

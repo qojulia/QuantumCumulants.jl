@@ -220,8 +220,7 @@ function swap_idx(t::Union{OperatorTerm,NumberTerm}, i::Index, j::Index)
     return t.f(args...)
 end
 swap_idx(x::Number, args...) = x
-
-
+swap_idx(a::Average, args...) = average(swap_idx(a.operator, args...))
 
 _to_expression(x::Number) = x
 function _to_expression(x::Complex) # For brackets when using latexify
@@ -254,7 +253,15 @@ function _to_expression(op::Create)
 end
 _to_expression(op::Transition) = :( Transition($(op.name),$(op.i),$(op.j),$(op.index)) )
 _to_expression(t::Union{OperatorTerm,NumberTerm}) = :( $(Symbol(t.f))($(_to_expression.(t.arguments)...)) )
-_to_expression(p::Parameter) = p.name
+function _to_expression(p::Parameter)
+    n = p.name
+    idx = p.index
+    if idx == default_index()
+        return n
+    else
+        return Expr(:ref, n, idx.i)
+    end
+end
 function _to_expression(avg::Average)
     ex = _to_expression(avg.operator)
     return :(AVERAGE($ex))

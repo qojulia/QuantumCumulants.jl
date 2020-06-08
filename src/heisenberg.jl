@@ -147,7 +147,7 @@ end
 Construct equations for indexed operators when given only one index. This assumes
 the equations are equivalent for each index.
 """
-function build_duplicates(de::DifferentialEquation{<:AbstractOperator,<:AbstractOperator})
+function build_duplicates(de::DifferentialEquation)
     lhs, rhs = build_duplicates(de.lhs, de.rhs)
     return DifferentialEquation(lhs,rhs)
 end
@@ -155,21 +155,44 @@ end
 function build_duplicates(lhs::Vector{<:AbstractOperator},rhs::Vector{<:AbstractOperator})
     lhs_ = AbstractOperator[lhs...]
     rhs_ = AbstractOperator[rhs...]
-    for i=1:length(lhs)
-        idx_ = get_index(lhs[i])
+    build_duplicates!(lhs_, rhs_, lhs)
+    return lhs_, rhs_
+end
+
+function build_duplicates(lhs::Vector{<:Number}, rhs::Vector{<:Number})
+    lhs_ = Number[lhs...]
+    rhs_ = Number[rhs...]
+    build_duplicates!(lhs_,rhs_, lhs)
+    return lhs_, rhs_
+end
+
+function build_duplicates!(lhs, rhs, lhs_origin)
+    for i=1:length(lhs_origin)
+        idx_ = get_index(lhs_origin[i])
         idx = idx_ isa Index ? [idx_] : idx_
-        aon = acts_on(lhs[i])
+        aon = acts_on(lhs_origin[i])
         sets = getfield.(idx, :set)
         combs = Iterators.product(sets...)
+        tmp = tmp_index()
         for js in combs
             for (j,k) in zip(js,idx)
-                l = swap_idx(lhs[i], k, j)
-                (l in lhs_ || l' in lhs_) && continue
-                r = swap_idx(rhs[i], k, j)
-                push!(lhs_, l)
-                push!(rhs_, r)
+                l = swap_idx(lhs_origin[i], j, tmp)
+                l = swap_idx(l, k, j)
+                l = swap_idx(l, tmp, k)
+                # TODO: sort
+                (l in lhs || l' in lhs) && continue
+                r = swap_idx(rhs[i], j, tmp)
+                r = swap_idx(r, k, j)
+                r = swap_idx(r, tmp, k)
+                push!(lhs, l)
+                push!(rhs, r)
             end
         end
     end
-    return lhs_, rhs_
+    return lhs, rhs
+end
+
+function tmp_index()
+    set = IndexSet(gensym(:Index), 1, 1)
+    return Index(1, set)
 end
