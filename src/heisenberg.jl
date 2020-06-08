@@ -152,23 +152,22 @@ function build_duplicates(de::DifferentialEquation{<:AbstractOperator,<:Abstract
     return DifferentialEquation(lhs,rhs)
 end
 
-function build_duplicates(lhs,rhs)
-    lhs_ = copy(lhs)
-    rhs_ = copy(rhs)
+function build_duplicates(lhs::Vector{<:AbstractOperator},rhs::Vector{<:AbstractOperator})
+    lhs_ = AbstractOperator[lhs...]
+    rhs_ = AbstractOperator[rhs...]
     for i=1:length(lhs)
-        idx = get_index(lhs[i])
+        idx_ = get_index(lhs[i])
+        idx = idx_ isa Index ? [idx_] : idx_
         aon = acts_on(lhs[i])
         sets = getfield.(idx, :set)
         combs = Iterators.product(sets...)
         for js in combs
-            for j in js
-                for k in idx
-                    l = swap_idx(lhs[i], k, j)
-                    (l in lhs_ || l' in lhs_) && continue
-                    r = swap_idx(rhs[i], k, j)
-                    push!(lhs_, l)
-                    push!(rhs_, r)
-                end
+            for (j,k) in zip(js,idx)
+                l = swap_idx(lhs[i], k, j)
+                (l in lhs_ || l' in lhs_) && continue
+                r = swap_idx(rhs[i], k, j)
+                push!(lhs_, l)
+                push!(rhs_, r)
             end
         end
     end

@@ -7,8 +7,14 @@ function Base.show(io::IO,h::ProductSpace)
     end
 end
 
-Base.show(io::IO,x::BasicOperator) = write(io, x.name)
-Base.show(io::IO,x::Create) = write(io, string(x.name, "′"))
+function Base.show(io::IO,x::BasicOperator)
+    write(io, x.name)
+    show_index(io, x.index)
+end
+function Base.show(io::IO,x::Create)
+    write(io, string(x.name, "′"))
+    show_index(io, x.index)
+end
 function Base.show(io::IO,x::Transition)
     write(io, Symbol(x.name,x.i,x.j))
     show_index(io, x.index)

@@ -12,9 +12,19 @@ function _postwalk_func(x)
     elseif MacroTools.@capture(x, dagger(arg_))
         s = "$(arg)^\\dagger"
         return s
-    elseif MacroTools.@capture(x, Transition(arg_,i_,j_))
-        s = "$(arg)^{$(i)$(j)}"
+    elseif MacroTools.@capture(x, Transition(arg_,i_,j_,k_))
+        if k==default_index()
+            s = "$(arg)^{$(i)$(j)}"
+        else
+            s = "$(arg)^{$(i)$(j)}_{$(k.i)}"
+        end
         return s
+    elseif MacroTools.@capture(x, arg_[i_])
+        if i isa Index
+            return "$(arg)_{$(i.i)}"
+        else
+            return "$(arg)_{$(i)}"
+        end
     else
         return x
     end

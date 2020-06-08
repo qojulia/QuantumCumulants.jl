@@ -107,7 +107,7 @@ iscommutative(::typeof(*), x::Union{SymbolicUtils.Symbolic{T},T}) where {T<:Numb
 iscommutative(f) = x -> iscommutative(f, x)
 
 issorted_nc(f) = x -> issorted_nc(f, x)
-function issorted_nc(f::typeof(*), args)
+function issorted_nc(f::typeof(*),args)
     is_c = iscommutative.(f, args)
     args_c = args[is_c]
     args_nc = args[.!is_c]
@@ -123,7 +123,7 @@ function lt_aon(t1::SymbolicUtils.Term{<:AbstractOperator},t2::SymbolicUtils.Ter
         idx2 = get_index(t2)
         if any(i1 ∈ idx2 for i1 in idx1) || any(i2 ∈ idx1 for i2 in idx2)
             return false
-        elseif length(idx1)==length(idx2)
+        elseif (idx1 isa Index) && (idx2 isa Index)
             return idx1 < idx2
         else
             return length(idx1) < length(idx2)

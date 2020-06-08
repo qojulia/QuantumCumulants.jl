@@ -234,9 +234,25 @@ function _to_expression(x::Complex) # For brackets when using latexify
         return :( $(real(x)) + $(imag(x))*im )
     end
 end
-_to_expression(op::BasicOperator) = op.name
-_to_expression(op::Create) = :(dagger($(op.name)))
-_to_expression(op::Transition) = :(Transition($(op.name),$(op.i),$(op.j)) )
+function _to_expression(op::BasicOperator)
+    n = op.name
+    idx = get_index(op)
+    if idx != default_index()
+        return Expr(:ref, n, idx.i)
+    else
+        return n
+    end
+end
+function _to_expression(op::Create)
+    n = :(dagger($(op.name)))
+    idx = get_index(op)
+    if idx != default_index()
+        return Expr(:ref, n, idx.i)
+    else
+        return n
+    end
+end
+_to_expression(op::Transition) = :( Transition($(op.name),$(op.i),$(op.j),$(op.index)) )
 _to_expression(t::Union{OperatorTerm,NumberTerm}) = :( $(Symbol(t.f))($(_to_expression.(t.arguments)...)) )
 _to_expression(p::Parameter) = p.name
 function _to_expression(avg::Average)
