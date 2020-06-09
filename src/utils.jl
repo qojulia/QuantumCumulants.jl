@@ -212,12 +212,30 @@ function swap_idx(x::T, i::Index, j::Index) where T<:Union{BasicOperator,Paramet
         return x
     end
 end
-function swap_idx(t::Union{OperatorTerm,NumberTerm}, i::Index, j::Index)
+function swap_idx(t::OperatorTerm, i::Index, j::Index)
     args = Any[]
     for arg in t.arguments
         push!(args, swap_idx(arg, i, j))
     end
-    return t.f(args...)
+    return OperatorTerm(t.f, args)
+end
+function swap_idx(t::OperatorTerm{<:typeof(*)}, i::Index, j::Index)
+    args = Any[]
+    for arg in t.arguments
+        push!(args, swap_idx(arg, i, j))
+    end
+    # Resort by index
+    is_c = iscommutative.(*,args)
+    args_c = args[is_c]
+    args_nc = sort(args[.!is_c], by=acts_on_index)
+    return OperatorTerm(t.f, [args_c; args_nc])
+end
+function swap_idx(t::NumberTerm, i::Index, j::Index)
+    args = Any[]
+    for arg in t.arguments
+        push!(args, swap_idx(arg, i, j))
+    end
+    return NumberTerm(t.f, args)
 end
 swap_idx(x::Number, args...) = x
 swap_idx(a::Average, args...) = average(swap_idx(a.operator, args...))

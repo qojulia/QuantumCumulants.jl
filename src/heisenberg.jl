@@ -170,7 +170,6 @@ function build_duplicates!(lhs, rhs, lhs_origin)
     for i=1:length(lhs_origin)
         idx_ = get_index(lhs_origin[i])
         idx = idx_ isa Index ? [idx_] : idx_
-        aon = acts_on(lhs_origin[i])
         sets = getfield.(idx, :set)
         combs = Iterators.product(sets...)
         tmp = tmp_index()
@@ -179,7 +178,6 @@ function build_duplicates!(lhs, rhs, lhs_origin)
                 l = swap_idx(lhs_origin[i], j, tmp)
                 l = swap_idx(l, k, j)
                 l = swap_idx(l, tmp, k)
-                # TODO: sort
                 (l in lhs || l' in lhs) && continue
                 r = swap_idx(rhs[i], j, tmp)
                 r = swap_idx(r, k, j)

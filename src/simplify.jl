@@ -111,7 +111,7 @@ function issorted_nc(f::typeof(*),args)
     is_c = iscommutative.(f, args)
     args_c = args[is_c]
     args_nc = args[.!is_c]
-    return  issorted(is_c, lt=(>)) && SymbolicUtils.issortedₑ(args_c) && issorted(args_nc, lt=lt_aon)
+    return issorted(is_c, lt=(>)) && SymbolicUtils.issortedₑ(args_c) && issorted(args_nc, lt=lt_aon)
 end
 
 # Comparison for sorting according to Hilbert spaces
