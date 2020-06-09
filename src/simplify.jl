@@ -65,11 +65,12 @@ default_rules() = SIMPLIFY_OPERATOR_RULES
 default_commutator_rules() = SIMPLIFY_COMMUTATOR_RULES
 
 """
-    substitute(arg, subs)
+    substitute(arg, subs; simplify=true)
 
 Substitute the symbolic argument, i.e. any subtype to [`AbstractOperator`](@ref)
 or [`SymbolicNumber`](@ref) according to the substitutions stored in a `Dict`.
-Also works on [`DifferentialEquation`](@ref).
+Also works on [`DifferentialEquation`](@ref). If `simplify=true`, the output
+is simplified.
 
 Examples
 =======
@@ -81,23 +82,33 @@ julia> substitute(p, Dict(p=>2))
 2
 ```
 """
-function substitute(op::BasicOperator, dict)
+function substitute(op::BasicOperator, dict; kwargs...)
     if haskey(dict, op)
         op_ = dict[op]
         check_hilbert(op_,op)
         return op_
+    elseif haskey(dict, op')
+        op_ = dict[op']
+        check_hilbert(op_, op)
+        return op_'
     else
         return op
     end
 end
-function substitute(t::OperatorTerm, dict)
+function substitute(t::OperatorTerm, dict; simplify=true, kwargs...)
     if haskey(dict, t)
         return dict[t]
+    elseif haskey(dict, t')
+        return dict[t']'
     else
-        return OperatorTerm(t.f, [substitute(arg, dict) for arg in t.arguments])
+        if simplify
+            return simplify_operators(OperatorTerm(t.f, [substitute(arg, dict; simplify=simplify) for arg in t.arguments]), kwargs...)
+        else
+            return OperatorTerm(t.f, [substitute(arg, dict; simplify=simplify) for arg in t.arguments])
+        end
     end
 end
-substitute(x::Number, dict) = x
+substitute(x::Number, dict; kwargs...) = x
 
 ### Functions needed for simplification
 

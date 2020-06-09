@@ -64,14 +64,28 @@ for f in [:+,:*]
 end
 
 # Substitution
-function substitute(t::NumberTerm, dict)
+function substitute(t::NumberTerm, dict; simplify=true, kwargs...)
     if haskey(dict, t)
         return dict[t]
+    elseif haskey(dict, t')
+        return dict[t]'
     else
-        return NumberTerm(t.f, [substitute(arg, dict) for arg in t.arguments])
+        if simplify
+            return simplify_constants(NumberTerm(t.f, [substitute(arg, dict; simplify=simplify) for arg in t.arguments]), kwargs...)
+        else
+            return NumberTerm(t.f, [substitute(arg, dict; simplify=simplify) for arg in t.arguments])
+        end
     end
 end
-substitute(x::SymbolicNumber, dict) = haskey(dict, x) ? dict[x] : x
+function substitute(x::SymbolicNumber, dict; kwargs...)
+    if haskey(dict, x)
+        return dict[x]
+    elseif haskey(dict, x')
+        return dict[x']'
+    else
+        return x
+    end
+end
 
 # Conversion to SymbolicUtils
 _to_symbolic(p::Parameter{T}) where T = SymbolicUtils.Sym{T}(p.name)

@@ -28,7 +28,7 @@ missed = find_missing(he_exp;ps=ps)
 
 # Exploit phase invariance
 subs = Dict(missed .=> 0)
-he_nophase = simplify_constants(substitute(he_exp, subs))
+he_nophase = substitute(he_exp, subs)
 @test isempty(find_missing(he_nophase;ps=ps))
 
 f = generate_ode(he_nophase,ps)
