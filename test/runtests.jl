@@ -8,8 +8,7 @@ names = [
     "test_diffeq.jl"
     "test_v-level.jl"
     "test_mixed-order.jl"
-    # "test_multisystems.jl"
-    # "test_higher-order.jl"
+    "test_duplicates.jl"
 ]
 
 detected_tests = filter(

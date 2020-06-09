@@ -22,13 +22,20 @@ end
 
 show_brackets = Ref(true)
 function Base.show(io::IO,x::Union{OperatorTerm,NumberTerm})
-    show_brackets[] && write(io,"(")
-    show(io, x.arguments[1])
-    for i=2:length(x.arguments)
+    if length(x.arguments) > 1
+        show_brackets[] && write(io,"(")
+        show(io, x.arguments[1])
+        for i=2:length(x.arguments)
+            show(io, x.f)
+            show(io, x.arguments[i])
+        end
+        show_brackets[] && write(io,")")
+    else
         show(io, x.f)
-        show(io, x.arguments[i])
+        show_brackets[] && write(io, "(")
+        show(io, x.arguments[1])
+        show_brackets[] && write(io, ")")
     end
-    show_brackets[] && write(io,")")
 end
 
 function show_index(io::IO, index)

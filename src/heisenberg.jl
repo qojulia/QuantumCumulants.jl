@@ -174,17 +174,21 @@ function build_duplicates!(lhs, rhs, lhs_origin)
         combs = Iterators.product(sets...)
         tmp = tmp_index()
         for js in combs
+            l = copy(lhs_origin[i])
             for (j,k) in zip(js,idx)
-                l = swap_idx(lhs_origin[i], j, tmp)
+                l = swap_idx(l, j, tmp)
                 l = swap_idx(l, k, j)
                 l = swap_idx(l, tmp, k)
-                (l in lhs || l' in lhs) && continue
-                r = swap_idx(rhs[i], j, tmp)
+            end
+            (l in lhs || l' in lhs) && continue
+            r = copy(rhs[i])
+            for (j,k) in zip(js,idx)
+                r = swap_idx(r, j, tmp)
                 r = swap_idx(r, k, j)
                 r = swap_idx(r, tmp, k)
-                push!(lhs, l)
-                push!(rhs, r)
             end
+            push!(lhs, l)
+            push!(rhs, r)
         end
     end
     return lhs, rhs
