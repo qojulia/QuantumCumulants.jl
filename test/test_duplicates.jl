@@ -88,8 +88,7 @@ he_comp_avg = average(he_comp, 2)
 @test length(he_dupl_avg)==length(he_comp_avg)
 for i=1:length(he_dupl_avg)
     j = findfirst(isequal(he_dupl_avg.lhs[i]), he_comp_avg.lhs)
-    # TODO bug in sorting?
-    # @test simplify_constants(he_dupl_avg.rhs[i]) == simplify_constants(he_comp_avg.rhs[j])
+    @test simplify_constants(he_dupl_avg.rhs[i]) == simplify_constants(he_comp_avg.rhs[j])
 end
 
 # Test numerical solution for many-atom laser
