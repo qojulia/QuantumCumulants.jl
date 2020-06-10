@@ -15,14 +15,14 @@ const NC_TIMES_RULES = SymbolicUtils.RuleSet([
     SymbolicUtils.@rule(*(~~x::SymbolicUtils.isnotflat(*)) => SymbolicUtils.flatten_term(*, ~~x))
     SymbolicUtils.@rule(*(~~x::!(issorted_nc(*))) => sort_args_nc(*, ~~x))
 
-    SymbolicUtils.@acrule(~a::SymbolicUtils.isnumber * ~b::SymbolicUtils.isnumber => ~a * ~b)
+    SymbolicUtils.ACRule(SymbolicUtils.@rule(~a::SymbolicUtils.isnumber * ~b::SymbolicUtils.isnumber => ~a * ~b), 2)
 
     # SymbolicUtils.@rule(*(~~x::SymbolicUtils.hasrepeats) => *(SymbolicUtils.merge_repeats(^, ~~x)...))
-    # SymbolicUtils.@acrule((~y)^(~n) * ~y => (~y)^(~n+1))
-    # SymbolicUtils.@acrule((~x)^(~n) * (~x)^(~m) => (~x)^(~n + ~m))
+    # SymbolicUtils.ACRule(SymbolicUtils.@rule((~y)^(~n) * ~y => (~y)^(~n+1)), 3)
+    # SymbolicUtils.ACRule(SymbolicUtils.@rule((~x)^(~n) * (~x)^(~m) => (~x)^(~n + ~m)), 4)
 
-    SymbolicUtils.@acrule((~z::SymbolicUtils._isone  * ~x) => ~x)
-    SymbolicUtils.@acrule((~z::SymbolicUtils._iszero *  ~x) => ~z)
+    SymbolicUtils.ACRule(SymbolicUtils.@rule((~z::SymbolicUtils._isone  * ~x) => ~x), 2)
+    SymbolicUtils.ACRule(SymbolicUtils.@rule((~z::SymbolicUtils._iszero *  ~x) => ~z), 2)
     SymbolicUtils.@rule(*(~x) => ~x)
 ])
 
@@ -37,8 +37,8 @@ const SIMPLIFY_COMMUTATOR_RULES = SymbolicUtils.RuleSet([
 const COMMUTATOR_RULES = SymbolicUtils.RuleSet([])
 
 const EXPAND_RULES = SymbolicUtils.RuleSet([
-    SymbolicUtils.@acrule(~a::SymbolicUtils.isnumber + ~b::SymbolicUtils.isnumber => ~a + ~b)
-    SymbolicUtils.@acrule(~a::SymbolicUtils.isnumber * ~b::SymbolicUtils.isnumber => ~a * ~b)
+    SymbolicUtils.ACRule(SymbolicUtils.@rule(~a::SymbolicUtils.isnumber + ~b::SymbolicUtils.isnumber => ~a + ~b), 2)
+    SymbolicUtils.ACRule(SymbolicUtils.@rule(~a::SymbolicUtils.isnumber * ~b::SymbolicUtils.isnumber => ~a * ~b), 2)
     SymbolicUtils.@rule(*(~~x::SymbolicUtils.isnotflat(*)) => SymbolicUtils.flatten_term(*, ~~x))
     SymbolicUtils.@rule(*(~~x::!(issorted_nc(*))) => sort_args_nc(*, ~~x))
     SymbolicUtils.@rule(*(~~x::has_inner(+)) => expand_term(*,+,~~x))
