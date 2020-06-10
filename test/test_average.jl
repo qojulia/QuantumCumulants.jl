@@ -28,6 +28,6 @@ n = average(a'*a)
 @test cumulant_expansion(n,1)==average(a')*average(a)
 
 ex = average(a*σ)*average(a) - average(a)*average(a*σ)
-# @test simplify_constants(ex)==0 TODO; bug in sorting
+@test simplify_constants(ex)==0
 
 end # testset

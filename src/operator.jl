@@ -13,6 +13,10 @@ abstract type BasicOperator <: AbstractOperator end
 isoperator(x) = false
 isoperator(x::Union{T,SymbolicUtils.Symbolic{T}}) where {A,T<:AbstractOperator} = true
 
+# Dicts for conversion
+const OPERATORS_TO_SYMS = Dict{BasicOperator,SymbolicUtils.Sym}()
+const SYMS_TO_OPERATORS = Dict{SymbolicUtils.Sym,BasicOperator}()
+
 """
     OperatorTerm <: AbstractOperator
 

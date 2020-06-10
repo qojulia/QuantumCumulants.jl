@@ -3,14 +3,20 @@
 _to_symbolic(t::T) where T<:OperatorTerm = SymbolicUtils.Term{AbstractOperator}(t.f, _to_symbolic.(t.arguments))
 _to_symbolic(x::Number) = x
 _to_symbolic(x::SymbolicUtils.Symbolic) = x
+_to_symbolic(op::BasicOperator) = OPERATORS_TO_SYMS[op]
 
-function _to_qumulants(t::SymbolicUtils.Term{T}) where T<:BasicOperator
-    return t.f(t.arguments...)
-end
+# function _to_qumulants(t::SymbolicUtils.Term{T}) where T<:BasicOperator
+#     return t.f(t.arguments...)
+# end
+_to_qumulants(t::SymbolicUtils.Sym{T}) where T<:BasicOperator = SYMS_TO_OPERATORS[t]
 function _to_qumulants(t::SymbolicUtils.Term{T}) where T<:AbstractOperator
     return OperatorTerm(t.f, _to_qumulants.(t.arguments))
 end
 _to_qumulants(x::Number) = x
+
+for f in [:acts_on, :hilbert, :levels]
+    @eval $f(s::SymbolicUtils.Sym{<:BasicOperator}, args...) = $f(_to_qumulants(s), args...)
+end
 
 # Symbolic type promotion
 SymbolicUtils.promote_symtype(f, Ts::Type{<:AbstractOperator}...) = promote_type(AbstractOperator,Ts...)
@@ -127,7 +133,7 @@ function issorted_nc(f::typeof(*), args)
 end
 
 # Comparison for sorting according to Hilbert spaces
-function lt_aon(t1::SymbolicUtils.Term{<:AbstractOperator},t2::SymbolicUtils.Term{<:AbstractOperator})
+function lt_aon(t1::SymbolicUtils.Symbolic{<:AbstractOperator},t2::SymbolicUtils.Symbolic{<:AbstractOperator})
     aon1 = acts_on(t1)
     aon2 = acts_on(t2)
     if any(a1 ∈ aon2 for a1 in aon1)
@@ -152,9 +158,6 @@ function acts_on(t::SymbolicUtils.Term{T}) where T<:AbstractOperator
     unique!(aon)
     sort!(aon)
     return aon
-end
-function acts_on(t::SymbolicUtils.Term{T}) where T<:BasicOperator
-    return t.arguments[end]
 end
 
 function sort_args_nc(f::typeof(*), args)

@@ -27,11 +27,17 @@ struct Destroy{H<:HilbertSpace,S,A} <: BasicOperator
     aon::A
     function Destroy{H,S,A}(hilbert::H,name::S,aon::A) where {H,S,A}
         @assert has_hilbert(FockSpace,hilbert,aon)
-        new(hilbert,name,aon)
+        op = new(hilbert,name,aon)
+        if !haskey(OPERATORS_TO_SYMS, op)
+            sym = SymbolicUtils.Sym{Destroy}(gensym(:Destroy))
+            OPERATORS_TO_SYMS[op] = sym
+            SYMS_TO_OPERATORS[sym] = op
+        end
+        return op
     end
 end
 isdestroy(a) = false
-isdestroy(a::SymbolicUtils.Term{T}) where {T<:Destroy} = true
+isdestroy(a::SymbolicUtils.Sym{T}) where {T<:Destroy} = true
 
 """
     Create <: BasicOperator
@@ -45,11 +51,17 @@ struct Create{H<:HilbertSpace,S,A} <: BasicOperator
     aon::A
     function Create{H,S,A}(hilbert::H,name::S,aon::A) where {H,S,A}
         @assert has_hilbert(FockSpace,hilbert,aon)
-        new(hilbert,name,aon)
+        op = new(hilbert,name,aon)
+        if !haskey(OPERATORS_TO_SYMS, op)
+            sym = SymbolicUtils.Sym{Create}(gensym(:Create))
+            OPERATORS_TO_SYMS[op] = sym
+            SYMS_TO_OPERATORS[sym] = op
+        end
+        return op
     end
 end
 iscreate(a) = false
-iscreate(a::SymbolicUtils.Term{T}) where {T<:Create} = true
+iscreate(a::SymbolicUtils.Sym{T}) where {T<:Create} = true
 
 for f in [:Destroy,:Create]
     @eval $(f)(hilbert::H,name::S,aon::A) where {H,S,A} = $(f){H,S,A}(hilbert,name,aon)
@@ -68,10 +80,10 @@ for f in [:Destroy,:Create]
         op_ = $(f)(h,op.name,aon)
         return op_
     end
-    @eval function _to_symbolic(op::T) where T<:($(f))
-        sym = SymbolicUtils.term($(f), op.hilbert, op.name, acts_on(op); type=$(f))
-        return sym
-    end
+    # @eval function _to_symbolic(op::T) where T<:($(f))
+    #     sym = SymbolicUtils.term($(f), op.hilbert, op.name, acts_on(op); type=$(f))
+    #     return sym
+    # end
     @eval function Base.hash(op::T, h::UInt) where T<:($(f))
         hash(op.hilbert, hash(op.name, hash(op.aon, h)))
     end
