@@ -48,15 +48,24 @@ function complete(de::DifferentialEquation{<:Number,<:Number},H::AbstractOperato
     rhs_, lhs_ = complete(de.rhs,de.lhs, [H,J]; kwargs...)
     return DifferentialEquation(lhs_,rhs_)
 end
-function complete(rhs::Vector{<:Number}, vs::Vector{<:Number}, he_args; order=maximum(get_order.(vs)), mix_choice=maximum, kwargs...)
-    rhs_ = copy(rhs)
+function complete(rhs::Vector{<:Number}, vs::Vector{<:Number}, he_args; order=nothing, mix_choice=maximum, kwargs...)
+    order_lhs = maximum(get_order.(vs))
+    order_rhs = maximum(get_order.(rhs))
+    if order isa Nothing
+        order_ = max(order_lhs, order_rhs)
+    else
+        order_ = order
+    end
+    order_ >= order_lhs || error("Cannot form cumulant expansion of derivative; you may want to use a higher order!")
+
     vs_ = copy(vs)
+    rhs_ = [cumulant_expansion(r, order_) for r in rhs]
     missed = unique_ops(find_missing(rhs_, vs_))
     filter!(x->isa(x,Average),missed)
     while !isempty(missed)
         ops = getfield.(missed, :operator)
         he = heisenberg(ops,he_args...;kwargs...)
-        he_avg = average(he,order;mix_choice=mix_choice)
+        he_avg = average(he,order_;mix_choice=mix_choice)
         rhs_ = [rhs_;he_avg.rhs]
         vs_ = [vs_;he_avg.lhs]
         missed = unique_ops(find_missing(rhs_,vs_))
