@@ -9,6 +9,8 @@ abstract type SymbolicNumber <: Number end
 Base.:(==)(s::SymbolicNumber,x::Number) = false
 Base.:(==)(x::Number,s::SymbolicNumber) = false
 Base.:(==)(s1::SymbolicNumber,s2::SymbolicNumber) = false
+Base.iszero(::SymbolicNumber) = false
+Base.isone(::SymbolicNumber) = false
 
 """
     NumberTerm <: SymbolicNumber
