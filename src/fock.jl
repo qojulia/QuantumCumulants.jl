@@ -80,12 +80,8 @@ for f in [:Destroy,:Create]
         op_ = $(f)(h,op.name,aon)
         return op_
     end
-    # @eval function _to_symbolic(op::T) where T<:($(f))
-    #     sym = SymbolicUtils.term($(f), op.hilbert, op.name, acts_on(op); type=$(f))
-    #     return sym
-    # end
     @eval function Base.hash(op::T, h::UInt) where T<:($(f))
-        hash(op.hilbert, hash(op.name, hash(op.aon, h)))
+        hash(op.hilbert, hash(op.name, hash(op.aon, hash($(f), h))))
     end
 end
 
