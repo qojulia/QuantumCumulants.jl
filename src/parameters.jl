@@ -52,6 +52,7 @@ for f = [:+,:-,:*,:/,:^]
     @eval Base.$f(a::Number,b::SymbolicNumber) = NumberTerm($f, [a,b])
     @eval Base.$f(a::SymbolicNumber,b::SymbolicNumber) = NumberTerm($f, [a,b])
 end
+Base.:^(a::SymbolicNumber, b::Int) = NumberTerm(^, [a,b])
 for f = [:cos,:sin,:tan,:sqrt,:conj]
     @eval Base.$f(a::SymbolicNumber) = NumberTerm($f, [a])
 end
@@ -73,9 +74,9 @@ function substitute(t::NumberTerm, dict; simplify=true, kwargs...)
         return dict[t]'
     else
         if simplify
-            return simplify_constants(NumberTerm(t.f, [substitute(arg, dict; simplify=simplify) for arg in t.arguments]), kwargs...)
+            return simplify_constants(t.f([substitute(arg, dict; simplify=simplify) for arg in t.arguments]...), kwargs...)
         else
-            return NumberTerm(t.f, [substitute(arg, dict; simplify=simplify) for arg in t.arguments])
+            return t.f([substitute(arg, dict; simplify=simplify) for arg in t.arguments]...)
         end
     end
 end

@@ -115,9 +115,9 @@ function substitute(t::OperatorTerm, dict; simplify=true, kwargs...)
         return dict[t']'
     else
         if simplify
-            return simplify_operators(OperatorTerm(t.f, [substitute(arg, dict; simplify=simplify) for arg in t.arguments]), kwargs...)
+            return simplify_operators(t.f([substitute(arg, dict; simplify=simplify) for arg in t.arguments]...), kwargs...)
         else
-            return OperatorTerm(t.f, [substitute(arg, dict; simplify=simplify) for arg in t.arguments])
+            return t.f([substitute(arg, dict; simplify=simplify) for arg in t.arguments]...)
         end
     end
 end
