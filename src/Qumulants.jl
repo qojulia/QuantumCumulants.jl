@@ -3,7 +3,7 @@ module Qumulants
 import SymbolicUtils
 
 export HilbertSpace, ProductSpace,
-        simplify_operators, substitute,
+        simplify_operators, substitute, expand,
         AbstractOperator, BasicOperator, Identity, Zero, OperatorTerm, ⊗, embed,
         FockSpace, Destroy, Create,
         NLevelSpace, Transition, levels, ground_state,

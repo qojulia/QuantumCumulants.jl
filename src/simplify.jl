@@ -67,8 +67,15 @@ function _simplify_operators(s, rules, commutator_rules; kwargs...)
 end
 simplify_operators(x::Number, args...; kwargs...) = x
 
+function expand(ex; rules=default_expand_rules(), fixpoint=true, applyall=true, recurse=true, kwargs...)
+    s = _to_symbolic(ex)
+    s_ = SymbolicUtils.simplify(s; rules=rules, fixpoint=fixpoint, applyall=applyall, recurse=recurse, kwargs...)
+    return _to_qumulants(s_)
+end
+
 default_rules() = SIMPLIFY_OPERATOR_RULES
 default_commutator_rules() = SIMPLIFY_COMMUTATOR_RULES
+default_expand_rules() = EXPAND_RULES
 
 """
     substitute(arg, subs; simplify=true)
