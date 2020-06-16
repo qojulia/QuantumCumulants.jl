@@ -6,6 +6,8 @@ For the application of commutation relations and general simplification, **Qumul
 
 ## Development status
 
+[![Travis build status][travis-img]][travis-url]
+
 **Qumulants.jl** is still at a very early stage of development. **Expect bugs!**
 
 
@@ -88,3 +90,7 @@ sol = solve(prob,RK4())
 ```
 
 The photon number of our laser and the excited state population of the atom are now stored in the first two fields of `sol.u`.
+
+
+[travis-url]: https://travis-ci.org/david-pl/Qumulants.jl
+[travis-img]: https://api.travis-ci.org/david-pl/Qumulants.jl.png?branch=master
