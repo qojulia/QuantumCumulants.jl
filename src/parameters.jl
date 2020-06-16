@@ -1,16 +1,22 @@
-"""
-    SymbolicNumber <: Number
-
-Abstract type for all symbolic numbers, i.e. [`Parameter`](@ref), [`Average`](@ref)
-and corresponding expression trees.
-"""
-abstract type SymbolicNumber <: Number end
-
-Base.:(==)(s::SymbolicNumber,x::Number) = false
-Base.:(==)(x::Number,s::SymbolicNumber) = false
-Base.:(==)(s1::SymbolicNumber,s2::SymbolicNumber) = false
+# SymbolicNumber methods
 Base.iszero(::SymbolicNumber) = false
 Base.isone(::SymbolicNumber) = false
+Base.isequal(s::SymbolicNumber, x) = false
+Base.isequal(x, s::SymbolicNumber) = false
+Base.isequal(s1::SymbolicNumber, s2::SymbolicNumber) = isequal(hash(s1), hash(s2))
+function Base.in(x::Union{SymbolicNumber,AbstractOperator}, itr)
+    anymissing = false
+    for y in itr
+        v = isequal(y, x)
+        if ismissing(v)
+            anymissing = true
+        elseif v
+            return true
+        end
+    end
+    return anymissing ? missing : false
+end
+Base.in(x::Union{SymbolicNumber,AbstractOperator}, s::Set) = haskey(s.dict, x)
 
 """
     NumberTerm <: SymbolicNumber
@@ -24,7 +30,6 @@ end
 function NumberTerm(f,args;type=promote_type(typeof.(args)...))
     return NumberTerm{type}(f,args)
 end
-Base.:(==)(t1::NumberTerm,t2::NumberTerm) = (t1.f===t2.f && t1.arguments==t2.arguments)
 Base.hash(t::NumberTerm{T}, h::UInt) where T = hash(t.arguments, hash(t.f, hash(T, h)))
 
 Base.zero(::Type{<:SymbolicNumber}) = 0
@@ -39,15 +44,18 @@ See also: [`parameters`](@ref), [`@parameters`](@ref)
 """
 struct Parameter{T<:Number} <: SymbolicNumber
     name::Symbol
+    index
 end
+Parameter{T}(name::Symbol) where T = Parameter{T}(name, default_index())
 Parameter(name::Symbol) = Parameter{Number}(name)
-Base.:(==)(p::T, q::T) where T<:Parameter = (p.name==q.name)
-Base.hash(p::Parameter{T}, h::UInt) where T = hash(p.name, hash(T, h))
+Base.getindex(p::Parameter{T},index::Index) where T = Parameter{T}(p.name, index)
+Base.getindex(p::Parameter{T},index::Index...) where T = Parameter{T}(p.name, index)
+Base.hash(p::Parameter{T}, h::UInt) where T = hash(p.name, hash(p.index, hash(T, h)))
 
 # Methods
 Base.conj(p::Parameter{<:Real}) = p
 
-for f = [:+,:-,:*,:/,:^]
+for f = [:+,:-,:*,:/,:^,:(==)]
     @eval Base.$f(a::SymbolicNumber,b::Number) = NumberTerm($f, [a,b])
     @eval Base.$f(a::Number,b::SymbolicNumber) = NumberTerm($f, [a,b])
     @eval Base.$f(a::SymbolicNumber,b::SymbolicNumber) = NumberTerm($f, [a,b])
@@ -91,10 +99,22 @@ function substitute(x::SymbolicNumber, dict; kwargs...)
 end
 
 # Conversion to SymbolicUtils
-_to_symbolic(p::Parameter{T}) where T = SymbolicUtils.Sym{T}(p.name)
+function parameter end
+function average end
+function _to_symbolic(p::Parameter{T}) where T
+    SymbolicUtils.term(parameter, p.name, p.index; type=T)
+end
 _to_symbolic(n::NumberTerm{T}) where T = SymbolicUtils.Term{T}(n.f, _to_symbolic.(n.arguments))
-function _to_qumulants(s::SymbolicUtils.Sym{T}) where T<:Number
-    return Parameter{T}(s.name)
+
+# Convert back
+function _to_qumulants(t::SymbolicUtils.Term{T}) where T<:Number
+    if t.f===parameter
+        return Parameter{T}(t.arguments...)
+    elseif t.f===average
+        return average(_to_qumulants(t.arguments[1]))
+    else
+        return NumberTerm(t.f, _to_qumulants.(t.arguments))
+    end
 end
 
 """

@@ -2,6 +2,8 @@ import SymbolicUtils
 
 # Abstract types
 abstract type AbstractOperator end
+Base.isequal(x::T, y::T) where T<:AbstractOperator = isequal(hash(x), hash(y))
+Base.:(==)(x::T,y::T) where T<:AbstractOperator = isequal(x,y) # TODO: symbolic evaluation of (==) with operators?
 
 """
     BasicOperator <: AbstractOperator
@@ -27,7 +29,6 @@ struct OperatorTerm{F,ARGS} <: AbstractOperator
     f::F
     arguments::ARGS
 end
-Base.:(==)(t1::OperatorTerm,t2::OperatorTerm) = (t1.f===t2.f && t1.arguments==t2.arguments)
 Base.hash(t::OperatorTerm, h::UInt) = hash(t.arguments, hash(t.f, h))
 
 for f = [:+,:-,:*]
@@ -56,7 +57,7 @@ function Base.adjoint(t::OperatorTerm{<:typeof(*)})
 end
 
 # Hilbert space checks
-check_hilbert(a::BasicOperator,b::BasicOperator) = (a.hilbert == b.hilbert) || error("Incompatible Hilbert spaces $(a.hilbert) and $(b.hilbert)!")
+check_hilbert(a::BasicOperator,b::BasicOperator) = isequal(a.hilbert, b.hilbert) || error("Incompatible Hilbert spaces $(a.hilbert) and $(b.hilbert)!")
 function check_hilbert(a::OperatorTerm,b::AbstractOperator)
     a_ = findfirst(x->isa(x,AbstractOperator), a.arguments)
     return check_hilbert(a_,b)
@@ -83,6 +84,18 @@ function acts_on(t::OperatorTerm)
     unique!(aon)
     sort!(aon)
     return aon
+end
+
+get_index(op::BasicOperator) = op.index
+function get_index(t::OperatorTerm)
+    ops = filter(isoperator, t.arguments)
+    idx = Int[]
+    for op in ops
+        append!(idx, get_index(op))
+    end
+    # unique!(idx)
+    # sort!(idx)
+    return idx
 end
 
 Base.one(::T) where T<:AbstractOperator = one(T)

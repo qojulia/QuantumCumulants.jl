@@ -35,7 +35,7 @@ NLevelSpace(name::S,levels::L,GS::G) where {S,L,G} = NLevelSpace{S,L,G}(name,lev
 NLevelSpace(name,N::Int,GS) = NLevelSpace(name,1:N,GS)
 NLevelSpace(name,N::Int) = NLevelSpace(name,1:N,1)
 NLevelSpace(name,levels) = NLevelSpace(name,levels,levels[1])
-Base.:(==)(h1::T,h2::T) where T<:NLevelSpace = (h1.name==h2.name && h1.levels==h2.levels && h1.GS==h2.GS)
+Base.isequal(h1::T,h2::T) where T<:NLevelSpace = isequal(h1.name, h2.name) && isequal(h1.levels, h2.levels) && isequal(h1.GS, h2.GS)
 Base.hash(n::NLevelSpace, h::UInt) = hash(n.name, hash(n.levels, hash(n.GS, h)))
 
 levels(h::NLevelSpace) = h.levels
@@ -63,16 +63,17 @@ julia> σ = Transition(ha,:σ,:g,:e)
 σge
 ```
 """
-struct Transition{H,S,I,A} <: BasicOperator
+struct Transition{H,S,I,A,IND} <: BasicOperator
     hilbert::H
     name::S
     i::I
     j::I
     aon::A
-    function Transition{H,S,I,A}(hilbert::H,name::S,i::I,j::I,aon::A) where {H,S,I,A}
+    index::IND
+    function Transition{H,S,I,A,IND}(hilbert::H,name::S,i::I,j::I,aon::A,index::IND) where {H,S,I,A,IND}
         @assert has_hilbert(NLevelSpace,hilbert,aon)
         @assert i∈levels(hilbert,aon) && j∈levels(hilbert,aon)
-        op = new(hilbert,name,i,j,aon)
+        op = new(hilbert,name,i,j,aon,index)
         if !haskey(OPERATORS_TO_SYMS, op)
             sym = SymbolicUtils.Sym{Transition}(gensym(:Transition))
             OPERATORS_TO_SYMS[op] = sym
@@ -81,12 +82,12 @@ struct Transition{H,S,I,A} <: BasicOperator
         return op
     end
 end
-Transition(hilbert::H,name::S,i::I,j::I,aon::A) where {H,S,I,A} = Transition{H,S,I,A}(hilbert,name,i,j,aon)
+Transition(hilbert::H,name::S,i::I,j::I,aon::A,index::IND=default_index()) where {H,S,I,A,IND<:Index} = Transition{H,S,I,A,IND}(hilbert,name,i,j,aon,index)
 Transition(hilbert::NLevelSpace,name,i,j) = Transition(hilbert,name,i,j,1)
-function Transition(hilbert::ProductSpace,name,i,j)
+function Transition(hilbert::ProductSpace,name,i,j;index=default_index())
     inds = findall(x->isa(x,NLevelSpace),hilbert.spaces)
     if length(inds)==1
-        return Transition(hilbert,name,i,j,inds[1])
+        return Transition(hilbert,name,i,j,inds[1],index)
     else
         isempty(inds) && error("Can only create Transition on NLevelSpace! Not included in $(hilbert)")
         length(inds)>1 && error("More than one NLevelSpace in $(hilbert)! Specify on which Hilbert space Transition should be created with Transition(hilbert,name,i,j,acts_on)!")
@@ -101,9 +102,8 @@ end
 levels(t::Transition,args...) = levels(t.hilbert,args...)
 ground_state(t::Transition,args...) = ground_state(t.hilbert,args...)
 
-Base.adjoint(t::Transition) = Transition(t.hilbert,t.name,t.j,t.i,acts_on(t))
-Base.:(==)(t1::Transition,t2::Transition) = (t1.hilbert==t2.hilbert && t1.name==t2.name && t1.i==t2.i && t1.j==t2.j)
-Base.hash(t::Transition, h::UInt) = hash(t.hilbert, hash(t.name, hash(t.i, hash(t.j, hash(t.aon, h)))))
+Base.adjoint(t::Transition) = Transition(t.hilbert,t.name,t.j,t.i,acts_on(t),get_index(t))
+Base.hash(t::Transition, h::UInt) = hash(t.hilbert, hash(t.name, hash(t.i, hash(t.j, hash(t.aon, hash(t.index, h))))))
 
 # Simplification
 istransition(x) = false
@@ -113,7 +113,7 @@ function merge_transitions(f::Function, args)
     merged = Any[]
     i = 1
     while i <= length(args)
-       if istransition(args[i])&&(i<length(args))&&istransition(args[i+1])&&(acts_on(args[i])==acts_on(args[i+1]))
+       if istransition(args[i])&&(i<length(args))&&istransition(args[i+1])&&(acts_on(args[i])==acts_on(args[i+1]))&&isequal(get_index(args[i]), get_index(args[i+1]))
            push!(merged, merge_transitions(args[i],args[i+1]))
            i += 2
        else
@@ -131,7 +131,7 @@ function merge_transitions(σ1::Transition, σ2::Transition)
     i1,j1 = σ1.i, σ1.j
     i2,j2 = σ2.i, σ2.j
     if j1==i2
-        return Transition(σ1.hilbert,σ1.name,i1,j2,σ1.aon)#SymbolicUtils.term(σ1.f, σ1.arguments[1], σ1.arguments[2], i1, j2, acts_on(σ1); type=Transition)
+        return Transition(σ1.hilbert,σ1.name,i1,j2,σ1.aon,σ1.index)#SymbolicUtils.term(σ1.f, σ1.arguments[1], σ1.arguments[2], i1, j2, acts_on(σ1); type=Transition)
     else
         return 0
     end
@@ -144,11 +144,12 @@ function rewrite_gs(σ::Transition)
     h = σ.hilbert
     aon = acts_on(σ)
     gs = ground_state(h,aon)
+    idx = get_index(σ)
     i,j = σ.i, σ.j
     if i==j==gs
         args = Any[1]
         for k in levels(h,aon)
-            (k==i) || push!(args, -1*Transition(h, σ.name, k, k, aon))#SymbolicUtils.term(t.f, h, t.arguments[2], k, k, aon; type=Transition))
+            (k==i) || push!(args, -1*Transition(h, σ.name, k, k, aon, idx))
         end
         return +(args...)
     else

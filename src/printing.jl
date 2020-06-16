@@ -7,9 +7,31 @@ function Base.show(io::IO,h::ProductSpace)
     end
 end
 
-Base.show(io::IO,x::BasicOperator) = write(io, x.name)
-Base.show(io::IO,x::Create) = write(io, string(x.name, "′"))
-Base.show(io::IO,x::Transition) = write(io, Symbol(x.name,x.i,x.j))
+function Base.show(io::IO,x::BasicOperator)
+    write(io, x.name)
+    show_index(io, x.index)
+end
+function Base.show(io::IO,x::Create)
+    write(io, string(x.name, "′"))
+    show_index(io, x.index)
+end
+function Base.show(io::IO,x::Transition)
+    write(io, Symbol(x.name,x.i,x.j))
+    show_index(io, x.index)
+end
+
+function Base.show(io::IO, i::Index)
+    if !isequal(i, default_index())
+        write(io, i.name)
+    end
+end
+function show_index(io::IO, i::Index)
+    if !isequal(i, default_index())
+        write(io, "[")
+        show(io, i)
+        write(io, "]")
+    end
+end
 
 show_brackets = Ref(true)
 function Base.show(io::IO,x::Union{OperatorTerm,NumberTerm})
@@ -22,7 +44,10 @@ function Base.show(io::IO,x::Union{OperatorTerm,NumberTerm})
     show_brackets[] && write(io,")")
 end
 
-Base.show(io::IO, x::Parameter) = write(io, x.name)
+function Base.show(io::IO, x::Parameter)
+    write(io, x.name)
+    show_index(io, x.index)
+end
 function Base.show(io::IO,x::Average)
     write(io,"⟨")
     show_brackets[] = false

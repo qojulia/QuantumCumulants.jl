@@ -5,16 +5,13 @@ _to_symbolic(x::Number) = x
 _to_symbolic(x::SymbolicUtils.Symbolic) = x
 _to_symbolic(op::BasicOperator) = OPERATORS_TO_SYMS[op]
 
-# function _to_qumulants(t::SymbolicUtils.Term{T}) where T<:BasicOperator
-#     return t.f(t.arguments...)
-# end
 _to_qumulants(t::SymbolicUtils.Sym{T}) where T<:BasicOperator = SYMS_TO_OPERATORS[t]
 function _to_qumulants(t::SymbolicUtils.Term{T}) where T<:AbstractOperator
     return OperatorTerm(t.f, _to_qumulants.(t.arguments))
 end
 _to_qumulants(x::Number) = x
 
-for f in [:acts_on, :hilbert, :levels]
+for f in [:acts_on, :hilbert, :levels, :get_index]
     @eval $f(s::SymbolicUtils.Sym{<:BasicOperator}, args...) = $f(_to_qumulants(s), args...)
 end
 

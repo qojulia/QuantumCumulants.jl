@@ -10,7 +10,7 @@ struct Average{T<:Number,OP} <: SymbolicNumber
     operator::OP
 end
 Average(operator::OP) where OP = Average{Number,OP}(operator)
-Base.:(==)(a1::Average,a2::Average) = (a1.operator==a2.operator)
+Base.isequal(a1::Average,a2::Average) = isequal(a1.operator, a2.operator)
 Base.hash(a::Average{T}, h::UInt) where T = hash(a.operator, hash(T, h))
 
 Base.conj(a::Average) = Average(adjoint(a.operator))
@@ -84,13 +84,6 @@ average(arg,order;kwargs...) = cumulant_expansion(average(arg),order;kwargs...)
 
 # Conversion to SymbolicUtils
 _to_symbolic(a::Average{T}) where T<:Number = SymbolicUtils.term(average, _to_symbolic(a.operator); type=T)
-function _to_qumulants(t::SymbolicUtils.Term{T}) where T<:Number
-    if t.f===average
-        return Average(_to_qumulants(t.arguments[1]))
-    else
-        return NumberTerm{T}(t.f, _to_qumulants.(t.arguments))
-    end
-end
 
 # Cumulant expansion
 """

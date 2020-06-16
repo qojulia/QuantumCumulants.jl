@@ -17,19 +17,19 @@ a_sym = Qumulants._to_symbolic(a)
 b = Destroy(hf,:b)
 @test Qumulants._to_symbolic(a) != Qumulants._to_symbolic(b)
 
-@test a==ad'
-@test simplify_operators(a)==a
-@test simplify_operators(a+a)==2*a
-@test simplify_operators(a*a') == 1+a'*a
-@test simplify_operators(a*a' + 1) == 2 + a'*a
+@test isequal(a,ad')
+@test isequal(simplify_operators(a),a)
+@test isequal(simplify_operators(a+a),2*a)
+@test isequal(simplify_operators(a*a') , 1+a'*a)
+@test isequal(simplify_operators(a*a' + 1) , 2 + a'*a)
 
-@test simplify_operators(-1*(a'*a + 1)*a + a) == -1*a'*a*a
-@test simplify_operators(a'*a*a - a*a'*a) == -1*a
+@test isequal(simplify_operators(-1*(a'*a + 1)*a + a) , -1*a'*a*a)
+@test isequal(simplify_operators(a'*a*a - a*a'*a) , -1*a)
 
 # Single mode
 ωc = 0.1313
 H = ωc*a'*a
 da = simplify_operators(1.0im*(H*a - a*H))
-@test da == -1.0im*ωc*a
+@test isequal(da , -1.0im*ωc*a)
 
 end # testset

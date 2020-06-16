@@ -2,6 +2,15 @@ module Qumulants
 
 import SymbolicUtils
 
+"""
+    SymbolicNumber <: Number
+
+Abstract type for all symbolic numbers, i.e. [`Parameter`](@ref), [`Average`](@ref)
+and corresponding expression trees.
+"""
+abstract type SymbolicNumber <: Number end
+
+
 export HilbertSpace, ProductSpace,
         simplify_operators, substitute, expand,
         AbstractOperator, BasicOperator, Identity, Zero, OperatorTerm, ⊗, embed,
@@ -11,11 +20,13 @@ export HilbertSpace, ProductSpace,
         heisenberg, commutator, acts_on,
         SymbolicNumber, NumberTerm, Parameter, @parameters, parameters,
                 simplify_constants,
+        Index, KroneckerDelta,
         Average, average, cumulant_expansion, get_order,
         find_missing, complete, find_operators, fundamental_operators,
             unique_ops, get_symbolics, get_operators,
         build_ode, generate_ode
 
+include("indexing.jl")
 include("hilbertspace.jl")
 include("operator.jl")
 include("simplify.jl")
