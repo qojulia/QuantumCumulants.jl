@@ -74,10 +74,11 @@ let
     global default_expand_simplifier
 
     function default_operator_simplifier(; kwargs...)
-        SymbolicUtils.IfElse(
-            SymbolicUtils.sym_isa(AbstractOperator), SymbolicUtils.Postwalk(operator_simplifier()),
-            SymbolicUtils.default_simplifier(; kwargs...)
-        )
+        rule_tree = [
+            SymbolicUtils.If(SymbolicUtils.sym_isa(AbstractOperator), SymbolicUtils.Postwalk(operator_simplifier())),
+            SymbolicUtils.If(SymbolicUtils.sym_isa(Number), SymbolicUtils.default_simplifier(; kwargs...))
+        ] |> SymbolicUtils.Chain
+        SymbolicUtils.Postwalk(rule_tree)
     end
 
     function operator_simplifier()

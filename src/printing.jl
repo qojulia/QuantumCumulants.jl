@@ -21,9 +21,7 @@ function Base.show(io::IO,x::Transition)
 end
 
 function Base.show(io::IO, i::Index)
-    if !isequal(i, default_index())
-        write(io, i.name)
-    end
+    write(io, i.name)
 end
 function show_index(io::IO, i::Index)
     if !isequal(i, default_index())

@@ -22,7 +22,7 @@ b = Destroy(hf,:b)
 @test isequal(a,ad')
 @test isequal(simplify_operators(a),a)
 @test isequal(simplify_operators(a+a),2*a)
-@test isequal(simplify_operators(a*a') , 1+a'*a)
+@test isequal(simplify_operators(a*a'), 1+a'*a)
 @test isequal(simplify_operators(a*a' + 1) , 2 + a'*a)
 
 @test isequal(simplify_operators(-1*(a'*a + 1)*a + a) , -1*a'*a*a)

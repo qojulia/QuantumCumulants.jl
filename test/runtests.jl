@@ -1,6 +1,7 @@
 names = [
     "test_fock.jl"
     "test_nlevel.jl"
+    "test_indexing.jl"
     "test_embed.jl"
     "test_heisenberg.jl"
     "test_parameters.jl"

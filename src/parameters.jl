@@ -27,7 +27,7 @@ struct NumberTerm{T<:Number} <: SymbolicNumber
     f::Function
     arguments::Vector
 end
-function NumberTerm(f,args;type=promote_type(typeof.(args)...))
+function NumberTerm(f,args;type=Number)#promote_type(typeof.(args)...))
     return NumberTerm{type}(f,args)
 end
 Base.hash(t::NumberTerm{T}, h::UInt) where T = hash(t.arguments, hash(t.f, hash(T, h)))
@@ -55,7 +55,7 @@ Base.hash(p::Parameter{T}, h::UInt) where T = hash(p.name, hash(p.index, hash(T,
 # Methods
 Base.conj(p::Parameter{<:Real}) = p
 
-for f = [:+,:-,:*,:/,:^,:(==)]
+for f = [:+,:-,:*,:/,:^]
     @eval Base.$f(a::SymbolicNumber,b::Number) = NumberTerm($f, [a,b])
     @eval Base.$f(a::Number,b::SymbolicNumber) = NumberTerm($f, [a,b])
     @eval Base.$f(a::SymbolicNumber,b::SymbolicNumber) = NumberTerm($f, [a,b])
@@ -64,6 +64,10 @@ Base.:^(a::SymbolicNumber, b::Int) = NumberTerm(^, [a,b])
 for f = [:cos,:sin,:tan,:sqrt,:conj]
     @eval Base.$f(a::SymbolicNumber) = NumberTerm($f, [a])
 end
+
+Base.:(==)(a::SymbolicNumber,b::Number) = NumberTerm{Bool}((==), [a,b])
+Base.:(==)(a::Number,b::SymbolicNumber) = NumberTerm{Bool}((==), [a,b])
+Base.:(==)(a::SymbolicNumber,b::SymbolicNumber) = NumberTerm{Bool}((==), [a,b])
 
 # Variadic methods
 Base.:-(x::SymbolicNumber) = -1*x
@@ -101,6 +105,7 @@ end
 # Conversion to SymbolicUtils
 function parameter end
 function average end
+function index end
 function _to_symbolic(p::Parameter{T}) where T
     SymbolicUtils.term(parameter, p.name, p.index; type=T)
 end
@@ -112,8 +117,10 @@ function _to_qumulants(t::SymbolicUtils.Term{T}) where T<:Number
         return Parameter{T}(t.arguments...)
     elseif t.f===average
         return average(_to_qumulants(t.arguments[1]))
+    elseif t.f===index
+        return Index(t.arguments...)
     else
-        return NumberTerm(t.f, _to_qumulants.(t.arguments))
+        return NumberTerm{T}(t.f, _to_qumulants.(t.arguments))
     end
 end
 

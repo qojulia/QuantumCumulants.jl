@@ -87,8 +87,11 @@ function commute_bosonic(f,args)
     commuted_args = []
     i = 1
     while i <= length(args)
-        if isdestroy(args[i]) && i<length(args) && iscreate(args[i+1]) && (acts_on(args[i])==acts_on(args[i+1])) && isequal(get_index(args[i]), get_index(args[i+1]))
-            push!(commuted_args, args[i+1]*args[i] + 1)
+        if isdestroy(args[i]) && i<length(args) && iscreate(args[i+1]) && (acts_on(args[i])==acts_on(args[i+1]))
+            idx1 = _to_symbolic(get_index(args[i]))
+            idx2 = _to_symbolic(get_index(args[i+1]))
+            δ = idx1==idx2
+            push!(commuted_args, args[i+1]*args[i] + δ)
             i += 2
         else
             push!(commuted_args, args[i])

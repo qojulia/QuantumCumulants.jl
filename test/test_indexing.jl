@@ -13,3 +13,4 @@ a(i) = Destroy(hf,:a; index=i)
 @test simplify_operators(a(i)*a(j)) == simplify_operators(a(j)*a(i))
 
 @test simplify_operators(a(i)*a(i)') == 1 + a(i)'*a(i)
+@test simplify_operators(a(i)*a(j)') == (i==j) + a(j)'*a(i)

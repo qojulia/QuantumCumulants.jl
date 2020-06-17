@@ -8,3 +8,5 @@ Base.isless(i::Index, j::Index) = isless(hash(j), hash(i))
 # Base.in(i::Index,j::Index) = isequal(i, j)
 
 default_index() = Index(:DEFAULT, 1, 1)
+
+_to_symbolic(i::Index) = SymbolicUtils.term(index, i.name, i.lower, i.upper; type=Int)

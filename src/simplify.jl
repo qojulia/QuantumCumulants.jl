@@ -219,7 +219,7 @@ end
 
 lt_inds(isthis) = (x,y) -> lt_inds(isthis, x, y)
 function lt_inds(isthis, x, y)
-    if (isthis(x) && isthis(y)) && (acts_on(x) == acts_on(y))
+    if (isthis(x) && isthis(y)) && isequal(acts_on(x), acts_on(y))
         return get_index(x) < get_index(y)
     else
         return false

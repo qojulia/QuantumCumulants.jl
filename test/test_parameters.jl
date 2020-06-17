@@ -49,7 +49,7 @@ J = [a,σ,σ']
 he_laser = heisenberg([a'*a,σ'*σ,a'*σ],H,J;rates=[κ,γ,ν])
 
 @test he_laser.rhs[1] == simplify_operators((-κ)*a'*a + (-1.0im*g)*a'*σ + (1.0im*g)*a*σ')
-@test he_laser.rhs[2] == simplify_operators((1.0im*g)*a'*σ + (-1.0im*g)*a*σ' + ν + (-ν - γ)*σee)
+@test iszero(simplify_operators(he_laser.rhs[2] - ((1.0im*g)*a'*σ + (-1.0im*g)*a*σ' + ν + (-ν - γ)*σee)))
 @test he_laser.rhs[3] == simplify_operators((1.0im*g)*σee + (-1.0im*g)*a'*a + (1.0im*(ωc - ωa) - 0.5*(κ + γ + ν))*a'*σ + (2.0im*g)*a'*a*σee)
 
 end # testset
