@@ -1,6 +1,7 @@
 module Qumulants
 
 import SymbolicUtils
+using Combinatorics: partitions, combinations, permutations
 
 """
     SymbolicNumber <: Number

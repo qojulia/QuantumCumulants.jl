@@ -1,5 +1,3 @@
-using Combinatorics: partitions, combinations
-
 """
     Average <: SymbolicNumber
 
@@ -31,9 +29,14 @@ function average(op::OperatorTerm)
         # Move constants out of average
         cs, ops = separate_constants(op)
         if isempty(cs)
-            return Average(op)
+            op_ = expand(op)
+            if isequal(op_, op)
+                return Average(op)
+            else
+                return average(op_)
+            end
         else
-            return op.f(cs...)*Average(op.f(ops...))
+            return op.f(cs...)*average(op.f(ops...))
         end
     else
         return Average(op)
@@ -42,15 +45,10 @@ end
 average(x::Number) = x
 
 separate_constants(x::Number) = [x],[]
-separate_constants(op::BasicOperator) = [],[op]
-function separate_constants(op::OperatorTerm)
-    cs = []
-    ops = []
-    for arg in op.arguments
-        c_, op_ = separate_constants(arg)
-        append!(cs, c_)
-        append!(ops, op_)
-    end
+separate_constants(op::AbstractOperator) = [],[op]
+function separate_constants(op::OperatorTerm{<:typeof(*)})
+    cs = filter(x->isa(x,Number), op.arguments)
+    ops = filter(x->isa(x,AbstractOperator), op.arguments)
     return cs, ops
 end
 
@@ -136,7 +134,7 @@ function cumulant_expansion(avg::Average,order::Vector;mix_choice=maximum,kwargs
     return cumulant_expansion(avg,order_;kwargs...)
 end
 cumulant_expansion(x::Number,order;kwargs...) = x
-function cumulant_expansion(x::NumberTerm,order;mix_choice=maximum, kwargs...)
+function cumulant_expansion(x::NumberTerm,order;mix_choice=maximum, simplify=false, kwargs...)
     cumulants = [cumulant_expansion(arg,order;simplify=false,mix_choice=mix_choice) for arg in x.arguments]
     return simplify_constants(x.f(cumulants...);kwargs...)
 end

@@ -6,20 +6,7 @@ See also: [`Destroy`](@ref), [`Create`](@ref)
 """
 struct FockSpace{S} <: HilbertSpace
     name::S
-    function FockSpace{S}(name::S) where S
-        rules = [
-            SymbolicUtils.@rule(*(~~x::has_consecutive(isdestroy,iscreate)) => commute_bosonic(*, ~~x)),
-            # TODO: move to sorting
-            SymbolicUtils.@rule(*(~~x::(!issorted_by_inds(isdestroy))) => sort_by_inds(*, isdestroy, ~~x)),
-            SymbolicUtils.@rule(*(~~x::(!issorted_by_inds(iscreate))) => sort_by_inds(*, iscreate, ~~x))
-            ]
-        for r in rules
-            (r ∈ COMMUTATOR_RULES.rules) || push!(COMMUTATOR_RULES.rules, r)
-        end
-        new(name)
-    end
 end
-FockSpace(name::S) where S = FockSpace{S}(name)
 Base.isequal(h1::T,h2::T) where T<:FockSpace = isequal(h1.name, h2.name)
 
 """
@@ -44,7 +31,6 @@ struct Destroy{H<:HilbertSpace,S,A,IND} <: BasicOperator
         return op
     end
 end
-isdestroy(a) = false
 isdestroy(a::SymbolicUtils.Sym{T}) where {T<:Destroy} = true
 
 """
@@ -69,7 +55,6 @@ struct Create{H<:HilbertSpace,S,A,IND} <: BasicOperator
         return op
     end
 end
-iscreate(a) = false
 iscreate(a::SymbolicUtils.Sym{T}) where {T<:Create} = true
 
 for f in [:Destroy,:Create]
@@ -111,22 +96,4 @@ function commute_bosonic(f,args)
         end
     end
     return f(commuted_args...)
-end
-
-# Sort equal operators with different indices by their indices
-issorted_by_inds(isthis) = x->issorted_by_inds(isthis, x)
-issorted_by_inds(isthis, args) = issorted(args, lt=lt_inds(isthis))
-
-function sort_by_inds(f, isthis, args)
-    sorted = sort(args, lt=lt_inds(isthis))
-    f(sorted...)
-end
-
-lt_inds(isthis) = (x,y) -> lt_inds(isthis, x, y)
-function lt_inds(isthis, x, y)
-    if (isthis(x) && isthis(y)) && (acts_on(x) == acts_on(y))
-        return get_index(x) < get_index(y)
-    else
-        return false
-    end
 end

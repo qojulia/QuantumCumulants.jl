@@ -15,6 +15,7 @@ avg_sym = Qumulants._to_symbolic(average(a))
 @test isequal(Qumulants._to_qumulants(avg_sym),average(a))
 
 @test isequal(average(2im*a'*σ)' , (-2im)*average(a*σ'))
+@test isequal(average(2*(a+a)), 2*(average(a) + average(a)))
 
 @test isequal(simplify_constants(average(σ)+average(σ)),average(2σ))
 @test simplify_constants(average(σ)-average(σ))==0
@@ -22,6 +23,7 @@ avg_sym = Qumulants._to_symbolic(average(a))
 ωc, ωa = parameters("ω_c ω_a")
 @test isequal(average(ωc), ωc)
 @test isequal(average(ωc*a), ωc*average(a))
+@test isequal(average(ωc*(a+a')), ωc*(average(a) + average(a')))
 
 n = average(a'*a)
 @test isequal(cumulant_expansion(n,2), n)
