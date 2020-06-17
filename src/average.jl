@@ -33,7 +33,7 @@ function average(op::OperatorTerm)
         if isempty(cs)
             return Average(op)
         else
-            return op.f(cs...)*Average(op.f(ops...))
+            return op.f(cs...)*average(op.f(ops...))
         end
     else
         return Average(op)
@@ -42,15 +42,10 @@ end
 average(x::Number) = x
 
 separate_constants(x::Number) = [x],[]
-separate_constants(op::BasicOperator) = [],[op]
-function separate_constants(op::OperatorTerm)
-    cs = []
-    ops = []
-    for arg in op.arguments
-        c_, op_ = separate_constants(arg)
-        append!(cs, c_)
-        append!(ops, op_)
-    end
+separate_constants(op::AbstractOperator) = [],[op]
+function separate_constants(op::OperatorTerm{<:typeof(*)})
+    cs = filter(x->isa(x,Number), op.arguments)
+    ops = filter(x->isa(x,AbstractOperator), op.arguments)
     return cs, ops
 end
 
