@@ -31,7 +31,12 @@ function average(op::OperatorTerm)
         # Move constants out of average
         cs, ops = separate_constants(op)
         if isempty(cs)
-            return Average(op)
+            op_ = expand(op)
+            if isequal(op_, op)
+                return Average(op)
+            else
+                return average(op_)
+            end
         else
             return op.f(cs...)*average(op.f(ops...))
         end
