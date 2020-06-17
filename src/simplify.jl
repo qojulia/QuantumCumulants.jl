@@ -41,41 +41,37 @@ Base.zero(x::SymbolicUtils.Sym{SymbolicUtils.FnType{A,T}}) where {A,T<:AbstractO
 ### End of interface
 
 """
-    simplify_operators(op::AbstractOperator; rules=default_rules(), kwargs...)
+    simplify_operators(op::AbstractOperator; rewriter=default_operator_simplifier(), kwargs...)
 
 Simplify an operator through standard algebraic rewriting, as well as using
 fundamental commutation relations.
 
 # Arguments
 ===========
-* op: The operator expression to be simplified
-* rules: The rules used. Defaults to SIMPLIFY_OPERATOR_RULES
+* op: The operator expression to be simplified.
+* rewriter: The rewriter used.
 * kwargs: Further arguments passed to `SymbolicUtils.simplify`.
 """
-function simplify_operators(op::AbstractOperator; rules=default_rules(),
-                commutator_rules=default_commutator_rules(),
+function simplify_operators(op::AbstractOperator; rewriter=default_operator_simplifier(),
+                commutator_rewriter=default_commutator_simplifier(),
                 kwargs...)
     s = _to_symbolic(op)
-    s_ = _simplify_operators(s, rules, commutator_rules; kwargs...)
+    s_ = _simplify_operators(s, rewriter, commutator_rewriter; kwargs...)
     (SymbolicUtils.symtype(s_) == Any) && @warn "SymbolicUtils.simplify returned symtype Any; recursion failed!"
     return _to_qumulants(s_)
 end
-function _simplify_operators(s, rules, commutator_rules; kwargs...)
-    s_ = SymbolicUtils.simplify(s; rules=commutator_rules)
-    s_ = SymbolicUtils.simplify(s_; rules=rules, kwargs...)
+function _simplify_operators(s, rewriter, commutator_rewriter; kwargs...)
+    s_ = SymbolicUtils.simplify(s; rewriter=commutator_rewriter)
+    s_ = SymbolicUtils.simplify(s_; rewriter=rewriter, kwargs...)
     return s_
 end
 simplify_operators(x::Number, args...; kwargs...) = x
 
-function expand(ex; rules=default_expand_rules(), fixpoint=true, applyall=true, recurse=true, kwargs...)
+function expand(ex; rewriter=default_expand_simplifier(), kwargs...)
     s = _to_symbolic(ex)
-    s_ = SymbolicUtils.simplify(s; rules=rules, fixpoint=fixpoint, applyall=applyall, recurse=recurse, kwargs...)
+    s_ = SymbolicUtils.simplify(s; rewriter=rewriter, kwargs...)
     return _to_qumulants(s_)
 end
-
-default_rules() = SIMPLIFY_OPERATOR_RULES
-default_commutator_rules() = SIMPLIFY_COMMUTATOR_RULES
-default_expand_rules() = EXPAND_RULES
 
 """
     substitute(arg, subs; simplify=true)

@@ -1,5 +1,3 @@
-using Combinatorics: partitions, combinations
-
 """
     Average <: SymbolicNumber
 
@@ -143,7 +141,7 @@ function cumulant_expansion(avg::Average,order::Vector;mix_choice=maximum,kwargs
     return cumulant_expansion(avg,order_;kwargs...)
 end
 cumulant_expansion(x::Number,order;kwargs...) = x
-function cumulant_expansion(x::NumberTerm,order;mix_choice=maximum, kwargs...)
+function cumulant_expansion(x::NumberTerm,order;mix_choice=maximum, simplify=false, kwargs...)
     cumulants = [cumulant_expansion(arg,order;simplify=false,mix_choice=mix_choice) for arg in x.arguments]
     return simplify_constants(x.f(cumulants...);kwargs...)
 end

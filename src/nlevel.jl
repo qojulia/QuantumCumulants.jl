@@ -23,15 +23,7 @@ struct NLevelSpace{S,L,G} <: HilbertSpace
     name::S
     levels::L
     GS::G
-    function NLevelSpace{S,L,G}(name::S,levels::L,GS::G) where {S,L,G}
-        r1 = SymbolicUtils.@rule(*(~~x::has_consecutive(istransition)) => merge_transitions(*, ~~x))
-        r2 = SymbolicUtils.@rule(~x::istransition => rewrite_gs(~x))
-        (r1 ∈ COMMUTATOR_RULES.rules) || push!(COMMUTATOR_RULES.rules, r1)
-        (r2 ∈ COMMUTATOR_RULES.rules) || push!(COMMUTATOR_RULES.rules, r2)
-        new(name,levels,GS)
-    end
 end
-NLevelSpace(name::S,levels::L,GS::G) where {S,L,G} = NLevelSpace{S,L,G}(name,levels,GS)
 NLevelSpace(name,N::Int,GS) = NLevelSpace(name,1:N,GS)
 NLevelSpace(name,N::Int) = NLevelSpace(name,1:N,1)
 NLevelSpace(name,levels) = NLevelSpace(name,levels,levels[1])
@@ -106,7 +98,6 @@ Base.:(==)(t1::Transition,t2::Transition) = (t1.hilbert==t2.hilbert && t1.name==
 Base.hash(t::Transition, h::UInt) = hash(t.hilbert, hash(t.name, hash(t.i, hash(t.j, hash(t.aon, h)))))
 
 # Simplification
-istransition(x) = false
 istransition(x::Union{T,SymbolicUtils.Sym{T}}) where T<:Transition = true
 
 function merge_transitions(f::Function, args)
