@@ -65,9 +65,12 @@ for f = [:cos,:sin,:tan,:sqrt,:conj]
     @eval Base.$f(a::SymbolicNumber) = NumberTerm($f, [a])
 end
 
-Base.:(==)(a::SymbolicNumber,b::Number) = NumberTerm{Bool}((==), [a,b])
-Base.:(==)(a::Number,b::SymbolicNumber) = NumberTerm{Bool}((==), [a,b])
-Base.:(==)(a::SymbolicNumber,b::SymbolicNumber) = NumberTerm{Bool}((==), [a,b])
+# Booleans
+for f = [:(==), :(!=)]
+    @eval Base.$(f)(a::SymbolicNumber,b::Number) = NumberTerm{Bool}($(f), [a,b])
+    @eval Base.$(f)(a::Number,b::SymbolicNumber) = NumberTerm{Bool}($(f), [a,b])
+    @eval Base.$(f)(a::SymbolicNumber,b::SymbolicNumber) = NumberTerm{Bool}($(f), [a,b])
+end
 
 # Variadic methods
 Base.:-(x::SymbolicNumber) = -1*x

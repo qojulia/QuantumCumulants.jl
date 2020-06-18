@@ -207,6 +207,29 @@ function unique_ops(ops)
 end
 
 
+find_neq_inds(x) = []
+find_neq_inds(t::OperatorTerm{<:typeof(*)}) = find_neq_inds(t.arguments)
+function find_neq_inds(t::NumberTerm)
+    if t.f===(!=)
+        # TODO: check that these are indices
+        return [t]
+    elseif t.f===(*)
+        return find_neq_inds(t.arguments)
+    else
+        return []
+    end
+end
+function find_neq_inds(args::Vector)
+    neq_inds = []
+    for arg in args
+        append!(neq_inds, find_neq_inds(arg))
+    end
+    unique!(neq_inds)
+    return neq_inds
+end
+find_neq_inds(t::SymbolicUtils.Symbolic) = find_neq_inds(_to_qumulants(t))
+
+
 _to_expression(x::Number) = x
 function _to_expression(x::Complex) # For brackets when using latexify
     iszero(x) && return x

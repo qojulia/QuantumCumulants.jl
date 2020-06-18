@@ -75,7 +75,7 @@ struct Transition{H,S,I,A,IND} <: BasicOperator
     end
 end
 Transition(hilbert::H,name::S,i::I,j::I,aon::A,index::IND=default_index()) where {H,S,I,A,IND<:Index} = Transition{H,S,I,A,IND}(hilbert,name,i,j,aon,index)
-Transition(hilbert::NLevelSpace,name,i,j) = Transition(hilbert,name,i,j,1)
+Transition(hilbert::NLevelSpace,name,i,j;index=default_index()) = Transition(hilbert,name,i,j,1,index)
 function Transition(hilbert::ProductSpace,name,i,j;index=default_index())
     inds = findall(x->isa(x,NLevelSpace),hilbert.spaces)
     if length(inds)==1
@@ -104,8 +104,18 @@ function merge_transitions(f::Function, args)
     merged = Any[]
     i = 1
     while i <= length(args)
-       if istransition(args[i])&&(i<length(args))&&istransition(args[i+1])&&(acts_on(args[i])==acts_on(args[i+1]))&&isequal(get_index(args[i]), get_index(args[i+1]))
-           push!(merged, merge_transitions(args[i],args[i+1]))
+       if istransition(args[i])&&(i<length(args))&&istransition(args[i+1])&&(acts_on(args[i])==acts_on(args[i+1]))
+           idx1 = get_index(args[i])
+           idx2 = get_index(args[i+1])
+           if isequal(idx1, idx2)
+               push!(merged, merge_transitions(args[i],args[i+1]))
+           else
+               δ = _to_symbolic(idx1==idx2)
+               ex1 = δ*merge_transitions(args[i],args[i+1])
+               ex2 = SymbolicUtils.term(neq_inds_prod, [args[i], args[i+1]], [idx1!=idx2]; type=AbstractOperator)
+               push!(merged, ex1+ex2)
+           end
+
            i += 2
        else
            push!(merged, args[i])
@@ -122,7 +132,7 @@ function merge_transitions(σ1::Transition, σ2::Transition)
     i1,j1 = σ1.i, σ1.j
     i2,j2 = σ2.i, σ2.j
     if j1==i2
-        return Transition(σ1.hilbert,σ1.name,i1,j2,σ1.aon,σ1.index)#SymbolicUtils.term(σ1.f, σ1.arguments[1], σ1.arguments[2], i1, j2, acts_on(σ1); type=Transition)
+        return Transition(σ1.hilbert,σ1.name,i1,j2,σ1.aon,σ1.index)
     else
         return 0
     end
@@ -146,4 +156,19 @@ function rewrite_gs(σ::Transition)
     else
         return σ
     end
+end
+
+function merge_transition_neq_prod(isthis, isthat, args)
+    merged = Any[]
+    i = 1
+    while i <= length(args)
+       if isthis(args[i])&&(i<length(args))&&isthat(args[i+1])&&(acts_on(args[i])==acts_on(args[i+1]))
+           push!(merged, merge_transition_neq_prod(args[i], args[i+1]))
+           i += 2
+       else
+           push!(merged, args[i])
+           i += 1
+       end
+   end
+   return *(merged...)
 end

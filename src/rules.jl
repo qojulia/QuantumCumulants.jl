@@ -35,7 +35,15 @@ let
         SymbolicUtils.@rule(*(~~x::SymbolicUtils.isnotflat(*)) => SymbolicUtils.flatten_term(*, ~~x))
         SymbolicUtils.@rule(*(~~x::!(issorted_nc(*))) => sort_args_nc(*, ~~x))
         SymbolicUtils.@rule(*(~~x::has_inner(+)) => expand_term(*,+,~~x))
+        # SymbolicUtils.@rule(*(~x::istransition, ~y::SymbolicUtils.is_operation(neq_inds_prod)) => )
+        SymbolicUtils.@rule(*(~~x::has_consecutive(istransition, SymbolicUtils.is_operation(neq_inds_prod)) => merge_transition_neq_prod(istransition, SymbolicUtils.is_operation(neq_inds_prod), ~~x))
+        SymbolicUtils.@rule(*(~~x::has_consecutive(SymbolicUtils.is_operation(neq_inds_prod), istransition) => merge_transition_neq_prod(SymbolicUtils.is_operation(neq_inds_prod), istransition, ~~x))
+        SymbolicUtils.@rule(*(~~x::has_consecutive(SymbolicUtils.is_operation(neq_inds_prod)) => merge_transition_neq_prod(SymbolicUtils.is_operation(neq_inds_prod), ~~x))
         SymbolicUtils.@rule(+(~~x::SymbolicUtils.isnotflat(+)) => SymbolicUtils.flatten_term(+,~~x))
+    ]
+
+    NEQ_INDS_RULES = [
+
     ]
 
 
@@ -57,6 +65,7 @@ let
         SymbolicUtils.@rule(+(~x) => ~x)
     ]
 
+    using SymbolicUtils: cond
     ASSORTED_RULES = [
         SymbolicUtils.@rule(identity(~x) => ~x)
         SymbolicUtils.@rule(-(~x) => -1*~x)
@@ -64,7 +73,7 @@ let
         SymbolicUtils.@rule(~x / ~y => ~x * pow(~y, -1))
         SymbolicUtils.@rule(one(~x) => one(SymbolicUtils.symtype(~x)))
         SymbolicUtils.@rule(zero(~x) => zero(SymbolicUtils.symtype(~x)))
-        # SymbolicUtils.@rule(SymbolicUtils.cond(~x::SymbolicUtils.isnumber, ~y, ~z) => ~x ? ~y : ~z)
+        SymbolicUtils.@rule(cond(~x::SymbolicUtils.isnumber, ~y, ~z) => ~x ? ~y : ~z)
     ]
 
     # Rewriter functions
@@ -93,6 +102,7 @@ let
     function default_commutator_simplifier()
         rule_tree = [SymbolicUtils.If(SymbolicUtils.istree, SymbolicUtils.Chain(ASSORTED_RULES)),
                     SymbolicUtils.If(SymbolicUtils.istree, SymbolicUtils.Chain(EXPAND_RULES)),
+                    SymbolicUtils.If(SymbolicUtils.is_operation(neq_inds_prod), SymbolicUtils.Chain(NEQ_INDS_RULES)),
                     SymbolicUtils.Chain(COMMUTATOR_RULES)
                     ] |> SymbolicUtils.RestartedChain
         SymbolicUtils.Postwalk(rule_tree)

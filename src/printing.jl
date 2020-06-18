@@ -41,6 +41,22 @@ function Base.show(io::IO,x::Union{OperatorTerm,NumberTerm})
     end
     show_brackets[] && write(io,")")
 end
+function Base.show(io::IO,x::OperatorTerm{<:typeof(neq_inds_prod)})
+    write(io, "(")
+    ops = x.arguments[1]
+    show(io, ops[1])
+    for i=2:length(ops)
+        show(io, (*))
+        show(io, ops[i])
+    end
+    inds = x.arguments[2]
+    write(io, "|")
+    show(io, inds[1])
+    for i=2:length(inds)
+        show(io, inds[i])
+    end
+    write(io, ")")
+end
 
 function Base.show(io::IO, x::Parameter)
     write(io, x.name)
