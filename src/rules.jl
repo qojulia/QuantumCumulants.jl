@@ -20,10 +20,13 @@ let
 
     COMMUTATOR_RULES = [
         # Fock space rules
-        SymbolicUtils.@rule(*(~~x::has_consecutive(isdestroy,iscreate)) => commute_bosonic(*, ~~x))
+        # SymbolicUtils.@rule(*(~~x::has_consecutive(isdestroy,iscreate)) => commute_bosonic(*, ~~x))
+        ANCRule(ordered_combinations, SymbolicUtils.@rule(*(~x::isdestroy, ~y::iscreate) => commute_bosonic(~x,~y)), 2)
+        # SymbolicUtils.@rule(*(~x::isdestroy, ~y::iscreate) => commute_bosonic(~x,~y))
 
         # NLevel rules
-        SymbolicUtils.@rule(*(~~x::has_consecutive(istransition)) => merge_transitions(*, ~~x))
+        ANCRule(ordered_combinations, SymbolicUtils.@rule(*(~x::istransition, ~y::istransition) => merge_transitions(~x,~y)), 2)
+        # SymbolicUtils.ACRule(permutations, SymbolicUtils.@rule(~x::istransition => rewrite_gs(~x)), 1)
         SymbolicUtils.@rule(~x::istransition => rewrite_gs(~x))
     ]
 

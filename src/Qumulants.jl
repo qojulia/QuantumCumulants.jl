@@ -17,6 +17,7 @@ export HilbertSpace, ProductSpace,
             unique_ops, get_symbolics, get_operators,
         build_ode, generate_ode
 
+include("ancrule.jl")
 include("hilbertspace.jl")
 include("operator.jl")
 include("simplify.jl")

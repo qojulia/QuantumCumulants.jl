@@ -5,9 +5,6 @@ _to_symbolic(x::Number) = x
 _to_symbolic(x::SymbolicUtils.Symbolic) = x
 _to_symbolic(op::BasicOperator) = OPERATORS_TO_SYMS[op]
 
-# function _to_qumulants(t::SymbolicUtils.Term{T}) where T<:BasicOperator
-#     return t.f(t.arguments...)
-# end
 _to_qumulants(t::SymbolicUtils.Sym{T}) where T<:BasicOperator = SYMS_TO_OPERATORS[t]
 function _to_qumulants(t::SymbolicUtils.Term{T}) where T<:AbstractOperator
     return OperatorTerm(t.f, _to_qumulants.(t.arguments))
@@ -120,6 +117,9 @@ end
 substitute(x::Number, dict; kwargs...) = x
 
 ### Functions needed for simplification
+
+# Ordered combinations for ACRules that are actually noncommutative
+ordered_combinations(inds, n) = (@views(inds[i:i+n-1]) for i=1:length(inds)-n+1)
 
 # Handle noncommutative multiplication
 iscommutative(::typeof(*), x::Union{SymbolicUtils.Symbolic{SymbolicUtils.FnType{A,T}},T}) where {A,T<:AbstractOperator} = false

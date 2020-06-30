@@ -28,6 +28,8 @@ b = Destroy(hf,:b)
 @test simplify_operators(-1*(a'*a + 1)*a + a) == -1*a'*a*a
 @test simplify_operators(a'*a*a - a*a'*a) == -1*a
 
+@test simplify_operators(a'*a*a'*a) == a'*a + a'*a'*a*a
+
 # Single mode
 ωc = 0.1313
 H = ωc*a'*a
