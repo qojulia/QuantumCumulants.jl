@@ -136,7 +136,7 @@ function issorted_nc(f::typeof(*), args)
 end
 
 # Comparison for sorting according to Hilbert spaces
-function lt_aon(t1::SymbolicUtils.Symbolic{<:AbstractOperator},t2::SymbolicUtils.Symbolic{<:AbstractOperator})
+function lt_aon(t1,t2)
     aon1 = acts_on(t1)
     aon2 = acts_on(t2)
     if any(a1 ∈ aon2 for a1 in aon1)

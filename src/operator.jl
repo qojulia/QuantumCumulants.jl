@@ -51,7 +51,7 @@ function Base.adjoint(t::OperatorTerm{<:typeof(*)})
     args = reverse(adjoint.(t.arguments))
     is_c = iscommutative.(*,args)
     args_c = args[is_c]
-    args_nc = sort(args[.!is_c], by=acts_on)
+    args_nc = sort(args[.!is_c], lt=lt_aon)
     return OperatorTerm(t.f, [args_c;args_nc])
 end
 
