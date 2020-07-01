@@ -119,7 +119,7 @@ substitute(x::Number, dict; kwargs...) = x
 ### Functions needed for simplification
 
 # Ordered combinations for ACRules that are actually noncommutative
-ordered_combinations(inds, n) = (@views(inds[i:i+n-1]) for i=1:length(inds)-n+1)
+subsets(inds, n) = (@views(inds[i:i+n-1]) for i=1:length(inds)-n+1)
 
 # Handle noncommutative multiplication
 iscommutative(::typeof(*), x::Union{SymbolicUtils.Symbolic{SymbolicUtils.FnType{A,T}},T}) where {A,T<:AbstractOperator} = false
@@ -196,17 +196,4 @@ function expand_term(f_outer, f_inner, args)
             return f_inner(expanded_args...)
         end
     end
-end
-
-# Check if specific consecutive arguments occur
-has_consecutive(isthis) = has_consecutive(isthis,isthis)
-has_consecutive(isthis,isthat) = x -> has_consecutive(isthis,isthat,x)
-function has_consecutive(isthis,isthat,args)
-    length(args) <= 1 && return false
-    for i=1:length(args)-1
-        if isthis(args[i])&&isthat(args[i+1])&&(acts_on(args[i])==acts_on(args[i+1]))
-            return true
-        end
-    end
-    return false
 end
