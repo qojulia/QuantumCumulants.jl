@@ -83,20 +83,13 @@ Base.adjoint(op::Destroy) = Create(op.hilbert,op.name,acts_on(op);index=get_inde
 Base.adjoint(op::Create) = Destroy(op.hilbert,op.name,acts_on(op);index=get_index(op))
 
 # Commutation relation in simplification
-function commute_bosonic(f,args)
-    commuted_args = []
-    i = 1
-    while i <= length(args)
-        if isdestroy(args[i]) && i<length(args) && iscreate(args[i+1]) && (acts_on(args[i])==acts_on(args[i+1]))
-            idx1 = _to_symbolic(get_index(args[i]))
-            idx2 = _to_symbolic(get_index(args[i+1]))
-            δ = idx1==idx2
-            push!(commuted_args, args[i+1]*args[i] + δ)
-            i += 2
-        else
-            push!(commuted_args, args[i])
-            i += 1
-        end
+function commute_bosonic(a,b)
+    if acts_on(a)==acts_on(b)
+        idx1 = _to_symbolic(get_index(args[i]))
+        idx2 = _to_symbolic(get_index(args[i+1]))
+        δ = idx1==idx2
+        return b*a + δ
+    else
+        return nothing
     end
-    return f(commuted_args...)
 end

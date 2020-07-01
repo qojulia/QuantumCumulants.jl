@@ -125,22 +125,22 @@ function merge_transitions(f::Function, args)
    return f(merged...)
 end
 function merge_transitions(σ1::SymbolicUtils.Sym{<:Transition},σ2::SymbolicUtils.Sym{<:Transition})
-    op = merge_transitions(_to_qumulants(σ1), _to_qumulants(σ2))
-    return _to_symbolic(op)
+    merge_transitions(_to_qumulants(σ1), _to_qumulants(σ2))
 end
 function merge_transitions(σ1::Transition, σ2::Transition)
-    i1,j1 = σ1.i, σ1.j
-    i2,j2 = σ2.i, σ2.j
-    if j1==i2
-        return Transition(σ1.hilbert,σ1.name,i1,j2,σ1.aon,σ1.index)
-    else
-        return 0
+    if acts_on(σ1)==acts_on(σ2) && isequal(σ1.index,σ2.index)
+        i1,j1 = σ1.i, σ1.j
+        i2,j2 = σ2.i, σ2.j
+        if j1==i2
+            op = Transition(σ1.hilbert,σ1.name,i1,j2,σ1.aon,σ1.index)
+            return _to_symbolic(op)
+        else
+            return 0
+        end
     end
+    return nothing
 end
-function rewrite_gs(t::SymbolicUtils.Sym{<:Transition})
-    op = rewrite_gs(_to_qumulants(t))
-    return _to_symbolic(op)
-end
+rewrite_gs(t::SymbolicUtils.Sym{<:Transition}) = rewrite_gs(_to_qumulants(t))
 function rewrite_gs(σ::Transition)
     h = σ.hilbert
     aon = acts_on(σ)
@@ -152,9 +152,10 @@ function rewrite_gs(σ::Transition)
         for k in levels(h,aon)
             (k==i) || push!(args, -1*Transition(h, σ.name, k, k, aon, idx))
         end
-        return +(args...)
+        out = +(args...)
+        return _to_symbolic(out)
     else
-        return σ
+        return nothing
     end
 end
 
