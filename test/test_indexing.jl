@@ -10,8 +10,8 @@ k = Index(:k, 1, n)
 a(i) = Destroy(hf,:a; index=i)
 
 @test simplify_operators(a(i)+a(i))==2*a(i)
-@test simplify_operators(a(i) + a(j)) == simplify_operators(a(j) + a(i))
-@test simplify_operators(a(i)*a(j)) == simplify_operators(a(j)*a(i))
+@test simplify_operators(a(i) + a(j)) == simplify_operators(a(j) + a(i)) == a(i)+a(j)
+@test simplify_operators(a(i)*a(j)) == simplify_operators(a(j)*a(i)) == a(i)*a(j)
 
 @test simplify_operators(a(i)*a(i)') == 1 + a(i)'*a(i)
 @test simplify_operators(a(i)*a(j)') == (i==j) + a(j)'*a(i)
@@ -37,6 +37,3 @@ ex = σ(i)*σ(j)
 ex_ = Qumulants.neq_inds_prod(ex.arguments, [i!=j])
 @test isequal(simplify_operators(ex), ex_)
 ex = σ(i)'*σ(j)
-ex_sym = Qumulants._to_symbolic(ex_)
-
-Qumulants.has_consecutive(Qumulants.istransition)(ex_sym.arguments)

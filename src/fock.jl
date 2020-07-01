@@ -85,8 +85,8 @@ Base.adjoint(op::Create) = Destroy(op.hilbert,op.name,acts_on(op);index=get_inde
 # Commutation relation in simplification
 function commute_bosonic(a,b)
     if acts_on(a)==acts_on(b)
-        idx1 = _to_symbolic(get_index(args[i]))
-        idx2 = _to_symbolic(get_index(args[i+1]))
+        idx1 = _to_symbolic(get_index(a))
+        idx2 = _to_symbolic(get_index(b))
         δ = idx1==idx2
         return b*a + δ
     else

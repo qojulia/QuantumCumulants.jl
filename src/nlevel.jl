@@ -100,46 +100,36 @@ Base.hash(t::Transition, h::UInt) = hash(t.hilbert, hash(t.name, hash(t.i, hash(
 # Simplification
 istransition(x::Union{T,SymbolicUtils.Sym{T}}) where T<:Transition = true
 
-function merge_transitions(f::Function, args)
-    merged = Any[]
-    i = 1
-    while i <= length(args)
-       if istransition(args[i])&&(i<length(args))&&istransition(args[i+1])&&(acts_on(args[i])==acts_on(args[i+1]))
-           idx1 = get_index(args[i])
-           idx2 = get_index(args[i+1])
-           if isequal(idx1, idx2)
-               push!(merged, merge_transitions(args[i],args[i+1]))
-           else
-               δ = _to_symbolic(idx1==idx2)
-               ex1 = δ*merge_transitions(args[i],args[i+1])
-               ex2 = SymbolicUtils.term(neq_inds_prod, [args[i], args[i+1]], [idx1!=idx2]; type=AbstractOperator)
-               push!(merged, ex1+ex2)
-           end
-
-           i += 2
-       else
-           push!(merged, args[i])
-           i += 1
-       end
-   end
-   return f(merged...)
-end
 function merge_transitions(σ1::SymbolicUtils.Sym{<:Transition},σ2::SymbolicUtils.Sym{<:Transition})
     merge_transitions(_to_qumulants(σ1), _to_qumulants(σ2))
 end
 function merge_transitions(σ1::Transition, σ2::Transition)
-    if acts_on(σ1)==acts_on(σ2) && isequal(σ1.index,σ2.index)
-        i1,j1 = σ1.i, σ1.j
-        i2,j2 = σ2.i, σ2.j
-        if j1==i2
-            op = Transition(σ1.hilbert,σ1.name,i1,j2,σ1.aon,σ1.index)
-            return _to_symbolic(op)
+    if acts_on(σ1)==acts_on(σ2)
+        idx1 = get_index(σ1)
+        idx2 = get_index(σ2)
+        if isequal(idx1, idx2)
+            return _merge_transitions(σ1,σ2)
         else
-            return 0
+            δ = _to_symbolic(idx1==idx2)
+            ex1 = δ*_merge_transitions(σ1,σ2)
+            ex2 = SymbolicUtils.term(neq_inds_prod, [σ1, σ2], [idx1!=idx2]; type=AbstractOperator)
+            return ex1 + ex2
         end
     end
     return nothing
 end
+function _merge_transitions(σ1,σ2)
+    i1,j1 = σ1.i, σ1.j
+    i2,j2 = σ2.i, σ2.j
+    if j1==i2
+        op = Transition(σ1.hilbert,σ1.name,i1,j2,σ1.aon,σ1.index)
+        return _to_symbolic(op)
+    else
+        return 0
+    end
+    return nothing
+end
+
 rewrite_gs(t::SymbolicUtils.Sym{<:Transition}) = rewrite_gs(_to_qumulants(t))
 function rewrite_gs(σ::Transition)
     h = σ.hilbert
@@ -159,17 +149,12 @@ function rewrite_gs(σ::Transition)
     end
 end
 
-function merge_transition_neq_prod(isthis, isthat, args)
-    merged = Any[]
-    i = 1
-    while i <= length(args)
-       if isthis(args[i])&&(i<length(args))&&isthat(args[i+1])&&(acts_on(args[i])==acts_on(args[i+1]))
-           push!(merged, merge_transition_neq_prod(args[i], args[i+1]))
-           i += 2
-       else
-           push!(merged, args[i])
-           i += 1
-       end
-   end
-   return *(merged...)
+# Transition * NeqInds
+function merge_neq_inds_prods(x::SymbolicUtils.Sym, y::SymbolicUtils.Term)
+end
+# NeqInds * Transition
+function merge_neq_inds_prods(x::SymbolicUtils.Term, y::SymbolicUtils.Sym)
+end
+# NeqInds * NeqInds
+function merge_neq_inds_prods(x::SymbolicUtils.Term, y::SymbolicUtils.Term)
 end

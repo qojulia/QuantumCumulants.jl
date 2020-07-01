@@ -16,3 +16,4 @@ neq_inds_prod(args,inds) = OperatorTerm(neq_inds_prod, [args,inds])
 
 _to_symbolic(args::Vector) = _to_symbolic.(args)
 _to_qumulants(args::Vector) = _to_qumulants.(args)
+_to_qumulants(x::AbstractOperator) = x

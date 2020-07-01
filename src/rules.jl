@@ -24,9 +24,15 @@ let
         SymbolicUtils.@rule(*(~~x::(!issorted_by_inds(isdestroy))) => sort_by_inds(*, isdestroy, ~~x))
         SymbolicUtils.@rule(*(~~x::(!issorted_by_inds(iscreate))) => sort_by_inds(*, iscreate, ~~x))
 
+
         # NLevel rules
         ANCRule(subsets, SymbolicUtils.@rule(*(~x::istransition, ~y::istransition) => merge_transitions(~x,~y)), 2)
         SymbolicUtils.@rule(~x::istransition => rewrite_gs(~x))
+
+        # Rules for != indices
+        ANCRule(subsets, SymbolicUtils.@rule(*(~x::istransition, ~y::SymbolicUtils.is_operation(neq_inds_prod)) => merge_neq_inds_prod(~x,~y)), 2)
+        ANCRule(subsets, SymbolicUtils.@rule(*(~x::SymbolicUtils.is_operation(neq_inds_prod), ~y::istransition) => merge_neq_inds_prod(~x,~y)), 2)
+        ANCRule(subsets, SymbolicUtils.@rule(*(~x::SymbolicUtils.is_operation(neq_inds_prod), ~y::SymbolicUtils.is_operation(neq_inds_prod)) => merge_neq_inds_prod(~x,~y)), 2)
     ]
 
     EXPAND_RULES = [
@@ -35,10 +41,6 @@ let
         SymbolicUtils.@rule(*(~~x::SymbolicUtils.isnotflat(*)) => SymbolicUtils.flatten_term(*, ~~x))
         SymbolicUtils.@rule(*(~~x::!(issorted_nc(*))) => sort_args_nc(*, ~~x))
         SymbolicUtils.@rule(*(~~x::has_inner(+)) => expand_term(*,+,~~x))
-        # SymbolicUtils.@rule(*(~x::istransition, ~y::SymbolicUtils.is_operation(neq_inds_prod)) => )
-        # SymbolicUtils.@rule(*(~~x::has_consecutive(istransition, SymbolicUtils.is_operation(neq_inds_prod)) => merge_transition_neq_prod(istransition, SymbolicUtils.is_operation(neq_inds_prod), ~~x))
-        # SymbolicUtils.@rule(*(~~x::has_consecutive(SymbolicUtils.is_operation(neq_inds_prod), istransition) => merge_transition_neq_prod(SymbolicUtils.is_operation(neq_inds_prod), istransition, ~~x))
-        # SymbolicUtils.@rule(*(~~x::has_consecutive(SymbolicUtils.is_operation(neq_inds_prod)) => merge_transition_neq_prod(SymbolicUtils.is_operation(neq_inds_prod), ~~x))
         SymbolicUtils.@rule(+(~~x::SymbolicUtils.isnotflat(+)) => SymbolicUtils.flatten_term(+,~~x))
     ]
 
