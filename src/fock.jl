@@ -81,17 +81,4 @@ Base.adjoint(op::Destroy) = Create(op.hilbert,op.name,acts_on(op))
 Base.adjoint(op::Create) = Destroy(op.hilbert,op.name,acts_on(op))
 
 # Commutation relation in simplification
-function commute_bosonic(f,args)
-    commuted_args = []
-    i = 1
-    while i <= length(args)
-        if isdestroy(args[i]) && i<length(args) && iscreate(args[i+1]) && (acts_on(args[i])==acts_on(args[i+1]))
-            push!(commuted_args, args[i+1]*args[i] + 1)
-            i += 2
-        else
-            push!(commuted_args, args[i])
-            i += 1
-        end
-    end
-    return f(commuted_args...)
-end
+commute_bosonic(a,b) = b*a + one(a)

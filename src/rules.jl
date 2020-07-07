@@ -20,10 +20,10 @@ let
 
     COMMUTATOR_RULES = [
         # Fock space rules
-        SymbolicUtils.@rule(*(~~x::has_consecutive(isdestroy,iscreate)) => commute_bosonic(*, ~~x))
+        SymbolicUtils.@rule(*(~~a, ~x::isdestroy, ~y::iscreate, ~~b) => apply_commutator(commute_bosonic, ~~a, ~~b, ~x, ~y))
 
         # NLevel rules
-        SymbolicUtils.@rule(*(~~x::has_consecutive(istransition)) => merge_transitions(*, ~~x))
+        SymbolicUtils.@rule(*(~~a, ~x::istransition, ~y::istransition, ~~b) => apply_commutator(merge_transitions, ~~a, ~~b, ~x, ~y))
         SymbolicUtils.@rule(~x::istransition => rewrite_gs(~x))
     ]
 
@@ -32,7 +32,7 @@ let
         SymbolicUtils.ACRule(combinations, SymbolicUtils.@rule(~a::SymbolicUtils.isnumber * ~b::SymbolicUtils.isnumber => ~a * ~b), 2)
         SymbolicUtils.@rule(*(~~x::SymbolicUtils.isnotflat(*)) => SymbolicUtils.flatten_term(*, ~~x))
         SymbolicUtils.@rule(*(~~x::!(issorted_nc(*))) => sort_args_nc(*, ~~x))
-        SymbolicUtils.@rule(*(~~x::has_inner(+)) => expand_term(*,+,~~x))
+        SymbolicUtils.@rule(*(~~a, +(~~b), ~~c) => +(map(b -> *((~~a)..., b, (~~c)...), ~~b)...))
         SymbolicUtils.@rule(+(~~x::SymbolicUtils.isnotflat(+)) => SymbolicUtils.flatten_term(+,~~x))
     ]
 

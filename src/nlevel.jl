@@ -100,20 +100,6 @@ Base.hash(t::Transition, h::UInt) = hash(t.hilbert, hash(t.name, hash(t.i, hash(
 # Simplification
 istransition(x::Union{T,SymbolicUtils.Sym{T}}) where T<:Transition = true
 
-function merge_transitions(f::Function, args)
-    merged = Any[]
-    i = 1
-    while i <= length(args)
-       if istransition(args[i])&&(i<length(args))&&istransition(args[i+1])&&(acts_on(args[i])==acts_on(args[i+1]))
-           push!(merged, merge_transitions(args[i],args[i+1]))
-           i += 2
-       else
-           push!(merged, args[i])
-           i += 1
-       end
-   end
-   return f(merged...)
-end
 function merge_transitions(σ1::SymbolicUtils.Sym{<:Transition},σ2::SymbolicUtils.Sym{<:Transition})
     op = merge_transitions(_to_qumulants(σ1), _to_qumulants(σ2))
     return _to_symbolic(op)
@@ -122,7 +108,7 @@ function merge_transitions(σ1::Transition, σ2::Transition)
     i1,j1 = σ1.i, σ1.j
     i2,j2 = σ2.i, σ2.j
     if j1==i2
-        return Transition(σ1.hilbert,σ1.name,i1,j2,σ1.aon)#SymbolicUtils.term(σ1.f, σ1.arguments[1], σ1.arguments[2], i1, j2, acts_on(σ1); type=Transition)
+        return Transition(σ1.hilbert,σ1.name,i1,j2,σ1.aon)
     else
         return 0
     end
@@ -139,10 +125,10 @@ function rewrite_gs(σ::Transition)
     if i==j==gs
         args = Any[1]
         for k in levels(h,aon)
-            (k==i) || push!(args, -1*Transition(h, σ.name, k, k, aon))#SymbolicUtils.term(t.f, h, t.arguments[2], k, k, aon; type=Transition))
+            (k==i) || push!(args, -1*Transition(h, σ.name, k, k, aon))
         end
         return +(args...)
     else
-        return σ
+        return nothing
     end
 end

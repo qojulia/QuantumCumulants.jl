@@ -4,10 +4,8 @@ _to_symbolic(t::T) where T<:OperatorTerm = SymbolicUtils.Term{AbstractOperator}(
 _to_symbolic(x::Number) = x
 _to_symbolic(x::SymbolicUtils.Symbolic) = x
 _to_symbolic(op::BasicOperator) = OPERATORS_TO_SYMS[op]
+_to_symbolic(x::Nothing) = x # can be return from simplification
 
-# function _to_qumulants(t::SymbolicUtils.Term{T}) where T<:BasicOperator
-#     return t.f(t.arguments...)
-# end
 _to_qumulants(t::SymbolicUtils.Sym{T}) where T<:BasicOperator = SYMS_TO_OPERATORS[t]
 function _to_qumulants(t::SymbolicUtils.Term{T}) where T<:AbstractOperator
     return OperatorTerm(t.f, _to_qumulants.(t.arguments))
@@ -170,43 +168,11 @@ function sort_args_nc(f::typeof(*), args)
     return f(args_c..., args_nc...)
 end
 
-# Expand products involving sums into sums of products, e.g. x*(y+z) => x*y + x*z; needed to apply commutator rules
-has_inner(f) = x -> has_inner(f,x)
-function has_inner(f,args)
-    for t in args
-        if t isa SymbolicUtils.Term && SymbolicUtils.operation(t) === (f)
-            return true
-        end
+# Apply commutation relation
+function apply_commutator(fcomm, args_l, args_r, a, b)
+    if acts_on(a)==acts_on(b)
+        return *(args_l..., fcomm(a, b), args_r...)
+    else
+        return nothing
     end
-    return false
-end
-
-function expand_term(f_outer, f_inner, args)
-    expanded_args = []
-    for i=1:length(args)
-        if args[i] isa SymbolicUtils.Term && SymbolicUtils.operation(args[i]) === f_inner
-            inner_args = SymbolicUtils.arguments(args[i])
-
-            # Arguments left and right of the nested f_inner
-            args_l = args[1:i-1]
-            args_r = args[i+1:end]
-            for inner_arg in inner_args
-                push!(expanded_args, f_outer(args_l..., inner_arg, args_r...))
-            end
-            return f_inner(expanded_args...)
-        end
-    end
-end
-
-# Check if specific consecutive arguments occur
-has_consecutive(isthis) = has_consecutive(isthis,isthis)
-has_consecutive(isthis,isthat) = x -> has_consecutive(isthis,isthat,x)
-function has_consecutive(isthis,isthat,args)
-    length(args) <= 1 && return false
-    for i=1:length(args)-1
-        if isthis(args[i])&&isthat(args[i+1])&&(acts_on(args[i])==acts_on(args[i+1]))
-            return true
-        end
-    end
-    return false
 end
