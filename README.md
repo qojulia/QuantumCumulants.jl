@@ -6,7 +6,7 @@ For the application of commutation relations and general simplification, **Qumul
 
 ## Development status
 
-[![Travis build status][travis-img]][travis-url]
+[![Travis build status][travis-img]][travis-url] [![Codecov][codecov-img]][codecov-url]
 
 **Qumulants.jl** is still at a very early stage of development. **Expect bugs!**
 
@@ -94,3 +94,6 @@ The photon number of our laser and the excited state population of the atom are 
 
 [travis-url]: https://travis-ci.org/david-pl/Qumulants.jl
 [travis-img]: https://api.travis-ci.org/david-pl/Qumulants.jl.png?branch=master
+
+[codecov-url]: https://codecov.io/gh/david-pl/Qumulants.jl/branch/master/
+[codecov-img]: https://codecov.io/gh/david-pl/Qumulants.jl/branch/master/graph/badge.svg
