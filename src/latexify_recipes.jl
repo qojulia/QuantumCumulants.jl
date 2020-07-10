@@ -2,7 +2,16 @@ using Latexify
 import MacroTools
 using LaTeXStrings
 
-tsym_latex = Ref(:t)
+const tsym_latex = Ref(:t)
+const transition_idx_script = Ref(:^)
+
+function transition_superscript(x::Bool)
+    if x
+        transition_idx_script[] = :^
+    else
+        transition_idx_script[] = :_
+    end
+end
 
 function _postwalk_func(x)
     if x==:𝟙
@@ -13,7 +22,7 @@ function _postwalk_func(x)
         s = "$(arg)^\\dagger"
         return s
     elseif MacroTools.@capture(x, Transition(arg_,i_,j_))
-        s = "$(arg)^{$(i)$(j)}"
+        s = "$(arg)$(transition_idx_script[]){$(i)$(j)}"
         return s
     else
         return x
