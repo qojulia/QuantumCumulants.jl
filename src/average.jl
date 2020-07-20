@@ -146,26 +146,21 @@ function cumulant_expansion(x::NumberTerm,order;mix_choice=maximum, simplify=fal
     return simplify_constants(x.f(cumulants...);kwargs...)
 end
 function cumulant_expansion(de::DifferentialEquation{<:Number,<:Number},order;multithread=false,mix_choice=maximum,kwargs...)
-    lhs = Vector{Number}(undef, length(de.lhs))
     rhs = Vector{Number}(undef, length(de.lhs))
     if multithread
         Threads.@threads for i=1:length(de.lhs)
             check_lhs(de.lhs[i],order;mix_choice=mix_choice)
-            cl = average(de.lhs[i].operator)
             cr = cumulant_expansion(de.rhs[i],order;mix_choice=mix_choice,kwargs...)
-            lhs[i] = cl
             rhs[i] = cr
         end
     else
         for i=1:length(de.lhs)
             check_lhs(de.lhs[i],order;mix_choice=mix_choice)
-            cl = average(de.lhs[i].operator)
             cr = cumulant_expansion(de.rhs[i],order;mix_choice=mix_choice,kwargs...)
-            lhs[i] = cl
             rhs[i] = cr
         end
     end
-    return DifferentialEquation(lhs,rhs)
+    return DifferentialEquation(de.lhs,rhs)
 end
 
 function check_lhs(lhs,order::Int;kwargs...)
