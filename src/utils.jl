@@ -174,6 +174,7 @@ end
 
 _get_operators(::Number) = []
 _get_operators(op::BasicOperator) = [op]
+_get_operators(op::OperatorTerm{<:typeof(^)}) = [op]
 function _get_operators(op::OperatorTerm{<:typeof(*)})
     args = AbstractOperator[]
     for arg in op.arguments

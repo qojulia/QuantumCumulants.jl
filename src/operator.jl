@@ -35,7 +35,7 @@ for f = [:+,:-,:*]
     @eval Base.$f(a::AbstractOperator,b::Number) = OperatorTerm($f, [a,b])
     @eval Base.$f(a::Number,b::AbstractOperator) = OperatorTerm($f, [a,b])
 end
-# Base.:^(a::AbstractOperator,b) = OperatorTerm(^, [a,b]) TODO
+Base.:^(a::AbstractOperator,b::Integer) = OperatorTerm(^, [a,b])
 
 # Variadic methods
 Base.:-(x::AbstractOperator) = -1*x

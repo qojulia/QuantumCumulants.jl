@@ -16,6 +16,10 @@ avg_sym = Qumulants._to_symbolic(average(a))
 
 @test average(2im*a'*σ)' == (-2im)*average(a*σ')
 @test average(2*(a+a)) == 2*(average(a) + average(a))
+@test average(a^2) == average(a*a)
+@test average(a^2,1) == average(a)^2
+@test average((a'*a)^2) == average(a'*a*a'*a)
+@test average(a'*a^2,2) == average(a')*average(a^2) + -2*average(a')*average(a)^2 + 2*average(a)*average(a'*a)
 
 @test simplify_constants(average(σ)+average(σ))==average(2σ)
 @test simplify_constants(average(σ)-average(σ))==0

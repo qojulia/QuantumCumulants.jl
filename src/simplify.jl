@@ -51,17 +51,11 @@ fundamental commutation relations.
 * kwargs: Further arguments passed to `SymbolicUtils.simplify`.
 """
 function simplify_operators(op::AbstractOperator; rewriter=default_operator_simplifier(),
-                commutator_rewriter=default_commutator_simplifier(),
                 kwargs...)
     s = _to_symbolic(op)
-    s_ = _simplify_operators(s, rewriter, commutator_rewriter; kwargs...)
+    s_ = SymbolicUtils.simplify(s; rewriter=rewriter, kwargs...)
     (SymbolicUtils.symtype(s_) == Any) && @warn "SymbolicUtils.simplify returned symtype Any; recursion failed!"
     return _to_qumulants(s_)
-end
-function _simplify_operators(s, rewriter, commutator_rewriter; kwargs...)
-    s_ = SymbolicUtils.simplify(s; rewriter=commutator_rewriter)
-    s_ = SymbolicUtils.simplify(s_; rewriter=rewriter, kwargs...)
-    return s_
 end
 simplify_operators(x::Number, args...; kwargs...) = x
 

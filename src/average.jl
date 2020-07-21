@@ -38,6 +38,10 @@ function average(op::OperatorTerm)
         else
             return op.f(cs...)*average(op.f(ops...))
         end
+    elseif op.f === (^)
+        arg, n = op.arguments
+        op_ = *((arg for i=1:n)...)
+        return average(op_)
     else
         return Average(op)
     end
@@ -224,8 +228,13 @@ get_order(::Number) = 0
 function get_order(t::OperatorTerm)
     if t.f in [+,-]
         return maximum(get_order.(t.arguments))
-    else
+    elseif t.f === (*)
         return length(t.arguments)
+    elseif t.f === (^)
+        n = t.arguments[end]
+        @assert n isa Integer
+        return n
     end
+    error("Unknown function $(t.f)")
 end
 get_order(::BasicOperator) = 1
