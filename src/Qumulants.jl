@@ -7,6 +7,7 @@ export HilbertSpace, ProductSpace,
         simplify_operators, substitute, expand,
         AbstractOperator, BasicOperator, Identity, Zero, OperatorTerm, ⊗, embed,
         FockSpace, Destroy, Create,
+        PositionSpace, Position, Momentum,
         NLevelSpace, Transition, levels, ground_state,
         AbstractEquation, DifferentialEquation,
         heisenberg, commutator, acts_on,
@@ -23,6 +24,7 @@ include("operator.jl")
 include("simplify.jl")
 include("rules.jl")
 include("fock.jl")
+include("position.jl")
 include("nlevel.jl")
 include("equations.jl")
 include("heisenberg.jl")

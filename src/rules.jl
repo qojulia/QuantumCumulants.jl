@@ -1,6 +1,7 @@
-isdestroy(a) = false
-iscreate(a) = false
-istransition(a) = false
+# Type-matching function fallbacks
+for f in [:isdestroy,:iscreate,:isposition,:ismomentum,:istransition]
+    @eval $(f)(a) = false
+end
 
 let
     NC_TIMES_RULES = [
@@ -21,6 +22,17 @@ let
     COMMUTATOR_RULES = [
         # Fock space rules
         SymbolicUtils.@rule(*(~~a, ~x::isdestroy, ~y::iscreate, ~~b) => apply_commutator(commute_bosonic, ~~a, ~~b, ~x, ~y))
+
+        # Position rules
+        SymbolicUtils.@rule(*(~~a, ~x::isposition, ~y::ismomentum, ~~b) => apply_commutator(commute_xp(nothing,nothing), ~~a, ~~b, ~x, ~y))
+        SymbolicUtils.@rule(*(~~a, cos(*(~~b, ~x::isposition)), ~y::ismomentum, ~~c) => apply_commutator(commute_xp(cos, ~~b), ~~a, ~~c, ~x, ~y))
+        SymbolicUtils.@rule(*(~~a, cos(~x::isposition), ~y::ismomentum, ~~c) => apply_commutator(commute_xp(cos, [true]), ~~a, ~~c, ~x, ~y))
+        SymbolicUtils.@rule(*(~~a, sin(*(~~b, ~x::isposition)), ~y::ismomentum, ~~c) => apply_commutator(commute_xp(sin, ~~b), ~~a, ~~c, ~x, ~y))
+        SymbolicUtils.@rule(*(~~a, sin(~x::isposition), ~y::ismomentum, ~~c) => apply_commutator(commute_xp(sin, [true]), ~~a, ~~c, ~x, ~y))
+
+        # TODO: clean up those rules
+        SymbolicUtils.@rule(*(~~a, cos(*(~~b, ~x::isposition)), ~y::isposition, ~~c) => apply_commutator(commute_xx(cos, ~~b), ~~a, ~~c, ~x, ~y))
+        SymbolicUtils.@rule(*(~~a, sin(*(~~b, ~x::isposition)), ~y::isposition, ~~c) => apply_commutator(commute_xx(sin, ~~b), ~~a, ~~c, ~x, ~y))
 
         # NLevel rules
         SymbolicUtils.@rule(*(~~a, ~x::istransition, ~y::istransition, ~~b) => apply_commutator(merge_transitions, ~~a, ~~b, ~x, ~y))
