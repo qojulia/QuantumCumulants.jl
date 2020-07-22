@@ -147,6 +147,12 @@ function fundamental_operators(h::NLevelSpace,aon::Int=1;names=nothing)
     end
     return sigmas
 end
+function fundamental_operators(h::PositionSpace,aon::Int=1;names=nothing)
+    names_ = names isa Nothing ? [:x,:p] : names[aon]
+    x = Position(h,names_[1],aon)
+    p = Momentum(h,names_[2],aon)
+    return [x,p]
+end
 function fundamental_operators(h::ProductSpace;kwargs...)
     ops = []
     for i=1:length(h.spaces)
