@@ -21,6 +21,14 @@ p = Momentum(h,:p)
 @test commutator(sin(q*k*x),r*p) == simplify_operators(-r*q*k*cos(q*k*x))
 @test iszero(commutator(cos(k*x),q*x))
 
+# Test averaging
+@test get_order(cos(x)) == Inf
+@test get_order(q*cos(k*x)*p) == Inf
+@test get_order(q*cos(k)*x*p) == 2
+
+expx = exp(x)
+
+
 # Test two-level atom coupled to standing wave
 hx = PositionSpace(:motion)
 ha = NLevelSpace(:internal, (:g,:e))
@@ -40,7 +48,10 @@ dx = heisenberg(x,H,J;rates=[γ])
 dp = heisenberg(p,H,J;rates=[γ])
 @test dp.rhs[1] == simplify_operators(im*k*Ω*sin(k*x)*(σ(:e,:g) + σ(:g,:e)))
 
-ops = [σ(:g,:e),σ(:e,:e),x,p]
-he = heisenberg(ops,H,J;rates=[γ])
+# "Doppler" cooling
+ops = find_operators(h,2)
+he = heisenberg(ops,H,J;rates=[2γ])
+
+
 
 end # testset

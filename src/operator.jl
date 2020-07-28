@@ -48,7 +48,7 @@ for f in [:+,:*]
 end
 
 # Trigonometric functions
-const trig = [:sin,:cos] # TODO: more functions
+const trig = [:sin,:cos,:exp] # TODO: more functions
 for f in trig
     @eval Base.$f(x::AbstractOperator) = OperatorTerm($f, [x])
 end

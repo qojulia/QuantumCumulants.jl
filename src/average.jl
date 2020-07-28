@@ -29,7 +29,8 @@ function average(op::OperatorTerm)
         # Move constants out of average
         cs, ops = separate_constants(op)
         if isempty(cs)
-            op_ = expand(op)
+            op_ = expand_trigs(op)
+            op_ = expand(op_)
             if isequal(op_, op)
                 return Average(op)
             else
@@ -41,6 +42,9 @@ function average(op::OperatorTerm)
     elseif op.f === (^)
         arg, n = op.arguments
         op_ = *((arg for i=1:n)...)
+        return average(op_)
+    elseif op.f in [cos,sin]
+        op_ = expand_trigs(op)
         return average(op_)
     else
         return Average(op)
@@ -55,6 +59,23 @@ function separate_constants(op::OperatorTerm{<:typeof(*)})
     ops = filter(x->isa(x,AbstractOperator), op.arguments)
     return cs, ops
 end
+
+function expand_trigs(op::OperatorTerm)
+    if op.f === (cos)
+        @assert length(op.arguments)==1
+        arg = op.arguments[1]
+        return 0.5*(exp(-im*arg) + exp(im*arg))
+    elseif op.f === (sin)
+        @assert length(op.arguments)==1
+        arg = op.arguments[1]
+        return 0.5im*(exp(-im*arg) + -1*exp(im*arg))
+    else
+        return op.f(expand_trigs.(op.arguments)...)
+    end
+end
+expand_trigs(x) = x
+
+
 
 """
     average(::DifferentialEquation;multithread=false)
@@ -129,6 +150,10 @@ function cumulant_expansion(avg::Average,order::Int;simplify=true,kwargs...)
     ord = get_order(avg)
     if ord <= order
         return avg
+    elseif ord == Inf
+        op = avg.operator
+        out = _transcendent_cumulant_expansion(op,order)
+        return simplify ? simplify_constants(out, kwargs...) : out
     else
         op = avg.operator
         @assert op.f === (*)
@@ -188,7 +213,7 @@ function _cumulant_expansion(args::Vector,order::Int)
         p = collect(parts[i])
         for j=1:length(p) # Terms in the sum
             n = length(p[j])
-            args_prod = Number[-factorial(n-1)*(-1)^(n-1)]
+            args_prod = Number[factorial(n-1)*(-1)^n]
             for p_=p[j] # Product over partition blocks
                 if length(p_) > order # If the encountered moment is larger than order, apply expansion
                     push!(args_prod, _cumulant_expansion(p_, order))
@@ -202,6 +227,93 @@ function _cumulant_expansion(args::Vector,order::Int)
     end
     return average(+(args_sum...))
 end
+
+# Compute the (joint) cumulant of a list of operators in terms of their raw moments
+function cumulant(args::Vector)
+    # Get all possible partitions
+    parts = [partitions(args,i) for i=1:length(args)]
+
+    args_sum = Number[]
+    for i=1:length(parts)
+        p = collect(parts[i])
+        for j=1:length(p) # Terms in the sum
+            n = length(p[j])
+            args_prod = Number[factorial(n-1)*(-1)^(n-1)]
+            for p_=p[j] # Product over partition blocks
+                push!(args_prod, average(*(p_...)))
+            end
+            # Add terms in sum
+            push!(args_sum, *(args_prod...))
+        end
+    end
+    return +(args_sum...)
+end
+
+function _transcendent_cumulant_expansion(op::OperatorTerm,args...;kwargs...)
+    if op.f === (*)
+        return _transcendent_cumulant_expansion(op.arguments,args...;kwargs...)
+    else
+        error("Unknown function to expand, $(op.f)")
+    end
+end
+function _transcendent_cumulant_expansion(op::OperatorTerm{<:typeof(exp)},order::Int;kwargs...)
+    @assert length(op.arguments)==1
+    arg = op.arguments[1]
+    args = [arg]
+    kn = Number[average(arg)]
+    fac = 1.0
+    for n=2:order
+        fac /= n # factorial
+        push!(args,arg)
+        k = cumulant(args)
+        push!(kn,fac*k)
+    end
+    return *((exp(k) for k in kn)...)
+end
+function _transcendent_cumulant_expansion(args::Vector,order::Int;kwargs...)
+    inds = findall(x->(x isa OperatorTerm && x.f==(exp)), args)
+    @assert length(inds)==1 # TODO: generalize
+    idx = inds[1]
+    expf = args[idx]
+    @assert length(expf.arguments)==1
+    x = expf.arguments[1]
+    inds_comp = filter(!isequal(idx),1:length(args))
+    inds2 = findall(x->(x isa AbstractOperator), args[inds_comp])
+    if length(inds2) > 1
+        error("Composite expression with arguments $args")
+    end
+    idx2 = inds2[1]
+    y = args[inds_comp][idx2]
+    c = commutator(y,x)
+    (c isa Number) || error("Cumulant expansion not implemented for non-central operators $y and $x")
+
+    exp_expanded = _transcendent_cumulant_expansion(expf,order;kwargs...)
+
+    kn = Number[average(y)]
+    fac = 1.0
+
+    for n=2:order
+        fac /= n
+        xs = [x for i=1:n-1]
+        ks_ = Number[]
+        for k=1:n
+            args_ = [xs[1:k-1];y;xs[1:n-k]]
+            push!(ks_,cumulant(args_))
+        end
+        kn_ = +(ks_...)
+        push!(kn, fac*kn_)
+    end
+    arg_expanded = +(kn...)
+
+    if iszero(c)
+        return arg_expanded*exp_expanded
+    elseif idx2<idx
+        return (arg_expanded + 0.5c)*exp_expanded
+    else
+        return (arg_expanded - 0.5c)*exp_expanded
+    end
+end
+
 
 """
     get_order(arg)
@@ -229,12 +341,18 @@ function get_order(t::OperatorTerm)
     if t.f in [+,-]
         return maximum(get_order.(t.arguments))
     elseif t.f === (*)
-        return length(t.arguments)
+        return sum(get_order.(t.arguments))
     elseif t.f === (^)
         n = t.arguments[end]
         @assert n isa Integer
         return n
+    elseif t.f in [cos,sin,exp] # TODO: add more functions
+        if any(get_order.(t.arguments) .> 0) # Operator arguments
+            return Inf
+        else # Only number arguments
+            return 0
+        end
     end
-    error("Unknown function $(t.f)")
+    error("Couldn't determine order of expression $t")
 end
 get_order(::BasicOperator) = 1

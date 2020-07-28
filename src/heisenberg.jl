@@ -137,3 +137,8 @@ function commutator(a::OperatorTerm{<:typeof(+)},b::OperatorTerm{<:typeof(+)}; s
         return out
     end
 end
+
+# With numbers
+commutator(a::Number,b;kwargs...) = 0
+commutator(a,b::Number;kwargs...) = 0
+commutator(a::Number,b::Number;kwargs...) = 0
