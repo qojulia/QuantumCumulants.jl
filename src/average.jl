@@ -131,11 +131,20 @@ function cumulant_expansion(avg::Average,order::Int;simplify=true,kwargs...)
         return avg
     else
         op = avg.operator
-        @assert op.f === (*)
         if simplify
-            return simplify_constants(_cumulant_expansion(op.arguments, order), kwargs...)
+            avg_ = average(simplify_operators(op))
         else
-            _cumulant_expansion(op.arguments, order)
+            avg_ = average
+        end
+        if simplify && (avg != avg_) # TODO: better strategy to get proper ordering
+            return cumulant_expansion(avg_,order;simplify=simplify,kwargs...)
+        else
+            @assert op.f === (*)
+            if simplify
+                return simplify_constants(_cumulant_expansion(op.arguments, order), kwargs...)
+            else
+                _cumulant_expansion(op.arguments, order)
+            end
         end
     end
 end
