@@ -10,8 +10,8 @@ let
         SymbolicUtils.ACRule(combinations, SymbolicUtils.@rule(~a::SymbolicUtils.isnumber * ~b::SymbolicUtils.isnumber => ~a * ~b), 2)
 
         SymbolicUtils.@rule(*(~~x::SymbolicUtils.hasrepeats) => *(SymbolicUtils.merge_repeats(^, ~~x)...))
-        SymbolicUtils.ACRule(combinations, SymbolicUtils.@rule((~y)^(~n) * ~y => (~y)^(~n+1)), 3)
-        SymbolicUtils.ACRule(combinations, SymbolicUtils.@rule((~x)^(~n) * (~x)^(~m) => (~x)^(~n + ~m)), 3)
+        SymbolicUtils.ACRule(combinations, SymbolicUtils.@rule((~y)^(~n) * ~y => (~y)^(~n+1)), 2)
+        SymbolicUtils.ACRule(combinations, SymbolicUtils.@rule((~x)^(~n) * (~x)^(~m) => (~x)^(~n + ~m)), 2)
 
         SymbolicUtils.ACRule(combinations, SymbolicUtils.@rule((~z::SymbolicUtils._isone  * ~x) => ~x), 2)
         SymbolicUtils.ACRule(combinations, SymbolicUtils.@rule((~z::SymbolicUtils._iszero *  ~x) => ~z), 2)
@@ -21,6 +21,15 @@ let
     COMMUTATOR_RULES = [
         # Fock space rules
         SymbolicUtils.@rule(*(~~a, ~x::isdestroy, ~y::iscreate, ~~b) => apply_commutator(commute_bosonic, ~~a, ~~b, ~x, ~y))
+
+        SymbolicUtils.@rule(*(~~a, ~x::isdestroy, exp(~y::has(iscreate)), ~~b) => commute_a_exp(~~a, ~~b, ~x, ~y))
+        SymbolicUtils.@rule(*(~~a, exp(~y::has(isdestroy)), ~x::iscreate, ~~b) => commute_exp_a(~~a, ~~b, ~y, ~x))
+
+        # Sort commutative
+        SymbolicUtils.@rule(*(~~a, ~x::isdestroy, exp(~y::has(isdestroy)), ~~b) => *((~~a)..., exp(~y), ~x, (~~b)...))
+        SymbolicUtils.@rule(*(~~a, exp(~y::has(iscreate)), ~x::iscreate, ~~b) => *((~~a)..., ~x, exp(~y), (~~b)...))
+
+        SymbolicUtils.@rule(*(~~a, exp(~x::has(isdestroy))*exp(~y::has(iscreate)), ~~b) => commute_exp_exp(~~a, ~~b, ~x, ~y))
 
         # NLevel rules
         SymbolicUtils.@rule(*(~~a, ~x::istransition, ~y::istransition, ~~b) => apply_commutator(merge_transitions, ~~a, ~~b, ~x, ~y))
@@ -39,6 +48,13 @@ let
         # Expand sums
         SymbolicUtils.@rule(*(~~a, +(~~b), ~~c) => +(map(b -> *((~~a)..., b, (~~c)...), ~~b)...))
         SymbolicUtils.@rule(+(~~x::SymbolicUtils.isnotflat(+)) => SymbolicUtils.flatten_term(+,~~x))
+
+        # Expand Trigonometric functions
+        SymbolicUtils.@rule(cos(~x) => 0.5*exp(-im*~x) + 0.5*exp(im*~x))
+        SymbolicUtils.@rule(sin(~x) => 0.5im*exp(-im*~x) + -0.5im*exp(im*~x))
+
+        # Expand exponentials
+        SymbolicUtils.@rule(exp(+(~x, ~y)) => baker_campbell_hausdorff(~x, ~y))
     ]
 
 

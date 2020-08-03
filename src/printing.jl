@@ -13,13 +13,20 @@ Base.show(io::IO,x::Transition) = write(io, Symbol(x.name,x.i,x.j))
 
 show_brackets = Ref(true)
 function Base.show(io::IO,x::Union{OperatorTerm,NumberTerm})
-    show_brackets[] && write(io,"(")
-    show(io, x.arguments[1])
-    for i=2:length(x.arguments)
+    if Symbol(x.f) in trig
         show(io, x.f)
-        show(io, x.arguments[i])
+        write(io, "(")
+        show(io, x.arguments[1])
+        write(io, ")")
+    else
+        show_brackets[] && write(io,"(")
+        show(io, x.arguments[1])
+        for i=2:length(x.arguments)
+            show(io, x.f)
+            show(io, x.arguments[i])
+        end
+        show_brackets[] && write(io,")")
     end
-    show_brackets[] && write(io,")")
 end
 
 Base.show(io::IO, x::Parameter) = write(io, x.name)

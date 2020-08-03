@@ -162,6 +162,16 @@ function sort_args_nc(f::typeof(*), args)
     return f(args_c..., args_nc...)
 end
 
+# Check if something occurs in an expression
+has(isthis) = (x->has(isthis, x))
+has(isthis, x) = isthis(x)
+function has(isthis, x::SymbolicUtils.Term{<:AbstractOperator})
+    for arg in x.arguments
+        has(isthis, arg) && return true
+    end
+    return false
+end
+
 # Apply commutation relation
 function apply_commutator(fcomm, args_l, args_r, a, b)
     if acts_on(a)==acts_on(b)
@@ -169,4 +179,47 @@ function apply_commutator(fcomm, args_l, args_r, a, b)
     else
         return nothing
     end
+end
+
+commutator(a::SymbolicUtils.Symbolic, b::SymbolicUtils.Symbolic) =
+    _to_symbolic(commutator(_to_qumulants(a), _to_qumulants(b)))
+
+function commute_a_exp(args_l, args_r, a, b)
+    if acts_on(a) in acts_on(b)
+        c = commutator(a,b)
+        (c isa Number || SymbolicUtils.sym_isa(Number)(c)) || error("Non-central operators $op_a and $op_b with commutator $c")
+        return *(args_l..., exp(b), (a + c), args_r...)
+    else
+        return nothing
+    end
+end
+
+function commute_exp_a(args_l, args_r, a, b)
+    if acts_on(b) in acts_on(a)
+        c = commutator(a,b)
+        (c isa Number || SymbolicUtils.sym_isa(Number)(c)) || error("Non-central operators $op_a and $op_b with commutator $c")
+        return *(args_l..., b + c, exp(a), args_r...)
+    else
+        return nothing
+    end
+end
+
+function commute_exp_exp(args_l, args_r, a, b)
+    aon_a = acts_on(a)
+    aon_b = acts_on(b)
+    if aon_a in aon_b || aon_b in aon_a || aon_a==aon_b
+        c = commutator(a, b)
+        return *(args_l..., exp(b), exp(a), exp(c), args_r...)
+    else
+        return nothing
+    end
+end
+
+baker_campbell_hausdorff(x::SymbolicUtils.Symbolic{<:Number},y::SymbolicUtils.Symbolic) = exp(x)*exp(y)
+baker_campbell_hausdorff(x::SymbolicUtils.Symbolic,y::SymbolicUtils.Symbolic{<:Number}) = exp(x)*exp(y)
+baker_campbell_hausdorff(x::SymbolicUtils.Symbolic{<:Number},y::SymbolicUtils.Symbolic{<:Number}) = exp(x)*exp(y)
+function baker_campbell_hausdorff(x::SymbolicUtils.Symbolic{<:AbstractOperator},y::SymbolicUtils.Symbolic{<:AbstractOperator})
+    c = commutator(x, y)
+    @assert (c isa Number || SymbolicUtils.sym_isa(Number)(c))
+    return *(exp(x), exp(y), exp(-0.5c))
 end

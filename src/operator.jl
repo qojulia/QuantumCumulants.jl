@@ -36,6 +36,7 @@ for f = [:+,:-,:*]
     @eval Base.$f(a::Number,b::AbstractOperator) = OperatorTerm($f, [a,b])
 end
 Base.:^(a::AbstractOperator,b::Integer) = OperatorTerm(^, [a,b])
+Base.:/(a::AbstractOperator,b::Number) = OperatorTerm(/, [a,b])
 
 # Variadic methods
 Base.:-(x::AbstractOperator) = -1*x
@@ -44,6 +45,12 @@ for f in [:+,:*]
     @eval Base.$f(x::AbstractOperator, w::AbstractOperator...) = (check_hilbert(x,w...); OperatorTerm($f, [x;w...]))
     @eval Base.$f(x, y::AbstractOperator, w...) = (check_hilbert(x,y,w...); OperatorTerm($f, [x;y;w...]))
     @eval Base.$f(x::AbstractOperator, y::AbstractOperator, w...) = (check_hilbert(x,y,w...); OperatorTerm($f, [x;y;w...]))
+end
+
+# Trigonometric functions
+const trig = [:sin,:cos,:exp] # TODO: more functions
+for f in trig
+    @eval Base.$f(x::AbstractOperator) = OperatorTerm($f, [x])
 end
 
 Base.adjoint(t::OperatorTerm) = OperatorTerm(t.f, adjoint.(t.arguments))

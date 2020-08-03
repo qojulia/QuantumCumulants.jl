@@ -53,7 +53,7 @@ for f = [:+,:-,:*,:/,:^]
     @eval Base.$f(a::SymbolicNumber,b::SymbolicNumber) = NumberTerm($f, [a,b])
 end
 Base.:^(a::SymbolicNumber, b::Int) = NumberTerm(^, [a,b])
-for f = [:cos,:sin,:tan,:sqrt,:conj]
+for f = [:cos,:sin,:tan,:sqrt,:conj,:exp]
     @eval Base.$f(a::SymbolicNumber) = NumberTerm($f, [a])
 end
 
