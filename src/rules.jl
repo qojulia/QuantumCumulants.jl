@@ -26,10 +26,10 @@ let
         SymbolicUtils.@rule(*(~~a, exp(~y::has(isdestroy)), ~x::iscreate, ~~b) => commute_exp_a(~~a, ~~b, ~y, ~x))
 
         # Sort commutative
-        SymbolicUtils.@rule(*(~~a, ~x::isdestroy, exp(~y::has(isdestroy)), ~~b) => *((~~a)..., exp(~y), ~x, (~~b)...))
-        SymbolicUtils.@rule(*(~~a, exp(~y::has(iscreate)), ~x::iscreate, ~~b) => *((~~a)..., ~x, exp(~y), (~~b)...))
+        # SymbolicUtils.@rule(*(~~a, ~x::isdestroy, exp(~y::has_only(isdestroy)), ~~b) => *((~~a)..., exp(~y), ~x, (~~b)...))
+        # SymbolicUtils.@rule(*(~~a, exp(~y::has_only(iscreate)), ~x::iscreate, ~~b) => *((~~a)..., ~x, exp(~y), (~~b)...))
 
-        SymbolicUtils.@rule(*(~~a, exp(~x::has(isdestroy))*exp(~y::has(iscreate)), ~~b) => commute_exp_exp(~~a, ~~b, ~x, ~y))
+        # SymbolicUtils.@rule(*(~~a, exp(~x::has(isdestroy))*exp(~y::has(iscreate)), ~~b) => commute_exp_exp(~~a, ~~b, ~x, ~y))
 
         # NLevel rules
         SymbolicUtils.@rule(*(~~a, ~x::istransition, ~y::istransition, ~~b) => apply_commutator(merge_transitions, ~~a, ~~b, ~x, ~y))
@@ -50,11 +50,11 @@ let
         SymbolicUtils.@rule(+(~~x::SymbolicUtils.isnotflat(+)) => SymbolicUtils.flatten_term(+,~~x))
 
         # Expand Trigonometric functions
-        SymbolicUtils.@rule(cos(~x) => 0.5*exp(-im*~x) + 0.5*exp(im*~x))
+        SymbolicUtils.@rule(cos(~x) => +(exp(-im*~x), exp(im*~x)))
         SymbolicUtils.@rule(sin(~x) => 0.5im*exp(-im*~x) + -0.5im*exp(im*~x))
 
         # Expand exponentials
-        SymbolicUtils.@rule(exp(+(~x, ~y)) => baker_campbell_hausdorff(~x, ~y))
+        # SymbolicUtils.@rule(exp(+(~x, ~y)) => baker_campbell_hausdorff(~x, ~y))
     ]
 
 
@@ -64,12 +64,13 @@ let
         SymbolicUtils.@rule(+(~~x::!(SymbolicUtils.issortedₑ)) => SymbolicUtils.sort_args(+, ~~x))
         SymbolicUtils.ACRule(combinations, SymbolicUtils.@rule(~a::SymbolicUtils.isnumber + ~b::SymbolicUtils.isnumber => ~a + ~b), 2)
 
-        SymbolicUtils.ACRule(permutations, SymbolicUtils.@rule(*(~~x) + *(~β, ~~x) => *(1 + ~β, (~~x)...)), 2)
-        SymbolicUtils.ACRule(permutations, SymbolicUtils.@rule(*(~α, ~~x) + *(~β, ~~x) => *(~α + ~β, (~~x)...)), 2)
-        SymbolicUtils.ACRule(permutations, SymbolicUtils.@rule(*(~~x, ~α) + *(~~x, ~β) => *((~~x)..., ~α + ~β)), 2)
+        SymbolicUtils.ACRule(combinations, SymbolicUtils.@rule(*(~~x) + *(~β, ~~x) => *(1 + ~β, (~~x)...)), 2)
+        SymbolicUtils.ACRule(permutations, SymbolicUtils.@rule(*(~α::SymbolicUtils.isnumber, ~~x) + *(~β::SymbolicUtils.isnumber, ~~x) => *(~α + ~β, (~~x)...)), 2)
+        SymbolicUtils.ACRule(permutations, SymbolicUtils.@rule(*(~α::SymbolicUtils.sym_isa(Number), ~~x) + *(~β::SymbolicUtils.sym_isa(Number), ~~x) => *(~α + ~β, (~~x)...)), 2)
+        # SymbolicUtils.ACRule(combinations, SymbolicUtils.@rule(*(~~x, ~α) + *(~~x, ~β) => *((~~x)..., ~α + ~β)), 2)
 
-        SymbolicUtils.ACRule(permutations, SymbolicUtils.@rule(~x + *(~β, ~x) => *(1 + ~β, ~x)), 2)
-        SymbolicUtils.ACRule(permutations, SymbolicUtils.@rule(*(~α::SymbolicUtils.isnumber, ~x) + ~x => *(~α + 1, ~x)), 2)
+        SymbolicUtils.ACRule(combinations, SymbolicUtils.@rule(~x + *(~β, ~x) => *(1 + ~β, ~x)), 2)
+        SymbolicUtils.ACRule(combinations, SymbolicUtils.@rule(*(~α::SymbolicUtils.isnumber, ~x) + ~x => *(~α + 1, ~x)), 2)
         SymbolicUtils.@rule(+(~~x::SymbolicUtils.hasrepeats) => +(SymbolicUtils.merge_repeats(*, ~~x)...))
 
         SymbolicUtils.ACRule(combinations, SymbolicUtils.@rule((~z::SymbolicUtils._iszero + ~x) => ~x), 2)
