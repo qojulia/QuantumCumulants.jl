@@ -41,7 +41,7 @@ From a set of differential equation of averages, find all averages that are miss
 and derive the corresponding equations of motion.
 """
 function complete(de::DifferentialEquation{<:Number,<:Number},H::AbstractOperator;kwargs...)
-    rhs_, lhs_ = complete(de.rhs,de.lhs, [H], [];kwargs...)
+    rhs_, lhs_ = complete(de.rhs,de.lhs,[H];kwargs...)
     return DifferentialEquation(lhs_,rhs_)
 end
 function complete(de::DifferentialEquation{<:Number,<:Number},H::AbstractOperator,J::Vector;kwargs...)
