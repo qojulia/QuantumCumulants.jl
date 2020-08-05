@@ -5,12 +5,20 @@ using LaTeXStrings
 const tsym_latex = Ref(:t)
 const transition_idx_script = Ref(:^)
 
+"""
+    transition_superscript(::Bool)
+
+Specify whether the indices in a [`Transition`](@ref) operator should be
+printed as superscript. Default is `true`. If set to `false`, the indices
+corresponding to the levels are printed as subscript.
+"""
 function transition_superscript(x::Bool)
     if x
         transition_idx_script[] = :^
     else
         transition_idx_script[] = :_
     end
+    return x
 end
 
 function _postwalk_func(x)

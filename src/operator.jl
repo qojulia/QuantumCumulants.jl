@@ -1,6 +1,10 @@
 import SymbolicUtils
 
-# Abstract types
+"""
+    AbstractOperator
+
+Abstract type representing any expression involving operators.
+"""
 abstract type AbstractOperator end
 
 """
@@ -72,7 +76,13 @@ function check_hilbert(a::OperatorTerm,b::OperatorTerm)
 end
 check_hilbert(args...) = nothing#reduce(check_hilbert, args) # TODO
 
+"""
+    acts_on(op::AbstractOperator)
 
+Shows on which Hilbert space `op` acts. For [`BasicOperator`](@ref) types, this
+returns an Integer, whereas for a [`OperatorTerm`](@ref) it returns a `Vector{Int}`
+whose entries specify all subspaces on which the expression acts.
+"""
 acts_on(op::BasicOperator) = op.aon
 function acts_on(t::OperatorTerm)
     ops = filter(isoperator, t.arguments)

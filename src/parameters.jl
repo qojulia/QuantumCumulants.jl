@@ -147,6 +147,13 @@ function parameters(s::String)
     return parameters(syms...)
 end
 
+"""
+    simplify_constants(t::NumberTerm;kwargs...)
+
+Standard simplification for [`SymbolicNumber`](@ref) types. Converts to a
+`SymbolicUtils` expression and uses its standard simplification routines for
+symbolic number variables.
+"""
 simplify_constants(s::Number;kwargs...) = s
 function simplify_constants(t::NumberTerm;kwargs...)
     s = _to_symbolic(t)

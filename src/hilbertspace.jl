@@ -1,3 +1,8 @@
+"""
+    HilbertSpace
+
+Abstract type for representing Hilbert spaces.
+"""
 abstract type HilbertSpace end
 Base.:(==)(h1::HilbertSpace,h2::HilbertSpace) = false
 Base.hash(h::HilbertSpace, i::UInt) = hash(h.name, i)

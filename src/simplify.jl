@@ -59,6 +59,31 @@ function simplify_operators(op::AbstractOperator; rewriter=default_operator_simp
 end
 simplify_operators(x::Number, args...; kwargs...) = x
 
+"""
+    expand(ex; rewriter=defualt_expand_simplifier(), kwargs...)
+
+Simple wrapper around `SymbolicUtils.simplify` that uses a rewriter such
+that expressions are expanded.
+
+# Arguments
+===========
+* ex: The expression to be expanded.
+* rewriter: The used rewriter.
+* kwargs: Further arguments passed to `SymbolicUtils.simplify`.
+
+Examples
+========
+```
+julia> @parameters p q r
+(p, q, r)
+
+julia> ex = p*(q+r) + (q+p)*(r+q)
+((p*(q+r))+((q+p)*(r+q)))
+
+julia> expand(ex)
+((p*q)+(p*r)+(q*r)+(p*r)+(q*q)+(p*q))
+```
+"""
 function expand(ex; rewriter=default_expand_simplifier(), kwargs...)
     s = _to_symbolic(ex)
     s_ = SymbolicUtils.simplify(s; rewriter=rewriter, kwargs...)

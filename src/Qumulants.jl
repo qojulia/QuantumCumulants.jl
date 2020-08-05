@@ -3,11 +3,11 @@ module Qumulants
 import SymbolicUtils
 using Combinatorics: partitions, combinations, permutations
 
-export HilbertSpace, ProductSpace,
+export HilbertSpace, ProductSpace, ⊗,
         simplify_operators, substitute, expand,
-        AbstractOperator, BasicOperator, Identity, Zero, OperatorTerm, ⊗, embed,
+        AbstractOperator, BasicOperator, OperatorTerm, embed,
         FockSpace, Destroy, Create,
-        NLevelSpace, Transition, levels, ground_state,
+        NLevelSpace, Transition,
         AbstractEquation, DifferentialEquation,
         heisenberg, commutator, acts_on,
         SymbolicNumber, NumberTerm, Parameter, @parameters, parameters,
