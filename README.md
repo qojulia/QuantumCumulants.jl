@@ -30,5 +30,5 @@ Please refer to the latest [Documentation](docs-url) for more details and exampl
 [codecov-url]: https://codecov.io/gh/david-pl/Qumulants.jl/branch/master/
 [codecov-img]: https://codecov.io/gh/david-pl/Qumulants.jl/branch/master/graph/badge.svg
 
-[docs-url]: https://david-pl.github.io/Qumulants.jl/dev
+[docs-url]: https://david-pl.github.io/Qumulants.jl/dev/
 [docs-img]: https://img.shields.io/badge/docs-dev-blue.svg
