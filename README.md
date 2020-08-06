@@ -21,7 +21,7 @@ The package can be installed with
 
 ## Documentation
 
-Please refer to the latest [Documentation](docs-url) for more details and examples.
+Please refer to the latest [Documentation][docs-url] for more details and examples.
 
 
 [travis-url]: https://travis-ci.org/david-pl/Qumulants.jl
