@@ -19,6 +19,7 @@ end
 # Symbolic type promotion
 SymbolicUtils.promote_symtype(f, Ts::Type{<:AbstractOperator}...) = promote_type(AbstractOperator,Ts...)
 SymbolicUtils.promote_symtype(f, T::Type{<:AbstractOperator}, Ts...) = promote_type(AbstractOperator,T)
+SymbolicUtils.promote_symtype(f, T, S, Ts::Union{Type{<:Number},Type{<:AbstractOperator}}...) = SymbolicUtils.promote_symtype(f, SymbolicUtils.promote_symtype(f, T, S), Ts...)
 for f in [+,-,*,/,^]
     @eval SymbolicUtils.promote_symtype(::$(typeof(f)),
                    T::Type{<:AbstractOperator},

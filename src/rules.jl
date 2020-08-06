@@ -48,9 +48,8 @@ let
         SymbolicUtils.@rule(+(~~x::!(SymbolicUtils.issortedₑ)) => SymbolicUtils.sort_args(+, ~~x))
         SymbolicUtils.ACRule(combinations, SymbolicUtils.@rule(~a::SymbolicUtils.isnumber + ~b::SymbolicUtils.isnumber => ~a + ~b), 2)
 
-        SymbolicUtils.ACRule(combinations, SymbolicUtils.@rule(*(~~x) + *(~β, ~~x) => *(1 + ~β, (~~x)...)), 2)
-        SymbolicUtils.ACRule(permutations, SymbolicUtils.@rule(*(~α::SymbolicUtils.isnumber, ~~x) + *(~β::SymbolicUtils.isnumber, ~~x) => *(~α + ~β, (~~x)...)), 2)
-        SymbolicUtils.ACRule(permutations, SymbolicUtils.@rule(*(~α::SymbolicUtils.sym_isa(Number), ~~x) + *(~β::SymbolicUtils.sym_isa(Number), ~~x) => *(~α + ~β, (~~x)...)), 2)
+        SymbolicUtils.ACRule(permutations, SymbolicUtils.@rule(*(~~x) + *(~β, ~~x) => *(1 + ~β, (~~x)...)), 2)
+        SymbolicUtils.ACRule(permutations, SymbolicUtils.@rule(*(~α, ~~x) + *(~β, ~~x) => *(~α + ~β, (~~x)...)), 2)
 
         SymbolicUtils.ACRule(permutations, SymbolicUtils.@rule(~x + *(~β, ~x) => *(1 + ~β, ~x)), 2)
         SymbolicUtils.ACRule(permutations, SymbolicUtils.@rule(*(~α::SymbolicUtils.isnumber, ~x) + ~x => *(~α + 1, ~x)), 2)
@@ -84,6 +83,7 @@ let
     global commutator_simplifier
     global default_operator_simplifier
     global default_expand_simplifier
+    global noncommutative_simplifier
 
     function default_operator_simplifier(; kwargs...)
         SymbolicUtils.IfElse(
