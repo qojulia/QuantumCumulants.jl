@@ -1,6 +1,9 @@
-isdestroy(a) = false
-iscreate(a) = false
-istransition(a) = false
+for f in [:isdestroy,:iscreate,:istransition,:isposition,
+            :isabstractposition,:ismomentum,:isabstractmomentum,
+            :issymmetrizedposition,:issymmetrizedmomentum]
+    @eval $(f)(a) = false
+end
+function unsymmetrize end
 
 let
     NC_TIMES_RULES = [
@@ -25,6 +28,15 @@ let
         # NLevel rules
         SymbolicUtils.@rule(*(~~a, ~x::istransition, ~y::istransition, ~~b) => apply_commutator(merge_transitions, ~~a, ~~b, ~x, ~y))
         SymbolicUtils.@rule(~x::istransition => rewrite_gs(~x))
+
+        # Position space
+        SymbolicUtils.@rule(*(~~a, ~x::isposition, ~y::ismomentum, ~~b) => apply_commutator(commute_symmetric, ~~a, ~~b, ~x, ~y))
+        SymbolicUtils.@rule(*(~~a, ~x::ismomentum, ~y::isposition, ~~b) => apply_commutator(commute_symmetric, ~~a, ~~b, ~x, ~y))
+
+        SymbolicUtils.@rule(*(~~a, ~x::isposition, ~y::issymmetrizedmomentum, ~~b) => apply_commutator(commute_nonsymmetric, ~~a, ~~b, ~x, ~y))
+        SymbolicUtils.@rule(*(~~a, ~x::issymmetrizedmomentum, ~y::isposition, ~~b) => apply_commutator(commute_nonsymmetric, ~~a, ~~b, ~x, ~y))
+        SymbolicUtils.@rule(*(~~a, ~x::ismomentum, ~y::issymmetrizedposition, ~~b) => apply_commutator(commute_nonsymmetric, ~~a, ~~b, ~x, ~y))
+        SymbolicUtils.@rule(*(~~a, ~x::issymmetrizedposition, ~y::ismomentum, ~~b) => apply_commutator(commute_nonsymmetric, ~~a, ~~b, ~x, ~y))
     ]
 
     EXPAND_RULES = [
@@ -78,25 +90,24 @@ let
 
     ASSORTED_EXPAND_RULES = [EXPAND_RULES;ASSORTED_RULES]
 
+    UNSYMMETRIZE_RULES = [
+        # After symmetrically ordered commutation relations have been applied, rewrite to original operators
+        SymbolicUtils.@rule(~x::issymmetrizedposition => unsymmetrize(~x))
+        SymbolicUtils.@rule(~x::issymmetrizedmomentum => unsymmetrize(~x))
+    ]
+
     # Rewriter functions
     global operator_simplifier
     global commutator_simplifier
-    global default_operator_simplifier
+    global default_commutator_simplifier
     global default_expand_simplifier
-    global noncommutative_simplifier
+    global default_noncommutative_simplifier
 
-    function default_operator_simplifier(; kwargs...)
+    function default_commutator_simplifier(; kwargs...)
         SymbolicUtils.IfElse(
-            SymbolicUtils.sym_isa(AbstractOperator), SymbolicUtils.Postwalk(operator_simplifier()),
+            SymbolicUtils.sym_isa(AbstractOperator), commutator_simplifier(),
             SymbolicUtils.default_simplifier(; kwargs...)
         )
-    end
-
-    function operator_simplifier()
-        rw_comms = commutator_simplifier()
-        rw_nc = noncommutative_simplifier()
-        rw = SymbolicUtils.Chain([rw_comms,rw_nc])
-        return SymbolicUtils.Postwalk(rw)
     end
 
     function commutator_simplifier()
@@ -106,8 +117,16 @@ let
         return SymbolicUtils.Fixpoint(SymbolicUtils.Postwalk(rule_tree))
     end
 
+    function default_noncommutative_simplifier(; kwargs...)
+        SymbolicUtils.IfElse(
+            SymbolicUtils.sym_isa(AbstractOperator), noncommutative_simplifier(),
+            SymbolicUtils.default_simplifier(; kwargs...)
+        )
+    end
     function noncommutative_simplifier()
-        rule_tree = [SymbolicUtils.If(SymbolicUtils.is_operation(+), SymbolicUtils.Chain(PLUS_RULES)),
+        rule_tree = [SymbolicUtils.Chain(ASSORTED_RULES),
+                     SymbolicUtils.Chain(UNSYMMETRIZE_RULES),
+                     SymbolicUtils.If(SymbolicUtils.is_operation(+), SymbolicUtils.Chain(PLUS_RULES)),
                      SymbolicUtils.If(SymbolicUtils.is_operation(*), SymbolicUtils.Chain(NC_TIMES_RULES)),
                      SymbolicUtils.If(SymbolicUtils.is_operation(^), SymbolicUtils.Chain(POW_RULES))
                      ] |> SymbolicUtils.Chain
