@@ -24,5 +24,11 @@ he = heisenberg(ops,H)
 @test he.rhs[1] == simplify_operators(p/m)
 @test he.rhs[2] == simplify_operators(-m*ω*x)
 
+ops2 = [x,p,x^2,p^2,x*p+ p*x]
+he2 = heisenberg(ops2,H)
+he2_avg = average(he2,2)
+
+ps = (m,ω)
+meta_f = build_ode(he2_avg,ps)
 
 end # testset

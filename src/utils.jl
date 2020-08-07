@@ -11,11 +11,19 @@ function find_missing(rhs::Vector{<:Number}, vs::Vector{<:Number}; vs_adj::Vecto
         append!(missed,get_symbolics(e))
     end
     unique!(missed)
-    filter!(x->!(x∈vs || x∈ps || x∈vs_adj),missed)
+    filter!(x->!(contained_in(x, vs) || contained_in(x, ps) || contained_in(x, vs_adj)),missed)
     return missed
 end
 function find_missing(de::DifferentialEquation{<:Number,<:Number}; kwargs...)
     find_missing(de.rhs, de.lhs; kwargs...)
+end
+
+function contained_in(x::Number, vs)
+    syms = []
+    for v in vs
+        append!(syms, get_symbolics(v))
+    end
+    return x in syms
 end
 
 """
