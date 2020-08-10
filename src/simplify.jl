@@ -100,7 +100,7 @@ function expand(ex; rewriter=default_expand_simplifier(), kwargs...)
 end
 
 """
-    substitute(arg, subs; simplify=true)
+    substitute(arg, subs; simplify=true, conjugate=true)
 
 Substitute the symbolic argument, i.e. any subtype to [`AbstractOperator`](@ref)
 or [`SymbolicNumber`](@ref) according to the substitutions stored in a `Dict`.
@@ -117,12 +117,12 @@ julia> substitute(p, Dict(p=>2))
 2
 ```
 """
-function substitute(op::BasicOperator, dict; kwargs...)
+function substitute(op::BasicOperator, dict; conjugate=true, kwargs...)
     if haskey(dict, op)
         op_ = dict[op]
         check_hilbert(op_,op)
         return op_
-    elseif haskey(dict, op')
+    elseif conjugate && haskey(dict, op')
         op_ = dict[op']
         check_hilbert(op_, op)
         return op_'
@@ -130,10 +130,10 @@ function substitute(op::BasicOperator, dict; kwargs...)
         return op
     end
 end
-function substitute(t::OperatorTerm, dict; simplify=true, kwargs...)
+function substitute(t::OperatorTerm, dict; simplify=true, conjugate=true, kwargs...)
     if haskey(dict, t)
         return dict[t]
-    elseif haskey(dict, t')
+    elseif conjugate && haskey(dict, t')
         return dict[t']'
     else
         if simplify
@@ -160,6 +160,9 @@ function issorted_nc(f::typeof(*), args)
     args_nc = args[.!is_c]
     return issorted(is_c, lt=(>)) && SymbolicUtils.issortedₑ(args_c) && issorted(args_nc, lt=lt_aon)
 end
+
+isposint(x) = false
+isposint(x::Int) = (x > 0)
 
 # Comparison for sorting according to Hilbert spaces
 function lt_aon(t1,t2)

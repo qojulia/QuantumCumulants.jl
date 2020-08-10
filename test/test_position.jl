@@ -14,7 +14,7 @@ p = Momentum(h,:p)
 
 # Test quantum Harmonic oscillator
 @parameters m ω
-H = 1/2*m*ω*x^2 + p^2/(2m)
+H = 1/2*m*ω^2*x^2 + p^2/(2m)
 
 @test iszero(commutator(H,H))
 
@@ -24,7 +24,13 @@ he = heisenberg(ops,H)
 @test he.rhs[1] == simplify_operators(p/m)
 @test he.rhs[2] == simplify_operators(-m*ω*x)
 
-ops2 = [x,p,x^2,p^2,x*p+ p*x]
+r = symmetrize(x)
+q = symmetrize(p)
+
+@test commutator(H,r*q) == commutator(H,x*p)
+@test simplify_operators(r*p) == simplify_operators(x*q)
+
+ops2 = [x,p,x^2,p^2,r*q]
 he2 = heisenberg(ops2,H)
 he2_avg = average(he2,2)
 

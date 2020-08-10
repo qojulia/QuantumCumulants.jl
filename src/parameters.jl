@@ -67,10 +67,10 @@ for f in [:+,:*]
 end
 
 # Substitution
-function substitute(t::NumberTerm, dict; simplify=true, kwargs...)
+function substitute(t::NumberTerm, dict; simplify=true, conjugate=true, kwargs...)
     if haskey(dict, t)
         return dict[t]
-    elseif haskey(dict, t')
+    elseif conjugate && haskey(dict, t')
         return dict[t]'
     else
         if simplify
@@ -80,10 +80,10 @@ function substitute(t::NumberTerm, dict; simplify=true, kwargs...)
         end
     end
 end
-function substitute(x::SymbolicNumber, dict; kwargs...)
+function substitute(x::SymbolicNumber, dict; conjugate=true, kwargs...)
     if haskey(dict, x)
         return dict[x]
-    elseif haskey(dict, x')
+    elseif conjugate && haskey(dict, x')
         return dict[x']'
     else
         return x
@@ -147,6 +147,14 @@ function parameters(s::String)
     return parameters(syms...)
 end
 
+# function default_number_simplifier()
+#     rule_tree = [SymbolicUtils.@rule(*(~~a, +(~~b), ~~c) => +(map(b -> *((~~a)..., b, (~~c)...), ~~b)...)),
+#                 SymbolicUtils.@rule(^(~x,~y::isposint) => *((~x for i=1:~y)...)),
+#                 SymbolicUtils.default_simplifier()
+#                 ] |> SymbolicUtils.RestartedChain
+#     return SymbolicUtils.Fixpoint(SymbolicUtils.Postwalk(rule_tree))
+# end
+
 """
     simplify_constants(t::NumberTerm;kwargs...)
 
@@ -156,7 +164,8 @@ symbolic number variables.
 """
 simplify_constants(s::Number;kwargs...) = s
 function simplify_constants(t::NumberTerm;kwargs...)
-    s = _to_symbolic(t)
+    t_ = expand(t)
+    s = _to_symbolic(t_)
     s_ = SymbolicUtils.simplify(s;kwargs...)
     return _to_qumulants(s_)
 end
