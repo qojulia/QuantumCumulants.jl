@@ -56,7 +56,22 @@ function complete(de::DifferentialEquation{<:Number,<:Number},H::AbstractOperato
     rhs_, lhs_ = complete(de.rhs,de.lhs, [H,J]; kwargs...)
     return DifferentialEquation(lhs_,rhs_)
 end
-function complete(rhs::Vector{<:Number}, vs::Vector{<:Number}, he_args; order=nothing, mix_choice=maximum, kwargs...)
+function complete(rhs::Vector{<:Number}, vs::Vector{<:Number}, args...; kwargs...)
+    rs_ = copy(rhs)
+    vs_ = copy(vs)
+    complete!(rs_, vs_, args...; kwargs...)
+    return rs_, vs_
+end
+
+function complete!(de::DifferentialEquation{<:Number,<:Number},H::AbstractOperator;kwargs...)
+    complete!(de.rhs,de.lhs,[H];kwargs...)
+    return de
+end
+function complete!(de::DifferentialEquation{<:Number,<:Number},H::AbstractOperator,J::Vector;kwargs...)
+    complete!(de.rhs,de.lhs,[H,J];kwargs...)
+    return de
+end
+function complete!(rhs::Vector{<:Number}, vs::Vector{<:Number}, he_args; order=nothing, mix_choice=maximum, kwargs...)
     order_lhs = maximum(get_order.(vs))
     order_rhs = maximum(get_order.(rhs))
     if order isa Nothing
@@ -66,20 +81,19 @@ function complete(rhs::Vector{<:Number}, vs::Vector{<:Number}, he_args; order=no
     end
     order_ >= order_lhs || error("Cannot form cumulant expansion of derivative; you may want to use a higher order!")
 
-    vs_ = copy(vs)
-    rhs_ = [cumulant_expansion(r, order_) for r in rhs]
-    missed = unique_ops(find_missing(rhs_, vs_))
+    rhs .= [cumulant_expansion(r, order_) for r in rhs]
+    missed = unique_ops(find_missing(rhs, vs))
     filter!(x->isa(x,Average),missed)
     while !isempty(missed)
         ops = getfield.(missed, :operator)
         he = heisenberg(ops,he_args...;kwargs...)
         he_avg = average(he,order_;mix_choice=mix_choice)
-        rhs_ = [rhs_;he_avg.rhs]
-        vs_ = [vs_;he_avg.lhs]
-        missed = unique_ops(find_missing(rhs_,vs_))
+        append!(rhs, he_avg.rhs)
+        append!(vs, he_avg.lhs)
+        missed = unique_ops(find_missing(rhs,vs))
         filter!(x->isa(x,Average),missed)
     end
-    return rhs_, vs_
+    return rhs, vs
 end
 
 """
