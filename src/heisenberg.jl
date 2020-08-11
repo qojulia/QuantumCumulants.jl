@@ -10,11 +10,11 @@ function heisenberg(a::Vector,H; multithread=false)
         lhs = Vector{AbstractOperator}(undef, length(a))
         rhs = Vector{AbstractOperator}(undef, length(a))
         Threads.@threads for i=1:length(a)
-            lhs[i] = simplify_operators(a[i])
+            lhs[i] = simplify_operators(symmetrize(a[i]))
             rhs[i] = simplify_operators(1.0im*commutator(H,lhs[i];simplify=false))
         end
     else
-        lhs = simplify_operators.(a)
+        lhs = simplify_operators.(symmetrize.(a))
         rhs = simplify_operators.([1.0im*commutator(H,a1;simplify=false) for a1=lhs])
     end
     return DifferentialEquation(lhs,rhs)
@@ -50,12 +50,12 @@ function heisenberg(a::Vector,H,J;Jdagger::Vector=adjoint.(J),rates=ones(length(
     rhs = Vector{AbstractOperator}(undef, length(a))
     if multithread
         Threads.@threads for i=1:length(a)
-            lhs[i] = simplify_operators(a[i])
+            lhs[i] = simplify_operators(symmetrize(a[i]))
             rhs[i] = simplify_operators(1.0im*commutator(H,lhs[i];simplify=false) + _master_lindblad(lhs[i],J,Jdagger,rates))
         end
     else
         for i=1:length(a)
-            lhs[i] = simplify_operators(a[i])
+            lhs[i] = simplify_operators(symmetrize(a[i]))
             rhs[i] = simplify_operators(1.0im*commutator(H,lhs[i];simplify=false) + _master_lindblad(lhs[i],J,Jdagger,rates))
         end
     end
@@ -137,3 +137,5 @@ function commutator(a::OperatorTerm{<:typeof(+)},b::OperatorTerm{<:typeof(+)}; s
         return out
     end
 end
+commutator(::Number,::Any;kwargs...) = 0
+commutator(::Any,::Number;kwargs...) = 0

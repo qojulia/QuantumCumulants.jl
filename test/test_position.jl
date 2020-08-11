@@ -1,4 +1,5 @@
 using Qumulants
+using OrdinaryDiffEq
 using Test
 
 @testset "position" begin
@@ -22,7 +23,7 @@ ops = [x,p]
 he = heisenberg(ops,H)
 
 @test he.rhs[1] == simplify_operators(p/m)
-@test he.rhs[2] == simplify_operators(-m*ω*x)
+@test he.rhs[2] == simplify_operators(-m*ω^2*x)
 
 r = symmetrize(x)
 q = symmetrize(p)
@@ -35,6 +36,24 @@ he2 = heisenberg(ops2,H)
 he2_avg = average(he2,2)
 
 ps = (m,ω)
-meta_f = build_ode(he2_avg,ps)
+f = generate_ode(he2_avg,ps)
+
+# Initial state
+α = 5.0im + 4 # coherent amplitude
+u0 = [sqrt(2)*real(α), sqrt(2)*imag(α)]
+p0 = (1,1,0.1)
+u2 = zeros(ComplexF64, length(he2))
+u2[1:2] = u0
+u2[3] = real(α^2) + abs2(α) + 0.5
+u2[4] = -real(α^2) + abs2(α) + 0.5
+u2[5] = imag(α^2) + 0.5im
+
+prob2 = ODEProblem(f,u2,(0.0,10.0),p0)
+sol2 = solve(prob2,Tsit5(), abstol=1e-11, reltol=1e-9);
+
+Δx = real.([u[3] - u[1]^2 for u in sol2.u])
+Δp = real.([u[4] - u[2]^2 for u in sol2.u])
+@test isapprox(minimum(Δx .* Δp), 0.25)
+
 
 end # testset

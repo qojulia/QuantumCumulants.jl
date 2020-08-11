@@ -87,7 +87,7 @@ end
 
 Find all operators that fully define a system up to the given `order`.
 """
-function find_operators(h::HilbertSpace, order::Int; names=nothing, kwargs...)
+function find_operators(h::ProductSpace, order::Int; names=nothing, kwargs...)
     if names isa Nothing && (unique(typeof.(h.spaces))!=typeof.(h.spaces))
         alph = 'a':'z'
         names_ = Symbol.(alph[1:length(h.spaces)])
@@ -96,6 +96,15 @@ function find_operators(h::HilbertSpace, order::Int; names=nothing, kwargs...)
     end
     fund_ops = fundamental_operators(h;names=names_, kwargs...)
     fund_ops = unique([fund_ops;adjoint.(fund_ops)])
+    return _find_operators(fund_ops,order;kwargs...)
+end
+function find_operators(h::HilbertSpace,order::Int;names=nothing,kwargs...)
+    fund_ops = fundamental_operators(h;names=names)
+    return _find_operators(fund_ops,order;kwargs...)
+end
+find_operators(op::AbstractOperator,args...) = find_operators(hilbert(op),args...)
+
+function _find_operators(fund_ops,order; kwargs...)
     ops = copy(fund_ops)
     for i=2:order
         ops = [ops;fund_ops]
@@ -104,24 +113,25 @@ function find_operators(h::HilbertSpace, order::Int; names=nothing, kwargs...)
     all_ops = AbstractOperator[]
     for i=1:order
         for c in combinations(ops, i)
-            push!(all_ops, prod(c))
+            c_ = symmetrize(prod(c))
+            (c_ in all_ops) || push!(all_ops, c_)
         end
     end
 
     # Simplify and remove non-operators iteratively
-    ops_1 = simplify_operators.(all_ops)
+    ops_1 = symmetrize.(simplify_operators.(all_ops))
     ops_2 = all_ops
     while ops_1 != ops_2
         ops_2 = AbstractOperator[]
         for op in ops_1
             append!(ops_2, _get_operators(op))
         end
-        ops_1 = simplify_operators.(ops_2)
+        ops_1 = symmetrize.(simplify_operators.(ops_2))
     end
 
-    return unique_ops(ops_2)
+    return unique_ops(unsymmetrize.(ops_2))
 end
-find_operators(op::AbstractOperator,args...) = find_operators(hilbert(op),args...)
+
 
 """
     hilbert(::AbstractOperator)

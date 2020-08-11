@@ -85,6 +85,11 @@ unsymmetrize(x::SymmetrizedMomentum) = Momentum(x.hilbert,x.name,x.aon)
 
 for f in [:symmetrize,:unsymmetrize]
     @eval $(f)(s::SymbolicUtils.Symbolic) = _to_symbolic($(f)(_to_qumulants(s)))
+    @eval $(f)(x) = x
+    @eval function $(f)(x::OperatorTerm)
+        args_ = [$(f)(arg) for arg in x.arguments]
+        return x.f(args_...)
+    end
 end
 
 for f in [:Position,:Momentum,:SymmetrizedPosition,:SymmetrizedMomentum]
