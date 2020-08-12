@@ -16,6 +16,7 @@ abstract type BasicOperator <: AbstractOperator end
 
 isoperator(x) = false
 isoperator(x::Union{T,SymbolicUtils.Symbolic{T}}) where {A,T<:AbstractOperator} = true
+Base.:(==)(x::BasicOperator,y::BasicOperator) = (hash(x)==hash(y))
 
 # Dicts for conversion
 const OPERATORS_TO_SYMS = Dict{BasicOperator,SymbolicUtils.Sym}()
