@@ -147,6 +147,13 @@ function fundamental_operators(h::NLevelSpace,aon::Int=1;names=nothing)
     end
     return sigmas
 end
+function fundamental_operators(h::SpinSpace,aon::Int=1;names=nothing)
+    name = names isa Nothing ? :S : names[aon]
+    sx = SigmaX(h,name)
+    sy = SigmaY(h,name)
+    sz = SigmaZ(h,name)
+    return [sx,sy,sz]
+end
 function fundamental_operators(h::ProductSpace;kwargs...)
     ops = []
     for i=1:length(h.spaces)
@@ -222,9 +229,9 @@ end
 _to_expression(op::BasicOperator) = op.name
 _to_expression(op::Create) = :(dagger($(op.name)))
 _to_expression(op::Transition) = :(Transition($(op.name),$(op.i),$(op.j)) )
-_to_expression(op::SigmaX) = :(Sigma($(op.name), :x))
-_to_expression(op::SigmaY) = :(Sigma($(op.name), :y))
-_to_expression(op::SigmaZ) = :(Sigma($(op.name), :z))
+_to_expression(op::SigmaX) = :(Sigma($(op.name), x))
+_to_expression(op::SigmaY) = :(Sigma($(op.name), y))
+_to_expression(op::SigmaZ) = :(Sigma($(op.name), z))
 _to_expression(t::Union{OperatorTerm,NumberTerm}) = :( $(Symbol(t.f))($(_to_expression.(t.arguments)...)) )
 _to_expression(p::Parameter) = p.name
 function _to_expression(avg::Average)
