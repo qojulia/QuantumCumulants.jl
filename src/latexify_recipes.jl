@@ -32,6 +32,9 @@ function _postwalk_func(x)
     elseif MacroTools.@capture(x, Transition(arg_,i_,j_))
         s = "$(arg)$(transition_idx_script[]){$(i)$(j)}"
         return s
+    elseif MacroTools.@capture(x, Sigma(arg_,x_))
+        s = "$(arg)_{$x}"
+        return s
     else
         return x
     end

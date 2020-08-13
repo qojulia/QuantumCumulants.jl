@@ -1,6 +1,7 @@
-isdestroy(a) = false
-iscreate(a) = false
-istransition(a) = false
+for f in [:isdestroy,:iscreate,:istransition,:isspinx,:isspiny,:isspinz]
+    @eval $(f)(a) = false
+end
+isspin(N) = x->isspin(N,_to_qumulants(x))
 
 let
     NC_TIMES_RULES = [
@@ -25,6 +26,13 @@ let
         # NLevel rules
         SymbolicUtils.@rule(*(~~a, ~x::istransition, ~y::istransition, ~~b) => apply_commutator(merge_transitions, ~~a, ~~b, ~x, ~y))
         SymbolicUtils.@rule(~x::istransition => rewrite_gs(~x))
+
+        # Spin space
+        SymbolicUtils.@rule(*(~~a, ~x::isspiny, ~y::isspinx, ~~b) => apply_commutator(commute_spin, ~~a, ~~b, ~x, ~y))
+        SymbolicUtils.@rule(*(~~a, ~x::isspinz, ~y::isspinx, ~~b) => apply_commutator(commute_spin, ~~a, ~~b, ~x, ~y))
+        SymbolicUtils.@rule(*(~~a, ~x::isspinz, ~y::isspiny, ~~b) => apply_commutator(commute_spin, ~~a, ~~b, ~x, ~y))
+        SymbolicUtils.@rule(^(~x::isspin(1//2), ~n::iseven) => one(~x))
+        SymbolicUtils.@rule(^(~x::isspin(1//2), ~n::isodd) => ~x)
     ]
 
     EXPAND_RULES = [
