@@ -11,6 +11,7 @@ Base.:(==)(h1::T,h2::T) where T<:SpinSpace = (h1.name==h2.name && h1.spin==h2.sp
 Base.hash(h::SpinSpace, i::UInt) = hash(h.name, hash(h.spin, i))
 isspin(N,h::SpinSpace,args...) = (N==h.spin)
 isspin(N,h::ProductSpace,aon) = isspin(N,h.spaces[aon])
+isspin(N,x) = false
 
 """
     SigmaX <: BasicOperator

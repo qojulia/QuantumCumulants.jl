@@ -1,6 +1,7 @@
 names = [
     "test_fock.jl"
     "test_nlevel.jl"
+    "test_spin.jl"
     "test_embed.jl"
     "test_heisenberg.jl"
     "test_parameters.jl"
@@ -8,8 +9,7 @@ names = [
     "test_diffeq.jl"
     "test_v-level.jl"
     "test_mixed-order.jl"
-    # "test_multisystems.jl"
-    # "test_higher-order.jl"
+    # "test_higher-order.jl" TODO
 ]
 
 detected_tests = filter(
