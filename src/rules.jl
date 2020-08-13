@@ -1,10 +1,12 @@
 isdestroy(a) = false
 iscreate(a) = false
 istransition(a) = false
+_isnotflat(f) = x -> _isnotflat(f,x)
+_isnotflat(f,x) = SymbolicUtils.is_operation(f)(x) && SymbolicUtils.isnotflat(f)(x)
 
 let
     NC_TIMES_RULES = [
-        SymbolicUtils.@rule(*(~~x::SymbolicUtils.isnotflat(*)) => SymbolicUtils.flatten_term(*, ~~x))
+        SymbolicUtils.@rule(~x::_isnotflat(*) => SymbolicUtils.flatten_term(*, ~~x))
         SymbolicUtils.@rule(*(~~x::!(issorted_nc(*))) => sort_args_nc(*, ~~x))
 
         SymbolicUtils.ACRule(combinations, SymbolicUtils.@rule(~a::SymbolicUtils.isnumber * ~b::SymbolicUtils.isnumber => ~a * ~b), 2)
@@ -33,19 +35,19 @@ let
 
         # Expand powers
         SymbolicUtils.@rule(^(~x::SymbolicUtils.sym_isa(AbstractOperator),~y::SymbolicUtils.isliteral(Integer)) => *((~x for i=1:~y)...))
-        SymbolicUtils.@rule(*(~~x::SymbolicUtils.isnotflat(*)) => SymbolicUtils.flatten_term(*, ~~x))
+        SymbolicUtils.@rule(~x::_isnotflat(*) => SymbolicUtils.flatten_term(*, ~~x))
         SymbolicUtils.@rule(*(~~x::!(issorted_nc(*))) => sort_args_nc(*, ~~x))
 
         # Expand sums
         SymbolicUtils.@rule(*(~~a, +(~~b), ~~c) => +(map(b -> *((~~a)..., b, (~~c)...), ~~b)...))
-        SymbolicUtils.@rule(+(~~x::SymbolicUtils.isnotflat(+)) => SymbolicUtils.flatten_term(+,~~x))
+        SymbolicUtils.@rule(~x::_isnotflat(+) => SymbolicUtils.flatten_term(+,~~x))
     ]
 
 
     # Copied directly from SymbolicUtils
     PLUS_RULES = [
-        SymbolicUtils.@rule(+(~~x::SymbolicUtils.isnotflat(+)) => SymbolicUtils.flatten_term(+, ~~x))
-        SymbolicUtils.@rule(+(~~x::!(SymbolicUtils.issortedₑ)) => SymbolicUtils.sort_args(+, ~~x))
+        SymbolicUtils.@rule(~x::_isnotflat(+) => SymbolicUtils.flatten_term(+, ~~x))
+        SymbolicUtils.@rule(~x::SymbolicUtils.needs_sorting(+) => SymbolicUtils.sort_args(+, ~~x))
         SymbolicUtils.ACRule(combinations, SymbolicUtils.@rule(~a::SymbolicUtils.isnumber + ~b::SymbolicUtils.isnumber => ~a + ~b), 2)
 
         SymbolicUtils.ACRule(permutations, SymbolicUtils.@rule(*(~~x) + *(~β, ~~x) => *(1 + ~β, (~~x)...)), 2)

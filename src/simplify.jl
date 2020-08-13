@@ -181,11 +181,12 @@ function acts_on(t::SymbolicUtils.Term{T}) where T<:AbstractOperator
     return aon
 end
 
+using SymbolicUtils: <ₑ
 function sort_args_nc(f::typeof(*), args)
     is_c = iscommutative.(f, args)
-    args_c = SymbolicUtils.sort_args(f, args[is_c]).arguments
+    args_c = sort(args[is_c], lt=(<ₑ))
     args_nc = sort(args[.!is_c], lt=lt_aon)
-    return f(args_c..., args_nc...)
+    return f(args[is_c]..., args_nc...)
 end
 
 # Apply commutation relation
