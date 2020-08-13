@@ -33,8 +33,9 @@ let
         SymbolicUtils.@rule(*(~~a, ~x::issigmay, ~y::issigmax, ~~b) => apply_commutator(commute_spin, ~~a, ~~b, ~x, ~y))
         SymbolicUtils.@rule(*(~~a, ~x::issigmaz, ~y::issigmax, ~~b) => apply_commutator(commute_spin, ~~a, ~~b, ~x, ~y))
         SymbolicUtils.@rule(*(~~a, ~x::issigmaz, ~y::issigmay, ~~b) => apply_commutator(commute_spin, ~~a, ~~b, ~x, ~y))
-        SymbolicUtils.ACRule(permutations, SymbolicUtils.@rule(*(~x::isspin(1//2), ~x) => one(~x)), 2)
-        # SymbolicUtils.@rule(^(~x::isspin(1//2), ~n::isodd) => ~x)
+
+        # Special rules for spin-1/2 particles
+        SymbolicUtils.@rule(*(~~a, ~x::isspin(1//2), ~y::isspin(1//2), ~~b) => rewrite_spinhalf(~~a,~~b,~x,~y))
     ]
 
     EXPAND_RULES = [

@@ -125,3 +125,27 @@ function commute_spin(a::SymbolicUtils.Sym{S1},b::SymbolicUtils.Sym{S2}) where {
     y = _to_symbolic(SigmaY(h,op.name,aon))
     return im*y + b*a
 end
+
+for S in [:SigmaX,:SigmaY,:SigmaZ]
+    @eval function rewrite_spinhalf(args_l, args_r, x::SymbolicUtils.Sym{T}, y::SymbolicUtils.Sym{T}) where T<:($(S))
+        if acts_on(x)==acts_on(y)
+            isempty(args_l)&&isempty(args_r)&&(return one(x))
+            return *(args_l...,args_r...)
+        else
+            return nothing
+        end
+    end
+end
+
+for (S,l) in zip(permutations([:SigmaX,:SigmaY,:SigmaZ]), permutations([1,2,3]))
+    ϵ = levicivita(l)
+    @eval function rewrite_spinhalf(args_l, args_r, x::SymbolicUtils.Sym{S1}, y::SymbolicUtils.Sym{S2}) where {S1<:($(S[1])),S2<:($(S[2]))}
+        if acts_on(x)==acts_on(y)
+            op_x = _to_qumulants(x)
+            z = _to_symbolic($(S[3])(op_x.hilbert,op_x.name,op_x.aon))
+            return *(args_l...,($(ϵ)*0.5im)*z,args_r...)
+        else
+            return nothing
+        end
+    end
+end
