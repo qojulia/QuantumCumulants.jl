@@ -109,21 +109,21 @@ function commute_spin(a::SymbolicUtils.Sym{S1},b::SymbolicUtils.Sym{S2}) where {
     h = hilbert(op)
     aon = acts_on(op)
     z = _to_symbolic(SigmaZ(h,op.name,aon))
-    return -im*z + b*a
+    return -2im*z + b*a
 end
 function commute_spin(a::SymbolicUtils.Sym{S1},b::SymbolicUtils.Sym{S2}) where {S1<:SigmaZ,S2<:SigmaY}
     op = _to_qumulants(a)
     h = hilbert(op)
     aon = acts_on(op)
     x = _to_symbolic(SigmaX(h,op.name,aon))
-    return -im*x + b*a
+    return -2im*x + b*a
 end
 function commute_spin(a::SymbolicUtils.Sym{S1},b::SymbolicUtils.Sym{S2}) where {S1<:SigmaZ,S2<:SigmaX}
     op = _to_qumulants(a)
     h = hilbert(op)
     aon = acts_on(op)
     y = _to_symbolic(SigmaY(h,op.name,aon))
-    return im*y + b*a
+    return 2im*y + b*a
 end
 
 for S in [:SigmaX,:SigmaY,:SigmaZ]
@@ -143,7 +143,7 @@ for (S,l) in zip(permutations([:SigmaX,:SigmaY,:SigmaZ]), permutations([1,2,3]))
         if acts_on(x)==acts_on(y)
             op_x = _to_qumulants(x)
             z = _to_symbolic($(S[3])(op_x.hilbert,op_x.name,op_x.aon))
-            return *(args_l...,($(ϵ)*0.5im)*z,args_r...)
+            return *(args_l...,($(ϵ)*im)*z,args_r...)
         else
             return nothing
         end
