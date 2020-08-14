@@ -34,3 +34,7 @@ sz = SigmaZ(h, :σ)
 
 
 end # testset
+
+ex_sym = Qumulants._to_symbolic(sz*)
+Qumulants.commute_spin(ex_sym.arguments...)
+Qumulants.apply_commutator(Qumulants.commute_spin, [],[], ex_sym.arguments...)

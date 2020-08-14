@@ -1,7 +1,7 @@
-for f in [:isdestroy,:iscreate,:istransition,:issigmax,:issigmay,:issigmaz]
+for f in [:isdestroy,:iscreate,:istransition,:issigmax,:issigmay,:issigmaz,:isspinop,:is_symspin,:isanyspin]
     @eval $(f)(a) = false
 end
-isspin(N) = x->isspin(N,_to_qumulants(x))
+isspinN(N) = x->isspinN(N,_to_qumulants(x))
 _isnotflat(f) = x -> _isnotflat(f,x)
 _isnotflat(f,x) = SymbolicUtils.is_operation(f)(x) && SymbolicUtils.isnotflat(f)(x)
 
@@ -30,12 +30,11 @@ let
         SymbolicUtils.@rule(~x::istransition => rewrite_gs(~x))
 
         # Spin space
-        SymbolicUtils.@rule(*(~~a, ~x::issigmay, ~y::issigmax, ~~b) => apply_commutator(commute_spin, ~~a, ~~b, ~x, ~y))
-        SymbolicUtils.@rule(*(~~a, ~x::issigmaz, ~y::issigmax, ~~b) => apply_commutator(commute_spin, ~~a, ~~b, ~x, ~y))
-        SymbolicUtils.@rule(*(~~a, ~x::issigmaz, ~y::issigmay, ~~b) => apply_commutator(commute_spin, ~~a, ~~b, ~x, ~y))
+        SymbolicUtils.@rule(*(~~a, ~x::isspinop, ~y::isanyspin, ~~b) => apply_commutator(commute_spin, ~~a, ~~b, ~x, ~y))
+        SymbolicUtils.@rule(*(~~a, ~x::isanyspin, ~y::isspinop, ~~b) => apply_commutator(commute_spin, ~~a, ~~b, ~x, ~y))
 
         # Special rules for spin-1/2 particles
-        SymbolicUtils.@rule(*(~~a, ~x::isspin(1//2), ~y::isspin(1//2), ~~b) => rewrite_spinhalf(~~a,~~b,~x,~y))
+        # SymbolicUtils.@rule(*(~~a, ~x::isspinN(1//2), ~y::isspinN(1//2), ~~b) => rewrite_spinhalf(~~a,~~b,~x,~y))
     ]
 
     EXPAND_RULES = [
@@ -87,27 +86,25 @@ let
         # SymbolicUtils.@rule(SymbolicUtils.cond(~x::SymbolicUtils.isnumber, ~y, ~z) => ~x ? ~y : ~z)
     ]
 
+    UNSYMMETRIZE_RULES = [
+        # After symmetrically ordered commutation relations have been applied, rewrite to original operators
+        SymbolicUtils.@rule(~x::is_symspin => unsymmetrize(~x))
+    ]
+
     ASSORTED_EXPAND_RULES = [EXPAND_RULES;ASSORTED_RULES]
 
     # Rewriter functions
-    global operator_simplifier
+    global default_commutator_simplifier
     global commutator_simplifier
-    global default_operator_simplifier
     global default_expand_simplifier
+    global default_noncommutative_simplifier
     global noncommutative_simplifier
 
-    function default_operator_simplifier(; kwargs...)
+    function default_commutator_simplifier(; kwargs...)
         SymbolicUtils.IfElse(
-            SymbolicUtils.sym_isa(AbstractOperator), SymbolicUtils.Postwalk(operator_simplifier()),
+            SymbolicUtils.sym_isa(AbstractOperator), commutator_simplifier(),
             SymbolicUtils.default_simplifier(; kwargs...)
         )
-    end
-
-    function operator_simplifier()
-        rw_comms = commutator_simplifier()
-        rw_nc = noncommutative_simplifier()
-        rw = SymbolicUtils.Chain([rw_comms,rw_nc])
-        return SymbolicUtils.Postwalk(rw)
     end
 
     function commutator_simplifier()
@@ -117,11 +114,20 @@ let
         return SymbolicUtils.Fixpoint(SymbolicUtils.Postwalk(rule_tree))
     end
 
+    function default_noncommutative_simplifier(; kwargs...)
+            SymbolicUtils.IfElse(
+                SymbolicUtils.sym_isa(AbstractOperator), noncommutative_simplifier(),
+                SymbolicUtils.default_simplifier(; kwargs...)
+            )
+    end
+
     function noncommutative_simplifier()
-        rule_tree = [SymbolicUtils.If(SymbolicUtils.is_operation(+), SymbolicUtils.Chain(PLUS_RULES)),
-                     SymbolicUtils.If(SymbolicUtils.is_operation(*), SymbolicUtils.Chain(NC_TIMES_RULES)),
-                     SymbolicUtils.If(SymbolicUtils.is_operation(^), SymbolicUtils.Chain(POW_RULES))
-                     ] |> SymbolicUtils.Chain
+        rule_tree = [SymbolicUtils.Chain(ASSORTED_RULES),
+                    SymbolicUtils.Chain(UNSYMMETRIZE_RULES),
+                    SymbolicUtils.If(SymbolicUtils.is_operation(+), SymbolicUtils.Chain(PLUS_RULES)),
+                    SymbolicUtils.If(SymbolicUtils.is_operation(*), SymbolicUtils.Chain(NC_TIMES_RULES)),
+                    SymbolicUtils.If(SymbolicUtils.is_operation(^), SymbolicUtils.Chain(POW_RULES))
+                    ] |> SymbolicUtils.Chain
         return SymbolicUtils.Fixpoint(SymbolicUtils.Postwalk(rule_tree))
     end
 
