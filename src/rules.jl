@@ -1,4 +1,5 @@
-for f in [:isdestroy,:iscreate,:istransition,:issigmax,:issigmay,:issigmaz,:isspinop,:is_symspin,:isanyspin]
+for f in [:isdestroy,:iscreate,:istransition,:issigmax,:issigmay,:issigmaz,
+    :isspinop,:is_symspin,:isanyspin,:is_symmetrized_sigmax,:is_symmetrized_sigmay,:is_symmetrized_sigmaz,]
     @eval $(f)(a) = false
 end
 isspinN(N) = x->isspinN(N,_to_qumulants(x))
@@ -30,8 +31,11 @@ let
         SymbolicUtils.@rule(~x::istransition => rewrite_gs(~x))
 
         # Spin space
-        SymbolicUtils.@rule(*(~~a, ~x::isspinop, ~y::isanyspin, ~~b) => apply_commutator(commute_spin, ~~a, ~~b, ~x, ~y))
-        SymbolicUtils.@rule(*(~~a, ~x::isanyspin, ~y::isspinop, ~~b) => apply_commutator(commute_spin, ~~a, ~~b, ~x, ~y))
+        # SymbolicUtils.@rule(*(~~a, ~x::isspinop, ~y::isspinop, ~~b) => apply_commutator(commute_spin, ~~a, ~~b, ~x, ~y))
+        SymbolicUtils.@rule(*(~~a, ~x::issigmaz, ~y::issigmax, ~~b) => apply_commutator(commute_spin, ~~a, ~~b, ~x, ~y))
+        SymbolicUtils.@rule(*(~~a, ~x::issigmay, ~y::issigmax, ~~b) => apply_commutator(commute_spin, ~~a, ~~b, ~x, ~y))
+        SymbolicUtils.@rule(*(~~a, ~x::issigmaz, ~y::issigmay, ~~b) => apply_commutator(commute_spin, ~~a, ~~b, ~x, ~y))
+        # SymbolicUtils.@rule(*(~~a, ~x::isanyspin, ~y::isspinop, ~~b) => apply_commutator(commute_spin, ~~a, ~~b, ~x, ~y))
 
         # Special rules for spin-1/2 particles
         # SymbolicUtils.@rule(*(~~a, ~x::isspinN(1//2), ~y::isspinN(1//2), ~~b) => rewrite_spinhalf(~~a,~~b,~x,~y))

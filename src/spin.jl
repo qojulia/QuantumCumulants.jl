@@ -197,33 +197,82 @@ for f in [:SigmaX,:SigmaY,:SigmaZ,:SymmetrizedSigmaX,:SymmetrizedSigmaY,:Symmetr
 end
 
 # Commutation relation in simplification
-for (S,Ssym,l) in zip(permutations([:SigmaX,:SigmaY,:SigmaZ]),permutations([:SymmetrizedSigmaX,:SymmetrizedSigmaY,:SymmetrizedSigmaZ]), permutations([1,2,3]))
-    ϵ = levicivita(l)
-    @eval function commute_spin(x::SymbolicUtils.Sym{S1}, y::SymbolicUtils.Sym{S2}) where {S1<:($(S[1])),S2<:($(S[2]))}
-        op_x = _to_qumulants(x)
-        z = _to_symbolic($(Ssym[3])(op_x.hilbert,op_x.name,op_x.aon))
-        x_ = symmetrize(x)
-        y_ = symmetrize(y)
-        return x_*y_ + y_*x_ + (im*$(ϵ))*z
-    end
-    @eval function commute_spin(x::SymbolicUtils.Sym{S1}, y::SymbolicUtils.Sym{S2}) where {S1<:($(Ssym[1])),S2<:($(S[2]))}
-        op_x = _to_qumulants(x)
-        z = _to_symbolic($(Ssym[3])(op_x.hilbert,op_x.name,op_x.aon))
-        y_ = symmetrize(y)
-        return x*y_ + y_*x + (im*$(ϵ))*z
-    end
-    @eval function commute_spin(x::SymbolicUtils.Sym{S1}, y::SymbolicUtils.Sym{S2}) where {S1<:($(S[1])),S2<:($(Ssym[2]))}
-        op_x = _to_qumulants(x)
-        z = _to_symbolic($(Ssym[3])(op_x.hilbert,op_x.name,op_x.aon))
-        x_ = symmetrize(x)
-        return x_*y + y*x_ + (im*$(ϵ))*z
-    end
+# for (S,Ssym,l) in zip(permutations([:SigmaX,:SigmaY,:SigmaZ]),permutations([:SymmetrizedSigmaX,:SymmetrizedSigmaY,:SymmetrizedSigmaZ]), permutations([1,2,3]))
+#     ϵ = levicivita(l)
+#     @eval function commute_spin(x::SymbolicUtils.Sym{S1}, y::SymbolicUtils.Sym{S2}) where {S1<:($(S[1])),S2<:($(S[2]))}
+#         op_x = _to_qumulants(x)
+#         z = _to_symbolic($(Ssym[3])(op_x.hilbert,op_x.name,op_x.aon))
+#         # x_ = symmetrize(x)
+#         # y_ = symmetrize(y)
+#         return x*y + y*x + (im*$(ϵ))*z
+#     end
+#     @eval function commute_spin(x::SymbolicUtils.Sym{S1}, y::SymbolicUtils.Sym{S2}) where {S1<:($(Ssym[1])),S2<:($(S[2]))}
+#         op_x = _to_qumulants(x)
+#         z = _to_symbolic($(Ssym[3])(op_x.hilbert,op_x.name,op_x.aon))
+#         # y_ = symmetrize(y)
+#         return x*y + y*x + (im*$(ϵ))*z
+#     end
+#     @eval function commute_spin(x::SymbolicUtils.Sym{S1}, y::SymbolicUtils.Sym{S2}) where {S1<:($(S[1])),S2<:($(Ssym[2]))}
+#         op_x = _to_qumulants(x)
+#         z = _to_symbolic($(Ssym[3])(op_x.hilbert,op_x.name,op_x.aon))
+#         # x_ = symmetrize(x)
+#         return x*y + y*x + (im*$(ϵ))*z
+#     end
+# end
+#
+# for (S,Ssym) in zip([:SigmaX,:SigmaY,:SigmaZ],[:SymmetrizedSigmaX,:SymmetrizedSigmaY,:SymmetrizedSigmaZ]) # TODO: cleaner solution for this
+#     @eval commute_spin(x::SymbolicUtils.Sym{<:($S)},y::SymbolicUtils.Sym{<:($(S))}) = x*y
+#     @eval commute_spin(x::SymbolicUtils.Sym{<:($S)},y::SymbolicUtils.Sym{<:($(Ssym))}) = x*y
+#     @eval commute_spin(x::SymbolicUtils.Sym{<:($Ssym)},y::SymbolicUtils.Sym{<:($(S))}) = x*y
+# end
+
+function commute_spin(x::SymbolicUtils.Sym{<:SigmaY},y::SymbolicUtils.Sym{<:SigmaX})
+    op_x = _to_qumulants(x)
+    z = _to_symbolic(SymmetrizedSigmaZ(op_x.hilbert,op_x.name,op_x.aon))
+    return -im*z + y*x
+end
+function commute_spin(x::SymbolicUtils.Sym{<:SymmetrizedSigmaY},y::SymbolicUtils.Sym{<:SigmaX})
+    op_x = _to_qumulants(x)
+    z = _to_symbolic(SymmetrizedSigmaZ(op_x.hilbert,op_x.name,op_x.aon))
+    return -im*z + y*x
+end
+function commute_spin(x::SymbolicUtils.Sym{<:SigmaY},y::SymbolicUtils.Sym{<:SymmetrizedSigmaX})
+    op_x = _to_qumulants(x)
+    z = _to_symbolic(SymmetrizedSigmaZ(op_x.hilbert,op_x.name,op_x.aon))
+    return -im*z + y*x
 end
 
-for (S,Ssym) in zip([:SigmaX,:SigmaY,:SigmaZ],[:SymmetrizedSigmaX,:SymmetrizedSigmaY,:SymmetrizedSigmaZ]) # TODO: cleaner solution for this
-    @eval commute_spin(x::SymbolicUtils.Sym{<:($S)},y::SymbolicUtils.Sym{<:($(S))}) = x*y
-    @eval commute_spin(x::SymbolicUtils.Sym{<:($S)},y::SymbolicUtils.Sym{<:($(Ssym))}) = x*y
-    @eval commute_spin(x::SymbolicUtils.Sym{<:($Ssym)},y::SymbolicUtils.Sym{<:($(S))}) = x*y
+
+function commute_spin(x::SymbolicUtils.Sym{<:SigmaZ},y::SymbolicUtils.Sym{<:SigmaX})
+    op_x = _to_qumulants(x)
+    z = _to_symbolic(SymmetrizedSigmaY(op_x.hilbert,op_x.name,op_x.aon))
+    return im*z + y*x
+end
+function commute_spin(x::SymbolicUtils.Sym{<:SymmetrizedSigmaZ},y::SymbolicUtils.Sym{<:SigmaX})
+    op_x = _to_qumulants(x)
+    z = _to_symbolic(SymmetrizedSigmaY(op_x.hilbert,op_x.name,op_x.aon))
+    return im*z + y*x
+end
+function commute_spin(x::SymbolicUtils.Sym{<:SigmaZ},y::SymbolicUtils.Sym{<:SymmetrizedSigmaX})
+    op_x = _to_qumulants(x)
+    z = _to_symbolic(SymmetrizedSigmaY(op_x.hilbert,op_x.name,op_x.aon))
+    return im*z + y*x
+end
+
+function commute_spin(x::SymbolicUtils.Sym{<:SigmaZ},y::SymbolicUtils.Sym{<:SigmaY})
+    op_x = _to_qumulants(x)
+    z = _to_symbolic(SymmetrizedSigmaX(op_x.hilbert,op_x.name,op_x.aon))
+    return -im*z + y*x
+end
+function commute_spin(x::SymbolicUtils.Sym{<:SymmetrizedSigmaZ},y::SymbolicUtils.Sym{<:SigmaY})
+    op_x = _to_qumulants(x)
+    z = _to_symbolic(SymmetrizedSigmaX(op_x.hilbert,op_x.name,op_x.aon))
+    return -im*z + y*x
+end
+function commute_spin(x::SymbolicUtils.Sym{<:SigmaZ},y::SymbolicUtils.Sym{<:SymmetrizedSigmaY})
+    op_x = _to_qumulants(x)
+    z = _to_symbolic(SymmetrizedSigmaX(op_x.hilbert,op_x.name,op_x.aon))
+    return -im*z + y*x
 end
 
 # for S in [:SigmaX,:SigmaY,:SigmaZ]
