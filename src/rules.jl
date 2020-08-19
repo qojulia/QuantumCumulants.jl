@@ -31,7 +31,10 @@ let
         SymbolicUtils.@rule(~x::istransition => rewrite_gs(~x))
 
         # Spin space
-        # SymbolicUtils.@rule(*(~~a, ~x::isspinop, ~y::isspinop, ~~b) => apply_commutator(commute_spin, ~~a, ~~b, ~x, ~y))
+        # Symmetrize
+        SymbolicUtils.@rule(*(~~a, ~x::isspinop, ~y::is_symspin, ~~b) => *((~~a)..., symmetrize(~x), ~y, (~~b)...))
+        SymbolicUtils.@rule(*(~~a, ~x::is_symspin, ~y::isspinop, ~~b) => *((~~a)..., ~x, symmetrize(~y), (~~b)...))
+        # Replace with commutation relations
         SymbolicUtils.@rule(*(~~a, ~x::issigmaz, ~y::issigmax, ~~b) => apply_commutator(commute_spin, ~~a, ~~b, ~x, ~y))
         SymbolicUtils.@rule(*(~~a, ~x::issigmay, ~y::issigmax, ~~b) => apply_commutator(commute_spin, ~~a, ~~b, ~x, ~y))
         SymbolicUtils.@rule(*(~~a, ~x::issigmaz, ~y::issigmay, ~~b) => apply_commutator(commute_spin, ~~a, ~~b, ~x, ~y))
