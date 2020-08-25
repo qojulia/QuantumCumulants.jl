@@ -140,14 +140,14 @@ substitute(x::Number, dict; kwargs...) = x
 ### Functions needed for simplification
 
 # Handle noncommutative multiplication
-iscommutative(::typeof(*), x::Union{SymbolicUtils.Symbolic{SymbolicUtils.FnType{A,T}},T}) where {A,T<:AbstractOperator} = false
-iscommutative(::typeof(*), x::SymbolicUtils.Symbolic{T}) where {T<:AbstractOperator} = false
-iscommutative(::typeof(*), x::Union{SymbolicUtils.Symbolic{T},T}) where {T<:Number} = true
-iscommutative(f) = x -> iscommutative(f, x)
+iscommutative(::AbstractOperator) = false
+iscommutative(::SymbolicUtils.Symbolic{<:AbstractOperator}) = false
+iscommutative(::Union{SymbolicUtils.Symbolic{T},T}) where {T<:Number} = true
 
-issorted_nc(f) = x -> issorted_nc(f, x)
-function issorted_nc(f::typeof(*), args)
-    is_c = iscommutative.(f, args)
+needs_sorting_nc(x) = (x.f === (*)) && !issorted_nc(x)
+function issorted_nc(x)
+    args = SymbolicUtils.arguments(x)
+    is_c = iscommutative.(args)
     args_c = args[is_c]
     args_nc = args[.!is_c]
     return issorted(is_c, lt=(>)) && SymbolicUtils.issortedₑ(args_c) && issorted(args_nc, lt=lt_aon)
@@ -182,11 +182,12 @@ function acts_on(t::SymbolicUtils.Term{T}) where T<:AbstractOperator
 end
 
 using SymbolicUtils: <ₑ
-function sort_args_nc(f::typeof(*), args)
-    is_c = iscommutative.(f, args)
+function sort_args_nc(x)
+    args = SymbolicUtils.arguments(x)
+    is_c = iscommutative.(args)
     args_c = sort(args[is_c], lt=(<ₑ))
     args_nc = sort(args[.!is_c], lt=lt_aon)
-    return f(args[is_c]..., args_nc...)
+    return *(args_c..., args_nc...)
 end
 
 # Apply commutation relation

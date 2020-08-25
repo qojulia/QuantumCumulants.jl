@@ -40,6 +40,7 @@ for f = [:+,:-,:*]
     @eval Base.$f(a::Number,b::AbstractOperator) = OperatorTerm($f, [a,b])
 end
 Base.:^(a::AbstractOperator,b::Integer) = OperatorTerm(^, [a,b])
+Base.:/(a::AbstractOperator,b::Number) = OperatorTerm(/, [a,b])
 
 # Variadic methods
 Base.:-(x::AbstractOperator) = -1*x
@@ -53,7 +54,7 @@ end
 Base.adjoint(t::OperatorTerm) = OperatorTerm(t.f, adjoint.(t.arguments))
 function Base.adjoint(t::OperatorTerm{<:typeof(*)})
     args = reverse(adjoint.(t.arguments))
-    is_c = iscommutative.(*,args)
+    is_c = iscommutative.(args)
     args_c = args[is_c]
     args_nc = sort(args[.!is_c], lt=lt_aon)
     return OperatorTerm(t.f, [args_c;args_nc])

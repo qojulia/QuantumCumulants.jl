@@ -20,10 +20,10 @@ export HilbertSpace, ProductSpace, ⊗,
 
 include("hilbertspace.jl")
 include("operator.jl")
-include("simplify.jl")
-include("rules.jl")
 include("fock.jl")
 include("nlevel.jl")
+include("simplify.jl")
+include("rules.jl")
 include("equations.jl")
 include("heisenberg.jl")
 include("parameters.jl")

@@ -22,6 +22,7 @@ b = Destroy(hf,:b)
 @test a==ad'
 @test simplify_operators(a)==a
 @test simplify_operators(a+a)==2*a
+@test simplify_operators(a/2 + 0.5*a)==a
 @test simplify_operators(a*a') == 1+a'*a
 @test simplify_operators(a*a' + 1) == 2 + a'*a
 

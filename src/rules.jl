@@ -1,13 +1,8 @@
-isdestroy(a) = false
-iscreate(a) = false
-istransition(a) = false
-_isnotflat(f) = x -> _isnotflat(f,x)
-_isnotflat(f,x) = SymbolicUtils.is_operation(f)(x) && SymbolicUtils.isnotflat(f)(x)
 
 let
     NC_TIMES_RULES = [
-        SymbolicUtils.@rule(~x::_isnotflat(*) => SymbolicUtils.flatten_term(*, ~~x))
-        SymbolicUtils.@rule(*(~~x::!(issorted_nc(*))) => sort_args_nc(*, ~~x))
+        SymbolicUtils.@rule(~x::SymbolicUtils.isnotflat(*) => SymbolicUtils.flatten_term(*, ~~x))
+        SymbolicUtils.@rule(~x::needs_sorting_nc => sort_args_nc(~x))
 
         SymbolicUtils.ACRule(combinations, SymbolicUtils.@rule(~a::SymbolicUtils.isnumber * ~b::SymbolicUtils.isnumber => ~a * ~b), 2)
 
@@ -22,31 +17,27 @@ let
 
     COMMUTATOR_RULES = [
         # Fock space rules
-        SymbolicUtils.@rule(*(~~a, ~x::isdestroy, ~y::iscreate, ~~b) => apply_commutator(commute_bosonic, ~~a, ~~b, ~x, ~y))
+        SymbolicUtils.@rule(*(~~a, ~x::SymbolicUtils.sym_isa(Destroy), ~y::SymbolicUtils.sym_isa(Create), ~~b) => apply_commutator(commute_bosonic, ~~a, ~~b, ~x, ~y))
 
         # NLevel rules
-        SymbolicUtils.@rule(*(~~a, ~x::istransition, ~y::istransition, ~~b) => apply_commutator(merge_transitions, ~~a, ~~b, ~x, ~y))
-        SymbolicUtils.@rule(~x::istransition => rewrite_gs(~x))
+        SymbolicUtils.@rule(*(~~a, ~x::SymbolicUtils.sym_isa(Transition), ~y::SymbolicUtils.sym_isa(Transition), ~~b) => apply_commutator(merge_transitions, ~~a, ~~b, ~x, ~y))
+        SymbolicUtils.@rule(~x::SymbolicUtils.sym_isa(Transition) => rewrite_gs(~x))
     ]
 
-    EXPAND_RULES = [
-        SymbolicUtils.ACRule(combinations, SymbolicUtils.@rule(~a::SymbolicUtils.isnumber + ~b::SymbolicUtils.isnumber => ~a + ~b), 2)
-        SymbolicUtils.ACRule(combinations, SymbolicUtils.@rule(~a::SymbolicUtils.isnumber * ~b::SymbolicUtils.isnumber => ~a * ~b), 2)
-
-        # Expand powers
-        SymbolicUtils.@rule(^(~x::SymbolicUtils.sym_isa(AbstractOperator),~y::SymbolicUtils.isliteral(Integer)) => *((~x for i=1:~y)...))
-        SymbolicUtils.@rule(~x::_isnotflat(*) => SymbolicUtils.flatten_term(*, ~~x))
-        SymbolicUtils.@rule(*(~~x::!(issorted_nc(*))) => sort_args_nc(*, ~~x))
-
-        # Expand sums
+    EXPAND_TIMES_RULES = [
+        SymbolicUtils.@rule(~x::SymbolicUtils.isnotflat(*) => SymbolicUtils.flatten_term(*, ~x))
+        SymbolicUtils.@rule(~x::needs_sorting_nc => sort_args_nc(~x))
         SymbolicUtils.@rule(*(~~a, +(~~b), ~~c) => +(map(b -> *((~~a)..., b, (~~c)...), ~~b)...))
-        SymbolicUtils.@rule(~x::_isnotflat(+) => SymbolicUtils.flatten_term(+,~~x))
+    ]
+
+    EXPAND_POW_RULES = [
+        SymbolicUtils.@rule(^(~x::SymbolicUtils.sym_isa(AbstractOperator),~y::SymbolicUtils.isliteral(Integer)) => *((~x for i=1:~y)...))
     ]
 
 
     # Copied directly from SymbolicUtils
     PLUS_RULES = [
-        SymbolicUtils.@rule(~x::_isnotflat(+) => SymbolicUtils.flatten_term(+, ~~x))
+        SymbolicUtils.@rule(~x::SymbolicUtils.isnotflat(+) => SymbolicUtils.flatten_term(+, ~~x))
         SymbolicUtils.@rule(~x::SymbolicUtils.needs_sorting(+) => SymbolicUtils.sort_args(+, ~~x))
         SymbolicUtils.ACRule(combinations, SymbolicUtils.@rule(~a::SymbolicUtils.isnumber + ~b::SymbolicUtils.isnumber => ~a + ~b), 2)
 
@@ -78,7 +69,6 @@ let
         # SymbolicUtils.@rule(SymbolicUtils.cond(~x::SymbolicUtils.isnumber, ~y, ~z) => ~x ? ~y : ~z)
     ]
 
-    ASSORTED_EXPAND_RULES = [EXPAND_RULES;ASSORTED_RULES]
 
     # Rewriter functions
     global operator_simplifier
@@ -102,7 +92,9 @@ let
     end
 
     function commutator_simplifier()
-        rule_tree = [SymbolicUtils.If(SymbolicUtils.istree, SymbolicUtils.Chain(ASSORTED_EXPAND_RULES)),
+        rule_tree = [SymbolicUtils.If(SymbolicUtils.istree, SymbolicUtils.Chain(ASSORTED_RULES)),
+                    SymbolicUtils.If(SymbolicUtils.is_operation(*), SymbolicUtils.Chain(EXPAND_TIMES_RULES)),
+                    SymbolicUtils.If(SymbolicUtils.is_operation(^), SymbolicUtils.Chain(EXPAND_POW_RULES)),
                     SymbolicUtils.Chain(COMMUTATOR_RULES)
                     ] |> SymbolicUtils.Chain
         return SymbolicUtils.Fixpoint(SymbolicUtils.Postwalk(rule_tree))
@@ -117,7 +109,10 @@ let
     end
 
     function default_expand_simplifier()
-        rule_tree = SymbolicUtils.If(SymbolicUtils.istree, SymbolicUtils.Chain(ASSORTED_EXPAND_RULES))
-        SymbolicUtils.Postwalk(rule_tree)
+        rule_tree = [SymbolicUtils.If(SymbolicUtils.istree, SymbolicUtils.Chain(ASSORTED_RULES)),
+                    SymbolicUtils.If(SymbolicUtils.is_operation(*), SymbolicUtils.Chain(EXPAND_TIMES_RULES)),
+                    SymbolicUtils.If(SymbolicUtils.is_operation(^), SymbolicUtils.Chain(EXPAND_POW_RULES))
+                    ] |> SymbolicUtils.Chain
+        return SymbolicUtils.Fixpoint(SymbolicUtils.Postwalk(rule_tree))
     end
 end
