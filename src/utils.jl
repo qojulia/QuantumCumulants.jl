@@ -34,21 +34,16 @@ function get_symbolics(t::NumberTerm)
 end
 
 """
-    complete(de::DifferentialEquation,H)
-    complete(de::DifferentialEquation,H,J)
+    complete(de::DifferentialEquation)
 
 From a set of differential equation of averages, find all averages that are missing
 and derive the corresponding equations of motion.
 """
-function complete(de::DifferentialEquation{<:Number,<:Number},H::AbstractOperator;kwargs...)
-    rhs_, lhs_ = complete(de.rhs,de.lhs,[H];kwargs...)
-    return DifferentialEquation(lhs_,rhs_)
+function complete(de::DifferentialEquation{<:Number,<:Number};kwargs...)
+    rhs_, lhs_ = complete(de.rhs,de.lhs,de.hamiltonian,de.jumps,de.rates;kwargs...)
+    return DifferentialEquation(lhs_,rhs_,de.hamiltonian,de.jumps,de.rates)
 end
-function complete(de::DifferentialEquation{<:Number,<:Number},H::AbstractOperator,J::Vector;kwargs...)
-    rhs_, lhs_ = complete(de.rhs,de.lhs, [H,J]; kwargs...)
-    return DifferentialEquation(lhs_,rhs_)
-end
-function complete(rhs::Vector{<:Number}, vs::Vector{<:Number}, he_args; order=nothing, mix_choice=maximum, kwargs...)
+function complete(rhs::Vector{<:Number}, vs::Vector{<:Number}, H, J, rates; order=nothing, mix_choice=maximum, kwargs...)
     order_lhs = maximum(get_order.(vs))
     order_rhs = maximum(get_order.(rhs))
     if order isa Nothing
@@ -64,7 +59,7 @@ function complete(rhs::Vector{<:Number}, vs::Vector{<:Number}, he_args; order=no
     filter!(x->isa(x,Average),missed)
     while !isempty(missed)
         ops = getfield.(missed, :operator)
-        he = heisenberg(ops,he_args...;kwargs...)
+        he = heisenberg(ops,H,J;rates=rates)
         he_avg = average(he,order_;mix_choice=mix_choice)
         rhs_ = [rhs_;he_avg.rhs]
         vs_ = [vs_;he_avg.lhs]

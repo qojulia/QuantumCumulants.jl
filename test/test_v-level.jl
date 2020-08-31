@@ -34,7 +34,7 @@ he_n = heisenberg([a'*a],H,J;rates=rates)
 hn_avg = average(he_n,2)
 
 # Complete the system
-he_comp = complete(hn_avg,H,J;rates=rates)
+he_comp = complete(hn_avg)
 
 # Compare to finding operators from start
 ops = find_operators(h,2)

@@ -80,7 +80,7 @@ function average(de::DifferentialEquation;multithread=false)
             rhs[i] = average(de.rhs[i])
         end
     end
-    return DifferentialEquation(lhs,rhs)
+    return DifferentialEquation(lhs,rhs,de.hamiltonian,de.jumps,de.rates)
 end
 average(arg,order;kwargs...) = cumulant_expansion(average(arg),order;kwargs...)
 
@@ -173,7 +173,7 @@ function cumulant_expansion(de::DifferentialEquation{<:Number,<:Number},order;mu
             rhs[i] = cr
         end
     end
-    return DifferentialEquation(de.lhs,rhs)
+    return DifferentialEquation(de.lhs,rhs,de.hamiltonian,de.jumps,de.rates)
 end
 
 function check_lhs(lhs,order::Int;kwargs...)
