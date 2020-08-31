@@ -45,7 +45,7 @@ The equations derived above are differential equations for operators. In order t
 he_avg = average(he,2)
 ```
 
-The first-order contributions are always zero and can therefore be neglected. You can try adding `a` and `s` to the list of operators `ops` in order to see that yourself. Or, even more conveniently, you can use `complete(he_avg,H,J;rates=rates)`, which will automatically find all missing averages and compute the corresponding equations.
+The first-order contributions are always zero and can therefore be neglected. You can try adding `a` and `s` to the list of operators `ops` in order to see that yourself. Or, even more conveniently, you can use `complete(he_avg)`, which will automatically find all missing averages and compute the corresponding equations.
 
 Here, though, we will proceed by finding the missing averages, and neglecting them as zero using the `substitute` function.
 
