@@ -141,7 +141,7 @@ function build_expr(head::Symbol, args)
 end
 
 function throw_missing_error(missed)
-    error_msg = "The following symbols parameters or averages are missing: "
+    error_msg = "The following parameters or averages are missing: "
     for p1=missed
         error_msg *= "$p1 "
     end

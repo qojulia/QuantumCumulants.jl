@@ -23,13 +23,13 @@ he_exp = cumulant_expansion(he_avg,2;multithread=true)
 @test he_exp == average(he_laser,2)
 
 ps = [Δ,g,κ,γ,ν]
-missed = find_missing(he_exp;ps=ps)
+missed = find_missing(he_exp)
 @test !any(p in missed for p=ps)
 
 # Exploit phase invariance
 subs = Dict(missed .=> 0)
 he_nophase = substitute(he_exp, subs)
-@test isempty(find_missing(he_nophase;ps=ps))
+@test isempty(find_missing(he_nophase))
 
 f = generate_ode(he_nophase,ps)
 

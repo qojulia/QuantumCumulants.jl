@@ -1,9 +1,10 @@
 """
-    find_missing(rhs::Vector, vs::Vector, vs_adj=adjoint.(vs) ps=[])
+    find_missing(rhs::Vector, vs::Vector, vs_adj=adjoint.(vs), ps=[])
 
 For a list of expressions contained in `rhs`, check whether all occurring symbols
-are contained either in the variables given in `vs` or `ps`. Returns a list of
-missing symbols.
+are contained either in the variables given in `vs`. If a list of parameters `ps`
+is provided, parameters that do not occur in the list `ps` are also added to the list.
+Returns a list of missing symbols.
 """
 function find_missing(rhs::Vector{<:Number}, vs::Vector{<:Number}; vs_adj::Vector=adjoint.(vs), ps=[])
     missed = Number[]
@@ -11,6 +12,9 @@ function find_missing(rhs::Vector{<:Number}, vs::Vector{<:Number}; vs_adj::Vecto
         append!(missed,get_symbolics(e))
     end
     unique!(missed)
+    if isempty(ps)
+        filter!(x->!isa(x,Parameter), missed)
+    end
     filter!(x->!(x∈vs || x∈ps || x∈vs_adj),missed)
     return missed
 end

@@ -51,8 +51,7 @@ Here, though, we will proceed by finding the missing averages, and neglecting th
 
 ```@example tutorial
 # Find the missing averages
-p = (Δ, g, γ, κ, ν)
-missed = find_missing(he_avg;ps=p)
+missed = find_missing(he_avg)
 
 # Substitute them as zero
 subs = Dict(missed .=> 0)
@@ -63,6 +62,7 @@ Finally, we can generate Julia code from the above set of equations which can be
 
 ```@example tutorial
 # Generate a Julia function that to solve numerically
+p = (Δ, g, γ, κ, ν)
 f = generate_ode(he_nophase,p)
 
 # Solve the system using the OrdinaryDiffEq package
