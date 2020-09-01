@@ -63,7 +63,7 @@ function complete(rhs::Vector{<:Number}, vs::Vector{<:Number}, H, J, rates; orde
     filter!(x->isa(x,Average),missed)
     while !isempty(missed)
         ops = getfield.(missed, :operator)
-        he = heisenberg(ops,H,J;rates=rates)
+        he = isempty(J) ? heisenberg(ops,H) : heisenberg(ops,H,J;rates=rates)
         he_avg = average(he,order_;mix_choice=mix_choice)
         rhs_ = [rhs_;he_avg.rhs]
         vs_ = [vs_;he_avg.lhs]
