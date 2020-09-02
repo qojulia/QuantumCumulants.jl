@@ -128,6 +128,10 @@ cumulant_expansion
 ```
 
 ```@docs
+cumulant
+```
+
+```@docs
 get_order
 ```
 

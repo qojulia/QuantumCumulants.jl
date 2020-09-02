@@ -213,6 +213,72 @@ function _cumulant_expansion(args::Vector,order::Int)
 end
 
 """
+    cumulant(x,n=get_order(x);simplify=true,kwargs...)
+
+Compute the `n`th cumulant of `x` (either an operator or an average).
+The output is simplified when `simplify=true`. Further keyword arguments are
+passed on to simplification.
+
+Examples
+========
+```
+julia> cumulant(a)
+⟨a⟩
+
+julia> cumulant(a*b)
+(⟨a*b⟩+(-1*⟨a⟩*⟨b⟩))
+
+julia> cumulant(a*b,1)
+⟨a*b⟩
+
+julia> cumulant(a*b,3)
+0
+```
+"""
+function cumulant(op::OperatorTerm,n::Int=get_order(op);simplify=true,kwargs...)
+    order = get_order(op)
+    if order < n
+        return zero(op)
+    else
+        if simplify
+            avg_ = average(simplify_operators(op))
+        else
+            avg_ = average(op)
+        end
+        if simplify && (average(op) != avg_) # TODO: better strategy to get proper ordering
+            return cumulant(avg_.operator,order;simplify=simplify,kwargs...)
+        else
+            @assert op.f === (*)
+            if simplify
+                return simplify_constants(_cumulant(op.arguments, n), kwargs...)
+            else
+                return _cumulant(op.arguments, n)
+            end
+        end
+    end
+end
+cumulant(avg::Average,args...;kwargs...) = cumulant(avg.operator,args...;kwargs...)
+cumulant(op::BasicOperator,n::Int=1;kwargs...) = isone(n) ? average(op) : zero(op)
+
+function _cumulant(args::Vector,m::Int=length(args))
+    parts = [partitions(args,i) for i=1:m]
+    args_sum = Number[]
+    for i=1:length(parts)
+        p = collect(parts[i])
+        for j=1:length(p) # Terms in the sum
+            n = length(p[j])
+            args_prod = Number[factorial(n-1)*(-1)^(n-1)]
+            for p_=p[j] # Product over partition blocks
+                push!(args_prod, Average(*(p_...)))
+            end
+            # Add terms in sum
+            push!(args_sum, *(args_prod...))
+        end
+    end
+    return average(+(args_sum...))
+end
+
+"""
     get_order(arg)
 
 Compute the order of a given argument. This is the order used to decide whether

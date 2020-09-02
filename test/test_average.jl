@@ -36,4 +36,23 @@ n = average(a'*a)
 ex = average(a*σ)*average(a) - average(a)*average(a*σ)
 @test simplify_constants(ex)==0
 
+# Test cumulants
+hs = FockSpace[]
+for i=1:4
+    push!(hs, FockSpace(Symbol(:fock, i)))
+end
+h = ⊗(hs...)
+
+a = Destroy(h,:a,1)
+b = Destroy(h,:b,2)
+c = Destroy(h,:c,3)
+d = Destroy(h,:d,4)
+
+@test cumulant(a*b)==average(a*b)+ -1*average(a)*average(b)
+@test cumulant(a*b,1) == average(a*b)
+@test iszero(simplify_constants(expand(cumulant(a*b*c) - (average(a*b*c) +
+            2*average(a)*average(b)*average(c) - average(a)*average(b*c) -
+            average(b)*average(a*c) - average(c)*average(a*b)))))
+@test simplify_constants(expand(average(a*b*c*d) - cumulant(a*b*c*d))) == cumulant_expansion(average(a*b*c*d),3)
+
 end # testset
