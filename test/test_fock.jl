@@ -35,4 +35,13 @@ H = ωc*a'*a
 da = simplify_operators(1.0im*(H*a - a*H))
 @test da == -1.0im*ωc*a
 
+# Test trigonometric and exponentials
+@test simplify_operators(exp(a+a')) == exp(0.5)*exp(a')*exp(a)
+@test commutator(a,exp(a'))==exp(a')
+@test commutator(a',exp(a))==exp(a)
+@test simplify_operators(a*exp(a')) == exp(a') + exp(a')*a
+@test simplify_operators(exp(a)*a') == (-1 + a')*exp(a)
+
+# @test simplify_operators(exp(a)*exp(-a)) == simplify_operators(exp(-a)*exp(a))
+
 end # testset

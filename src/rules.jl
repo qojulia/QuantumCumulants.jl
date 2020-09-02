@@ -15,6 +15,12 @@ let
         SymbolicUtils.@rule(*(~x) => ~x)
     ]
 
+    EXP_RULES = [
+        # SymbolicUtils.@rule() TODO collect exp(a)*exp(b) => exp(a+b) for nc variables
+        # TODO rewrite as sin/cos ?
+        # SymbolicUtils.@rule(exp(~x) => cos(~x) + im*sin(~x))
+    ]
+
     COMMUTATOR_RULES = [
         # Fock space rules
         SymbolicUtils.@rule(*(~~a, ~x::SymbolicUtils.sym_isa(Destroy), ~y::SymbolicUtils.sym_isa(Create), ~~b) => apply_commutator(commute_bosonic, ~~a, ~~b, ~x, ~y))
@@ -32,6 +38,23 @@ let
 
     EXPAND_POW_RULES = [
         SymbolicUtils.@rule(^(~x::SymbolicUtils.sym_isa(AbstractOperator),~y::SymbolicUtils.isliteral(Integer)) => *((~x for i=1:~y)...))
+    ]
+
+    EXPAND_EXP_RULES = [
+
+        # Euler expansion
+        SymbolicUtils.@rule(cos(~x) => 0.5*exp(-im*~x) + 0.5*exp(im*~x))
+        SymbolicUtils.@rule(sin(~x) => 0.5im*exp(-im*~x) + (-0.5im)*exp(im*~x))
+
+        # Exponentials
+        SymbolicUtils.@rule(exp(~x::SymbolicUtils._iszero) => 1)
+        SymbolicUtils.ACRule(permutations, SymbolicUtils.@rule(exp(~x + ~y::SymbolicUtils.isnumber) => exp(~x)*exp(~y)), 2)
+        SymbolicUtils.@rule(exp(~x + ~y) => separate_exp(~x,~y))
+        SymbolicUtils.@rule(^(exp(~x), ~y) => exp(~y*~x))
+
+        # Normal order in products
+        SymbolicUtils.@rule(*(~~a, ~x::SymbolicUtils.sym_isa(Destroy), exp(~y::SymbolicUtils.sym_isa(AbstractOperator)), ~~b) => commute_destroy_exp(~~a, ~~b, ~x, ~y))
+        SymbolicUtils.@rule(*(~~a, exp(~x::SymbolicUtils.sym_isa(AbstractOperator)), ~y::SymbolicUtils.sym_isa(Create), ~~b) => commute_exp_create(~~a, ~~b, ~x, ~y))
     ]
 
 
@@ -93,6 +116,7 @@ let
 
     function commutator_simplifier()
         rule_tree = [SymbolicUtils.If(SymbolicUtils.istree, SymbolicUtils.Chain(ASSORTED_RULES)),
+                    SymbolicUtils.If(has_exps, SymbolicUtils.Chain(EXPAND_EXP_RULES)),
                     SymbolicUtils.If(SymbolicUtils.is_operation(*), SymbolicUtils.Chain(EXPAND_TIMES_RULES)),
                     SymbolicUtils.If(SymbolicUtils.is_operation(^), SymbolicUtils.Chain(EXPAND_POW_RULES)),
                     SymbolicUtils.Chain(COMMUTATOR_RULES)
@@ -103,7 +127,8 @@ let
     function noncommutative_simplifier()
         rule_tree = [SymbolicUtils.If(SymbolicUtils.is_operation(+), SymbolicUtils.Chain(PLUS_RULES)),
                      SymbolicUtils.If(SymbolicUtils.is_operation(*), SymbolicUtils.Chain(NC_TIMES_RULES)),
-                     SymbolicUtils.If(SymbolicUtils.is_operation(^), SymbolicUtils.Chain(POW_RULES))
+                     SymbolicUtils.If(SymbolicUtils.is_operation(^), SymbolicUtils.Chain(POW_RULES)),
+                     # SymbolicUtils.If(SymbolicUtils.is_operation(exp), SymbolicUtils.Chain(EXP_RULES))
                      ] |> SymbolicUtils.Chain
         return SymbolicUtils.Fixpoint(SymbolicUtils.Postwalk(rule_tree))
     end

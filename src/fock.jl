@@ -82,3 +82,17 @@ Base.adjoint(op::Create) = Destroy(op.hilbert,op.name,acts_on(op))
 
 # Commutation relation in simplification
 commute_bosonic(a,b) = b*a + one(a)
+
+# Commutation relations with exponentials
+function commute_destroy_exp(args_l, args_r, a, b)
+    c = commutator(a, b)
+    SymbolicUtils.sym_isa(Number)(c) || error("Non-central")
+    ex = exp(b)*a + c*exp(b)
+    return *(args_l..., ex, args_r...)
+end
+function commute_exp_create(args_l, args_r, a, b)
+    c = commutator(a,b)
+    SymbolicUtils.sym_isa(Number)(c) || error("Non-central")
+    ex = b*exp(a) + (-1c)*exp(a)
+    return *(args_l..., ex, args_r...)
+end

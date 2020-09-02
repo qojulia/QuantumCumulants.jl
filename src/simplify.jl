@@ -198,3 +198,23 @@ function apply_commutator(fcomm, args_l, args_r, a, b)
         return nothing
     end
 end
+
+# Separate exponential of sums according to Baker-Campbell-Hausdorff formula
+function separate_exp(x,y)
+    op_x = _to_qumulants(x)
+    op_y = _to_qumulants(y)
+    c = commutator(op_x,op_y)
+    (c isa AbstractOperator) && println("Baker-Campbell-Hausdorff formula only implemented for central operators. Encountered [$op_x,$op_y]=$c")
+    return exp(x)*exp(y)*exp(-0.5c)
+end
+
+function has_exps(term)
+    !SymbolicUtils.istree(term) && return false
+    fns = (sin, cos, exp)
+    f = SymbolicUtils.operation(term)
+    if any(f .=== fns)
+        return true
+    else
+        return any(has_exps, SymbolicUtils.arguments(term))
+    end
+end

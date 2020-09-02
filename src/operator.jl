@@ -42,6 +42,12 @@ end
 Base.:^(a::AbstractOperator,b::Integer) = OperatorTerm(^, [a,b])
 Base.:/(a::AbstractOperator,b::Number) = OperatorTerm(/, [a,b])
 
+# Trigonometric and such
+const ftrig_op = [:cos,:sin,:exp]
+for f in ftrig_op
+    @eval Base.$f(x::AbstractOperator) = OperatorTerm($f, [x])
+end
+
 # Variadic methods
 Base.:-(x::AbstractOperator) = -1*x
 for f in [:+,:*]

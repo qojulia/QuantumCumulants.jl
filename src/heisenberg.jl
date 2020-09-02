@@ -91,6 +91,8 @@ function commutator(a::AbstractOperator,b::AbstractOperator; simplify=true, kwar
         return a*b + -1*b*a
     end
 end
+commutator(a::SymbolicUtils.Symbolic,b::SymbolicUtils.Symbolic; kwargs...) =
+    _to_symbolic(commutator(_to_qumulants(a), _to_qumulants(b); kwargs...))
 
 # Specialized methods for addition using linearity
 function commutator(a::OperatorTerm{<:typeof(+)},b::AbstractOperator; simplify=true, kwargs...)
