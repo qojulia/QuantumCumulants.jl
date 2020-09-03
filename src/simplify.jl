@@ -201,11 +201,9 @@ end
 
 # Separate exponential of sums according to Baker-Campbell-Hausdorff formula
 function separate_exp(x,y)
-    op_x = _to_qumulants(x)
-    op_y = _to_qumulants(y)
-    c = commutator(op_x,op_y)
-    (c isa AbstractOperator) && println("Baker-Campbell-Hausdorff formula only implemented for central operators. Encountered [$op_x,$op_y]=$c")
-    return exp(x)*exp(y)*exp(-0.5c)
+    c = commutator(x,y)
+    SymbolicUtils.sym_isa(AbstractOperator)(c) && println("Baker-Campbell-Hausdorff formula only implemented for central operators. Encountered [$(_to_qumulants(x)),$(_to_qumulants(y))]=$(_to_qumulants(c))")
+    return exp(x)*exp(y)*exp(-0.5*c)
 end
 
 function has_exps(term)

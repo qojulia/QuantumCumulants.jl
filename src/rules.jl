@@ -1,7 +1,7 @@
 
 let
     NC_TIMES_RULES = [
-        SymbolicUtils.@rule(~x::SymbolicUtils.isnotflat(*) => SymbolicUtils.flatten_term(*, ~~x))
+        SymbolicUtils.@rule(~x::SymbolicUtils.isnotflat(*) => SymbolicUtils.flatten_term(*, ~x))
         SymbolicUtils.@rule(~x::needs_sorting_nc => sort_args_nc(~x))
 
         SymbolicUtils.ACRule(combinations, SymbolicUtils.@rule(~a::SymbolicUtils.isnumber * ~b::SymbolicUtils.isnumber => ~a * ~b), 2)
@@ -41,7 +41,6 @@ let
     ]
 
     EXPAND_EXP_RULES = [
-
         # Euler expansion
         SymbolicUtils.@rule(cos(~x) => 0.5*exp(-im*~x) + 0.5*exp(im*~x))
         SymbolicUtils.@rule(sin(~x) => 0.5im*exp(-im*~x) + (-0.5im)*exp(im*~x))
@@ -60,8 +59,8 @@ let
 
     # Copied directly from SymbolicUtils
     PLUS_RULES = [
-        SymbolicUtils.@rule(~x::SymbolicUtils.isnotflat(+) => SymbolicUtils.flatten_term(+, ~~x))
-        SymbolicUtils.@rule(~x::SymbolicUtils.needs_sorting(+) => SymbolicUtils.sort_args(+, ~~x))
+        SymbolicUtils.@rule(~x::SymbolicUtils.isnotflat(+) => SymbolicUtils.flatten_term(+, ~x))
+        SymbolicUtils.@rule(~x::SymbolicUtils.needs_sorting(+) => SymbolicUtils.sort_args(+, ~x))
         SymbolicUtils.ACRule(combinations, SymbolicUtils.@rule(~a::SymbolicUtils.isnumber + ~b::SymbolicUtils.isnumber => ~a + ~b), 2)
 
         SymbolicUtils.ACRule(permutations, SymbolicUtils.@rule(*(~~x) + *(~β, ~~x) => *(1 + ~β, (~~x)...)), 2)
