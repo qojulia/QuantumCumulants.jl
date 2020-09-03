@@ -129,6 +129,8 @@ function cumulant_expansion(avg::Average,order::Int;simplify=true,kwargs...)
     ord = get_order(avg)
     if ord <= order
         return avg
+    elseif isinf(ord)
+        return _transcendent_cumulant_expansion(avg,order;simplify=simplify,kwargs...)
     else
         op = avg.operator
         if simplify
@@ -210,6 +212,10 @@ function _cumulant_expansion(args::Vector,order::Int)
         end
     end
     return average(+(args_sum...))
+end
+
+function _transcendent_cumulant_expansion(avg::Average,order::Int;simplify=true,kwargs...)
+    # TODO
 end
 
 """
@@ -304,11 +310,13 @@ function get_order(t::OperatorTerm)
     if t.f in [+,-]
         return maximum(get_order.(t.arguments))
     elseif t.f === (*)
-        return length(t.arguments)
+        return sum(get_order.(t.arguments))
     elseif t.f === (^)
         n = t.arguments[end]
         @assert n isa Integer
         return n
+    elseif t.f in (cos, sin, exp)
+        return Inf
     end
     error("Unknown function $(t.f)")
 end
