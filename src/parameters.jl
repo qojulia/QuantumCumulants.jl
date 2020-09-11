@@ -4,24 +4,25 @@
 Abstract type for all symbolic numbers, i.e. [`Parameter`](@ref), [`Average`](@ref)
 and corresponding expression trees.
 """
-abstract type SymbolicNumber <: Number end
+abstract type SymbolicNumber{T} <: Number end
 
 Base.:(==)(s::SymbolicNumber,x::Number) = false
 Base.:(==)(x::Number,s::SymbolicNumber) = false
 Base.:(==)(s1::SymbolicNumber,s2::SymbolicNumber) = false
 Base.iszero(::SymbolicNumber) = false
 Base.isone(::SymbolicNumber) = false
+SymbolicUtils.symtype(::SymbolicNumber{T}) where T = T
 
 """
     NumberTerm <: SymbolicNumber
 
 Expression tree consisting of [`SymbolicNumber`](@ref) variables.
 """
-struct NumberTerm{T<:Number} <: SymbolicNumber
+struct NumberTerm{T<:Number} <: SymbolicNumber{T}
     f::Function
     arguments::Vector
 end
-function NumberTerm(f,args;type=promote_type(typeof.(args)...))
+function NumberTerm(f,args;type=SymbolicUtils.rec_promote_symtype(f, SymbolicUtils.symtype.(args)...))
     return NumberTerm{type}(f,args)
 end
 Base.:(==)(t1::NumberTerm,t2::NumberTerm) = (t1.f===t2.f && t1.arguments==t2.arguments)
@@ -37,7 +38,7 @@ Base.conj(t::NumberTerm) = NumberTerm(t.f, conj.(t.arguments))
 A parameter represented as a symbolic.
 See also: [`parameters`](@ref), [`@parameters`](@ref)
 """
-struct Parameter{T<:Number} <: SymbolicNumber
+struct Parameter{T<:Number} <: SymbolicNumber{T}
     name::Symbol
 end
 Parameter(name::Symbol) = Parameter{Number}(name)

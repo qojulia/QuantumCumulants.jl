@@ -4,7 +4,7 @@
 Symbolic number representing the average over an operator.
 See also: [`average`](@ref)
 """
-struct Average{T<:Number,OP} <: SymbolicNumber
+struct Average{T<:Number,OP} <: SymbolicNumber{T}
     operator::OP
 end
 Average(operator::OP) where OP = Average{Number,OP}(operator)
