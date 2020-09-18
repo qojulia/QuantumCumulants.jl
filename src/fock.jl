@@ -7,7 +7,7 @@ See also: [`Destroy`](@ref), [`Create`](@ref)
 struct FockSpace{S} <: HilbertSpace
     name::S
 end
-Base.:(==)(h1::T,h2::T) where T<:FockSpace = (h1.name==h2.name)
+Base.isequal(h1::T,h2::T) where T<:FockSpace = (h1.name==h2.name)
 
 """
     Destroy <: BasicOperator

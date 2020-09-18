@@ -27,7 +27,7 @@ end
 NLevelSpace(name,N::Int,GS) = NLevelSpace(name,1:N,GS)
 NLevelSpace(name,N::Int) = NLevelSpace(name,1:N,1)
 NLevelSpace(name,levels) = NLevelSpace(name,levels,levels[1])
-Base.:(==)(h1::T,h2::T) where T<:NLevelSpace = (h1.name==h2.name && h1.levels==h2.levels && h1.GS==h2.GS)
+Base.isequal(h1::T,h2::T) where T<:NLevelSpace = (h1.name==h2.name && h1.levels==h2.levels && h1.GS==h2.GS)
 Base.hash(n::NLevelSpace, h::UInt) = hash(n.name, hash(n.levels, hash(n.GS, h)))
 
 levels(h::NLevelSpace) = h.levels

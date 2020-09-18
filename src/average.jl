@@ -8,7 +8,7 @@ struct Average{T<:Number,OP} <: SymbolicNumber{T}
     operator::OP
 end
 Average(operator::OP) where OP = Average{Number,OP}(operator)
-Base.:(==)(a1::Average,a2::Average) = (a1.operator==a2.operator)
+Base.isequal(a1::Average,a2::Average) = isequal(a1.operator, a2.operator)
 Base.hash(a::Average{T}, h::UInt) where T = hash(a.operator, hash(T, h))
 
 Base.conj(a::Average) = Average(adjoint(a.operator))
@@ -136,7 +136,7 @@ function cumulant_expansion(avg::Average,order::Int;simplify=true,kwargs...)
         else
             avg_ = average
         end
-        if simplify && (avg != avg_) # TODO: better strategy to get proper ordering
+        if simplify && !isequal(avg, avg_) # TODO: better strategy to get proper ordering
             return cumulant_expansion(avg_,order;simplify=simplify,kwargs...)
         else
             @assert op.f === (*)
@@ -245,7 +245,7 @@ function cumulant(op::OperatorTerm,n::Int=get_order(op);simplify=true,kwargs...)
         else
             avg_ = average(op)
         end
-        if simplify && (average(op) != avg_) # TODO: better strategy to get proper ordering
+        if simplify && !isequal(average(op), avg_) # TODO: better strategy to get proper ordering
             return cumulant(avg_.operator,order;simplify=simplify,kwargs...)
         else
             @assert op.f === (*)

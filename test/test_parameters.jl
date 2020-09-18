@@ -23,33 +23,33 @@ a = embed(h,a_,1)
 H = ωc*a'*a + ωa*σ'*σ + g*(a'*σ + σ'*a)
 
 da = commutator(1.0im*H,a)
-@test da == simplify_operators((-1.0im*g)*σ + (-1.0im*ωc)*a)
+@test isequal(da, simplify_operators((-1.0im*g)*σ + (-1.0im*ωc)*a))
 ds = commutator(1.0im*H,σ)
-@test ds == simplify_operators((-1.0im*g)*a + (-1.0im*ωa)*σ + (2.0im*g)*a*σee)
+@test isequal(ds, simplify_operators((-1.0im*g)*a + (-1.0im*ωa)*σ + (2.0im*g)*a*σee))
 dn = commutator(1.0im*H,a'*a)
-@test dn == simplify_operators((-1.0im*g)*a'*σ + (1.0im*g)*a*σ')
+@test isequal(dn, simplify_operators((-1.0im*g)*a'*σ + (1.0im*g)*a*σ'))
 
 he = heisenberg([a,σ,a'*a],H)
-@test he.rhs[1] == da
-@test he.rhs[2] == ds
-@test he.rhs[3] == dn
+@test isequal(he.rhs[1], da)
+@test isequal(he.rhs[2], ds)
+@test isequal(he.rhs[3], dn)
 
 # Lossy JC
 @parameters κ γ
 J = [a,σ]
 he_diss = heisenberg([a,σ,σ'*σ],H,J;rates=[κ,γ])
 
-@test he_diss.rhs[1] == simplify_operators((-1.0im*ωc - 0.5κ)*a + (-1.0im*g)*σ)
-@test he_diss.rhs[2] == simplify_operators((-1.0im*g)*a + (-1.0im*ωa - 0.5γ)*σ + (2.0im*g)*a*σee)
-@test he_diss.rhs[3] == simplify_operators((-γ)*σee + (1.0im*g)*a'*σ + (-1.0im*g)*a*σ')
+@test isequal(he_diss.rhs[1], simplify_operators((-1.0im*ωc - 0.5κ)*a + (-1.0im*g)*σ))
+@test isequal(he_diss.rhs[2], simplify_operators((-1.0im*g)*a + (-1.0im*ωa - 0.5γ)*σ + (2.0im*g)*a*σee))
+@test isequal(he_diss.rhs[3], simplify_operators((-γ)*σee + (1.0im*g)*a'*σ + (-1.0im*g)*a*σ'))
 
 # Single-atom laser
 @parameters ν
 J = [a,σ,σ']
 he_laser = heisenberg([a'*a,σ'*σ,a'*σ],H,J;rates=[κ,γ,ν])
 
-@test he_laser.rhs[1] == simplify_operators((-κ)*a'*a + (-1.0im*g)*a'*σ + (1.0im*g)*a*σ')
-@test he_laser.rhs[2] == simplify_operators(ν + (-ν - γ)*σee + (1.0im*g)*a'*σ + (-1.0im*g)*a*σ')
-@test he_laser.rhs[3] == simplify_operators((1.0im*g)*σee + (-1.0im*g)*a'*a + (1.0im*(ωc - ωa) - 0.5*(κ + γ + ν))*a'*σ + (2.0im*g)*a'*a*σee)
+@test isequal(he_laser.rhs[1], simplify_operators((-κ)*a'*a + (-1.0im*g)*a'*σ + (1.0im*g)*a*σ'))
+@test isequal(he_laser.rhs[2], simplify_operators(ν + (-ν - γ)*σee + (1.0im*g)*a'*σ + (-1.0im*g)*a*σ'))
+@test isequal(he_laser.rhs[3], simplify_operators((1.0im*g)*σee + (-1.0im*g)*a'*a + (1.0im*(ωc - ωa) - 0.5*(κ + γ + ν))*a'*σ + (2.0im*g)*a'*a*σee))
 
 end # testset

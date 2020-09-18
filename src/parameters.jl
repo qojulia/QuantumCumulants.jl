@@ -6,9 +6,9 @@ and corresponding expression trees.
 """
 abstract type SymbolicNumber{T} <: Number end
 
-Base.:(==)(s::SymbolicNumber,x::Number) = false
-Base.:(==)(x::Number,s::SymbolicNumber) = false
-Base.:(==)(s1::SymbolicNumber,s2::SymbolicNumber) = false
+Base.isequal(s::SymbolicNumber,x::Number) = false
+Base.isequal(x::Number,s::SymbolicNumber) = false
+Base.isequal(s1::SymbolicNumber,s2::SymbolicNumber) = false
 Base.iszero(::SymbolicNumber) = false
 Base.isone(::SymbolicNumber) = false
 SymbolicUtils.symtype(::SymbolicNumber{T}) where T = T
@@ -25,7 +25,7 @@ end
 function NumberTerm(f,args;type=SymbolicUtils.rec_promote_symtype(f, SymbolicUtils.symtype.(args)...))
     return NumberTerm{type}(f,args)
 end
-Base.:(==)(t1::NumberTerm,t2::NumberTerm) = (t1.f===t2.f && t1.arguments==t2.arguments)
+Base.isequal(t1::NumberTerm,t2::NumberTerm) = (t1.f===t2.f && isequal(t1.arguments,t2.arguments))
 Base.hash(t::NumberTerm{T}, h::UInt) where T = hash(t.arguments, hash(t.f, hash(T, h)))
 
 Base.zero(::Type{<:SymbolicNumber}) = 0
@@ -42,13 +42,13 @@ struct Parameter{T<:Number} <: SymbolicNumber{T}
     name::Symbol
 end
 Parameter(name::Symbol) = Parameter{Number}(name)
-Base.:(==)(p::T, q::T) where T<:Parameter = (p.name==q.name)
+Base.isequal(p::T, q::T) where T<:Parameter = (p.name==q.name)
 Base.hash(p::Parameter{T}, h::UInt) where T = hash(p.name, hash(T, h))
 
 # Methods
 Base.conj(p::Parameter{<:Real}) = p
 
-for f = [:+,:-,:*,:/,:^]
+for f = [:+,:-,:*,:/,:^,:(==)]
     @eval Base.$f(a::SymbolicNumber,b::Number) = NumberTerm($f, [a,b])
     @eval Base.$f(a::Number,b::SymbolicNumber) = NumberTerm($f, [a,b])
     @eval Base.$f(a::SymbolicNumber,b::SymbolicNumber) = NumberTerm($f, [a,b])
@@ -57,6 +57,7 @@ Base.:^(a::SymbolicNumber, b::Int) = NumberTerm(^, [a,b])
 for f = [:cos,:sin,:tan,:sqrt,:conj]
     @eval Base.$f(a::SymbolicNumber) = NumberTerm($f, [a])
 end
+Base.:(!)(s::SymbolicNumber{T}) where T<:Bool = NumberTerm{T}(!, [s])
 
 # Variadic methods
 Base.:-(x::SymbolicNumber) = -1*x
@@ -160,4 +161,30 @@ function simplify_constants(t::NumberTerm;kwargs...)
     s = _to_symbolic(t)
     s_ = SymbolicUtils.simplify(s;kwargs...)
     return _to_qumulants(s_)
+end
+
+
+function Base.in(x::SymbolicNumber, itr)
+    anymissing = false
+    for y in itr
+        v = isequal(y, x)
+        if ismissing(v)
+            anymissing = true
+        elseif v
+            return true
+        end
+    end
+    return anymissing ? missing : false
+end
+function Base.in(x::SymbolicNumber, itr::Set)
+    anymissing = false
+    for y in itr
+        v = isequal(y, x)
+        if ismissing(v)
+            anymissing = true
+        elseif v
+            return true
+        end
+    end
+    return anymissing ? missing : false
 end

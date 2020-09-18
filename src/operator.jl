@@ -32,7 +32,7 @@ struct OperatorTerm{F,ARGS} <: AbstractOperator
     f::F
     arguments::ARGS
 end
-Base.:(==)(t1::OperatorTerm,t2::OperatorTerm) = (t1.f===t2.f && t1.arguments==t2.arguments)
+Base.:(==)(t1::OperatorTerm,t2::OperatorTerm) = (t1.f===t2.f && isequal(t1.arguments,t2.arguments))
 Base.hash(t::OperatorTerm, h::UInt) = hash(t.arguments, hash(t.f, h))
 
 for f = [:+,:-,:*]

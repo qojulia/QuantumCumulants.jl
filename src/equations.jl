@@ -2,7 +2,7 @@
 Abstract type for equations.
 """
 abstract type AbstractEquation{LHS,RHS} end
-Base.:(==)(eq1::T,eq2::T) where T<:AbstractEquation = (eq1.lhs==eq2.lhs && eq1.rhs==eq2.rhs)
+Base.isequal(eq1::T,eq2::T) where T<:AbstractEquation = isequal(eq1.lhs,eq2.lhs) && isequal(eq1.rhs, eq2.rhs)
 
 """
     DifferentialEquation{LHS,RHS,H,J,R} <: AbstractEquation{LHS,RHS}
@@ -29,7 +29,7 @@ mutable struct DifferentialEquation{LHS,RHS,H,J,R} <: AbstractEquation{LHS,RHS}
     rates::R
 end
 Base.hash(eq::DifferentialEquation, h::UInt) = hash(eq.rates, hash(eq.jumps, hash(eq.hamiltonian, hash(eq.rhs, hash(eq.lhs, h)))))
-Base.:(==)(eq1::DifferentialEquation,eq2::DifferentialEquation) = hash(eq1)==hash(eq2)
+Base.isequal(eq1::DifferentialEquation,eq2::DifferentialEquation) = hash(eq1)==hash(eq2)
 
 Base.getindex(de::DifferentialEquation, i::Int) = DifferentialEquation([de.lhs[i]],[de.rhs[i]],de.hamiltonian,de.jumps,de.rates)
 Base.lastindex(de::DifferentialEquation) = lastindex(de.lhs)

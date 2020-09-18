@@ -4,7 +4,7 @@
 Abstract type for representing Hilbert spaces.
 """
 abstract type HilbertSpace end
-Base.:(==)(h1::HilbertSpace,h2::HilbertSpace) = false
+Base.isequal(h1::HilbertSpace,h2::HilbertSpace) = false
 Base.hash(h::HilbertSpace, i::UInt) = hash(h.name, i)
 
 """
@@ -16,7 +16,7 @@ Generally created by computing the tensor product [`⊗`](@ref) of subspaces.
 struct ProductSpace{S} <: HilbertSpace
     spaces::S
 end
-Base.:(==)(h1::T,h2::T) where T<:ProductSpace = h1.spaces==h2.spaces
+Base.isequal(h1::T,h2::T) where T<:ProductSpace = h1.spaces==h2.spaces
 Base.hash(p::ProductSpace, h::UInt) = hash(p.spaces, h)
 
 """
