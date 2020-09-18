@@ -11,6 +11,19 @@ Base.show(io::IO,x::BasicOperator) = write(io, x.name)
 Base.show(io::IO,x::Create) = write(io, string(x.name, "′"))
 Base.show(io::IO,x::Transition) = write(io, Symbol(x.name,x.i,x.j))
 
+function Base.show(io::IO,x::IndexedDestroy)
+    write(io,x.name)
+    show(io,x.index)
+end
+function Base.show(io::IO,x::IndexedCreate)
+    write(io,x.name)
+    show(io,x.index)
+    write(io,"′")
+end
+Base.show(io::IO,x::IndexedTransition) = write(io, Symbol(x.name,x.i,x.j,x.index.name))
+Base.show(io::IO, f::typeof(nip)) = write(io, "⋅")
+Base.show(io::IO, x::Index) = write(io, x.name)
+
 show_brackets = Ref(true)
 function Base.show(io::IO,x::Union{OperatorTerm,NumberTerm})
     show_brackets[] && write(io,"(")

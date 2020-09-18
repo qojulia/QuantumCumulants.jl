@@ -16,12 +16,24 @@ export HilbertSpace, ProductSpace, ⊗,
         find_missing, complete, find_operators, fundamental_operators,
             unique_ops, get_symbolics, get_operators,
         build_ode, generate_ode,
-        transition_superscript
+        transition_superscript,
+        IndexedDestroy, IndexedCreate, IndexedTransition, Index
+
+
+"""
+    SymbolicNumber <: Number
+
+Abstract type for all symbolic numbers, i.e. [`Parameter`](@ref), [`Average`](@ref)
+and corresponding expression trees.
+"""
+abstract type SymbolicNumber{T} <: Number end
+
 
 include("hilbertspace.jl")
 include("operator.jl")
 include("fock.jl")
 include("nlevel.jl")
+include("indexing.jl")
 include("simplify.jl")
 include("rules.jl")
 include("equations.jl")

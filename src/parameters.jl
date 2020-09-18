@@ -1,11 +1,3 @@
-"""
-    SymbolicNumber <: Number
-
-Abstract type for all symbolic numbers, i.e. [`Parameter`](@ref), [`Average`](@ref)
-and corresponding expression trees.
-"""
-abstract type SymbolicNumber{T} <: Number end
-
 Base.isequal(s::SymbolicNumber,x::Number) = false
 Base.isequal(x::Number,s::SymbolicNumber) = false
 Base.isequal(s1::SymbolicNumber,s2::SymbolicNumber) = false
@@ -136,7 +128,7 @@ Expamples
 julia> ps = parameters(:a, :b)
 (a, b)
 
-julia> parameters("a b") == ps
+julia> isequal(parameters("a b"), ps)
 true
 ```
 """

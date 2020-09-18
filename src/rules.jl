@@ -22,6 +22,9 @@ let
         # NLevel rules
         SymbolicUtils.@rule(*(~~a, ~x::SymbolicUtils.sym_isa(Transition), ~y::SymbolicUtils.sym_isa(Transition), ~~b) => apply_commutator(merge_transitions, ~~a, ~~b, ~x, ~y))
         SymbolicUtils.@rule(~x::SymbolicUtils.sym_isa(Transition) => rewrite_gs(~x))
+
+        # Indexed rules
+        SymbolicUtils.@rule(*(~~a, ~x::SymbolicUtils.sym_isa(IndexedDestroy), ~y::SymbolicUtils.sym_isa(IndexedCreate), ~~b) => apply_commutator(commute_bosonic_idx, ~~a, ~~b, ~x, ~y))
     ]
 
     EXPAND_TIMES_RULES = [
@@ -69,6 +72,37 @@ let
         # SymbolicUtils.@rule(SymbolicUtils.cond(~x::SymbolicUtils.isnumber, ~y, ~z) => ~x ? ~y : ~z)
     ]
 
+    BOOLEAN_RULES = [
+        SymbolicUtils.@rule((true | (~x)) => true)
+        SymbolicUtils.@rule(((~x) | true) => true)
+        SymbolicUtils.@rule((false | (~x)) => ~x)
+        SymbolicUtils.@rule(((~x) | false) => ~x)
+        SymbolicUtils.@rule((true & (~x)) => ~x)
+        SymbolicUtils.@rule(((~x) & true) => ~x)
+        SymbolicUtils.@rule((false & (~x)) => false)
+        SymbolicUtils.@rule(((~x) & false) => false)
+
+        SymbolicUtils.@rule(!(~x) & ~x => false)
+        SymbolicUtils.@rule(~x & !(~x) => false)
+        SymbolicUtils.@rule(!(~x) | ~x => true)
+        SymbolicUtils.@rule(~x | !(~x) => true)
+        SymbolicUtils.@rule(xor(~x, !(~x)) => true)
+        SymbolicUtils.@rule(xor(~x, ~x) => false)
+
+        SymbolicUtils.@rule(~x == ~x => true)
+        SymbolicUtils.@rule(~x != ~x => false)
+        SymbolicUtils.@rule(~x < ~x => false)
+        SymbolicUtils.@rule(~x > ~x => false)
+
+        # simplify terms with no symbolic arguments
+        # e.g. this simplifies term(isodd, 3, type=Bool)
+        # or term(!, false)
+        SymbolicUtils.@rule((~f)(~x::SymbolicUtils.isnumber) => (~f)(~x))
+        # and this simplifies any binary comparison operator
+        SymbolicUtils.@rule((~f)(~x::SymbolicUtils.isnumber, ~y::SymbolicUtils.isnumber) => (~f)(~x, ~y))
+    ]
+
+
 
     # Rewriter functions
     global operator_simplifier
@@ -103,7 +137,8 @@ let
     function noncommutative_simplifier()
         rule_tree = [SymbolicUtils.If(SymbolicUtils.is_operation(+), SymbolicUtils.Chain(PLUS_RULES)),
                      SymbolicUtils.If(SymbolicUtils.is_operation(*), SymbolicUtils.Chain(NC_TIMES_RULES)),
-                     SymbolicUtils.If(SymbolicUtils.is_operation(^), SymbolicUtils.Chain(POW_RULES))
+                     SymbolicUtils.If(SymbolicUtils.is_operation(^), SymbolicUtils.Chain(POW_RULES)),
+                     SymbolicUtils.If(x->SymbolicUtils.symtype(x) <: Bool,SymbolicUtils.Chain(BOOLEAN_RULES))
                      ] |> SymbolicUtils.Chain
         return SymbolicUtils.Fixpoint(SymbolicUtils.Postwalk(rule_tree))
     end
