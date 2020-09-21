@@ -115,30 +115,68 @@ function merge_nip_idx_transition(nip_::OperatorTerm, σ::IndexedTransition)
     nip_idxs = find_index(nip_)
     if σ.index in nip_idxs
         it_σ = findfirst(x->isequal(x.index,σ.index), nip_σs)
-        σ_new = merge_transitions(nip_σs[it_σ], σ)[σ.index]#merge_eq_idx_trans(nip_σs[it_σ], σ)[2]
+        σ_new = merge_transitions(nip_σs[it_σ], σ)
         if iszero(σ_new)
             return 0
         else
-            nip_σs[it_σ] = σ_new
+            nip_σs[it_σ] = σ_new[σ.index]
             return nip(nip_σs)
         end
     else #σ.index not in nip_idxs
         all_summands = []
-        push!(all_summands, nip([nip_σs...,σ]))
+        δs = Number[]
         for itσ=1:length(nip_σs)
-            δ_ = σ.index==nip_σs[itσ].index
-            σ_new = merge_transitions(nip_σs[itσ], σ)[σ.index]#merge_eq_idx_trans(nip_σs[itσ],σ)
-             # = (nip_σs[itσ].index==σ.index)
-            if σ_new != 0
+            σ_new = merge_transitions(nip_σs[itσ], σ)
+            δ_ = (σ.index==nip_σs[itσ].index)
+            push!(δs, !(δ_))
+            if !iszero(σ_new)
                 nip_σs_new = copy(nip_σs)
-                nip_σs_new[itσ] = σ_new
+                nip_σs_new[itσ] = σ_new[σ.index]
                 nip_σ_new = δ_*nip(nip_σs_new)
                 push!(all_summands, nip_σ_new)
             end
         end
+        push!(all_summands, *(δs...)*nip([nip_σs...,σ]))
         return sum(all_summands)
     end
 end
+
+#σ*nip
+function merge_idx_transition_nip(σ::SymbolicUtils.Symbolic,nip_::SymbolicUtils.Symbolic)
+    p = merge_idx_transition_nip( _to_qumulants(σ),_to_qumulants(nip_))
+    return _to_symbolic(p)
+end
+function merge_idx_transition_nip(σ, nip_)
+    nip_σs = copy(nip_.arguments)
+    nip_idxs = find_index(nip_)
+    if σ.index in nip_idxs
+        it_σ = findfirst(x->isequal(x.index,σ.index), nip_σs)
+        σ_new = merge_transitions(σ, nip_σs[it_σ])
+        if iszero(σ_new)
+            return 0
+        else
+            nip_σs[it_σ] = σ_new[σ.index]
+            return nip(nip_σs)
+        end
+    else #σ.index not in nip_idxs
+        all_summands = []
+        δs = Number[]
+        for itσ=1:length(nip_σs)
+            σ_new = merge_transitions(σ,nip_σs[itσ])
+            δ_ = (σ.index==nip_σs[itσ].index)
+            push!(δs, !(δ_))
+            if !iszero(σ_new)
+                nip_σs_new = copy(nip_σs)
+                nip_σs_new[itσ] = σ_new[σ.index]
+                nip_σ_new = δ_*nip(nip_σs_new)
+                push!(all_summands, nip_σ_new)
+            end
+        end
+        push!(all_summands, *(δs...)*nip([σ,nip_σs...]))
+        return sum(all_summands)
+    end
+end
+
 
 ### Parameters
 

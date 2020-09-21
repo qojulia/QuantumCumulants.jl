@@ -30,6 +30,7 @@ let
         SymbolicUtils.@rule(*(~~a, ~x::SymbolicUtils.sym_isa(IndexedTransition), ~y::SymbolicUtils.sym_isa(IndexedTransition), ~~b) => apply_commutator(merge_idx_transitions, ~~a, ~~b, ~x, ~y))
 
         SymbolicUtils.@rule(*(~~a, ~x::SymbolicUtils.is_operation(nip), ~y::SymbolicUtils.sym_isa(IndexedTransition), ~~b) => apply_commutator(merge_nip_idx_transition, ~~a, ~~b, ~x, ~y))
+        SymbolicUtils.@rule(*(~~a, ~x::SymbolicUtils.sym_isa(IndexedTransition), ~y::SymbolicUtils.is_operation(nip), ~~b) => apply_commutator(merge_idx_transition_nip, ~~a, ~~b, ~x, ~y))
     ]
 
     EXPAND_TIMES_RULES = [
