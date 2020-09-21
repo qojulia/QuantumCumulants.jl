@@ -177,6 +177,96 @@ function merge_idx_transition_nip(σ, nip_)
     end
 end
 
+# nip*nip
+function merge_nips(nip1_::SymbolicUtils.Symbolic,nip2_::SymbolicUtils.Symbolic)
+    p = merge_nips(_to_qumulants(nip1_), _to_qumulants(nip2_))
+    return _to_symbolic(p)
+end
+function merge_nips(nip1_, nip2_)
+    nip1_σs = copy(nip1_.arguments)
+    nip2_σs = copy(nip2_.arguments)
+    nip1_idxs = find_index(nip1_)
+    nip2_idxs = find_index(nip2_)
+    same_idxs = intersect(nip1_idxs, nip2_idxs)
+    if isempty(same_idxs) #all indices unequal in both nips
+        return merge_uneq_nips(nip1_σs, nip2_σs)
+    else #identical indices in both nips, e.g. (σi⋅σj)*(σk⋅σj)
+        same_idx_prods = []
+        for idx in same_idxs
+            nip1_σ_idx = nip1_σs[findfirst(x->isequal(x.index,idx),nip1_σs)]
+            nip2_σ_idx = nip2_σs[findfirst(x->isequal(x.index,idx),nip2_σs)]
+            δ_tmp = nip1_σ_idx.index==nip2_σ_idx.index
+            σ_tmp = merge_transitions(nip1_σ_idx, nip2_σ_idx)
+            iszero(σ_tmp) && return 0
+            push!(same_idx_prods, σ_tmp[nip1_σ_idx.index])
+        end
+        same_idx_prods = sort(same_idx_prods, by=hash)
+        nip1_σs_uneq = filter(x-> !(x.index in same_idxs), nip1_σs)
+        nip2_σs_uneq = filter(x-> !(x.index in same_idxs), nip2_σs)
+
+        if iszero(length(nip1_σs_uneq)*length(nip2_σs_uneq)) #all σs from one nip equal to the others
+            nip_σs = sort(unique!(union(same_idx_prods, nip1_σs_uneq, nip2_σs_uneq)), by=hash)
+            return nip(nip_σs)
+        else
+            return merge_uneq_nips(nip1_σs_uneq, nip2_σs_uneq;extra_σs=same_idx_prods)
+        end
+    end
+end
+function merge_uneq_nips(nip1_σs, nip2_σs; extra_σs=[]) #all indices unequal
+    # extra_σs: needed for merge_nips (identical indices)
+    len1 = length(nip1_σs)
+    len2 = length(nip2_σs)
+    len_prod = len1 + len2
+    idx1 = Iterators.flatten(find_index.(nip1_σs))
+    idx2 = Iterators.flatten(find_index.(nip2_σs))
+    nip1_σs_ext = [nip1_σs;ones(Int,len2)] #extend array with "1"
+    nip2_σs_ext = [nip2_σs;ones(Int,len1)]
+    nip2_permu = unique(permutations(nip2_σs_ext))
+    #
+    # return [merge_eq_idx_trans(nip1_σs_ext[it], nip2_permu[1][it])[2] for it=1:len_prod]
+    nip_sum_ls = []
+    for it2=1:length(nip2_permu)
+        check_zero = false
+        δ_tmp_ls = []
+        σ_tmp_ls = []
+        for it1=1:len_prod
+            isone(nip1_σs_ext[it1]) && isone(nip2_permu[it2][it1]) && continue
+            if isone(nip1_σs_ext[it1])
+                for ii_ in idx1
+                    push!(δ_tmp_ls, nip2_permu[it2][it1].index != ii_)
+                end
+                push!(σ_tmp_ls, nip2_permu[it2][it1])
+            elseif isone(nip2_permu[it2][it1])
+                for ii_ in idx2
+                    push!(δ_tmp_ls, nip1_σs_ext[it1].index != ii_)
+                end
+                push!(σ_tmp_ls, nip1_σs_ext[it1])
+            else
+                δ_tmp = nip1_σs_ext[it1].index==nip2_permu[it2][it1].index
+                σ_tmp = merge_transitions(nip1_σs_ext[it1], nip2_permu[it2][it1])
+                push!(δ_tmp_ls, δ_tmp)
+                check_zero = iszero(σ_tmp)
+                check_zero && break
+                push!(σ_tmp_ls, σ_tmp[nip1_σs_ext[it1].index])
+            end
+            check_zero && break
+        end
+        check_zero && continue
+
+        filter!(!isone, δ_tmp_ls)
+        δ_tmp_ls = sort(δ_tmp_ls, by=hash)
+        if isempty(δ_tmp_ls)
+            δ_tmp_ls = [1]
+        end
+        filter!(!isone, σ_tmp_ls)
+        sort!(σ_tmp_ls, by=hash)
+        push!(nip_sum_ls, [δ_tmp_ls, σ_tmp_ls])
+    end
+    nip_sum_ls = unique!(nip_sum_ls)
+    nip_sum = [prod(args[1])*nip(sort([args[2]...,extra_σs...], by=hash)) for args in nip_sum_ls]
+    return sum(nip_sum)
+end
+
 
 ### Parameters
 

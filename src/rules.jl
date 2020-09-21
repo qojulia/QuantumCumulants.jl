@@ -31,6 +31,9 @@ let
 
         SymbolicUtils.@rule(*(~~a, ~x::SymbolicUtils.is_operation(nip), ~y::SymbolicUtils.sym_isa(IndexedTransition), ~~b) => apply_commutator(merge_nip_idx_transition, ~~a, ~~b, ~x, ~y))
         SymbolicUtils.@rule(*(~~a, ~x::SymbolicUtils.sym_isa(IndexedTransition), ~y::SymbolicUtils.is_operation(nip), ~~b) => apply_commutator(merge_idx_transition_nip, ~~a, ~~b, ~x, ~y))
+        SymbolicUtils.@rule(*(~~a, ~x::SymbolicUtils.is_operation(nip), ~y::SymbolicUtils.is_operation(nip), ~~b) => apply_commutator(merge_nips, ~~a, ~~b, ~x, ~y))
+
+        SymbolicUtils.@rule(~x::SymbolicUtils.needs_sorting(nip) => SymbolicUtils.sort_args(nip, ~x))
     ]
 
     EXPAND_TIMES_RULES = [
@@ -46,8 +49,8 @@ let
 
     # Copied directly from SymbolicUtils
     PLUS_RULES = [
-        SymbolicUtils.@rule(~x::SymbolicUtils.isnotflat(+) => SymbolicUtils.flatten_term(+, ~~x))
-        SymbolicUtils.@rule(~x::SymbolicUtils.needs_sorting(+) => SymbolicUtils.sort_args(+, ~~x))
+        SymbolicUtils.@rule(~x::SymbolicUtils.isnotflat(+) => SymbolicUtils.flatten_term(+, ~x))
+        SymbolicUtils.@rule(~x::SymbolicUtils.needs_sorting(+) => SymbolicUtils.sort_args(+, ~x))
         SymbolicUtils.ACRule(combinations, SymbolicUtils.@rule(~a::SymbolicUtils.isnumber + ~b::SymbolicUtils.isnumber => ~a + ~b), 2)
 
         SymbolicUtils.ACRule(permutations, SymbolicUtils.@rule(*(~~x) + *(~β, ~~x) => *(1 + ~β, (~~x)...)), 2)
@@ -66,6 +69,9 @@ let
         SymbolicUtils.@rule((((~x)^(~p::SymbolicUtils.isliteral(Integer)))^(~q::SymbolicUtils.isliteral(Integer))) => (~x)^((~p)*(~q)))
         SymbolicUtils.@rule(^(~x, ~z::SymbolicUtils._iszero) => 1)
         SymbolicUtils.@rule(^(~x, ~z::SymbolicUtils._isone) => ~x)
+        SymbolicUtils.@rule(^(~x == ~y, ~z) => (~x == ~y))
+        SymbolicUtils.@rule(^(~x != ~y, ~z::SymbolicUtils._iszero) => true)
+        SymbolicUtils.@rule(^(~x != ~y, ~z) => (~x != ~y))
     ]
 
     ASSORTED_RULES = [
@@ -99,6 +105,8 @@ let
         SymbolicUtils.@rule(~x != ~x => false)
         SymbolicUtils.@rule(~x < ~x => false)
         SymbolicUtils.@rule(~x > ~x => false)
+
+        SymbolicUtils.@rule(~x::SymbolicUtils.needs_sorting((==)) => SymbolicUtils.sort_args((==), ~x))
 
         # simplify terms with no symbolic arguments
         # e.g. this simplifies term(isodd, 3, type=Bool)
