@@ -113,7 +113,7 @@ function merge_transitions(σ1, σ2)
         return 0
     end
 end
-function rewrite_gs(t::SymbolicUtils.Sym{<:Transition})
+function rewrite_gs(t::SymbolicUtils.Symbolic)
     op = rewrite_gs(_to_qumulants(t))
     return _to_symbolic(op)
 end

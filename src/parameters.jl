@@ -40,7 +40,7 @@ Base.hash(p::Parameter{T}, h::UInt) where T = hash(p.name, hash(T, h))
 # Methods
 Base.conj(p::Parameter{<:Real}) = p
 
-for f = [:+,:-,:*,:/,:^,:(==)]
+for f = [:+,:-,:*,:/,:^,:(==),(:!=)]
     @eval Base.$f(a::SymbolicNumber,b::Number) = NumberTerm($f, [a,b])
     @eval Base.$f(a::Number,b::SymbolicNumber) = NumberTerm($f, [a,b])
     @eval Base.$f(a::SymbolicNumber,b::SymbolicNumber) = NumberTerm($f, [a,b])

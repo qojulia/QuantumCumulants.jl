@@ -75,8 +75,9 @@ end
 IndexedTransition(hilbert::H,name::S,i::I,j::I,aon::A,index::IND) where {H,S,I,A,IND} = IndexedTransition{H,S,I,A,IND}(hilbert,name,i,j,aon,index)
 Base.getindex(s::Transition,k::Index) = IndexedTransition(s.hilbert,s.name,s.i,s.j,s.aon,k)
 Base.:(==)(t1::IndexedTransition,t2::IndexedTransition) = (t1.hilbert==t2.hilbert && t1.name==t2.name && t1.i==t2.i && t1.j==t2.j && isequal(t1.index,t2.index))
-nip(args...) = OperatorTerm(nip, [args...])
-nip(args::Vector) = OperatorTerm(nip, args)
+nip(args::AbstractOperator...) = OperatorTerm(nip, [args...])
+nip(args::Vector{<:AbstractOperator}) = OperatorTerm(nip, args)
+nip(args::Union{SymbolicUtils.Symbolic,Number}...) = SymbolicUtils.Term{AbstractOperator}(nip, [args...])
 
 for T in [:Destroy,:Create,:Transition]
     Name = Symbol(:Indexed,T)
@@ -177,7 +178,7 @@ function merge_idx_transition_nip(σ, nip_)
     end
 end
 
-# nip*nip
+# nip*nip TODO clean up
 function merge_nips(nip1_::SymbolicUtils.Symbolic,nip2_::SymbolicUtils.Symbolic)
     p = merge_nips(_to_qumulants(nip1_), _to_qumulants(nip2_))
     return _to_symbolic(p)
@@ -267,6 +268,24 @@ function merge_uneq_nips(nip1_σs, nip2_σs; extra_σs=[]) #all indices unequal
     return sum(nip_sum)
 end
 
+
+# Rewriting σgg[i]
+function rewrite_gs(σ::IndexedTransition)
+    h = σ.hilbert
+    aon = acts_on(σ)
+    gs = ground_state(h,aon)
+    i,j = σ.i, σ.j
+    if i==j==gs
+        idx = σ.index
+        args = Any[1]
+        for k in levels(h,aon)
+            (k==i) || push!(args, -1*IndexedTransition(h, σ.name, k, k, aon, idx))
+        end
+        return +(args...)
+    else
+        return nothing
+    end
+end
 
 ### Parameters
 

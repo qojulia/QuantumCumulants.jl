@@ -30,7 +30,7 @@ n2 = (j!=k)*Qumulants.nip(σ(2,1)[j],σ(1,2)[k])
 
 
 
-n = Qumulants.nip(σ(2,1)[i],σ(1,2)[j])
+n = (i!=j)*Qumulants.nip(σ(2,1)[i],σ(1,1)[j])
 n2 = Qumulants.nip(σ(2,1)[j],σ(1,2)[k])
 ex = Qumulants._to_symbolic(n*n2)
 ex2 = SymbolicUtils.flatten_term(*, ex)

@@ -13,6 +13,9 @@ let
         SymbolicUtils.ACRule(combinations, SymbolicUtils.@rule((~z::SymbolicUtils._isone  * ~x) => ~x), 2)
         SymbolicUtils.ACRule(combinations, SymbolicUtils.@rule((~z::SymbolicUtils._iszero *  ~x) => ~z), 2)
         SymbolicUtils.@rule(*(~x) => ~x)
+
+        SymbolicUtils.@rule(*(~~a, ~x!=~y, ~x==~y, ~~c) => false)
+        SymbolicUtils.@rule(*(~~a, ~x==~y, ~x!=~y, ~~c) => false)
     ]
 
     COMMUTATOR_RULES = [
@@ -28,12 +31,22 @@ let
 
         SymbolicUtils.@rule(*(~~a, ~x::SymbolicUtils.sym_isa(IndexedTransition), ~y::SymbolicUtils.sym_isa(IndexedTransition), ~~b) => apply_commutator(merge_idx_transitions, ~~a, ~~b, ~x, ~y))
         SymbolicUtils.@rule(*(~~a, ~x::SymbolicUtils.sym_isa(IndexedTransition), ~y::SymbolicUtils.sym_isa(IndexedTransition), ~~b) => apply_commutator(merge_idx_transitions, ~~a, ~~b, ~x, ~y))
+        SymbolicUtils.@rule(~x::SymbolicUtils.sym_isa(IndexedTransition) => rewrite_gs(~x))
 
         SymbolicUtils.@rule(*(~~a, ~x::SymbolicUtils.is_operation(nip), ~y::SymbolicUtils.sym_isa(IndexedTransition), ~~b) => apply_commutator(merge_nip_idx_transition, ~~a, ~~b, ~x, ~y))
         SymbolicUtils.@rule(*(~~a, ~x::SymbolicUtils.sym_isa(IndexedTransition), ~y::SymbolicUtils.is_operation(nip), ~~b) => apply_commutator(merge_idx_transition_nip, ~~a, ~~b, ~x, ~y))
         SymbolicUtils.@rule(*(~~a, ~x::SymbolicUtils.is_operation(nip), ~y::SymbolicUtils.is_operation(nip), ~~b) => apply_commutator(merge_nips, ~~a, ~~b, ~x, ~y))
 
+    ]
+
+    NIP_RULES = [
         SymbolicUtils.@rule(~x::SymbolicUtils.needs_sorting(nip) => SymbolicUtils.sort_args(nip, ~x))
+        SymbolicUtils.@rule(nip(~~a, +(~~b), ~~c) => +(map(b -> nip((~~a)..., b, (~~c)...), ~~b)...))
+        SymbolicUtils.@rule(nip(~~a, ~b::SymbolicUtils.isnumber, ~~d) => *(~b, nip((~~a)..., (~~d)...)))
+        SymbolicUtils.@rule(nip(~~a, *(~b::SymbolicUtils.isnumber, ~c), ~~d) => *(~b, nip((~~a)..., ~c, (~~d)...)))
+        SymbolicUtils.@rule(nip(~~a, *(~b, ~c::SymbolicUtils.isnumber), ~~d) => *(~c, nip((~~a)..., ~b, (~~d)...)))
+        SymbolicUtils.@rule(nip(~x::SymbolicUtils.isnumber) => ~x)
+        SymbolicUtils.@rule(nip(~x::SymbolicUtils.sym_isa(IndexedTransition)) => ~x)
     ]
 
     EXPAND_TIMES_RULES = [
@@ -102,11 +115,19 @@ let
         SymbolicUtils.@rule(xor(~x, ~x) => false)
 
         SymbolicUtils.@rule(~x == ~x => true)
-        SymbolicUtils.@rule(~x != ~x => false)
         SymbolicUtils.@rule(~x < ~x => false)
         SymbolicUtils.@rule(~x > ~x => false)
+        # SymbolicUtils.@rule(~x != ~y => !(~x == ~y))
+        SymbolicUtils.@rule(!(~x == ~y) => ~x != ~y)
 
         SymbolicUtils.@rule(~x::SymbolicUtils.needs_sorting((==)) => SymbolicUtils.sort_args((==), ~x))
+        SymbolicUtils.@rule(~x::SymbolicUtils.needs_sorting((!=)) => SymbolicUtils.sort_args((!=), ~x))
+
+        # SymbolicUtils.ACRule(permutations, SymbolicUtils.@rule((~x==~y)*(~x!=~y) => false), 2)
+        # SymbolicUtils.ACRule(permutations, SymbolicUtils.@rule((~x!=~y)*(~x==~y) => false), 2)
+        SymbolicUtils.@rule(*(~~a, ~x!=~y, ~x==~y, ~~c) => false)
+        SymbolicUtils.@rule(*(~~a, ~x==~y, ~x!=~y, ~~c) => false)
+        # SymbolicUtils.@rule(~x * !(~x) => false)
 
         # simplify terms with no symbolic arguments
         # e.g. this simplifies term(isodd, 3, type=Bool)
@@ -143,6 +164,7 @@ let
         rule_tree = [SymbolicUtils.If(SymbolicUtils.istree, SymbolicUtils.Chain(ASSORTED_RULES)),
                     SymbolicUtils.If(SymbolicUtils.is_operation(*), SymbolicUtils.Chain(EXPAND_TIMES_RULES)),
                     SymbolicUtils.If(SymbolicUtils.is_operation(^), SymbolicUtils.Chain(EXPAND_POW_RULES)),
+                    SymbolicUtils.If(SymbolicUtils.is_operation(nip), SymbolicUtils.Chain(NIP_RULES)),
                     SymbolicUtils.Chain(COMMUTATOR_RULES)
                     ] |> SymbolicUtils.Chain
         return SymbolicUtils.Fixpoint(SymbolicUtils.Postwalk(rule_tree))
