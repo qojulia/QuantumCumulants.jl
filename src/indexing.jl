@@ -291,7 +291,7 @@ end
 
 struct IndexedParameter{T<:Number,S,I} <: SymbolicNumber{T}
     name::S
-    idx::I
+    index::I
     function IndexedParameter{T,S,I}(name::S,idx::I) where {T,S,I}
         param_idx = new(name,idx)
         if !haskey(IDX_TO_SYMS, param_idx)
@@ -307,8 +307,8 @@ IndexedParameter(name, idx) = IndexedParameter{Number}(name, idx)
 _to_symbolic(param_idx::IndexedParameter) = IDX_TO_SYMS[param_idx]
 _to_qumulants(t::SymbolicUtils.Sym{T}) where T<:IndexedParameter = SYMS_TO_IDX[t]
 
-Base.isequal(p::T, q::T) where T<:IndexedParameter = (p.name==q.name && isequal(p.idx,q.idx))
-Base.hash(p::IndexedParameter{T}, h::UInt) where T = hash(p.name, hash(p.idx, hash(T, h)))
+Base.isequal(p::T, q::T) where T<:IndexedParameter = (p.name==q.name && isequal(p.index,q.index))
+Base.hash(p::IndexedParameter{T}, h::UInt) where T = hash(p.name, hash(p.index, hash(T, h)))
 
 # Methods
 Base.conj(p::IndexedParameter{<:Real}) = p
@@ -336,7 +336,36 @@ function find_index(t::OperatorTerm)
     for arg in t.arguments
         append!(idx, find_index(arg))
     end
+    unique!(idx)
     return idx
 end
 find_index(::Number) = Index[]
 find_index(x::Union{IndexedTransition,IndexedCreate,IndexedDestroy,IndexedParameter,IndexedOne}) = [x.index]
+
+
+### Symbolic Summation
+Sum(ops, index::Index) = OperatorTerm(Sum, [ops, index])
+# Sum(ops::Number, index::Index) = NumberTerm(Sum, [ops, index])
+# Sum(ops::NumberTerm, index::Index) = NumberTerm(Sum, [ops, index])
+
+
+Sum(ops, index::SymbolicUtils.Sym{Index}) = _to_symbolic(Sum(_to_qumulants(ops), _to_qumulants(index)))
+# find_index(Sum_::OperatorTerm{typeof(Sum)}) = Sum_.arguments[2]
+
+# swap index
+swap_index(x, i::Index, j::Index) = x
+swap_index(ex::Index, i1::Index, i2::Index) = (isequal(ex,i1) ? i2 : ex)
+swap_index(ex::IndexedTransition, i1::Index, i2::Index) = (isequal(ex.index,i1) ? IndexedTransition(ex.hilbert, ex.name, ex.i, ex.j, ex.aon, i2) : ex)
+swap_index(ex::IndexedDestroy, i1::Index, i2::Index) = (isequal(ex.index,i1) ? IndexedDestroy(ex.hilbert, ex.name, ex.aon, i2) : ex)
+swap_index(ex::IndexedCreate, i1::Index, i2::Index) = (isequal(ex.index,i1) ? IndexedCreate(ex.hilbert, ex.name, ex.aon, i2) : ex)
+function swap_index(ex::IndexedParameter, i1::Index, i2::Index)
+    ex_ = copy(ex)
+    for idx in findall(isequal(i1), ex.index)
+        ex_.index[idx] = i2
+    end
+    return ex_
+end
+swap_index(ex::OperatorTerm, i1::Index, i2::Index) = OperatorTerm(ex.f, swap_index.(ex.arguments, i1, i2))
+swap_index(ex::NumberTerm, i1::Index, i2::Index) = NumberTerm(ex.f, swap_index.(ex.arguments, i1, i2))
+
+swap_index(ex::SymbolicUtils.Symbolic, i::SymbolicUtils.Symbolic, j::SymbolicUtils.Symbolic) = _to_symbolic(swap_index(_to_qumulants(ex), _to_qumulants(i), _to_qumulants(j)))

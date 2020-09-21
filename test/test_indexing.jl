@@ -27,8 +27,13 @@ n2 = (j!=k)*Qumulants.nip(σ(2,1)[j],σ(1,2)[k])
 @test simplify_operators(n*σ(2,1)[i])==simplify_operators(n*σ(1,2)[j])==0
 @test simplify_operators(n*σ(1,2)[i])==(i!=j)*Qumulants.nip(σ(1,2)[j],σ(2,2)[i])
 
-
-
+hf = FockSpace(:field)
+ha = NLevelSpace(:atom,2)
+h = hf⊗ha
+a = Destroy(h,:a)
+σ(i,j) = Transition(h,:σ,i,j)
+@parameters g
+H = Sum(g[i]*(a'*σ(1,2)[i] + a*σ(2,1)[i]), i)
 
 n = (i!=j)*Qumulants.nip(σ(2,1)[i],σ(1,1)[j])
 n2 = Qumulants.nip(σ(2,1)[j],σ(1,2)[k])

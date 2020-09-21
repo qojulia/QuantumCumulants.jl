@@ -17,7 +17,7 @@ export HilbertSpace, ProductSpace, ⊗,
             unique_ops, get_symbolics, get_operators,
         build_ode, generate_ode,
         transition_superscript,
-        IndexedDestroy, IndexedCreate, IndexedTransition, Index
+        IndexedDestroy, IndexedCreate, IndexedTransition, Index, Sum
 
 
 """
@@ -28,6 +28,15 @@ and corresponding expression trees.
 """
 abstract type SymbolicNumber{T} <: Number end
 
+"""
+    NumberTerm <: SymbolicNumber
+
+Expression tree consisting of [`SymbolicNumber`](@ref) variables.
+"""
+struct NumberTerm{T<:Number} <: SymbolicNumber{T}
+    f::Function
+    arguments::Vector
+end
 
 include("hilbertspace.jl")
 include("operator.jl")

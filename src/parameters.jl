@@ -5,15 +5,6 @@ Base.iszero(::SymbolicNumber) = false
 Base.isone(::SymbolicNumber) = false
 SymbolicUtils.symtype(::SymbolicNumber{T}) where T = T
 
-"""
-    NumberTerm <: SymbolicNumber
-
-Expression tree consisting of [`SymbolicNumber`](@ref) variables.
-"""
-struct NumberTerm{T<:Number} <: SymbolicNumber{T}
-    f::Function
-    arguments::Vector
-end
 function NumberTerm(f,args;type=SymbolicUtils.rec_promote_symtype(f, SymbolicUtils.symtype.(args)...))
     return NumberTerm{type}(f,args)
 end
@@ -181,4 +172,4 @@ function Base.in(x::SymbolicNumber, itr::Set)
     return anymissing ? missing : false
 end
 
-Base.getindex(p::Parameter,i::Index) = IndexedParameter(p.name,i)
+Base.getindex(p::Parameter,idx::Index...) = IndexedParameter(p.name, [idx...])

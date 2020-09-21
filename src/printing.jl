@@ -24,8 +24,18 @@ Base.show(io::IO,x::IndexedTransition) = write(io, Symbol(x.name,x.i,x.j,x.index
 Base.show(io::IO, f::typeof(nip)) = write(io, "⋅")
 Base.show(io::IO, x::Index) = write(io, x.name)
 
+function Base.show(io::IO, x::IndexedParameter)
+    write(io, x.name)
+    write(io, "[")
+    show(io, x.index[1])
+    for i=2:length(x.index)
+        write(io, ", ")
+        show(io, x.index[i])
+    end
+    write(io, "]")
+end
+
 show_brackets = Ref(true)
-function Sum end
 function Base.show(io::IO,x::Union{OperatorTerm,NumberTerm})
     if x.f === Sum
         write(io, "Σ$(x.arguments[2])[")
