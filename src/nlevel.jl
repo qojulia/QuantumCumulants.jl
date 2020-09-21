@@ -104,7 +104,7 @@ function merge_transitions(σ1::SymbolicUtils.Sym{<:Transition},σ2::SymbolicUti
     op = merge_transitions(_to_qumulants(σ1), _to_qumulants(σ2))
     return _to_symbolic(op)
 end
-function merge_transitions(σ1::Transition, σ2::Transition)
+function merge_transitions(σ1, σ2)
     i1,j1 = σ1.i, σ1.j
     i2,j2 = σ2.i, σ2.j
     if j1==i2

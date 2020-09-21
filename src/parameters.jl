@@ -180,3 +180,5 @@ function Base.in(x::SymbolicNumber, itr::Set)
     end
     return anymissing ? missing : false
 end
+
+Base.getindex(p::Parameter,i::Index) = IndexedParameter(p.name,i)

@@ -192,7 +192,7 @@ end
 
 # Apply commutation relation
 function apply_commutator(fcomm, args_l, args_r, a, b)
-    if acts_on(a)==acts_on(b)
+    if (acts_on(a) in acts_on(b) || acts_on(b) in acts_on(a))
         return *(args_l..., fcomm(a, b), args_r...)
     else
         return nothing

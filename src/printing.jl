@@ -25,14 +25,34 @@ Base.show(io::IO, f::typeof(nip)) = write(io, "⋅")
 Base.show(io::IO, x::Index) = write(io, x.name)
 
 show_brackets = Ref(true)
+function Sum end
 function Base.show(io::IO,x::Union{OperatorTerm,NumberTerm})
-    show_brackets[] && write(io,"(")
-    show(io, x.arguments[1])
-    for i=2:length(x.arguments)
-        show(io, x.f)
-        show(io, x.arguments[i])
+    if x.f === Sum
+        write(io, "Σ$(x.arguments[2])[")
+        show(io, x.arguments[1])
+        write(io,"]")
+    elseif x.f === (!)
+        if x.arguments[1] isa NumberTerm && x.arguments[1].f===(==)
+            show(io, x.arguments[1].arguments[1])
+            write(io, "≠")
+            show(io, x.arguments[1].arguments[2])
+        else
+            show(io, !)
+            write(io, "(")
+            for arg in x.arguments
+                show(io, arg)
+            end
+            write(io, ")")
+        end
+    else
+        show_brackets[] && write(io,"(")
+        show(io, x.arguments[1])
+        for i=2:length(x.arguments)
+            show(io, x.f)
+            show(io, x.arguments[i])
+        end
+        show_brackets[] && write(io,")")
     end
-    show_brackets[] && write(io,")")
 end
 
 Base.show(io::IO, x::Parameter) = write(io, x.name)
