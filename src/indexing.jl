@@ -317,23 +317,6 @@ Base.hash(p::IndexedParameter{T}, h::UInt) where T = hash(p.name, hash(p.index, 
 # Methods
 Base.conj(p::IndexedParameter{<:Real}) = p
 
-
-struct IndexedOne{T,I,A} <: SymbolicNumber{T}
-    idx::I
-    aon::A
-    function IndexedOne{T,I,A}(idx::I,aon::A) where {T,I,A}
-        one_idx = new(idx,aon)
-        if !haskey(IDX_TO_SYMS, one_idx)
-            sym = SymbolicUtils.Sym{IndexedParameter}(gensym(:IndexedOne))
-            IDX_TO_SYMS[one_idx] = sym
-            SYMS_TO_IDX[sym] = one_idx
-        end
-        return one_idx
-    end
-end
-IndexedOne{T}(idx::I,aon::A) where {T,I,A} = IndexedOne{T,I,A}(idx,aon)
-IndexedOne(idx,aon) = IndexedOne{Int}(idx,aon)
-
 find_index(s::SymbolicUtils.Symbolic) = _to_symbolic.(find_index(_to_qumulants(s)))
 function find_index(t::OperatorTerm)
     idx = Index[]
@@ -344,7 +327,7 @@ function find_index(t::OperatorTerm)
     return idx
 end
 find_index(::Number) = Index[]
-find_index(x::Union{IndexedTransition,IndexedCreate,IndexedDestroy,IndexedParameter,IndexedOne}) = [x.index]
+find_index(x::Union{IndexedTransition,IndexedCreate,IndexedDestroy,IndexedParameter}) = [x.index]
 
 
 ### Symbolic Summation
