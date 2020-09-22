@@ -63,13 +63,25 @@ function heisenberg(a::Vector,H,J;Jdagger::Vector=adjoint.(J),rates=ones(length(
 end
 function _master_lindblad(a_,J,Jdagger,rates)
     if isa(rates,Vector)
-        da_diss = sum(0.5*rates[i]*(Jdagger[i]*commutator(a_,J[i];simplify=false) + commutator(Jdagger[i],a_;simplify=false)*J[i]) for i=1:length(J))
+        da_diss = sum(_lindblad(a_,J[i],Jdagger[i],rates[i]) for i=1:length(J))
     elseif isa(rates,Matrix)
-        da_diss = sum(0.5*rates[i,j]*(Jdagger[i]*commutator(a_,J[j];simplify=false) + commutator(Jdagger[i],a_;simplify=false)*J[j]) for i=1:length(J), j=1:length(J))
+        da_diss = sum(_lindblad(a_,J[i],Jdagger[j],rates[i,j]) for i=1:length(J), j=1:length(J))
     else
         error("Unknown rates type!")
     end
     return simplify_operators(da_diss)
+end
+
+function _lindblad(a,J,Jdagger,rate)
+    idx = find_index(J)
+    rate_idx = find_index(rate)
+    if isempty(idx)
+        return 0.5*rate*(Jdagger*commutator(a,J;simplify=false) + commutator(Jdagger,a;simplify=false)*J)
+    else
+        length(idx)==1 || error("Multiple index decay operator not supported!")
+        length(rate_idx)<=1 || error("Collective decay not yet implemented!")
+        return 0.5*Sum(rate*(Jdagger*commutator(a,J;simplify=false) + commutator(Jdagger,a;simplify=false)*J), idx[1])
+    end
 end
 
 """

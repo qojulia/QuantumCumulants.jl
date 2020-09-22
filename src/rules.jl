@@ -62,6 +62,7 @@ let
         SymbolicUtils.@rule(Sum(*(~~a, ~i==~j, ~~c), ~~k, ~i, ~~l) => Sum(swap_index(*((~~a)..., (~~c)...), ~i, ~j), (~~k)..., (~~l)...))
         SymbolicUtils.@rule(Sum(*(~~a, ~j==~i, ~~c), ~~k, ~i, ~~l) => Sum(swap_index(*((~~a)..., (~~c)...), ~i, ~j), (~~k)..., (~~l)...))
         SymbolicUtils.@rule(Sum(~x) => ~x)
+        SymbolicUtils.@rule(Sum(~x::SymbolicUtils.isnumber, ~~idx) => _multiply_idxs_borders(~x, ~~idx))
     ]
 
     EXPAND_TIMES_RULES = [

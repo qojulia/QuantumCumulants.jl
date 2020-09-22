@@ -49,6 +49,8 @@ for Tname in [:Destroy,:Create]
     end
     @eval $(Name)(hilbert::H,name::S,aon::A,index::IND) where {H,S,A,IND} = $(Name){H,S,A,IND}(hilbert,name,aon,index)
     @eval Base.getindex(a::$Tname,i::Index) = $(Name)(a.hilbert,a.name,a.aon,i)
+    @eval Base.:(==)(a::T, b::T) where T<:($Name) = (a.hilbert==b.hilbert && a.name==b.name && a.aon==b.aon && isequal(a.index, b.index))
+    @eval Base.hash(a::$Name, h::UInt) = hash(a.hilbert, hash(a.name, hash(a.aon, hash(a.index, h))))
 end
 Base.adjoint(a::IndexedDestroy) = IndexedCreate(a.hilbert,a.name,a.aon,a.index)
 Base.adjoint(a::IndexedCreate) = IndexedDestroy(a.hilbert,a.name,a.aon,a.index)
@@ -74,15 +76,12 @@ struct IndexedTransition{H,S,I,A,IND} <: BasicOperator
 end
 IndexedTransition(hilbert::H,name::S,i::I,j::I,aon::A,index::IND) where {H,S,I,A,IND} = IndexedTransition{H,S,I,A,IND}(hilbert,name,i,j,aon,index)
 Base.getindex(s::Transition,k::Index) = IndexedTransition(s.hilbert,s.name,s.i,s.j,s.aon,k)
+Base.adjoint(s::IndexedTransition) = IndexedTransition(s.hilbert,s.name,s.j,s.i,s.aon,s.index)
 Base.:(==)(t1::IndexedTransition,t2::IndexedTransition) = (t1.hilbert==t2.hilbert && t1.name==t2.name && t1.i==t2.i && t1.j==t2.j && isequal(t1.index,t2.index))
+Base.hash(t::IndexedTransition, h::UInt) = hash(t.hilbert, hash(t.name, hash(t.i, hash(t.j, hash(t.aon, hash(t.index, h))))))
 nip(args::AbstractOperator...) = OperatorTerm(nip, [args...])
 nip(args::Vector{<:AbstractOperator}) = OperatorTerm(nip, args)
 nip(args::Union{SymbolicUtils.Symbolic,Number}...) = SymbolicUtils.Term{AbstractOperator}(nip, [args...])
-
-for T in [:Destroy,:Create,:Transition]
-    Name = Symbol(:Indexed,T)
-    @eval get_index(a::$Name) = a.index
-end
 
 ### Simplification functions
 function commute_bosonic_idx(a::SymbolicUtils.Symbolic,b::SymbolicUtils.Symbolic)
@@ -326,7 +325,7 @@ function find_index(t::OperatorTerm)
     unique!(idx)
     return idx
 end
-find_index(::Number) = Index[]
+find_index(x) = Index[]
 find_index(x::Union{IndexedTransition,IndexedCreate,IndexedDestroy,IndexedParameter}) = [x.index]
 
 
@@ -356,8 +355,16 @@ function swap_index(ex::IndexedParameter, i1::Index, i2::Index)
 end
 swap_index(ex::OperatorTerm, i1::Index, i2::Index) = OperatorTerm(ex.f, [swap_index(arg, i1, i2) for arg in ex.arguments])
 swap_index(ex::NumberTerm, i1::Index, i2::Index) = NumberTerm(ex.f, [swap_index(arg, i1, i2) for arg in ex.arguments])
-
 swap_index(ex::SymbolicUtils.Symbolic, i::SymbolicUtils.Symbolic, j::SymbolicUtils.Symbolic) = _to_symbolic(swap_index(_to_qumulants(ex), _to_qumulants(i), _to_qumulants(j)))
+
+function _multiply_idxs_borders(x, inds)
+    args = Any[x]
+    idx_ = _to_qumulants.(inds)
+    for i in idx_
+        push!(args, i.upper+(1 - i.lower))
+    end
+    return _to_symbolic(*(args...))
+end
 
 # TODO: write rule to extract non-indexed symbolic numbers out of sums
 # has_index(x) = false
