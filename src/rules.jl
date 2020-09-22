@@ -10,12 +10,13 @@ let
         SymbolicUtils.ACRule(combinations, SymbolicUtils.@rule((~y)^(~n) * ~y => (~y)^(~n+1)), 3)
         SymbolicUtils.ACRule(combinations, SymbolicUtils.@rule((~x)^(~n) * (~x)^(~m) => (~x)^(~n + ~m)), 3)
 
+        SymbolicUtils.@rule(*(~~a, ~x!=~y, ~x==~y, ~~c) => false)
+        SymbolicUtils.@rule(*(~~a, ~x==~y, ~x!=~y, ~~c) => false)
+        SymbolicUtils.@rule(~x * !(~x) => false)
+
         SymbolicUtils.ACRule(combinations, SymbolicUtils.@rule((~z::SymbolicUtils._isone  * ~x) => ~x), 2)
         SymbolicUtils.ACRule(combinations, SymbolicUtils.@rule((~z::SymbolicUtils._iszero *  ~x) => ~z), 2)
         SymbolicUtils.@rule(*(~x) => ~x)
-
-        SymbolicUtils.@rule(*(~~a, ~x!=~y, ~x==~y, ~~c) => false)
-        SymbolicUtils.@rule(*(~~a, ~x==~y, ~x!=~y, ~~c) => false)
     ]
 
     COMMUTATOR_RULES = [
@@ -37,6 +38,10 @@ let
         SymbolicUtils.@rule(*(~~a, ~x::SymbolicUtils.sym_isa(IndexedTransition), ~y::SymbolicUtils.is_operation(nip), ~~b) => apply_commutator(merge_idx_transition_nip, ~~a, ~~b, ~x, ~y))
         SymbolicUtils.@rule(*(~~a, ~x::SymbolicUtils.is_operation(nip), ~y::SymbolicUtils.is_operation(nip), ~~b) => apply_commutator(merge_nips, ~~a, ~~b, ~x, ~y))
 
+        # Sums
+        SymbolicUtils.@rule(*(~~a, ~x::SymbolicUtils.sym_isa(AbstractOperator), Sum(~y, ~~i), ~~b) => *((~~a)..., Sum(~x*~y, (~~i)...), (~~b)...))
+        SymbolicUtils.@rule(*(~~a, Sum(~y, ~~i), ~x::SymbolicUtils.sym_isa(AbstractOperator), ~~b) => *((~~a)..., Sum(~y*~x, (~~i)...), (~~b)...))
+
     ]
 
     NIP_RULES = [
@@ -47,6 +52,16 @@ let
         SymbolicUtils.@rule(nip(~~a, *(~b, ~c::SymbolicUtils.isnumber), ~~d) => *(~c, nip((~~a)..., ~b, (~~d)...)))
         SymbolicUtils.@rule(nip(~x::SymbolicUtils.isnumber) => ~x)
         SymbolicUtils.@rule(nip(~x::SymbolicUtils.sym_isa(IndexedTransition)) => ~x)
+    ]
+
+    SUM_RULES = [
+        SymbolicUtils.@rule(Sum(+(~~a), ~~i) => +(map(a -> Sum(a, (~~i)...), ~~a)...))
+        SymbolicUtils.@rule(Sum(*(~~a, ~b::SymbolicUtils.isnumber, ~~c), ~~i) => *(~b, Sum(*((~~a)..., (~~c)...), (~~i)...)))
+        SymbolicUtils.@rule(Sum(~x, ~~i::(!SymbolicUtils.issortedₑ)) => Sum(~x, sort_idx(~~i)...))
+
+        SymbolicUtils.@rule(Sum(*(~~a, ~i==~j, ~~c), ~~k, ~i, ~~l) => Sum(swap_index(*((~~a)..., (~~c)...), ~i, ~j), (~~k)..., (~~l)...))
+        SymbolicUtils.@rule(Sum(*(~~a, ~j==~i, ~~c), ~~k, ~i, ~~l) => Sum(swap_index(*((~~a)..., (~~c)...), ~i, ~j), (~~k)..., (~~l)...))
+        SymbolicUtils.@rule(Sum(~x) => ~x)
     ]
 
     EXPAND_TIMES_RULES = [
@@ -72,6 +87,10 @@ let
         SymbolicUtils.ACRule(permutations, SymbolicUtils.@rule(~x + *(~β, ~x) => *(1 + ~β, ~x)), 2)
         SymbolicUtils.ACRule(permutations, SymbolicUtils.@rule(*(~α::SymbolicUtils.isnumber, ~x) + ~x => *(~α + 1, ~x)), 2)
         SymbolicUtils.@rule(+(~~x::SymbolicUtils.hasrepeats) => +(SymbolicUtils.merge_repeats(*, ~~x)...))
+
+        SymbolicUtils.@rule(+(~~a, ~x!=~y, ~x==~y, ~~c) => +((~~a)..., true, (~~c)...))
+        SymbolicUtils.@rule(+(~~a, ~x==~y, ~x!=~y, ~~c) => +((~~a)..., true, (~~c)...))
+        SymbolicUtils.@rule(~x + !(~x) => true)
 
         SymbolicUtils.ACRule(combinations, SymbolicUtils.@rule((~z::SymbolicUtils._iszero + ~x) => ~x), 2)
         SymbolicUtils.@rule(+(~x) => ~x)
@@ -117,17 +136,10 @@ let
         SymbolicUtils.@rule(~x == ~x => true)
         SymbolicUtils.@rule(~x < ~x => false)
         SymbolicUtils.@rule(~x > ~x => false)
-        # SymbolicUtils.@rule(~x != ~y => !(~x == ~y))
         SymbolicUtils.@rule(!(~x == ~y) => ~x != ~y)
 
         SymbolicUtils.@rule(~x::SymbolicUtils.needs_sorting((==)) => SymbolicUtils.sort_args((==), ~x))
         SymbolicUtils.@rule(~x::SymbolicUtils.needs_sorting((!=)) => SymbolicUtils.sort_args((!=), ~x))
-
-        # SymbolicUtils.ACRule(permutations, SymbolicUtils.@rule((~x==~y)*(~x!=~y) => false), 2)
-        # SymbolicUtils.ACRule(permutations, SymbolicUtils.@rule((~x!=~y)*(~x==~y) => false), 2)
-        SymbolicUtils.@rule(*(~~a, ~x!=~y, ~x==~y, ~~c) => false)
-        SymbolicUtils.@rule(*(~~a, ~x==~y, ~x!=~y, ~~c) => false)
-        # SymbolicUtils.@rule(~x * !(~x) => false)
 
         # simplify terms with no symbolic arguments
         # e.g. this simplifies term(isodd, 3, type=Bool)
@@ -165,6 +177,7 @@ let
                     SymbolicUtils.If(SymbolicUtils.is_operation(*), SymbolicUtils.Chain(EXPAND_TIMES_RULES)),
                     SymbolicUtils.If(SymbolicUtils.is_operation(^), SymbolicUtils.Chain(EXPAND_POW_RULES)),
                     SymbolicUtils.If(SymbolicUtils.is_operation(nip), SymbolicUtils.Chain(NIP_RULES)),
+                    SymbolicUtils.If(SymbolicUtils.is_operation(Sum), SymbolicUtils.Chain(SUM_RULES)),
                     SymbolicUtils.Chain(COMMUTATOR_RULES)
                     ] |> SymbolicUtils.Chain
         return SymbolicUtils.Fixpoint(SymbolicUtils.Postwalk(rule_tree))
@@ -174,7 +187,7 @@ let
         rule_tree = [SymbolicUtils.If(SymbolicUtils.is_operation(+), SymbolicUtils.Chain(PLUS_RULES)),
                      SymbolicUtils.If(SymbolicUtils.is_operation(*), SymbolicUtils.Chain(NC_TIMES_RULES)),
                      SymbolicUtils.If(SymbolicUtils.is_operation(^), SymbolicUtils.Chain(POW_RULES)),
-                     SymbolicUtils.If(x->SymbolicUtils.symtype(x) <: Bool,SymbolicUtils.Chain(BOOLEAN_RULES))
+                     SymbolicUtils.If(x->SymbolicUtils.symtype(x)<:Bool, SymbolicUtils.Chain(BOOLEAN_RULES))
                      ] |> SymbolicUtils.Chain
         return SymbolicUtils.Fixpoint(SymbolicUtils.Postwalk(rule_tree))
     end

@@ -38,7 +38,11 @@ end
 show_brackets = Ref(true)
 function Base.show(io::IO,x::Union{OperatorTerm,NumberTerm})
     if x.f === Sum
-        write(io, "Σ$(x.arguments[2])[")
+        write(io, "Σ")
+        for i=2:length(x.arguments)
+            show(io, x.arguments[i])
+        end
+        write(io, "[")
         show(io, x.arguments[1])
         write(io,"]")
     elseif x.f === (!)

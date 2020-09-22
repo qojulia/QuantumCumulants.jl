@@ -103,7 +103,11 @@ function merge_idx_transitions(σ1, σ2)
     j = σ2.index
     δ = i==j
     σ3 = merge_transitions(σ1,σ2)
-    return δ*σ3[i] + !(δ)*nip(σ1,σ2)
+    if iszero(σ3)
+        !(δ)*nip(σ1,σ2)
+    else
+        return δ*σ3[i] + !(δ)*nip(σ1,σ2)
+    end
 end
 
 #nip*σ
@@ -344,12 +348,14 @@ find_index(x::Union{IndexedTransition,IndexedCreate,IndexedDestroy,IndexedParame
 
 
 ### Symbolic Summation
-Sum(ops, index::Index) = OperatorTerm(Sum, [ops, index])
+Sum(ops::AbstractOperator, index::Index...) = OperatorTerm(Sum, [ops, index...])
+Sum(x::SymbolicNumber, index::Index...) = NumberTerm(Sum, [x, index...])
 # Sum(ops::Number, index::Index) = NumberTerm(Sum, [ops, index])
 # Sum(ops::NumberTerm, index::Index) = NumberTerm(Sum, [ops, index])
 
 
-Sum(ops, index::SymbolicUtils.Sym{Index}) = _to_symbolic(Sum(_to_qumulants(ops), _to_qumulants(index)))
+Sum(op::SymbolicUtils.Symbolic{<:AbstractOperator}, index...) = SymbolicUtils.Term{AbstractOperator}(Sum, [op, index...])
+Sum(op::Union{SymbolicUtils.Symbolic{<:Number},Number}, index...)= SymbolicUtils.Term{Number}(Sum, [op, index...])
 # find_index(Sum_::OperatorTerm{typeof(Sum)}) = Sum_.arguments[2]
 
 # swap index
@@ -359,13 +365,27 @@ swap_index(ex::IndexedTransition, i1::Index, i2::Index) = (isequal(ex.index,i1) 
 swap_index(ex::IndexedDestroy, i1::Index, i2::Index) = (isequal(ex.index,i1) ? IndexedDestroy(ex.hilbert, ex.name, ex.aon, i2) : ex)
 swap_index(ex::IndexedCreate, i1::Index, i2::Index) = (isequal(ex.index,i1) ? IndexedCreate(ex.hilbert, ex.name, ex.aon, i2) : ex)
 function swap_index(ex::IndexedParameter, i1::Index, i2::Index)
-    ex_ = copy(ex)
+    inds = copy(ex.index)
     for idx in findall(isequal(i1), ex.index)
-        ex_.index[idx] = i2
+        inds[idx] = i2
     end
-    return ex_
+    return IndexedParameter(ex.name, inds)
 end
-swap_index(ex::OperatorTerm, i1::Index, i2::Index) = OperatorTerm(ex.f, swap_index.(ex.arguments, i1, i2))
-swap_index(ex::NumberTerm, i1::Index, i2::Index) = NumberTerm(ex.f, swap_index.(ex.arguments, i1, i2))
+swap_index(ex::OperatorTerm, i1::Index, i2::Index) = OperatorTerm(ex.f, [swap_index(arg, i1, i2) for arg in ex.arguments])
+swap_index(ex::NumberTerm, i1::Index, i2::Index) = NumberTerm(ex.f, [swap_index(arg, i1, i2) for arg in ex.arguments])
 
 swap_index(ex::SymbolicUtils.Symbolic, i::SymbolicUtils.Symbolic, j::SymbolicUtils.Symbolic) = _to_symbolic(swap_index(_to_qumulants(ex), _to_qumulants(i), _to_qumulants(j)))
+
+# TODO: write rule to extract non-indexed symbolic numbers out of sums
+# has_index(x) = false
+# has_index(s::SymbolicUtils.Symbolic) = has_index(_to_qumulants(s))
+# function has_index(t::NumberTerm)
+#     for arg in t.arguments
+#         has_index(arg) && return true
+#     end
+#     return false
+# end
+# has_index(::IndexedParameter) = true
+# has_index(::AbstractOperator) = true
+
+sort_idx(idx) = SymbolicUtils.arguments(SymbolicUtils.sort_args(*, idx))

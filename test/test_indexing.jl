@@ -35,7 +35,10 @@ a = Destroy(h,:a)
 @parameters g
 H = Sum(g[i]*(a'*σ(1,2)[i] + a*σ(2,1)[i]), i)
 
-n = (i!=j)*Qumulants.nip(σ(2,1)[i],σ(1,1)[j])
-n2 = Qumulants.nip(σ(2,1)[j],σ(1,2)[k])
-ex = Qumulants._to_symbolic(n*n2)
-ex2 = SymbolicUtils.flatten_term(*, ex)
+n = (j!=k)*Qumulants.nip(σ(2,1)[k],σ(1,2)[j])
+ops = [a,σ(1,2)[j],σ(2,2)[j],a'*σ(1,2)[j],n]
+he = heisenberg(ops,H)
+
+H1 = g*(a'*σ(1,2) + a*σ(2,1))
+ops1 = [a,σ(1,2),σ(2,2),a'*σ(1,2)]
+he1 = heisenberg(ops1, H1)
