@@ -26,22 +26,30 @@ function average(op::OperatorTerm)
         avg = op.f(average.(op.arguments)...)
         return avg
     elseif op.f === (*)
-        # Move constants out of average
-        cs, ops = separate_constants(op)
-        if isempty(cs)
-            op_ = expand(op)
-            if isequal(op_, op)
-                return Average(op)
-            else
-                return average(op_)
-            end
+        if has_expr(nip, op)
+            return average(rewrite_nip_times(op))
         else
-            return op.f(cs...)*average(op.f(ops...))
+            # Move constants out of average
+            cs, ops = separate_constants(op)
+            if isempty(cs)
+                op_ = expand(op)
+                if isequal(op_, op)
+                    return Average(op)
+                else
+                    return average(op_)
+                end
+            else
+                return op.f(cs...)*average(op.f(ops...))
+            end
         end
+    elseif op.f === (nip)
+        return average(*(op.arguments...))
     elseif op.f === (^)
         arg, n = op.arguments
         op_ = *((arg for i=1:n)...)
         return average(op_)
+    elseif op.f === (Sum)
+        return Sum(average(op.arguments[1]), op.arguments[2:end]...)
     else
         return Average(op)
     end
@@ -94,7 +102,6 @@ function _to_qumulants(t::SymbolicUtils.Term{T}) where T<:Number
     end
 end
 
-# Cumulant expansion
 """
     cumulant_expansion(avg, order::Int)
 
@@ -124,38 +131,34 @@ Optional arguments
 *simplify=true: Specify whether the result should be simplified.
 *kwargs...: Further keyword arguments being passed to [`simplify_constants`](@ref)
 """
-function cumulant_expansion(avg::Average,order::Int;simplify=true,kwargs...)
+function cumulant_expansion(avg::Average,order::Int;simplify_input=false,simplify_output=true,mix_choice=nothing,kwargs...)
+    if simplify_input
+        avg_ = average(simplify_operators(avg.operator))
+        return cumulant_expansion(avg_,order;simplify_input=false,simplify_output=simplify_output,kwargs...)
+    end
     @assert order > 0
     ord = get_order(avg)
     if ord <= order
         return avg
     else
         op = avg.operator
-        if simplify
-            avg_ = average(simplify_operators(op))
+        @assert op.f === (*)
+        if simplify_output
+            return simplify_constants(_cumulant_expansion(op.arguments, order), kwargs...)
         else
-            avg_ = average
-        end
-        if simplify && !isequal(avg, avg_) # TODO: better strategy to get proper ordering
-            return cumulant_expansion(avg_,order;simplify=simplify,kwargs...)
-        else
-            @assert op.f === (*)
-            if simplify
-                return simplify_constants(_cumulant_expansion(op.arguments, order), kwargs...)
-            else
-                _cumulant_expansion(op.arguments, order)
-            end
+            _cumulant_expansion(op.arguments, order)
         end
     end
 end
 function cumulant_expansion(avg::Average,order::Vector;mix_choice=maximum,kwargs...)
     aon = acts_on(avg.operator)
     order_ = mix_choice(order[i] for i in aon)
+    error("Cumulant expansion for mixed order currently broken!")
     return cumulant_expansion(avg,order_;kwargs...)
 end
 cumulant_expansion(x::Number,order;kwargs...) = x
-function cumulant_expansion(x::NumberTerm,order;mix_choice=maximum, simplify=false, kwargs...)
-    cumulants = [cumulant_expansion(arg,order;simplify=false,mix_choice=mix_choice) for arg in x.arguments]
+function cumulant_expansion(x::NumberTerm,order;mix_choice=maximum, simplify_input=false, simplify_output=false, kwargs...)
+    cumulants = [cumulant_expansion(arg,order;mix_choice=mix_choice,simplify_input=simplify_input,simplify_output=simplify_output) for arg in x.arguments]
     return simplify_constants(x.f(cumulants...);kwargs...)
 end
 function cumulant_expansion(de::DifferentialEquation{<:Number,<:Number},order;multithread=false,mix_choice=maximum,kwargs...)
@@ -304,7 +307,11 @@ function get_order(t::OperatorTerm)
     if t.f in [+,-]
         return maximum(get_order.(t.arguments))
     elseif t.f === (*)
+        return sum(get_order.(t.arguments))
+    elseif t.f === (nip)
         return length(t.arguments)
+    elseif t.f === (Sum)
+        return get_order(t.arguments[1])
     elseif t.f === (^)
         n = t.arguments[end]
         @assert n isa Integer

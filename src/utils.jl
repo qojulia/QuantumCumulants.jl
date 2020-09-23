@@ -206,6 +206,14 @@ function unique_ops(ops)
     return seen
 end
 
+has_expr(f, x) = false
+function has_expr(f, x::Union{OperatorTerm,NumberTerm})
+    (f===x.f) && return true
+    for arg in x.arguments
+        has_expr(f, arg) && return true
+    end
+    return false
+end
 
 _to_expression(x::Number) = x
 function _to_expression(x::Complex) # For brackets when using latexify
@@ -221,7 +229,13 @@ end
 _to_expression(op::BasicOperator) = op.name
 _to_expression(op::Create) = :(dagger($(op.name)))
 _to_expression(op::Transition) = :(Transition($(op.name),$(op.i),$(op.j)) )
-_to_expression(t::Union{OperatorTerm,NumberTerm}) = :( $(Symbol(t.f))($(_to_expression.(t.arguments)...)) )
+function _to_expression(t::Union{OperatorTerm,NumberTerm})
+    if t.f === Sum
+        return :( Sum($(t.arguments[1]), $(t.arguments[2:end])) )
+    else
+        return :( $(Symbol(t.f))($(_to_expression.(t.arguments)...)) )
+    end
+end
 _to_expression(p::Parameter) = p.name
 function _to_expression(avg::Average)
     ex = _to_expression(avg.operator)
@@ -233,4 +247,3 @@ _to_expression(op::IndexedDestroy) = :(Indexed($(op.name), $(op.index.name)))
 _to_expression(op::IndexedCreate) = :(Indexed(dagger($(op.name)), $(op.index.name)))
 _to_expression(op::IndexedTransition) = :(Indexed(Transition($(op.name),$(op.i),$(op.j)), $(op.index.name)))
 _to_expression(op::OperatorTerm{<:typeof(nip)}) = _to_expression(*(op.arguments...))
-_to_expression(op::OperatorTerm{<:typeof(Sum)}) = :(Sum($(op.arguments[1]), $(op.arguments[2:end])))

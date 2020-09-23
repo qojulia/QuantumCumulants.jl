@@ -380,3 +380,13 @@ end
 # has_index(::AbstractOperator) = true
 
 sort_idx(idx) = SymbolicUtils.arguments(SymbolicUtils.sort_args(*, idx))
+
+rewrite_nip_times(x) = x
+function rewrite_nip_times(op::OperatorTerm)
+    args = []
+    for arg in op.arguments
+        push!(args, rewrite_nip_times(arg))
+    end
+    return op.f(args...)
+end
+rewrite_nip_times(op::OperatorTerm{<:typeof(nip)}) = *(op.arguments...)

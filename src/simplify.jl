@@ -20,7 +20,7 @@ end
 SymbolicUtils.promote_symtype(f, Ts::Type{<:AbstractOperator}...) = promote_type(AbstractOperator,Ts...)
 SymbolicUtils.promote_symtype(f, T::Type{<:AbstractOperator}, Ts...) = promote_type(AbstractOperator,T)
 SymbolicUtils.promote_symtype(f, T, S, Ts::Union{Type{<:Number},Type{<:AbstractOperator}}...) = SymbolicUtils.promote_symtype(f, SymbolicUtils.promote_symtype(f, T, S), Ts...)
-for f in [+,-,*,/,^]
+for f in [+,-,*,/,^,Sum,nip]
     @eval SymbolicUtils.promote_symtype(::$(typeof(f)),
                    T::Type{<:AbstractOperator},
                    S::Type{<:Number}) = AbstractOperator
@@ -31,6 +31,8 @@ for f in [+,-,*,/,^]
                    T::Type{<:AbstractOperator},
                    S::Type{<:AbstractOperator}) = AbstractOperator#promote_type(T,S)
 end
+SymbolicUtils.promote_symtype(::typeof(Sum), Ts...) = SymbolicUtils.promote_symtype(+, Ts...)
+SymbolicUtils.promote_symtype(f::typeof(Sum), T, S, Ts::Union{Type{<:Number},Type{<:AbstractOperator}}...) = SymbolicUtils.promote_symtype(+, SymbolicUtils.promote_symtype(+, T, S), Ts...)
 
 Base.one(x::SymbolicUtils.Symbolic{T}) where T<:AbstractOperator = 1
 Base.zero(x::SymbolicUtils.Symbolic{T}) where T<:AbstractOperator = 0
