@@ -17,7 +17,7 @@ export HilbertSpace, ProductSpace, ⊗,
             unique_ops, get_symbolics, get_operators,
         build_ode, generate_ode,
         transition_superscript,
-        IndexedDestroy, IndexedCreate, IndexedTransition, Index, Sum
+        IndexedDestroy, IndexedCreate, IndexedTransition, Index, Sum, find_index
 
 
 """

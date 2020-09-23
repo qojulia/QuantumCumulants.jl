@@ -12,15 +12,79 @@ function find_missing(rhs::Vector{<:Number}, vs::Vector{<:Number}; vs_adj::Vecto
         append!(missed,get_symbolics(e))
     end
     unique!(missed)
+    vars = [vs;vs_adj;ps]
+    unique!(vars)
     if isempty(ps)
         filter!(x->!isa(x,Parameter), missed)
+        filter!(x->!isa(x,IndexedParameter), missed)
     end
-    filter!(x->!(x∈vs || x∈ps || x∈vs_adj),missed)
+    filter!(x->!(x∈vars),missed)
+
+    if any(isa.(missed,Index))
+        filter!(x->!isa(x,Index),missed)
+        missed = _filter_indexed(missed, vars)
+    end
+
     return missed
 end
 function find_missing(de::DifferentialEquation{<:Number,<:Number}; kwargs...)
     find_missing(de.rhs, de.lhs; kwargs...)
 end
+
+function _filter_indexed(missed_, vars)
+    missed = Number[]
+    for m in missed_
+        _in_without_index(m, vars) || push!(missed, m)
+    end
+    return missed
+end
+
+# Check if a symbolic with index is contained in a collection disregarding the respective indices
+function _in_without_index(x,itr)
+    idx = find_index(x)
+    isempty(idx) && return false
+    for i in itr
+        _isequal_without_index(x, idx, i) && return true
+    end
+    return false
+end
+_isequal_without_index(x,idx_x,y) = false
+
+# Compare two indexed objects disregarding their indices
+function _isequal_without_index(x::T,idx_x,y::T) where T
+    idx_y = find_index(y)
+    _check_idx(idx_x, idx_y) || return false
+    x_ = _construct_without_index(x)
+    y_ = _construct_without_index(y)
+    return isequal(x_,y_)
+end
+
+# Construct an Indexed object without index
+_construct_without_index(p::IndexedParameter{T}) where T = Parameter{T}(p.name)
+for T = [:Create,:Destroy]
+    Name = Symbol(:Indexed,T)
+    @eval _construct_without_index(op::$(Name)) = $(T)(op.hilbert,op.name,op.aon)
+end
+_construct_without_index(op::IndexedTransition) = Transition(op.hilbert,op.name,op.i,op.j,op.aon)
+_construct_without_index(avg::Average) = Average(_construct_without_index(avg.operator))
+function _construct_without_index(op::OperatorTerm)
+    args = []
+    for arg in op.arguments
+        push!(args, _construct_without_index(arg))
+    end
+    sort!(args, by=lt_aon)
+    return op.f(args...)
+end
+
+# Check whether two indices have the same properties besides their names
+function _check_idx(idx1::Vector,idx2::Vector)
+    length(idx1)==length(idx2) || return false
+    for (i1,i2) in zip(idx1,idx2)
+        _check_idx(i1,i2) || return false
+    end
+    return true
+end
+_check_idx(idx1::Index,idx2::Index) = (isequal(idx1.lower,idx2.lower) && isequal(idx1.upper, idx2.upper))
 
 """
     get_symbolics(ex)

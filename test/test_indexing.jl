@@ -67,3 +67,6 @@ J = [σ(1,2)[i]]
 rates = [Γ[i,j]]
 ops = [σ(1,2)[k], σ(2,2)[k]]
 he = heisenberg(ops,H,J;rates=rates)
+
+he_avg1 = average(he,1)
+@test isempty(find_missing(he_avg1))

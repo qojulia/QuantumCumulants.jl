@@ -368,16 +368,16 @@ function _multiply_idxs_borders(x, inds)
 end
 
 # TODO: write rule to extract non-indexed symbolic numbers out of sums
-# has_index(x) = false
-# has_index(s::SymbolicUtils.Symbolic) = has_index(_to_qumulants(s))
-# function has_index(t::NumberTerm)
-#     for arg in t.arguments
-#         has_index(arg) && return true
-#     end
-#     return false
-# end
-# has_index(::IndexedParameter) = true
-# has_index(::AbstractOperator) = true
+has_indexed(x) = false
+has_indexed(s::SymbolicUtils.Symbolic) = has_indexed(_to_qumulants(s))
+function has_indexed(t::NumberTerm)
+    for arg in t.arguments
+        has_indexed(arg) && return true
+    end
+    return false
+end
+has_indexed(::IndexedParameter) = true
+has_indexed(::AbstractOperator) = true
 
 sort_idx(idx) = SymbolicUtils.arguments(SymbolicUtils.sort_args(*, idx))
 

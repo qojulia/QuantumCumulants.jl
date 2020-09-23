@@ -320,3 +320,5 @@ function get_order(t::OperatorTerm)
     error("Unknown function $(t.f)")
 end
 get_order(::BasicOperator) = 1
+
+find_index(avg::Average) = find_index(avg.operator)
