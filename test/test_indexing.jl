@@ -55,3 +55,15 @@ ops = [a,σ(1,2)[j],σ(2,2)[j],a'*σ(1,2)[j],n]
 J = [a, σ(1,2)[i], σ(2,1)[i]]
 rates = [2κ, γ[i], ν[i]]
 he = heisenberg(ops,H,J;rates=rates)
+
+
+# Test dipole-dipole
+h = NLevelSpace(:atom,2)
+σ(i,j) = Transition(h,:σ,i,j)
+@parameters ω Ω Γ
+n = (i!=j)*Qumulants.nip(σ(2,1)[i],σ(1,2)[j])
+H = Sum(ω[i]*σ(2,2)[i], i) + Sum(Ω[i,j]*n, i, j)
+J = [σ(1,2)[i]]
+rates = [Γ[i,j]]
+ops = [σ(1,2)[k], σ(2,2)[k]]
+he = heisenberg(ops,H,J;rates=rates)

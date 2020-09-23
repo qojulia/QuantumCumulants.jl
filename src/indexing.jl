@@ -326,7 +326,8 @@ function find_index(t::OperatorTerm)
     return idx
 end
 find_index(x) = Index[]
-find_index(x::Union{IndexedTransition,IndexedCreate,IndexedDestroy,IndexedParameter}) = [x.index]
+find_index(x::Union{IndexedTransition,IndexedCreate,IndexedDestroy}) = [x.index]
+find_index(x::IndexedParameter) = x.index
 
 
 ### Symbolic Summation

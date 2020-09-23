@@ -79,8 +79,17 @@ function _lindblad(a,J,Jdagger,rate)
         return 0.5*rate*(Jdagger*commutator(a,J;simplify=false) + commutator(Jdagger,a;simplify=false)*J)
     else
         length(idx)==1 || error("Multiple index decay operator not supported!")
-        length(rate_idx)<=1 || error("Collective decay not yet implemented!")
-        return 0.5*Sum(rate*(Jdagger*commutator(a,J;simplify=false) + commutator(Jdagger,a;simplify=false)*J), idx[1])
+        if length(rate_idx) <= 1
+            @assert isempty(rate_idx) || isequal(idx, rate_idx)
+            return 0.5*Sum(rate*(Jdagger*commutator(a,J;simplify=false) + commutator(Jdagger,a;simplify=false)*J), idx...)
+        elseif length(rate_idx)==2
+            @assert idx[1] in rate_idx
+            idx2 = rate_idx[findfirst(!isequal(idx[1]), rate_idx)]
+            Jdagger_ = swap_index(Jdagger, idx[1], idx2)
+            return 0.5*Sum(rate*(Jdagger_*commutator(a,J;simplify=false) + commutator(Jdagger_,a;simplify=false)*J), rate_idx...)
+        else
+            error("Rates with more than 2 indices as in $(rate) are not supported!")
+        end
     end
 end
 
