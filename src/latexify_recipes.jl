@@ -32,6 +32,20 @@ function _postwalk_func(x)
     elseif MacroTools.@capture(x, Transition(arg_,i_,j_))
         s = "$(arg)$(transition_idx_script[]){$(i)$(j)}"
         return s
+    elseif MacroTools.@capture(x, Sum(arg_, idx_))
+        s_arg = latexify(arg; cdot=false)[2:end-1]
+        names = getfield.(idx, :name)
+        s_names = "$(names[1])"
+        for j=2:length(names)
+            s_names *= ", $(names[j])"
+        end
+        s = "\\sum_{$s_names}$(s_arg)"
+        return s
+    elseif MacroTools.@capture(x, Indexed(arg_, i_))
+        s = "$(arg)_{$i}"
+        return s
+    elseif MacroTools.@capture(x, IndexedParameter(arg_, i_))
+        s = "$(arg)_{$(i...)}"
     else
         return x
     end

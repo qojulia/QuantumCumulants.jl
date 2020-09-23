@@ -227,3 +227,10 @@ function _to_expression(avg::Average)
     ex = _to_expression(avg.operator)
     return :(AVERAGE($ex))
 end
+
+_to_expression(p::IndexedParameter) = :(IndexedParameter($(p.name), $(p.index)))
+_to_expression(op::IndexedDestroy) = :(Indexed($(op.name), $(op.index.name)))
+_to_expression(op::IndexedCreate) = :(Indexed(dagger($(op.name)), $(op.index.name)))
+_to_expression(op::IndexedTransition) = :(Indexed(Transition($(op.name),$(op.i),$(op.j)), $(op.index.name)))
+_to_expression(op::OperatorTerm{<:typeof(nip)}) = _to_expression(*(op.arguments...))
+_to_expression(op::OperatorTerm{<:typeof(Sum)}) = :(Sum($(op.arguments[1]), $(op.arguments[2:end])))
