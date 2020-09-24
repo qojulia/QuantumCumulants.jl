@@ -22,10 +22,10 @@ it. The variable vector `u` corresponds to the symbols provided in `vs`.
     the `@inbounds` flag, which skips bounds checking for performance.
 """
 function build_ode(rhs::Vector, vs::Vector, ps=[], usym=:u, psym=:p, tsym=:t;
-                    check_bounds::Bool=false)
+                    check_bounds::Bool=false, idx_borders=nothing)
     @assert length(rhs) == length(vs)
     if has_indexed(vs) || has_indexed(rhs)
-        return _build_indexed_ode(rhs, vs, ps, usym, psym, tsym, check_bounds)
+        return _build_indexed_ode(rhs, vs, ps, usym, psym, tsym, check_bounds, idx_borders)
     else
         return _build_ode(rhs, vs, ps, usym, psym, tsym, check_bounds)
     end
@@ -91,11 +91,13 @@ function _build_ode(rhs, vs, ps, usym, psym, tsym, check_bounds)
     return f_ex
 end
 
-function _build_indexed_ode(rhs, vs, ps, usym, psym, tsym, check_bounds)
+function _build_indexed_ode(rhs, vs, ps, usym, psym, tsym, check_bounds, idx_borders)
+    idx_borders === nothing && error("Need lower and count borders for indexes as numbers!")
     # Check if there are unknown symbols
     missed = find_missing(rhs,vs;vs_adj=vs_adj_,ps=ps)
     isempty(missed) || throw_missing_error(missed)
 
+    rhs_, vs_ = expand_indexed(vs, rhs, idx_borders)
     # dusym = Symbol(:d,usym)
     # us = [:($usym[$i]) for i=1:length(vs)]
     # dus = [:($dusym[$i]) for i=1:length(vs)]
@@ -147,6 +149,38 @@ function _build_indexed_ode(rhs, vs, ps, usym, psym, tsym, check_bounds)
     #     )
     # end
     # return f_ex
+end
+
+expand_indexed(de::DifferentialEquation, idx_borders) = DifferentialEquations(expand_indexed(de.lhs, de.rhs, idx_borders))
+function expand_indexed(vs, rhs, idx_borders)
+    rhs_ = expand_sums.(rhs, idx_borders)
+end
+
+expand_sums(x, idx_borders) = x
+function expand_sums(t::NumberTerm, idx_borders)
+    if t.f === Sum
+        idx = t.arguments[2:end]
+        arg = t.arguments[1]
+        if length(idx) > 1
+            s = Sum(arg, idx[2:end]...)
+            n = idx.count
+            i = findfirst(x->isequal(x[1],n),idx_borders)
+            s_ = expand_sums(s, [idx_borders[1:i-1]; idx_borders[i+1:end]])
+            return expand_sums(Sum(s_, idx[1]), idx_borders[i])
+        end
+        idx_sym = idx[1]
+        border = idx_borders isa Vector ? idx_borders[1] : idx_borders
+        @assert isequal(idx_sym.count, border[1])
+        args_ = Number[]
+        for i in 1:border[2]
+            ex = swap_index(arg, idx_sym, i)
+            push!(args_, ex)
+        end
+        return +(args_...)
+    else
+        args = [expand_sums(arg, idx_borders) for arg in t.arguments]
+        return t.f(args...)
+    end
 end
 
 """

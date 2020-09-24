@@ -2,9 +2,9 @@ using Qumulants
 using Test
 
 n = Parameter{Int}(:n)
-i = Index(:i,1,n)
-j = Index(:j,1,n)
-k = Index(:k,1,n)
+i = Index(:i,n)
+j = Index(:j,n)
+k = Index(:k,n)
 
 h = FockSpace(:fock)
 a = Destroy(h,:a)
@@ -49,6 +49,9 @@ a = Destroy(h,:a)
 σ(i,j) = Transition(h,:σ,i,j)
 @parameters g κ γ ν Δ
 H = Sum(Δ[i]*σ(2,2)[i], i) + Sum(g[i]*(a'*σ(1,2)[i] + a*σ(2,1)[i]), i)
+
+tmp = average(H.arguments[1])
+n = Parameter{Int}(:n)
 
 n = (j!=k)*Qumulants.nip(σ(2,1)[k],σ(1,2)[j])
 ops = [a,σ(1,2)[j],σ(2,2)[j],a'*σ(1,2)[j],n]

@@ -84,7 +84,7 @@ function _check_idx(idx1::Vector,idx2::Vector)
     end
     return true
 end
-_check_idx(idx1::Index,idx2::Index) = (isequal(idx1.lower,idx2.lower) && isequal(idx1.upper, idx2.upper))
+_check_idx(idx1::Index,idx2::Index) = isequal(idx1.count, idx2.count)
 
 """
     get_symbolics(ex)

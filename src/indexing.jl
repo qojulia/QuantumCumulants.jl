@@ -3,12 +3,11 @@ const SYMS_TO_IDX = Dict{SymbolicUtils.Sym,SymbolicNumber}()
 
 ### Indices
 
-struct Index{T<:Int,S,L,U} <: SymbolicNumber{T}
+struct Index{T<:Int,S,U} <: SymbolicNumber{T}
     name::S
-    lower::L
-    upper::U
-    function Index{T,S,L,U}(name::S,lower::L,upper::U) where {T<:Int,S,L,U}
-        idx = new(name,lower,upper)
+    count::U
+    function Index{T,S,U}(name::S,count::U) where {T<:Int,S,U}
+        idx = new(name,count)
         if !haskey(IDX_TO_SYMS, idx)
             sym = SymbolicUtils.Sym{Index}(gensym(:Index))
             IDX_TO_SYMS[idx] = sym
@@ -17,12 +16,12 @@ struct Index{T<:Int,S,L,U} <: SymbolicNumber{T}
         return idx
     end
 end
-Index{T}(name::S,lower::L,upper::U) where {T,S,L,U} = Index{T,S,L,U}(name,lower,upper)
-Index(name,lower,upper) = Index{Int}(name,lower,upper)
+Index{T}(name::S,count::U) where {T,S,U} = Index{T,S,U}(name,count)
+Index(name,count) = Index{Int}(name,count)
 _to_symbolic(idx::Index) = IDX_TO_SYMS[idx]
 _to_qumulants(t::SymbolicUtils.Sym{T}) where T<:Index = SYMS_TO_IDX[t]
 
-Base.hash(i::Index, h::UInt) = hash(i.upper, hash(i.lower, hash(i.name, h)))
+Base.hash(i::Index, h::UInt) = hash(i.count, hash(i.name, h))
 Base.isless(i::Index, j::Index) = isless(hash(j), hash(i))
 Base.isequal(i::Index, j::Index) = isequal(hash(j), hash(i))
 
@@ -48,7 +47,7 @@ for Tname in [:Destroy,:Create]
         end
     end
     @eval $(Name)(hilbert::H,name::S,aon::A,index::IND) where {H,S,A,IND} = $(Name){H,S,A,IND}(hilbert,name,aon,index)
-    @eval Base.getindex(a::$Tname,i::Index) = $(Name)(a.hilbert,a.name,a.aon,i)
+    @eval Base.getindex(a::$Tname,i::Union{Index,Int}) = $(Name)(a.hilbert,a.name,a.aon,i)
     @eval Base.:(==)(a::T, b::T) where T<:($Name) = (a.hilbert==b.hilbert && a.name==b.name && a.aon==b.aon && isequal(a.index, b.index))
     @eval Base.hash(a::$Name, h::UInt) = hash(a.hilbert, hash(a.name, hash(a.aon, hash(a.index, h))))
 end
@@ -75,7 +74,7 @@ struct IndexedTransition{H,S,I,A,IND} <: BasicOperator
     end
 end
 IndexedTransition(hilbert::H,name::S,i::I,j::I,aon::A,index::IND) where {H,S,I,A,IND} = IndexedTransition{H,S,I,A,IND}(hilbert,name,i,j,aon,index)
-Base.getindex(s::Transition,k::Index) = IndexedTransition(s.hilbert,s.name,s.i,s.j,s.aon,k)
+Base.getindex(s::Transition,k::Union{Index,Int}) = IndexedTransition(s.hilbert,s.name,s.i,s.j,s.aon,k)
 Base.adjoint(s::IndexedTransition) = IndexedTransition(s.hilbert,s.name,s.j,s.i,s.aon,s.index)
 Base.:(==)(t1::IndexedTransition,t2::IndexedTransition) = (t1.hilbert==t2.hilbert && t1.name==t2.name && t1.i==t2.i && t1.j==t2.j && isequal(t1.index,t2.index))
 Base.hash(t::IndexedTransition, h::UInt) = hash(t.hilbert, hash(t.name, hash(t.i, hash(t.j, hash(t.aon, hash(t.index, h))))))
@@ -342,27 +341,27 @@ Sum(op::Union{SymbolicUtils.Symbolic{<:Number},Number}, index...)= SymbolicUtils
 # find_index(Sum_::OperatorTerm{typeof(Sum)}) = Sum_.arguments[2]
 
 # swap index
-swap_index(x, i::Index, j::Index) = x
-swap_index(ex::Index, i1::Index, i2::Index) = (isequal(ex,i1) ? i2 : ex)
-swap_index(ex::IndexedTransition, i1::Index, i2::Index) = (isequal(ex.index,i1) ? IndexedTransition(ex.hilbert, ex.name, ex.i, ex.j, ex.aon, i2) : ex)
-swap_index(ex::IndexedDestroy, i1::Index, i2::Index) = (isequal(ex.index,i1) ? IndexedDestroy(ex.hilbert, ex.name, ex.aon, i2) : ex)
-swap_index(ex::IndexedCreate, i1::Index, i2::Index) = (isequal(ex.index,i1) ? IndexedCreate(ex.hilbert, ex.name, ex.aon, i2) : ex)
-function swap_index(ex::IndexedParameter, i1::Index, i2::Index)
-    inds = copy(ex.index)
+swap_index(x, i::Union{Index,Int}, j::Union{Index,Int}) = x
+swap_index(ex::Union{Index,Int}, i1::Union{Index,Int}, i2::Union{Index,Int}) = (isequal(ex,i1) ? i2 : ex)
+swap_index(ex::IndexedTransition, i1::Union{Index,Int}, i2::Union{Index,Int}) = (isequal(ex.index,i1) ? IndexedTransition(ex.hilbert, ex.name, ex.i, ex.j, ex.aon, i2) : ex)
+swap_index(ex::IndexedDestroy, i1::Union{Index,Int}, i2::Union{Index,Int}) = (isequal(ex.index,i1) ? IndexedDestroy(ex.hilbert, ex.name, ex.aon, i2) : ex)
+swap_index(ex::IndexedCreate, i1::Union{Index,Int}, i2::Union{Index,Int}) = (isequal(ex.index,i1) ? IndexedCreate(ex.hilbert, ex.name, ex.aon, i2) : ex)
+function swap_index(ex::IndexedParameter, i1::Union{Index,Int}, i2::Union{Index,Int})
+    inds = Number[ex.index...]
     for idx in findall(isequal(i1), ex.index)
         inds[idx] = i2
     end
     return IndexedParameter(ex.name, inds)
 end
-swap_index(ex::OperatorTerm, i1::Index, i2::Index) = OperatorTerm(ex.f, [swap_index(arg, i1, i2) for arg in ex.arguments])
-swap_index(ex::NumberTerm, i1::Index, i2::Index) = NumberTerm(ex.f, [swap_index(arg, i1, i2) for arg in ex.arguments])
+swap_index(ex::OperatorTerm, i1::Union{Index,Int}, i2::Union{Index,Int}) = OperatorTerm(ex.f, [swap_index(arg, i1, i2) for arg in ex.arguments])
+swap_index(ex::NumberTerm, i1::Union{Index,Int}, i2::Union{Index,Int}) = NumberTerm(ex.f, [swap_index(arg, i1, i2) for arg in ex.arguments])
 swap_index(ex::SymbolicUtils.Symbolic, i::SymbolicUtils.Symbolic, j::SymbolicUtils.Symbolic) = _to_symbolic(swap_index(_to_qumulants(ex), _to_qumulants(i), _to_qumulants(j)))
 
 function _multiply_idxs_borders(x, inds)
     args = Any[x]
     idx_ = _to_qumulants.(inds)
     for i in idx_
-        push!(args, i.upper+(1 - i.lower))
+        push!(args, i.count+1)
     end
     return _to_symbolic(*(args...))
 end

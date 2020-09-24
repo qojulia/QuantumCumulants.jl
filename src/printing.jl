@@ -20,7 +20,10 @@ function Base.show(io::IO,x::IndexedCreate)
     show(io,x.index)
     write(io,"′")
 end
-Base.show(io::IO,x::IndexedTransition) = write(io, Symbol(x.name,x.i,x.j,x.index.name))
+function Base.show(io::IO,x::IndexedTransition)
+    write(io, Symbol(x.name,x.i,x.j))
+    show(io, x.index)
+end
 Base.show(io::IO, f::typeof(nip)) = write(io, "⋅")
 Base.show(io::IO, x::Index) = write(io, x.name)
 
