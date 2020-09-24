@@ -50,9 +50,6 @@ a = Destroy(h,:a)
 @parameters g κ γ ν Δ
 H = Sum(Δ[i]*σ(2,2)[i], i) + Sum(g[i]*(a'*σ(1,2)[i] + a*σ(2,1)[i]), i)
 
-tmp = average(H.arguments[1])
-n = Parameter{Int}(:n)
-
 n = (j!=k)*Qumulants.nip(σ(2,1)[k],σ(1,2)[j])
 ops = [a,σ(1,2)[j],σ(2,2)[j],a'*σ(1,2)[j],n]
 J = [a, σ(1,2)[i], σ(2,1)[i]]
@@ -73,3 +70,31 @@ he = heisenberg(ops,H,J;rates=rates)
 
 he_avg1 = average(he,1)
 @test isempty(find_missing(he_avg1))
+
+n = Parameter{Int}(:n)
+Nn = 2
+ps = (ω,Ω,Γ)
+meta_f = build_ode(he_avg1,ps;idx_borders=[n=>Nn])
+f = Meta.eval(meta_f)
+
+using OrdinaryDiffEq, LinearAlgebra
+u0 = zeros(ComplexF64, 2Nn)
+u0[Nn+1:end] .= 1.0
+Γmat = diagm(0=>ones(Nn))
+Ωmat = zeros(Nn,Nn)
+Ωmat[1,2] = Ωmat[2,1] = 0.25
+ωn = ones(Nn)
+p0 = (ωn,Ωmat,Γmat)
+prob = ODEProblem(f,u0,(0.0,10.0),p0)
+sol = solve(prob,Tsit5())
+
+using PyPlot
+plot(sol.t, real.(getindex.(sol.u, 2Nn)))
+
+# Second order
+J = [σ(1,2)[i]]
+rates = [Γ[i,j]]
+m = Index(:m,n)
+ops = [σ(1,2)[k], σ(2,2)[k], (i!=j)*Qumulants.nip(σ(2,1)[k],σ(1,2)[m])]
+he = heisenberg(ops,H,J;rates=rates)
+he_avg2 = average(he,2)

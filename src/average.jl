@@ -323,3 +323,4 @@ get_order(::BasicOperator) = 1
 
 find_index(avg::Average) = find_index(avg.operator)
 swap_index(avg::Average, i::Union{Index,Int}, j::Union{Index,Int}) = Average(swap_index(avg.operator, i, j))
+has_indexed(avg::Average) = has_indexed(avg.operator)

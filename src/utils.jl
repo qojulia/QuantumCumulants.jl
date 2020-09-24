@@ -271,10 +271,17 @@ function unique_ops(ops)
 end
 
 has_expr(f, x) = false
-function has_expr(f, x::Union{OperatorTerm,NumberTerm})
+function has_expr(f::Function, x::Union{OperatorTerm,NumberTerm})
     (f===x.f) && return true
     for arg in x.arguments
         has_expr(f, arg) && return true
+    end
+    return false
+end
+function has_expr(y::Union{OperatorTerm,NumberTerm}, x::Union{OperatorTerm,NumberTerm})
+    isequal(y, x) && return true
+    for arg in x.arguments
+        has_expr(y, arg) && return true
     end
     return false
 end
@@ -306,8 +313,9 @@ function _to_expression(avg::Average)
     return :(AVERAGE($ex))
 end
 
-_to_expression(p::IndexedParameter) = :(IndexedParameter($(p.name), $(p.index)))
-_to_expression(op::IndexedDestroy) = :(Indexed($(op.name), $(op.index.name)))
-_to_expression(op::IndexedCreate) = :(Indexed(dagger($(op.name)), $(op.index.name)))
-_to_expression(op::IndexedTransition) = :(Indexed(Transition($(op.name),$(op.i),$(op.j)), $(op.index.name)))
+_to_expression(p::IndexedParameter) = :(IndexedParameter($(p.name), $(_to_expression.(p.index))))
+_to_expression(op::IndexedDestroy) = :(Indexed($(op.name), $(_to_expression(op.index))))
+_to_expression(op::IndexedCreate) = :(Indexed(dagger($(op.name)), $(_to_expression(op.index))))
+_to_expression(op::IndexedTransition) = :(Indexed(Transition($(op.name),$(op.i),$(op.j)), $(_to_expression(op.index))))
 _to_expression(op::OperatorTerm{<:typeof(nip)}) = _to_expression(*(op.arguments...))
+_to_expression(i::Index) = i.name
