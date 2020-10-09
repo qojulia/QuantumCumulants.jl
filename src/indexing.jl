@@ -316,7 +316,7 @@ Base.hash(p::IndexedParameter{T}, h::UInt) where T = hash(p.name, hash(p.index, 
 Base.conj(p::IndexedParameter{<:Real}) = p
 
 find_index(s::SymbolicUtils.Symbolic) = _to_symbolic.(find_index(_to_qumulants(s)))
-function find_index(t::OperatorTerm)
+function find_index(t::Union{OperatorTerm,NumberTerm})
     idx = Index[]
     for arg in t.arguments
         append!(idx, find_index(arg))
@@ -327,6 +327,7 @@ end
 find_index(x) = Index[]
 find_index(x::Union{IndexedTransition,IndexedCreate,IndexedDestroy}) = [x.index]
 find_index(x::IndexedParameter) = x.index
+find_index(x::Index) = [x]
 
 
 ### Symbolic Summation

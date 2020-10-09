@@ -95,9 +95,9 @@ function _build_indexed_ode(rhs, vs, ps, usym, psym, tsym, check_bounds, idx_bor
     idx_borders === nothing && error("Need number of elements for indexes as numbers!")
     # Check if there are unknown symbols
     missed = find_missing(rhs,vs;vs_adj=adjoint.(vs))#,ps=ps) TODO check parameters without indices
-    isempty(missed) || throw_missing_error(missed)
+    # isempty(missed) || throw_missing_error(missed)
 
-    _vs, _rhs = expand_indexed(vs, rhs, idx_borders)
+    _vs, _rhs = _expand_indexed(vs, rhs, idx_borders)
     vs_adj_ = adjoint.(_vs)
 
     dusym = Symbol(:d,usym)
@@ -106,7 +106,7 @@ function _build_indexed_ode(rhs, vs, ps, usym, psym, tsym, check_bounds, idx_bor
 
     vs_ = _to_expression.(_vs)
     vs_adj = _to_expression.(vs_adj_)
-    rhs_ = _to_expression.(_rhs)
+    rhs_ = [_expand_sums(r, idx_borders) for r in _rhs]
     function _pw_func(x)
         if x in vs_
             i = findfirst(isequal(x),vs_)
@@ -116,6 +116,8 @@ function _build_indexed_ode(rhs, vs, ps, usym, psym, tsym, check_bounds, idx_bor
             return :( conj($(us[i])) )
         elseif MacroTools.@capture(x, IndexedParameter(p_, idx_))
             return :(($p)[$(idx...)])
+        elseif MacroTools.@capture(x, Sum(arg_, idx_))
+            # return _expand_sum(arg, idx, vs_, vs_adj, idx_borders)
         else
             return x
         end
@@ -155,93 +157,118 @@ function _build_indexed_ode(rhs, vs, ps, usym, psym, tsym, check_bounds, idx_bor
     return f_ex
 end
 
-expand_indexed(de::DifferentialEquation, idx_borders) = DifferentialEquation(expand_indexed(de.lhs, de.rhs, idx_borders)..., de.hamiltonian, de.jumps, de.rates)
-expand_indexed(vs, rhs, idx_borders::Pair) = expand_indexed(vs, rhs, [idx_borders])
-function expand_indexed(vs, rhs, idx_borders::Vector)
-    rhs_exp = expand_sums.(rhs, idx_borders)
+function _expand_indexed(vs::Vector, rhs::Vector, idx_borders::Vector)
     vs_ = Number[]
     rhs_ = Number[]
     for i=1:length(vs)
         idx = find_index(vs[i])
         if isempty(idx)
             push!(vs_, vs[i])
-            push!(rhs_, rhs_exp[i])
         else
             counts = getfield.(idx, :count)
-            if idx_borders isa Vector
-                borders = [idx_borders[findfirst(x->isequal(x[1],c), idx_borders)][2] for c in counts]
-            else
-                @assert idx_borders isa Pair
-                @assert all((isequal(c,idx_borders[1]) for c in counts))
-                borders = [idx_borders[1] for k=1:length(idx)]
-            end
-            idx_combs = combinations(idx,2)
-            skip_equal_inds = []
-            for c in idx_combs
-                if has_expr(c[1] != c[2], vs[i])
-                    push!(skip_equal_inds, c)
-                elseif has_expr(c[2] != c[1], vs[i])
-                    push!(skip_equal_inds, c)
-                end
-            end
-            # TODO remove i!=j from vs here?
-            idx_subs = Iterators.product((1:c for c in borders)...)
-            for sub in idx_subs
-                check_skip = false
-                for (ci,csub) in zip(idx_combs,combinations(sub,2))
-                    if csub[1]==csub[2] && ci in skip_equal_inds
-                        check_skip = true
-                    end
+            borders = [idx_borders[findfirst(x->isequal(x[1],c), idx_borders)][2] for c in counts]
+            v_, r_ = _expand_indexed(vs[i], rhs[i], idx, borders)
+            append!(vs_, v_)
+            append!(rhs_, r_)
+        end
+    end
+    vs_unq = unique_ops(vs_)
+    rhs_unq = Number[]
+    for j=1:length(vs_)
+        if vs_[j] in vs_unq
+            push!(rhs_unq, rhs_[j])
+        end
+    end
+    return vs_unq, rhs_unq
+end
+_expand_indexed(vs, rhs, idx_borders::Pair) = _expand_indexed(vs, rhs, [idx_borders])
+function _expand_indexed(v, r, idx, borders)
+    idx_combs = combinations(idx,2)
+    skip_equal_inds = []
+    for c in idx_combs
+        if has_expr(c[1] != c[2], v)
+            push!(skip_equal_inds, c)
+        elseif has_expr(c[2] != c[1], v)
+            push!(skip_equal_inds, c)
+        end
+    end
+
+    vs_ = Number[]
+    rs_ = Number[]
+    for sub in Iterators.product((1:n for n in borders)...)
+        check_skip = false
+        for (ci,csub) in zip(idx_combs,combinations(sub,2))
+            if csub[1]==csub[2]
+                for sk in skip_equal_inds
+                    check_skip = all(isequal.(ci, sk))
                     check_skip && break
                 end
-                check_skip && continue
-                v_ = swap_index(vs[i], idx[1], sub[1])
-                (v_' in vs_) && continue
-                r_ = swap_index(rhs_exp[i], idx[1], sub[1])
-                for jj=2:length(idx)
-                    v_ = swap_index(v_, idx[jj], sub[jj])
-                    r_ = swap_index(r_, idx[jj], sub[jj])
-                end
-                push!(rhs_, r_)
-                push!(vs_, v_)
             end
+            check_skip && break
         end
+        check_skip && continue
+        v_ = swap_index(v, idx[1], sub[1])
+        r_ = swap_index(r, idx[1], sub[1])
+        for j=2:length(idx)
+            v_ = swap_index(v_, idx[j], sub[j])
+            r_ = swap_index(r_, idx[j], sub[j])
+        end
+        push!(vs_, v_)
+        push!(rs_, r_)
     end
-    return vs_, rhs_
+    if isempty(skip_equal_inds)
+        return vs_, rs_
+    else # Remove things such as 2 != 1 from LHS; TODO: optimize
+        return simplify_constants.(vs_), rs_
+    end
 end
 
-expand_sums(x, idx_borders) = x
-function expand_sums(t::NumberTerm, idx_borders)
-    if t.f === Sum
-        idx = t.arguments[2:end]
-        arg = t.arguments[1]
-        # TODO remove i!=j terms when i==j
-        if length(idx) > 1
-            s = Sum(arg, idx[2:end]...)
-            n = idx[1].count
-            i = findfirst(x->isequal(x[1],n),idx_borders)
-            s_ = expand_sums(s, idx_borders)
-            return expand_sums(Sum(s_, idx[1]), idx_borders[i])
-        end
-        idx_sym = idx[1]
-        border = if idx_borders isa Vector
-            i = findfirst(x->isequal(x[1],idx_sym.count),idx_borders)
-            idx_borders[i]
-        else
-            idx_borders
-        end
-        @assert isequal(idx_sym.count, border[1])
-        args_ = Number[]
-        for i in 1:border[2]
-            ex = swap_index(arg, idx_sym, i)
-            push!(args_, ex)
-        end
-        return +(args_...)
+function _expand_sums(r::NumberTerm, idx_borders)
+    if r.f === Sum
+        return _expand_sum(r.arguments, idx_borders)
     else
-        args = [expand_sums(arg, idx_borders) for arg in t.arguments]
-        return t.f(args...)
+        args = [_expand_sums(arg, idx_borders) for arg in r.arguments]
+        return Expr(:call, Symbol(r.f), args...)
     end
 end
+_expand_sums(r, idx_borders) = _to_expression(r)
+
+function _expand_sum(args::Vector, idx_borders)
+    s_idx = args[2:end]
+    counts = getfield.(s_idx, :count)
+    borders = [idx_borders[findfirst(x->isequal(x[1],c), idx_borders)][2] for c in counts]
+
+    args_ = []
+    for sub in Iterators.product((1:n for n in borders)...)
+        arg_ = swap_index(args[1], s_idx[1], sub[1])
+        for j=2:length(s_idx)
+            arg_ = swap_index(arg_, s_idx[j], sub[j])
+        end
+        push!(args_, _to_expression(arg_))
+    end
+
+
+    return :( sum([$(args_...)]) )
+    #
+    # itr_idx = Tuple{Vararg{Int,length(s_idx)}}[]
+    # idx_expr = [Symbol('i'+j) for j=0:length(arg_idx)-1]
+    #
+    # function _pw_func(x)
+    #     if x in vs_
+    #         i = findfirst(isequal(x),vs_)
+    #         return usym
+    #     elseif x in vs_adj
+    #         i = findfirst(isequal(x),vs_adj)
+    #         return :( conj($(us[i])) )
+    #     elseif MacroTools.@capture(x, IndexedParameter(p_, idx_))
+    #         return :(($p)[$(idx...)])
+    #     elseif MacroTools.@capture(x, Sum(arg_, idx_))
+    #         # return _expand_sum(arg, idx, vs_, vs_adj, idx_borders)
+    #     else
+    #         return x
+    #     end
+end
+
 
 """
     build_ode(eqs::DifferentialEquation, ps=[], usym=:u,

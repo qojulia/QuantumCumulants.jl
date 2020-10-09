@@ -20,8 +20,8 @@ function find_missing(rhs::Vector{<:Number}, vs::Vector{<:Number}; vs_adj::Vecto
     end
     filter!(x->!(x∈vars),missed)
 
-    if any(isa.(missed,Index))
-        filter!(x->!isa(x,Index),missed)
+    if any(.!isempty.(find_index.(missed)))
+        filter!(x->!isa(x,Index), missed)
         missed = _filter_indexed(missed, vars)
     end
 
