@@ -106,7 +106,7 @@ function _build_indexed_ode(rhs, vs, ps, usym, psym, tsym, check_bounds, idx_bor
 
     vs_ = _to_expression.(_vs)
     vs_adj = _to_expression.(vs_adj_)
-    rhs_ = [_expand_sums(r, idx_borders) for r in _rhs]
+    rhs_ = [_expand_sums(r, idx_borders, vs_, vs_adj, us) for r in _rhs]
     function _pw_func(x)
         if x in vs_
             i = findfirst(isequal(x),vs_)
@@ -116,8 +116,6 @@ function _build_indexed_ode(rhs, vs, ps, usym, psym, tsym, check_bounds, idx_bor
             return :( conj($(us[i])) )
         elseif MacroTools.@capture(x, IndexedParameter(p_, idx_))
             return :(($p)[$(idx...)])
-        elseif MacroTools.@capture(x, Sum(arg_, idx_))
-            # return _expand_sum(arg, idx, vs_, vs_adj, idx_borders)
         else
             return x
         end
@@ -223,17 +221,17 @@ function _expand_indexed(v, r, idx, borders)
     end
 end
 
-function _expand_sums(r::NumberTerm, idx_borders)
+function _expand_sums(r::NumberTerm, idx_borders, vs_, vs_adj, us)
     if r.f === Sum
-        return _expand_sum(r.arguments, idx_borders)
+        return _expand_sum(r.arguments, idx_borders, vs_, vs_adj, us)
     else
-        args = [_expand_sums(arg, idx_borders) for arg in r.arguments]
+        args = [_expand_sums(arg, idx_borders, vs_, vs_adj, us) for arg in r.arguments]
         return Expr(:call, Symbol(r.f), args...)
     end
 end
-_expand_sums(r, idx_borders) = _to_expression(r)
+_expand_sums(r, idx_borders, vs_, vs_adj, us) = _to_expression(r)
 
-function _expand_sum(args::Vector, idx_borders)
+function _expand_sum(args::Vector, idx_borders, vs_, vs_adj, us)
     s_idx = args[2:end]
     counts = getfield.(s_idx, :count)
     borders = [idx_borders[findfirst(x->isequal(x[1],c), idx_borders)][2] for c in counts]
@@ -247,8 +245,47 @@ function _expand_sum(args::Vector, idx_borders)
         push!(args_, _to_expression(arg_))
     end
 
+    function _pw_func(x)
+        if x in vs_
+            i = findfirst(isequal(x),vs_)
+            return us[i]
+        elseif x in vs_adj
+            i = findfirst(isequal(x),vs_adj)
+            return :( conj($(us[i])) )
+        elseif MacroTools.@capture(x, IndexedParameter(p_, idx_))
+            return :(($p)[$(idx...)])
+        # elseif MacroTools.@capture(x, SUM_PW(args_))
+        #     idx = find_meta_idx.(args)
+        #     n = length(idx[1])
+        #     @assert all(length.(idx) .== n)
+        #     ex_idx = (Symbol.('i'+k for k=0:n-1)...,)
+        #     arg = set_meta_idx(args[1], ex_idx, 1)
+        #     return :( sum($arg for $ex_idx in zip($idx)) )
+        #     # return _expand_sum(arg, idx, vs_, vs_adj, idx_borders)
+        else
+            return x
+        end
+    end
 
-    return :( sum([$(args_...)]) )
+    args_pw = [MacroTools.postwalk(_pw_func, arg) for arg in args_]
+    idx = find_meta_idx.(args_pw)
+    n = sum(length.(idx[1]))
+    @assert all([sum(length.(i))==n for i in idx])
+    idx_meta = Symbol.(('i':'z')[1:n])
+    args_sum = Expr[set_meta_idx(args_pw[1], idx_meta)]
+    for arg in args_pw
+        arg_ = set_meta_idx(arg, idx_meta)
+        arg_ in args_sum || push!(args_sum, arg_)
+    end
+
+    ex_args = [:( sum($arg for ($(idx_meta...),) in [$(idx...)]) ) for arg in args_sum]
+    if length(ex_args)==1
+        return ex_args[1]
+    else
+        return Expr(:call, :+, ex_args...)
+    end
+
+    # return :( sum([$(args_...)]) )
     #
     # itr_idx = Tuple{Vararg{Int,length(s_idx)}}[]
     # idx_expr = [Symbol('i'+j) for j=0:length(arg_idx)-1]
@@ -269,6 +306,47 @@ function _expand_sum(args::Vector, idx_borders)
     #     end
 end
 
+function find_meta_idx(ex)
+    idx = Int[]
+    idx_ = _find_meta_idx(ex, idx)
+    !isnothing(idx_) || error("Could not determine Index in Expr $ex")
+    return idx_
+end
+function _find_meta_idx(ex::Expr, idx)
+    if ex.head === :ref || ex.args[1] === :!=
+        append!(idx, (ex.args[2:end]...,))
+    else
+        for arg in ex.args
+            _find_meta_idx(arg, idx)
+        end
+    end
+    return idx
+end
+_find_meta_idx(x,idx) = nothing
+
+function set_meta_idx(ex, idx)
+    count = 1
+    ex_ = copy(ex)
+    count, ex_ = _set_meta_idx!(ex_, idx, count)
+    return ex_
+end
+function _set_meta_idx!(ex::Expr, idx, count)
+    if ex.head === :ref || ex.args[1] === :!=
+        for i=2:length(ex.args)
+            ex.args[i] = idx[count-2+i]
+        end
+        count += length(ex.args)-1
+        return count, ex
+    else
+        args_ = []
+        for arg in ex.args
+            count, ex_ = _set_meta_idx!(arg, idx, count)
+            push!(args_, ex_)
+        end
+        return count, Expr(ex.head, args_...)
+    end
+end
+_set_meta_idx!(ex, idx, count) = count, ex
 
 """
     build_ode(eqs::DifferentialEquation, ps=[], usym=:u,

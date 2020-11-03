@@ -72,9 +72,9 @@ he_avg1 = average(he,1)
 @test isempty(find_missing(he_avg1))
 
 n = Parameter{Int}(:n)
-Nn = 2
+Nn = 10
 ps = (ω,Ω,Γ)
-meta_f = build_ode(he_avg1,ps;idx_borders=[n=>Nn],check_bounds=false)
+meta_f = build_ode(he_avg1,ps;idx_borders=[n=>Nn],check_bounds=true)
 f = Meta.eval(meta_f)
 
 using OrdinaryDiffEq, LinearAlgebra
@@ -82,7 +82,9 @@ u0 = zeros(ComplexF64, 2Nn)
 u0[Nn+1:end] .= 1.0
 Γmat = diagm(0=>ones(Nn))
 Ωmat = zeros(Nn,Nn)
-Ωmat[1,2] = Ωmat[2,1] = 0.25
+for i=1:Nn-1
+    Ωmat[i, i+1] = Ωmat[i+1,i] = 0.25
+end
 ωn = ones(Nn)
 p0 = (ωn,Ωmat,Γmat)
 prob = ODEProblem(f,u0,(0.0,10.0),p0)
