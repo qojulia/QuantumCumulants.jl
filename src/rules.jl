@@ -45,7 +45,8 @@ let
     ]
 
     NIP_RULES = [
-        SymbolicUtils.@rule(~x::SymbolicUtils.needs_sorting(nip) => SymbolicUtils.sort_args(nip, ~x))
+        # SymbolicUtils.@rule(~x::SymbolicUtils.needs_sorting(nip) => SymbolicUtils.sort_args(nip, ~x))
+        SymbolicUtils.@rule(~x::needs_sorting_nip => sort_args_nip(~x))
         SymbolicUtils.@rule(nip(~~a, +(~~b), ~~c) => +(map(b -> nip((~~a)..., b, (~~c)...), ~~b)...))
         SymbolicUtils.@rule(nip(~~a, ~b::SymbolicUtils.isnumber, ~~d) => *(~b, nip((~~a)..., (~~d)...)))
         SymbolicUtils.@rule(nip(~~a, *(~b::SymbolicUtils.isnumber, ~c), ~~d) => *(~b, nip((~~a)..., ~c, (~~d)...)))
@@ -63,6 +64,8 @@ let
         SymbolicUtils.@rule(Sum(*(~~a, ~j==~i, ~~c), ~~k, ~i, ~~l) => Sum(swap_index(*((~~a)..., (~~c)...), ~i, ~j), (~~k)..., (~~l)...))
         SymbolicUtils.@rule(Sum(~x) => ~x)
         SymbolicUtils.@rule(Sum(~x::SymbolicUtils.isnumber, ~~idx) => _multiply_idxs_borders(~x, ~~idx))
+
+        SymbolicUtils.@rule(~S::sum_has_const => sum_extract_const(~S))
     ]
 
     EXPAND_TIMES_RULES = [

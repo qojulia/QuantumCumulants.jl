@@ -73,6 +73,7 @@ function _master_lindblad(a_,J,Jdagger,rates)
 end
 
 function _lindblad(a,J,Jdagger,rate)
+    # TODO J = ∑σ_i
     idx = find_index(J)
     rate_idx = find_index(rate)
     if isempty(idx)

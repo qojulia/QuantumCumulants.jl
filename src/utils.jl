@@ -12,7 +12,10 @@ function find_missing(rhs::Vector{<:Number}, vs::Vector{<:Number}; vs_adj::Vecto
         append!(missed,get_symbolics(e))
     end
     unique!(missed)
-    vars = [vs;vs_adj;ps]
+    vs_ = collect(Iterators.flatten(get_symbolics.(vs)))
+    # vs_ = [(get_symbolics.(vs)...)...]
+    filter!(x->isa(x,Average),vs_)
+    vars = [vs_;adjoint.(vs_);ps]
     unique!(vars)
     if isempty(ps)
         filter!(x->!isa(x,Parameter), missed)
@@ -24,7 +27,6 @@ function find_missing(rhs::Vector{<:Number}, vs::Vector{<:Number}; vs_adj::Vecto
         filter!(x->!isa(x,Index), missed) #filter Indices (not indexed objects)
         missed = _filter_indexed(missed, vars)
     end
-
     return missed
 end
 function find_missing(de::DifferentialEquation{<:Number,<:Number}; kwargs...)
@@ -33,8 +35,9 @@ end
 
 function _filter_indexed(missed_, vars)
     missed = Number[]
+    vars_and_already_missed = vars
     for m in missed_
-        _in_without_index(m, vars) || push!(missed, m)
+        _in_without_index(m, vars_and_already_missed) || (push!(missed, m); push!(vars_and_already_missed, [m, adjoint(m)]...))
     end
     return missed
 end
@@ -111,7 +114,26 @@ function complete(de::DifferentialEquation{<:Number,<:Number};kwargs...)
     rhs_, lhs_ = complete(de.rhs,de.lhs,de.hamiltonian,de.jumps,de.rates;kwargs...)
     return DifferentialEquation(lhs_,rhs_,de.hamiltonian,de.jumps,de.rates)
 end
-function complete(rhs::Vector{<:Number}, vs::Vector{<:Number}, H, J, rates; order=nothing, mix_choice=maximum, kwargs...)
+
+#TODO new name
+function help_f_missed_indexed(missed, LHS_idx_list) #just to avoid writing it twice
+    for it = 1:length(missed)
+        m = missed[it]
+        m_idx = find_index(m)
+        if !isempty(m_idx)
+            LHS_idx_list_ = copy(LHS_idx_list) #needed to delete already use lhs indices
+            new_m_idx = []
+            for it_m = 1:length(m_idx)
+                i_lhs = LHS_idx_list_[findfirst(x->_check_idx(x,m_idx[it_m]), LHS_idx_list_)] #corresponding index on the lhs
+                push!(new_m_idx, i_lhs)
+                filter!(x->!isequal(x,i_lhs), LHS_idx_list_)
+            end
+            missed[it] = swap_index(m, m_idx, new_m_idx)
+        end
+    end
+end
+
+function complete(rhs::Vector{<:Number}, vs::Vector{<:Number}, H, J, rates; order=nothing, mix_choice=maximum, LHS_idx_list=[], kwargs...)
     order_lhs = maximum(get_order.(vs))
     order_rhs = maximum(get_order.(rhs))
     if order isa Nothing
@@ -123,19 +145,37 @@ function complete(rhs::Vector{<:Number}, vs::Vector{<:Number}, H, J, rates; orde
 
     vs_ = copy(vs)
     rhs_ = [cumulant_expansion(r, order_) for r in rhs]
-    missed = unique_ops(find_missing(rhs_, vs_))
-
-    
-
+    missed = find_missing(rhs_, vs_)
     filter!(x->isa(x,Average),missed) #keep only averages
+
+    if any(has_indexed.(missed))
+        isempty(LHS_idx_list) && error("LHS_idx_list is needed!")
+        sub_ij0 = Dict()
+        if length(LHS_idx_list) > 1 # for substituting i==j in nips on the LHS
+            ijs = collect(combinations(LHS_idx_list, 2))
+            for ij in ijs
+                sub_ij0[ij[1]==ij[2]] = 0
+                sub_ij0[ij[2]==ij[1]] = 0
+            end
+        end
+        help_f_missed_indexed(missed,LHS_idx_list)
+    end
+    missed = unique_ops(missed)
+
     while !isempty(missed)
         ops = getfield.(missed, :operator)
+        ops = simplify_operators.(ops)
+        ops = [substitute(op, sub_ij0) for op in ops]
         he = isempty(J) ? heisenberg(ops,H) : heisenberg(ops,H,J;rates=rates)
         he_avg = average(he,order_;mix_choice=mix_choice)
         rhs_ = [rhs_;he_avg.rhs]
         vs_ = [vs_;he_avg.lhs]
-        missed = unique_ops(find_missing(rhs_,vs_))
-        filter!(x->isa(x,Average),missed)
+        missed = find_missing(rhs_,vs_)
+        filter!(x->isa(x,Average), missed)
+        if any(has_indexed.(missed))
+            help_f_missed_indexed(missed,LHS_idx_list)
+        end
+        missed = unique_ops(missed)
     end
     return rhs_, vs_
 end
