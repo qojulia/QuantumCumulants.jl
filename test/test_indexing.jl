@@ -51,11 +51,22 @@ a = Destroy(h,:a)
 H = Sum(Δ[i]*σ(2,2)[i], i) + Sum(g[i]*(a'*σ(1,2)[i] + a*σ(2,1)[i]), i)
 
 n = (j!=k)*Qumulants.nip(σ(2,1)[k],σ(1,2)[j])
-ops = [a,σ(1,2)[j],σ(2,2)[j],a'*σ(1,2)[j],n]
+ops = [a,σ(1,2)[j],σ(2,2)[j],a'*σ(1,2)[j],n, a'a]
 J = [a, σ(1,2)[i], σ(2,1)[i]]
 rates = [2κ, γ[i], ν[i]]
 he = heisenberg(ops,H,J;rates=rates)
+he_avg2_ = average(he,2)
+find_missing(he_avg2_)
 
+complete(he_avg2_)
+
+unique_ops([σ(1,2)[i], σ(2,1)[i]])
+
+find_missing(he_avg2_)
+ps = (g,κ,γ,ν)
+n = Parameter{Int}(:n)
+
+meta_f = build_ode(he_avg2_,ps;idx_borders=[n=>Nn])
 
 # Test dipole-dipole
 h = NLevelSpace(:atom,2)
@@ -88,7 +99,7 @@ p0 = (ωn,Ωmat,Γmat)
 prob = ODEProblem(f,u0,(0.0,10.0),p0)
 sol = solve(prob,Tsit5())
 
-using PyPlot
+using PyPlot; pygui(true)
 plot(sol.t, real.(getindex.(sol.u, 2Nn)))
 
 # Second order

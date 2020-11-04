@@ -94,7 +94,7 @@ end
 function _build_indexed_ode(rhs, vs, ps, usym, psym, tsym, check_bounds, idx_borders)
     idx_borders === nothing && error("Need number of elements for indexes as numbers!")
     # Check if there are unknown symbols
-    missed = find_missing(rhs,vs;vs_adj=adjoint.(vs))#,ps=ps) TODO check parameters without indices
+    # missed = find_missing(rhs,vs;vs_adj=adjoint.(vs))#,ps=ps) TODO check parameters without indices
     # isempty(missed) || throw_missing_error(missed)
 
     _vs, _rhs = _expand_indexed(vs, rhs, idx_borders)
@@ -164,6 +164,7 @@ function _expand_indexed(vs::Vector, rhs::Vector, idx_borders::Vector)
         idx = find_index(vs[i])
         if isempty(idx)
             push!(vs_, vs[i])
+            push!(rhs_, rhs[i])
         else
             counts = getfield.(idx, :count)
             borders = [idx_borders[findfirst(x->isequal(x[1],c), idx_borders)][2] for c in counts]
@@ -183,7 +184,7 @@ function _expand_indexed(vs::Vector, rhs::Vector, idx_borders::Vector)
 end
 _expand_indexed(vs, rhs, idx_borders::Pair) = _expand_indexed(vs, rhs, [idx_borders])
 function _expand_indexed(v, r, idx, borders)
-    idx_combs = combinations(idx,2)
+    idx_combs = combinations(idx,2) # only for δ_αβ
     skip_equal_inds = []
     for c in idx_combs
         if has_expr(c[1] != c[2], v)

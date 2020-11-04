@@ -21,7 +21,7 @@ function find_missing(rhs::Vector{<:Number}, vs::Vector{<:Number}; vs_adj::Vecto
     filter!(x->!(x∈vars),missed)
 
     if any(.!isempty.(find_index.(missed)))
-        filter!(x->!isa(x,Index), missed)
+        filter!(x->!isa(x,Index), missed) #filter Indices (not indexed objects)
         missed = _filter_indexed(missed, vars)
     end
 
@@ -70,9 +70,9 @@ _construct_without_index(avg::Average) = Average(_construct_without_index(avg.op
 function _construct_without_index(op::OperatorTerm)
     args = []
     for arg in op.arguments
-        push!(args, _construct_without_index(arg))
+        isempty(find_index(arg)) ? push!(args, arg) : push!(args, _construct_without_index(arg))
     end
-    sort!(args, by=lt_aon)
+    sort!(args, by=acts_on)
     return op.f(args...)
 end
 
@@ -124,7 +124,10 @@ function complete(rhs::Vector{<:Number}, vs::Vector{<:Number}, H, J, rates; orde
     vs_ = copy(vs)
     rhs_ = [cumulant_expansion(r, order_) for r in rhs]
     missed = unique_ops(find_missing(rhs_, vs_))
-    filter!(x->isa(x,Average),missed)
+
+    
+
+    filter!(x->isa(x,Average),missed) #keep only averages
     while !isempty(missed)
         ops = getfield.(missed, :operator)
         he = isempty(J) ? heisenberg(ops,H) : heisenberg(ops,H,J;rates=rates)
