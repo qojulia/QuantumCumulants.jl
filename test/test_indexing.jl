@@ -60,7 +60,7 @@ find_missing(he_avg2_)
 length(he_avg2_)
 
 test_comp = complete(he_avg2_; LHS_idx_list=[j,k])
-length(test_comp)
+@test length(test_comp) == 12
 
 test_comp.lhs
 

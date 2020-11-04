@@ -115,7 +115,6 @@ function complete(de::DifferentialEquation{<:Number,<:Number};kwargs...)
     return DifferentialEquation(lhs_,rhs_,de.hamiltonian,de.jumps,de.rates)
 end
 
-#TODO new name
 function help_f_missed_indexed(missed, LHS_idx_list) #just to avoid writing it twice
     for it = 1:length(missed)
         m = missed[it]
@@ -165,7 +164,9 @@ function complete(rhs::Vector{<:Number}, vs::Vector{<:Number}, H, J, rates; orde
     while !isempty(missed)
         ops = getfield.(missed, :operator)
         ops = simplify_operators.(ops)
-        ops = [substitute(op, sub_ij0) for op in ops]
+        if length(LHS_idx_list) > 1
+            ops = [substitute(op, sub_ij0) for op in ops]
+        end
         he = isempty(J) ? heisenberg(ops,H) : heisenberg(ops,H,J;rates=rates)
         he_avg = average(he,order_;mix_choice=mix_choice)
         rhs_ = [rhs_;he_avg.rhs]

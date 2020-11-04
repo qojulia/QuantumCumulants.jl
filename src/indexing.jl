@@ -24,7 +24,7 @@ _to_qumulants(t::SymbolicUtils.Sym{T}) where T<:Index = SYMS_TO_IDX[t]
 Base.hash(i::Index, h::UInt) = hash(i.count, hash(i.name, h))
 Base.isless(i::Index, j::Index) = isless(hash(j), hash(i))
 Base.isequal(i::Index, j::Index) = isequal(hash(j), hash(i))
-Base.isequal(i::SymbolicUtils.Sym{Index}, j::SymbolicUtils.Sym{Index}) = isequal(hash(j), hash(i))
+# Base.isequal(i::SymbolicUtils.Sym{Index}, j::SymbolicUtils.Sym{Index}) = isequal(hash(j), hash(i))
 
 ### Indexed operators
 
