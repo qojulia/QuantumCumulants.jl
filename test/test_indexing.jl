@@ -72,7 +72,7 @@ he_avg1 = average(he,1)
 @test isempty(find_missing(he_avg1))
 
 n = Parameter{Int}(:n)
-Nn = 10
+Nn = 4
 ps = (ω,Ω,Γ)
 meta_f = build_ode(he_avg1,ps;idx_borders=[n=>Nn],check_bounds=true)
 f = Meta.eval(meta_f)
@@ -97,7 +97,8 @@ plot(sol.t, real.(getindex.(sol.u, 2Nn)))
 J = [σ(1,2)[i]]
 rates = [Γ[i,j]]
 m = Index(:m,n)
-ops = [σ(1,2)[k], σ(2,2)[k], (k!=m)*Qumulants.nip(σ(2,1)[k],σ(1,2)[m])]
+ops = [σ(1,2)[k], σ(2,2)[k], (k!=m)*Qumulants.nip(σ(2,1)[k],σ(1,2)[m]), (k!=m)*Qumulants.nip(σ(2,2)[k],σ(1,2)[m]),
+    (k!=m)*Qumulants.nip(σ(1,2)[k],σ(2,2)[m]), (k!=m)*Qumulants.nip(σ(2,2)[k],σ(2,2)[m])]
 he = heisenberg(ops,H,J;rates=rates)
 he_avg2 = average(he,2)
 
