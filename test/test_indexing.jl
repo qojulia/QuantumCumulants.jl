@@ -115,7 +115,7 @@ he_avg2 = average(he,2)
 meta_f = build_ode(he_avg2, ps; idx_borders=[n=>Nn])
 
 
-##### V-Level Laser ##### (no dephasing (J = ∑ not implemented))
+##### V-Level Laser ##### (no dephasing (J = Σ not implemented))
 
 hf = FockSpace(:field)
 ha = NLevelSpace(:atom,3)
@@ -138,11 +138,6 @@ he_avg = complete(he_avg_; LHS_idx_list=[j,k])
 
 
 
-conj(average(σ(2,2)[i]*σ(3,3)[j]))
-conj(average(σ(3,3)[j]*σ(2,2)[i]))
-conj(average(σ(2,2)[j]*σ(2,2)[i]))
 
-conj(average(a[i]*a[j]))
-conj(average(a[j]*a[i]))
-conj(average(a'[j]*a'[i]))
-conj(average(a'[i]*a'[j]))
+he_avg2 = complete(he_avg_; LHS_idx_list=[j,k])
+@test length(he_avg2) == 37

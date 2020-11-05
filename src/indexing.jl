@@ -79,7 +79,7 @@ Base.adjoint(s::IndexedTransition) = IndexedTransition(s.hilbert,s.name,s.j,s.i,
 Base.:(==)(t1::IndexedTransition,t2::IndexedTransition) = (t1.hilbert==t2.hilbert && t1.name==t2.name && t1.i==t2.i && t1.j==t2.j && isequal(t1.index,t2.index))
 Base.hash(t::IndexedTransition, h::UInt) = hash(t.hilbert, hash(t.name, hash(t.i, hash(t.j, hash(t.aon, hash(t.index, h))))))
 
-IndexedOperators = Union{IndexedDestroy, IndexedCreate, IndexedTransition}
+const IndexedOperators = Union{IndexedDestroy, IndexedCreate, IndexedTransition}
 
 lt_nip(a,b) = lt_aon(a,b)
 function lt_nip(a::IndexedTransition, b::IndexedTransition)
@@ -356,6 +356,8 @@ find_index(x::Index) = [x]
 
 
 ### Symbolic Summation
+Σ(x,i) = Sum(x,i)
+Σ(x,i...) = Sum(x,i...)
 Sum(ops::AbstractOperator, index::Index...) = OperatorTerm(Sum, [ops, index...])
 Sum(x::SymbolicNumber, index::Index...) = NumberTerm(Sum, [x, index...])
 # Sum(ops::Number, index::Index) = NumberTerm(Sum, [ops, index])
@@ -451,38 +453,37 @@ function in_symUtils(x, itr)
 end
 
 sum_has_const(S) = false
-function sum_has_const(S::SymbolicUtils.Term{AbstractOperator})
+function sum_has_const(S::SymbolicUtils.Term{<:AbstractOperator})
     if S.f === Sum
         summand = S.arguments[1]
         sum_indices = S.arguments[2:end]
         if isa(summand,SymbolicUtils.Term) && summand.f === *
             args = summand.arguments
             for arg in args
-                if isa(arg,  SymbolicUtils.Term{AbstractOperator}) && ((arg.f != nip) && (arg.f != Sum))
+                if isa(arg,  SymbolicUtils.Term{<:AbstractOperator}) && ((arg.f !== nip) && (arg.f !== Sum))
                     return false
                 end
             end
-            args_ = filter(x->isa(x,Union{SymbolicUtils.Sym{Number}, SymbolicUtils.Sym{IndexedParameter}, SymbolicUtils.Term{Bool}}), args)
+            args_ = filter(x->isa(x,Union{SymbolicUtils.Sym{<:Number}, SymbolicUtils.Sym{<:IndexedParameter}, SymbolicUtils.Term{Bool}}), args)
             args_indices = find_index.(args_)
-            idx_bool_ls = []
             for arg_indices in args_indices
-                push!(idx_bool_ls, any([in_symUtils(arg_idx, sum_indices) for arg_idx in arg_indices]))
+                any([in_symUtils(arg_idx, sum_indices) for arg_idx in arg_indices]) || return true
             end
-            return !all(idx_bool_ls)
+            return false
         end
     end
     return false
 end
 
-function sum_extract_const(S::SymbolicUtils.Term{AbstractOperator})
+function sum_extract_const(S::SymbolicUtils.Term{<:AbstractOperator})
     summand = S.arguments[1]
     sum_indices = S.arguments[2:end]
     args = summand.arguments
     args_sum = copy(args)
-    args_ = filter(x->isa(x,Union{SymbolicUtils.Sym{Number}, SymbolicUtils.Sym{IndexedParameter}, SymbolicUtils.Term{Bool}}), args)
+    args_ = filter(x->isa(x,Union{SymbolicUtils.Sym{<:Number}, SymbolicUtils.Sym{<:IndexedParameter}, SymbolicUtils.Term{Bool}}), args)
     extract_const_ls = []
     for arg in args_
-        if isa(arg, SymbolicUtils.Sym{Number})
+        if isa(arg, SymbolicUtils.Sym{<:Number})
             push!(extract_const_ls, arg)
         elseif !any([in_symUtils(arg_idx, sum_indices) for arg_idx in find_index(arg)])
             push!(extract_const_ls, arg)

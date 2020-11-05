@@ -35,8 +35,9 @@ end
 
 function _filter_indexed(missed_, vars)
     missed = Number[]
-    vars_and_already_missed = vars
+    vars_and_already_missed = copy(vars)
     for m in missed_
+        # _in_without_index(m, vars) || _in_without_index(m, missed) || push!(missed, m)
         _in_without_index(m, vars_and_already_missed) || (push!(missed, m); push!(vars_and_already_missed, [m, adjoint(m)]...))
     end
     return missed
@@ -70,12 +71,13 @@ for T = [:Create,:Destroy]
 end
 _construct_without_index(op::IndexedTransition) = Transition(op.hilbert,op.name,op.i,op.j,op.aon)
 _construct_without_index(avg::Average) = Average(_construct_without_index(avg.operator))
+_construct_without_index(op) = op
 function _construct_without_index(op::OperatorTerm)
     args = []
     for arg in op.arguments
-        isempty(find_index(arg)) ? push!(args, arg) : push!(args, _construct_without_index(arg))
+        push!(args, _construct_without_index(arg))
     end
-    sort!(args, by=acts_on)
+    sort!(args, lt=lt_aon)
     return op.f(args...)
 end
 

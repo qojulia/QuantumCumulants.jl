@@ -18,7 +18,7 @@ function Base.conj(a::Average)
         return Average(op_adj)
     else
         sort!(op_adj.arguments, lt=lt_nip)
-        return Average(OperatorTerm(op_adj.f, op_adj.arguments))
+        return Average(op_adj)
     end
 end
 
