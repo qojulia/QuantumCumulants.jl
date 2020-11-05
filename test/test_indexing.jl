@@ -62,20 +62,15 @@ length(he_avg2_)
 test_comp = complete(he_avg2_; LHS_idx_list=[j,k])
 @test length(test_comp) == 12
 
-test_comp.lhs
-
 ################
 ps = (g,κ,γ,ν)
 n = Parameter{Int}(:n)
-
-meta_f = build_ode(he_avg2_,ps;idx_borders=[n=>Nn])
-
 # Test dipole-dipole
 h = NLevelSpace(:atom,2)
 σ(i,j) = Transition(h,:σ,i,j)
-@parameters ω Ω Γ
+@parameters ω Ω Γ η
 n = (i!=j)*Qumulants.nip(σ(2,1)[i],σ(1,2)[j])
-H = Sum(ω[i]*σ(2,2)[i], i) + Sum(Ω[i,j]*n, i, j)
+H = Sum(ω[i]*σ(2,2)[i], i) + Sum(Ω[i,j]*n, i, j) + Sum(η[i]*(σ(1,2)[i] + σ(2,1)[i]), i)
 J = [σ(1,2)[i]]
 rates = [Γ[i,j]]
 ops = [σ(1,2)[k], σ(2,2)[k]]
@@ -86,20 +81,20 @@ he_avg1 = average(he,1)
 
 n = Parameter{Int}(:n)
 Nn = 4
-ps = (ω,Ω,Γ)
+ps = (ω,Ω,Γ,η)
 meta_f = build_ode(he_avg1,ps;idx_borders=[n=>Nn],check_bounds=true)
 f = Meta.eval(meta_f)
 
 using OrdinaryDiffEq, LinearAlgebra
 u0 = zeros(ComplexF64, 2Nn)
-u0[Nn+1:end] .= 1.0
 Γmat = diagm(0=>ones(Nn))
 Ωmat = zeros(Nn,Nn)
 for i=1:Nn-1
     Ωmat[i, i+1] = Ωmat[i+1,i] = 0.25
 end
 ωn = ones(Nn)
-p0 = (ωn,Ωmat,Γmat)
+ηn = ones(Nn)
+p0 = (ωn,Ωmat,Γmat,ηn)
 prob = ODEProblem(f,u0,(0.0,10.0),p0)
 sol = solve(prob,Tsit5())
 
@@ -110,12 +105,19 @@ plot(sol.t, real.(getindex.(sol.u, 2Nn)))
 J = [σ(1,2)[i]]
 rates = [Γ[i,j]]
 m = Index(:m,n)
-ops = [σ(1,2)[k], σ(2,2)[k], (k!=m)*Qumulants.nip(σ(2,1)[k],σ(1,2)[m]), (k!=m)*Qumulants.nip(σ(2,2)[k],σ(1,2)[m]),
+ops = [σ(1,2)[k], σ(2,2)[k], (k!=m)*Qumulants.nip(σ(2,1)[k],σ(1,2)[m]), (k!=m)*Qumulants.nip(σ(1,2)[k],σ(1,2)[m]), (k!=m)*Qumulants.nip(σ(2,2)[k],σ(1,2)[m]),
     (k!=m)*Qumulants.nip(σ(1,2)[k],σ(2,2)[m]), (k!=m)*Qumulants.nip(σ(2,2)[k],σ(2,2)[m])]
 he = heisenberg(ops,H,J;rates=rates)
 he_avg2 = average(he,2)
+meta_f = build_ode(he_avg2, ps; idx_borders=[n=>Nn],check_bounds=true)
+f = Meta.eval(meta_f)
 
-meta_f = build_ode(he_avg2, ps; idx_borders=[n=>Nn])
+# Numerics
+u0 = Nn==4 ? zeros(ComplexF64,50) : error("How long is u0?")
+prob = ODEProblem(f,u0,(0.0,10.0),p0)
+sol = solve(prob,Tsit5())
+
+plot(sol.t, real.(getindex.(sol.u, 2Nn)))
 
 
 ##### V-Level Laser ##### (no dephasing (J = Σ not implemented))

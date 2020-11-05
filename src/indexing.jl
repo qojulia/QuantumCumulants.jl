@@ -342,7 +342,7 @@ Base.conj(p::IndexedParameter{<:Real}) = p
 
 find_index(s::SymbolicUtils.Symbolic) = _to_symbolic.(find_index(_to_qumulants(s)))
 function find_index(t::Union{OperatorTerm,NumberTerm})
-    idx = Index[]
+    idx = []
     for arg in t.arguments
         append!(idx, find_index(arg))
     end

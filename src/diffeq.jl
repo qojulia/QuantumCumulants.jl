@@ -266,7 +266,7 @@ function _expand_sum(args::Vector, idx_borders, vs_, vs_adj, us)
     idx = find_meta_idx.(args_pw)
     n = sum(length.(idx[1]))
     all([sum(length.(i))==n for i in idx]) || (println(args_pw); println(idx); error())
-    idx_meta = Symbol.(('i':'z')[1:n])
+    idx_meta = [gensym(:sum_idx) for i=1:n]
     args_sum = Expr[set_meta_idx(args_pw[1], idx_meta)]
     for arg in args_pw
         arg_ = set_meta_idx(arg, idx_meta)
