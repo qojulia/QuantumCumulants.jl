@@ -135,9 +135,3 @@ find_missing(he_avg_)
 
 he_avg = complete(he_avg_; LHS_idx_list=[j,k])
 @test length(he_avg) == 37
-
-
-
-
-he_avg2 = complete(he_avg_; LHS_idx_list=[j,k])
-@test length(he_avg2) == 37

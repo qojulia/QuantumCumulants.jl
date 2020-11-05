@@ -464,7 +464,7 @@ function sum_has_const(S::SymbolicUtils.Term{<:AbstractOperator})
                     return false
                 end
             end
-            args_ = filter(x->isa(x,Union{SymbolicUtils.Sym{<:Number}, SymbolicUtils.Sym{<:IndexedParameter}, SymbolicUtils.Term{Bool}}), args)
+            args_ = filter(x->isa(x,Union{SymbolicUtils.Sym{<:Number}, SymbolicUtils.Sym{<:IndexedParameter}}), args)
             args_indices = find_index.(args_)
             for arg_indices in args_indices
                 any([in_symUtils(arg_idx, sum_indices) for arg_idx in arg_indices]) || return true
@@ -480,7 +480,7 @@ function sum_extract_const(S::SymbolicUtils.Term{<:AbstractOperator})
     sum_indices = S.arguments[2:end]
     args = summand.arguments
     args_sum = copy(args)
-    args_ = filter(x->isa(x,Union{SymbolicUtils.Sym{<:Number}, SymbolicUtils.Sym{<:IndexedParameter}, SymbolicUtils.Term{Bool}}), args)
+    args_ = filter(x->isa(x,Union{SymbolicUtils.Sym{<:Number}, SymbolicUtils.Sym{<:IndexedParameter}}), args)
     extract_const_ls = []
     for arg in args_
         if isa(arg, SymbolicUtils.Sym{<:Number})
