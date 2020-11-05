@@ -11,7 +11,16 @@ Average(operator::OP) where OP = Average{Number,OP}(operator)
 Base.isequal(a1::Average,a2::Average) = isequal(a1.operator, a2.operator)
 Base.hash(a::Average{T}, h::UInt) where T = hash(a.operator, hash(T, h))
 
-Base.conj(a::Average) = Average(adjoint(a.operator))
+# Base.conj(a::Average) = Average(adjoint(a.operator))
+function Base.conj(a::Average)
+    op_adj = adjoint(a.operator)
+    if length(find_index(op_adj)) < 2 #better if-condition
+        return Average(op_adj)
+    else
+        sort!(op_adj.arguments, lt=lt_nip)
+        return Average(op_adj)
+    end
+end
 
 """
     average(::AbstractOperator)

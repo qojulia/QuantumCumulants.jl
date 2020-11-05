@@ -24,7 +24,7 @@ _to_qumulants(t::SymbolicUtils.Sym{T}) where T<:Index = SYMS_TO_IDX[t]
 Base.hash(i::Index, h::UInt) = hash(i.count, hash(i.name, h))
 Base.isless(i::Index, j::Index) = isless(hash(j), hash(i))
 Base.isequal(i::Index, j::Index) = isequal(hash(j), hash(i))
-
+# Base.isequal(i::SymbolicUtils.Sym{Index}, j::SymbolicUtils.Sym{Index}) = isequal(hash(j), hash(i))
 
 ### Indexed operators
 
@@ -78,8 +78,33 @@ Base.getindex(s::Transition,k::Union{Index,Int}) = IndexedTransition(s.hilbert,s
 Base.adjoint(s::IndexedTransition) = IndexedTransition(s.hilbert,s.name,s.j,s.i,s.aon,s.index)
 Base.:(==)(t1::IndexedTransition,t2::IndexedTransition) = (t1.hilbert==t2.hilbert && t1.name==t2.name && t1.i==t2.i && t1.j==t2.j && isequal(t1.index,t2.index))
 Base.hash(t::IndexedTransition, h::UInt) = hash(t.hilbert, hash(t.name, hash(t.i, hash(t.j, hash(t.aon, hash(t.index, h))))))
-nip(args::AbstractOperator...) = OperatorTerm(nip, [args...])
-nip(args::Vector{<:AbstractOperator}) = OperatorTerm(nip, args)
+
+const IndexedOperators = Union{IndexedDestroy, IndexedCreate, IndexedTransition}
+
+lt_nip(a,b) = lt_aon(a,b)
+function lt_nip(a::IndexedTransition, b::IndexedTransition)
+    if acts_on(a) == acts_on(b)
+        if a.i > b.i
+            return true
+        elseif a.i < b.i
+            return false
+        elseif a.i == b.i
+            if a.j > b.j
+                return true
+            elseif a.j < b.j
+                return false
+            elseif a.j == b.j
+                return a.index > b.index #important to simplify s22i.s22j - s22j.s22i -> 0
+            end
+        end
+    else
+        return lt_aon(a,b)
+    end
+end
+lt_nip(a::SymbolicUtils.Sym{IndexedTransition},b::SymbolicUtils.Sym{IndexedTransition}) = lt_nip(_to_qumulants(a), _to_qumulants(b))
+
+nip(args::AbstractOperator...) = OperatorTerm(nip, sort([args...], lt=lt_nip))
+nip(args::Vector{<:AbstractOperator}) = OperatorTerm(nip, sort(args, lt=lt_nip))
 nip(args::Union{SymbolicUtils.Symbolic,Number}...) = SymbolicUtils.Term{AbstractOperator}(nip, [args...])
 
 ### Simplification functions
@@ -203,12 +228,12 @@ function merge_nips(nip1_, nip2_)
             iszero(σ_tmp) && return 0
             push!(same_idx_prods, σ_tmp[nip1_σ_idx.index])
         end
-        same_idx_prods = sort(same_idx_prods, by=hash)
+        same_idx_prods = sort(same_idx_prods, lt=lt_nip)
         nip1_σs_uneq = filter(x-> !(x.index in same_idxs), nip1_σs)
         nip2_σs_uneq = filter(x-> !(x.index in same_idxs), nip2_σs)
 
         if iszero(length(nip1_σs_uneq)*length(nip2_σs_uneq)) #all σs from one nip equal to the others
-            nip_σs = sort(unique!(union(same_idx_prods, nip1_σs_uneq, nip2_σs_uneq)), by=hash)
+            nip_σs = sort(unique!(union(same_idx_prods, nip1_σs_uneq, nip2_σs_uneq)), lt=lt_nip)
             return nip(nip_σs)
         else
             return merge_uneq_nips(nip1_σs_uneq, nip2_σs_uneq;extra_σs=same_idx_prods)
@@ -266,7 +291,7 @@ function merge_uneq_nips(nip1_σs, nip2_σs; extra_σs=[]) #all indices unequal
         push!(nip_sum_ls, [δ_tmp_ls, σ_tmp_ls])
     end
     nip_sum_ls = unique!(nip_sum_ls)
-    nip_sum = [prod(args[1])*nip(sort([args[2]...,extra_σs...], by=hash)) for args in nip_sum_ls]
+    nip_sum = [prod(args[1])*nip(sort([args[2]...,extra_σs...], lt=lt_nip)) for args in nip_sum_ls]
     return sum(nip_sum)
 end
 
@@ -325,12 +350,14 @@ function find_index(t::Union{OperatorTerm,NumberTerm})
     return idx
 end
 find_index(x) = Index[]
-find_index(x::Union{IndexedTransition,IndexedCreate,IndexedDestroy}) = [x.index]
+find_index(x::IndexedOperators) = [x.index]
 find_index(x::IndexedParameter) = x.index
 find_index(x::Index) = [x]
 
 
 ### Symbolic Summation
+Σ(x,i) = Sum(x,i)
+Σ(x,i...) = Sum(x,i...)
 Sum(ops::AbstractOperator, index::Index...) = OperatorTerm(Sum, [ops, index...])
 Sum(x::SymbolicNumber, index::Index...) = NumberTerm(Sum, [x, index...])
 # Sum(ops::Number, index::Index) = NumberTerm(Sum, [ops, index])
@@ -358,6 +385,19 @@ swap_index(ex::OperatorTerm, i1::Union{Index,Int}, i2::Union{Index,Int}) = Opera
 swap_index(ex::NumberTerm, i1::Union{Index,Int}, i2::Union{Index,Int}) = NumberTerm(ex.f, [swap_index(arg, i1, i2) for arg in ex.arguments])
 swap_index(ex::SymbolicUtils.Symbolic, i::SymbolicUtils.Symbolic, j::SymbolicUtils.Symbolic) = _to_symbolic(swap_index(_to_qumulants(ex), _to_qumulants(i), _to_qumulants(j)))
 
+function swap_index(ex, i1::Vector, i2::Vector)
+    ex_ = copy(ex)
+    @assert length(i1) == length(i2)
+    for it = 1:length(i1)
+        ex_ = swap_index(ex_, i1[it], -it)
+    end
+    for it = 1:length(i1)
+        ex_ = swap_index(ex_, -it, i2[it])
+    end
+    return ex_
+end
+
+
 function _multiply_idxs_borders(x, inds)
     args = Any[x]
     idx_ = _to_qumulants.(inds)
@@ -377,8 +417,14 @@ function has_indexed(t::NumberTerm)
     return false
 end
 has_indexed(::IndexedParameter) = true
-has_indexed(::AbstractOperator) = true
-
+has_indexed(::IndexedOperators) = true
+function has_indexed(t::OperatorTerm)
+    for arg in t.arguments
+        has_indexed(arg) && return true
+    end
+    return false
+end
+# has_indexed(::AbstractOperator) = true #TODO
 sort_idx(idx) = SymbolicUtils.arguments(SymbolicUtils.sort_args(*, idx))
 
 rewrite_nip_times(x) = x
@@ -390,3 +436,59 @@ function rewrite_nip_times(op::OperatorTerm)
     return op.f(args...)
 end
 rewrite_nip_times(op::OperatorTerm{<:typeof(nip)}) = *(op.arguments...)
+
+getfield_index(x) = getfield_index(x, :index)
+
+function in_symUtils(x, itr)
+    anymissing = false
+    for y in itr
+        v = isequal(y, x)
+        if ismissing(v)
+            anymissing = true
+        elseif v
+            return true
+        end
+    end
+    return anymissing ? missing : false
+end
+
+sum_has_const(S) = false
+function sum_has_const(S::SymbolicUtils.Term{<:AbstractOperator})
+    if S.f === Sum
+        summand = S.arguments[1]
+        sum_indices = S.arguments[2:end]
+        if isa(summand,SymbolicUtils.Term) && summand.f === *
+            args = summand.arguments
+            for arg in args
+                if isa(arg,  SymbolicUtils.Term{<:AbstractOperator}) && ((arg.f !== nip) && (arg.f !== Sum))
+                    return false
+                end
+            end
+            args_ = filter(x->isa(x,Union{SymbolicUtils.Sym{<:Number}, SymbolicUtils.Sym{<:IndexedParameter}}), args)
+            args_indices = find_index.(args_)
+            for arg_indices in args_indices
+                any([in_symUtils(arg_idx, sum_indices) for arg_idx in arg_indices]) || return true
+            end
+            return false
+        end
+    end
+    return false
+end
+
+function sum_extract_const(S::SymbolicUtils.Term{<:AbstractOperator})
+    summand = S.arguments[1]
+    sum_indices = S.arguments[2:end]
+    args = summand.arguments
+    args_sum = copy(args)
+    args_ = filter(x->isa(x,Union{SymbolicUtils.Sym{<:Number}, SymbolicUtils.Sym{<:IndexedParameter}}), args)
+    extract_const_ls = []
+    for arg in args_
+        if isa(arg, SymbolicUtils.Sym{<:Number})
+            push!(extract_const_ls, arg)
+        elseif !any([in_symUtils(arg_idx, sum_indices) for arg_idx in find_index(arg)])
+            push!(extract_const_ls, arg)
+        end
+    end
+    args_sum_ = filter(x->!in_symUtils(x,extract_const_ls), args_sum)
+    return *(extract_const_ls...,Sum(*(args_sum_...),sum_indices...))
+end

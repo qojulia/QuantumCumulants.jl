@@ -156,7 +156,7 @@ function issorted_nc(x)
 end
 
 # Comparison for sorting according to Hilbert spaces
-function lt_aon(t1,t2)
+function lt_aon_notIndexed(t1,t2)
     aon1 = acts_on(t1)
     aon2 = acts_on(t2)
     if any(a1 ∈ aon2 for a1 in aon1)
@@ -171,6 +171,17 @@ function lt_aon(t1,t2)
         return maximum(aon1)<maximum(aon2)
     end
 end
+
+lt_aon(a,b) = lt_aon_notIndexed(a,b)
+function lt_aon(a::T, b::T) where T<:Union{IndexedCreate, IndexedDestroy}
+    # only if Create with Create or Destroy with Destroy is compared (not mixed), sorting of IndexedTransition is done with lt_nip()
+    if acts_on(a) == acts_on(b)
+        return a.index > b.index
+    else
+        return lt_aon_notIndexed(a,b)
+    end
+end
+lt_aon(a::SymbolicUtils.Sym{T}, b::SymbolicUtils.Sym{T}) where T<:Union{IndexedCreate, IndexedDestroy} = lt_aon(_to_qumulants(a), _to_qumulants(b))
 
 function acts_on(t::SymbolicUtils.Term{T}) where T<:AbstractOperator
     ops = filter(isoperator, t.arguments)
@@ -199,4 +210,18 @@ function apply_commutator(fcomm, args_l, args_r, a, b)
     else
         return nothing
     end
+end
+
+# sort nip
+function issorted_nip(x)
+    args = SymbolicUtils.arguments(x)
+    all(isa.(args, SymbolicUtils.Sym{IndexedTransition})) ? issorted(args, lt=lt_nip) : true
+    # return issorted(args, lt=lt_nip)
+end
+needs_sorting_nip(x) = (x.f === nip) && !issorted_nip(x)
+
+function sort_args_nip(x) # = sort(x, lt=lt_nip)
+    args = SymbolicUtils.arguments(x)
+    args_ = sort(args, lt=lt_nip)
+    return nip(args_...)
 end

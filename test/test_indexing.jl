@@ -9,10 +9,10 @@ k = Index(:k,n)
 h = FockSpace(:fock)
 a = Destroy(h,:a)
 
-
 @test isequal(simplify_operators(a[i]*a[j]'), (i==j) + a[j]'*a[i])
 @test isequal(simplify_operators(a[i]*a[i]'), true+a[i]'*a[i])
-
+@test isequal(simplify_operators(a[i]*a[j]), simplify_operators(a[j]*a[i]))
+@test isequal(simplify_operators(a[i]'*a[j]'), simplify_operators(a[j]'*a[i]'))
 
 # Nlevel
 h = NLevelSpace(:nlevel,2)
@@ -50,12 +50,25 @@ a = Destroy(h,:a)
 @parameters g κ γ ν Δ
 H = Sum(Δ[i]*σ(2,2)[i], i) + Sum(g[i]*(a'*σ(1,2)[i] + a*σ(2,1)[i]), i)
 
-n = (j!=k)*Qumulants.nip(σ(2,1)[k],σ(1,2)[j])
-ops = [a,σ(1,2)[j],σ(2,2)[j],a'*σ(1,2)[j],n]
+nip1 = (j!=k)*Qumulants.nip(σ(1,2)[j],σ(2,1)[k])
+ops = [a,σ(1,2)[j],σ(2,2)[j],a'*σ(1,2)[j],nip1, a'a]
 J = [a, σ(1,2)[i], σ(2,1)[i]]
 rates = [2κ, γ[i], ν[i]]
 he = heisenberg(ops,H,J;rates=rates)
+he_avg2_ = average(he,2)
+find_missing(he_avg2_)
+length(he_avg2_)
 
+test_comp = complete(he_avg2_; LHS_idx_list=[j,k])
+@test length(test_comp) == 12
+
+test_comp.lhs
+
+################
+ps = (g,κ,γ,ν)
+n = Parameter{Int}(:n)
+
+meta_f = build_ode(he_avg2_,ps;idx_borders=[n=>Nn])
 
 # Test dipole-dipole
 h = NLevelSpace(:atom,2)
@@ -90,7 +103,7 @@ p0 = (ωn,Ωmat,Γmat)
 prob = ODEProblem(f,u0,(0.0,10.0),p0)
 sol = solve(prob,Tsit5())
 
-using PyPlot
+using PyPlot; pygui(true)
 plot(sol.t, real.(getindex.(sol.u, 2Nn)))
 
 # Second order
@@ -103,3 +116,25 @@ he = heisenberg(ops,H,J;rates=rates)
 he_avg2 = average(he,2)
 
 meta_f = build_ode(he_avg2, ps; idx_borders=[n=>Nn])
+
+
+##### V-Level Laser ##### (no dephasing (J = Σ not implemented))
+
+hf = FockSpace(:field)
+ha = NLevelSpace(:atom,3)
+h = hf⊗ha
+a = Destroy(h,:a)
+σ(i,j) = Transition(h,:σ,i,j)
+@parameters g κ Γ2 Γ3 Δ2 Δ3 Ω2 Ω3 Δc
+H = -Δc*a'a - Sum(Δ2[i]*σ(2,2)[i], i) - Sum(Δ3[i]*σ(3,3)[i], i) + Sum(Ω2[i]*(σ(1,2)[i] + σ(2,1)[i]), i) + Sum(Ω3[i]*(σ(1,3)[i] + σ(3,1)[i]), i) + Sum(g[i]*(a'σ(1,2)[i] + a*σ(2,1)[i]), i)
+J = [a, σ(1,2)[i], σ(1,3)[i]]
+rates = [2κ, Γ2[i], Γ3[i]]
+
+# nip1 = (j!=k)*Qumulants.nip(σ(1,2)[j],σ(2,1)[k])
+ops = [a'a]
+he = heisenberg(ops,H,J;rates=rates)
+he_avg_ = average(he,2)
+find_missing(he_avg_)
+
+he_avg = complete(he_avg_; LHS_idx_list=[j,k])
+@test length(he_avg) == 37
