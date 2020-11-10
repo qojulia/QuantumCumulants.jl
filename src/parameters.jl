@@ -140,9 +140,9 @@ Standard simplification for [`SymbolicNumber`](@ref) types. Converts to a
 symbolic number variables.
 """
 simplify_constants(s::Number;kwargs...) = s
-function simplify_constants(t::NumberTerm;kwargs...)
+function simplify_constants(t::NumberTerm;rewriter=default_number_simplifier(),kwargs...)
     s = _to_symbolic(t)
-    s_ = SymbolicUtils.simplify(s;kwargs...)
+    s_ = SymbolicUtils.simplify(s;rewriter=rewriter,kwargs...)
     return _to_qumulants(s_)
 end
 

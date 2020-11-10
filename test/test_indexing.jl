@@ -80,7 +80,7 @@ he_avg1 = average(he,1)
 @test isempty(find_missing(he_avg1))
 
 n = Parameter{Int}(:n)
-Nn = 4
+Nn = 2
 ps = (ω,Ω,Γ,η)
 meta_f = build_ode(he_avg1,ps;idx_borders=[n=>Nn],check_bounds=true)
 f = Meta.eval(meta_f)
@@ -105,7 +105,7 @@ plot(sol.t, real.(getindex.(sol.u, 2Nn)))
 J = [σ(1,2)[i]]
 rates = [Γ[i,j]]
 m = Index(:m,n)
-ops = [σ(1,2)[k], σ(2,2)[k], (k!=m)*Qumulants.nip(σ(2,1)[k],σ(1,2)[m]), (k!=m)*Qumulants.nip(σ(1,2)[k],σ(1,2)[m]), (k!=m)*Qumulants.nip(σ(2,2)[k],σ(1,2)[m]),
+ops = [σ(1,2)[k], σ(2,2)[k], (k!=m)*Qumulants.nip(σ(2,1)[k],σ(1,2)[m]), (k!=m)*Qumulants.nip(σ(1,2)[k],σ(1,2)[m]),
     (k!=m)*Qumulants.nip(σ(1,2)[k],σ(2,2)[m]), (k!=m)*Qumulants.nip(σ(2,2)[k],σ(2,2)[m])]
 he = heisenberg(ops,H,J;rates=rates)
 he_avg2 = average(he,2)
@@ -113,7 +113,13 @@ meta_f = build_ode(he_avg2, ps; idx_borders=[n=>Nn],check_bounds=true)
 f = Meta.eval(meta_f)
 
 # Numerics
-u0 = Nn==4 ? zeros(ComplexF64,50) : error("How long is u0?")
+u0 = if Nn==4
+    zeros(ComplexF64,50)
+elseif Nn==2
+    zeros(ComplexF64,11)
+else
+    error("How long is u0?")
+end
 prob = ODEProblem(f,u0,(0.0,10.0),p0)
 sol = solve(prob,Tsit5())
 
@@ -132,7 +138,6 @@ H = -Δc*a'a - Sum(Δ2[i]*σ(2,2)[i], i) - Sum(Δ3[i]*σ(3,3)[i], i) + Sum(Ω2[i
 J = [a, σ(1,2)[i], σ(1,3)[i]]
 rates = [2κ, Γ2[i], Γ3[i]]
 
-# nip1 = (j!=k)*Qumulants.nip(σ(1,2)[j],σ(2,1)[k])
 ops = [a'a]
 he = heisenberg(ops,H,J;rates=rates)
 he_avg_ = average(he,2)

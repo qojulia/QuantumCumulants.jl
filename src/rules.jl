@@ -1,3 +1,8 @@
+function has_sum(term)
+    SymbolicUtils.istree(term) || return false
+    SymbolicUtils.operation(term) === Sum && return true
+    return any(has_sum, SymbolicUtils.arguments(term))
+end
 
 let
     NC_TIMES_RULES = [
@@ -68,9 +73,15 @@ let
         SymbolicUtils.@rule(~S::sum_has_const => sum_extract_const(~S))
     ]
 
-    EXPAND_TIMES_RULES = [
+    EXPAND_NC_TIMES_RULES = [
         SymbolicUtils.@rule(~x::SymbolicUtils.isnotflat(*) => SymbolicUtils.flatten_term(*, ~x))
         SymbolicUtils.@rule(~x::needs_sorting_nc => sort_args_nc(~x))
+        SymbolicUtils.@rule(*(~~a, +(~~b), ~~c) => +(map(b -> *((~~a)..., b, (~~c)...), ~~b)...))
+    ]
+
+    EXPAND_TIMES_RULES = [
+        SymbolicUtils.@rule(~x::SymbolicUtils.isnotflat(*) => SymbolicUtils.flatten_term(*, ~x))
+        SymbolicUtils.@rule(~x::SymbolicUtils.needs_sorting(*) => SymbolicUtils.sort_args(*, ~x))
         SymbolicUtils.@rule(*(~~a, +(~~b), ~~c) => +(map(b -> *((~~a)..., b, (~~c)...), ~~b)...))
     ]
 
@@ -153,6 +164,21 @@ let
         SymbolicUtils.@rule((~f)(~x::SymbolicUtils.isnumber, ~y::SymbolicUtils.isnumber) => (~f)(~x, ~y))
     ]
 
+    TIMES_RULES = [
+        SymbolicUtils.@rule(~x::SymbolicUtils.isnotflat(*) => SymbolicUtils.flatten_term(*, ~x))
+        SymbolicUtils.@rule(~x::SymbolicUtils.needs_sorting(*) => SymbolicUtils.sort_args(*, ~x))
+
+        SymbolicUtils.ACRule(combinations, SymbolicUtils.@rule(~a::SymbolicUtils.isnumber * ~b::SymbolicUtils.isnumber => ~a * ~b), 2)
+        SymbolicUtils.@rule(*(~~x::SymbolicUtils.hasrepeats) => *(SymbolicUtils.merge_repeats(^, ~~x)...))
+
+        SymbolicUtils.ACRule(permutations, SymbolicUtils.@rule((~y)^(~n) * ~y => (~y)^(~n+1)), 2)
+        SymbolicUtils.ACRule(combinations, SymbolicUtils.@rule((~x)^(~n) * (~x)^(~m) => (~x)^(~n + ~m)), 2)
+
+        SymbolicUtils.ACRule(combinations, SymbolicUtils.@rule((~z::SymbolicUtils._isone  * ~x) => ~x), 2)
+        SymbolicUtils.ACRule(combinations, SymbolicUtils.@rule((~z::SymbolicUtils._iszero *  ~x) => ~z), 2)
+        SymbolicUtils.@rule(*(~x) => ~x)
+    ]
+
 
 
     # Rewriter functions
@@ -161,11 +187,15 @@ let
     global default_operator_simplifier
     global default_expand_simplifier
     global noncommutative_simplifier
+    global default_number_simplifier
+    global number_simplifier
+    global sum_simplifier
+    global _number_simplifier
 
     function default_operator_simplifier(; kwargs...)
         SymbolicUtils.IfElse(
             SymbolicUtils.sym_isa(AbstractOperator), SymbolicUtils.Postwalk(operator_simplifier()),
-            SymbolicUtils.default_simplifier(; kwargs...)
+            default_number_simplifier(; kwargs...)
         )
     end
 
@@ -176,9 +206,16 @@ let
         return SymbolicUtils.Postwalk(rw)
     end
 
+    function default_number_simplifier(;kwargs...)
+        return SymbolicUtils.IfElse(has_sum,
+                        SymbolicUtils.Postwalk(number_simplifier(;kwargs...)),
+                        SymbolicUtils.default_simplifier(;kwargs...)
+                        ) |> SymbolicUtils.Postwalk
+    end
+
     function commutator_simplifier()
         rule_tree = [SymbolicUtils.If(SymbolicUtils.istree, SymbolicUtils.Chain(ASSORTED_RULES)),
-                    SymbolicUtils.If(SymbolicUtils.is_operation(*), SymbolicUtils.Chain(EXPAND_TIMES_RULES)),
+                    SymbolicUtils.If(SymbolicUtils.is_operation(*), SymbolicUtils.Chain(EXPAND_NC_TIMES_RULES)),
                     SymbolicUtils.If(SymbolicUtils.is_operation(^), SymbolicUtils.Chain(EXPAND_POW_RULES)),
                     SymbolicUtils.If(SymbolicUtils.is_operation(nip), SymbolicUtils.Chain(NIP_RULES)),
                     SymbolicUtils.If(SymbolicUtils.is_operation(Sum), SymbolicUtils.Chain(SUM_RULES)),
@@ -198,9 +235,48 @@ let
 
     function default_expand_simplifier()
         rule_tree = [SymbolicUtils.If(SymbolicUtils.istree, SymbolicUtils.Chain(ASSORTED_RULES)),
-                    SymbolicUtils.If(SymbolicUtils.is_operation(*), SymbolicUtils.Chain(EXPAND_TIMES_RULES)),
+                    SymbolicUtils.If(SymbolicUtils.is_operation(*), SymbolicUtils.Chain(EXPAND_NC_TIMES_RULES)),
                     SymbolicUtils.If(SymbolicUtils.is_operation(^), SymbolicUtils.Chain(EXPAND_POW_RULES))
                     ] |> SymbolicUtils.Chain
         return SymbolicUtils.Fixpoint(SymbolicUtils.Postwalk(rule_tree))
+    end
+
+    function number_simplifier()
+        rw_sums = sum_simplifier()
+        rw_num = _number_simplifier()
+        rw = SymbolicUtils.Chain([rw_sums,rw_num])
+        return SymbolicUtils.Postwalk(rw)
+    end
+
+    function sum_simplifier()
+        rule_tree = [SymbolicUtils.If(SymbolicUtils.istree, SymbolicUtils.Chain(ASSORTED_RULES)),
+                 SymbolicUtils.If(SymbolicUtils.is_operation(+),
+                    SymbolicUtils.Chain(PLUS_RULES)),
+                 SymbolicUtils.If(SymbolicUtils.is_operation(*),
+                    SymbolicUtils.Chain(EXPAND_NC_TIMES_RULES)),
+                 SymbolicUtils.If(SymbolicUtils.is_operation(^),
+                    SymbolicUtils.Chain(POW_RULES)),
+                 SymbolicUtils.If(SymbolicUtils.is_operation(Sum),
+                    SymbolicUtils.Chain(SUM_RULES)),
+                 SymbolicUtils.If(x->SymbolicUtils.symtype(x)<:Bool,
+                    SymbolicUtils.Chain(BOOLEAN_RULES)),
+                    ] |> SymbolicUtils.RestartedChain
+        return rule_tree
+    end
+
+    function _number_simplifier()
+        rule_tree = [SymbolicUtils.If(SymbolicUtils.istree, SymbolicUtils.Chain(ASSORTED_RULES)),
+                 SymbolicUtils.If(SymbolicUtils.is_operation(+),
+                    SymbolicUtils.Chain(PLUS_RULES)),
+                 SymbolicUtils.If(SymbolicUtils.is_operation(*),
+                    SymbolicUtils.Chain(TIMES_RULES)),
+                 SymbolicUtils.If(SymbolicUtils.is_operation(^),
+                    SymbolicUtils.Chain(POW_RULES)),
+                 SymbolicUtils.If(x->SymbolicUtils.symtype(x)<:Bool,
+                    SymbolicUtils.Chain(BOOLEAN_RULES)),
+                    ] |> SymbolicUtils.RestartedChain
+        # Additional If to ensure that recursion into average(x) does not
+        # apply commutative rules to x
+        return SymbolicUtils.If(SymbolicUtils.sym_isa(Number), rule_tree)
     end
 end

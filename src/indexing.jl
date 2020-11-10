@@ -453,18 +453,18 @@ function in_symUtils(x, itr)
 end
 
 sum_has_const(S) = false
-function sum_has_const(S::SymbolicUtils.Term{<:AbstractOperator})
+function sum_has_const(S::SymbolicUtils.Term)
     if S.f === Sum
         summand = S.arguments[1]
         sum_indices = S.arguments[2:end]
         if isa(summand,SymbolicUtils.Term) && summand.f === *
             args = summand.arguments
             for arg in args
-                if isa(arg,  SymbolicUtils.Term{<:AbstractOperator}) && ((arg.f !== nip) && (arg.f !== Sum))
+                if isa(arg, SymbolicUtils.Term{<:AbstractOperator}) && ((arg.f !== nip) && (arg.f !== Sum))
                     return false
                 end
             end
-            args_ = filter(x->isa(x,Union{SymbolicUtils.Sym{<:Number}, SymbolicUtils.Sym{<:IndexedParameter}}), args)
+            args_ = filter(SymbolicUtils.sym_isa(Number), args)
             args_indices = find_index.(args_)
             for arg_indices in args_indices
                 any([in_symUtils(arg_idx, sum_indices) for arg_idx in arg_indices]) || return true
@@ -475,19 +475,16 @@ function sum_has_const(S::SymbolicUtils.Term{<:AbstractOperator})
     return false
 end
 
-function sum_extract_const(S::SymbolicUtils.Term{<:AbstractOperator})
+function sum_extract_const(S::SymbolicUtils.Term)
     summand = S.arguments[1]
     sum_indices = S.arguments[2:end]
     args = summand.arguments
     args_sum = copy(args)
-    args_ = filter(x->isa(x,Union{SymbolicUtils.Sym{<:Number}, SymbolicUtils.Sym{<:IndexedParameter}}), args)
+    args_ = filter(SymbolicUtils.sym_isa(Number), args)
     extract_const_ls = []
     for arg in args_
-        if isa(arg, SymbolicUtils.Sym{<:Number})
+        any([in_symUtils(arg_idx, sum_indices) for arg_idx in find_index(arg)]) ||
             push!(extract_const_ls, arg)
-        elseif !any([in_symUtils(arg_idx, sum_indices) for arg_idx in find_index(arg)])
-            push!(extract_const_ls, arg)
-        end
     end
     args_sum_ = filter(x->!in_symUtils(x,extract_const_ls), args_sum)
     return *(extract_const_ls...,Sum(*(args_sum_...),sum_indices...))
