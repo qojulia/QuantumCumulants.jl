@@ -359,14 +359,10 @@ find_index(x::Index) = [x]
 Σ(x,i) = Sum(x,i)
 Σ(x,i...) = Sum(x,i...)
 Sum(ops::AbstractOperator, index::Index...) = OperatorTerm(Sum, [ops, index...])
-Sum(x::SymbolicNumber, index::Index...) = NumberTerm(Sum, [x, index...])
-# Sum(ops::Number, index::Index) = NumberTerm(Sum, [ops, index])
-# Sum(ops::NumberTerm, index::Index) = NumberTerm(Sum, [ops, index])
-
+Sum(x::Number, index::Index...) = NumberTerm(Sum, [x, index...])
 
 Sum(op::SymbolicUtils.Symbolic{<:AbstractOperator}, index...) = SymbolicUtils.Term{AbstractOperator}(Sum, [op, index...])
-Sum(op::Union{SymbolicUtils.Symbolic{<:Number},Number}, index...)= SymbolicUtils.Term{Number}(Sum, [op, index...])
-# find_index(Sum_::OperatorTerm{typeof(Sum)}) = Sum_.arguments[2]
+Sum(op::SymbolicUtils.Symbolic{<:Number}, index...)= SymbolicUtils.Term{Number}(Sum, [op, index...])
 
 # swap index
 swap_index(x, i::Union{Index,Int}, j::Union{Index,Int}) = x
@@ -397,12 +393,26 @@ function swap_index(ex, i1::Vector, i2::Vector)
     return ex_
 end
 
+has_no_matching_idx(x) = false
+function has_no_matching_idx(s::SymbolicUtils.Term)
+    if SymbolicUtils.operation(s) === Sum
+        args = _to_qumulants.(SymbolicUtils.arguments(s))
+        idx = find_index(args[1])
+        idx_sum = args[2:end]
+        for i in idx
+            i in idx_sum && return false
+        end
+        return true
+    end
+    return false
+end
 
+_multiply_idxs_borders(S) = (args = SymbolicUtils.arguments(S); _multiply_idxs_borders(args[1], args[2:end]))
 function _multiply_idxs_borders(x, inds)
     args = Any[x]
     idx_ = _to_qumulants.(inds)
     for i in idx_
-        push!(args, i.count+1)
+        push!(args, i.count)
     end
     return _to_symbolic(*(args...))
 end

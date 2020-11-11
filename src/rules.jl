@@ -65,10 +65,11 @@ let
         SymbolicUtils.@rule(Sum(*(~~a, ~b::SymbolicUtils.isnumber, ~~c), ~~i) => *(~b, Sum(*((~~a)..., (~~c)...), (~~i)...)))
         SymbolicUtils.@rule(Sum(~x, ~~i::(!SymbolicUtils.issortedₑ)) => Sum(~x, sort_idx(~~i)...))
 
+        SymbolicUtils.@rule(Sum(~i==~j, ~~k, ~i, ~~l) => true)
+        SymbolicUtils.@rule(Sum(~j==~i, ~~k, ~i, ~~l) => true)
         SymbolicUtils.@rule(Sum(*(~~a, ~i==~j, ~~c), ~~k, ~i, ~~l) => Sum(swap_index(*((~~a)..., (~~c)...), ~i, ~j), (~~k)..., (~~l)...))
         SymbolicUtils.@rule(Sum(*(~~a, ~j==~i, ~~c), ~~k, ~i, ~~l) => Sum(swap_index(*((~~a)..., (~~c)...), ~i, ~j), (~~k)..., (~~l)...))
-        SymbolicUtils.@rule(Sum(~x) => ~x)
-        SymbolicUtils.@rule(Sum(~x::SymbolicUtils.isnumber, ~~idx) => _multiply_idxs_borders(~x, ~~idx))
+        SymbolicUtils.@rule(~S::has_no_matching_idx => _multiply_idxs_borders(~S))
 
         SymbolicUtils.@rule(~S::sum_has_const => sum_extract_const(~S))
     ]
