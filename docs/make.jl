@@ -4,7 +4,8 @@ using Qumulants
 pages = [
         "index.md",
         "tutorial.md",
-        "api.md"
+        "api.md",
+        "N-atom_3-level-laser_2nd-order.md"
     ]
 
 makedocs(
