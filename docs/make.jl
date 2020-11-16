@@ -4,7 +4,10 @@ using Qumulants
 pages = [
         "index.md",
         "tutorial.md",
-        "api.md"
+        "api.md",
+        "Examples" => [
+            "examples/many-atom-laser.md"
+            ]
     ]
 
 makedocs(
