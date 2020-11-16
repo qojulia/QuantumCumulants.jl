@@ -12,9 +12,9 @@ $\frac{d}{dt} \rho = - \frac{i}{\hbar} \left[ H, \rho \right] + \mathcal{L}[\rho
 
 with $\mathcal{L}[\rho] = \frac{\gamma}{2} (2 J \rho J^\dagger - J^\dagger J \rho - \rho J^\dagger J)$ the Liouvillian superoperator in standard Lindblad form for a dissipative process with jump operator $J$ and rate $R$.
 
-With **Qumulants.jl** we describe the system dynamics with averages, which are deduced from the operator equations of motion in the Heisenberg picture. In the Heisenberg picture open systems are descibed by the quantum Langevin equation. Assuming white noise, we can omit the stochastic terms of the quantum Langevin equation when computing averages. Thus we get the following equation for the time evolution of a system operator average $\langle O \rangle$ (if $O$ is not explicitly time depending):
+With **Qumulants.jl** we describe the system dynamics with averages, which are deduced from the operator equations of motion in the Heisenberg picture. In the Heisenberg picture open systems are descibed by the quantum Langevin equation. Assuming white noise, we can omit the stochastic terms of the quantum Langevin equation when computing averages. Thus we get the following equation for the time evolution of a system operator average $\langle O \rangle$ (if $O$ is not explicitly time dependent):
 
-$\frac{d}{dt} \langle O \rangle = \frac{i}{\hbar} \left[ H, O \right] + \bar{\mathcal{L}}[O]$.
+$\frac{d}{dt} \langle O \rangle = \frac{i}{\hbar} \left[ H, O \right] + \bar{\mathcal{L}}[O].$
 
 The superoperator $\bar{\mathcal{L}}[O]$ is similar to the Lindblad term in the Schrödinger picture, except that $J$ and $J^\dagger$ are swapped in the first term, i.e. $\bar{\mathcal{L}}[O] = \frac{\gamma}{2} (2 J^\dagger O J - J^\dagger J O - O J^\dagger J)$, for a dissipative process with jump operator $J$ and rate $R$.
 
