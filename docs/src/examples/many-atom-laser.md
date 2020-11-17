@@ -1,4 +1,4 @@
-# Many-atom level laser
+# Many-atom laser
 
 This example describes a second order laser system consisting of $N$ three-level atoms coupled to a single mode cavity. An auxiliary state $|3\rangle$, which quickly decays into the upper lasing state $|2\rangle$, is coherently pumped to achieve population inversion on the lasing transition $|1\rangle \leftrightarrow |2\rangle$. The Hamiltonian of this system is given by
 
