@@ -55,7 +55,7 @@ function complete(rhs::Vector{<:Number}, vs::Vector{<:Number}, H, J, rates; orde
     else
         order_ = order
     end
-    order_ >= order_lhs || error("Cannot form cumulant expansion of derivative; you may want to use a higher order!")
+    maximum(order_) >= order_lhs || error("Cannot form cumulant expansion of derivative; you may want to use a higher order!")
 
     vs_ = copy(vs)
     rhs_ = [cumulant_expansion(r, order_) for r in rhs]
