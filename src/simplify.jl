@@ -37,6 +37,8 @@ Base.zero(x::SymbolicUtils.Symbolic{T}) where T<:AbstractOperator = 0
 Base.one(x::SymbolicUtils.Sym{SymbolicUtils.FnType{A,T}}) where {A,T<:AbstractOperator} = 1
 Base.zero(x::SymbolicUtils.Sym{SymbolicUtils.FnType{A,T}}) where {A,T<:AbstractOperator} = 0
 
+SymbolicUtils.assert_number(::SymbolicUtils.Symbolic{<:AbstractOperator}) = true
+
 ### End of interface
 
 """
