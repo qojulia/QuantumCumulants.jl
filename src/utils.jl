@@ -134,7 +134,7 @@ function help_f_missed_indexed(missed, LHS_idx_list) #just to avoid writing it t
     end
 end
 
-function complete(rhs::Vector{<:Number}, vs::Vector{<:Number}, H, J, rates; order=nothing, mix_choice=maximum, LHS_idx_list=[], kwargs...)
+function complete(rhs::Vector{<:Number}, vs::Vector{<:Number}, H, J, rates; order=nothing, mix_choice=maximum, LHS_idx_list=[], multithread=false, kwargs...)
     order_lhs = maximum(get_order.(vs))
     order_rhs = maximum(get_order.(rhs))
     if order isa Nothing
@@ -142,7 +142,7 @@ function complete(rhs::Vector{<:Number}, vs::Vector{<:Number}, H, J, rates; orde
     else
         order_ = order
     end
-    order_ >= order_lhs || error("Cannot form cumulant expansion of derivative; you may want to use a higher order!")
+    maximum(order_) >= order_lhs || error("Cannot form cumulant expansion of derivative; you may want to use a higher order!")
 
     vs_ = copy(vs)
     rhs_ = [cumulant_expansion(r, order_) for r in rhs]
@@ -169,8 +169,8 @@ function complete(rhs::Vector{<:Number}, vs::Vector{<:Number}, H, J, rates; orde
         if length(LHS_idx_list) > 1
             ops = [substitute(op, sub_ij0) for op in ops]
         end
-        he = isempty(J) ? heisenberg(ops,H) : heisenberg(ops,H,J;rates=rates)
-        he_avg = average(he,order_;mix_choice=mix_choice)
+        he = isempty(J) ? heisenberg(ops,H;multithread=multithread) : heisenberg(ops,H,J;rates=rates,multithread=multithread)
+        he_avg = average(he,order_;mix_choice=mix_choice,multithread=multithread)
         rhs_ = [rhs_;he_avg.rhs]
         vs_ = [vs_;he_avg.lhs]
         missed = find_missing(rhs_,vs_)

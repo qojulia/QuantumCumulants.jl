@@ -22,6 +22,22 @@ function Base.conj(a::Average)
 end
 
 """
+    operator(avg)
+
+Get the operator of the underlying average.
+"""
+operator(a::Average) = a.operator
+function operator(t::NumberTerm)
+    args = []
+    for arg in t.arguments
+        push!(args, operator(arg))
+    end
+    return simplify_operators(t.f(args...))
+end
+operator(x) = x
+
+
+"""
     average(::AbstractOperator)
     average(::AbstractOperator,order::Int)
 
@@ -161,7 +177,6 @@ end
 function cumulant_expansion(avg::Average,order::Vector;mix_choice=maximum,kwargs...)
     aon = acts_on(avg.operator)
     order_ = mix_choice(order[i] for i in aon)
-    error("Cumulant expansion for mixed order currently broken!")
     return cumulant_expansion(avg,order_;kwargs...)
 end
 cumulant_expansion(x::Number,order;kwargs...) = x
@@ -192,7 +207,7 @@ function check_lhs(lhs,order::Int;kwargs...)
     return nothing
 end
 function check_lhs(lhs,order::Vector;mix_choice=maximum)
-    aon = acts_on(lhs.operator)
+    aon = acts_on(operator(lhs))
     order_ = mix_choice(order[i] for i in aon)
     (get_order(lhs) > order_) && error("Cannot form cumulant expansion of derivative! Check the left-hand-side of your equations; you may want to use a higher order!")
     return nothing

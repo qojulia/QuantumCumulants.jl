@@ -76,14 +76,14 @@ let
 
     EXPAND_NC_TIMES_RULES = [
         SymbolicUtils.@rule(~x::SymbolicUtils.isnotflat(*) => SymbolicUtils.flatten_term(*, ~x))
-        SymbolicUtils.@rule(~x::needs_sorting_nc => sort_args_nc(~x))
         SymbolicUtils.@rule(*(~~a, +(~~b), ~~c) => +(map(b -> *((~~a)..., b, (~~c)...), ~~b)...))
+        SymbolicUtils.@rule(~x::needs_sorting_nc => sort_args_nc(~x))
     ]
 
     EXPAND_TIMES_RULES = [
         SymbolicUtils.@rule(~x::SymbolicUtils.isnotflat(*) => SymbolicUtils.flatten_term(*, ~x))
-        SymbolicUtils.@rule(~x::SymbolicUtils.needs_sorting(*) => SymbolicUtils.sort_args(*, ~x))
         SymbolicUtils.@rule(*(~~a, +(~~b), ~~c) => +(map(b -> *((~~a)..., b, (~~c)...), ~~b)...))
+        SymbolicUtils.@rule(~x::SymbolicUtils.needs_sorting(*) => SymbolicUtils.sort_args(*, ~x))
     ]
 
     EXPAND_POW_RULES = [
@@ -167,7 +167,7 @@ let
 
     TIMES_RULES = [
         SymbolicUtils.@rule(~x::SymbolicUtils.isnotflat(*) => SymbolicUtils.flatten_term(*, ~x))
-        SymbolicUtils.@rule(~x::SymbolicUtils.needs_sorting(*) => SymbolicUtils.sort_args(*, ~x))
+        # SymbolicUtils.@rule(~x::SymbolicUtils.needs_sorting(*) => SymbolicUtils.sort_args(*, ~x))
 
         SymbolicUtils.ACRule(combinations, SymbolicUtils.@rule(~a::SymbolicUtils.isnumber * ~b::SymbolicUtils.isnumber => ~a * ~b), 2)
         SymbolicUtils.@rule(*(~~x::SymbolicUtils.hasrepeats) => *(SymbolicUtils.merge_repeats(^, ~~x)...))
