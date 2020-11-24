@@ -32,6 +32,16 @@ Base.zero(::Type{<:SymbolicNumber}) = 0
 Base.one(::Type{<:SymbolicNumber}) = 1
 Base.conj(t::NumberTerm) = NumberTerm(t.f, conj.(t.arguments))
 
+function acts_on(t::NumberTerm)
+    aon = Int[]
+    for arg in t.arguments
+        append!(aon, acts_on(arg))
+    end
+    unique!(aon)
+    sort!(aon)
+    return aon
+end
+
 """
     Parameter <: SymbolicNumber
 
