@@ -100,3 +100,14 @@ end
     ex = isa(ex,String) ? LaTeXString(ex) : ex
     return ex
 end
+
+@latexrecipe function f(c::CorrelationFunction)
+    avg = average(c.op1*c.op2)
+    return latexify(avg)
+end
+
+@latexrecipe function f(S::Spectrum)
+    ls = latexify(S.corr)
+    s = string("\\mathcal{F}\\left(", ls, "\\right)(\\omega)")
+    return LaTeXString(s)
+end

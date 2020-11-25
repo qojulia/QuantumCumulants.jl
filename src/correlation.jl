@@ -1,3 +1,8 @@
+"""
+    struct CorrelationFunction
+
+Type representing the two-time first-order correlation function of two operators.
+"""
 struct CorrelationFunction{OP1,OP2,OP0,DE0,DE,S}
     op1::OP1
     op2::OP2
@@ -10,8 +15,12 @@ end
 """
     CorrelationFunction(op1,op2,de0;steady_state=false,add_subscript=0,mix_choice=maximum)
 
-The first-order correlation function of `op1` and `op2` evolving under the system
-`de0`.
+The first-order two-time correlation function of two operators.
+
+The first-order two-time correlation function of `op1` and `op2` evolving under
+the system `de0`. The keyword `steady_state` determines whether the original
+system `de0` was evolved up to steady state. The arguments `add_subscript`
+defines the subscript added to the name of `op2` representing the constant time.
 """
 function CorrelationFunction(op1,op2,de0::DifferentialEquation; steady_state=false, add_subscript=0, filter_func=nothing, mix_choice=maximum)
     h1 = hilbert(op1)
@@ -35,27 +44,6 @@ function CorrelationFunction(op1,op2,de0::DifferentialEquation; steady_state=fal
 
     he = heisenberg(op_,H,J;rates=de0.rates)
     de_ = average(he, order)
-
-    # aon0 = length(h.spaces)
-    # function _filter_aon(x) # Filter values that act only on Hilbert space representing system at time t0 or only on others
-    #     aon = acts_on(x)
-    #     if aon0 in aon
-    #         length(aon)==1 && return false
-    #         return true
-    #     end
-    #     if steady_state
-    #         return !(x in lhs_new)
-    #     else # Include terms without t0-dependence only if the system is not in steady state
-    #         return true
-    #     end
-    # end
-    #
-    # _filter_func = if isnothing(filter_func)
-    #     _filter_aon
-    # else
-    #     x -> filter_func(x) && _filter_aon(x)
-    # end
-    # de = complete(de_; filter_func=_filter_func, order=order, kwargs...)
     de = _complete_corr(de_, length(h.spaces), lhs_new, order, steady_state; filter_func=filter_func, mix_choice=mix_choice)
 
     de0_ = DifferentialEquation(lhs_new, [_new_operator(r, h) for r in de0.rhs], H, J, de0.rates)
@@ -92,7 +80,7 @@ function get_corr_u0(c::CorrelationFunction, u_end)
     subs = Dict(a1=>a0)
     ops = getfield.(c.de.lhs, :operator)
     lhs = [average(substitute(op, subs)) for op in ops]
-    u0 = eltype(u_end)[]
+    u0 = complex(eltype(u_end))[]
     lhs0 = c.de0.lhs
     for l in lhs
         if l in lhs0
@@ -218,13 +206,31 @@ function _complete_corr(de,aon0,lhs_new,order,steady_state; mix_choice=maximum, 
         missed = unique_ops(find_missing(rhs_, vs_))
         filter!(x->isa(x,Average),missed)
         filter!(!filter_func, missed)
-        println(missed)
         subs = Dict(missed .=> 0)
         rhs_ = [substitute(r, subs) for r in rhs_]
     end
     return DifferentialEquation(vs_, rhs_, H, J, rates)
 end
 
+"""
+    struct Spectrum
+
+Type representing the spectrum, i.e. the Fourier transform of a
+[`CorrelationFunction`](@ref) in steady state.
+
+To actually compute the spectrum at a frequency `ω`, construct the type on top
+of a correlation function and call it with `Spectrum(c)(ω,usteady,p0)`.
+
+Examples
+========
+```
+julia> c = CorrelationFunction(a',a,de;steady_state=true)
+⟨a′*a_0⟩
+
+julia> S = Spectrum(c)
+ℱ(⟨a′*a_0⟩)(ω)
+```
+"""
 struct Spectrum{C,FA,FB}
     corr::C
     Afunc::FA
