@@ -41,23 +41,62 @@ pe = getindex.(sol.u,2)
 @test all(1.0 .>= real.(pe) .>= 0.0)
 
 # Correlation function
-c = CorrelationFunction(a', a, he_comp)
-
-
 c_steady = CorrelationFunction(a', a, he_comp; steady_state=true)
+cf = generate_ode(c_steady, ps; check_bounds=true)
 
-# Spectrum
-S = Spectrum(c_steady, ps)
+u0_c = Qumulants.get_corr_u0(c_steady, sol.u[end])#[sol.u[end][1], sol.u[end][3], sol.u[end][5], sol.u[end][8], sol.u[end][7]]
+p0_c = (p0..., sol.u[end]...)
+τ = range(0.0, 10tmax; length=1001)
+prob_c = ODEProblem(cf,u0_c,(0.0,τ[end]),p0_c)
+sol_c = solve(prob_c,RK4(),saveat=τ,save_idxs=1)
 
-usteady = sol.u[end]
-ω_ls = range(-pi, pi, length=501)
-
+# Spectrum via FFT of g(τ)
+using QuantumOptics.timecorrelations: correlation2spectrum
+ω, S1 = correlation2spectrum(sol_c.t, sol_c.u)
 using PyPlot; pygui(true)
-plot(ω_ls, S(ω_ls,usteady,p0))
+plot(ω, S1 ./ maximum(S1), label="FFT of g(τ)")
 
-S_ = S(ω_ls,usteady,p0)
-max, ind = findmax(S_)
-hm_idx = findmin(abs.(S_ .- 0.5max))[2]
-fwhm = 2*abs(ω_ls[ind] - ω_ls[hm_idx])
+# Spectrum via Laplace transform
+S = Spectrum(c_steady, ps)
+usteady = sol.u[end]
+
+S2 = S(ω,usteady,p0)
+plot(ω, S2 ./ maximum(S2), label="Laplace transform")
+xlim(-2pi,2pi)
+
+# S_ = S(ω_ls,usteady,p0)
+# max, ind = findmax(S_)
+# hm_idx = findmin(abs.(S_ .- 0.5max))[2]
+# fwhm = 2*abs(ω_ls[ind] - ω_ls[hm_idx])
+
+S1_ = S1 ./ maximum(S1)
+S1_ .-= minimum(S1_)
+S_check = abs.(S2 ./ maximum(S2) .- S1_)
+@test maximum(S_check) < 0.02
+
+# Phase invariant case
+has_phase(x) = !iszero(phase(x))
+phase(avg::Average) = phase(avg.operator)
+phase(op::Destroy) = -1
+phase(op::Create) = 1
+function phase(t::Transition)
+    lvls = Qumulants.levels(t.hilbert, t.aon)
+    i = findfirst(isequal(t.i), lvls)
+    j = findfirst(isequal(t.j), lvls)
+    if i < j
+        -1
+    elseif i > j
+        1
+    else
+        0
+    end
+end
+phase(op::OperatorTerm{<:typeof(*)}) = sum(phase(arg) for arg in op.arguments)
+c_nophase = CorrelationFunction(a', a, he_avg; steady_state=true, filter_func=!has_phase)
+
+S_nophase = Spectrum(c_nophase, ps)
+S3 = S_nophase(ω,usteady,p0)
+plot(ω, S3 ./ maximum(S3), label="Laplace transform (phase invariant)")
+legend()
 
 end # testset

@@ -1,12 +1,19 @@
-struct CorrelationFunction
-    op1
-    op2
-    op2_0
-    de0
-    de
+struct CorrelationFunction{OP1,OP2,OP0,DE0,DE,S}
+    op1::OP1
+    op2::OP2
+    op2_0::OP0
+    de0::DE0
+    de::DE
+    steady_state::S
 end
 
-function CorrelationFunction(op1,op2,de0::DifferentialEquation; steady_state=false, add_subscript=0, mix_choice=maximum)
+"""
+    CorrelationFunction(op1,op2,de0;steady_state=false,add_subscript=0,mix_choice=maximum)
+
+The first-order correlation function of `op1` and `op2` evolving under the system
+`de0`.
+"""
+function CorrelationFunction(op1,op2,de0::DifferentialEquation; steady_state=false, add_subscript=0, filter_func=nothing, mix_choice=maximum)
     h1 = hilbert(op1)
     h2 = _new_hilbert(hilbert(op2), acts_on(op2))
     h = h1⊗h2
@@ -19,7 +26,7 @@ function CorrelationFunction(op1,op2,de0::DifferentialEquation; steady_state=fal
     op2_0 = _new_operator(op2, h)
     H = _new_operator(H0, h)
     J = [_new_operator(j, h) for j in J0]
-
+    lhs_new = [_new_operator(l, h) for l in de0.lhs]
 
     order = maximum(get_order(l) for l in de0.lhs)
     @assert order > 1
@@ -28,19 +35,78 @@ function CorrelationFunction(op1,op2,de0::DifferentialEquation; steady_state=fal
 
     he = heisenberg(op_,H,J;rates=de0.rates)
     de_ = average(he, order)
-    de = _complete_corr(de_, acts_on(op2_), order, steady_state; mix_choice=mix_choice)
 
-    de0_ = DifferentialEquation([_new_operator(l, h) for l in de0.lhs], [_new_operator(r, h) for r in de0.rhs], H, J, de0.rates)
-    return CorrelationFunction(op1_, op2_, op2_0, de0_, de)
+    # aon0 = length(h.spaces)
+    # function _filter_aon(x) # Filter values that act only on Hilbert space representing system at time t0 or only on others
+    #     aon = acts_on(x)
+    #     if aon0 in aon
+    #         length(aon)==1 && return false
+    #         return true
+    #     end
+    #     if steady_state
+    #         return !(x in lhs_new)
+    #     else # Include terms without t0-dependence only if the system is not in steady state
+    #         return true
+    #     end
+    # end
+    #
+    # _filter_func = if isnothing(filter_func)
+    #     _filter_aon
+    # else
+    #     x -> filter_func(x) && _filter_aon(x)
+    # end
+    # de = complete(de_; filter_func=_filter_func, order=order, kwargs...)
+    de = _complete_corr(de_, length(h.spaces), lhs_new, order, steady_state; filter_func=filter_func, mix_choice=mix_choice)
+
+    de0_ = DifferentialEquation(lhs_new, [_new_operator(r, h) for r in de0.rhs], H, J, de0.rates)
+    return CorrelationFunction(op1_, op2_, op2_0, de0_, de, steady_state)
 end
 
 function build_ode(c::CorrelationFunction, ps=[], args...; kwargs...)
-    ps_ = (ps..., average(c.op2_0))
-    return build_ode(c.de, ps_, args...; kwargs...)
+    if c.steady_state
+        steady_vals = c.de0.lhs
+        avg = average(c.op2_0)
+        if avg in steady_vals
+            idx = findfirst(isequal(avg), steady_vals)
+            de = substitute(c.de, Dict(average(c.op2) => steady_vals[idx]))
+        elseif avg' in steady_vals
+            idx = findfirst(isequal(avg'), steady_vals)
+            de = substitute(c.de, Dict(average(c.op2) => steady_vals[idx]'))
+        else
+            error("$avg missing from original system of equations!")
+        end
+        ps_ = (ps..., steady_vals...)
+        return build_ode(de, ps_, args...; kwargs...)
+    else
+        ps_ = (ps..., average(c.op2))
+        return build_ode(c.de, ps_, args...; kwargs...)
+    end
 end
 generate_ode(c::CorrelationFunction, args...; kwargs...) = Meta.eval(build_ode(c, args...; kwargs...))
 substitute(c::CorrelationFunction, args...; kwargs...) =
     CorrelationFunction(c.op1, c.op2, substitute(c.de0, args...; kwargs...), substitute(c.de, args...; kwargs...))
+
+function get_corr_u0(c::CorrelationFunction, u_end)
+    a0 = c.op2_0
+    a1 = c.op2
+    subs = Dict(a1=>a0)
+    ops = getfield.(c.de.lhs, :operator)
+    lhs = [average(substitute(op, subs)) for op in ops]
+    u0 = eltype(u_end)[]
+    lhs0 = c.de0.lhs
+    for l in lhs
+        if l in lhs0
+            i = findfirst(isequal(l), lhs0)
+            push!(u0, u_end[i])
+        elseif l' in lhs0
+            i = findfirst(isequal(l'), lhs0)
+            push!(u0, conj(u_end[i]))
+        else
+            error("Could not find initial value for $l !")
+        end
+    end
+    return u0
+end
 
 function _new_hilbert(h::ProductSpace, aon)
     if length(aon)==1
@@ -96,7 +162,7 @@ function _new_operator(avg::Average, h, aon=nothing; kwargs...)
     end
 end
 
-function _complete_corr(de,aon0,order,steady_state; mix_choice=maximum)
+function _complete_corr(de,aon0,lhs_new,order,steady_state; mix_choice=maximum, filter_func=nothing)
     lhs = de.lhs
     rhs = de.rhs
 
@@ -124,9 +190,15 @@ function _complete_corr(de,aon0,order,steady_state; mix_choice=maximum)
             length(aon)==1 && return false
             return true
         end
-        return !steady_state # Include terms without t0-dependence only if the system is not in steady state
+        # return !steady_state
+        if steady_state # Include terms without t0-dependence only if the system is not in steady state
+            return !(x in lhs_new || x' in lhs_new)
+        else
+            return true
+        end
     end
     filter!(_filter_aon, missed)
+    isnothing(filter_func) || filter!(filter_func, missed) # User-defined filter
 
     while !isempty(missed)
         ops = getfield.(missed, :operator)
@@ -137,17 +209,30 @@ function _complete_corr(de,aon0,order,steady_state; mix_choice=maximum)
         missed = unique_ops(find_missing(rhs_,vs_))
         filter!(x->isa(x,Average),missed)
         filter!(_filter_aon, missed)
+        isnothing(filter_func) || filter!(filter_func, missed) # User-defined filter
+    end
+
+    if !isnothing(filter_func)
+        # Find missing values that are filtered by the custom filter function,
+        # but still occur on the RHS; set those to 0
+        missed = unique_ops(find_missing(rhs_, vs_))
+        filter!(x->isa(x,Average),missed)
+        filter!(!filter_func, missed)
+        println(missed)
+        subs = Dict(missed .=> 0)
+        rhs_ = [substitute(r, subs) for r in rhs_]
     end
     return DifferentialEquation(vs_, rhs_, H, J, rates)
 end
 
-struct Spectrum
-    corr
-    Afunc
-    bfunc
+struct Spectrum{C,FA,FB}
+    corr::C
+    Afunc::FA
+    bfunc::FB
 end
 
 function Spectrum(c::CorrelationFunction, ps=[]; kwargs...)
+    c.steady_state || error("Cannot use Laplace transform when not in steady state! Use `CorrelationFunction(op1,op2,de0;steady_state=true)` or try computing the Fourier transform of the time evolution of the correlation function directly.")
     de = c.de
     de0 = c.de0
     Ameta, bmeta = _build_corr_func(de.lhs, de.rhs, c.op2_0, c.op2, de0.lhs, ps; kwargs...)
@@ -182,7 +267,7 @@ function _build_corr_func(lhs, rhs, a1, a0, steady_vals, ps=[]; psym=:p, wsym=:�
     b = _find_independent(rhs, a0) # Constant terms; i.e. b in A*x = b
     b = [simplify_constants(b[i] - lhs_[i]) for i=1:length(lhs_)] # Subtract steady-state values
     rhs_ = _find_dependent(rhs, a0)
-    Ax = [simplify_constants(- im*ω*lhs[i] + rhs_[i]) for i=1:length(lhs)] # Element-wise form of A*x
+    Ax = [simplify_constants(-im*ω*lhs[i] + rhs_[i]) for i=1:length(lhs)] # Element-wise form of A*x
 
     vs = _to_expression.(lhs)
     Ax_ = _to_expression.(Ax)
