@@ -44,7 +44,7 @@ pe = getindex.(sol.u,2)
 c_steady = CorrelationFunction(a', a, he_comp; steady_state=true)
 cf = generate_ode(c_steady, ps; check_bounds=true)
 
-u0_c = Qumulants.get_corr_u0(c_steady, sol.u[end])#[sol.u[end][1], sol.u[end][3], sol.u[end][5], sol.u[end][8], sol.u[end][7]]
+u0_c = initial_values(c_steady, sol.u[end])
 p0_c = (p0..., sol.u[end]...)
 τ = range(0.0, 10tmax; length=1001)
 prob_c = ODEProblem(cf,u0_c,(0.0,τ[end]),p0_c)
@@ -117,9 +117,9 @@ sol = solve(prob,RK4())
 c = CorrelationFunction(a', a, he_avg)
 cf = generate_ode(c, ps)
 idx = 5
-u0_c = Qumulants.get_corr_u0(c, sol.u[idx])
+u0_c = initial_values(c, sol.u[idx])
 prob_c = ODEProblem(cf,u0_c,(0.0,10.0),p0)
-sol_c = solve(prob_c,RK4())
+sol_c = solve(prob_c,RK4(),save_idxs=1)
 # plot(sol_c.t,real.(sol_c.u), label="Re(g) -- numeric")
 # plot(sol_c.t,imag.(sol_c.u), label="Im(g) -- numeric")
 
@@ -128,6 +128,6 @@ gfunc(τ) = @. sol.u[idx] * exp((im*p0[1]-0.5p0[2])*τ)
 # plot(sol_c.t, imag.(gfunc(sol_c.t)), ls="dashed", label="Re(g) -- analyitc")
 # legend()
 
-@test isapprox(sol_c.u, gfunc(sol_c.t))
+@test isapprox(sol_c.u, gfunc(sol_c.t), rtol=1e-4)
 
 end # testset
