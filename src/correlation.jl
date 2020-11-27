@@ -40,7 +40,9 @@ function CorrelationFunction(op1,op2,de0::DifferentialEquation; steady_state=fal
     J = [_new_operator(j, h) for j in J0]
     lhs_new = [_new_operator(l, h) for l in de0.lhs]
 
-    order = maximum(get_order(l) for l in de0.lhs)
+    order_lhs = maximum(get_order(l) for l in de0.lhs)
+    order_corr = get_order(op1_*op2_)
+    order = max(order_lhs, order_corr)
     @assert order > 1
     op_ = op1_*op2_
     @assert get_order(op_) <= order
@@ -82,6 +84,8 @@ function initial_values(c::CorrelationFunction, u_end)
         elseif l' in lhs0
             i = findfirst(isequal(l'), lhs0)
             push!(u0, conj(u_end[i]))
+        elseif (l isa Number) && !(l isa SymbolicNumber)
+            push!(u0, l)
         else
             error("Could not find initial value for $l !")
         end
@@ -186,7 +190,7 @@ end
 function (s::Spectrum)(ω::SymbolicNumber,steady_vals,ps)
     A = s.Asym(ω,steady_vals,ps)
     b = s.bsym(steady_vals,ps)
-    return A, b
+    return simplify_constants.(A), simplify_constants.(b)
 end
 
 
@@ -230,14 +234,14 @@ function _new_operator(op::Destroy, h, aon=op.aon; add_subscript=nothing)
     if isnothing(add_subscript)
         Destroy(h, op.name, aon)
     else
-        Destroy(h, Symbol(op.name, :_, add_subscript), aon)
+        Destroy(h, Symbol(op.name, add_subscript), aon)
     end
 end
 function _new_operator(op::Create, h, aon=op.aon; add_subscript=nothing)
     if isnothing(add_subscript)
         Create(h, op.name, aon)
     else
-        Create(h, Symbol(op.name, :_, add_subscript), aon)
+        Create(h, Symbol(op.name, add_subscript), aon)
     end
 end
 function _new_operator(t::Transition, h, aon=t.aon; add_subscript=nothing)
@@ -341,7 +345,9 @@ function _build_spec_func(lhs, rhs, a1, a0, steady_vals, ps=[]; psym=:p, wsym=:�
     ω = Parameter{Number}(wsym) # Laplace transform argument i*ω
     b = [average(substitute(op, s)) for op in ops] # Initial values
     # b = _find_independent(rhs, a0) # TODO: do we need to account for constants with c/(im*ω)?
-    rhs_ = _find_dependent(rhs, a0)
+    aon0 = acts_on(a0)
+    @assert length(aon0)==1
+    rhs_ = _find_dependent(rhs, aon0[1])
     Ax = [simplify_constants(im*ω*lhs[i] - rhs_[i]) for i=1:length(lhs)] # Element-wise form of A*x
 
     vs = _to_expression.(lhs)
@@ -488,13 +494,13 @@ end
 _find_dependent(rhs::Vector, a0) = [_find_dependent(r, a0) for r in rhs]
 function _find_dependent(r::NumberTerm, a0)
     if r.f === (+)
-        args_ind = Number[]
-        aon0 = acts_on(a0)
+        args = Number[]
         for arg in r.arguments
-            aon0 in acts_on(arg) && push!(args_ind, arg)
+            aon = acts_on(arg)
+            (a0 in aon) && length(aon)>1 && push!(args, arg)
         end
-        isempty(args_ind) && return 0
-        return +(args_ind...)
+        isempty(args) && return 0
+        return +(args...)
     else
         return 0
     end
