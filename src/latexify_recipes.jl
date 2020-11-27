@@ -86,7 +86,7 @@ _latexify(lhs,rhs) = _latexify([lhs],[rhs])
     ex = _to_expression(op)
     ex = MacroTools.postwalk(_postwalk_func, ex)
     ex = MacroTools.postwalk(_postwalk_average, ex)
-    ex = isa(ex,String) ? LaTeXString(ex) : ex
+    ex = isa(ex,String) ? Symbol(LaTeXString(ex)) : ex
     return ex
 end
 
@@ -97,6 +97,6 @@ end
     ex = _to_expression(s)
     ex = MacroTools.postwalk(_postwalk_func, ex)
     ex = MacroTools.postwalk(_postwalk_average, ex)
-    ex = isa(ex,String) ? LaTeXString(ex) : ex
+    ex = isa(ex,String) ? Symbol(LaTeXString(ex)) : ex
     return ex
 end
