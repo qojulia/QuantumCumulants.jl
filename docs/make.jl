@@ -4,6 +4,7 @@ using Qumulants
 pages = [
         "index.md",
         "tutorial.md",
+        "correlation.md",
         "api.md",
         "Examples" => [
             "examples/many-atom-laser.md"
