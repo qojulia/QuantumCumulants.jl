@@ -152,7 +152,7 @@ of equations that needs to be solved to obtain the spectrum.
 """
 function (s::Spectrum)(ω::Real,usteady,ps=[])
     A = s.Afunc(ω,usteady,ps)
-    b = s.bfunc(usteady,ps)
+    b = s.bfunc(ω,usteady,ps)
     return real(getindex(inv(A)*b, 1))
 end
 
@@ -164,10 +164,11 @@ density at all frequencies in `ω_ls`.
 """
 function (s::Spectrum)(ω_ls,usteady,ps=[])
     _Af = ω -> s.Afunc(ω, usteady, ps)
-    b = s.bfunc(usteady,ps)
+    _bf = ω -> s.bfunc(ω, usteady, ps)
     s_ = Vector{real(eltype(usteady))}(undef, length(ω_ls))
     for i=1:length(ω_ls)
         A = _Af(ω_ls[i])
+        b = _bf(ω_ls[i])
         s_[i] = real(inv(A)*b)[1]
     end
     return s_
@@ -189,7 +190,7 @@ function (s::Spectrum)(ω::SymbolicNumber,ps=[])
 end
 function (s::Spectrum)(ω::SymbolicNumber,steady_vals,ps)
     A = s.Asym(ω,steady_vals,ps)
-    b = s.bsym(steady_vals,ps)
+    b = s.bsym(ω,steady_vals,ps)
     return simplify_constants.(A), simplify_constants.(b)
 end
 
@@ -344,7 +345,7 @@ function _build_spec_func(lhs, rhs, a1, a0, steady_vals, ps=[]; psym=:p, wsym=:�
 
     ω = Parameter{Number}(wsym) # Laplace transform argument i*ω
     b = [average(substitute(op, s)) for op in ops] # Initial values
-    # b = _find_independent(rhs, a0) # TODO: do we need to account for constants with c/(im*ω)?
+    c = [simplify_constants(c_ / (im*ω)) for c_ in _find_independent(rhs, a0)]
     aon0 = acts_on(a0)
     @assert length(aon0)==1
     rhs_ = _find_dependent(rhs, aon0[1])
@@ -353,6 +354,7 @@ function _build_spec_func(lhs, rhs, a1, a0, steady_vals, ps=[]; psym=:p, wsym=:�
     vs = _to_expression.(lhs)
     Ax_ = _to_expression.(Ax)
     b_ = _to_expression.(b)
+    c_ = _to_expression.(c)
 
     # Replace Laplace transform variables
     Ax_ = [MacroTools.postwalk(x -> x in vs ? :( y[$(findfirst(isequal(x), vs))] ) : x, A) for A in Ax_]
@@ -373,6 +375,7 @@ function _build_spec_func(lhs, rhs, a1, a0, steady_vals, ps=[]; psym=:p, wsym=:�
         end
         Ax_ = [MacroTools.postwalk(_pw, A) for A in Ax_]
         b_ = [MacroTools.postwalk(_pw, b1) for b1 in b_]
+        c_ = [MacroTools.postwalk(_pw, c1) for c1 in c_]
 
         # Replace <a0> by <a> steady state value
         a0_ex = _to_expression(average(a0))
@@ -394,6 +397,7 @@ function _build_spec_func(lhs, rhs, a1, a0, steady_vals, ps=[]; psym=:p, wsym=:�
         end
         Ax_ = [MacroTools.postwalk(_pw2, A) for A in Ax_]
         b_ = [MacroTools.postwalk(_pw2, b1) for b1 in b_]
+        c_ = [MacroTools.postwalk(_pw2, c1) for c1 in c_]
     end
 
 
@@ -403,6 +407,7 @@ function _build_spec_func(lhs, rhs, a1, a0, steady_vals, ps=[]; psym=:p, wsym=:�
         psyms = [:($psym[$i]) for i=1:length(ps)]
         Ax_ = [MacroTools.postwalk(x -> (x in ps_) ? psyms[findfirst(isequal(x), ps_)] : x, A) for A in Ax_]
         b_ = [MacroTools.postwalk(x -> (x in ps_) ? psyms[findfirst(isequal(x), ps_)] : x, b1) for b1 in b_]
+        c_ = [MacroTools.postwalk(x -> (x in ps_) ? psyms[findfirst(isequal(x), ps_)] : x, c1) for c1 in c_]
     end
 
     # Obtain A
@@ -447,27 +452,31 @@ function _build_spec_func(lhs, rhs, a1, a0, steady_vals, ps=[]; psym=:p, wsym=:�
 
     # Obtain b
     line_eqs = [Expr(:(=), :(x[$i]), b_[i]) for i=1:length(b_)]
-    ex = build_expr(:block, line_eqs)
+    ex0 = build_expr(:block, line_eqs)
+    eqs_nz = [Expr(:(=), :(x[$i]), :($(b_[i]) + $(c_[i]))) for i=1:length(c_)]
+    ex_nz = build_expr(:block, eqs_nz)
     N = length(b_)
     # Function for numeric b
     fb = :(
-        ($usteady,$psym) ->
+        ($fargs) ->
         begin
             T = complex(promote_type(eltype($usteady), eltype($psym)))
             x = zeros(T, $N)
-            begin
-                $ex
+            if iszero($wsym)
+                $ex0
+            else
+                $ex_nz
             end
             return x
         end
     )
     # Function for symbolic b
     fbsym = :(
-        ($usteady,$psym) ->
+        ($fargs) ->
         begin
             x = zeros(Number, $N)
             begin
-                $ex
+                $ex_nz
             end
             return x
         end
@@ -476,20 +485,21 @@ function _build_spec_func(lhs, rhs, a1, a0, steady_vals, ps=[]; psym=:p, wsym=:�
     return fAsym, fbsym, fA, fb
 end
 
-# _find_independent(rhs::Vector, a0) = [_find_independent(r, a0) for r in rhs]
-# function _find_independent(r::NumberTerm, a0)
-#     if r.f === (+)
-#         args_ind = Number[]
-#         aon0 = acts_on(a0)
-#         for arg in r.arguments
-#             aon0 in acts_on(arg) || push!(args_ind, arg)
-#         end
-#         isempty(args_ind) && return 0
-#         return +(args_ind...)
-#     else
-#         return 0
-#     end
-# end
+_find_independent(rhs::Vector, a0) = [_find_independent(r, a0) for r in rhs]
+function _find_independent(r::NumberTerm, a0)
+    if r.f === (+)
+        args_ind = Number[]
+        aon0 = acts_on(a0)
+        for arg in r.arguments
+            aon = acts_on(arg)
+            (aon0 in acts_on(arg) && length(aon)>1) || push!(args_ind, arg)
+        end
+        isempty(args_ind) && return 0
+        return +(args_ind...)
+    else
+        return 0
+    end
+end
 
 _find_dependent(rhs::Vector, a0) = [_find_dependent(r, a0) for r in rhs]
 function _find_dependent(r::NumberTerm, a0)
