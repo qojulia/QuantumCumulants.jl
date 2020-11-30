@@ -7,6 +7,8 @@ pages = [
         "correlation.md",
         "api.md",
         "Examples" => [
+            "examples/single-atom-laser-spectrum.md"
+            "examples/mollow.md"
             "examples/many-atom-laser.md"
             ]
     ]

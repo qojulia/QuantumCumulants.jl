@@ -153,7 +153,7 @@ of equations that needs to be solved to obtain the spectrum.
 function (s::Spectrum)(ω::Real,usteady,ps=[])
     A = s.Afunc(ω,usteady,ps)
     b = s.bfunc(ω,usteady,ps)
-    return real(getindex(inv(A)*b, 1))
+    return 2*real(getindex(inv(A)*b, 1))
 end
 
 """
@@ -169,7 +169,7 @@ function (s::Spectrum)(ω_ls,usteady,ps=[])
     for i=1:length(ω_ls)
         A = _Af(ω_ls[i])
         b = _bf(ω_ls[i])
-        s_[i] = real(inv(A)*b)[1]
+        s_[i] = 2*real(inv(A)*b)[1]
     end
     return s_
 end
@@ -207,7 +207,7 @@ function build_ode(c::CorrelationFunction, ps=[], args...; kwargs...)
             idx = findfirst(isequal(avg'), steady_vals)
             de = substitute(c.de, Dict(average(c.op2) => steady_vals[idx]'))
         else
-            error("$avg missing from original system of equations!")
+            de = c.de
         end
         ps_ = (ps..., steady_vals...)
         return build_ode(de, ps_, args...; kwargs...)

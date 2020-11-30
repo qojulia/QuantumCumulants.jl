@@ -106,15 +106,15 @@ where ``\textbf{y}(\tau)`` is the vector containing the left-hand-side of the co
 
 We define ``\textbf{x}(s) = \mathcal{L}\left(\textbf{y}(\tau)\right)``, i.e. ``\textbf{x}(s)`` is the Laplace transform of ``\textbf{y}(\tau)`` with respect to ``\tau``. Applying the Laplace transform to the differential equation above, we obtain
 ```math
-(s - \textbf{M})\textbf{x}(s) = \textbf{y}(0) + \textbf{c}\delta(s).
+(s - \textbf{M})\textbf{x}(s) = \textbf{y}(0) + \frac{\textbf{c}}{s}.
 ```
-The Laplace transform is equivalent to the Fourier transform at the point ``s=i \omega``, i.e. the spectrum is given by ``S(\omega) = 2\text{Re}\left\{x_1(i\omega)\right\}``. Neglecting the ``\delta`` function, the task is then reduced to solving the equation
+The Laplace transform is equivalent to the Fourier transform at the point ``s=i \omega``, i.e. the spectrum is given by ``S(\omega) = 2\text{Re}\left\{x_1(i\omega)\right\}``. Therefore, we can reduce the task to solving the equation
 ```math
 A\textbf{x} = b,
 ```
-where ``A = i\omega - \textbf{M}`` and ``b = \textbf{y}(0)`` is the vector containing the steady-state values of the original time evolution. In most cases, solving the above matrix equation is much faster than doing an additional time evolution to obtain the correlation function.
+where ``A = i\omega - \textbf{M}`` and ``b = \textbf{y}(0) + \textbf{c}/(i\omega)``. In most cases, solving the above matrix equation is much faster than doing an additional time evolution to obtain the correlation function.
 
-This approach is implemented with the [`Spectrum`](@ref) type, which performs the Laplace transform and generates a function that returns the matrix ``A`` in numerical form depending on the steady-state values and given parameters. This can be used as follows
+This approach is implemented with the [`Spectrum`](@ref) type, which performs the Laplace transform and generates a function that returns the matrix ``A`` and the vector ``b`` in numerical form depending on the steady-state values and given parameters. This can be used as follows
 
 ```@example correlation
 c = CorrelationFunction(a', a, he; steady_state=true) # need to specify steady state
@@ -131,4 +131,5 @@ nothing # hide
 
 ## Examples:
 
-* TODO
+* [Mollow Triplet](@ref)
+* [Spectrum of a single atom laser](@ref)
