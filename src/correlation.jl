@@ -235,21 +235,21 @@ function _new_operator(op::Destroy, h, aon=op.aon; add_subscript=nothing)
     if isnothing(add_subscript)
         Destroy(h, op.name, aon)
     else
-        Destroy(h, Symbol(op.name, add_subscript), aon)
+        Destroy(h, Symbol(op.name, :_, add_subscript), aon)
     end
 end
 function _new_operator(op::Create, h, aon=op.aon; add_subscript=nothing)
     if isnothing(add_subscript)
         Create(h, op.name, aon)
     else
-        Create(h, Symbol(op.name, add_subscript), aon)
+        Create(h, Symbol(op.name, :_, add_subscript), aon)
     end
 end
 function _new_operator(t::Transition, h, aon=t.aon; add_subscript=nothing)
     if isnothing(add_subscript)
         Transition(h, t.name, t.i, t.j, aon)
     else
-        Transition(h, Symbol(t.name, add_subscript), t.i, t.j, aon)
+        Transition(h, Symbol(t.name, :_, add_subscript), t.i, t.j, aon)
     end
 end
 _new_operator(x::Number, h, aon=nothing; kwargs...) = x
