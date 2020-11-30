@@ -4,7 +4,7 @@ let
         SymbolicUtils.@rule(~x::SymbolicUtils.isnotflat(*) => SymbolicUtils.flatten_term(*, ~~x))
         SymbolicUtils.@rule(~x::needs_sorting_nc => sort_args_nc(~x))
 
-        SymbolicUtils.ACRule(combinations, SymbolicUtils.@rule(~a::SymbolicUtils.isnumber * ~b::SymbolicUtils.isnumber => ~a * ~b), 2)
+        SymbolicUtils.ACRule(combinations, SymbolicUtils.@rule(~a::SymbolicUtils.is_literal_number * ~b::SymbolicUtils.is_literal_number => ~a * ~b), 2)
 
         SymbolicUtils.@rule(*(~~x::SymbolicUtils.hasrepeats) => *(SymbolicUtils.merge_repeats(^, ~~x)...))
         SymbolicUtils.ACRule(combinations, SymbolicUtils.@rule((~y)^(~n) * ~y => (~y)^(~n+1)), 3)
@@ -39,13 +39,13 @@ let
     PLUS_RULES = [
         SymbolicUtils.@rule(~x::SymbolicUtils.isnotflat(+) => SymbolicUtils.flatten_term(+, ~~x))
         SymbolicUtils.@rule(~x::SymbolicUtils.needs_sorting(+) => SymbolicUtils.sort_args(+, ~~x))
-        SymbolicUtils.ACRule(combinations, SymbolicUtils.@rule(~a::SymbolicUtils.isnumber + ~b::SymbolicUtils.isnumber => ~a + ~b), 2)
+        SymbolicUtils.ACRule(combinations, SymbolicUtils.@rule(~a::SymbolicUtils.is_literal_number + ~b::SymbolicUtils.is_literal_number => ~a + ~b), 2)
 
         SymbolicUtils.ACRule(permutations, SymbolicUtils.@rule(*(~~x) + *(~β, ~~x) => *(1 + ~β, (~~x)...)), 2)
         SymbolicUtils.ACRule(permutations, SymbolicUtils.@rule(*(~α, ~~x) + *(~β, ~~x) => *(~α + ~β, (~~x)...)), 2)
 
         SymbolicUtils.ACRule(permutations, SymbolicUtils.@rule(~x + *(~β, ~x) => *(1 + ~β, ~x)), 2)
-        SymbolicUtils.ACRule(permutations, SymbolicUtils.@rule(*(~α::SymbolicUtils.isnumber, ~x) + ~x => *(~α + 1, ~x)), 2)
+        SymbolicUtils.ACRule(permutations, SymbolicUtils.@rule(*(~α::SymbolicUtils.is_literal_number, ~x) + ~x => *(~α + 1, ~x)), 2)
         SymbolicUtils.@rule(+(~~x::SymbolicUtils.hasrepeats) => +(SymbolicUtils.merge_repeats(*, ~~x)...))
 
         SymbolicUtils.ACRule(combinations, SymbolicUtils.@rule((~z::SymbolicUtils._iszero + ~x) => ~x), 2)
@@ -66,7 +66,7 @@ let
         SymbolicUtils.@rule(~x / ~y => ~x * SymbolicUtils.pow(~y, -1))
         SymbolicUtils.@rule(one(~x) => one(SymbolicUtils.symtype(~x)))
         SymbolicUtils.@rule(zero(~x) => zero(SymbolicUtils.symtype(~x)))
-        # SymbolicUtils.@rule(SymbolicUtils.cond(~x::SymbolicUtils.isnumber, ~y, ~z) => ~x ? ~y : ~z)
+        # SymbolicUtils.@rule(SymbolicUtils.cond(~x::SymbolicUtils.is_literal_number, ~y, ~z) => ~x ? ~y : ~z)
     ]
 
 
