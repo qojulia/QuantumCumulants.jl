@@ -13,6 +13,8 @@ Base.hash(a::Average{T}, h::UInt) where T = hash(a.operator, hash(T, h))
 
 Base.conj(a::Average) = Average(adjoint(a.operator))
 
+acts_on(avg::Average) = acts_on(avg.operator)
+
 """
     average(::AbstractOperator)
     average(::AbstractOperator,order::Int)

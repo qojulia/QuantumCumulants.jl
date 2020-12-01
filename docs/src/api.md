@@ -146,6 +146,22 @@ build_ode
 generate_ode
 ```
 
+
+## [Correlation functions](@id API: correlation)
+
+```@docs
+CorrelationFunction
+```
+
+```@docs
+Spectrum
+```
+
+```@docs
+initial_values
+```
+
+
 ## [Utility functions](@id API: Utils)
 
 ```@docs

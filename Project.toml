@@ -21,6 +21,7 @@ julia = "1"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 OrdinaryDiffEq = "1dea7af3-3e70-54e6-95c3-0bf5283fa5ed"
 Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
+QuantumOptics = "6e0679c1-51ea-5a7c-ac74-d61b76210b0c"
 
 [targets]
-test = ["OrdinaryDiffEq", "Random", "Test"]
+test = ["OrdinaryDiffEq", "QuantumOptics", "Random", "Test"]

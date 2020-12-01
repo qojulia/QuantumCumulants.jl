@@ -96,6 +96,7 @@ function acts_on(t::OperatorTerm)
     sort!(aon)
     return aon
 end
+acts_on(x) = Int[]
 
 Base.one(::T) where T<:AbstractOperator = one(T)
 Base.one(::Type{<:AbstractOperator}) = 1

@@ -41,6 +41,15 @@ function Base.show(io::IO,de::DifferentialEquation)
     end
 end
 
-Base.show(io::IO, ::MIME"text/latex", op::AbstractOperator) = write(io, latexify(op))
-Base.show(io::IO, ::MIME"text/latex", de::AbstractEquation) = write(io, latexify(de))
-Base.show(io::IO, ::MIME"text/latex", p::SymbolicNumber) = write(io, latexify(p))
+function Base.show(io::IO, c::CorrelationFunction)
+    show(io, average(c.op1*c.op2))
+end
+function Base.show(io::IO, S::Spectrum)
+    write(io, "ℱ(")
+    show(io, S.corr)
+    write(io, ")(ω)")
+end
+
+const T_LATEX = Union{<:AbstractOperator,<:AbstractEquation,<:SymbolicNumber,
+        <:CorrelationFunction,<:Spectrum}
+Base.show(io::IO, ::MIME"text/latex", x::T_LATEX) = write(io, latexify(x))

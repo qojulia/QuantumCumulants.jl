@@ -16,6 +16,7 @@ export HilbertSpace, ProductSpace, ⊗,
         find_missing, complete, find_operators, fundamental_operators,
             unique_ops, get_symbolics, get_operators,
         build_ode, generate_ode,
+        CorrelationFunction, Spectrum, initial_values,
         transition_superscript
 
 include("hilbertspace.jl")
@@ -30,6 +31,7 @@ include("parameters.jl")
 include("average.jl")
 include("utils.jl")
 include("diffeq.jl")
+include("correlation.jl")
 include("latexify_recipes.jl")
 include("printing.jl")
 

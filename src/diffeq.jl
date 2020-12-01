@@ -52,9 +52,39 @@ function build_ode(rhs::Vector, vs::Vector, ps=[], usym=:u, psym=:p, tsym=:t;
     rhs_ = [MacroTools.postwalk(_pw_func, r) for r in rhs_]
 
     if !isempty(ps)
-        ps_ = _to_expression.(ps)
+        avg_idx = findall(x -> x isa Average, ps)
+        ps_avg = ps[avg_idx]
         psyms = [:($psym[$i]) for i=1:length(ps)]
-        rhs_ = [MacroTools.postwalk(x -> (x in ps_) ? psyms[findfirst(isequal(x), ps_)] : x, r) for r in rhs_]
+
+        # Replace averages first
+        if !isempty(avg_idx)
+            ps_avg_ = _to_expression.(ps_avg)
+            ps_adj = _to_expression.(adjoint.(ps_avg))
+            _pw_ps_avg = function(x)
+                if x in ps_avg_
+                    i = findfirst(isequal(x), ps_avg_)
+                    return psyms[avg_idx[i]]
+                elseif x in ps_adj
+                    i = findfirst(isequal(x), ps_adj)
+                    return :( conj($(psyms[avg_idx[i]])) )
+                else
+                    return x
+                end
+            end
+            rhs_ = [MacroTools.postwalk(_pw_ps_avg, r) for r in rhs_]
+        end
+
+        # Replace remaining parameters
+        ps_ = _to_expression.(ps)
+        _pw_ps = function(x)
+            if x in ps_
+                i = findfirst(isequal(x), ps_)
+                return psyms[i]
+            else
+                return x
+            end
+        end
+        rhs_ = [MacroTools.postwalk(_pw_ps, r) for r in rhs_]
     end
 
     # From https://github.com/JuliaDiffEq/ModelingToolkit.jl/blob/dca5f38491ae6dea431cb2a7cceb055645086034/src/utils.jl#L44

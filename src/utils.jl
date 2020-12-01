@@ -16,6 +16,7 @@ function find_missing(rhs::Vector{<:Number}, vs::Vector{<:Number}; vs_adj::Vecto
         filter!(x->!isa(x,Parameter), missed)
     end
     filter!(x->!(x∈vs || x∈ps || x∈vs_adj),missed)
+    isempty(ps) || (ps_adj = adjoint.(ps); filter!(x -> !(x∈ps_adj), missed))
     return missed
 end
 function find_missing(de::DifferentialEquation{<:Number,<:Number}; kwargs...)
@@ -47,7 +48,7 @@ function complete(de::DifferentialEquation{<:Number,<:Number};kwargs...)
     rhs_, lhs_ = complete(de.rhs,de.lhs,de.hamiltonian,de.jumps,de.rates;kwargs...)
     return DifferentialEquation(lhs_,rhs_,de.hamiltonian,de.jumps,de.rates)
 end
-function complete(rhs::Vector{<:Number}, vs::Vector{<:Number}, H, J, rates; order=nothing, mix_choice=maximum, kwargs...)
+function complete(rhs::Vector{<:Number}, vs::Vector{<:Number}, H, J, rates; order=nothing, filter_func=nothing, mix_choice=maximum, kwargs...)
     order_lhs = maximum(get_order.(vs))
     order_rhs = maximum(get_order.(rhs))
     if order isa Nothing
@@ -61,6 +62,7 @@ function complete(rhs::Vector{<:Number}, vs::Vector{<:Number}, H, J, rates; orde
     rhs_ = [cumulant_expansion(r, order_) for r in rhs]
     missed = unique_ops(find_missing(rhs_, vs_))
     filter!(x->isa(x,Average),missed)
+    isnothing(filter_func) || filter!(filter_func, missed) # User-defined filter
     while !isempty(missed)
         ops = getfield.(missed, :operator)
         he = isempty(J) ? heisenberg(ops,H) : heisenberg(ops,H,J;rates=rates)
@@ -69,6 +71,17 @@ function complete(rhs::Vector{<:Number}, vs::Vector{<:Number}, H, J, rates; orde
         vs_ = [vs_;he_avg.lhs]
         missed = unique_ops(find_missing(rhs_,vs_))
         filter!(x->isa(x,Average),missed)
+        isnothing(filter_func) || filter!(filter_func, missed) # User-defined filter
+    end
+
+    if !isnothing(filter_func)
+        # Find missing values that are filtered by the custom filter function,
+        # but still occur on the RHS; set those to 0
+        missed = unique_ops(find_missing(rhs_, vs_))
+        filter!(x->isa(x,Average),missed)
+        filter!(!filter_func, missed)
+        subs = Dict(missed .=> 0)
+        rhs_ = [substitute(r, subs) for r in rhs_]
     end
     return rhs_, vs_
 end

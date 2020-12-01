@@ -30,7 +30,7 @@ function _postwalk_func(x)
         s = "$(arg)^\\dagger"
         return s
     elseif MacroTools.@capture(x, Transition(arg_,i_,j_))
-        s = "$(arg)$(transition_idx_script[]){$(i)$(j)}"
+        s = "{$(arg)}$(transition_idx_script[]){{$(i)$(j)}}"
         return s
     else
         return x
@@ -86,7 +86,7 @@ _latexify(lhs,rhs) = _latexify([lhs],[rhs])
     ex = _to_expression(op)
     ex = MacroTools.postwalk(_postwalk_func, ex)
     ex = MacroTools.postwalk(_postwalk_average, ex)
-    ex = isa(ex,String) ? Symbol(LaTeXString(ex)) : ex
+    ex = isa(ex,String) ? latexstring(ex) : ex
     return ex
 end
 
@@ -97,6 +97,16 @@ end
     ex = _to_expression(s)
     ex = MacroTools.postwalk(_postwalk_func, ex)
     ex = MacroTools.postwalk(_postwalk_average, ex)
-    ex = isa(ex,String) ? Symbol(LaTeXString(ex)) : ex
+    ex = isa(ex,String) ? latexstring(ex) : ex
     return ex
+end
+
+@latexrecipe function f(c::CorrelationFunction)
+    avg = average(c.op1*c.op2)
+    return latexify(avg)
+end
+
+@latexrecipe function f(S::Spectrum)
+    l = latexstring(L"\mathcal{F}(", latexify(S.corr), L")(\omega)")
+    return l
 end
