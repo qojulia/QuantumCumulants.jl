@@ -2,7 +2,7 @@
 
 In this section, we will describe the fundamental theoretical concepts used within **Qumulants.jl**.
 
-## Heisenberg equations of motion
+## The Quantum Langevin equation
 
 In an open quantum system, the equation of motion of an operator ``\mathcal{O}`` is given by the Quantum Langevin equation. Let a system be described by the Hamiltonian ``H``, and subject to a number of decay channels with the rates ``\gamma_n`` and corresponding damping operators ``c_n``. The equation for ``\mathcal{O}`` is then given by
 
@@ -10,7 +10,7 @@ In an open quantum system, the equation of motion of an operator ``\mathcal{O}``
 \dot{\mathcal{O}} = \frac{i}{\hbar}[H,\mathcal{O}] + \sum_n \frac{\gamma_n}{2}\left(2c_n^\dagger \mathcal{O}c_n - c_n^\dagger c_n \mathcal{O} - \mathcal{O}c_n^\dagger c_n\right) + \text{noise}.
 ```
 
-Note that we did not specify the noise term, since under the assumption of white noise it does not contribute to averages. We can therefore neglect it in the following. The above equation is an operator equation, i.e. solving it directly has the same numerical complexity as solving a stochastic master equation. However, averaging over the above we obtain a *c*-number equation, which, in principle, is easy to solve. This is the basic idea in **Qumulants.jl**: derive equations of motions of operators, and then convert them to easily solvable *c*-number differential equations. There is another crucial step required, however.
+Note that we did not specify the noise term, since under the assumption of white noise it does not contribute to averages. We can therefore neglect it in the following. The above equation is an operator equation, i.e. solving it directly has the same numerical complexity as solving a stochastic master equation. However, averaging over the above we obtain a *c*-number equation, which, in principle, is easy to solve. This is the basic idea in **Qumulants.jl**: derive equations of motions of operators, and then convert them to easily solvable *c*-number differential equations. However, as we will see, there is another crucial step required, namely the cumulant expansion.
 
 ## A brief example
 
@@ -40,7 +40,7 @@ we derive
 \end{align*}
 ```
 
-Since ``\dot{a}`` couples to ``\sigma^{ge}``, and ``\dot{\sigma}^{ge}`` to ``\sigma^{ee}``, we needed to derive three equations in total in order to arrive at a complete set. In order to make them easy to handle, we average over the above system of equations to obtain *c*-number equations. We find
+Since ``\dot{a}`` couples to ``\sigma^{ge}``, and ``\dot{\sigma}^{ge}`` to ``\sigma^{ee}``, we needed to derive a total of three equations to arrive at a complete set. In order to make them easy to handle, we average over the above system of equations to obtain *c*-number equations. We find
 
 ```math
 \begin{align*}
@@ -52,12 +52,12 @@ Since ``\dot{a}`` couples to ``\sigma^{ge}``, and ``\dot{\sigma}^{ge}`` to ``\si
 \end{align*}
 ```
 
-The above system can, however, not be solved since we encounter terms such as ``langle a\sigma^{ee}\rangle``, meaning the set of equations is incomplete, since in general ``langle a\sigma^{ee}\rangle \neq langle a\rangle\langle\sigma^{ee}\rangle``. A naive approach would be to derive the equations for all missing average values. Unfortunately, these equations will couple to averages of ever longer operator products. A complete set of equations can therefore not be derived, since it would consist of infinitely many equations.
+The above system can, however, not be solved since we encounter terms such as ``\langle a\sigma^{ee}\rangle``, meaning the set of equations is incomplete, since in general ``\langle a\sigma^{ee}\rangle \neq \langle a\rangle\langle\sigma^{ee}\rangle``. A naive approach would be to derive the equations for all missing average values. Unfortunately, these equations will couple to averages of ever longer operator products. A complete set of equations can therefore not be derived, since it would consist of infinitely many equations.
 
 
 ## Cumulant expansion
 
-To obtain a closed set of *c*-number equations, we truncate the in principle infinite set of equations at a certain order. By order, we essentially mean the length of an operator product, e.g. ``\langle a \rangle`` is of order ``1``, ``\langle a^\dagger a `` and ``\langle a^\dagger \sigma^{ge}`` are of the order ``2``. The order of a system determines its size and the accuracy of the underlying approximation. It is therefore an essential concept in **Qumulants.jl**.
+To obtain a closed set of *c*-number equations, we truncate the in principle infinite set of equations at a certain order. By order, we essentially mean the length of an operator product, e.g. ``\langle a \rangle`` is of order ``1``, ``\langle a^\dagger a \rangle`` and ``\langle a^\dagger \sigma^{ge}\rangle`` are of the order ``2``. The order of a system determines its size and the accuracy of the underlying approximation. It is therefore an essential concept in **Qumulants.jl**.
 
 The way in which we truncate a system of equations is called the generalized cumulant expansion (see also [R. Kubo, *Generalized Cumulant Expansion Method*](https://www.jstage.jst.go.jp/article/jpsj1946/17/7/17_7_1100/_article/-char/ja/)). The joint cumulant, which we denote by ``\langle\cdot\rangle_c`` of a product of operators ``X_1 X_2 ... X_n`` of order ``n`` is given by
 
@@ -77,13 +77,13 @@ In the above, ``\mathcal{I}=\{1,2,...,n\}``, ``P(\mathcal{I})`` is the set of al
 
 Note that the joint cumulant of order ``n`` is proportional to averages of order ``\leq n``. Furthermore, the average of order ``n`` occurs precisely once on the right-hand-side.
 
-The joint cumulant can be thought of as a general measure for the correlation between operators. According to Theorem I from [R. Kubo, *Generalized Cumulant Expansion Method*](https://www.jstage.jst.go.jp/article/jpsj1946/17/7/17_7_1100/_article/-char/ja/), the joint cumulant is zero iff any of the operators is statistically independent of the others. The key assumption we are making is to essentially invert this statement: instead of computing the joint cumulant of a given order to see if it is zero, we *assume* that it is. Since the average value of the same order occurs only once in the definition of the joint cumulant, we may invert the relation to express the average in terms of lower-order terms; i.e., if we assume ``\langle X_1 X_2 ... X_n\rangle_c \approx 0 ``, we can write
+The joint cumulant can be thought of as a general measure for the correlation between operators. According to Theorem I from [R. Kubo, *Generalized Cumulant Expansion Method*](https://www.jstage.jst.go.jp/article/jpsj1946/17/7/17_7_1100/_article/-char/ja/), the joint cumulant is zero iff any of the operators is statistically independent of the others. The key assumption we are making is to essentially invert this statement: instead of computing the joint cumulant of a given order to see if it is zero, we *assume* that it is. Since the average value of the same order occurs only once in the definition of the joint cumulant, we may invert the relation to express the average in terms of lower-order terms; i.e., if we assume ``\langle X_1 X_2 ... X_n\rangle_c = 0 ``, we can write
 
 ```math
 \langle X_1X_2...X_n \rangle = \sum_{p \in P(\mathcal{I})\backslash \mathcal{I}} \left(|p| - 1\right)! (-1)^{|p|} \prod_{B \in p} \langle \prod_{i\in B} X_i\rangle,
 ```
 
-where now ``P(\mathcal{I})\backslash\mathcal{I}`` is the set of all partitions of ``\mathcal{I}`` that does not contain ``\mathcal{I}`` itself. Return to the example of ``n=3``, we have
+where now ``P(\mathcal{I})\backslash\mathcal{I}`` is the set of all partitions of ``\mathcal{I}`` that does not contain ``\mathcal{I}`` itself. In the example of ``n=3``, we have
 
 ```math
 \langle X_1X_2X_3\rangle   = \langle X_1X_2\rangle\langle X_3\rangle + \langle X_1X_3\rangle\langle X_2\rangle + \langle X_1\rangle\langle X_2X_3\rangle - 2\langle X_1\rangle\langle X_2\rangle\langle X_3\rangle.
@@ -159,4 +159,4 @@ Note, that **Qumulants.jl** automatizes the derivation of equations, the cumulan
 ### References
 
 * R. Kubo. "Generalized cumulant expansion method." Journal of the Physical Society of Japan 17.7 (1962): 1100-1120.
-  URL: https://www.jstage.jst.go.jp/article/jpsj1946/17/7/17_7_1100/_article/-char/ja/
+  URL: [https://www.jstage.jst.go.jp/article/jpsj1946/17/7/17_7_1100/_article/-char/ja/](https://www.jstage.jst.go.jp/article/jpsj1946/17/7/17_7_1100/_article/-char/ja/)
