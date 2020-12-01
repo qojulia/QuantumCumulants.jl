@@ -4,7 +4,7 @@ Two quantities that are often of interest in a system are two-time correlation f
 ```math
 g(t,\tau) = \langle a(t+\tau) b(t)\rangle.
 ```
-As we can see, we need to take some care here since ``g`` depends on two different times. Also, the spectral density corresponding to ``a`` and ``b`` is given by the Fourier transform,
+As we can see, we need to take some care here since ``g`` depends on two different times. The spectral density corresponding to ``a`` and ``b`` is given by the Fourier transform,
 ```math
 S(\omega) = 2\text{Re}\left\{\int d\tau e^{-i\omega\tau}g(t,\tau)\right\}.
 ```
@@ -28,7 +28,7 @@ Since ``a(t)`` is independent of ``\tau`` we can simply multiply the above equat
 ```math
 \frac{d}{d\tau}\langle a^\dagger(t+\tau) a(t)\rangle = (i\omega_\mathrm{c} - \frac{\kappa}{2})\langle a^\dagger(t+\tau) a(t)\rangle.
 ```
-This is the equation of motion for the correlation function ``g(t,\tau)``. In this very simple case we can solve it analytically and find
+Note that this is generally valid, and will lead to a system of equations that is linear in ``a(t)``. The above is the equation of motion for the correlation function ``g(t,\tau)``. In this very simple case we can solve it analytically and find
 ```math
 g(t,\tau) = \langle a^\dagger(t)a(t)\rangle e^{(i\omega_\mathrm{c} - \kappa/2)\tau}.
 ```
@@ -45,6 +45,8 @@ he = average(heisenberg(a'*a,H,[a];rates=[κ]))
 c = CorrelationFunction(a', a, he)
 nothing # hide
 ```
+When the [`CorrelationFunction`](@ref) is constructed, an additional Hilbert space is added internally which represents the system at the time ``t``. In our case, this means that another [`FockSpace`](@ref) is added. Note that all operators involved in the correlation function are defined on the [`ProductSpace`](@ref) including this additional Hilbert space.
+
 The equation for ``g(t,\tau)`` is now stored in the first entry of `c.de`. To solve the above numerically, we need to generate code and solve the equations numerically.
 ```@example correlation
 using OrdinaryDiffEq
@@ -67,11 +69,12 @@ nothing # hide
 ```
 Finally, lets check our numerical solution against the analytic one obtained above:
 ```@example correlation
+using Test # hide
 g_analytic(τ) = @. sol.u[end] * exp((im*p0[1]-0.5p0[2])*τ)
-isapprox(sol_c.u, g_analytic(sol_c.t), rtol=1e-4)
+@test isapprox(sol_c.u, g_analytic(sol_c.t), rtol=1e-4)
 ```
 
-Note, that this was a very simple case. Usually the system of equations describing the correlation function is much more complex and depend on multiple other correlation functions.
+Note, that this was a very simple case. Usually the system of equations describing the correlation function is much more complex and depends on multiple other correlation functions (see for example [Spectrum of a single atom laser](@ref)).
 
 
 ## Spectrum
@@ -102,7 +105,7 @@ A useful property of the two-time correlation function is that, if the system is
 ```math
 \frac{d}{d\tau} \textbf{y}(\tau) = \textbf{M} \textbf{y}(\tau) + \textbf{c},
 ```
-where ``\textbf{y}(\tau)`` is the vector containing the left-hand-side of the correlation function system, i.e. ``g(t,\tau) \equiv y_1(\tau)``. The matrix ``\textbf{M}`` contains coefficients consisting of parameters and steady-state values, and is independent of time, and the vector ``\textbf{c}`` includes other constants.
+where ``\textbf{y}(\tau)`` is the vector containing the left-hand-side of the correlation function system (``g(t,\tau) \equiv y_1(\tau)``). The matrix ``\textbf{M}`` contains coefficients consisting of parameters and steady-state values, and is independent of time, and the vector ``\textbf{c}`` includes other constants.
 
 We define ``\textbf{x}(s) = \mathcal{L}\left(\textbf{y}(\tau)\right)``, i.e. ``\textbf{x}(s)`` is the Laplace transform of ``\textbf{y}(\tau)`` with respect to ``\tau``. Applying the Laplace transform to the differential equation above, we obtain
 ```math

@@ -44,18 +44,18 @@ he_n = average(heisenberg(a'*a,H,J;rates=rates), 2)
 nothing # hide
 ```
 
-The remaining equations will be computed automatically using the [`complete`](@ref) function. However, we want to exclude terms such as $\langle a \rangle$ since these are phase-dependent and therefore 0 in our phase-invariant system. To this end, we provide a custom filter function to [`complete`](@ref). This function should return `true`, if the given average should be included, and `false` if it should be excluded (just like Julia's native `filter` function requires). We write a small function $\phi$ that computes the phase of an average, such that $\phi(a) = -1$, $\phi(a^\dagger) = 1$, and $\phi(a^\dagger a) = \phi(a) + \phi(a^\dagger) = 0$. An average of an operator $x$ is then said to be phase invariant if $\phi(x)=0$.
+The remaining equations will be computed automatically using the [`complete`](@ref) function. However, we want to exclude terms such as $\langle a \rangle$ since these are phase-dependent and therefore 0 in our phase-invariant system. To this end, we provide a custom filter function to [`complete`](@ref). This function should return `true`, if the given average should be included, and `false` if it should be excluded (just like Julia's native `filter` function requires). We write a small function $\phi$ that computes the phase of an average, such that $\phi(a) = -1$, $\phi(a^\dagger) = 1$, and $\phi(a^\dagger a) = \phi(a) + \phi(a^\dagger) = 0$. Similarly, we want to have $\phi(\sigma^{eg})=1=-\phi(\sigma^{ge})$, and $\phi(\sigma^{ee})=0$. An average of an operator $x$ is then said to be phase invariant if $\phi(x)=0$.
 
 
 ```@example single-atom-laser-spectrum
 # Custom filter function -- include only phase-invaraint terms
 ϕ(x) = 0
-ϕ(x::Destroy) = -1
-ϕ(x::Create) = 1
+ϕ(::Destroy) = -1
+ϕ(::Create) = 1
 function ϕ(t::Transition)
-    if t.i < t.j
+    if (t.i==:e && t.j==:g)
         1
-    elseif t.i > t.j
+    elseif (t.i==:g && t.j==:e)
         -1
     else
         0
@@ -113,13 +113,13 @@ In any case, we need to compute the steady state of the system numerically.
 ps = (Δ, g, γ, κ, ν)
 f = generate_ode(he,ps)
 u0 = zeros(ComplexF64, length(he))
-p0 = (0, 1.5, 0.25, 1, 4)
+p0 = (1.0, 1.5, 0.25, 1, 4)
 prob = ODEProblem(f,u0,(0.0,10.0),p0)
 sol = solve(prob,RK4())
 nothing # hide
 ```
 
-Now, we can compute the time evolution of the correlation function in a similar way.
+Now, we can compute the time evolution of the correlation function in a similar way. initial_valses!!!!
 
 
 ```@example single-atom-laser-spectrum
@@ -162,3 +162,5 @@ savefig("laser-spectrum.svg") # hide
 ```
 
 ![svg](laser-spectrum.svg)
+
+As expected, both methods yield exactly the same spectrum. The difference is just in the method used, with the Laplace transform having a computational advantage.
