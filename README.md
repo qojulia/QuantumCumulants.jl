@@ -6,7 +6,7 @@ For the application of commutation relations and general simplification, **Qumul
 
 ## Development status
 
-[![Travis build status][travis-img]][travis-url] [![Codecov][codecov-img]][codecov-url] [![Documentation][docs-img]][docs-url]
+![CI](https://github.com/david-pl/Qumulants.jl/workflows/CI/badge.svg) [![Codecov][codecov-img]][codecov-url] [![Documentation][docs-img]][docs-url]
 
 **Qumulants.jl** is still at a very early stage of development. **Expect bugs!**
 
@@ -22,10 +22,6 @@ The package can be installed with
 ## Documentation
 
 Please refer to the latest [Documentation][docs-url] for more details and examples.
-
-
-[travis-url]: https://travis-ci.org/david-pl/Qumulants.jl
-[travis-img]: https://api.travis-ci.org/david-pl/Qumulants.jl.png?branch=master
 
 [codecov-url]: https://codecov.io/gh/david-pl/Qumulants.jl/branch/master/
 [codecov-img]: https://codecov.io/gh/david-pl/Qumulants.jl/branch/master/graph/badge.svg
