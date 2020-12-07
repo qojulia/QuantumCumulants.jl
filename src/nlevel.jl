@@ -94,7 +94,7 @@ levels(t::Transition,args...) = levels(t.hilbert,args...)
 ground_state(t::Transition,args...) = ground_state(t.hilbert,args...)
 
 Base.adjoint(t::Transition) = Transition(t.hilbert,t.name,t.j,t.i,acts_on(t))
-Base.:(==)(t1::Transition,t2::Transition) = (t1.hilbert==t2.hilbert && t1.name==t2.name && t1.i==t2.i && t1.j==t2.j)
+Base.:(==)(t1::Transition,t2::Transition) = (t1.hilbert==t2.hilbert && t1.name==t2.name && t1.i==t2.i && t1.j==t2.j && t1.aon==t2.aon)
 Base.hash(t::Transition, h::UInt) = hash(t.hilbert, hash(t.name, hash(t.i, hash(t.j, hash(t.aon, h)))))
 
 # Simplification
