@@ -25,7 +25,7 @@ defines the subscript added to the name of `op2` representing the constant time.
 Note that the correlation function is stored in the first index of the underlying
 system of equations.
 """
-function CorrelationFunction(op1,op2,de0::DifferentialEquation; steady_state=false, add_subscript=0, filter_func=nothing, mix_choice=maximum)
+function CorrelationFunction(op1,op2,de0::DifferentialEquation; steady_state=false, add_subscript=0, filter_func=nothing, mix_choice=maximum, kwargs...)
     h1 = hilbert(op1)
     h2 = _new_hilbert(hilbert(op2), acts_on(op2))
     h = h1⊗h2
@@ -49,7 +49,7 @@ function CorrelationFunction(op1,op2,de0::DifferentialEquation; steady_state=fal
 
     he = heisenberg(op_,H,J;rates=de0.rates)
     de_ = average(he, order)
-    de = _complete_corr(de_, length(h.spaces), lhs_new, order, steady_state; filter_func=filter_func, mix_choice=mix_choice)
+    de = _complete_corr(de_, length(h.spaces), lhs_new, order, steady_state; filter_func=filter_func, mix_choice=mix_choice, kwargs...)
 
     de0_ = DifferentialEquation(lhs_new, [_new_operator(r, h) for r in de0.rhs], H, J, de0.rates)
     return CorrelationFunction(op1_, op2_, op2_0, de0_, de, steady_state)
@@ -283,7 +283,7 @@ function _new_operator(avg::Average, h, aon=nothing; kwargs...)
     end
 end
 
-function _complete_corr(de,aon0,lhs_new,order,steady_state; mix_choice=maximum, filter_func=nothing)
+function _complete_corr(de,aon0,lhs_new,order,steady_state; mix_choice=maximum, filter_func=nothing, kwargs...)
     lhs = de.lhs
     rhs = de.rhs
 
@@ -323,8 +323,8 @@ function _complete_corr(de,aon0,lhs_new,order,steady_state; mix_choice=maximum, 
 
     while !isempty(missed)
         ops = getfield.(missed, :operator)
-        he = isempty(J) ? heisenberg(ops,H) : heisenberg(ops,H,J;rates=rates)
-        he_avg = average(he,order_;mix_choice=mix_choice)
+        he = isempty(J) ? heisenberg(ops,H; kwargs...) : heisenberg(ops,H,J;rates=rates, kwargs...)
+        he_avg = average(he,order_;mix_choice=mix_choice, kwargs...)
         rhs_ = [rhs_;he_avg.rhs]
         vs_ = [vs_;he_avg.lhs]
         missed = unique_ops(find_missing(rhs_,vs_))

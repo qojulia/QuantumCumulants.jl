@@ -65,8 +65,8 @@ function complete(rhs::Vector{<:Number}, vs::Vector{<:Number}, H, J, rates; orde
     isnothing(filter_func) || filter!(filter_func, missed) # User-defined filter
     while !isempty(missed)
         ops = getfield.(missed, :operator)
-        he = isempty(J) ? heisenberg(ops,H) : heisenberg(ops,H,J;rates=rates)
-        he_avg = average(he,order_;mix_choice=mix_choice)
+        he = isempty(J) ? heisenberg(ops,H; kwargs...) : heisenberg(ops,H,J;rates=rates, kwargs...)
+        he_avg = average(he,order_;mix_choice=mix_choice, kwargs...)
         rhs_ = [rhs_;he_avg.rhs]
         vs_ = [vs_;he_avg.lhs]
         missed = unique_ops(find_missing(rhs_,vs_))

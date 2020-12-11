@@ -41,7 +41,7 @@ pe = getindex.(sol.u,2)
 @test all(1.0 .>= real.(pe) .>= 0.0)
 
 # Correlation function
-c_steady = CorrelationFunction(a', a, he_comp; steady_state=true)
+c_steady = CorrelationFunction(a', a, he_comp; steady_state=true, multithread=true)
 cf = generate_ode(c_steady, ps; check_bounds=true)
 
 u0_c = initial_values(c_steady, sol.u[end])
