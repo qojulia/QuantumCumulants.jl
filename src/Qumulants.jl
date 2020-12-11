@@ -17,7 +17,8 @@ export HilbertSpace, ProductSpace, ⊗,
             unique_ops, get_symbolics, get_operators,
         build_ode, generate_ode,
         CorrelationFunction, Spectrum, initial_values,
-        transition_superscript
+        transition_superscript,
+        scale
 
 include("hilbertspace.jl")
 include("operator.jl")
