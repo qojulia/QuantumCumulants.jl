@@ -87,7 +87,13 @@ function initial_values(c::CorrelationFunction, u_end)
         elseif (l isa Number) && !(l isa SymbolicNumber)
             push!(u0, l)
         else
-            error("Could not find initial value for $l !")
+            check = false
+            for i=1:length(lhs0)
+                l_ = substitute(l, Dict(lhs0[i] => u_end[i]))
+                check = (l_ != l)
+                check && (push!(u0, l_); break)
+            end
+            check || error("Could not find initial value for $l !")
         end
     end
     return u0
@@ -141,7 +147,7 @@ function Spectrum(c::CorrelationFunction, ps=[]; kwargs...)
 end
 
 """
-    (s::Spectrum)(ω::Real,usteady,ps=[])
+    (s::Spectrum)(ω::Real,usteady,ps=[];wtol=0)
 
 From an instance of [`Spectrum`](@ref) `s`, actually compute the spectral power
 density at the frequency `ω`. Numerically solves the equation `x=inv(A)*b` where
@@ -149,22 +155,25 @@ density at the frequency `ω`. Numerically solves the equation `x=inv(A)*b` wher
 the spectrum is given by `real(x[1])`.
 `A` and `b` are a matrix and a vector, respectively, describing the linear system
 of equations that needs to be solved to obtain the spectrum.
+The tolerance `wtol=0` specifies in which range the frequency should be treated
+as zero, i.e. whenever `abs(ω) <= wtol` the term proportional to `1/(im*ω)` is
+neglected to avoid divergences.
 """
-function (s::Spectrum)(ω::Real,usteady,ps=[])
+function (s::Spectrum)(ω::Real,usteady,ps=[];wtol=0)
     A = s.Afunc(ω,usteady,ps)
-    b = s.bfunc(ω,usteady,ps)
+    b = s.bfunc(ω,usteady,ps,wtol)
     return 2*real(getindex(inv(A)*b, 1))
 end
 
 """
-    (s::Spectrum)(ω_ls,usteady,ps=[])
+    (s::Spectrum)(ω_ls,usteady,ps=[];wtol=0)
 
 From an instance of [`Spectrum`](@ref) `s`, actually compute the spectral power
 density at all frequencies in `ω_ls`.
 """
-function (s::Spectrum)(ω_ls,usteady,ps=[])
+function (s::Spectrum)(ω_ls,usteady,ps=[];wtol=0)
     _Af = ω -> s.Afunc(ω, usteady, ps)
-    _bf = ω -> s.bfunc(ω, usteady, ps)
+    _bf = ω -> s.bfunc(ω, usteady, ps, wtol)
     s_ = Vector{real(eltype(usteady))}(undef, length(ω_ls))
     for i=1:length(ω_ls)
         A = _Af(ω_ls[i])
@@ -458,11 +467,11 @@ function _build_spec_func(lhs, rhs, a1, a0, steady_vals, ps=[]; psym=:p, wsym=:�
     N = length(b_)
     # Function for numeric b
     fb = :(
-        ($fargs) ->
+        ($wsym,$usteady,$psym,wtol=0) ->
         begin
             T = complex(promote_type(eltype($usteady), eltype($psym)))
             x = zeros(T, $N)
-            if iszero($wsym)
+            if abs($wsym)<=wtol
                 $ex0
             else
                 $ex_nz
