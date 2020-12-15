@@ -25,7 +25,7 @@ defines the subscript added to the name of `op2` representing the constant time.
 Note that the correlation function is stored in the first index of the underlying
 system of equations.
 """
-function CorrelationFunction(op1,op2,de0::DifferentialEquation; steady_state=false, add_subscript=0, filter_func=nothing, mix_choice=maximum)
+function CorrelationFunction(op1,op2,de0::Union{DifferentialEquation, ScaleDifferentialEquation}; steady_state=false, add_subscript=0, filter_func=nothing, mix_choice=maximum)
     h1 = hilbert(op1)
     h2 = _new_hilbert(hilbert(op2), acts_on(op2))
     h = h1⊗h2
@@ -49,9 +49,22 @@ function CorrelationFunction(op1,op2,de0::DifferentialEquation; steady_state=fal
 
     he = heisenberg(op_,H,J;rates=de0.rates)
     de_ = average(he, order)
-    de = _complete_corr(de_, length(h.spaces), lhs_new, order, steady_state; filter_func=filter_func, mix_choice=mix_choice)
+    if isa(de0, ScaleDifferentialEquation)
+        dicts_redundant_new = []
+        for it=1:length(de0.dictionaries)
+            push!(dicts_redundant_new, _new_operator(de0.dictionaries[it], h))
+        end
+        de = _complete_corr(de_, length(h.spaces), lhs_new, order, steady_state; filter_func=filter_func, mix_choice=mix_choice, de0_dicts=dicts_redundant_new)
+        de = scale(de, de0.identicals, de0.interactions, de0.factors)
+        for dict in dicts_redundant_new
+            de = substitute(de, dict)
+        end
+        de0_ = ScaleDifferentialEquation(lhs_new, [_new_operator(r, h) for r in de0.rhs], H, J, de0.rates, de0.factors, de0.identicals,de0.interactions, dicts_redundant_new)
+    elseif isa(de0, DifferentialEquation)
+        de = _complete_corr(de_, length(h.spaces), lhs_new, order, steady_state; filter_func=filter_func, mix_choice=mix_choice)
+        de0_ = DifferentialEquation(lhs_new, [_new_operator(r, h) for r in de0.rhs], H, J, de0.rates)
+    end
 
-    de0_ = DifferentialEquation(lhs_new, [_new_operator(r, h) for r in de0.rhs], H, J, de0.rates)
     return CorrelationFunction(op1_, op2_, op2_0, de0_, de, steady_state)
 end
 
@@ -74,7 +87,14 @@ function initial_values(c::CorrelationFunction, u_end)
     a1 = c.op2
     subs = Dict(a1=>a0)
     ops = getfield.(c.de.lhs, :operator)
+    ops = [substitute(op, subs) for op in ops]
     lhs = [average(substitute(op, subs)) for op in ops]
+    if isa(c.de0, ScaleDifferentialEquation)
+        scale_dict = merge((c.de0.dictionaries)...)
+        for it=1:length(lhs)
+            lhs[it] = substitute(lhs[it], scale_dict)
+        end
+    end
     u0 = complex(eltype(u_end))[]
     lhs0 = c.de0.lhs
     for l in lhs
@@ -132,7 +152,11 @@ function Spectrum(c::CorrelationFunction, ps=[]; kwargs...)
     c.steady_state || error("Cannot use Laplace transform when not in steady state! Use `CorrelationFunction(op1,op2,de0;steady_state=true)` or try computing the Fourier transform of the time evolution of the correlation function directly.")
     de = c.de
     de0 = c.de0
-    fAsym, fbsym, Ameta, bmeta = _build_spec_func(de.lhs, de.rhs, c.op2_0, c.op2, de0.lhs, ps; kwargs...)
+    if isa(de0, ScaleDifferentialEquation)
+        fAsym, fbsym, Ameta, bmeta = _build_spec_func(de.lhs, de.rhs, c.op2_0, c.op2, de0.lhs, ps;de0_dicts=de0.dictionaries, kwargs...)
+    elseif isa(de0, DifferentialEquation)
+        fAsym, fbsym, Ameta, bmeta = _build_spec_func(de.lhs, de.rhs, c.op2_0, c.op2, de0.lhs, ps; kwargs...)
+    end
     Afunc = Meta.eval(Ameta)
     bfunc = Meta.eval(bmeta)
     Asymfunc = Meta.eval(fAsym)
@@ -209,7 +233,9 @@ function build_ode(c::CorrelationFunction, ps=[], args...; kwargs...)
         else
             de = c.de
         end
+        de = substitute(de, merge((c.de0.dictionaries)...))
         ps_ = (ps..., steady_vals...)
+        # return find_missing(get_DiffEq_from_scale(de), ps=ps_)
         return build_ode(de, ps_, args...; kwargs...)
     else
         ps_ = (ps..., average(c.op2))
@@ -273,8 +299,21 @@ function _new_operator(avg::Average, h, aon=nothing; kwargs...)
         Average(_new_operator(avg.operator, h, aon; kwargs...))
     end
 end
+function _new_operator(dict::Dict, h, aon=nothing; kwargs...)
+    d = Dict()
+    if isnothing(aon)
+        for (key,val) in dict
+            d[_new_operator(key, h; kwargs...)] = _new_operator(val, h; kwargs...)
+        end
+    else
+        for (key,val) in dict
+            d[_new_operator(key, h, aon; kwargs...)] = _new_operator(val, h, aon; kwargs...)
+        end
+    end
+    return d
+end
 
-function _complete_corr(de,aon0,lhs_new,order,steady_state; mix_choice=maximum, filter_func=nothing)
+function _complete_corr(de,aon0,lhs_new,order,steady_state; mix_choice=maximum, filter_func=nothing, de0_dicts=[Dict()])
     lhs = de.lhs
     rhs = de.rhs
 
@@ -297,6 +336,10 @@ function _complete_corr(de,aon0,lhs_new,order,steady_state; mix_choice=maximum, 
     filter!(x->isa(x,Average),missed)
 
     function _filter_aon(x) # Filter values that act only on Hilbert space representing system at time t0
+        # x = copy(x_) #maybe not needed TODO
+        for dict in de0_dicts
+            x = substitute(x, dict)
+        end
         aon = acts_on(x)
         if aon0 in aon
             length(aon)==1 && return false
@@ -339,13 +382,17 @@ end
 
 ### Auxiliary functions for Spectrum
 
-function _build_spec_func(lhs, rhs, a1, a0, steady_vals, ps=[]; psym=:p, wsym=:ω, usteady=:usteady)
+function _build_spec_func(lhs, rhs, a1, a0, steady_vals, ps=[]; psym=:p, wsym=:ω, usteady=:usteady, de0_dicts=[Dict()])
     s = Dict(a0=>a1)
     ops = getfield.(lhs, :operator)
 
     ω = Parameter{Number}(wsym) # Laplace transform argument i*ω
     b = [average(substitute(op, s)) for op in ops] # Initial values
     c = [simplify_constants(c_ / (im*ω)) for c_ in _find_independent(rhs, a0)]
+    for dict in de0_dicts #initial values
+        b = [substitute(b_, dict) for b_ in b]
+        c = [substitute(c_, dict) for c_ in c]
+    end
     aon0 = acts_on(a0)
     @assert length(aon0)==1
     rhs_ = _find_dependent(rhs, aon0[1])

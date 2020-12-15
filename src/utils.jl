@@ -202,6 +202,7 @@ function _get_operators(t::OperatorTerm)
     end
     return ops
 end
+_get_operators(avg::Average) = _get_operators(avg.operator)
 
 """
     unique_ops(ops)
@@ -261,10 +262,22 @@ that it corresponds to a system with `N` identical particles. This means a facto
 proper positions. The rules for the additional factors in the equations depend on the operator interacting with the identical operators `interaction_op`.
 For a n-th order cumulant expansion at least n identical operators (acting on different Hilbert) spaces are needed.
 """
-function scale(de::DifferentialEquation, identical_ops::Vector, interaction_op::AbstractOperator, N::Number)
+function scale(de::DifferentialEquation, identical_ops::Vector{<:AbstractOperator}, interaction_op::AbstractOperator, N::Number)
     identical_aons = unique(acts_on.(identical_ops))
     interaction_aon = acts_on(interaction_op)
     scale(de::DifferentialEquation, identical_aons, interaction_aon, N)
+end
+function scale(de::Union{ScaleDifferentialEquation, DifferentialEquation}, identical_aons::Vector, interaction_aon::Vector, N::Vector{<:Number})
+    @assert length(interaction_aon) == length(N) == length(identical_aons)
+    de_scale = de
+    for it=1:length(N)
+        de_scale = scale(de_scale, identical_aons[it], interaction_aon[it], N[it])
+    end
+    return de_scale
+end
+function scale(de::ScaleDifferentialEquation, identical_aons::Vector{Int}, interaction_aon::Int, N::Number)
+    he = scale(get_DiffEq_from_scale(de), identical_aons, interaction_aon, N)
+    he_scale = ScaleDifferentialEquation(he.lhs,he.rhs,he.hamiltonian,he.jumps,he.rates,[de.N;he.N],[de.identical_aons;he.identical_aons],[de.interaction_aon;he.interaction_aon],[de.scale_dict; he.scale_dict])
 end
 function scale(de::DifferentialEquation, identical_aons::Vector{Int}, interaction_aon::Int, N::Number)
     names = get_names(de)
@@ -280,7 +293,7 @@ function scale(de::DifferentialEquation, identical_aons::Vector{Int}, interactio
         if (interaction_aon ∉ avg_aon_lhs) || (length(identical_aons) == length(avg_aon_lhs_all_id))
             N_sc = 1
         else
-            N_sc = (N-length(avg_aon_lhs_all_id))/(length(identical_aons) - length(avg_aon_lhs_all_id)) #double sum extension to RHS??
+            N_sc = (N-length(avg_aon_lhs_all_id))/(length(identical_aons) - length(avg_aon_lhs_all_id)) #double sum -> extension to RHS??
         end
         tmp_dict = Dict()
         avgs_rhs = get_avgs(de_rhs[it])
@@ -302,9 +315,11 @@ function scale(de::DifferentialEquation, identical_aons::Vector{Int}, interactio
         end
         de_rhs[it] = substitute(de_rhs[it], tmp_dict)
     end
-    he_scale = DifferentialEquation(de_lhs, de_rhs, de.hamiltonian, de.jumps, de.rates)
-    return filter_redundant_all_id_aon(he_scale, identical_aons, names)
+    he = DifferentialEquation(de_lhs, de_rhs, de.hamiltonian, de.jumps, de.rates)
+    he, scale_dict =  filter_redundant_all_id_aon(he, identical_aons, names)
+    he_scale = ScaleDifferentialEquation(he.lhs,he.rhs,he.hamiltonian,he.jumps,he.rates,[N],[identical_aons],[interaction_aon],[scale_dict])
 end
+
 function all_identical_filter(avg::Average, identical_aons::Vector{Int})
     avg_aon = [acts_on(avg)...]
     avg_identical_aons = filter(x->x∈identical_aons, avg_aon)
@@ -367,21 +382,21 @@ end
 function get_redundant_all_id_aon(lhs, all_id_aon, names)
     lhsf = filter(x->length(aon_in_all_id_aon(x, all_id_aon))>1, lhs)
     lhs_redundants = []
-    dict_lhs_redunant = Dict()
-    while length(lhsf) > 1
-        len_lhsf = length(lhsf)
-        lhsf1 = lhsf[1]
-        id_avgs = get_all_id_permuted_avgs(lhsf1, all_id_aon, names)[2:end]
-        id_avgs_adj = adjoint.(id_avgs)
-        for it=2:len_lhsf
-            if lhsf[it] ∈ [id_avgs; id_avgs_adj]
-                push!(lhs_redundants, lhsf[it])
-                [dict_lhs_redunant[id_avg] = lhsf1 for id_avg in id_avgs]
-            end
+    dict_lhs_redundant = Dict()
+    len_lhsf = length(lhsf)
+    for itl=1:length(lhsf)
+        lhsf1 = lhsf[itl]
+        if lhsf1 ∉ lhs_redundants #if it is in, it will be deleted later
+            id_avgs = get_all_id_permuted_avgs(lhsf1, all_id_aon, names)[2:end]
+            id_avgs_adj = adjoint.(id_avgs)
+            filter!(x->x≠lhsf1, id_avgs)
+            filter!(x->x≠lhsf1, id_avgs_adj)
+            push!(lhs_redundants, [id_avgs; id_avgs_adj]...)
+            [dict_lhs_redundant[id_avg] = lhsf1 for id_avg in id_avgs]
+            [dict_lhs_redundant[id_avg'] = lhsf1' for id_avg in id_avgs] #maybe not needed TODO
         end
-        filter!(x->x∉[lhsf1;lhs_redundants], lhsf)
     end
-    return lhs_redundants, dict_lhs_redunant
+    return lhs_redundants, dict_lhs_redundant
 end
 function filter_redundant_all_id_aon(de::DifferentialEquation, all_id_aon, names)
     lhs_ = de.lhs; rhs_ = de.rhs
@@ -390,12 +405,14 @@ function filter_redundant_all_id_aon(de::DifferentialEquation, all_id_aon, names
     for it=1:length(lhs_)
         lhs_[it] ∉ reds && (push!(lhsf, lhs_[it]); push!(rhsf, substitute(rhs_[it], dict_reds)))
     end
-    DifferentialEquation(lhsf, rhsf, de.hamiltonian, de.jumps, de.rates)
+    return DifferentialEquation(lhsf, rhsf, de.hamiltonian, de.jumps, de.rates), dict_reds
 end
 
-function get_names(de::DifferentialEquation)
-    lhs_ops = [lhs_.operator  for lhs_ in de.lhs]
-    ops = unique(collect(Iterators.flatten(get_operators.(lhs_ops))))
+function get_names(de::Union{DifferentialEquation, ScaleDifferentialEquation})
+    lhs_ops = unique(collect(Iterators.flatten(get_operators.(de.lhs))))
+    H_ops = unique(get_operators(de.hamiltonian))
+    J_ops = unique(collect(Iterators.flatten(get_operators.(de.jumps))))
+    ops = unique(collect(Iterators.flatten(get_operators.([lhs_ops; H_ops; J_ops]))))
     sort!(ops; by=acts_on)
     indices = [findfirst(x->acts_on(x)==aon_, ops) for aon_=acts_on(ops[1]):acts_on(ops[end])]
     ops = ops[indices]

@@ -134,7 +134,7 @@ in order to solve it.
 *`check_bounds::Bool=false`: Choose whether the resulting function should contain
     the `@inbounds` flag, which skips bounds checking for performance.
 """
-build_ode(eqs::DifferentialEquation, args...; kwargs...) = build_ode(eqs.rhs,eqs.lhs,args...;kwargs...)
+build_ode(eqs::Union{DifferentialEquation, ScaleDifferentialEquation}, args...; kwargs...) = build_ode(eqs.rhs,eqs.lhs,args...;kwargs...)
 
 """
     generate_ode(eqs::DifferentialEquation, ps=[], usym=:u,
