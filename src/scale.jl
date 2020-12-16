@@ -222,32 +222,14 @@ function scale_complete(rhs::Vector{<:Number}, vs::Vector{<:Number}, H, J, rates
     vs_ = copy(de_ops_init.lhs)
     redundants = [] #create identical specific redundants later
     ref_avgs = []
-    for it=1:length(identical_aons)
-        for itl=1:length(vs_)
-            ref_avg, id_avgs = get_ref_avg_and_all_identical_avgs_adj(vs_[itl], identical_aons[it], names)
-            if ref_avg ∉ redundants
-                id_avgs_adj = unique([id_avgs; adjoint.(id_avgs)])
-                filter!(x->x≠ref_avg, id_avgs_adj)
-                push!(redundants, id_avgs...)
-            end
-        end
-    end
+    feed_redundants(redundants,identical_aons,vs_,names)
     rhs_ = [cumulant_expansion(r, order_) for r in de_ops_init.rhs]
     missed = unique_ops(find_missing(rhs_, vs_))
     filter!(x->isa(x,Average),missed)
     isnothing(filter_func) || filter!(filter_func, missed) # User-defined filter
     filter!(x->x∉redundants, missed)
     ### redundant
-    for it=1:length(identical_aons)
-        for itm=1:length(missed)
-            ref_avg, id_avgs = get_ref_avg_and_all_identical_avgs_adj(missed[itm], identical_aons[it], names)
-            if ref_avg ∉ redundants
-                id_avgs_adj = unique([id_avgs; adjoint.(id_avgs)])
-                filter!(x->x≠ref_avg, id_avgs_adj)
-                push!(redundants, id_avgs...)
-            end
-        end
-    end
+    feed_redundants(redundants,identical_aons,missed,names)
     filter!(x->x∉redundants, missed)
 
     while !isempty(missed)
@@ -260,16 +242,7 @@ function scale_complete(rhs::Vector{<:Number}, vs::Vector{<:Number}, H, J, rates
         filter!(x->isa(x,Average),missed)
         isnothing(filter_func) || filter!(filter_func, missed) # User-defined filter
         filter!(x->x∉redundants, missed)
-        for it=1:length(identical_aons)
-            for itm=1:length(missed)
-                ref_avg, id_avgs = get_ref_avg_and_all_identical_avgs_adj(missed[itm], identical_aons[it], names)
-                if ref_avg ∉ redundants
-                    id_avgs_adj = unique([id_avgs; adjoint.(id_avgs)])
-                    filter!(x->x≠ref_avg, id_avgs_adj)
-                    push!(redundants, id_avgs...)
-                end
-            end
-        end
+        feed_redundants(redundants,identical_aons,missed,names)
         filter!(x->x∉redundants, missed)
     end
     if !isnothing(filter_func)
@@ -284,4 +257,18 @@ function scale_complete(rhs::Vector{<:Number}, vs::Vector{<:Number}, H, J, rates
     he = DifferentialEquation(vs_, rhs_, H, J, rates)
     he_scale = scale(he, identical_aons, interaction_aons, N)
     return he_scale
+end
+
+function feed_redundants(redundants::Vector, identical_aons, avg_ls, names)
+    for it=1:length(identical_aons)
+        for itm=1:length(avg_ls)
+            ref_avg, id_avgs = get_ref_avg_and_all_identical_avgs_adj(avg_ls[itm], identical_aons[it], names)
+            if ref_avg ∉ redundants
+                id_avgs_adj = unique([id_avgs; adjoint.(id_avgs)])
+                filter!(x->x≠ref_avg, id_avgs_adj)
+                push!(redundants, id_avgs...)
+                unique!(redundants)
+            end
+        end
+    end
 end

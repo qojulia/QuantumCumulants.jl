@@ -54,8 +54,8 @@ function CorrelationFunction(op1,op2,de0::Union{DifferentialEquation, ScaleDiffe
         for it=1:length(de0.dictionaries)
             push!(dicts_redundant_new, _new_operator(de0.dictionaries[it], h))
         end
+        de_ = scale(de_, de0.identicals, de0.interactions, de0.factors)
         de = _complete_corr(de_, length(h.spaces), lhs_new, order, steady_state; filter_func=filter_func, mix_choice=mix_choice, de0_dicts=dicts_redundant_new)
-        de = scale(de, de0.identicals, de0.interactions, de0.factors)
         for dict in dicts_redundant_new
             de = substitute(de, dict)
         end
@@ -312,7 +312,7 @@ function _new_operator(dict::Dict, h, aon=nothing; kwargs...)
     return d
 end
 
-function _complete_corr(de,aon0,lhs_new,order,steady_state; mix_choice=maximum, filter_func=nothing, de0_dicts=[Dict()])
+function _complete_corr(de::DifferentialEquation,aon0,lhs_new,order,steady_state; mix_choice=maximum, filter_func=nothing, de0_dicts=[Dict()])
     lhs = de.lhs
     rhs = de.rhs
 
@@ -376,7 +376,85 @@ function _complete_corr(de,aon0,lhs_new,order,steady_state; mix_choice=maximum, 
     end
     return DifferentialEquation(vs_, rhs_, H, J, rates)
 end
+function _complete_corr(de::ScaleDifferentialEquation,aon0,lhs_new,order,steady_state; mix_choice=maximum, filter_func=nothing, de0_dicts=[Dict()], kwargs...)
+    names = get_names(de)
+    identical_aons = de.identicals
+    interaction_aons = de.interactions
+    N = de.factors
+    redundants = []
+    lhs = de.lhs
+    rhs = de.rhs
 
+    H = de.hamiltonian
+    J = de.jumps
+    rates = de.rates
+
+    order_lhs = maximum(get_order.(lhs))
+    order_rhs = maximum(get_order.(rhs))
+    if order isa Nothing
+        order_ = max(order_lhs, order_rhs)
+    else
+        order_ = order
+    end
+    maximum(order_) >= order_lhs || error("Cannot form cumulant expansion of derivative; you may want to use a higher order!")
+
+    lhs_init_ops = getfield.(lhs, :operator)
+    de_ops_init = average(heisenberg(lhs_init_ops, H, J; rates=rates, kwargs...),order)
+    vs_ = copy(de_ops_init.lhs)
+    feed_redundants(redundants, identical_aons, vs_, names)
+    rhs_ = [cumulant_expansion(r, order_) for r in de_ops_init.rhs]
+    missed = unique_ops(find_missing(rhs_, vs_))
+    filter!(x->isa(x,Average),missed)
+    feed_redundants(redundants,identical_aons,missed,names)
+    filter!(x->x∉redundants, missed)
+    function _filter_aon(x) # Filter values that act only on Hilbert space representing system at time t0
+        for dict in de0_dicts
+            x = substitute(x, dict)
+        end
+        aon = acts_on(x)
+        if aon0 in aon
+            length(aon)==1 && return false
+            return true
+        end
+        # return !steady_state
+        if steady_state # Include terms without t0-dependence only if the system is not in steady state
+            return !(x in lhs_new || x' in lhs_new)
+        else
+            return true
+        end
+    end
+    filter!(_filter_aon, missed)
+    isnothing(filter_func) || filter!(filter_func, missed) # User-defined filter
+    feed_redundants(redundants,identical_aons,missed,names)
+    filter!(x->x∉redundants, missed)
+
+    while !isempty(missed)
+        ops = getfield.(missed, :operator)
+        he = isempty(J) ? heisenberg(ops,H) : heisenberg(ops,H,J;rates=rates)
+        he_avg = average(he,order_;mix_choice=mix_choice)
+        rhs_ = [rhs_;he_avg.rhs]
+        vs_ = [vs_;he_avg.lhs]
+        missed = unique_ops(find_missing(rhs_,vs_))
+        filter!(x->isa(x,Average),missed)
+        filter!(_filter_aon, missed)
+        isnothing(filter_func) || filter!(filter_func, missed) # User-defined filter
+        feed_redundants(redundants,identical_aons,missed,names)
+        filter!(x->x∉redundants, missed)
+    end
+
+    if !isnothing(filter_func)
+        # Find missing values that are filtered by the custom filter function,
+        # but still occur on the RHS; set those to 0
+        missed = unique_ops(find_missing(rhs_, vs_))
+        filter!(x->isa(x,Average),missed)
+        filter!(!filter_func, missed)
+        subs = Dict(missed .=> 0)
+        rhs_ = [substitute(r, subs) for r in rhs_]
+    end
+    he = DifferentialEquation(vs_, rhs_, H, J, rates)
+    he_scale = scale(he, identical_aons, interaction_aons, N)
+    return he_scale
+end
 
 ### Auxiliary functions for Spectrum
 
