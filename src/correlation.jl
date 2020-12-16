@@ -235,7 +235,6 @@ function build_ode(c::CorrelationFunction, ps=[], args...; kwargs...)
         end
         de = substitute(de, merge((c.de0.dictionaries)...))
         ps_ = (ps..., steady_vals...)
-        # return find_missing(get_DiffEq_from_scale(de), ps=ps_)
         return build_ode(de, ps_, args...; kwargs...)
     else
         ps_ = (ps..., average(c.op2))
@@ -336,7 +335,6 @@ function _complete_corr(de,aon0,lhs_new,order,steady_state; mix_choice=maximum, 
     filter!(x->isa(x,Average),missed)
 
     function _filter_aon(x) # Filter values that act only on Hilbert space representing system at time t0
-        # x = copy(x_) #maybe not needed TODO
         for dict in de0_dicts
             x = substitute(x, dict)
         end
