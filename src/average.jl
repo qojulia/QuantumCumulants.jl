@@ -195,12 +195,11 @@ function _cumulant_expansion(args::Vector,order::Int)
     parts = [partitions(args,i) for i=2:length(args)]
 
     args_sum = Number[]
-    for i=1:length(parts)
-        p = collect(parts[i])
-        for j=1:length(p) # Terms in the sum
-            n = length(p[j])
+    for p in parts
+        for pj in p
+            n = length(pj)
             args_prod = Number[-factorial(n-1)*(-1)^(n-1)]
-            for p_=p[j] # Product over partition blocks
+            for p_=pj # Product over partition blocks
                 if length(p_) > order # If the encountered moment is larger than order, apply expansion
                     push!(args_prod, _cumulant_expansion(p_, order))
                 else # Else, average and add its product
