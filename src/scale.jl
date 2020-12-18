@@ -31,9 +31,9 @@ function scale(de::Union{ScaleDifferentialEquation, DifferentialEquation}, ident
     end
     return de_scale
 end
-function scale(de::ScaleDifferentialEquation, identical_aons::Vector{Int}, interaction_aon::Int, N::Number)
+function scale(de::ScaleDifferentialEquation, identical_aons::Vector, interaction_aon, N::Number)
     he = scale(get_DiffEq_from_scale(de), identical_aons, interaction_aon, N)
-    he_scale = ScaleDifferentialEquation(he.lhs,he.rhs,he.hamiltonian,he.jumps,he.rates,[de.N;he.N],[de.identical_aons;he.identical_aons],[de.interaction_aon;he.interaction_aon],[de.scale_dict; he.scale_dict])
+    he_scale = ScaleDifferentialEquation(he.lhs,he.rhs,he.hamiltonian,he.jumps,he.rates,[de.factors;he.factors],[de.identicals;he.identicals],[de.interactions;he.interactions],[de.dictionaries; he.dictionaries])
 end
 function scale(de::DifferentialEquation, identical_aons::Vector{Int}, interaction_aon::Int, N::Number)
     names = get_names(de)
