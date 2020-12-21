@@ -1,15 +1,3 @@
-
-### scaling ###
-get_avgs(x) = []
-get_avgs(avg::Average) = [avg]
-function get_avgs(t::NumberTerm)
-    avgs = []
-    for arg in t.arguments
-         append!(avgs, get_avgs(arg))
-    end
-    return unique(avgs)
-end
-
 """
     scale(de::DifferentialEquation, identical_ops::Vector{AbstractOperator}, interaction_op::AbstractOperator, N::Number)
 
@@ -35,34 +23,32 @@ function scale(de::ScaleDifferentialEquation, identical_aons::Vector, interactio
     he = scale(get_DiffEq_from_scale(de), identical_aons, interaction_aon, N)
     he_scale = ScaleDifferentialEquation(he.lhs,he.rhs,he.hamiltonian,he.jumps,he.rates,[de.factors;he.factors],[de.identicals;he.identicals],[de.interactions;he.interactions],[de.dictionaries; he.dictionaries])
 end
-function scale(de::DifferentialEquation, identical_aons::Vector{Int}, interaction_aon::Int, N::Number)
+function scale(de::DifferentialEquation, identical_aons_::Vector{Int}, interaction_aon::Int, N::Number)
     names = get_names(de)
-    sort!(identical_aons)
-    de_lhs = Number[]
-    de_rhs = Number[]
-    for it=1:length(de)
-        all_identical_filter(de.lhs[it], identical_aons) && (push!(de_lhs, de.lhs[it]); push!(de_rhs, de.rhs[it]))
-    end
+    identical_aons = sort(identical_aons_)
+    idx = [filter_identical(x, identical_aons) for x in de.lhs]
+    de_lhs = de.lhs[idx]
+    de_rhs = de.rhs[idx]
     for it=1:length(de_lhs)
-        avg_aon_lhs = [acts_on(de_lhs[it])...]
-        avg_aon_lhs_all_id = filter(x->(x∈identical_aons), avg_aon_lhs)
-        if (interaction_aon ∉ avg_aon_lhs) || (length(identical_aons) == length(avg_aon_lhs_all_id))
+        aon_lhs = [acts_on(de_lhs[it])...]
+        intersect!(aon_lhs, identical_aons)
+        if (interaction_aon ∉ aon_lhs) || (length(identical_aons) == length(aon_lhs))
             N_sc = 1
         else
-            N_sc = (N-length(avg_aon_lhs_all_id))/(length(identical_aons) - length(avg_aon_lhs_all_id)) #double sum -> extension to RHS??
+            N_sc = (N-length(aon_lhs))/(length(identical_aons) - length(aon_lhs)) #double sum -> extension to RHS??
         end
-        tmp_dict = Dict()
+        tmp_dict = Dict{Average,Number}()
         avgs_rhs = get_avgs(de_rhs[it])
         for avg_rhs in avgs_rhs
             avg_aon_rhs = [acts_on(avg_rhs)...]
-            avg_aon_rhs_all_id = filter(x->x∈identical_aons, avg_aon_rhs)
-            if !isempty(avg_aon_rhs_all_id)
-                it_max = findfirst(x->isequal(x,maximum(avg_aon_rhs_all_id)), identical_aons)
+            intersect!(avg_aon_rhs, identical_aons)
+            if !isempty(avg_aon_rhs)
+                it_max = findfirst(isequal(maximum(avg_aon_rhs)), identical_aons)
                 new_avg = copy(avg_rhs)
-                for it_aon=1:length(avg_aon_rhs_all_id)
-                    new_avg = swap_aon(new_avg, avg_aon_rhs_all_id[it_aon], identical_aons[it_aon], names[identical_aons[it_aon]])
+                for it_aon=1:length(avg_aon_rhs)
+                    new_avg = swap_aon(new_avg, avg_aon_rhs[it_aon], identical_aons[it_aon], names[identical_aons[it_aon]])
                 end
-                if length(avg_aon_rhs_all_id) > length(avg_aon_lhs_all_id)
+                if length(avg_aon_rhs) > length(aon_lhs)
                     tmp_dict[avg_rhs] = N_sc*new_avg
                 else
                     tmp_dict[avg_rhs] = new_avg
@@ -72,81 +58,78 @@ function scale(de::DifferentialEquation, identical_aons::Vector{Int}, interactio
         de_rhs[it] = substitute(de_rhs[it], tmp_dict)
     end
     he = DifferentialEquation(de_lhs, de_rhs, de.hamiltonian, de.jumps, de.rates)
-    he, scale_dict =  filter_redundant_all_id_aon(he, identical_aons, names)
+    he, scale_dict = filter_redundant(he, identical_aons, names)
     he_scale = ScaleDifferentialEquation(he.lhs,he.rhs,he.hamiltonian,he.jumps,he.rates,[N],[identical_aons],[interaction_aon],[scale_dict])
 end
 
-function all_identical_filter(avg::Average, identical_aons::Vector{Int})
-    avg_aon = [acts_on(avg)...]
-    avg_identical_aons = filter(x->x∈identical_aons, avg_aon)
+### Auxiliary function
+get_avgs(x) = Average[]
+get_avgs(avg::Average) = [avg]
+function get_avgs(t::NumberTerm)
+    avgs = Average[]
+    for arg in t.arguments
+         append!(avgs, get_avgs(arg))
+    end
+    return unique(avgs)
+end
+
+function filter_identical(avg::Average, identical_aons::Vector{Int})
+    avg_aon = acts_on(avg)
+    avg_identical_aons = intersect(identical_aons, avg_aon)
     if isempty(avg_identical_aons)
         return true
     else
-        it_max = findfirst(x->isequal(x,maximum(avg_identical_aons)), identical_aons)
+        it_max = findfirst(isequal(maximum(avg_identical_aons)), identical_aons)
         return isequal(avg_identical_aons, identical_aons[1:it_max])
     end
 end
-function swap_aon(op::Union{Destroy, Create, Transition}, aon1, aon2, op_name_aon2)
-    if acts_on(op) != aon1
-        return op
-    elseif isa(op, Destroy)
-        return Destroy(op.hilbert, op_name_aon2, aon2)
-    elseif isa(op, Create)
-        return Create(op.hilbert, op_name_aon2, aon2)
-    elseif isa(op, Transition)
-        return Transition(op.hilbert, op_name_aon2, op.i, op.j, aon2)
-    end
+
+function swap_aon(op::T, aon1, aon2, op_name_aon2) where T<:BasicOperator
+    acts_on(op) == aon1 || return op
+    return T(op.hilbert, op_name_aon2, aon2)
 end
-function swap_aon(op::Union{Destroy, Create, Transition}, aon1::Vector, aon2::Vector, op_name_aon2::Vector)
-    @assert length(aon1) == length(aon2) == length(op_name_aon2)
-    if acts_on(op) ∉ aon1
-        return op
-    else
-        it_aon = findfirst(x->x==acts_on(op), aon1)
-        if isa(op, Destroy)
-            return Destroy(op.hilbert, op_name_aon2[it_aon], aon2[it_aon])
-        elseif isa(op, Create)
-            return Create(op.hilbert, op_name_aon2[it_aon], aon2[it_aon])
-        elseif isa(op, Transition)
-            return Transition(op.hilbert, op_name_aon2[it_aon], op.i, op.j, aon2[it_aon])
-        end
-    end
+function swap_aon(op::T, aon1::Integer, aon2::Integer, op_name_aon2) where T<:Transition
+    acts_on(op) == aon1 || return op
+    return T(op.hilbert, op_name_aon2, op.i, op.j, aon2)
 end
-swap_aon(x::Average, aon1, aon2, op_name_aon2) = average(swap_aon(x.operator, aon1, aon2, op_name_aon2))
+function swap_aon(op::BasicOperator, aon1::Vector, aon2::Vector, op_name_aon2::Vector)
+    idx = findfirst(isequal(acts_on(op)), aon1)
+    isnothing(idx) && return op
+    return swap_aon(op, aon1[idx], aon2[idx], op_name_aon2[idx])
+end
+swap_aon(x::Average, aon1, aon2, op_name_aon2) = Average(swap_aon(x.operator, aon1, aon2, op_name_aon2))
 function swap_aon(op::OperatorTerm, aon1, aon2, op_name_aon2)
     args = op.arguments
     args_ = [swap_aon(arg, aon1, aon2, op_name_aon2) for arg in args]
     return simplify_operators((op.f)(args_...))
 end
 function swap_aon(op::OperatorTerm, aon1::Vector, aon2::Vector, op_name_aon2::Vector)
-    @assert length(aon1) == length(aon2) == length(op_name_aon2)
-    args = op.arguments
-    args_ = [swap_aon(arg, aon1, aon2, op_name_aon2) for arg in args]
-    return simplify_operators((op.f)(args_...))
+    args = [swap_aon(arg, aon1, aon2, op_name_aon2) for arg in op.arguments]
+    return simplify_operators((op.f)(args...))
 end
 
-### all identical replace reduandant averages
-function aon_in_all_id_aon(x, all_id_aon)
+### all identical replace redundant averages
+function intersect_aon(x, all_id_aon)
     aon_x = [acts_on(x)...]
-    filter!(x->x∈all_id_aon, aon_x)
+    intersect!(aon_x, all_id_aon)
+    return aon_x
 end
 function get_all_id_permuted_avgs(x, all_id_aon, names)
-    aon_ls = aon_in_all_id_aon(x, all_id_aon)
+    aon_ls = intersect_aon(x, all_id_aon)
     aon_ls_permus = permutations(aon_ls)
     [swap_aon(x, aon_ls, aon_p, names[aon_p]) for aon_p in aon_ls_permus]
 end
-function get_redundant_all_id_aon(lhs, all_id_aon, names) #only for averages with more then one all_id_aon
-    lhsf = filter(x->length(aon_in_all_id_aon(x, all_id_aon))>1, lhs)
+function get_redundant_all_id_aon(lhs, all_id_aon, names) #only for averages with more than one all_id_aon
+    lhsf = filter(x->length(intersect_aon(x, all_id_aon))>1, lhs)
     lhs_redundants = []
     dict_lhs_redundant = Dict()
-    len_lhsf = length(lhsf)
     for itl=1:length(lhsf)
         lhsf1 = lhsf[itl]
         if lhsf1 ∉ lhs_redundants #if it is in, it will be deleted later
             id_avgs = get_all_id_permuted_avgs(lhsf1, all_id_aon, names)[2:end] #TODO
             id_avgs_adj = adjoint.(id_avgs)
-            filter!(x->x≠lhsf1, id_avgs)
-            filter!(x->x≠lhsf1, id_avgs_adj)
+            filter!(!isequal(lhsf1), id_avgs)
+            filter!(!isequal(lhsf1), id_avgs_adj)
             push!(lhs_redundants, [id_avgs; id_avgs_adj]...)
             [dict_lhs_redundant[id_avg] = lhsf1 for id_avg in id_avgs]
             [dict_lhs_redundant[id_avg'] = lhsf1' for id_avg in id_avgs] #maybe not needed TODO
@@ -154,39 +137,41 @@ function get_redundant_all_id_aon(lhs, all_id_aon, names) #only for averages wit
     end
     return lhs_redundants, dict_lhs_redundant
 end
-function filter_redundant_all_id_aon(de::DifferentialEquation, all_id_aon, names)
+function filter_redundant(de::DifferentialEquation, identical_aons, names)
     lhs_ = de.lhs; rhs_ = de.rhs
     lhsf = eltype(lhs_)[]; rhsf = eltype(rhs_)[]
-    reds, dict_reds = get_redundant_all_id_aon(lhs_, all_id_aon, names)
+    reds, dict_reds = get_redundant_all_id_aon(lhs_, identical_aons, names)
     for it=1:length(lhs_)
-        lhs_[it] ∉ reds && (push!(lhsf, lhs_[it]); push!(rhsf, substitute(rhs_[it], dict_reds)))
+        lhs_[it] ∈ reds || (push!(lhsf, lhs_[it]); push!(rhsf, substitute(rhs_[it], dict_reds)))
     end
     return DifferentialEquation(lhsf, rhsf, de.hamiltonian, de.jumps, de.rates), dict_reds
 end
 
 function get_names(de::Union{DifferentialEquation, ScaleDifferentialEquation})
-    lhs_ops = unique(collect(Iterators.flatten(get_operators.(de.lhs))))
+    lhs_ops = unique(Iterators.flatten(get_operators.(de.lhs)))
     H_ops = unique(get_operators(de.hamiltonian))
-    J_ops = unique(collect(Iterators.flatten(get_operators.(de.jumps))))
-    ops = unique(collect(Iterators.flatten(get_operators.([lhs_ops; H_ops; J_ops]))))
+    J_ops = unique(Iterators.flatten(get_operators.(de.jumps)))
+    ops = vcat(lhs_ops, H_ops, J_ops)
+    unique!(ops)
+    filter!(x -> x isa BasicOperator, ops)
     sort!(ops; by=acts_on)
     indices = [findfirst(x->acts_on(x)==aon_, ops) for aon_=acts_on(ops[1]):acts_on(ops[end])]
     ops = ops[indices]
-    names = [op.name for op in ops]
+    return getfield.(ops, :name)
 end
 
 
 ### scale_complete() ###
 
 function get_ref_avg_and_all_identical_avgs_adj(avg, all_id_aon, names)
-    aon_ls = aon_in_all_id_aon(avg, all_id_aon)
+    aon_ls = intersect_aon(avg, all_id_aon)
     if isempty(aon_ls)
         return avg, []
     end
     len = length(aon_ls)
     aon_ls_permus = unique(sort.(permutations(all_id_aon, len)))
     ref_avg = swap_aon(avg, aon_ls, all_id_aon[1:len], names[all_id_aon[1:len]])
-    aon_ls_ref = aon_in_all_id_aon(ref_avg, all_id_aon)
+    aon_ls_ref = intersect_aon(ref_avg, all_id_aon)
     all_ids =  [swap_aon(ref_avg, aon_ls_ref, aon_p, names[aon_p]) for aon_p in aon_ls_permus]
     if len > 1
         avg_permus = get_all_id_permuted_avgs(ref_avg, all_id_aon, names)
