@@ -9,8 +9,7 @@ names = [
     "test_v-level.jl"
     "test_mixed-order.jl"
     "test_correlation.jl"
-    # "test_multisystems.jl"
-    # "test_higher-order.jl"
+    "test_scale.jl"
 ]
 
 detected_tests = filter(

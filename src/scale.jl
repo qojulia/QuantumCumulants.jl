@@ -62,6 +62,68 @@ function scale(de::DifferentialEquation, identical_aons_::Vector{Int}, interacti
     he_scale = ScaleDifferentialEquation(he.lhs,he.rhs,he.hamiltonian,he.jumps,he.rates,[N],[identical_aons],[interaction_aon],[scale_dict])
 end
 
+# Complete system skipping over unnecessary averages when scaling
+function scale_complete(rhs::Vector{<:Number}, vs::Vector{<:Number}, H, J, rates,
+            identical_aons::Vector, interaction_aons::Vector, N::Vector, names;
+            order=nothing, filter_func=nothing, mix_choice=maximum,
+            kwargs...)
+
+    order_lhs = maximum(get_order.(vs))
+    order_rhs = maximum(get_order.(rhs))
+    if order isa Nothing
+        order_ = max(order_lhs, order_rhs)
+    else
+        order_ = order
+    end
+    maximum(order_) >= order_lhs || error("Cannot form cumulant expansion of derivative; you may want to use a higher order!")
+
+    lhs_init_ops = getfield.(vs, :operator)
+    de_ops_init = average(heisenberg(lhs_init_ops, H, J; rates=rates, kwargs...),order)
+    vs_ = copy(de_ops_init.lhs)
+    redundants = Average[] #create identical specific redundants later
+    ref_avgs = Average[]
+    feed_redundants!(redundants,identical_aons,vs_,names)
+    rhs_ = [cumulant_expansion(r, order_) for r in de_ops_init.rhs]
+    missed = unique_ops(find_missing(rhs_, vs_))
+    filter!(x->isa(x,Average),missed)
+    isnothing(filter_func) || filter!(filter_func, missed) # User-defined filter
+    filter!(!in(redundants), missed)
+    ### redundant
+    feed_redundants!(redundants,identical_aons,missed,names)
+    filter!(!in(redundants), missed)
+
+    while !isempty(missed)
+        ops = getfield.(missed, :operator)
+        he = isempty(J) ? heisenberg(ops,H; kwargs...) : heisenberg(ops,H,J;rates=rates, kwargs...)
+        he_avg = average(he,order_;mix_choice=mix_choice, kwargs...)
+        rhs_ = [rhs_;he_avg.rhs]
+        vs_ = [vs_;he_avg.lhs]
+        missed = unique_ops(find_missing(rhs_,vs_))
+        filter!(x->isa(x,Average),missed)
+        isnothing(filter_func) || filter!(filter_func, missed) # User-defined filter
+        filter!(!in(redundants), missed)
+        feed_redundants!(redundants,identical_aons,missed,names)
+        filter!(!in(redundants), missed)
+    end
+    if !isnothing(filter_func)
+        # Find missing values that are filtered by the custom filter function,
+        # but still occur on the RHS; set those to 0
+        missed = unique_ops(find_missing(rhs_, vs_))
+        filter!(x->isa(x,Average),missed)
+        filter!(!filter_func, missed)
+        subs = Dict(missed .=> 0)
+        rhs_ = [substitute(r, subs) for r in rhs_]
+    end
+    he = DifferentialEquation(vs_, rhs_, H, J, rates)
+    he_scale = scale(he, identical_aons, interaction_aons, N)
+    return he_scale
+end
+function complete(de::ScaleDifferentialEquation{<:Number,<:Number};kwargs...)
+    names = get_names(de)
+    return scale_complete(de.rhs, de.lhs, de.hamiltonian, de.jumps, de.rates, de.identicals, de.interactions, de.factors, names; kwargs...)
+end
+
+
 ### Auxiliary function
 get_avgs(x) = Average[]
 get_avgs(avg::Average) = [avg]
@@ -114,25 +176,26 @@ function intersect_aon(x, all_id_aon)
     intersect!(aon_x, all_id_aon)
     return aon_x
 end
-function get_all_id_permuted_avgs(x, all_id_aon, names)
+function get_permuted_avgs(x, all_id_aon, names)
     aon_ls = intersect_aon(x, all_id_aon)
     aon_ls_permus = permutations(aon_ls)
     [swap_aon(x, aon_ls, aon_p, names[aon_p]) for aon_p in aon_ls_permus]
 end
-function get_redundant_all_id_aon(lhs, all_id_aon, names) #only for averages with more than one all_id_aon
+function get_redundant(lhs, all_id_aon, names) #only for averages with more than one all_id_aon
     lhsf = filter(x->length(intersect_aon(x, all_id_aon))>1, lhs)
     lhs_redundants = []
-    dict_lhs_redundant = Dict()
+    dict_lhs_redundant = Dict{Average,Average}()
     for itl=1:length(lhsf)
         lhsf1 = lhsf[itl]
         if lhsf1 ∉ lhs_redundants #if it is in, it will be deleted later
-            id_avgs = get_all_id_permuted_avgs(lhsf1, all_id_aon, names)[2:end] #TODO
+            id_avgs = get_permuted_avgs(lhsf1, all_id_aon, names)[2:end] #TODO
             id_avgs_adj = adjoint.(id_avgs)
             filter!(!isequal(lhsf1), id_avgs)
             filter!(!isequal(lhsf1), id_avgs_adj)
             push!(lhs_redundants, [id_avgs; id_avgs_adj]...)
-            [dict_lhs_redundant[id_avg] = lhsf1 for id_avg in id_avgs]
-            [dict_lhs_redundant[id_avg'] = lhsf1' for id_avg in id_avgs] #maybe not needed TODO
+            for id_avg in id_avgs
+                dict_lhs_redundant[id_avg] = lhsf1
+            end
         end
     end
     return lhs_redundants, dict_lhs_redundant
@@ -140,7 +203,7 @@ end
 function filter_redundant(de::DifferentialEquation, identical_aons, names)
     lhs_ = de.lhs; rhs_ = de.rhs
     lhsf = eltype(lhs_)[]; rhsf = eltype(rhs_)[]
-    reds, dict_reds = get_redundant_all_id_aon(lhs_, identical_aons, names)
+    reds, dict_reds = get_redundant(lhs_, identical_aons, names)
     for it=1:length(lhs_)
         lhs_[it] ∈ reds || (push!(lhsf, lhs_[it]); push!(rhsf, substitute(rhs_[it], dict_reds)))
     end
@@ -163,7 +226,7 @@ end
 
 ### scale_complete() ###
 
-function get_ref_avg_and_all_identical_avgs_adj(avg, all_id_aon, names)
+function get_ref_avg(avg, all_id_aon, names)
     aon_ls = intersect_aon(avg, all_id_aon)
     if isempty(aon_ls)
         return avg, []
@@ -174,7 +237,7 @@ function get_ref_avg_and_all_identical_avgs_adj(avg, all_id_aon, names)
     aon_ls_ref = intersect_aon(ref_avg, all_id_aon)
     all_ids =  [swap_aon(ref_avg, aon_ls_ref, aon_p, names[aon_p]) for aon_p in aon_ls_permus]
     if len > 1
-        avg_permus = get_all_id_permuted_avgs(ref_avg, all_id_aon, names)
+        avg_permus = get_permuted_avgs(ref_avg, all_id_aon, names)
         filter!(x->x≠ref_avg, avg_permus)
         for it=1:length(avg_permus)
             all_ids_ = [swap_aon(avg_permus[it], aon_ls_ref, aon_p, names[aon_p]) for aon_p in aon_ls_permus]
@@ -187,73 +250,18 @@ function get_ref_avg_and_all_identical_avgs_adj(avg, all_id_aon, names)
     return ref_avg, all_ids
 end
 
-function complete(de::ScaleDifferentialEquation{<:Number,<:Number};kwargs...)
-    names = get_names(de)
-    return scale_complete(de.rhs, de.lhs, de.hamiltonian, de.jumps, de.rates, de.identicals, de.interactions, de.factors, names; kwargs...)
-end
 
-function scale_complete(rhs::Vector{<:Number}, vs::Vector{<:Number}, H, J, rates, identical_aons::Vector, interaction_aons::Vector, N::Vector, names; order=nothing, filter_func=nothing, mix_choice=maximum, kwargs...)
-    order_lhs = maximum(get_order.(vs))
-    order_rhs = maximum(get_order.(rhs))
-    if order isa Nothing
-        order_ = max(order_lhs, order_rhs)
-    else
-        order_ = order
-    end
-    maximum(order_) >= order_lhs || error("Cannot form cumulant expansion of derivative; you may want to use a higher order!")
-
-    lhs_init_ops = getfield.(vs, :operator)
-    de_ops_init = average(heisenberg(lhs_init_ops, H, J; rates=rates, kwargs...),order)
-    vs_ = copy(de_ops_init.lhs)
-    redundants = [] #create identical specific redundants later
-    ref_avgs = []
-    feed_redundants(redundants,identical_aons,vs_,names)
-    rhs_ = [cumulant_expansion(r, order_) for r in de_ops_init.rhs]
-    missed = unique_ops(find_missing(rhs_, vs_))
-    filter!(x->isa(x,Average),missed)
-    isnothing(filter_func) || filter!(filter_func, missed) # User-defined filter
-    filter!(x->x∉redundants, missed)
-    ### redundant
-    feed_redundants(redundants,identical_aons,missed,names)
-    filter!(x->x∉redundants, missed)
-
-    while !isempty(missed)
-        ops = getfield.(missed, :operator)
-        he = isempty(J) ? heisenberg(ops,H; kwargs...) : heisenberg(ops,H,J;rates=rates, kwargs...)
-        he_avg = average(he,order_;mix_choice=mix_choice, kwargs...)
-        rhs_ = [rhs_;he_avg.rhs]
-        vs_ = [vs_;he_avg.lhs]
-        missed = unique_ops(find_missing(rhs_,vs_))
-        filter!(x->isa(x,Average),missed)
-        isnothing(filter_func) || filter!(filter_func, missed) # User-defined filter
-        filter!(x->x∉redundants, missed)
-        feed_redundants(redundants,identical_aons,missed,names)
-        filter!(x->x∉redundants, missed)
-    end
-    if !isnothing(filter_func)
-        # Find missing values that are filtered by the custom filter function,
-        # but still occur on the RHS; set those to 0
-        missed = unique_ops(find_missing(rhs_, vs_))
-        filter!(x->isa(x,Average),missed)
-        filter!(!filter_func, missed)
-        subs = Dict(missed .=> 0)
-        rhs_ = [substitute(r, subs) for r in rhs_]
-    end
-    he = DifferentialEquation(vs_, rhs_, H, J, rates)
-    he_scale = scale(he, identical_aons, interaction_aons, N)
-    return he_scale
-end
-
-function feed_redundants(redundants::Vector, identical_aons, avg_ls, names)
+function feed_redundants!(redundants::Vector, identical_aons, avg_ls, names)
     for it=1:length(identical_aons)
         for itm=1:length(avg_ls)
-            ref_avg, id_avgs = get_ref_avg_and_all_identical_avgs_adj(avg_ls[itm], identical_aons[it], names)
+            ref_avg, id_avgs = get_ref_avg(avg_ls[itm], identical_aons[it], names)
             if ref_avg ∉ redundants
                 id_avgs_adj = unique([id_avgs; adjoint.(id_avgs)])
-                filter!(x->x≠ref_avg, id_avgs_adj)
+                filter!(!isequal(ref_avg), id_avgs_adj)
                 push!(redundants, id_avgs...)
                 unique!(redundants)
             end
         end
     end
+    return redundants
 end

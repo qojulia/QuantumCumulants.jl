@@ -233,7 +233,9 @@ function build_ode(c::CorrelationFunction, ps=[], args...; kwargs...)
         else
             de = c.de
         end
-        de = substitute(de, merge((c.de0.dictionaries)...))
+        if c.de0 isa ScaleDifferentialEquation
+            de = substitute(de, merge((c.de0.dictionaries)...))
+        end
         ps_ = (ps..., steady_vals...)
         return build_ode(de, ps_, args...; kwargs...)
     else
@@ -401,12 +403,12 @@ function _complete_corr(de::ScaleDifferentialEquation,aon0,lhs_new,order,steady_
     lhs_init_ops = getfield.(lhs, :operator)
     de_ops_init = average(heisenberg(lhs_init_ops, H, J; rates=rates, kwargs...),order)
     vs_ = copy(de_ops_init.lhs)
-    feed_redundants(redundants, identical_aons, vs_, names)
+    feed_redundants!(redundants, identical_aons, vs_, names)
     rhs_ = [cumulant_expansion(r, order_) for r in de_ops_init.rhs]
     missed = unique_ops(find_missing(rhs_, vs_))
     filter!(x->isa(x,Average),missed)
-    feed_redundants(redundants,identical_aons,missed,names)
-    filter!(x->x∉redundants, missed)
+    feed_redundants!(redundants,identical_aons,missed,names)
+    filter!(!in(redundants), missed)
     function _filter_aon(x) # Filter values that act only on Hilbert space representing system at time t0
         for dict in de0_dicts
             x = substitute(x, dict)
@@ -425,8 +427,8 @@ function _complete_corr(de::ScaleDifferentialEquation,aon0,lhs_new,order,steady_
     end
     filter!(_filter_aon, missed)
     isnothing(filter_func) || filter!(filter_func, missed) # User-defined filter
-    feed_redundants(redundants,identical_aons,missed,names)
-    filter!(x->x∉redundants, missed)
+    feed_redundants!(redundants,identical_aons,missed,names)
+    filter!(!in(redundants), missed)
 
     while !isempty(missed)
         ops = getfield.(missed, :operator)
@@ -438,8 +440,8 @@ function _complete_corr(de::ScaleDifferentialEquation,aon0,lhs_new,order,steady_
         filter!(x->isa(x,Average),missed)
         filter!(_filter_aon, missed)
         isnothing(filter_func) || filter!(filter_func, missed) # User-defined filter
-        feed_redundants(redundants,identical_aons,missed,names)
-        filter!(x->x∉redundants, missed)
+        feed_redundants!(redundants,identical_aons,missed,names)
+        filter!(!in(redundants), missed)
     end
 
     if !isnothing(filter_func)
