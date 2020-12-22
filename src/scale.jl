@@ -159,7 +159,7 @@ function swap_aon(op::BasicOperator, aon1::Vector, aon2::Vector, op_name_aon2::V
     isnothing(idx) && return op
     return swap_aon(op, aon1[idx], aon2[idx], op_name_aon2[idx])
 end
-swap_aon(x::Average, aon1, aon2, op_name_aon2) = Average(swap_aon(x.operator, aon1, aon2, op_name_aon2))
+swap_aon(x::Average, aon1, aon2, op_name_aon2) = average(swap_aon(x.operator, aon1, aon2, op_name_aon2))
 function swap_aon(op::OperatorTerm, aon1, aon2, op_name_aon2)
     args = op.arguments
     args_ = [swap_aon(arg, aon1, aon2, op_name_aon2) for arg in args]
