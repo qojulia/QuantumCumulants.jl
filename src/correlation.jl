@@ -25,7 +25,7 @@ defines the subscript added to the name of `op2` representing the constant time.
 Note that the correlation function is stored in the first index of the underlying
 system of equations.
 """
-function CorrelationFunction(op1,op2,de0::AbstractEquation; steady_state=false, add_subscript=0, filter_func=nothing, mix_choice=maximum)
+function CorrelationFunction(op1,op2,de0::AbstractEquation; steady_state=false, add_subscript=0, filter_func=nothing, mix_choice=maximum, kwargs...)
     h1 = hilbert(op1)
     h2 = _new_hilbert(hilbert(op2), acts_on(op2))
     h = h1⊗h2
@@ -55,13 +55,13 @@ function CorrelationFunction(op1,op2,de0::AbstractEquation; steady_state=false, 
             push!(dicts_redundant_new, _new_operator(de0.dictionaries[it], h))
         end
         de_ = scale(de_, de0.identicals, de0.interactions, de0.factors)
-        de = _complete_corr(de_, length(h.spaces), lhs_new, order, steady_state; filter_func=filter_func, mix_choice=mix_choice, de0_dicts=dicts_redundant_new)
+        de = _complete_corr(de_, length(h.spaces), lhs_new, order, steady_state; filter_func=filter_func, mix_choice=mix_choice, de0_dicts=dicts_redundant_new, kwargs...)
         for dict in dicts_redundant_new
             de = substitute(de, dict)
         end
         de0_ = ScaleDifferentialEquation(lhs_new, [_new_operator(r, h) for r in de0.rhs], H, J, de0.rates, de0.factors, de0.identicals,de0.interactions, dicts_redundant_new)
     elseif isa(de0, DifferentialEquation)
-        de = _complete_corr(de_, length(h.spaces), lhs_new, order, steady_state; filter_func=filter_func, mix_choice=mix_choice)
+        de = _complete_corr(de_, length(h.spaces), lhs_new, order, steady_state; filter_func=filter_func, mix_choice=mix_choice, kwargs...)
         de0_ = DifferentialEquation(lhs_new, [_new_operator(r, h) for r in de0.rhs], H, J, de0.rates)
     end
 
@@ -323,7 +323,7 @@ function _new_operator(dict::Dict, h, aon=nothing; kwargs...)
     return d
 end
 
-function _complete_corr(de::DifferentialEquation,aon0,lhs_new,order,steady_state; mix_choice=maximum, filter_func=nothing, de0_dicts=[Dict()])
+function _complete_corr(de::DifferentialEquation,aon0,lhs_new,order,steady_state; mix_choice=maximum, filter_func=nothing, de0_dicts=[Dict()], kwargs...)
     lhs = de.lhs
     rhs = de.rhs
 
@@ -441,8 +441,8 @@ function _complete_corr(de::ScaleDifferentialEquation,aon0,lhs_new,order,steady_
 
     while !isempty(missed)
         ops = getfield.(missed, :operator)
-        he = isempty(J) ? heisenberg(ops,H) : heisenberg(ops,H,J;rates=rates)
-        he_avg = average(he,order_;mix_choice=mix_choice)
+        he = isempty(J) ? heisenberg(ops,H, kwargs...) : heisenberg(ops,H,J;rates=rates, kwargs...)
+        he_avg = average(he,order_;mix_choice=mix_choice, kwargs...)
         rhs_ = [rhs_;he_avg.rhs]
         vs_ = [vs_;he_avg.lhs]
         missed = unique_ops(find_missing(rhs_,vs_))
