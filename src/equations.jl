@@ -32,8 +32,7 @@ Base.hash(eq::DifferentialEquation, h::UInt) = hash(eq.rates, hash(eq.jumps, has
 Base.:(==)(eq1::DifferentialEquation,eq2::DifferentialEquation) = hash(eq1)==hash(eq2)
 
 Base.getindex(de::DifferentialEquation, i::Int) = DifferentialEquation([de.lhs[i]],[de.rhs[i]],de.hamiltonian,de.jumps,de.rates)
-Base.getindex(de::DifferentialEquation, i_ls::Vector{Int}) = DifferentialEquation([de.lhs[i] for i in i_ls],[de.rhs[i] for i in i_ls],de.hamiltonian,de.jumps,de.rates)
-Base.getindex(de::DifferentialEquation, i_ls::UnitRange) = DifferentialEquation([de.lhs[i] for i in i_ls],[de.rhs[i] for i in i_ls],de.hamiltonian,de.jumps,de.rates)
+Base.getindex(de::DifferentialEquation, i) = DifferentialEquation(de.lhs[i],de.rhs[i],de.hamiltonian,de.jumps,de.rates)
 Base.lastindex(de::DifferentialEquation) = lastindex(de.lhs)
 Base.length(de::DifferentialEquation) = length(de.lhs)
 
