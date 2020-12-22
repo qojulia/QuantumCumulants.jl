@@ -30,6 +30,7 @@ he_n = average(heisenberg(a'*a,H,J;rates=rates), M)
 
 @parameters N
 he_scale = scale(he_n, [2:M+1;], 1, N)
+@test he_scale.rhs[1] == simplify_constants(-1.0κ*average(a'*a) + (-1.0im)*N*g*average(a'*σ(:g,:e,1)) + 1.0im*N*g*average(a*σ(:e,:g,1)))
 
 # Custom filter function -- include only phase-invaraint terms
 ϕ(x) = 0

@@ -31,11 +31,11 @@ function scale(de::DifferentialEquation, identical_aons_::Vector{Int}, interacti
     de_rhs = de.rhs[idx]
     for it=1:length(de_lhs)
         aon_lhs = [acts_on(de_lhs[it])...]
-        intersect!(aon_lhs, identical_aons)
-        if (interaction_aon ∉ aon_lhs) || (length(identical_aons) == length(aon_lhs))
+        aon_lhs_id = intersect(identical_aons, aon_lhs)
+        if (interaction_aon ∉ aon_lhs) || (length(identical_aons) == length(aon_lhs_id))
             N_sc = 1
         else
-            N_sc = (N-length(aon_lhs))/(length(identical_aons) - length(aon_lhs)) #double sum -> extension to RHS??
+            N_sc = (N-length(aon_lhs_id))/(length(identical_aons) - length(aon_lhs_id)) #double sum -> extension to RHS??
         end
         tmp_dict = Dict{Average,Number}()
         avgs_rhs = get_avgs(de_rhs[it])
@@ -48,7 +48,7 @@ function scale(de::DifferentialEquation, identical_aons_::Vector{Int}, interacti
                 for it_aon=1:length(avg_aon_rhs)
                     new_avg = swap_aon(new_avg, avg_aon_rhs[it_aon], identical_aons[it_aon], names[identical_aons[it_aon]])
                 end
-                if length(avg_aon_rhs) > length(aon_lhs)
+                if length(avg_aon_rhs) > length(aon_lhs_id)
                     tmp_dict[avg_rhs] = N_sc*new_avg
                 else
                     tmp_dict[avg_rhs] = new_avg
