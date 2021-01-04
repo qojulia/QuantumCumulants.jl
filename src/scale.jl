@@ -243,7 +243,7 @@ function get_ref_avg(avg, all_id_aon, names)
     all_ids =  [swap_aon(ref_avg, aon_ls_ref, aon_p, names[aon_p]) for aon_p in aon_ls_permus]
     if len > 1
         avg_permus = get_permuted_avgs(ref_avg, all_id_aon, names)
-        filter!(x->x≠ref_avg, avg_permus)
+        filter!(!isequal(ref_avg), avg_permus)
         for it=1:length(avg_permus)
             all_ids_ = [swap_aon(avg_permus[it], aon_ls_ref, aon_p, names[aon_p]) for aon_p in aon_ls_permus]
             push!(all_ids, all_ids_...)
@@ -251,7 +251,7 @@ function get_ref_avg(avg, all_id_aon, names)
     end
     all_ids = [all_ids; adjoint.(all_ids)]
     unique!(all_ids)
-    filter!(x->x≠ref_avg, all_ids)
+    filter!(!isequal(ref_avg), all_ids)
     return ref_avg, all_ids
 end
 
