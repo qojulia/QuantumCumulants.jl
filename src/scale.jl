@@ -21,7 +21,7 @@ function scale(de::Union{ScaleDifferentialEquation, DifferentialEquation}, ident
 end
 function scale(de::ScaleDifferentialEquation, identical_aons::Vector, interaction_aon, N::Number)
     he = scale(get_DiffEq_from_scale(de), identical_aons, interaction_aon, N)
-    he_scale = ScaleDifferentialEquation(he.lhs,he.rhs,he.hamiltonian,he.jumps,he.rates,[de.factors;he.factors],[de.identicals;he.identicals],[de.interactions;he.interactions],[de.dictionaries; he.dictionaries])
+    return ScaleDifferentialEquation(he.lhs,he.rhs,he.hamiltonian,he.jumps,he.rates,[de.factors;he.factors],[de.identicals;he.identicals],[de.interactions;he.interactions],[de.dictionaries; he.dictionaries])
 end
 function scale(de::DifferentialEquation, identical_aons_::Vector{Int}, interaction_aon::Int, N::Number)
     names = get_names(de)
@@ -59,7 +59,7 @@ function scale(de::DifferentialEquation, identical_aons_::Vector{Int}, interacti
     end
     he = DifferentialEquation(de_lhs, de_rhs, de.hamiltonian, de.jumps, de.rates)
     he, scale_dict = filter_redundant(he, identical_aons, names)
-    he_scale = ScaleDifferentialEquation(he.lhs,he.rhs,he.hamiltonian,he.jumps,he.rates,[N],[identical_aons],[interaction_aon],[scale_dict])
+    return ScaleDifferentialEquation(he.lhs,he.rhs,he.hamiltonian,he.jumps,he.rates,[N],[identical_aons],[interaction_aon],[scale_dict])
 end
 
 # Complete system skipping over unnecessary averages when scaling
@@ -178,8 +178,12 @@ function intersect_aon(x, all_id_aon)
 end
 function get_permuted_avgs(x, all_id_aon, names)
     aon_ls = intersect_aon(x, all_id_aon)
-    aon_ls_permus = permutations(aon_ls)
-    [swap_aon(x, aon_ls, aon_p, names[aon_p]) for aon_p in aon_ls_permus]
+    avgs = Average[]
+    for p in permutations(aon_ls)
+        isequal(p, aon_ls) && continue
+        push!(avgs, swap_aon(x, aon_ls, p, names[p]))
+    end
+    return avgs
 end
 function get_redundant(lhs, all_id_aon, names) #only for averages with more than one all_id_aon
     lhsf = filter(x->length(intersect_aon(x, all_id_aon))>1, lhs)
@@ -188,11 +192,12 @@ function get_redundant(lhs, all_id_aon, names) #only for averages with more than
     for itl=1:length(lhsf)
         lhsf1 = lhsf[itl]
         if lhsf1 ∉ lhs_redundants #if it is in, it will be deleted later
-            id_avgs = get_permuted_avgs(lhsf1, all_id_aon, names)[2:end] #TODO
+            id_avgs = get_permuted_avgs(lhsf1, all_id_aon, names)
             id_avgs_adj = adjoint.(id_avgs)
             filter!(!isequal(lhsf1), id_avgs)
             filter!(!isequal(lhsf1), id_avgs_adj)
-            push!(lhs_redundants, [id_avgs; id_avgs_adj]...)
+            append!(lhs_redundants, id_avgs)
+            append!(lhs_redundants, id_avgs_adj)
             for id_avg in id_avgs
                 dict_lhs_redundant[id_avg] = lhsf1
             end
