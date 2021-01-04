@@ -43,7 +43,6 @@ function scale(de::DifferentialEquation, identical_aons_::Vector{Int}, interacti
             avg_aon_rhs = [acts_on(avg_rhs)...]
             intersect!(avg_aon_rhs, identical_aons)
             if !isempty(avg_aon_rhs)
-                it_max = findfirst(isequal(maximum(avg_aon_rhs)), identical_aons)
                 new_avg = copy(avg_rhs)
                 for it_aon=1:length(avg_aon_rhs)
                     new_avg = swap_aon(new_avg, avg_aon_rhs[it_aon], identical_aons[it_aon], names[identical_aons[it_aon]])
