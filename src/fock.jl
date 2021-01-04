@@ -79,10 +79,6 @@ end
 
 Base.adjoint(op::Destroy) = Create(op.hilbert,op.name,acts_on(op))
 Base.adjoint(op::Create) = Destroy(op.hilbert,op.name,acts_on(op))
-# Base.:(==)(a::Destroy, b::Destroy) = (a.name==b.name && a.aon==b.aon)
-# Base.:(==)(a::Create, b::Create) = (a.name==b.name && a.aon==b.aon)
-# Base.isequal(a::Destroy, b::Destroy) = (isequal(a.name,b.name) && isequal(a.aon,b.aon))
-# Base.isequal(a::Create, b::Create) = (isequal(a.name,b.name) && isequal(a.aon,b.aon))
 
 # Commutation relation in simplification
 commute_bosonic(a,b) = b*a + one(a)
