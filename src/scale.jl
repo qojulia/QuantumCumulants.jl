@@ -230,7 +230,6 @@ function get_names(de::Union{DifferentialEquation, ScaleDifferentialEquation})
     return getfield.(ops, :name)
 end
 
-
 ### scale_complete() ###
 
 function get_ref_avg(avg, all_id_aon, names)
@@ -256,7 +255,6 @@ function get_ref_avg(avg, all_id_aon, names)
     filter!(!isequal(ref_avg), all_ids)
     return ref_avg, all_ids
 end
-
 
 function feed_redundants!(redundants::Vector, identical_aons, avg_ls, names)
     for it=1:length(identical_aons)
