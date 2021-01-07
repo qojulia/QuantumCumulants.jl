@@ -90,6 +90,7 @@ function scale_complete(rhs::Vector{<:Number}, vs::Vector{<:Number}, H, J, rates
     ### redundant
     feed_redundants!(redundants,identical_aons,missed,names)
     filter!(!in(redundants), missed)
+    missed = unique_ops(missed)
 
     while !isempty(missed)
         ops = getfield.(missed, :operator)
@@ -101,8 +102,10 @@ function scale_complete(rhs::Vector{<:Number}, vs::Vector{<:Number}, H, J, rates
         filter!(x->isa(x,Average),missed)
         isnothing(filter_func) || filter!(filter_func, missed) # User-defined filter
         filter!(!in(redundants), missed)
+        missed = unique_ops(missed)
         feed_redundants!(redundants,identical_aons,missed,names)
         filter!(!in(redundants), missed)
+        missed = unique_ops(missed)
     end
     if !isnothing(filter_func)
         # Find missing values that are filtered by the custom filter function,
@@ -260,6 +263,7 @@ function feed_redundants!(redundants::Vector, identical_aons, avg_ls, names)
         for itm=1:length(avg_ls)
             ref_avg, id_avgs = get_ref_avg(avg_ls[itm], identical_aons[it], names)
             if ref_avg ∉ redundants
+                avg_ls[itm] = ref_avg
                 id_avgs_adj = unique([id_avgs; adjoint.(id_avgs)])
                 filter!(!isequal(ref_avg), id_avgs_adj)
                 push!(redundants, id_avgs...)
