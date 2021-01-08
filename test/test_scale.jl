@@ -77,5 +77,4 @@ S = Spectrum(c,ps)
 ω = range(-pi, pi, length=501)
 s = S(ω,sol.u[end],p0)
 
-
 end # testset

@@ -104,6 +104,7 @@ function scale_complete(rhs::Vector{<:Number}, vs::Vector{<:Number}, H, J, rates
         filter!(!in(redundants), missed)
         missed = unique_ops(missed)
         feed_redundants!(redundants,identical_aons,missed,names)
+        filter!(!in(vs_),missed)
         filter!(!in(redundants), missed)
         missed = unique_ops(missed)
     end

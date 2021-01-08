@@ -392,7 +392,6 @@ function _complete_corr(de::ScaleDifferentialEquation,aon0,lhs_new,order,steady_
     identical_aons = de.identicals
     interaction_aons = de.interactions
     N = de.factors
-    redundants = []
     lhs = de.lhs
     rhs = de.rhs
 
@@ -412,7 +411,9 @@ function _complete_corr(de::ScaleDifferentialEquation,aon0,lhs_new,order,steady_
     lhs_init_ops = getfield.(lhs, :operator)
     de_ops_init = average(heisenberg(lhs_init_ops, H, J; rates=rates, kwargs...),order)
     vs_ = copy(de_ops_init.lhs)
-    feed_redundants!(redundants, identical_aons, vs_, names)
+    redundants = Average[] #create identical specific redundants later
+    ref_avgs = Average[]
+    feed_redundants!(redundants,identical_aons,vs_,names)
     rhs_ = [cumulant_expansion(r, order_) for r in de_ops_init.rhs]
     missed = unique_ops(find_missing(rhs_, vs_))
     filter!(x->isa(x,Average),missed)
@@ -438,6 +439,7 @@ function _complete_corr(de::ScaleDifferentialEquation,aon0,lhs_new,order,steady_
     isnothing(filter_func) || filter!(filter_func, missed) # User-defined filter
     feed_redundants!(redundants,identical_aons,missed,names)
     filter!(!in(redundants), missed)
+    missed = unique_ops(missed)
 
     while !isempty(missed)
         ops = getfield.(missed, :operator)
@@ -449,8 +451,11 @@ function _complete_corr(de::ScaleDifferentialEquation,aon0,lhs_new,order,steady_
         filter!(x->isa(x,Average),missed)
         filter!(_filter_aon, missed)
         isnothing(filter_func) || filter!(filter_func, missed) # User-defined filter
+        missed = unique_ops(missed)
         feed_redundants!(redundants,identical_aons,missed,names)
+        filter!(!in(vs_),missed)
         filter!(!in(redundants), missed)
+        missed = unique_ops(missed)
     end
 
     if !isnothing(filter_func)
