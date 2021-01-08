@@ -80,7 +80,6 @@ function scale_complete(rhs::Vector{<:Number}, vs::Vector{<:Number}, H, J, rates
     de_ops_init = average(heisenberg(lhs_init_ops, H, J; rates=rates, kwargs...),order)
     vs_ = copy(de_ops_init.lhs)
     redundants = Average[] #create identical specific redundants later
-    ref_avgs = Average[]
     feed_redundants!(redundants,identical_aons,vs_,names)
     rhs_ = [cumulant_expansion(r, order_) for r in de_ops_init.rhs]
     missed = unique_ops(find_missing(rhs_, vs_))
@@ -233,24 +232,62 @@ end
 
 ### scale_complete() ###
 
-function get_ref_avg(avg, all_id_aon, names)
-    aon_ls = intersect_aon(avg, all_id_aon)
-    if isempty(aon_ls)
+# function get_ref_avg(avg, all_id_aon, names)
+#     aon_ls = intersect_aon(avg, all_id_aon)
+#     if isempty(aon_ls)
+#         return avg, []
+#     end
+#     len = length(aon_ls)
+#     aon_ls_permus = unique(sort.(permutations(all_id_aon, len)))
+#     ref_avg = swap_aon(avg, aon_ls, all_id_aon[1:len], names[all_id_aon[1:len]])
+#     aon_ls_ref = intersect_aon(ref_avg, all_id_aon)
+#     all_ids =  [swap_aon(ref_avg, aon_ls_ref, aon_p, names[aon_p]) for aon_p in aon_ls_permus]
+#     if len > 1
+#         avg_permus = get_permuted_avgs(ref_avg, all_id_aon, names)
+#         filter!(!isequal(ref_avg), avg_permus)
+#         for it=1:length(avg_permus)
+#             all_ids_ = [swap_aon(avg_permus[it], aon_ls_ref, aon_p, names[aon_p]) for aon_p in aon_ls_permus]
+#             push!(all_ids, all_ids_...)
+#         end
+#     end
+#     all_ids = [all_ids; adjoint.(all_ids)]
+#     unique!(all_ids)
+#     filter!(!isequal(ref_avg), all_ids)
+#     return ref_avg, all_ids
+# end
+
+function get_ref_avg(avg, all_id_aons, names) #all_id_aons is a list of lists
+    aon_ls = [intersect_aon(avg, all_id_aon) for all_id_aon in all_id_aons]
+    if all(isempty.(aon_ls))
         return avg, []
     end
-    len = length(aon_ls)
-    aon_ls_permus = unique(sort.(permutations(all_id_aon, len)))
-    ref_avg = swap_aon(avg, aon_ls, all_id_aon[1:len], names[all_id_aon[1:len]])
-    aon_ls_ref = intersect_aon(ref_avg, all_id_aon)
-    all_ids =  [swap_aon(ref_avg, aon_ls_ref, aon_p, names[aon_p]) for aon_p in aon_ls_permus]
-    if len > 1
-        avg_permus = get_permuted_avgs(ref_avg, all_id_aon, names)
-        filter!(!isequal(ref_avg), avg_permus)
-        for it=1:length(avg_permus)
-            all_ids_ = [swap_aon(avg_permus[it], aon_ls_ref, aon_p, names[aon_p]) for aon_p in aon_ls_permus]
-            push!(all_ids, all_ids_...)
+    len = length.(aon_ls)
+    aon_ls_permus = [unique(sort.(permutations(all_id_aons[it], len[it]))) for it=1:length(all_id_aons)]
+    ### get ref_avg, considering all "clusters"
+    ref_avg = copy(avg)
+    for it=1:length(all_id_aons)
+        ref_avg = swap_aon(ref_avg, aon_ls[it], all_id_aons[it][1:len[it]], names[all_id_aons[it][1:len[it]]])
+    end
+    aon_ls_ref = [intersect_aon(ref_avg, all_id_aon) for all_id_aon in all_id_aons]
+    ### get all identical avgs (identical to ref_avg)
+    all_ids = [ref_avg]
+    for it=1:length(all_id_aons)
+        if len[it] > 1
+            avg_permus = []
+            for it_a = 1:length(all_ids)
+                permu_avgs = get_permuted_avgs(all_ids[it_a], all_id_aons[it], names)
+                push!(avg_permus, permu_avgs...)
+            end
+            unique!(avg_permus)
+            push!(all_ids, avg_permus...)
         end
     end
+    for it=1:length(all_id_aons)
+        all_ids_ = [swap_aon(all_ids[it_], aon_ls_ref[it], aon_p, names[aon_p]) for it_ = 1:length(all_ids) for aon_p in aon_ls_permus[it]]
+        push!(all_ids, all_ids_...)
+    end
+    filter!(!isequal(ref_avg), all_ids)
+    unique!(all_ids)
     all_ids = [all_ids; adjoint.(all_ids)]
     unique!(all_ids)
     filter!(!isequal(ref_avg), all_ids)
@@ -258,16 +295,14 @@ function get_ref_avg(avg, all_id_aon, names)
 end
 
 function feed_redundants!(redundants::Vector, identical_aons, avg_ls, names)
-    for it=1:length(identical_aons)
-        for itm=1:length(avg_ls)
-            ref_avg, id_avgs = get_ref_avg(avg_ls[itm], identical_aons[it], names)
-            if ref_avg ∉ redundants
-                avg_ls[itm] = ref_avg
-                id_avgs_adj = unique([id_avgs; adjoint.(id_avgs)])
-                filter!(!isequal(ref_avg), id_avgs_adj)
-                push!(redundants, id_avgs...)
-                unique!(redundants)
-            end
+    for itm=1:length(avg_ls)
+        ref_avg, id_avgs = get_ref_avg(avg_ls[itm], identical_aons, names)
+        if ref_avg ∉ redundants
+            avg_ls[itm] = ref_avg
+            id_avgs_adj = unique([id_avgs; adjoint.(id_avgs)])
+            filter!(!isequal(ref_avg), id_avgs_adj)
+            push!(redundants, id_avgs...)
+            unique!(redundants)
         end
     end
     return redundants
