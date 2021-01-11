@@ -226,7 +226,8 @@ end
 Find the numerical solution of the average value `avg` stored in the `ODESolution`
 `sol` corresponding to the solution of the equations given by `he`.
 """
-function get_solution(avg::Average,sol,he::DifferentialEquation{<:Number,<:Number})
+function get_solution(avg::Average,sol,he::Union{DifferentialEquation, ScaleDifferentialEquation})
+    isa(he, ScaleDifferentialEquation) && (avg = substitute(avg, he.dictionary))
     idx = findfirst(isequal(avg),he.lhs)
     if isnothing(idx)
         idx_ = findfirst(isequal(avg'),he.lhs)
@@ -236,6 +237,7 @@ function get_solution(avg::Average,sol,he::DifferentialEquation{<:Number,<:Numbe
         return [u[idx] for u in sol.u]
     end
 end
+
 
 
 _to_expression(x::Number) = x
