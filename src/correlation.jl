@@ -50,15 +50,10 @@ function CorrelationFunction(op1,op2,de0::AbstractEquation; steady_state=false, 
     he = heisenberg(op_,H,J;rates=de0.rates)
     de_ = average(he, order)
     if isa(de0, ScaleDifferentialEquation)
-        dicts_redundant_new = []
-        for it=1:length(de0.dictionaries)
-            push!(dicts_redundant_new, _new_operator(de0.dictionaries[it], h))
-        end
+        dicts_redundant_new = _new_operator(de0.dictionary, h)
         de_ = scale(de_, de0.identicals, de0.interactions, de0.factors)
         de = _complete_corr(de_, length(h.spaces), lhs_new, order, steady_state; filter_func=filter_func, mix_choice=mix_choice, de0_dicts=dicts_redundant_new, kwargs...)
-        for dict in dicts_redundant_new
-            de = substitute(de, dict)
-        end
+        de = substitute(de, dicts_redundant_new)
         de0_ = ScaleDifferentialEquation(lhs_new, [_new_operator(r, h) for r in de0.rhs], H, J, de0.rates, de0.factors, de0.identicals,de0.interactions, dicts_redundant_new)
     elseif isa(de0, DifferentialEquation)
         de = _complete_corr(de_, length(h.spaces), lhs_new, order, steady_state; filter_func=filter_func, mix_choice=mix_choice, kwargs...)
@@ -90,7 +85,7 @@ function initial_values(c::CorrelationFunction, u_end)
     ops = [substitute(op, subs) for op in ops]
     lhs = [average(substitute(op, subs)) for op in ops]
     if isa(c.de0, ScaleDifferentialEquation)
-        scale_dict = merge((c.de0.dictionaries)...)
+        scale_dict = c.de0.dictionary
         for it=1:length(lhs)
             lhs[it] = substitute(lhs[it], scale_dict)
         end
@@ -159,7 +154,7 @@ function Spectrum(c::CorrelationFunction, ps=[]; kwargs...)
     de = c.de
     de0 = c.de0
     if isa(de0, ScaleDifferentialEquation)
-        fAsym, fbsym, Ameta, bmeta = _build_spec_func(de.lhs, de.rhs, c.op2_0, c.op2, de0.lhs, ps;de0_dicts=de0.dictionaries, kwargs...)
+        fAsym, fbsym, Ameta, bmeta = _build_spec_func(de.lhs, de.rhs, c.op2_0, c.op2, de0.lhs, ps;de0_dicts=de0.dictionary, kwargs...)
     elseif isa(de0, DifferentialEquation)
         fAsym, fbsym, Ameta, bmeta = _build_spec_func(de.lhs, de.rhs, c.op2_0, c.op2, de0.lhs, ps; kwargs...)
     end
@@ -243,7 +238,7 @@ function build_ode(c::CorrelationFunction, ps=[], args...; kwargs...)
             de = c.de
         end
         if c.de0 isa ScaleDifferentialEquation
-            de = substitute(de, merge((c.de0.dictionaries)...))
+            de = substitute(de, c.de0.dictionary)
         end
         ps_ = (ps..., steady_vals...)
         return build_ode(de, ps_, args...; kwargs...)
@@ -323,7 +318,7 @@ function _new_operator(dict::Dict, h, aon=nothing; kwargs...)
     return d
 end
 
-function _complete_corr(de::DifferentialEquation,aon0,lhs_new,order,steady_state; mix_choice=maximum, filter_func=nothing, de0_dicts=[Dict()], kwargs...)
+function _complete_corr(de::DifferentialEquation,aon0,lhs_new,order,steady_state; mix_choice=maximum, filter_func=nothing, de0_dicts=Dict(), kwargs...)
     lhs = de.lhs
     rhs = de.rhs
 
@@ -346,9 +341,7 @@ function _complete_corr(de::DifferentialEquation,aon0,lhs_new,order,steady_state
     filter!(x->isa(x,Average),missed)
 
     function _filter_aon(x) # Filter values that act only on Hilbert space representing system at time t0
-        for dict in de0_dicts
-            x = substitute(x, dict)
-        end
+        x = substitute(x, de0_dicts)
         aon = acts_on(x)
         if aon0 in aon
             length(aon)==1 && return false
@@ -387,7 +380,7 @@ function _complete_corr(de::DifferentialEquation,aon0,lhs_new,order,steady_state
     end
     return DifferentialEquation(vs_, rhs_, H, J, rates)
 end
-function _complete_corr(de::ScaleDifferentialEquation,aon0,lhs_new,order,steady_state; mix_choice=maximum, filter_func=nothing, de0_dicts=[Dict()], kwargs...)
+function _complete_corr(de::ScaleDifferentialEquation,aon0,lhs_new,order,steady_state; mix_choice=maximum, filter_func=nothing, de0_dicts=Dict(), kwargs...)
     names = get_names(de)
     identical_aons = de.identicals
     interaction_aons = de.interactions
@@ -420,9 +413,7 @@ function _complete_corr(de::ScaleDifferentialEquation,aon0,lhs_new,order,steady_
     feed_redundants!(redundants,identical_aons,missed,names)
     filter!(!in(redundants), missed)
     function _filter_aon(x) # Filter values that act only on Hilbert space representing system at time t0
-        for dict in de0_dicts
-            x = substitute(x, dict)
-        end
+        x = substitute(x, de0_dicts)
         aon = acts_on(x)
         if aon0 in aon
             length(aon)==1 && return false
@@ -474,17 +465,15 @@ end
 
 ### Auxiliary functions for Spectrum
 
-function _build_spec_func(lhs, rhs, a1, a0, steady_vals, ps=[]; psym=:p, wsym=:ω, usteady=:usteady, de0_dicts=[Dict()])
+function _build_spec_func(lhs, rhs, a1, a0, steady_vals, ps=[]; psym=:p, wsym=:ω, usteady=:usteady, de0_dicts=Dict())
     s = Dict(a0=>a1)
     ops = getfield.(lhs, :operator)
 
     ω = Parameter{Number}(wsym) # Laplace transform argument i*ω
     b = [average(substitute(op, s)) for op in ops] # Initial values
     c = [simplify_constants(c_ / (im*ω)) for c_ in _find_independent(rhs, a0)]
-    for dict in de0_dicts #initial values
-        b = [substitute(b_, dict) for b_ in b]
-        c = [substitute(c_, dict) for c_ in c]
-    end
+    b = [substitute(b_, de0_dicts) for b_ in b]
+    c = [substitute(c_, de0_dicts) for c_ in c]
     aon0 = acts_on(a0)
     @assert length(aon0)==1
     rhs_ = _find_dependent(rhs, aon0[1])

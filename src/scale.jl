@@ -6,25 +6,28 @@ that it corresponds to a system with `N` identical particles. This means a facto
 proper positions. The rules for the additional factors in the equations depend on the operator interacting with the identical operators `interaction_op`.
 For a n-th order cumulant expansion at least n identical operators (acting on different Hilbert) spaces are needed.
 """
-function scale(de::DifferentialEquation, identical_ops::Vector{<:AbstractOperator}, interaction_op::AbstractOperator, N::Number)
-    identical_aons = unique(acts_on.(identical_ops))
-    interaction_aon = acts_on(interaction_op)
-    scale(de::DifferentialEquation, identical_aons, interaction_aon, N)
+
+function scale(de::Union{ScaleDifferentialEquation, DifferentialEquation}, identical_aons, interaction_aon, N)
+    names = get_names(de)
+    !isa(N, Vector) && (identical_aons = [identical_aons]; interaction_aon = [interaction_aon]; N = [N]) #convert to vector
+    if isa(interaction_aon, Vector{<:AbstractOperator}) #convert operator to acts_on-number
+        identical_aons = [unique(acts_on.(id_aons)) for id_aons in identical_aons]
+        interaction_aon = acts_on.(interaction_aon)
+    end
+    identical_aons = sort.(identical_aons)
+    de_s = scale_nosub(de, identical_aons, interaction_aon, N, names)
+    sub_ref_avg(de_s, identical_aons, interaction_aon, N, names)
 end
-function scale(de::Union{ScaleDifferentialEquation, DifferentialEquation}, identical_aons::Vector, interaction_aon::Vector, N::Vector{<:Number})
+
+function scale_nosub(de::Union{ScaleDifferentialEquation, DifferentialEquation}, identical_aons::Vector, interaction_aon::Vector, N::Vector{<:Number}, names)
     @assert length(interaction_aon) == length(N) == length(identical_aons)
     de_scale = de
     for it=1:length(N)
-        de_scale = scale(de_scale, identical_aons[it], interaction_aon[it], N[it])
+        de_scale = scale_nosub(get_DiffEq_from_scale(de_scale), identical_aons[it], interaction_aon[it], N[it], names)
     end
     return de_scale
 end
-function scale(de::ScaleDifferentialEquation, identical_aons::Vector, interaction_aon, N::Number)
-    he = scale(get_DiffEq_from_scale(de), identical_aons, interaction_aon, N)
-    return ScaleDifferentialEquation(he.lhs,he.rhs,he.hamiltonian,he.jumps,he.rates,[de.factors;he.factors],[de.identicals;he.identicals],[de.interactions;he.interactions],[de.dictionaries; he.dictionaries])
-end
-function scale(de::DifferentialEquation, identical_aons_::Vector{Int}, interaction_aon::Int, N::Number)
-    names = get_names(de)
+function scale_nosub(de::DifferentialEquation, identical_aons_::Vector{Int}, interaction_aon::Int, N::Number, names)
     identical_aons = sort(identical_aons_)
     idx = [filter_identical(x, identical_aons) for x in de.lhs]
     de_lhs = de.lhs[idx]
@@ -57,8 +60,19 @@ function scale(de::DifferentialEquation, identical_aons_::Vector{Int}, interacti
         de_rhs[it] = substitute(de_rhs[it], tmp_dict)
     end
     he = DifferentialEquation(de_lhs, de_rhs, de.hamiltonian, de.jumps, de.rates)
-    he, scale_dict = filter_redundant(he, identical_aons, names)
-    return ScaleDifferentialEquation(he.lhs,he.rhs,he.hamiltonian,he.jumps,he.rates,[N],[identical_aons],[interaction_aon],[scale_dict])
+    return he
+end
+
+function sub_ref_avg(de_s::Union{ScaleDifferentialEquation, DifferentialEquation}, identical_aons, interaction_aon, N, names)
+    dict = Dict()
+    for it=1:length(de_s.lhs)
+        ref_avg, all_ids = get_ref_avg(de_s.lhs[it], identical_aons, names; no_adj=true)
+        for id in all_ids
+            dict[id] = ref_avg
+        end
+    end
+    he_s = substitute(de_s, dict)
+    return ScaleDifferentialEquation(he_s.lhs,he_s.rhs,he_s.hamiltonian,he_s.jumps,he_s.rates,N,identical_aons,interaction_aon,dict)
 end
 
 # Complete system skipping over unnecessary averages when scaling
@@ -232,31 +246,7 @@ end
 
 ### scale_complete() ###
 
-# function get_ref_avg(avg, all_id_aon, names)
-#     aon_ls = intersect_aon(avg, all_id_aon)
-#     if isempty(aon_ls)
-#         return avg, []
-#     end
-#     len = length(aon_ls)
-#     aon_ls_permus = unique(sort.(permutations(all_id_aon, len)))
-#     ref_avg = swap_aon(avg, aon_ls, all_id_aon[1:len], names[all_id_aon[1:len]])
-#     aon_ls_ref = intersect_aon(ref_avg, all_id_aon)
-#     all_ids =  [swap_aon(ref_avg, aon_ls_ref, aon_p, names[aon_p]) for aon_p in aon_ls_permus]
-#     if len > 1
-#         avg_permus = get_permuted_avgs(ref_avg, all_id_aon, names)
-#         filter!(!isequal(ref_avg), avg_permus)
-#         for it=1:length(avg_permus)
-#             all_ids_ = [swap_aon(avg_permus[it], aon_ls_ref, aon_p, names[aon_p]) for aon_p in aon_ls_permus]
-#             push!(all_ids, all_ids_...)
-#         end
-#     end
-#     all_ids = [all_ids; adjoint.(all_ids)]
-#     unique!(all_ids)
-#     filter!(!isequal(ref_avg), all_ids)
-#     return ref_avg, all_ids
-# end
-
-function get_ref_avg(avg, all_id_aons, names) #all_id_aons is a list of lists
+function get_ref_avg(avg, all_id_aons, names; no_adj=false) #all_id_aons is a list of lists
     aon_ls = [intersect_aon(avg, all_id_aon) for all_id_aon in all_id_aons]
     if all(isempty.(aon_ls))
         return avg, []
@@ -288,6 +278,9 @@ function get_ref_avg(avg, all_id_aons, names) #all_id_aons is a list of lists
     end
     filter!(!isequal(ref_avg), all_ids)
     unique!(all_ids)
+    if no_adj # true -> to create dictionary
+        return ref_avg, all_ids
+    end
     all_ids = [all_ids; adjoint.(all_ids)]
     unique!(all_ids)
     filter!(!isequal(ref_avg), all_ids)

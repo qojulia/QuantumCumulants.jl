@@ -58,11 +58,12 @@ phase_invariant(x) = iszero(ϕ(x))
 
 # Complete equations
 he = complete(he_scale;order=M,filter_func=phase_invariant);
-
-find_missing(he.rhs, he.lhs)
+@test length(he.lhs) == 4
+@test isempty(find_missing(he.rhs, he.lhs))
 
 # Correlation function
 c = CorrelationFunction(a', a, he; steady_state=true, filter_func=phase_invariant)
+@test length(c.de) == 2
 
 # Numerical solution
 ps = (Δ, g, γ, κ, ν, N)
