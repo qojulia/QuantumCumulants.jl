@@ -189,6 +189,10 @@ unique_ops
 ```
 
 ```@docs
+get_solution
+```
+
+```@docs
 fundamental_operators
 ```
 

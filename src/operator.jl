@@ -63,11 +63,11 @@ end
 
 # Hilbert space checks
 check_hilbert(a::BasicOperator,b::BasicOperator) = (a.hilbert == b.hilbert) || error("Incompatible Hilbert spaces $(a.hilbert) and $(b.hilbert)!")
-function check_hilbert(a::OperatorTerm,b::AbstractOperator)
+function check_hilbert(a::OperatorTerm,b::BasicOperator)
     a_ = findfirst(x->isa(x,AbstractOperator), a.arguments)
     return check_hilbert(a_,b)
 end
-function check_hilbert(a::AbstractOperator,b::OperatorTerm)
+function check_hilbert(a::BasicOperator,b::OperatorTerm)
     b_ = findfirst(x->isa(x,AbstractOperator), b.arguments)
     return check_hilbert(a,b_)
 end
@@ -76,7 +76,12 @@ function check_hilbert(a::OperatorTerm,b::OperatorTerm)
     b_ = findfirst(x->isa(x,AbstractOperator), b.arguments)
     return check_hilbert(a_,b_)
 end
-check_hilbert(args...) = nothing#reduce(check_hilbert, args) # TODO
+function check_hilbert(args...)
+    for i=1:length(args)-1
+        check_hilbert(args[i], args[i+1])
+    end
+end
+check_hilbert(x,y) = true
 
 """
     acts_on(op::AbstractOperator)

@@ -220,6 +220,23 @@ function unique_ops(ops)
     return seen
 end
 
+"""
+    get_solution(avg,sol,he)
+
+Find the numerical solution of the average value `avg` stored in the `ODESolution`
+`sol` corresponding to the solution of the equations given by `he`.
+"""
+function get_solution(avg::Average,sol,he::DifferentialEquation{<:Number,<:Number})
+    idx = findfirst(isequal(avg),he.lhs)
+    if isnothing(idx)
+        idx_ = findfirst(isequal(avg'),he.lhs)
+        isnothing(idx_) && error("Could not find solution for $avg !")
+        return [conj(u[idx_]) for u in sol.u]
+    else
+        return [u[idx] for u in sol.u]
+    end
+end
+
 
 _to_expression(x::Number) = x
 function _to_expression(x::Complex) # For brackets when using latexify

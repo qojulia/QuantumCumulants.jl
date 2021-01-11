@@ -69,6 +69,9 @@ p0 = [κn, gn, Δcn, Γ2n, Γ3n, Δ2n, Δ3n, Ω2n, Ω3n]
 prob = ODEProblem(f,u0,(0.0,tmax),p0)
 sol = solve(prob,RK4());
 
+avg = average(a'*σ(2,1))
+@test get_solution(avg,sol,he_avg) == map(conj, getindex.(sol.u, 7))
+
 # Filter cavity equations to compute spectrum
 # Hilbert space
 hfilter = FockSpace(:filter)
