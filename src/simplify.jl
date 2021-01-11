@@ -19,7 +19,6 @@ end
 # Symbolic type promotion
 SymbolicUtils.promote_symtype(f, Ts::Type{<:AbstractOperator}...) = promote_type(AbstractOperator,Ts...)
 SymbolicUtils.promote_symtype(f, T::Type{<:AbstractOperator}, Ts...) = promote_type(AbstractOperator,T)
-# SymbolicUtils.promote_symtype(f, T, S, Ts::Union{Type{<:Number},Type{<:AbstractOperator}}...) = SymbolicUtils.promote_symtype(f, SymbolicUtils.promote_symtype(f, T, S), Ts...)
 for f in [+,-,*,/,^]
     @eval SymbolicUtils.promote_symtype(::$(typeof(f)),
                    T::Type{<:AbstractOperator},
@@ -40,7 +39,6 @@ Base.zero(x::SymbolicUtils.Symbolic{T}) where T<:AbstractOperator = 0
 Base.one(x::SymbolicUtils.Sym{SymbolicUtils.FnType{A,T}}) where {A,T<:AbstractOperator} = 1
 Base.zero(x::SymbolicUtils.Sym{SymbolicUtils.FnType{A,T}}) where {A,T<:AbstractOperator} = 0
 
-# SymbolicUtils.assert_number(::SymbolicUtils.Symbolic{<:AbstractOperator}) = true
 SymbolicUtils.islike(::SymbolicUtils.Symbolic{<:AbstractOperator}, ::Type{<:Number}) = true
 
 ### End of interface
@@ -57,14 +55,14 @@ fundamental commutation relations.
 * rewriter: The rewriter used.
 * kwargs: Further arguments passed to `SymbolicUtils.simplify`.
 """
-function simplify_operators(op; rewriter=default_operator_simplifier(),
+function simplify_operators(op::AbstractOperator; rewriter=default_operator_simplifier(),
                 kwargs...)
     s = _to_symbolic(op)
     s_ = SymbolicUtils.simplify(s; rewriter=rewriter, kwargs...)
     (SymbolicUtils.symtype(s_) == Any) && @warn "SymbolicUtils.simplify returned symtype Any; recursion failed!"
     return _to_qumulants(s_)
 end
-# simplify_operators(x::Number, args...; kwargs...) = x
+simplify_operators(x::Number, args...; kwargs...) = x
 
 """
     expand(ex; rewriter=defualt_expand_simplifier(), kwargs...)
