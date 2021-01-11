@@ -107,6 +107,12 @@ _to_symbolic(n::NumberTerm{T}) where T = SymbolicUtils.Term{T}(n.f, _to_symbolic
 function _to_qumulants(s::SymbolicUtils.Sym{T}) where T<:Number
     return Parameter{T}(s.name)
 end
+for (f,T) in zip([:*,:+,:^],[:Mul,:Add,:Pow])
+    @eval function _to_qumulants(t::SymbolicUtils.$(T){S}) where S<:Number
+        args = SymbolicUtils.arguments(t)
+        return NumberTerm{S}($f, map(_to_qumulants, args))
+    end
+end
 
 """
     @parameters(ps...)
