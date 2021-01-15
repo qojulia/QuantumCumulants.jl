@@ -17,7 +17,12 @@ function heisenberg(a::Vector,H; multithread=false)
         lhs = simplify_operators.(a)
         rhs = simplify_operators.([1.0im*commutator(H,a1;simplify=false) for a1=lhs])
     end
-    return DifferentialEquation(lhs,rhs,H,AbstractOperator[],Number[])
+    de = DifferentialEquation(lhs,rhs,H,AbstractOperator[],Number[])
+    if has_cluster(H)
+        return scale(de)
+    else
+        return de
+    end
 end
 heisenberg(a::AbstractOperator,args...;kwargs...) = heisenberg([a],args...;kwargs...)
 

@@ -175,7 +175,7 @@ end
 
 function acts_on(t::SymbolicUtils.Term{T}) where T<:AbstractOperator
     ops = filter(isoperator, t.arguments)
-    aon = Int[]
+    aon = []
     for op in ops
         append!(aon, acts_on(op))
     end

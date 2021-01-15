@@ -8,6 +8,7 @@ export HilbertSpace, ProductSpace, ⊗,
         AbstractOperator, BasicOperator, OperatorTerm, embed,
         FockSpace, Destroy, Create,
         NLevelSpace, Transition,
+        ClusterSpace, ClusterAon,
         AbstractEquation, DifferentialEquation,
         heisenberg, commutator, acts_on,
         SymbolicNumber, NumberTerm, Parameter, @parameters, parameters,
@@ -24,6 +25,7 @@ include("hilbertspace.jl")
 include("operator.jl")
 include("fock.jl")
 include("nlevel.jl")
+include("cluster.jl")
 include("simplify.jl")
 include("rules.jl")
 include("equations.jl")

@@ -1,4 +1,8 @@
 Base.show(io::IO,h::HilbertSpace) = write(io, "ℋ(", h.name, ")")
+function Base.show(io::IO,h::ClusterSpace)
+    write(io, "$(h.N)x")
+    show(io, h.original_space)
+end
 function Base.show(io::IO,h::ProductSpace)
     show(io, h.spaces[1])
     for i=2:length(h.spaces)
