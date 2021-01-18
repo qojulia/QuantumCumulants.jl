@@ -23,7 +23,6 @@ rates = [κ;[γ for i=1:M];[ν for i=1:M]]
 
 # Derive equation for average photon number
 he_n = heisenberg(a'*a,H,J;rates=rates)
-
 he_avg = average(he_n, M)
 
 phase_invariant(x) = iszero(phase(x))
@@ -45,3 +44,22 @@ end
 phase(op::OperatorTerm{<:typeof(*)}) = sum(phase(arg) for arg in op.arguments)
 
 he_nophase = complete(he_avg;order=M,filter_func=phase_invariant)
+
+ps = (Δ, g, γ, κ, ν, N)
+meta_f = build_ode(he_nophase, ps)
+f = Meta.eval(meta_f)
+
+using OrdinaryDiffEq
+u0 = zeros(ComplexF64, length(he_nophase))
+p0 = (0, 1.5, 0.25, 1, 4, 2)
+prob = ODEProblem(f, u0, (0.0, 50.0), p0)
+sol = solve(prob, RK4())
+
+
+# Spectrum
+corr = CorrelationFunction(a', a, he_nophase; filter_func=phase_invariant, steady_state=true)
+s = Spectrum(corr, ps)
+
+using PyPlot; pygui(true)
+w_ls = range(-2pi,2pi,length=501)
+plot(w_ls, s(w_ls, sol.u[end], p0))

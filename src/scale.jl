@@ -60,18 +60,22 @@ end
 function _interacting_aons(t::OperatorTerm{<:typeof(+)})
     aon = []
     for arg in t.arguments
-        length(arg)==2 || continue
-        check = if x[1] isa Int
-            x[2] isa ClusterAon
-        elseif x[2] isa Int
-            x[1] isa ClusterAon
-        else # TODO: two interacting clusters
-            false
-        end
-        check && push!(aon, _interacting_aons(arg))
+        push!(aon, _interacting_aons(arg))
     end
     unique!(aon)
     sort!.(aon)
+    return aon
+    function _f(x)
+        length(x)==2 || return false
+        if x[1] isa Int
+            return x[2] isa ClusterAon
+        elseif x[2] isa Int
+            return x[1] isa ClusterAon
+        else # TODO: two interacting clusters
+            return false
+        end
+    end
+    filter!(_f, aon)
     return aon
 end
 _interacting_aons(t::OperatorTerm{<:typeof(*)}) = acts_on(t)
@@ -189,9 +193,15 @@ function scale_complete(rhs::Vector{<:Number}, vs::Vector{<:Number}, H, J, rates
         subs = Dict(missed .=> 0)
         rhs_ = [substitute(r, subs) for r in rhs_]
     end
-    he = DifferentialEquation(vs_, rhs_, H, J, rates)
-    he_scale = scale(he, identical_aons, interaction_aons, N)
-    return he_scale
+
+    dict = Dict()
+    for it=1:length(vs_)
+        ref_avg, all_ids = get_ref_avg(vs_[it], identical_aons, names; no_adj=true)
+        for id in all_ids
+            dict[id] = ref_avg
+        end
+    end
+    return ScaleDifferentialEquation(vs_, rhs_, H, J, rates, N, identical_aons, interaction_aons, dict)
 end
 function complete(de::ScaleDifferentialEquation{<:Number,<:Number};kwargs...)
     names = get_names(de)

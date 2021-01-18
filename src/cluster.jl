@@ -63,12 +63,12 @@ function Transition(hilbert::ProductSpace,name,i,j)
         length(inds)>1 && error("More than one NLevelSpace in $(hilbert)! Specify on which Hilbert space Transition should be created with Transition(hilbert,name,i,j,acts_on)!")
     end
 end
-function Transition(hilbert::H,name::S,i::I,j::I,aon::Int) where {H<:ProductSpace,S,I}
+function Transition(hilbert::H,name::S,i::I,j::I,aon::A) where {H<:ProductSpace,S,I,A<:Int}
     if hilbert.spaces[aon] isa ClusterSpace
         op = Transition(hilbert.spaces[aon].original_space,name,i,j,1)
         return _cluster(hilbert, op, aon)
     else
-        return Transition(hilbert,name,i,j,aon)
+        return Transition{H,S,I,A}(hilbert,name,i,j,aon)
     end
 end
 
