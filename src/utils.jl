@@ -134,6 +134,7 @@ Return the Hilbert space of the operator.
 """
 hilbert(op::BasicOperator) = op.hilbert
 hilbert(t::OperatorTerm) = hilbert(t.arguments[findfirst(x->isa(x,AbstractOperator), t.arguments)])
+hilbert(avg::Average) = hilbert(avg.operator)
 
 """
     fundamental_operators(::HilbertSpace)
