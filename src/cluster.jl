@@ -108,13 +108,3 @@ end
 _remake_op(op::Transition, h, name, aon) = Transition(h, name, op.i, op.j, aon)
 _remake_op(op::Destroy, h, name, aon) = Destroy(h, name, aon)
 _remake_op(op::Create, h, name, aon) = Create(h, name, aon)
-
-# expand_clusters(c::Cluster) = sum(c.ops)
-# expand_clusters(x) = x
-# function expand_clusters(t::OperatorTerm)
-#     args = AbstractOperator[]
-#     for arg in t.arguments
-#         push!(args, expand_clusters(t.arguments))
-#     end
-#     return t.f(args...)
-# end
