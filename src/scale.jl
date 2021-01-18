@@ -64,7 +64,6 @@ function _interacting_aons(t::OperatorTerm{<:typeof(+)})
     end
     unique!(aon)
     sort!.(aon)
-    return aon
     function _f(x)
         length(x)==2 || return false
         if x[1] isa Int
