@@ -1,5 +1,5 @@
 # TODO: error on ProductSpace
-struct ClusterSpace{H<:HilbertSpace,NType,M} <: HilbertSpace
+struct ClusterSpace{H<:HilbertSpace,NType,M<:Integer} <: HilbertSpace
     original_space::H
     N::NType
     order::M
