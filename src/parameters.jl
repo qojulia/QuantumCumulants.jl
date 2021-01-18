@@ -22,7 +22,7 @@ struct NumberTerm{T<:Number} <: SymbolicNumber{T}
     f::Function
     arguments::Vector
 end
-function NumberTerm(f,args;type=SymbolicUtils.rec_promote_symtype(f, SymbolicUtils.symtype.(args)...))
+function NumberTerm(f,args;type=SymbolicUtils._promote_symtype(f, args))
     return NumberTerm{type}(f,args)
 end
 Base.:(==)(t1::NumberTerm,t2::NumberTerm) = (t1.f===t2.f && t1.arguments==t2.arguments)
