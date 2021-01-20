@@ -68,7 +68,14 @@ let
         SymbolicUtils.@rule(zero(~x) => zero(SymbolicUtils.symtype(~x)))
         # SymbolicUtils.@rule(SymbolicUtils.cond(~x::SymbolicUtils.is_literal_number, ~y, ~z) => ~x ? ~y : ~z)
     ]
-
+    EXPAND_PLUS_RULES = [
+            SymbolicUtils.@rule(~x::SymbolicUtils.isnotflat(+) => SymbolicUtils.flatten_term(+, ~~x))
+            SymbolicUtils.@rule(~x::SymbolicUtils.needs_sorting(+) => SymbolicUtils.sort_args(+, ~~x))
+            SymbolicUtils.ACRule(combinations, SymbolicUtils.@rule(~a::SymbolicUtils.is_literal_number + ~b::SymbolicUtils.is_literal_number => ~a + ~b), 2)
+            SymbolicUtils.ACRule(permutations, SymbolicUtils.@rule(*(~α::SymbolicUtils.is_literal_number, ~x) + ~x => *(~α + 1, ~x)), 2)
+            SymbolicUtils.ACRule(combinations, SymbolicUtils.@rule((~z::SymbolicUtils._iszero + ~x) => ~x), 2)
+            SymbolicUtils.@rule(+(~x) => ~x)
+    ]
 
     # Rewriter functions
     global operator_simplifier
@@ -108,10 +115,18 @@ let
         return SymbolicUtils.Fixpoint(SymbolicUtils.Postwalk(rule_tree))
     end
 
+    # function default_expand_simplifier()
+    #     rule_tree = [SymbolicUtils.If(SymbolicUtils.istree, SymbolicUtils.Chain(ASSORTED_RULES)),
+    #                 SymbolicUtils.If(SymbolicUtils.is_operation(*), SymbolicUtils.Chain(EXPAND_TIMES_RULES)),
+    #                 SymbolicUtils.If(SymbolicUtils.is_operation(^), SymbolicUtils.Chain(EXPAND_POW_RULES))
+    #                 ] |> SymbolicUtils.Chain
+    #     return SymbolicUtils.Fixpoint(SymbolicUtils.Postwalk(rule_tree))
+    # end
     function default_expand_simplifier()
         rule_tree = [SymbolicUtils.If(SymbolicUtils.istree, SymbolicUtils.Chain(ASSORTED_RULES)),
                     SymbolicUtils.If(SymbolicUtils.is_operation(*), SymbolicUtils.Chain(EXPAND_TIMES_RULES)),
-                    SymbolicUtils.If(SymbolicUtils.is_operation(^), SymbolicUtils.Chain(EXPAND_POW_RULES))
+                    SymbolicUtils.If(SymbolicUtils.is_operation(^), SymbolicUtils.Chain(EXPAND_POW_RULES)),
+                    SymbolicUtils.If(SymbolicUtils.is_operation(+), SymbolicUtils.Chain(EXPAND_PLUS_RULES)),
                     ] |> SymbolicUtils.Chain
         return SymbolicUtils.Fixpoint(SymbolicUtils.Postwalk(rule_tree))
     end

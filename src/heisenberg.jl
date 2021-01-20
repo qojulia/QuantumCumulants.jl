@@ -6,6 +6,7 @@ Compute a set of Heisenberg equations of the operators in `ops`
 under the Hamiltonian `H`.
 """
 function heisenberg(a::Vector,H; multithread=false)
+    #TODO ClusterSpace
     if multithread
         lhs = Vector{AbstractOperator}(undef, length(a))
         rhs = Vector{AbstractOperator}(undef, length(a))
@@ -59,7 +60,11 @@ function heisenberg(a::Vector,H,J;Jdagger::Vector=adjoint.(J),rates=ones(length(
             rhs[i] = simplify_operators(1.0im*commutator(H,lhs[i];simplify=false) + _master_lindblad(lhs[i],J,Jdagger,rates))
         end
     end
-    return DifferentialEquation(lhs,rhs,H,J,rates)
+    he = DifferentialEquation(lhs,rhs,H,J,rates)
+    # Clusters
+    h = hilbert(lhs[1])
+    any(isa.(h.spaces, FockSpace)) && (return scale(he))
+    return he
 end
 function _master_lindblad(a_,J,Jdagger,rates)
     if isa(rates,Vector)
