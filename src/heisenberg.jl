@@ -46,7 +46,15 @@ equivalent to the Quantum-Langevin equation where noise is neglected.
     the collapse operators.
 *`rates=ones(length(J))`: Decay rates corresponding to the collapse operators in `J`.
 """
-function heisenberg(a::Vector,H,J;Jdagger::Vector=adjoint.(J),rates=ones(length(J)),multithread=false)
+function heisenberg(a::Vector,H,J_;Jdagger::Vector=adjoint.(Iterators.flatten(J_)),rates_=ones(length(J_)),multithread=false)
+    if any(isa.(J, Vector))
+        J = []; rates = []
+        for it=1:length(J_)
+            push!(J, J_[it]...); push!(rates, [rates_[it] for i=1:length(J_[it])]...)
+        end
+    else
+        J = J_; rates = rates_
+    end
     lhs = Vector{AbstractOperator}(undef, length(a))
     rhs = Vector{AbstractOperator}(undef, length(a))
     if multithread
