@@ -6,7 +6,7 @@ Compute a set of Heisenberg equations of the operators in `ops`
 under the Hamiltonian `H`.
 """
 function heisenberg(a::Vector,H; multithread=false)
-    #TODO ClusterSpace
+    #TODO ClusterSpace - copy from other heisenberg when finished
     if multithread
         lhs = Vector{AbstractOperator}(undef, length(a))
         rhs = Vector{AbstractOperator}(undef, length(a))

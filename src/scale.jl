@@ -4,17 +4,7 @@ function scale(he::DifferentialEquation{<:AbstractOperator, <:AbstractOperator})
     names = get_names(he)
 
     h = hilbert(he.lhs[1])
-    cluster_idx = findall(x->x isa ClusterSpace, h.spaces)
-    cluster_Ns = getfield.(h.spaces[cluster_idx], :N)
-    cluster_orders = getfield.(h.spaces[cluster_idx], :order)
-    cluster_aons = []
-    for i = 1:length(cluster_idx)
-        aon_i = []
-        for j=1:c_order[i]
-            push!(aon_i, ClusterAon(cluster_idx[i],j))
-        end
-        push!(cluster_aons, aon_i)
-    end
+    cluster_Ns, cluster_orders, cluster_aons = get_cluster_stuff(h)
     he_avg = average(he)
     redundants = Average[]
     ref_avgs = Average[]
@@ -67,6 +57,20 @@ function set_scale_factors_rhs(he::DifferentialEquation, order, cluster_aon, N)
     return rhs_new
 end
 
+function get_cluster_stuff(h::HilbertSpace)
+    cluster_idx = findall(x->x isa ClusterSpace, h.spaces)
+    cluster_Ns = getfield.(h.spaces[cluster_idx], :N)
+    cluster_orders = getfield.(h.spaces[cluster_idx], :order)
+    cluster_aons = []
+    for i = 1:length(cluster_idx)
+        aon_i = []
+        for j=1:c_order[i]
+            push!(aon_i, ClusterAon(cluster_idx[i],j))
+        end
+        push!(cluster_aons, aon_i)
+    end
+    return cluster_Ns, cluster_orders, cluster_aons
+end
 
 """
     scale(de::DifferentialEquation, identical_ops::Vector{AbstractOperator}, interaction_op::AbstractOperator, N::Number)
