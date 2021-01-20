@@ -91,7 +91,7 @@ function scale_complete(rhs::Vector{<:Number}, vs::Vector{<:Number}, H, J, rates
     maximum(order_) >= order_lhs || error("Cannot form cumulant expansion of derivative; you may want to use a higher order!")
 
     lhs_init_ops = getfield.(vs, :operator)
-    de_ops_init = average(heisenberg(lhs_init_ops, H, J; rates=rates, kwargs...),order)
+    de_ops_init = average(heisenberg(lhs_init_ops, H, J; rates=rates, kwargs...),order_)
     vs_ = copy(de_ops_init.lhs)
     redundants = Average[] #create identical specific redundants later
     feed_redundants!(redundants,identical_aons,vs_,names)
@@ -236,6 +236,8 @@ function get_names(de::Union{DifferentialEquation, ScaleDifferentialEquation})
     H_ops = unique(get_operators(de.hamiltonian))
     J_ops = unique(Iterators.flatten(get_operators.(de.jumps)))
     ops = vcat(lhs_ops, H_ops, J_ops)
+    unique!(ops)
+    ops = collect(Iterators.flatten(get_operators.(expand.(ops))))
     unique!(ops)
     filter!(x -> x isa BasicOperator, ops)
     sort!(ops; by=acts_on)
