@@ -19,7 +19,7 @@ function find_missing(rhs::Vector{<:Number}, vs::Vector{<:Number}; vs_adj::Vecto
     isempty(ps) || (ps_adj = adjoint.(ps); filter!(x -> !(x∈ps_adj), missed))
     return missed
 end
-function find_missing(de::DifferentialEquation{<:Number,<:Number}; kwargs...)
+function find_missing(de::AbstractEquation{<:Number,<:Number}; kwargs...)
     find_missing(de.rhs, de.lhs; kwargs...)
 end
 
@@ -134,6 +134,7 @@ Return the Hilbert space of the operator.
 """
 hilbert(op::BasicOperator) = op.hilbert
 hilbert(t::OperatorTerm) = hilbert(t.arguments[findfirst(x->isa(x,AbstractOperator), t.arguments)])
+hilbert(avg::Average) = hilbert(avg.operator)
 
 """
     fundamental_operators(::HilbertSpace)

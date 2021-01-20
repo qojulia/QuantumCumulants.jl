@@ -93,7 +93,7 @@ whose entries specify all subspaces on which the expression acts.
 acts_on(op::BasicOperator) = op.aon
 function acts_on(t::OperatorTerm)
     ops = filter(isoperator, t.arguments)
-    aon = Int[]
+    aon = [] # TODO: AonType[] ?
     for op in ops
         append!(aon, acts_on(op))
     end
@@ -101,7 +101,7 @@ function acts_on(t::OperatorTerm)
     sort!(aon)
     return aon
 end
-acts_on(x) = Int[]
+acts_on(x) = []
 
 Base.one(::T) where T<:AbstractOperator = one(T)
 Base.one(::Type{<:AbstractOperator}) = 1

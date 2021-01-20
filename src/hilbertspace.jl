@@ -19,6 +19,8 @@ end
 Base.:(==)(h1::T,h2::T) where T<:ProductSpace = h1.spaces==h2.spaces
 Base.hash(p::ProductSpace, h::UInt) = hash(p.spaces, h)
 
+_getfield_hilbert(h::ProductSpace,i,s) = getfield(h.spaces[i],s)
+
 """
     ⊗(spaces::HilbertSpace...)
 

@@ -33,7 +33,7 @@ Base.one(::Type{<:SymbolicNumber}) = 1
 Base.conj(t::NumberTerm) = NumberTerm(t.f, conj.(t.arguments))
 
 function acts_on(t::NumberTerm)
-    aon = Int[]
+    aon = []
     for arg in t.arguments
         append!(aon, acts_on(arg))
     end

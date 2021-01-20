@@ -458,9 +458,16 @@ function _complete_corr(de::ScaleDifferentialEquation,aon0,lhs_new,order,steady_
         subs = Dict(missed .=> 0)
         rhs_ = [substitute(r, subs) for r in rhs_]
     end
-    he = DifferentialEquation(vs_, rhs_, H, J, rates)
-    he_scale = scale(he, identical_aons, interaction_aons, N)
-    return he_scale
+
+    dict = Dict()
+    for it=1:length(vs_)
+        ref_avg, all_ids = get_ref_avg(vs_[it], identical_aons, names; no_adj=true)
+        for id in all_ids
+            dict[id] = ref_avg
+        end
+    end
+
+    return ScaleDifferentialEquation(vs_, rhs_, H, J, rates, N, identical_aons, interaction_aons, dict)
 end
 
 ### Auxiliary functions for Spectrum
