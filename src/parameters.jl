@@ -103,7 +103,7 @@ end
 
 # Conversion to SymbolicUtils
 _to_symbolic(p::Parameter{T}) where T = SymbolicUtils.Sym{T}(p.name)
-_to_symbolic(n::NumberTerm{T}) where T = SymbolicUtils.Term{T}(n.f, _to_symbolic.(n.arguments))
+_to_symbolic(n::NumberTerm{T}) where T = n.f(map(_to_symbolic, n.arguments)...)
 function _to_qumulants(s::SymbolicUtils.Sym{T}) where T<:Number
     return Parameter{T}(s.name)
 end

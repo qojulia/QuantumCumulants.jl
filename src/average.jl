@@ -96,6 +96,9 @@ function _to_qumulants(t::SymbolicUtils.Term{T}) where T<:Number
     end
 end
 
+# Type promotion -- average(::Operator)::Number
+SymbolicUtils.promote_symtype(average, ::Type{<:AbstractOperator}) = Number
+
 # Cumulant expansion
 """
     cumulant_expansion(avg, order::Int)
