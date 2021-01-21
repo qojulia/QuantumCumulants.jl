@@ -28,7 +28,8 @@ struct ClusterAon{T<:Int}
     j::T
 end
 Base.hash(c::T, h::UInt) where T<:ClusterAon = hash(T, hash(c.i, hash(c.j, h)))
-Base.getindex(v::Vector{<:HilbertSpace}, i::ClusterAon) = v[i.i]
+Base.getindex(v::Vector{<:HilbertSpace}, c::ClusterAon) = v[c.i]
+Base.getindex(v::Vector{<:Symbol}, c::ClusterAon) = (v[c.i])[c.j]
 Base.length(::ClusterAon) = 1
 
 Base.isequal(c1::T,c2::T) where T<:ClusterAon = (c1.i==c2.i && c1.j==c2.j)

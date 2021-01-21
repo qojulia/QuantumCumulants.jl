@@ -380,11 +380,18 @@ function get_names(de::Union{DifferentialEquation, ScaleDifferentialEquation})
     unique!(ops)
     filter!(x -> x isa BasicOperator, ops)
     sort!(ops; by=acts_on)
-    aon_ls = map(acts_on, ops)
+    aon_ls = acts_on.(ops)
     unique!(aon_ls)
     indices = [findfirst(x->acts_on(x)==aon_, ops) for aon_=aon_ls]
     ops = ops[indices]
-    return getfield.(ops, :name)
+    ops_names = getfield.(ops, :name)
+    i_aons = acts_on.(ops); i_aons = [(isa(i_aon,Int) ? i_aon : i_aon.i) for i_aon in i_aons]
+    ops_names_new = []
+    for it=1:i_aons[end]
+        idx = findall(x->x==it, i_aons); (length(idx)==1 && (idx = idx[1]))
+        push!(ops_names_new, ops_names[idx])
+    end
+    return ops_names_new
 end
 
 ### scale_complete() ###
