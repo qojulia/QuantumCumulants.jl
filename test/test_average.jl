@@ -48,7 +48,7 @@ b = Destroy(h,:b,2)
 c = Destroy(h,:c,3)
 d = Destroy(h,:d,4)
 
-@test cumulant(a*b)==average(a*b)+ -1*average(a)*average(b)
+@test cumulant(a*b)==simplify_constants(average(a*b)+ -1*average(a)*average(b))
 @test cumulant(a*b,1) == average(a*b)
 @test iszero(simplify_constants(expand(cumulant(a*b*c) - (average(a*b*c) +
             2*average(a)*average(b)*average(c) - average(a)*average(b*c) -
