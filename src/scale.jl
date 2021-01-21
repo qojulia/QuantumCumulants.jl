@@ -228,80 +228,70 @@ function sub_ref_avg(de_s::AbstractEquation{<:Number,<:Number}, cluster_aons, in
 end
 
 # Complete system skipping over unnecessary averages when scaling
+function complete(de::ScaleDifferentialEquation{<:AbstractOperator,<:AbstractOperator};
+            order=nothing, filter_func=nothing, mix_choice=maximum, kwargs...)
 
-# function complete(de::ScaleDifferentialEquation{<:Number,<:Number})
-#
-# end
+    names = get_names(de)
+    J = de.jumps; H = de.hamiltonian; rates = de.rates
+    h = hilbert(de.lhs[1])
+    cluster_Ns, cluster_orders, cluster_aons = get_cluster_stuff(h)
+    (order isa Nothing) ? (order_ = maximum(cluster_orders)) : order_ = order
+    (order_ < maximum(get_order.(de.lhs))) && error("Cannot form cumulant expansion of derivative; you may want to use a higher order!")
 
-function scale_complete(rhs::Vector{<:Number}, vs::Vector{<:Number}, H, J, rates,
-            cluster_aons::Vector, interaction_aons::Vector, N::Vector, names;
-            order=nothing, filter_func=nothing, mix_choice=maximum,
-            kwargs...)
-
-    order_lhs = maximum(get_order.(vs))
-    order_rhs = maximum(get_order.(rhs))
-    if order isa Nothing
-        order_ = max(order_lhs, order_rhs)
-    else
-        order_ = order
-    end
-    maximum(order_) >= order_lhs || error("Cannot form cumulant expansion of derivative; you may want to use a higher order!")
-
-    lhs_init_ops = getfield.(vs, :operator)
-    de_ops_init = average(heisenberg(lhs_init_ops, H, J; rates=rates, kwargs...),order_)
-    vs_ = copy(de_ops_init.lhs)
-    redundants = Average[] #create identical specific redundants later
-    feed_redundants!(redundants,cluster_aons,vs_,names)
-    rhs_ = [cumulant_expansion(r, order_) for r in de_ops_init.rhs]
-    missed = unique_ops(find_missing(rhs_, vs_))
+    he_avg0 = average(de,order_)
+    redundants = Average[]
+    feed_redundants!(redundants,cluster_aons,he_avg0.lhs,names)
+    missed = unique_ops(find_missing(he_avg0.rhs, he_avg0.lhs))
     filter!(x->isa(x,Average),missed)
     isnothing(filter_func) || filter!(filter_func, missed) # User-defined filter
     filter!(!in(redundants), missed)
-    ### redundant
     feed_redundants!(redundants,cluster_aons,missed,names)
     filter!(!in(redundants), missed)
     missed = unique_ops(missed)
-
+    lhs_new = he_avg0.lhs
+    rhs_new = he_avg0.rhs
     while !isempty(missed)
         ops = getfield.(missed, :operator)
         he = isempty(J) ? heisenberg(ops,H; kwargs...) : heisenberg(ops,H,J;rates=rates, kwargs...)
         he_avg = average(he,order_;mix_choice=mix_choice, kwargs...)
-        rhs_ = [rhs_;he_avg.rhs]
-        vs_ = [vs_;he_avg.lhs]
-        missed = unique_ops(find_missing(rhs_,vs_))
+        rhs_new = [rhs_new;he_avg.rhs]
+        lhs_new = [lhs_new;he_avg.lhs]
+        missed = unique_ops(find_missing(rhs_new,lhs_new))
         filter!(x->isa(x,Average),missed)
         isnothing(filter_func) || filter!(filter_func, missed) # User-defined filter
         filter!(!in(redundants), missed)
         missed = unique_ops(missed)
         feed_redundants!(redundants,cluster_aons,missed,names)
-        filter!(!in(vs_),missed)
+        filter!(!in(lhs_new),missed)
         filter!(!in(redundants), missed)
         missed = unique_ops(missed)
     end
     if !isnothing(filter_func)
         # Find missing values that are filtered by the custom filter function,
         # but still occur on the RHS; set those to 0
-        missed = unique_ops(find_missing(rhs_, vs_))
+        missed = unique_ops(find_missing(rhs_new, lhs_new))
         filter!(x->isa(x,Average),missed)
         filter!(!filter_func, missed)
         subs = Dict(missed .=> 0)
-        rhs_ = [substitute(r, subs) for r in rhs_]
+        rhs_new = [substitute(r, subs) for r in rhs_new]
     end
-
     dict = Dict()
-    for it=1:length(vs_)
-        ref_avg, all_ids = get_ref_avg(vs_[it], cluster_aons, names; no_adj=true)
+    for it=1:length(lhs_new)
+        ref_avg, all_ids = get_ref_avg(lhs_new[it], cluster_aons, names; no_adj=true)
         for id in all_ids
             dict[id] = ref_avg
         end
     end
-    return ScaleDifferentialEquation(vs_, rhs_, H, J, rates, N, cluster_aons, interaction_aons, dict)
-end
-function complete(de::ScaleDifferentialEquation{<:Number,<:Number};kwargs...)
-    names = get_names(de)
-    return scale_complete(de.rhs, de.lhs, de.hamiltonian, de.jumps, de.rates, de.identicals, de.interactions, de.factors, names; kwargs...)
+    he_avg_scale = ScaleDifferentialEquation(lhs_new, rhs_new, H, J, rates, dict)
+    return substitute(he_avg_scale, dict)
 end
 
+function complete(de::ScaleDifferentialEquation{<:Number,<:Number};order=nothing, filter_func=nothing, kwargs...)
+    J = de.jumps; H = de.hamiltonian; rates = de.rates
+    ops = getfield.(de.lhs, :operator)
+    de0 = isempty(J) ? heisenberg(ops,H; kwargs...) : heisenberg(ops,H,J;rates=rates, kwargs...)
+    return complete(de0;order=order,filter_func=filter_func,kwargs...)
+end
 
 ### Auxiliary function
 get_avgs(x) = Average[]
