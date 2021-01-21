@@ -46,29 +46,29 @@ equivalent to the Quantum-Langevin equation where noise is neglected.
     the collapse operators.
 *`rates=ones(length(J))`: Decay rates corresponding to the collapse operators in `J`.
 """
-function heisenberg(a::Vector,H,J_;Jdagger::Vector=adjoint.(Iterators.flatten(J_)),rates_=ones(length(J_)),multithread=false)
+function heisenberg(a::Vector,H,J;Jdagger::Vector=adjoint.(Iterators.flatten(J)),rates=ones(length(J)),multithread=false)
     if any(isa.(J, Vector))
-        J = []; rates = []
-        for it=1:length(J_)
-            push!(J, J_[it]...); push!(rates, [rates_[it] for i=1:length(J_[it])]...)
+        J_ = []; rates_ = []
+        for it=1:length(J)
+            push!(J_, J[it]...); push!(rates_, [rates[it] for i=1:length(J[it])]...)
         end
     else
-        J = J_; rates = rates_
+        J_ = J; rates_ = rates
     end
     lhs = Vector{AbstractOperator}(undef, length(a))
     rhs = Vector{AbstractOperator}(undef, length(a))
     if multithread
         Threads.@threads for i=1:length(a)
             lhs[i] = simplify_operators(a[i])
-            rhs[i] = simplify_operators(1.0im*commutator(H,lhs[i];simplify=false) + _master_lindblad(lhs[i],J,Jdagger,rates))
+            rhs[i] = simplify_operators(1.0im*commutator(H,lhs[i];simplify=false) + _master_lindblad(lhs[i],J_,Jdagger,rates_))
         end
     else
         for i=1:length(a)
             lhs[i] = simplify_operators(a[i])
-            rhs[i] = simplify_operators(1.0im*commutator(H,lhs[i];simplify=false) + _master_lindblad(lhs[i],J,Jdagger,rates))
+            rhs[i] = simplify_operators(1.0im*commutator(H,lhs[i];simplify=false) + _master_lindblad(lhs[i],J_,Jdagger,rates_))
         end
     end
-    he = DifferentialEquation(lhs,rhs,H,J,rates)
+    he = DifferentialEquation(lhs,rhs,H,J_,rates_)
     # Clusters
     h = hilbert(lhs[1])
     any(isa.(h.spaces, FockSpace)) && (return scale(he))

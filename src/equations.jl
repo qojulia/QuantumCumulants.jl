@@ -52,27 +52,24 @@ for f in [:simplify_constants,:simplify_operators]
     end
 end
 
-mutable struct ScaleDifferentialEquation{LHS,RHS,H,J,R,N,ID,INT,D} <: AbstractEquation{LHS,RHS}
+mutable struct ScaleDifferentialEquation{LHS,RHS,H,J,R,D} <: AbstractEquation{LHS,RHS}
     lhs::Vector{LHS}
     rhs::Vector{RHS}
     hamiltonian::H
     jumps::J
     rates::R
-    factors::N
-    identicals::ID
-    interactions::INT
     dictionary::D
 end
 
-Base.hash(eq::ScaleDifferentialEquation, h::UInt) = hash(hash(eq.dictionary),(hash(eq.interactions),(hash(eq.identicals),(hash(eq.factors),hash(eq.rates, hash(eq.jumps, hash(eq.hamiltonian, hash(eq.rhs, hash(eq.lhs, h)))))))))
+Base.hash(eq::ScaleDifferentialEquation, h::UInt) = hash(hash(eq.dictionary),hash(eq.rates, hash(eq.jumps, hash(eq.hamiltonian, hash(eq.rhs, hash(eq.lhs, h))))))
 Base.:(==)(eq1::ScaleDifferentialEquation,eq2::ScaleDifferentialEquation) = hash(eq1)==hash(eq2)
 
 get_DiffEq_from_scale(de::ScaleDifferentialEquation) = DifferentialEquation(de.lhs,de.rhs,de.hamiltonian,de.jumps,de.rates)
 get_DiffEq_from_scale(de::DifferentialEquation) = de
 
-Base.getindex(de::ScaleDifferentialEquation, i::Int) = ScaleDifferentialEquation([de.lhs[i]],[de.rhs[i]],de.hamiltonian,de.jumps,de.rates,de.factors,de.identicals,de.interactions,de.dictionary)
-Base.getindex(de::ScaleDifferentialEquation, i_ls::Vector{Int}) = ScaleDifferentialEquation([de.lhs[i] for i in i_ls],[de.rhs[i] for i in i_ls],de.hamiltonian,de.jumps,de.rates,de.factors,de.identicals,de.interactions,de.dictionary)
-Base.getindex(de::ScaleDifferentialEquation, i_ls::UnitRange) = ScaleDifferentialEquation([de.lhs[i] for i in i_ls],[de.rhs[i] for i in i_ls],de.hamiltonian,de.jumps,de.rates,de.factors,de.identicals,de.interactions,de.dictionary)
+Base.getindex(de::ScaleDifferentialEquation, i::Int) = ScaleDifferentialEquation([de.lhs[i]],[de.rhs[i]],de.hamiltonian,de.jumps,de.rates,de.dictionary)
+Base.getindex(de::ScaleDifferentialEquation, i_ls::Vector{Int}) = ScaleDifferentialEquation([de.lhs[i] for i in i_ls],[de.rhs[i] for i in i_ls],de.hamiltonian,de.jumps,de.rates,de.dictionary)
+Base.getindex(de::ScaleDifferentialEquation, i_ls::UnitRange) = ScaleDifferentialEquation([de.lhs[i] for i in i_ls],[de.rhs[i] for i in i_ls],de.hamiltonian,de.jumps,de.rates,de.dictionary)
 Base.lastindex(de::ScaleDifferentialEquation) = lastindex(de.lhs)
 Base.length(de::ScaleDifferentialEquation) = length(de.lhs)
 
@@ -80,7 +77,7 @@ Base.length(de::ScaleDifferentialEquation) = length(de.lhs)
 function substitute(de::ScaleDifferentialEquation,dict)
     lhs = [substitute(l, dict) for l in de.lhs]
     rhs = [substitute(r, dict) for r in de.rhs]
-    return ScaleDifferentialEquation(lhs,rhs,de.hamiltonian,de.jumps,de.rates,de.factors,de.identicals,de.interactions,de.dictionary)
+    return ScaleDifferentialEquation(lhs,rhs,de.hamiltonian,de.jumps,de.rates,de.dictionary)
 end
 
 # Simplification
@@ -88,6 +85,6 @@ for f in [:simplify_constants,:simplify_operators]
     @eval function $(f)(de::ScaleDifferentialEquation;kwargs...)
         lhs = [$(f)(l;kwargs...) for l in de.lhs]
         rhs = [$(f)(r;kwargs...) for r in de.rhs]
-        return ScaleDifferentialEquation(lhs,rhs,de.hamiltonian,de.jumps,de.rates,de.factors,de.identicals,de.interactions,de.dictionary)
+        return ScaleDifferentialEquation(lhs,rhs,de.hamiltonian,de.jumps,de.rates,de.dictionary)
     end
 end

@@ -117,3 +117,6 @@ end
 function Base.copy(t::OperatorTerm)
     return OperatorTerm(t.f, copy.(t.arguments))
 end
+
+Base.length(::AbstractOperator) = 1
+Base.iterate(c::AbstractOperator, state=1) = isone(state) ? (c,state+1) : nothing

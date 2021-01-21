@@ -1,6 +1,6 @@
 function scale(he::DifferentialEquation{<:AbstractOperator, <:AbstractOperator})
-    lhs_new = eltype(he.lhs)[]
-    rhs_new = eltype(he.rhs)[]
+    lhs_new = []
+    rhs_new = []
     names = get_names(he)
 
     h = hilbert(he.lhs[1])
@@ -9,7 +9,7 @@ function scale(he::DifferentialEquation{<:AbstractOperator, <:AbstractOperator})
     redundants = Average[]
     ref_avgs = Average[]
     dict_red = Dict()
-    for it=1:length(he_avg)
+    for it=1:length(he_avg) #dictionary and redundants from LHS
         if (he_avg.lhs[it] ∉ ref_avgs) && (he_avg.lhs[it] ∉ redundants)
             ref_avg, reds = get_ref_avg(he_avg.lhs[it], cluster_aons, names; no_adj=true)
             for red in reds
@@ -22,12 +22,24 @@ function scale(he::DifferentialEquation{<:AbstractOperator, <:AbstractOperator})
         end
     end
     he_avg_new = DifferentialEquation(lhs_new, rhs_new, he.hamiltonian, he.jumps, he.rates)
+    for it=1:length(he_avg_new) #dictionary from RHS
+        avgs_rhs = unique(get_avgs(he_avg_new.rhs[it]))
+        for avg_rhs in avgs_rhs
+            if (avg_rhs ∉ ref_avgs) && (avg_rhs ∉ redundants)
+                ref_avg, reds = get_ref_avg(avg_rhs, cluster_aons, names; no_adj=true)
+                for red in reds
+                    dict_red[red] = ref_avg
+                end
+            end
+        end
+    end
     he_avg_new = substitute(he_avg_new, dict_red)
     for it=1:length(cluster_aons)
         he_avg_new.rhs = set_scale_factors_rhs(he_avg_new, cluster_orders[it], cluster_aons[it], cluster_Ns[it])
     end
-    he_new = unaverage(he_avg_new)
-    # TODO create ScaleDifferentialEquation from he_new
+    he_avg_new = simplify_constants(he_avg_new)
+    he_new = simplify_operators(unaverage(he_avg_new))
+    he_new_scale = ScaleDifferentialEquation(he_new.lhs,he_new.rhs,he_new.hamiltonian,he_new.jumps,he_new.rates,Dict())
 end
 
 function set_scale_factors_rhs(he::DifferentialEquation, order, cluster_aon, N)
@@ -41,14 +53,14 @@ function set_scale_factors_rhs(he::DifferentialEquation, order, cluster_aon, N)
             N_ = 1.0 #no scaling possible if all ops from cluster are on the LHS
             # TODO think about cluster*cluster
         else
-            N_ = (N-l_c) / (order-l_c)
+            N_ = (N-len_alc) / (order-len_alc)
             # TODO # double sum -> look at RHS σ's: include r_c somehow (notes 19.01)
         end
         rhs_args = eltype(rhs.arguments)[]
         rhs_f = rhs.f # could be * (normal it is +)
         for rhs_arg in rhs.arguments
             aon_rhs_clus = intersect(acts_on(rhs_arg), cluster_aon)
-            filter!(x->aon_lhs_clus, aon_rhs_clus)
+            filter!(x->x∉aon_lhs_clus, aon_rhs_clus)
             len_arc = length(aon_rhs_clus)
             push!(rhs_args, rhs_arg*N_^len_arc)
         end
@@ -64,14 +76,22 @@ function get_cluster_stuff(h::HilbertSpace)
     cluster_aons = []
     for i = 1:length(cluster_idx)
         aon_i = []
-        for j=1:c_order[i]
+        for j=1:cluster_orders[i]
             push!(aon_i, ClusterAon(cluster_idx[i],j))
         end
         push!(cluster_aons, aon_i)
     end
     return cluster_Ns, cluster_orders, cluster_aons
 end
+111
 
+# function complete(de::ScaleDifferentialEquation{<:Number,<:Number};kwargs...)
+#     names = get_names(de)
+#     # return scale_complete(de.rhs, de.lhs, de.hamiltonian, de.jumps, de.rates, de.identicals, de.interactions, de.factors, names; kwargs...)
+# end
+
+
+111
 """
     scale(de::DifferentialEquation, identical_ops::Vector{AbstractOperator}, interaction_op::AbstractOperator, N::Number)
 
@@ -180,7 +200,7 @@ function scale_nosub(de::DifferentialEquation, cluster_aons_::Vector, interactio
                 new_avg = copy(avg_rhs)
                 for it_aon=1:length(avg_aon_rhs)
                     name_idx = cluster_aons[it_aon].i + cluster_aons[it_aon].j - 1
-                    new_avg = swap_aon(new_avg, avg_aon_rhs[it_aon], cluster_aons[it_aon], names[name_idx])
+                    new_avg = swap_aon(new_avg, avg_aon_rhs[it_aon], cluster_aons[it_aon], extract_names(names, name_idx))
                 end
                 if length(avg_aon_rhs) > length(aon_lhs_id)
                     tmp_dict[avg_rhs] = N_sc*new_avg
@@ -208,6 +228,11 @@ function sub_ref_avg(de_s::AbstractEquation{<:Number,<:Number}, cluster_aons, in
 end
 
 # Complete system skipping over unnecessary averages when scaling
+
+# function complete(de::ScaleDifferentialEquation{<:Number,<:Number})
+#
+# end
+
 function scale_complete(rhs::Vector{<:Number}, vs::Vector{<:Number}, H, J, rates,
             cluster_aons::Vector, interaction_aons::Vector, N::Vector, names;
             order=nothing, filter_func=nothing, mix_choice=maximum,
@@ -335,8 +360,7 @@ function get_permuted_avgs(x, all_id_aon, names)
     avgs = Average[]
     for p in permutations(aon_ls)
         isequal(p, aon_ls) && continue
-        name_idx = getfield.(p, :i) .+ getfield.(p, :j) .- 1
-        push!(avgs, swap_aon(x, aon_ls, p, names[name_idx]))
+        push!(avgs, swap_aon(x, aon_ls, p, extract_names(names,p)))
     end
     return avgs
 end
@@ -407,8 +431,8 @@ function get_ref_avg(avg, all_id_aons, names; no_adj=false) #all_id_aons is a li
     ref_avg = copy(avg)
     for it=1:length(all_id_aons)
         id_aon_ = all_id_aons[it][1:len[it]]
-        name_idx = getfield.(id_aon_, :i) .+ getfield.(id_aon_, :j) .- 1
-        ref_avg = swap_aon(ref_avg, aon_ls[it], id_aon_, names[name_idx])
+        name_idx = all_id_aons[it][1:len[it]]
+        ref_avg = swap_aon(ref_avg, aon_ls[it], id_aon_, extract_names(names, name_idx))
     end
     aon_ls_ref = [intersect_aon(ref_avg, all_id_aon) for all_id_aon in all_id_aons]
     ### get all identical avgs (identical to ref_avg)
@@ -425,7 +449,7 @@ function get_ref_avg(avg, all_id_aons, names; no_adj=false) #all_id_aons is a li
         end
     end
     for it=1:length(all_id_aons)
-        all_ids_ = [swap_aon(all_ids[it_], aon_ls_ref[it], aon_p, names[getfield.(aon_p, :i) .+ getfield.(aon_p, :j) .- 1]) for it_ = 1:length(all_ids) for aon_p in aon_ls_permus[it]]
+        all_ids_ = [swap_aon(all_ids[it_], aon_ls_ref[it], aon_p, extract_names(names, aon_p)) for it_ = 1:length(all_ids) for aon_p in aon_ls_permus[it]]
         push!(all_ids, all_ids_...)
     end
     filter!(!isequal(ref_avg), all_ids)
@@ -457,4 +481,34 @@ unaverage(x) = x
 unaverage(x::Average) = getfield(x, :operator)
 function unaverage(x::NumberTerm)
     return simplify_operators((x.f)(unaverage.(x.arguments)...))
+end
+function unaverage(de::DifferentialEquation{<:Number,<:Number})
+    lhs_new = []
+    rhs_new = []
+    for it=1:length(de)
+        push!(lhs_new, unaverage(de.lhs[it]))
+        push!(rhs_new, unaverage(de.rhs[it]))
+    end
+    return DifferentialEquation(lhs_new, rhs_new, de.hamiltonian, de.jumps, de.rates)
+end
+
+# maybe shift to scale.jl
+function average(de::ScaleDifferentialEquation, args...; kwargs...)
+    de_ = average(get_DiffEq_from_scale(de), args...; kwargs...)
+    cluster_aons = get_cluster_stuff(hilbert(de.lhs[1]))[3]
+    names = get_names(de)
+    dict = Dict()
+    for it=1:length(de_.lhs)
+        ref_avg, all_ids = get_ref_avg(de_.lhs[it], cluster_aons, names; no_adj=true)
+        for id in all_ids
+            dict[id] = ref_avg
+        end
+    end
+    de_ = substitute(de_, dict)
+    return ScaleDifferentialEquation(de_.lhs, de_.rhs, de_.hamiltonian, de_.jumps, de_.rates, dict)
+end
+
+function cumulant_expansion(de::ScaleDifferentialEquation{<:Number,<:Number},order;kwargs...)
+    de_ = cumulant_expansion(get_DiffEq_from_scale(de),order;kwargs...)
+    return ScaleDifferentialEquation(de_.lhs, de_.rhs, de_.hamiltonian, de_.jumps, de_.rates, de_.dictionary)
 end

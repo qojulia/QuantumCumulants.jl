@@ -176,11 +176,6 @@ function cumulant_expansion(de::DifferentialEquation{<:Number,<:Number},order;mu
         end
     end
     de_ = DifferentialEquation(de.lhs,rhs,de.hamiltonian,de.jumps,de.rates)
-    if has_cluster(de.hamiltonian)
-        return scale(de_)
-    else
-        return de_
-    end
 end
 
 function check_lhs(lhs,order::Int;kwargs...)

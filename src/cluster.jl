@@ -23,14 +23,21 @@ function has_cluster(h::ProductSpace)
 end
 has_cluster(op::AbstractOperator) = has_cluster(hilbert(op))
 
-struct ClusterAon{T<:Int}
+struct ClusterAon{T<:Integer}
     i::T
     j::T
 end
 Base.hash(c::T, h::UInt) where T<:ClusterAon = hash(T, hash(c.i, hash(c.j, h)))
 Base.getindex(v::Vector{<:HilbertSpace}, c::ClusterAon) = v[c.i]
-Base.getindex(v::Vector{<:Symbol}, c::ClusterAon) = (v[c.i])[c.j]
+# Base.getindex(v::Vector, c::ClusterAon) = (v[c.i])[c.j] #TODO not very good
 Base.length(::ClusterAon) = 1
+
+extract_names(names::Vector, i::Int) = names[i]
+extract_names(names::Vector, c::ClusterAon) = names[c.i][c.j]
+function extract_names(names::Vector, v::Vector)
+    [extract_names(names, v_) for v_ in v]
+end
+
 
 Base.isequal(c1::T,c2::T) where T<:ClusterAon = (c1.i==c2.i && c1.j==c2.j)
 Base.isless(i::Int,c::ClusterAon) = isless(i,c.i)
