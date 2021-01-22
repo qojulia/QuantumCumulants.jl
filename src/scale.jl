@@ -2,7 +2,6 @@ function scale(he::DifferentialEquation{<:AbstractOperator, <:AbstractOperator})
     lhs_new = []
     rhs_new = []
     names = get_names(he)
-
     h = hilbert(he.lhs[1])
     cluster_Ns, cluster_orders, cluster_aons = get_cluster_stuff(h)
     he_avg = average(he)
@@ -265,6 +264,10 @@ function complete(de::ScaleDifferentialEquation{<:AbstractOperator,<:AbstractOpe
         filter!(!in(lhs_new),missed)
         filter!(!in(redundants), missed)
         missed = unique_ops(missed)
+        # println(lhs_new)
+        # println(111111)
+        # println(missed)
+        # println(222222)
     end
     if !isnothing(filter_func)
         # Find missing values that are filtered by the custom filter function,
@@ -283,7 +286,7 @@ function complete(de::ScaleDifferentialEquation{<:AbstractOperator,<:AbstractOpe
         end
     end
     he_avg_scale = ScaleDifferentialEquation(lhs_new, rhs_new, H, J, rates, dict)
-    return substitute(he_avg_scale, dict)
+    return substitute(he_avg_scale, dict), missed
 end
 
 function complete(de::ScaleDifferentialEquation{<:Number,<:Number};order=nothing, filter_func=nothing, kwargs...)
@@ -470,7 +473,7 @@ end
 unaverage(x) = x
 unaverage(x::Average) = getfield(x, :operator)
 function unaverage(x::NumberTerm)
-    return simplify_operators((x.f)(unaverage.(x.arguments)...))
+    return (x.f)(unaverage.(x.arguments)...)
 end
 function unaverage(de::DifferentialEquation{<:Number,<:Number})
     lhs_new = []
