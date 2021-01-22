@@ -190,7 +190,7 @@ function sort_args_nc(x)
     is_c = iscommutative.(args)
     args_c = sort(args[is_c], lt=(<ₑ))
     args_nc = sort(args[.!is_c], lt=lt_aon)
-    return *(args_c..., args_nc...)
+    return SymbolicUtils.similarterm(x, *, vcat(args_c, args_nc))
 end
 
 # Apply commutation relation
