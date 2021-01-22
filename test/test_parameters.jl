@@ -52,4 +52,10 @@ he_laser = heisenberg([a'*a,σ'*σ,a'*σ],H,J;rates=[κ,γ,ν])
 @test he_laser.rhs[2] == simplify_operators(ν + (-ν - γ)*σee + (1.0im*g)*a'*σ + (-1.0im*g)*a*σ')
 @test he_laser.rhs[3] == simplify_operators((1.0im*g)*σee + (-1.0im*g)*a'*a + (1.0im*(ωc - ωa) - 0.5*(κ + γ + ν))*a'*σ + (2.0im*g)*a'*a*σee)
 
+# Test sorting of longer term
+@parameters λ Γ N
+b = Destroy(h, :b)
+yy = 1.0im*σ*b*(N-1)*λ*Γ
+@test simplify_operators(yy) == OperatorTerm(*, [-1.0im,Γ,λ,b,σ]) + OperatorTerm(*, [1.0im,N,Γ,λ,b,σ])
+
 end # testset
