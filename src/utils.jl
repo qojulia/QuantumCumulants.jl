@@ -236,7 +236,7 @@ function get_solution(avg::Average,sol,he::AbstractEquation)
         return [conj(u[idx_]) for u in sol.u]
     else
         return [u[idx] for u in sol.u]
-    end(
+    end
 end
 get_solution(op::AbstractOperator,sol,he::AbstractEquation) = get_solution(average(op),sol,he)
 

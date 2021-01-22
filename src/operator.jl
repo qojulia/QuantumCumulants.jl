@@ -120,3 +120,8 @@ end
 
 Base.length(::AbstractOperator) = 1
 Base.iterate(c::AbstractOperator, state=1) = isone(state) ? (c,state+1) : nothing
+
+# clusters
+Base.:*(a::Array{<:AbstractOperator}, b::Array{<:AbstractOperator}) = a .* b
+Base.:+(a::Array{<:AbstractOperator}, b::Array{<:AbstractOperator}) = a .+ b
+Base.adjoint(a::Array{<:AbstractOperator}) = adjoint.(a)

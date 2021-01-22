@@ -71,7 +71,7 @@ function heisenberg(a::Vector,H,J;Jdagger::Vector=adjoint.(Iterators.flatten(J))
     he = DifferentialEquation(lhs,rhs,H,J_,rates_)
     # Clusters
     h = hilbert(lhs[1])
-    any(isa.(h.spaces, FockSpace)) && (return scale(he))
+    any(isa.(h.spaces, ClusterSpace)) && (return scale(he))
     return he
 end
 function _master_lindblad(a_,J,Jdagger,rates)
