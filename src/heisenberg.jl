@@ -6,7 +6,6 @@ Compute a set of Heisenberg equations of the operators in `ops`
 under the Hamiltonian `H`.
 """
 function heisenberg(a::Vector,H; multithread=false)
-    #TODO ClusterSpace - copy from other heisenberg when finished
     if multithread
         lhs = Vector{AbstractOperator}(undef, length(a))
         rhs = Vector{AbstractOperator}(undef, length(a))
@@ -18,7 +17,12 @@ function heisenberg(a::Vector,H; multithread=false)
         lhs = simplify_operators.(a)
         rhs = simplify_operators.([1.0im*commutator(H,a1;simplify=false) for a1=lhs])
     end
-    return DifferentialEquation(lhs,rhs,H,AbstractOperator[],Number[])
+    he = DifferentialEquation(lhs,rhs,H,AbstractOperator[],Number[])
+    # Clusters
+    h = hilbert(lhs[1])
+    any(isa.(h.spaces, ClusterSpace)) && (return scale(he))
+    return he
+
 end
 heisenberg(a::AbstractOperator,args...;kwargs...) = heisenberg([a],args...;kwargs...)
 

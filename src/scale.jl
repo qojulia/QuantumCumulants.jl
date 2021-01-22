@@ -113,41 +113,41 @@ function complete(de::ScaleDifferentialEquation{<:AbstractOperator,<:AbstractOpe
     feed_redundants!(redundants,cluster_aons,missed,names)
     filter!(!in(redundants), missed)
     missed = unique_ops(missed)
-    lhs_new = he_avg0.lhs
-    rhs_new = he_avg0.rhs
+    lhs_ = he_avg0.lhs
+    rhs_ = he_avg0.rhs
     while !isempty(missed)
         ops = getfield.(missed, :operator)
         he = isempty(J) ? heisenberg(ops,H; kwargs...) : heisenberg(ops,H,J;rates=rates, kwargs...)
         he_avg = average(he,order_;mix_choice=mix_choice, kwargs...)
-        rhs_new = [rhs_new;he_avg.rhs]
-        lhs_new = [lhs_new;he_avg.lhs]
-        missed = unique_ops(find_missing(rhs_new,lhs_new))
+        rhs_ = [rhs_;he_avg.rhs]
+        lhs_ = [lhs_;he_avg.lhs]
+        missed = unique_ops(find_missing(rhs_,lhs_))
         filter!(x->isa(x,Average),missed)
         isnothing(filter_func) || filter!(filter_func, missed) # User-defined filter
         filter!(!in(redundants), missed)
         missed = unique_ops(missed)
         feed_redundants!(redundants,cluster_aons,missed,names)
-        filter!(!in(lhs_new),missed)
+        filter!(!in(lhs_),missed)
         filter!(!in(redundants), missed)
         missed = unique_ops(missed)
     end
     if !isnothing(filter_func)
         # Find missing values that are filtered by the custom filter function,
         # but still occur on the RHS; set those to 0
-        missed = unique_ops(find_missing(rhs_new, lhs_new))
+        missed = unique_ops(find_missing(rhs_, lhs_))
         filter!(x->isa(x,Average),missed)
         filter!(!filter_func, missed)
         subs = Dict(missed .=> 0)
-        rhs_new = [substitute(r, subs) for r in rhs_new]
+        rhs_ = [substitute(r, subs) for r in rhs_]
     end
     dict = Dict()
-    for it=1:length(lhs_new)
-        ref_avg, all_ids = get_ref_avg(lhs_new[it], cluster_aons, names; no_adj=true)
+    for it=1:length(lhs_)
+        ref_avg, all_ids = get_ref_avg(lhs_[it], cluster_aons, names; no_adj=true)
         for id in all_ids
             dict[id] = ref_avg
         end
     end
-    he_avg_scale = ScaleDifferentialEquation(lhs_new, rhs_new, H, J, rates, dict)
+    he_avg_scale = ScaleDifferentialEquation(lhs_, rhs_, H, J, rates, dict)
     return substitute(he_avg_scale, dict)
 end
 
@@ -304,22 +304,22 @@ function unaverage(de::DifferentialEquation{<:Number,<:Number})
     return DifferentialEquation(lhs_new, rhs_new, de.hamiltonian, de.jumps, de.rates)
 end
 
-function average(de::ScaleDifferentialEquation, args...; kwargs...)
-    de_ = average(get_DiffEq_from_scale(de), args...; kwargs...)
-    cluster_aons = get_cluster_stuff(hilbert(de.lhs[1]))[3]
-    names = get_names(de)
-    dict = Dict()
-    for it=1:length(de_.lhs)
-        ref_avg, all_ids = get_ref_avg(de_.lhs[it], cluster_aons, names; no_adj=true)
-        for id in all_ids
-            dict[id] = ref_avg
-        end
-    end
-    de_ = substitute(de_, dict)
-    return ScaleDifferentialEquation(de_.lhs, de_.rhs, de_.hamiltonian, de_.jumps, de_.rates, dict)
-end
-
-function cumulant_expansion(de::ScaleDifferentialEquation{<:Number,<:Number},order;kwargs...)
-    de_ = cumulant_expansion(get_DiffEq_from_scale(de),order;kwargs...)
-    return ScaleDifferentialEquation(de_.lhs, de_.rhs, de_.hamiltonian, de_.jumps, de_.rates, de_.dictionary)
-end
+# function average(de::ScaleDifferentialEquation, args...; kwargs...)
+#     de_ = average(get_DiffEq_from_scale(de), args...; kwargs...)
+#     cluster_aons = get_cluster_stuff(hilbert(de.lhs[1]))[3]
+#     names = get_names(de)
+#     dict = Dict()
+#     for it=1:length(de_.lhs)
+#         ref_avg, all_ids = get_ref_avg(de_.lhs[it], cluster_aons, names; no_adj=true)
+#         for id in all_ids
+#             dict[id] = ref_avg
+#         end
+#     end
+#     de_ = substitute(de_, dict)
+#     return ScaleDifferentialEquation(de_.lhs, de_.rhs, de_.hamiltonian, de_.jumps, de_.rates, dict)
+# end
+#
+# function cumulant_expansion(de::ScaleDifferentialEquation{<:Number,<:Number},order;kwargs...)
+#     de_ = cumulant_expansion(get_DiffEq_from_scale(de),order;kwargs...)
+#     return ScaleDifferentialEquation(de_.lhs, de_.rhs, de_.hamiltonian, de_.jumps, de_.rates, de_.dictionary)
+# end

@@ -84,6 +84,20 @@ function average(de::DifferentialEquation;multithread=false)
     end
     return DifferentialEquation(lhs,rhs,de.hamiltonian,de.jumps,de.rates)
 end
+function average(de::ScaleDifferentialEquation, args...; kwargs...)
+    de_ = average(get_DiffEq_from_scale(de), args...; kwargs...)
+    cluster_aons = get_cluster_stuff(hilbert(de.lhs[1]))[3]
+    names = get_names(de)
+    dict = Dict()
+    for it=1:length(de_.lhs)
+        ref_avg, all_ids = get_ref_avg(de_.lhs[it], cluster_aons, names; no_adj=true)
+        for id in all_ids
+            dict[id] = ref_avg
+        end
+    end
+    de_ = substitute(de_, dict)
+    return ScaleDifferentialEquation(de_.lhs, de_.rhs, de_.hamiltonian, de_.jumps, de_.rates, dict)
+end
 average(arg,order;kwargs...) = cumulant_expansion(average(arg),order;kwargs...)
 
 # Conversion to SymbolicUtils
@@ -176,6 +190,10 @@ function cumulant_expansion(de::DifferentialEquation{<:Number,<:Number},order;mu
         end
     end
     de_ = DifferentialEquation(de.lhs,rhs,de.hamiltonian,de.jumps,de.rates)
+end
+function cumulant_expansion(de::ScaleDifferentialEquation{<:Number,<:Number},order;kwargs...)
+    de_ = cumulant_expansion(get_DiffEq_from_scale(de),order;kwargs...)
+    return ScaleDifferentialEquation(de_.lhs, de_.rhs, de_.hamiltonian, de_.jumps, de_.rates, de_.dictionary)
 end
 
 function check_lhs(lhs,order::Int;kwargs...)
