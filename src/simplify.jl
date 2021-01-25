@@ -12,30 +12,18 @@ for f in [+,-,*,/,^]
                    S::Type{<:AbstractOperator}) = AbstractOperator
     @eval SymbolicUtils.promote_symtype(::$(typeof(f)),
                    T::Type{<:AbstractOperator},
-                   S::Type{<:AbstractOperator}) = AbstractOperator#promote_type(T,S)
+                   S::Type{<:AbstractOperator}) = AbstractOperator
 end
-
-# SymbolicUtils.@number_methods(BasicOperator, SymbolicUtils.term(f, a), SymbolicUtils.term(f, a, b))
-# SymbolicUtils.@number_methods(OperatorTerm, SymbolicUtils.term(f, a), SymbolicUtils.term(f, a, b))
-
-# Base.one(x::SymbolicUtils.Symbolic{T}) where T<:AbstractOperator = 1
-# Base.zero(x::SymbolicUtils.Symbolic{T}) where T<:AbstractOperator = 0
-# Base.one(x::SymbolicUtils.Sym{SymbolicUtils.FnType{A,T}}) where {A,T<:AbstractOperator} = 1
-# Base.zero(x::SymbolicUtils.Sym{SymbolicUtils.FnType{A,T}}) where {A,T<:AbstractOperator} = 0
 
 SymbolicUtils.islike(::AbstractOperator, ::Type{<:Number}) = true
 SymbolicUtils.symtype(x::T) where T<:AbstractOperator = T
-SymbolicUtils.to_symbolic(x::BasicOperator) = x
+SymbolicUtils.to_symbolic(x::AbstractOperator) = x
 
 SymbolicUtils.istree(::BasicOperator) = false
 SymbolicUtils.istree(::OperatorTerm) = true
 SymbolicUtils.arguments(t::OperatorTerm) = t.arguments
 for f in [*,+,-,/,^]
     @eval SymbolicUtils.operation(t::OperatorTerm{<:$(typeof(f))}) = $f
-    @eval function SymbolicUtils.to_symbolic(t::OperatorTerm{<:$(typeof(f))})
-        args = map(SymbolicUtils.to_symbolic, SymbolicUtils.arguments(t))
-        return OperatorTerm($f, args)
-    end
 end
 SymbolicUtils.similarterm(t::OperatorTerm{F}, f::F, args::A) where {F,A} = OperatorTerm{F,A}(t.f, args)
 
