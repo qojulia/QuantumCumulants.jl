@@ -21,13 +21,7 @@ struct Destroy{H<:HilbertSpace,S,A} <: BasicOperator
     aon::A
     function Destroy{H,S,A}(hilbert::H,name::S,aon::A) where {H,S,A}
         @assert has_hilbert(FockSpace,hilbert,aon)
-        op = new(hilbert,name,aon)
-        if !haskey(OPERATORS_TO_SYMS, op)
-            sym = SymbolicUtils.Sym{Destroy}(gensym(:Destroy))
-            OPERATORS_TO_SYMS[op] = sym
-            SYMS_TO_OPERATORS[sym] = op
-        end
-        return op
+        new(hilbert,name,aon)
     end
 end
 isdestroy(a::SymbolicUtils.Sym{T}) where {T<:Destroy} = true
@@ -44,13 +38,7 @@ struct Create{H<:HilbertSpace,S,A} <: BasicOperator
     aon::A
     function Create{H,S,A}(hilbert::H,name::S,aon::A) where {H,S,A}
         @assert has_hilbert(FockSpace,hilbert,aon)
-        op = new(hilbert,name,aon)
-        if !haskey(OPERATORS_TO_SYMS, op)
-            sym = SymbolicUtils.Sym{Create}(gensym(:Create))
-            OPERATORS_TO_SYMS[op] = sym
-            SYMS_TO_OPERATORS[sym] = op
-        end
-        return op
+        new(hilbert,name,aon)
     end
 end
 iscreate(a::SymbolicUtils.Sym{T}) where {T<:Create} = true

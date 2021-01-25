@@ -12,19 +12,17 @@ ha = NLevelSpace(:atom, (:g,:e))
 σee = Transition(ha, :σ, :e,:e)
 @test σee'==σee
 
-σ_sym = Qumulants._to_symbolic(σ)
-@test Qumulants._to_qumulants(σ_sym)==σ
-
 ex = σ'*σ
 @test simplify_operators(ex) == σee
 
 ex = σ*σ'
 σgg = Transition(ha, :σ,:g,:g)
-@test simplify_operators(ex)==simplify_operators(σgg)==simplify_operators(one(σgg) - σee)
+@test isequal(simplify_operators(ex), simplify_operators(σgg))
+@test isequal(simplify_operators(σgg), (one(σgg) + -1*σee))
 
 
 sz = σ'*σ - σ*σ'
-@test simplify_operators(sz)==simplify_operators(2*σee - one(σgg))
+@test isequal(simplify_operators(sz),simplify_operators(2*σee - one(σgg)))
 
 # Integer levels
 ha = NLevelSpace(:atom, 2)
@@ -41,11 +39,11 @@ ex = σ'*σ
 
 ex = σ*σ'
 σgg = Transition(ha, :σ,1,1)
-@test simplify_operators(ex)==simplify_operators(σgg)==simplify_operators(one(σgg) - σee)
-
+@test isequal(simplify_operators(ex), simplify_operators(σgg))
+@test isequal(simplify_operators(σgg), (one(σgg) + -1*σee))
 
 sz = σ'*σ - σ*σ'
-@test simplify_operators(sz)==simplify_operators(2*σee - one(σgg))
+@test isequal(simplify_operators(sz),simplify_operators(2*σee - one(σgg)))
 
 # Product space
 ha1 = NLevelSpace(:atom, (:g,:e))
@@ -54,13 +52,10 @@ ha2 = NLevelSpace(:atom, 2)
 
 hprod = ha1⊗ha2
 σ1 = embed(hprod,Transition(ha1,:σ,:g,:e),1)
-@test Qumulants._to_qumulants(Qumulants._to_symbolic(σ1)) == σ1
-@test Qumulants._to_qumulants(Qumulants._to_symbolic(σ1'))==σ1'
 σ2 = embed(hprod,Transition(ha2,:σ,1,2),2)
-@test Qumulants._to_qumulants(Qumulants._to_symbolic(σ2)) == σ2
 @test simplify_operators(σ1'*σ1)==embed(hprod,Transition(ha1,:σ,:e,:e),1)
-@test simplify_operators(σ2*σ2')==simplify_operators(1 -embed(hprod,Transition(ha2,:σ,2,2),2))
-@test simplify_operators(σ1*σ2)==σ1*σ2
+@test isequal(simplify_operators(σ2*σ2'), simplify_operators(1 -embed(hprod,Transition(ha2,:σ,2,2),2)))
+@test isequal(simplify_operators(σ1*σ2), σ1*σ2)
 
 @test_throws ErrorException Transition(hprod,:σ,:g,:e)
 @test Transition(hprod,:σ,:g,:e,1)==σ1

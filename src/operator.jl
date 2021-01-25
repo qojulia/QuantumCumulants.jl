@@ -14,13 +14,8 @@ Abstract type representing fundamental operator types.
 """
 abstract type BasicOperator <: AbstractOperator end
 
-isoperator(x) = false
-isoperator(x::Union{T,SymbolicUtils.Symbolic{T}}) where {A,T<:AbstractOperator} = true
-Base.:(==)(a::T,b::T) where T<:BasicOperator = (a.hilbert==b.hilbert && a.name==b.name && a.aon==b.aon)
-
-# Dicts for conversion
-const OPERATORS_TO_SYMS = Dict{BasicOperator,SymbolicUtils.Sym}()
-const SYMS_TO_OPERATORS = Dict{SymbolicUtils.Sym,BasicOperator}()
+Base.isequal(a::T,b::T) where T<:BasicOperator = isequal(a.hilbert, b.hilbert) && isequal(a.name, b.name) && isequal(a.aon, b.aon)
+Base.isless(a::BasicOperator,b::BasicOperator) = a.name < b.name
 
 """
     OperatorTerm <: AbstractOperator
@@ -32,16 +27,28 @@ struct OperatorTerm{F,ARGS} <: AbstractOperator
     f::F
     arguments::ARGS
 end
-Base.:(==)(t1::OperatorTerm,t2::OperatorTerm) = (t1.f===t2.f && t1.arguments==t2.arguments)
+function Base.isequal(t1::OperatorTerm,t2::OperatorTerm)
+    t1.f===t2.f || return false
+    length(t1.arguments)==length(t2.arguments) || return false
+    for (a,b) ∈ zip(t1.arguments, t2.arguments)
+        isequal(a,b) || return false
+    end
+    return true
+end
 Base.hash(t::OperatorTerm, h::UInt) = hash(t.arguments, hash(t.f, h))
+
+# SymbolicUtils.@number_methods(AbstractOperator, OperatorTerm(f, [a]), OperatorTerm(f, [a, b])); issue with 1/a
 
 for f = [:+,:-,:*]
     @eval Base.$f(a::AbstractOperator,b::AbstractOperator) = (check_hilbert(a,b); OperatorTerm($f, [a,b]))
     @eval Base.$f(a::AbstractOperator,b::Number) = OperatorTerm($f, [a,b])
     @eval Base.$f(a::Number,b::AbstractOperator) = OperatorTerm($f, [a,b])
+    @eval Base.$f(a::AbstractOperator,b::SymbolicUtils.Symbolic{<:Number}) = OperatorTerm($f, [a,b])
+    @eval Base.$f(a::SymbolicUtils.Symbolic{<:Number},b::AbstractOperator) = OperatorTerm($f, [a,b])
 end
 Base.:^(a::AbstractOperator,b::Integer) = OperatorTerm(^, [a,b])
 Base.:/(a::AbstractOperator,b::Number) = OperatorTerm(/, [a,b])
+Base.:/(a::AbstractOperator,b::SymbolicUtils.Symbolic{<:Number}) = OperatorTerm(/, [a,b])
 
 # Variadic methods
 Base.:-(x::AbstractOperator) = -1*x
@@ -92,7 +99,7 @@ whose entries specify all subspaces on which the expression acts.
 """
 acts_on(op::BasicOperator) = op.aon
 function acts_on(t::OperatorTerm)
-    ops = filter(isoperator, t.arguments)
+    ops = filter(SymbolicUtils.sym_isa(AbstractOperator), t.arguments)
     aon = Int[]
     for op in ops
         append!(aon, acts_on(op))
