@@ -19,7 +19,6 @@ end
 # Symbolic type promotion
 SymbolicUtils.promote_symtype(f, Ts::Type{<:AbstractOperator}...) = promote_type(AbstractOperator,Ts...)
 SymbolicUtils.promote_symtype(f, T::Type{<:AbstractOperator}, Ts...) = promote_type(AbstractOperator,T)
-SymbolicUtils.promote_symtype(f, T, S, Ts::Union{Type{<:Number},Type{<:AbstractOperator}}...) = SymbolicUtils.promote_symtype(f, SymbolicUtils.promote_symtype(f, T, S), Ts...)
 for f in [+,-,*,/,^]
     @eval SymbolicUtils.promote_symtype(::$(typeof(f)),
                    T::Type{<:AbstractOperator},
@@ -32,12 +31,14 @@ for f in [+,-,*,/,^]
                    S::Type{<:AbstractOperator}) = AbstractOperator#promote_type(T,S)
 end
 
+SymbolicUtils.@number_methods(SymbolicUtils.Sym{<:AbstractOperator}, SymbolicUtils.term(f, a), SymbolicUtils.term(f, a, b))
+SymbolicUtils.@number_methods(SymbolicUtils.Term{<:AbstractOperator}, SymbolicUtils.term(f, a), SymbolicUtils.term(f, a, b))
+
 Base.one(x::SymbolicUtils.Symbolic{T}) where T<:AbstractOperator = 1
 Base.zero(x::SymbolicUtils.Symbolic{T}) where T<:AbstractOperator = 0
 Base.one(x::SymbolicUtils.Sym{SymbolicUtils.FnType{A,T}}) where {A,T<:AbstractOperator} = 1
 Base.zero(x::SymbolicUtils.Sym{SymbolicUtils.FnType{A,T}}) where {A,T<:AbstractOperator} = 0
 
-# SymbolicUtils.assert_number(::SymbolicUtils.Symbolic{<:AbstractOperator}) = true
 SymbolicUtils.islike(::SymbolicUtils.Symbolic{<:AbstractOperator}, ::Type{<:Number}) = true
 
 ### End of interface
@@ -148,6 +149,7 @@ iscommutative(::SymbolicUtils.Symbolic{<:AbstractOperator}) = false
 iscommutative(::Union{SymbolicUtils.Symbolic{T},T}) where {T<:Number} = true
 
 needs_sorting_nc(x) = (x.f === (*)) && !issorted_nc(x)
+needs_sorting_nc(x::SymbolicUtils.Mul{<:Number}) = SymbolicUtils.needs_sorting(*)(x)
 function issorted_nc(x)
     args = SymbolicUtils.arguments(x)
     is_c = iscommutative.(args)

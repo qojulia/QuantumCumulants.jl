@@ -22,7 +22,7 @@ struct NumberTerm{T<:Number} <: SymbolicNumber{T}
     f::Function
     arguments::Vector
 end
-function NumberTerm(f,args;type=SymbolicUtils.rec_promote_symtype(f, SymbolicUtils.symtype.(args)...))
+function NumberTerm(f,args;type=SymbolicUtils._promote_symtype(f, args))
     return NumberTerm{type}(f,args)
 end
 Base.:(==)(t1::NumberTerm,t2::NumberTerm) = (t1.f===t2.f && t1.arguments==t2.arguments)
@@ -103,9 +103,15 @@ end
 
 # Conversion to SymbolicUtils
 _to_symbolic(p::Parameter{T}) where T = SymbolicUtils.Sym{T}(p.name)
-_to_symbolic(n::NumberTerm{T}) where T = SymbolicUtils.Term{T}(n.f, _to_symbolic.(n.arguments))
+_to_symbolic(n::NumberTerm{T}) where T = n.f(map(_to_symbolic, n.arguments)...)
 function _to_qumulants(s::SymbolicUtils.Sym{T}) where T<:Number
     return Parameter{T}(s.name)
+end
+for (f,T) in zip([:*,:+,:^],[:Mul,:Add,:Pow])
+    @eval function _to_qumulants(t::SymbolicUtils.$(T){S}) where S<:Number
+        args = SymbolicUtils.arguments(t)
+        return NumberTerm{S}($f, map(_to_qumulants, args))
+    end
 end
 
 """
