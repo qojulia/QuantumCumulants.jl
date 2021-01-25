@@ -38,15 +38,16 @@ function extract_names(names::Vector, v::Vector)
     [extract_names(names, v_) for v_ in v]
 end
 
-
 Base.isequal(c1::T,c2::T) where T<:ClusterAon = (c1.i==c2.i && c1.j==c2.j)
 Base.isless(i::Int,c::ClusterAon) = isless(i,c.i)
 Base.isless(c::ClusterAon,i::Int) = isless(c.i,i)
 function Base.isless(c1::ClusterAon,c2::ClusterAon)
     if isless(c1.i, c2.i)
         return true
-    else
+    elseif isequal(c1.i, c2.i)
         return isless(c1.j, c2.j)
+    else
+        return false
     end
 end
 Base.iterate(c::ClusterAon, state=1) = isone(state) ? (c,state+1) : nothing

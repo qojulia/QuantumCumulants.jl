@@ -59,6 +59,7 @@ function heisenberg(a::Vector,H,J;Jdagger::Vector=adjoint.(Iterators.flatten(J))
     else
         J_ = J; rates_ = rates
     end
+    @assert length(J_) == length(rates_)
     lhs = Vector{AbstractOperator}(undef, length(a))
     rhs = Vector{AbstractOperator}(undef, length(a))
     if multithread
