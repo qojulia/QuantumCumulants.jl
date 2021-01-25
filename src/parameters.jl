@@ -79,26 +79,23 @@ end
 
 # Substitution
 function substitute(t::NumberTerm, dict; simplify=true, kwargs...)
-    if haskey(dict, t)
-        return dict[t]
-    elseif haskey(dict, t')
-        return dict[t]'
+    v = get(dict, t, nothing)
+    isnothing(v) || return v
+    v_ = get(dict, t', nothing)
+    isnothing(v_) || return v_'
+    args = [substitute(arg, dict; simplify=simplify) for arg in t.arguments]
+    if simplify
+        return simplify_constants(t.f(args...), kwargs...)
     else
-        if simplify
-            return simplify_constants(t.f([substitute(arg, dict; simplify=simplify) for arg in t.arguments]...), kwargs...)
-        else
-            return t.f([substitute(arg, dict; simplify=simplify) for arg in t.arguments]...)
-        end
+        return t.f(args...)
     end
 end
 function substitute(x::SymbolicNumber, dict; kwargs...)
-    if haskey(dict, x)
-        return dict[x]
-    elseif haskey(dict, x')
-        return dict[x']'
-    else
-        return x
-    end
+    v = get(dict, x, nothing)
+    isnothing(v) || return v
+    v_ = get(dict, x', nothing)
+    isnothing(v_) || return v_'
+    return x
 end
 
 # Conversion to SymbolicUtils

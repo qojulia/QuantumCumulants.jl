@@ -114,29 +114,28 @@ julia> substitute(p, Dict(p=>2))
 ```
 """
 function substitute(op::BasicOperator, dict; kwargs...)
-    if haskey(dict, op)
-        op_ = dict[op]
-        check_hilbert(op_,op)
-        return op_
-    elseif haskey(dict, op')
-        op_ = dict[op']
+    op_ = get(dict, op, nothing)
+    if !isnothing(op_)
         check_hilbert(op_, op)
-        return op_'
-    else
-        return op
+        return op_
     end
+    _op = get(dict, op', nothing)
+    if !isnothing(_op)
+        check_hilbert(_op, op)
+        return _op'
+    end
+    return op
 end
 function substitute(t::OperatorTerm, dict; simplify=true, kwargs...)
-    if haskey(dict, t)
-        return dict[t]
-    elseif haskey(dict, t')
-        return dict[t']'
+    v = get(dict, t, nothing)
+    isnothing(v) || return v
+    v_ = get(dict, adjoint(t), nothing)
+    isnothing(v_) || return adjoint(v_)
+    args = [substitute(arg, dict; simplify=simplify) for arg in t.arguments]
+    if simplify
+        return simplify_operators(t.f(args...), kwargs...)
     else
-        if simplify
-            return simplify_operators(t.f([substitute(arg, dict; simplify=simplify) for arg in t.arguments]...), kwargs...)
-        else
-            return t.f([substitute(arg, dict; simplify=simplify) for arg in t.arguments]...)
-        end
+        return t.f(args...)
     end
 end
 substitute(x::Number, dict; kwargs...) = x
@@ -152,10 +151,12 @@ needs_sorting_nc(x) = (x.f === (*)) && !issorted_nc(x)
 needs_sorting_nc(x::SymbolicUtils.Mul{<:Number}) = SymbolicUtils.needs_sorting(*)(x)
 function issorted_nc(x)
     args = SymbolicUtils.arguments(x)
-    is_c = iscommutative.(args)
+    is_c = map(iscommutative, args)
+    issorted(is_c, lt=(>)) || return false
     args_c = args[is_c]
+    SymbolicUtils.issortedₑ(args_c) || return false
     args_nc = args[.!is_c]
-    return issorted(is_c, lt=(>)) && SymbolicUtils.issortedₑ(args_c) && issorted(args_nc, lt=lt_aon)
+    return issorted(args_nc, lt=lt_aon)
 end
 
 # Comparison for sorting according to Hilbert spaces
