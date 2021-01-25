@@ -136,14 +136,90 @@ meta_f_corr = build_ode(corr, ps)
 f_corr = Meta.eval(meta_f_corr)
 s = Spectrum(corr,ps)
 
-@test round.(abs.(sol2.u[end][1]); digits=6) == round.(abs.(sol1.u[end][1]); digits=6)
-@test round.(abs.(sol2.u[end][2]); digits=6) == round.(abs.(sol1.u[end][2]); digits=6)
-
+@test isapprox(abs.(sol2.u[end][1]), abs.(sol1.u[end][1]), rtol=1e-6)
+@test isapprox(abs.(sol2.u[end][2]), abs.(sol1.u[end][2]), rtol=1e-6)
 
 ################
 ### Holstein ###
 ################
 
+M = 3 # Order
+# Prameters
+@parameters λ ν Γ η Δ γ N
+# Hilbert space
+h_in = NLevelSpace(:internal, 2)
+hv = FockSpace(:vib)
+hv_c = ClusterSpace(hv,N,M)
+h = ⊗(h_in, hv_c)
+# Operators
+σ(i,j) = Transition(h, :σ, i, j)
+b = Destroy(h, :b)
+# Hamiltonian
+H0 = Δ*σ(2,2) + ν*sum(b'b)
+H_holstein = -1*λ*sum((b' + b))*σ(2,2)
+Hl = η*(σ(1,2) + σ(2,1))
+H = H0 + H_holstein + Hl
+# Jumps
+J = [σ(1,2), b]
+rates = [γ,Γ]
 
+# Equations
+ops = b[1]
+he0 = heisenberg(ops, H, J; rates=rates)
+he = complete(he0, order=M, multithread=true)
+@test length(he) == 27
+ps = (Δ,η,γ,λ,ν,Γ,N)
+# Generate function
+f = generate_ode(he,ps;check_bounds=true)
+p0 = [ones(length(ps)-1)..., 4]
+
+u0 = zeros(ComplexF64,length(he))
+prob1 = ODEProblem(f,u0,(0.0,1.0),p0)
+sol1 = solve(prob1,Tsit5(),abstol=1e-12,reltol=1e-12)
+
+bdb1 = get_solution(b[1]'b[1], sol1, he)[end]
+σ22_1 = get_solution(σ(2,2), sol1, he)[end]
+σ12_1 = get_solution(σ(1,2), sol1, he)[end]
+
+
+########################
+### explicit 4 atoms ###
+########################
+
+n = 4 # Number of vibration modes
+h_in = NLevelSpace(:internal,2)
+hv = [FockSpace(Symbol(:vib, i)) for i=1:n]
+h = ⊗(h_in, hv...)
+# Operators
+σ(i,j) = Transition(h, :σ, i, j)
+bb(k) = Destroy(h, Symbol(:b_, k), k+1)
+# Hamiltonian
+H0 = Δ*σ(2,2) + ν*sum(bb(k)'*bb(k) for k=1:n)
+H_holstein = - λ*sum((bb(k)' + bb(k)) for k=1:n)*σ(2,2)
+Hl = η*(σ(1,2) + σ(2,1))
+H = H0 + H_holstein + Hl
+# Jumps
+J = [σ(1,2); [bb(k) for k=1:n]]
+rates = [γ;[Γ for i=1:n]]
+# Equations
+he_in = average(heisenberg(σ(2,2), H, J; rates=rates), M)
+he = complete(he_in; order=M, multithread=true);
+@test length(he) == 154
+ps = (Δ,η,γ,λ,ν,Γ)
+# Generate function
+f = generate_ode(he,ps;check_bounds=true)
+# Numerical parameters
+p0 = ones(length(ps))
+u0 = zeros(ComplexF64,length(he))
+prob2 = ODEProblem(f,u0,(0.0,1.0),p0)
+sol2 = solve(prob2,Tsit5(),abstol=1e-12,reltol=1e-12);
+
+bdb2 = get_solution(bb(1)'bb(1), sol2, he)[end]
+σ22_2 = get_solution(σ(2,2), sol2, he)[end]
+σ12_2 = get_solution(σ(1,2), sol2, he)[end]
+
+@test isapprox(abs.(bdb2), abs.(bdb1), rtol=1e-6)
+@test isapprox(abs.(σ22_2), abs.(σ22_1), rtol=1e-6)
+@test isapprox(abs.(σ12_2), abs.(σ12_1), rtol=1e-6)
 
 end #testset

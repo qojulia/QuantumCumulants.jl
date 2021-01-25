@@ -20,9 +20,13 @@ function heisenberg(a::Vector,H; multithread=false)
     he = DifferentialEquation(lhs,rhs,H,AbstractOperator[],Number[])
     # Clusters
     h = hilbert(lhs[1])
-    any(isa.(h.spaces, ClusterSpace)) && (return scale(he))
-    return he
-
+    if isa(h, ProductSpace)
+        any(isa.(h.spaces, ClusterSpace)) && (return scale(he))
+        return he
+    else
+        isa(h, ClusterSpace) && (return scale(he))
+        return he
+    end
 end
 heisenberg(a::AbstractOperator,args...;kwargs...) = heisenberg([a],args...;kwargs...)
 
@@ -76,8 +80,13 @@ function heisenberg(a::Vector,H,J;Jdagger::Vector=adjoint.(Iterators.flatten(J))
     he = DifferentialEquation(lhs,rhs,H,J_,rates_)
     # Clusters
     h = hilbert(lhs[1])
-    any(isa.(h.spaces, ClusterSpace)) && (return scale(he))
-    return he
+    if isa(h, ProductSpace)
+        any(isa.(h.spaces, ClusterSpace)) && (return scale(he))
+        return he
+    else
+        isa(h, ClusterSpace) && (return scale(he))
+        return he
+    end
 end
 function _master_lindblad(a_,J,Jdagger,rates)
     if isa(rates,Vector)

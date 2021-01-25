@@ -24,3 +24,5 @@ S(i,j,c) = Transition(h,Symbol(:σ, c),i, j, 1+c) #c=cluster
 @test acts_on(S(2,2,1)[1]) == Qumulants.ClusterAon(2,1)
 @test acts_on(S(2,2,2)[2]) == Qumulants.ClusterAon(3,2)
 @test acts_on(S(2,2,1)[1]) < acts_on(S(2,2,1)[2]) < acts_on(S(2,2,2)[1])
+
+end #testset
