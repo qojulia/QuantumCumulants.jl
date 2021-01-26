@@ -2,7 +2,7 @@
 Abstract type for equations.
 """
 abstract type AbstractEquation{LHS,RHS} end
-Base.:(==)(eq1::T,eq2::T) where T<:AbstractEquation = (eq1.lhs==eq2.lhs && eq1.rhs==eq2.rhs)
+Base.isequal(::AbstractEquation,::AbstractEquation) = false
 
 """
     HeisenbergEquation{LHS,RHS,H,J,R} <: AbstractEquation{LHS,RHS}
@@ -29,7 +29,7 @@ mutable struct HeisenbergEquation{LHS,RHS,H,J,R} <: AbstractEquation{LHS,RHS}
     rates::R
 end
 Base.hash(eq::HeisenbergEquation, h::UInt) = hash(eq.rates, hash(eq.jumps, hash(eq.hamiltonian, hash(eq.rhs, hash(eq.lhs, h)))))
-Base.:(==)(eq1::HeisenbergEquation,eq2::HeisenbergEquation) = hash(eq1)==hash(eq2)
+Base.isequal(eq1::HeisenbergEquation,eq2::HeisenbergEquation) = isequal(hash(eq1), hash(eq2))
 
 Base.getindex(de::HeisenbergEquation, i::Int) = HeisenbergEquation([de.lhs[i]],[de.rhs[i]],de.hamiltonian,de.jumps,de.rates)
 Base.getindex(de::HeisenbergEquation, i) = HeisenbergEquation(de.lhs[i],de.rhs[i],de.hamiltonian,de.jumps,de.rates)

@@ -110,8 +110,8 @@ that order is computed immediately. The keyword `multithread` specifies whether
 the averaging (and [`cumulant_expansion`](@ref)) should be parallelized (defaults to `false`).
 """
 function average(de::HeisenbergEquation;multithread=false)
-    lhs = Vector{Number}(undef, length(de.lhs))
-    rhs = Vector{Number}(undef, length(de.lhs))
+    lhs = Vector{Any}(undef, length(de.lhs))
+    rhs = Vector{Any}(undef, length(de.lhs))
     if multithread
         Threads.@threads for i=1:length(de.lhs)
             lhs[i] = average(de.lhs[i])
@@ -198,8 +198,8 @@ function cumulant_expansion(x::SymbolicUtils.Symbolic,order;mix_choice=maximum, 
         error()
     end
 end
-function cumulant_expansion(de::HeisenbergEquation{<:Number,<:Number},order;multithread=false,mix_choice=maximum,kwargs...)
-    rhs = Vector{Number}(undef, length(de.lhs))
+function cumulant_expansion(de::HeisenbergEquation,order;multithread=false,mix_choice=maximum,kwargs...)
+    rhs = Vector{Any}(undef, length(de.lhs))
     if multithread
         Threads.@threads for i=1:length(de.lhs)
             check_lhs(de.lhs[i],order;mix_choice=mix_choice)

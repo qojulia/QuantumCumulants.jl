@@ -6,7 +6,7 @@ are contained either in the variables given in `vs`. If a list of parameters `ps
 is provided, parameters that do not occur in the list `ps` are also added to the list.
 Returns a list of missing symbols.
 """
-function find_missing(rhs::Vector{<:Number}, vs::Vector{<:Number}; vs_adj::Vector=adjoint.(vs), ps=[])
+function find_missing(rhs::Vector, vs::Vector; vs_adj::Vector=adjoint.(vs), ps=[])
     missed = Number[]
     for e=rhs
         append!(missed,get_symbolics(e))
@@ -19,7 +19,7 @@ function find_missing(rhs::Vector{<:Number}, vs::Vector{<:Number}; vs_adj::Vecto
     isempty(ps) || (ps_adj = adjoint.(ps); filter!(x -> !(x∈ps_adj), missed))
     return missed
 end
-function find_missing(de::HeisenbergEquation{<:Number,<:Number}; kwargs...)
+function find_missing(de::HeisenbergEquation; kwargs...)
     find_missing(de.rhs, de.lhs; kwargs...)
 end
 
@@ -28,14 +28,17 @@ end
 
 Find all symbolic numbers occuring in `ex`.
 """
-get_symbolics(x::Number) = SymbolicNumber[]
-get_symbolics(x::SymbolicNumber) = [x]
-function get_symbolics(t::NumberTerm)
-    syms = SymbolicNumber[]
-    for arg in t.arguments
-        append!(syms, get_symbolics(arg))
+get_symbolics(x::Number) = []
+function get_symbolics(t::SymbolicUtils.Symbolic)
+    if SymbolicUtils.istree(t)
+        syms = []
+        for arg in t.arguments
+            append!(syms, get_symbolics(arg))
+        end
+        return unique(syms)
+    else
+        return [t]
     end
-    return unique(syms)
 end
 
 """
@@ -44,11 +47,11 @@ end
 From a set of differential equation of averages, find all averages that are missing
 and derive the corresponding equations of motion.
 """
-function complete(de::HeisenbergEquation{<:Number,<:Number};kwargs...)
+function complete(de::HeisenbergEquation;kwargs...)
     rhs_, lhs_ = complete(de.rhs,de.lhs,de.hamiltonian,de.jumps,de.rates;kwargs...)
     return HeisenbergEquation(lhs_,rhs_,de.hamiltonian,de.jumps,de.rates)
 end
-function complete(rhs::Vector{<:Number}, vs::Vector{<:Number}, H, J, rates; order=nothing, filter_func=nothing, mix_choice=maximum, kwargs...)
+function complete(rhs::Vector, vs::Vector, H, J, rates; order=nothing, filter_func=nothing, mix_choice=maximum, kwargs...)
     order_lhs = maximum(get_order.(vs))
     order_rhs = maximum(get_order.(rhs))
     if order isa Nothing
@@ -225,7 +228,7 @@ end
 Find the numerical solution of the average value `avg` stored in the `ODESolution`
 `sol` corresponding to the solution of the equations given by `he`.
 """
-function get_solution(avg::Average,sol,he::HeisenbergEquation{<:Number,<:Number})
+function get_solution(avg::Average,sol,he::HeisenbergEquation)
     idx = findfirst(isequal(avg),he.lhs)
     if isnothing(idx)
         idx_ = findfirst(isequal(avg'),he.lhs)
@@ -251,9 +254,18 @@ end
 _to_expression(op::BasicOperator) = op.name
 _to_expression(op::Create) = :(dagger($(op.name)))
 _to_expression(op::Transition) = :(Transition($(op.name),$(op.i),$(op.j)) )
-_to_expression(t::Union{OperatorTerm,NumberTerm}) = :( $(Symbol(t.f))($(_to_expression.(t.arguments)...)) )
+_to_expression(t::OperatorTerm) = :( $(Symbol(t.f))($(_to_expression.(t.arguments)...)) )
 _to_expression(p::Parameter) = p.name
 function _to_expression(avg::Average)
     ex = _to_expression(avg.operator)
     return :(AVERAGE($ex))
+end
+function _to_expression(s::SymbolicUtils.Symbolic)
+    if SymbolicUtils.istree(s)
+        f = SymbolicUtils.operation(s)
+        args = map(_to_expression, SymbolicUtils.arguments(s))
+        return :( $(Symbol(f))($(args...)) )
+    else
+        return nameof(s)
+    end
 end

@@ -20,7 +20,7 @@ he_laser = heisenberg([a'*a,σ'*σ,a*σ'],H,J;rates=[κ,γ,ν],multithread=true)
 
 he_avg = average(he_laser;multithread=true)
 he_exp = cumulant_expansion(he_avg,2;multithread=true)
-@test he_exp == average(he_laser,2)
+@test isequal(he_exp, average(he_laser,2))
 
 ps = [Δ,g,κ,γ,ν]
 missed = find_missing(he_exp)
