@@ -97,7 +97,7 @@ Shows on which Hilbert space `op` acts. For [`BasicOperator`](@ref) types, this
 returns an Integer, whereas for a [`OperatorTerm`](@ref) it returns a `Vector{Int}`
 whose entries specify all subspaces on which the expression acts.
 """
-acts_on(op::BasicOperator) = op.aon
+acts_on(op::BasicOperator) = op.aon # TODO make Int[]
 function acts_on(t::OperatorTerm)
     ops = filter(SymbolicUtils.sym_isa(AbstractOperator), t.arguments)
     aon = Int[]

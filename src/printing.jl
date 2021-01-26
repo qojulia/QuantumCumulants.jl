@@ -23,23 +23,23 @@ function Base.show(io::IO,x::Union{OperatorTerm})
 end
 
 # Base.show(io::IO, x::Parameter) = write(io, x.name)
-# function Base.show(io::IO,x::Average)
-#     write(io,"⟨")
-#     show_brackets[] = false
-#     show(io, x.operator)
-#     show_brackets[] = true
-#     write(io,"⟩")
-# end
-#
-# function Base.show(io::IO,de::DifferentialEquation)
-#     for i=1:length(de)
-#         write(io, "∂ₜ(")
-#         show(io, de.lhs[i])
-#         write(io, ") = ")
-#         show(io, de.rhs[i])
-#         write(io, "\n")
-#     end
-# end
+function Base.show(io::IO,x::Average)
+    write(io,"⟨")
+    show_brackets[] = false
+    show(io, x.operator)
+    show_brackets[] = true
+    write(io,"⟩")
+end
+
+function Base.show(io::IO,de::DifferentialEquation)
+    for i=1:length(de)
+        write(io, "∂ₜ(")
+        show(io, de.lhs[i])
+        write(io, ") = ")
+        show(io, de.rhs[i])
+        write(io, "\n")
+    end
+end
 #
 # function Base.show(io::IO, c::CorrelationFunction)
 #     show(io, average(c.op1*c.op2))

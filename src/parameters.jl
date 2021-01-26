@@ -5,6 +5,10 @@ Abstract type for all symbolic numbers, i.e. [`Parameter`](@ref), [`Average`](@r
 and corresponding expression trees.
 """
 abstract type SymbolicNumber{T} <: Number end
+Base.isequal(::SymbolicNumber,::Number) = false
+Base.isequal(::Number,::SymbolicNumber) = false
+Base.isequal(::SymbolicNumber,::SymbolicNumber) = false
+
 struct Parameter{T} <: SymbolicNumber{T}
     function Parameter{T}(name) where T<:Number
         return SymbolicUtils.Sym{Parameter{T}}(name)

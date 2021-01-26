@@ -30,7 +30,7 @@ SymbolicUtils.similarterm(t::OperatorTerm{F}, f::F, args::A) where {F,A} = Opera
 SymbolicUtils.:<ₑ(a::AbstractOperator, b::Number) = false
 SymbolicUtils.:<ₑ(a::Number,   b::AbstractOperator) = true
 SymbolicUtils.:<ₑ(a::AbstractOperator, b::SymbolicUtils.Symbolic{<:Number}) = false
-SymbolicUtils.:<ₑ(a::SymbolicUtils.Symbolic{<:Number},   b::AbstractOperator) = true
+SymbolicUtils.:<ₑ(a::SymbolicUtils.Symbolic{<:Number}, b::AbstractOperator) = true
 
 
 ### End of interface
@@ -47,7 +47,7 @@ fundamental commutation relations.
 * rewriter: The rewriter used.
 * kwargs: Further arguments passed to `SymbolicUtils.simplify`.
 """
-function simplify_operators(op::AbstractOperator; rewriter=default_operator_simplifier(),
+function simplify_operators(op; rewriter=default_operator_simplifier(),
                 kwargs...)
     return SymbolicUtils.simplify(op; rewriter=rewriter, kwargs...)
 end
@@ -78,9 +78,7 @@ julia> expand(ex)
 ```
 """
 function expand(ex; rewriter=default_expand_simplifier(), kwargs...)
-    s = _to_symbolic(ex)
-    s_ = SymbolicUtils.simplify(s; rewriter=rewriter, kwargs...)
-    return _to_qumulants(s_)
+    return SymbolicUtils.simplify(ex; rewriter=rewriter, kwargs...)
 end
 #
 # """

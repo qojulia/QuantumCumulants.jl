@@ -4,16 +4,56 @@
 Symbolic number representing the average over an operator.
 See also: [`average`](@ref)
 """
-struct Average{T<:Number,OP} <: SymbolicNumber{T}
+struct Average{T<:Number,OP} <: SymbolicUtils.Symbolic{T}
     operator::OP
 end
 Average(operator::OP) where OP = Average{Number,OP}(operator)
-Base.:(==)(a1::Average,a2::Average) = (a1.operator==a2.operator)
-Base.hash(a::Average{T}, h::UInt) where T = hash(a.operator, hash(T, h))
 
-Base.conj(a::Average) = Average(adjoint(a.operator))
+Base.hash(a::Average{T}, h::UInt) where T = hash(a.operator, hash(T, h))
+Base.isequal(a1::Average,a2::Average) = isequal(a1.operator,a2.operator)
+Base.isone(::Average) = false
+Base.iszero(::Average) = false
+
+SymbolicUtils.:<ₑ(a::Average, b::Number) = false
+SymbolicUtils.:<ₑ(a::Number,   b::Average) = true
+SymbolicUtils.:<ₑ(a::Average,   b::Average) = SymbolicUtils.:<ₑ(a.operator, b.operator)
+# SymbolicUtils.:<ₑ(a::Average, b::SymbolicUtils.Symbolic{<:Number}) = false
+# SymbolicUtils.:<ₑ(a::SymbolicUtils.Symbolic{<:Number}, b::Average) = true
+
+# Symbolic type promotion
+for f in [+,-,*,/,^]
+    @eval SymbolicUtils.promote_symtype(::$(typeof(f)),
+                   T::Type{<:Average},
+                   S::Type{<:Number}) = S
+    @eval SymbolicUtils.promote_symtype(::$(typeof(f)),
+                   T::Type{<:Number},
+                   S::Type{<:Average}) = T
+   @eval SymbolicUtils.promote_symtype(::$(typeof(f)),
+                  T::Type{<:Average{T1}},
+                  S::Type{<:Average{T2}}) where {T1,T2} = promote_type(T1,T2)
+end
+
+SymbolicUtils.symtype(x::Average{T}) where T = T
+SymbolicUtils.to_symbolic(x::Average) = x
+
+SymbolicUtils.istree(::Average) = false
+# SymbolicUtils.islike(::Average, ::Type{<:Number}) = true
+
 
 acts_on(avg::Average) = acts_on(avg.operator)
+
+# SymbolicUtils.@number_methods(Average, SymbolicUtils.term(f, a), SymbolicUtils.term(f, a, b), skipbasics)
+# Methods
+# Base.conj(a::Average) = Average(adjoint(a.operator))
+# Base.:+(a::Number, b::Average) = SymbolicUtils.Add(SymbolicUtils.add_t(a,b), SymbolicUtils.makeadd(1, a, b)...)
+# Base.:+(a::Average, b::Number) = SymbolicUtils.Add(SymbolicUtils.add_t(a,b), SymbolicUtils.makeadd(1, b, a)...)
+# Base.:+(a::Average, b::Average) = SymbolicUtils.Add(SymbolicUtils.add_t(a,b), SymbolicUtils.makeadd(1, 0, a, b)...)
+# Base.:+(a::SymbolicUtils.Symbolic, b::Average) = SymbolicUtils.Add(SymbolicUtils.add_t(a,b), SymbolicUtils.makeadd(1, 0, a, b)...)
+# Base.:+(a::Average, b::SymbolicUtils.Symbolic) = SymbolicUtils.Add(SymbolicUtils.add_t(a,b), SymbolicUtils.makeadd(1, 0, a, b)...)
+
+# Base.:^(avg::Average,n::Integer) = SymbolicUtils.Pow(avg, n)
+# Base.:^(avg::Average,n::SymbolicUtils.Symbolic{<:Number}) = SymbolicUtils.Pow(avg, n)
+# Base.:^(avg::Average,n::Number) = SymbolicUtils.Pow(avg, n)
 
 """
     average(::AbstractOperator)
@@ -24,10 +64,11 @@ up to that order is computed immediately.
 """
 average(op::BasicOperator) = Average(op)
 function average(op::OperatorTerm)
-    if op.f ∈ [+,-] # linearity
-        avg = op.f(average.(op.arguments)...)
+    f = SymbolicUtils.operation(op)
+    if f ∈ [+,-] # linearity
+        avg = f(average.(op.arguments)...)
         return avg
-    elseif op.f === (*)
+    elseif f === (*)
         # Move constants out of average
         cs, ops = separate_constants(op)
         if isempty(cs)
@@ -38,9 +79,9 @@ function average(op::OperatorTerm)
                 return average(op_)
             end
         else
-            return op.f(cs...)*average(op.f(ops...))
+            return f(cs...)*average(f(ops...))
         end
-    elseif op.f === (^)
+    elseif f === (^)
         arg, n = op.arguments
         op_ = *((arg for i=1:n)...)
         return average(op_)
@@ -48,12 +89,12 @@ function average(op::OperatorTerm)
         return Average(op)
     end
 end
-average(x::Number) = x
+average(x::Union{T,SymbolicUtils.Symbolic{T}}) where T<:Number = x
 
-separate_constants(x::Number) = [x],[]
-separate_constants(op::AbstractOperator) = [],[op]
+separate_constants(x::Union{T,SymbolicUtils.Symbolic{T}}) where T<:Number = [x],[]
+separate_constants(op::T) where T<:AbstractOperator = [],[op]
 function separate_constants(op::OperatorTerm{<:typeof(*)})
-    cs = filter(x->isa(x,Number), op.arguments)
+    cs = filter(x->isa(x,Number)||isa(x,SymbolicUtils.Symbolic{<:Number}), op.arguments)
     ops = filter(x->isa(x,AbstractOperator), op.arguments)
     return cs, ops
 end
@@ -86,18 +127,8 @@ function average(de::DifferentialEquation;multithread=false)
 end
 average(arg,order;kwargs...) = cumulant_expansion(average(arg),order;kwargs...)
 
-# Conversion to SymbolicUtils
-_to_symbolic(a::Average{T}) where T<:Number = SymbolicUtils.term(average, _to_symbolic(a.operator); type=T)
-function _to_qumulants(t::SymbolicUtils.Term{T}) where T<:Number
-    if t.f===average
-        return Average(_to_qumulants(t.arguments[1]))
-    else
-        return NumberTerm{T}(t.f, _to_qumulants.(t.arguments))
-    end
-end
-
 # Type promotion -- average(::Operator)::Number
-SymbolicUtils.promote_symtype(average, ::Type{<:AbstractOperator}) = Number
+# SymbolicUtils.promote_symtype(average, ::Type{<:AbstractOperator}) = Number
 
 # Cumulant expansion
 """
@@ -141,12 +172,12 @@ function cumulant_expansion(avg::Average,order::Int;simplify=true,kwargs...)
         else
             avg_ = average
         end
-        if simplify && (avg != avg_) # TODO: better strategy to get proper ordering
+        if simplify && !isequal(avg, avg_) # TODO: better strategy to get proper ordering
             return cumulant_expansion(avg_,order;simplify=simplify,kwargs...)
         else
-            @assert op.f === (*)
+            @assert SymbolicUtils.operation(op) === (*)
             if simplify
-                return simplify_constants(_cumulant_expansion(op.arguments, order), kwargs...)
+                return simplify_operators(_cumulant_expansion(op.arguments, order), kwargs...)
             else
                 _cumulant_expansion(op.arguments, order)
             end
@@ -158,10 +189,14 @@ function cumulant_expansion(avg::Average,order::Vector;mix_choice=maximum,kwargs
     order_ = mix_choice(order[i] for i in aon)
     return cumulant_expansion(avg,order_;kwargs...)
 end
-cumulant_expansion(x::Number,order;kwargs...) = x
-function cumulant_expansion(x::NumberTerm,order;mix_choice=maximum, simplify=false, kwargs...)
-    cumulants = [cumulant_expansion(arg,order;simplify=false,mix_choice=mix_choice) for arg in x.arguments]
-    return simplify_constants(x.f(cumulants...);kwargs...)
+cumulant_expansion(x::Union{SymbolicUtils.Symbolic{T},T},order;kwargs...) where T<:Number = x
+function cumulant_expansion(x::SymbolicUtils.Symbolic,order;mix_choice=maximum, simplify=false, kwargs...)
+    if SymbolicUtils.istree(x)
+        cumulants = [cumulant_expansion(arg,order;simplify=false,mix_choice=mix_choice) for arg in x.arguments]
+        return simplify_operators(x.f(cumulants...);kwargs...)
+    else
+        error()
+    end
 end
 function cumulant_expansion(de::DifferentialEquation{<:Number,<:Number},order;multithread=false,mix_choice=maximum,kwargs...)
     rhs = Vector{Number}(undef, length(de.lhs))
@@ -197,11 +232,11 @@ function _cumulant_expansion(args::Vector,order::Int)
     # Get all possible partitions; partitions(args,1) corresponds to the moment of order length(args)
     parts = [partitions(args,i) for i=2:length(args)]
 
-    args_sum = Number[]
+    args_sum = Any[]
     for p in parts
         for pj in p
             n = length(pj)
-            args_prod = Number[-factorial(n-1)*(-1)^(n-1)]
+            args_prod = Any[-factorial(n-1)*(-1)^(n-1)]
             for p_=pj # Product over partition blocks
                 if length(p_) > order # If the encountered moment is larger than order, apply expansion
                     push!(args_prod, _cumulant_expansion(p_, order))
@@ -249,12 +284,12 @@ function cumulant(op::OperatorTerm,n::Int=get_order(op);simplify=true,kwargs...)
         else
             avg_ = average(op)
         end
-        if simplify && (average(op) != avg_) # TODO: better strategy to get proper ordering
+        if simplify && !isequal(average(op), avg_) # TODO: better strategy to get proper ordering
             return cumulant(avg_.operator,order;simplify=simplify,kwargs...)
         else
-            @assert op.f === (*)
+            @assert SymbolicUtils.operation(op) === (*)
             if simplify
-                return simplify_constants(_cumulant(op.arguments, n), kwargs...)
+                return simplify_operators(_cumulant(op.arguments, n), kwargs...)
             else
                 return _cumulant(op.arguments, n)
             end
@@ -266,12 +301,12 @@ cumulant(op::BasicOperator,n::Int=1;kwargs...) = isone(n) ? average(op) : zero(o
 
 function _cumulant(args::Vector,m::Int=length(args))
     parts = [partitions(args,i) for i=1:m]
-    args_sum = Number[]
+    args_sum = Any[]
     for i=1:length(parts)
         p = collect(parts[i])
         for j=1:length(p) # Terms in the sum
             n = length(p[j])
-            args_prod = Number[factorial(n-1)*(-1)^(n-1)]
+            args_prod = Any[factorial(n-1)*(-1)^(n-1)]
             for p_=p[j] # Product over partition blocks
                 push!(args_prod, Average(*(p_...)))
             end
@@ -302,7 +337,13 @@ julia> get_order(1)
 ```
 """
 get_order(avg::Average) = get_order(avg.operator)
-get_order(t::NumberTerm) = maximum(get_order.(t.arguments))
+function get_order(t::SymbolicUtils.Symbolic)
+    if SymbolicUtils.istree(t)
+        return maximum(map(get_order, SymbolicUtils.arguments(t)))
+    else
+        return 0
+    end
+end
 get_order(::Number) = 0
 function get_order(t::OperatorTerm)
     if t.f in [+,-]

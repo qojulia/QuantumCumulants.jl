@@ -43,6 +43,11 @@ let
         SymbolicUtils.@rule(+(~x) => ~x)
     ]
 
+    CONJ_RULES = [
+        SymbolicUtils.@rule(conj(conj(~x)) => ~x)
+        SymbolicUtils.@rule(conj(~x::SymbolicUtils.sym_isa(Average)) => Average(adjoint((~x).operator)))
+        SymbolicUtils.@rule(conj(*(~~x)) => *(map(conj, ~~x)...))
+    ]
 
     # Copied directly from SymbolicUtils
     PLUS_RULES = [
@@ -85,13 +90,28 @@ let
     global default_operator_simplifier
     global default_expand_simplifier
     global noncommutative_simplifier
+    global conj_rewriter
 
     function default_operator_simplifier(; kwargs...)
         SymbolicUtils.IfElse(
             SymbolicUtils.sym_isa(AbstractOperator), SymbolicUtils.Postwalk(operator_simplifier()),
-            SymbolicUtils.default_simplifier(; kwargs...)
+            SymbolicUtils.Postwalk(number_simplifier(;kwargs...))
         )
     end
+
+    function number_simplifier(;kwargs...)
+        rule_tree = [SymbolicUtils.If(SymbolicUtils.is_operation(conj), SymbolicUtils.Chain(CONJ_RULES)),
+                    SymbolicUtils.default_simplifier(;kwargs...)
+                    ] |> SymbolicUtils.Chain
+        return SymbolicUtils.Fixpoint(SymbolicUtils.Postwalk(rule_tree))
+    end
+
+    function conj_rewriter()
+        rw = [SymbolicUtils.If(SymbolicUtils.is_operation(conj), SymbolicUtils.Chain(CONJ_RULES))
+            ] |> SymbolicUtils.Chain
+        return SymbolicUtils.Fixpoint(SymbolicUtils.Postwalk(rw))
+    end
+
 
     function operator_simplifier()
         rw_comms = commutator_simplifier()
