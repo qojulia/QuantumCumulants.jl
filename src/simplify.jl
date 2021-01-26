@@ -80,57 +80,11 @@ julia> expand(ex)
 function expand(ex; rewriter=default_expand_simplifier(), kwargs...)
     return SymbolicUtils.simplify(ex; rewriter=rewriter, kwargs...)
 end
-#
-# """
-#     substitute(arg, subs; simplify=true)
-#
-# Substitute the symbolic argument, i.e. any subtype to [`AbstractOperator`](@ref)
-# or [`SymbolicNumber`](@ref) according to the substitutions stored in a `Dict`.
-# Also works on [`HeisenbergEquation`](@ref). If `simplify=true`, the output
-# is simplified.
-#
-# Examples
-# =======
-# ```
-# julia> @parameters p
-# (p,)
-#
-# julia> substitute(p, Dict(p=>2))
-# 2
-# ```
-# """
-# function substitute(op::BasicOperator, dict; kwargs...)
-#     op_ = get(dict, op, nothing)
-#     if !isnothing(op_)
-#         check_hilbert(op_, op)
-#         return op_
-#     end
-#     _op = get(dict, op', nothing)
-#     if !isnothing(_op)
-#         check_hilbert(_op, op)
-#         return _op'
-#     end
-#     return op
-# end
-# function substitute(t::OperatorTerm, dict; simplify=true, kwargs...)
-#     v = get(dict, t, nothing)
-#     isnothing(v) || return v
-#     v_ = get(dict, adjoint(t), nothing)
-#     isnothing(v_) || return adjoint(v_)
-#     args = [substitute(arg, dict; simplify=simplify) for arg in t.arguments]
-#     if simplify
-#         return simplify_operators(t.f(args...), kwargs...)
-#     else
-#         return t.f(args...)
-#     end
-# end
-# substitute(x::Number, dict; kwargs...) = x
 
 ### Functions needed for simplification
 
 # Handle noncommutative multiplication
 iscommutative(::AbstractOperator) = false
-# iscommutative(::SymbolicUtils.Symbolic{<:AbstractOperator}) = false
 iscommutative(::Union{SymbolicUtils.Symbolic{T},T}) where {T<:Number} = true
 
 needs_sorting_nc(x) = (x.f === (*)) && !issorted_nc(x)
