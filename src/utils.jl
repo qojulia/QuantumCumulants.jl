@@ -6,21 +6,50 @@ are contained either in the variables given in `vs`. If a list of parameters `ps
 is provided, parameters that do not occur in the list `ps` are also added to the list.
 Returns a list of missing symbols.
 """
-function find_missing(rhs::Vector, vs::Vector; vs_adj::Vector=adjoint.(vs), ps=[])
-    missed = Number[]
+function find_missing(rhs::Vector, vs::Vector; vs_adj::Vector=get_conj(vs), ps=[])
+    missed = []
     for e=rhs
         append!(missed,get_symbolics(e))
     end
     unique!(missed)
     if isempty(ps)
-        filter!(x->!isa(x,Parameter), missed)
+        filter!(!SymbolicUtils.sym_isa(Parameter), missed)
     end
-    filter!(x->!(x∈vs || x∈ps || x∈vs_adj),missed)
+    filter!(x->!(_in(x, vs) || _in(x, ps) || _in(x, vs_adj)),missed)
     isempty(ps) || (ps_adj = adjoint.(ps); filter!(x -> !(x∈ps_adj), missed))
     return missed
 end
 function find_missing(de::HeisenbergEquation; kwargs...)
     find_missing(de.rhs, de.lhs; kwargs...)
+end
+
+function get_conj(v)
+    v_ = conj(v)
+    rw = conj_rewriter()
+    return rw(v_)
+end
+function get_conj(v::Vector)
+    v_ = map(conj, v)
+    rw = conj_rewriter()
+    return map(rw, v_)
+end
+
+"""
+    _in(x, itr)
+
+Same as `Base.in` but uses `isequal` instead of `==`.
+"""
+function _in(x, itr)
+    anymissing = false
+    for y in itr
+        v = isequal(y, x)
+        if ismissing(v)
+            anymissing = true
+        elseif v
+            return true
+        end
+    end
+    return anymissing ? missing : false
 end
 
 """
@@ -31,11 +60,15 @@ Find all symbolic numbers occuring in `ex`.
 get_symbolics(x::Number) = []
 function get_symbolics(t::SymbolicUtils.Symbolic)
     if SymbolicUtils.istree(t)
-        syms = []
-        for arg in t.arguments
-            append!(syms, get_symbolics(arg))
+        if SymbolicUtils.is_operation(average)(t)
+            return [t]
+        else
+            syms = []
+            for arg in SymbolicUtils.arguments(t)
+                append!(syms, get_symbolics(arg))
+            end
+            return unique(syms)
         end
-        return unique(syms)
     else
         return [t]
     end
@@ -64,7 +97,7 @@ function complete(rhs::Vector, vs::Vector, H, J, rates; order=nothing, filter_fu
     vs_ = copy(vs)
     rhs_ = [cumulant_expansion(r, order_) for r in rhs]
     missed = unique_ops(find_missing(rhs_, vs_))
-    filter!(x->isa(x,Average),missed)
+    filter!(SymbolicUtils.sym_isa(Average),missed)
     isnothing(filter_func) || filter!(filter_func, missed) # User-defined filter
     while !isempty(missed)
         ops = getfield.(missed, :operator)
@@ -73,7 +106,7 @@ function complete(rhs::Vector, vs::Vector, H, J, rates; order=nothing, filter_fu
         rhs_ = [rhs_;he_avg.rhs]
         vs_ = [vs_;he_avg.lhs]
         missed = unique_ops(find_missing(rhs_,vs_))
-        filter!(x->isa(x,Average),missed)
+        filter!(SymbolicUtils.sym_isa(Average),missed)
         isnothing(filter_func) || filter!(filter_func, missed) # User-defined filter
     end
 
@@ -81,7 +114,7 @@ function complete(rhs::Vector, vs::Vector, H, J, rates; order=nothing, filter_fu
         # Find missing values that are filtered by the custom filter function,
         # but still occur on the RHS; set those to 0
         missed = unique_ops(find_missing(rhs_, vs_))
-        filter!(x->isa(x,Average),missed)
+        filter!(SymbolicUtils.sym_isa(Average),missed)
         filter!(!filter_func, missed)
         subs = Dict(missed .=> 0)
         rhs_ = [substitute(r, subs) for r in rhs_]

@@ -167,13 +167,15 @@ function cumulant_expansion(avg::SymbolicUtils.Term{<:Average},order::Vector;mix
     order_ = mix_choice(order[i] for i in aon)
     return cumulant_expansion(avg,order_;kwargs...)
 end
-cumulant_expansion(x::Union{SymbolicUtils.Symbolic{T},T},order;kwargs...) where T<:Number = x
+cumulant_expansion(x::Number,order;kwargs...) = x
 function cumulant_expansion(x::SymbolicUtils.Symbolic,order;mix_choice=maximum, simplify=false, kwargs...)
     if SymbolicUtils.istree(x)
-        cumulants = [cumulant_expansion(arg,order;simplify=false,mix_choice=mix_choice) for arg in x.arguments]
-        return simplify_operators(x.f(cumulants...);kwargs...)
+        f = SymbolicUtils.operation(x)
+        args = SymbolicUtils.arguments(x)
+        cumulants = [cumulant_expansion(arg,order;simplify=false,mix_choice=mix_choice) for arg in args]
+        return simplify_operators(f(cumulants...);kwargs...)
     else
-        error()
+        return x
     end
 end
 function cumulant_expansion(de::HeisenbergEquation,order;multithread=false,mix_choice=maximum,kwargs...)

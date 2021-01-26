@@ -16,6 +16,10 @@ struct Parameter{T} <: SymbolicNumber{T}
 end
 Parameter(name) = Parameter{Number}(name)
 
+# Promoting to SymbolicNumber ensures we own the symtype; could be used to dispatch
+# on Base methods (e.g. latex printing); not sure in how far this is type piracy
+# Base.promote_rule(::Type{<:SymbolicNumber},::Type{<:Number}) = SymbolicNumber
+
 """
     @parameters(ps...)
 

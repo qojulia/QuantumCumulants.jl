@@ -24,10 +24,11 @@ he_exp = cumulant_expansion(he_avg,2;multithread=true)
 
 ps = [Δ,g,κ,γ,ν]
 missed = find_missing(he_exp)
-@test !any(p in missed for p=ps)
+@test !any(Qumulants._in(p, missed) for p=ps)
 
 # Exploit phase invariance
 subs = Dict(missed .=> 0)
+merge!(subs, Dict(Qumulants.get_conj(missed) .=> 0))
 he_nophase = substitute(he_exp, subs)
 @test isempty(find_missing(he_nophase))
 

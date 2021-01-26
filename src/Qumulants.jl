@@ -1,6 +1,7 @@
 module Qumulants
 
 import SymbolicUtils
+import SymbolicUtils: substitute
 using Combinatorics: partitions, combinations, permutations
 
 export HilbertSpace, ProductSpace, ⊗,
