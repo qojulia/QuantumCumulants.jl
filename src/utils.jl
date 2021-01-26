@@ -19,7 +19,7 @@ function find_missing(rhs::Vector{<:Number}, vs::Vector{<:Number}; vs_adj::Vecto
     isempty(ps) || (ps_adj = adjoint.(ps); filter!(x -> !(x∈ps_adj), missed))
     return missed
 end
-function find_missing(de::DifferentialEquation{<:Number,<:Number}; kwargs...)
+function find_missing(de::HeisenbergEquation{<:Number,<:Number}; kwargs...)
     find_missing(de.rhs, de.lhs; kwargs...)
 end
 
@@ -39,14 +39,14 @@ function get_symbolics(t::NumberTerm)
 end
 
 """
-    complete(de::DifferentialEquation)
+    complete(de::HeisenbergEquation)
 
 From a set of differential equation of averages, find all averages that are missing
 and derive the corresponding equations of motion.
 """
-function complete(de::DifferentialEquation{<:Number,<:Number};kwargs...)
+function complete(de::HeisenbergEquation{<:Number,<:Number};kwargs...)
     rhs_, lhs_ = complete(de.rhs,de.lhs,de.hamiltonian,de.jumps,de.rates;kwargs...)
-    return DifferentialEquation(lhs_,rhs_,de.hamiltonian,de.jumps,de.rates)
+    return HeisenbergEquation(lhs_,rhs_,de.hamiltonian,de.jumps,de.rates)
 end
 function complete(rhs::Vector{<:Number}, vs::Vector{<:Number}, H, J, rates; order=nothing, filter_func=nothing, mix_choice=maximum, kwargs...)
     order_lhs = maximum(get_order.(vs))
@@ -225,7 +225,7 @@ end
 Find the numerical solution of the average value `avg` stored in the `ODESolution`
 `sol` corresponding to the solution of the equations given by `he`.
 """
-function get_solution(avg::Average,sol,he::DifferentialEquation{<:Number,<:Number})
+function get_solution(avg::Average,sol,he::HeisenbergEquation{<:Number,<:Number})
     idx = findfirst(isequal(avg),he.lhs)
     if isnothing(idx)
         idx_ = findfirst(isequal(avg'),he.lhs)

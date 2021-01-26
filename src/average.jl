@@ -100,16 +100,16 @@ function separate_constants(op::OperatorTerm{<:typeof(*)})
 end
 
 """
-    average(::DifferentialEquation;multithread=false)
-    average(::DifferentialEquation,order::Int;multithread=false)
+    average(::HeisenbergEquation;multithread=false)
+    average(::HeisenbergEquation,order::Int;multithread=false)
 
-Compute the average of a [`DifferentialEquation`](@ref) (or a set of equations).
-Returns a [`DifferentialEquation`](@ref) with containing the corresponding equations
+Compute the average of a [`HeisenbergEquation`](@ref) (or a set of equations).
+Returns a [`HeisenbergEquation`](@ref) with containing the corresponding equations
 for averages. If `order` is specified, the [`cumulant_expansion`](@ref) up to
 that order is computed immediately. The keyword `multithread` specifies whether
 the averaging (and [`cumulant_expansion`](@ref)) should be parallelized (defaults to `false`).
 """
-function average(de::DifferentialEquation;multithread=false)
+function average(de::HeisenbergEquation;multithread=false)
     lhs = Vector{Number}(undef, length(de.lhs))
     rhs = Vector{Number}(undef, length(de.lhs))
     if multithread
@@ -123,7 +123,7 @@ function average(de::DifferentialEquation;multithread=false)
             rhs[i] = average(de.rhs[i])
         end
     end
-    return DifferentialEquation(lhs,rhs,de.hamiltonian,de.jumps,de.rates)
+    return HeisenbergEquation(lhs,rhs,de.hamiltonian,de.jumps,de.rates)
 end
 average(arg,order;kwargs...) = cumulant_expansion(average(arg),order;kwargs...)
 
@@ -198,7 +198,7 @@ function cumulant_expansion(x::SymbolicUtils.Symbolic,order;mix_choice=maximum, 
         error()
     end
 end
-function cumulant_expansion(de::DifferentialEquation{<:Number,<:Number},order;multithread=false,mix_choice=maximum,kwargs...)
+function cumulant_expansion(de::HeisenbergEquation{<:Number,<:Number},order;multithread=false,mix_choice=maximum,kwargs...)
     rhs = Vector{Number}(undef, length(de.lhs))
     if multithread
         Threads.@threads for i=1:length(de.lhs)
@@ -213,7 +213,7 @@ function cumulant_expansion(de::DifferentialEquation{<:Number,<:Number},order;mu
             rhs[i] = cr
         end
     end
-    return DifferentialEquation(de.lhs,rhs,de.hamiltonian,de.jumps,de.rates)
+    return HeisenbergEquation(de.lhs,rhs,de.hamiltonian,de.jumps,de.rates)
 end
 
 function check_lhs(lhs,order::Int;kwargs...)

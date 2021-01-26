@@ -86,7 +86,7 @@ end
 #
 # Substitute the symbolic argument, i.e. any subtype to [`AbstractOperator`](@ref)
 # or [`SymbolicNumber`](@ref) according to the substitutions stored in a `Dict`.
-# Also works on [`DifferentialEquation`](@ref). If `simplify=true`, the output
+# Also works on [`HeisenbergEquation`](@ref). If `simplify=true`, the output
 # is simplified.
 #
 # Examples

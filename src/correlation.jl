@@ -25,7 +25,7 @@ defines the subscript added to the name of `op2` representing the constant time.
 Note that the correlation function is stored in the first index of the underlying
 system of equations.
 """
-function CorrelationFunction(op1,op2,de0::DifferentialEquation; steady_state=false, add_subscript=0, filter_func=nothing, mix_choice=maximum, kwargs...)
+function CorrelationFunction(op1,op2,de0::HeisenbergEquation; steady_state=false, add_subscript=0, filter_func=nothing, mix_choice=maximum, kwargs...)
     h1 = hilbert(op1)
     h2 = _new_hilbert(hilbert(op2), acts_on(op2))
     h = h1⊗h2
@@ -51,7 +51,7 @@ function CorrelationFunction(op1,op2,de0::DifferentialEquation; steady_state=fal
     de_ = average(he, order)
     de = _complete_corr(de_, length(h.spaces), lhs_new, order, steady_state; filter_func=filter_func, mix_choice=mix_choice, kwargs...)
 
-    de0_ = DifferentialEquation(lhs_new, [_new_operator(r, h) for r in de0.rhs], H, J, de0.rates)
+    de0_ = HeisenbergEquation(lhs_new, [_new_operator(r, h) for r in de0.rhs], H, J, de0.rates)
     return CorrelationFunction(op1_, op2_, op2_0, de0_, de, steady_state)
 end
 
@@ -342,7 +342,7 @@ function _complete_corr(de,aon0,lhs_new,order,steady_state; mix_choice=maximum, 
         subs = Dict(missed .=> 0)
         rhs_ = [substitute(r, subs) for r in rhs_]
     end
-    return DifferentialEquation(vs_, rhs_, H, J, rates)
+    return HeisenbergEquation(vs_, rhs_, H, J, rates)
 end
 
 

@@ -31,7 +31,7 @@ function Base.show(io::IO,x::Average)
     write(io,"⟩")
 end
 
-function Base.show(io::IO,de::DifferentialEquation)
+function Base.show(io::IO,de::HeisenbergEquation)
     for i=1:length(de)
         write(io, "∂ₜ(")
         show(io, de.lhs[i])
