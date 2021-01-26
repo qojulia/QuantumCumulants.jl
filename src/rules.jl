@@ -45,7 +45,7 @@ let
 
     CONJ_RULES = [
         SymbolicUtils.@rule(conj(conj(~x)) => ~x)
-        SymbolicUtils.@rule(conj(~x::SymbolicUtils.sym_isa(Average)) => Average(adjoint((~x).operator)))
+        SymbolicUtils.@rule(conj(average(~x)) => average(adjoint(~x)))
         SymbolicUtils.@rule(conj(*(~~x)) => *(map(conj, ~~x)...))
     ]
 
