@@ -201,7 +201,7 @@ function check_lhs(lhs,order::Int;kwargs...)
     return nothing
 end
 function check_lhs(lhs,order::Vector;mix_choice=maximum)
-    aon = acts_on(lhs.operator)
+    aon = acts_on(lhs)
     order_ = mix_choice(order[i] for i in aon)
     (get_order(lhs) > order_) && error("Cannot form cumulant expansion of derivative! Check the left-hand-side of your equations; you may want to use a higher order!")
     return nothing

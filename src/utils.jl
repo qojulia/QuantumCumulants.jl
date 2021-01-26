@@ -1,5 +1,5 @@
 """
-    find_missing(rhs::Vector, vs::Vector, vs_adj=adjoint.(vs), ps=[])
+    find_missing(rhs::Vector, vs::Vector, vs_adj=get_conj(vs), ps=[])
 
 For a list of expressions contained in `rhs`, check whether all occurring symbols
 are contained either in the variables given in `vs`. If a list of parameters `ps`
@@ -16,22 +16,11 @@ function find_missing(rhs::Vector, vs::Vector; vs_adj::Vector=get_conj(vs), ps=[
         filter!(!SymbolicUtils.sym_isa(Parameter), missed)
     end
     filter!(x->!(_in(x, vs) || _in(x, ps) || _in(x, vs_adj)),missed)
-    isempty(ps) || (ps_adj = adjoint.(ps); filter!(x -> !(x∈ps_adj), missed))
+    isempty(ps) || (ps_adj = get_conj(ps); filter!(x -> !(x∈ps_adj), missed))
     return missed
 end
 function find_missing(de::HeisenbergEquation; kwargs...)
     find_missing(de.rhs, de.lhs; kwargs...)
-end
-
-function get_conj(v)
-    v_ = conj(v)
-    rw = conj_rewriter()
-    return rw(v_)
-end
-function get_conj(v::Vector)
-    v_ = map(conj, v)
-    rw = conj_rewriter()
-    return map(rw, v_)
 end
 
 """
@@ -100,7 +89,7 @@ function complete(rhs::Vector, vs::Vector, H, J, rates; order=nothing, filter_fu
     filter!(SymbolicUtils.sym_isa(Average),missed)
     isnothing(filter_func) || filter!(filter_func, missed) # User-defined filter
     while !isempty(missed)
-        ops = getfield.(missed, :operator)
+        ops = [SymbolicUtils.arguments(m)[1] for m in missed]
         he = isempty(J) ? heisenberg(ops,H; kwargs...) : heisenberg(ops,H,J;rates=rates, kwargs...)
         he_avg = average(he,order_;mix_choice=mix_choice, kwargs...)
         rhs_ = [rhs_;he_avg.rhs]
@@ -247,8 +236,9 @@ their adjoints.
 """
 function unique_ops(ops)
     seen = eltype(ops)[]
-    for op in ops
-        if !(op in seen || op' in seen)
+    ops_adj = get_adjoint(ops)
+    for (op,op′) in zip(ops,ops_adj)
+        if !(_in(op, seen) || _in(op′, seen))
             push!(seen, op)
         end
     end
@@ -261,10 +251,11 @@ end
 Find the numerical solution of the average value `avg` stored in the `ODESolution`
 `sol` corresponding to the solution of the equations given by `he`.
 """
-function get_solution(avg::Average,sol,he::HeisenbergEquation)
+function get_solution(avg::SymbolicUtils.Term{<:Average},sol,he::HeisenbergEquation)
     idx = findfirst(isequal(avg),he.lhs)
     if isnothing(idx)
-        idx_ = findfirst(isequal(avg'),he.lhs)
+        avg_ = get_adjoint(avg)
+        idx_ = findfirst(isequal(avg_),he.lhs)
         isnothing(idx_) && error("Could not find solution for $avg !")
         return [conj(u[idx_]) for u in sol.u]
     else
@@ -272,6 +263,21 @@ function get_solution(avg::Average,sol,he::HeisenbergEquation)
     end
 end
 
+# Internal functions
+function get_conj(v)
+    v_ = conj(v)
+    rw = conj_rewriter()
+    return rw(v_)
+end
+function get_conj(v::Vector)
+    v_ = map(conj, v)
+    rw = conj_rewriter()
+    return map(rw, v_)
+end
+
+get_adjoint(op::AbstractOperator) = adjoint(op)
+get_adjoint(x) = get_conj(x)
+get_adjoint(v::Vector{<:AbstractOperator}) = map(adjoint, v)
 
 _to_expression(x::Number) = x
 function _to_expression(x::Complex) # For brackets when using latexify

@@ -18,14 +18,14 @@ it. The variable vector `u` corresponds to the symbols provided in `vs`.
 *`tsym=:t`: The symbol used for the time parameter.
 
 # Optional arguments
-*`check_bounds::Bool=false`: Choose whether the resulting function should contain
+*`check_bounds::Bool=true`: Choose whether the resulting function should contain
     the `@inbounds` flag, which skips bounds checking for performance.
 """
 function build_ode(rhs::Vector, vs::Vector, ps=[], usym=:u, psym=:p, tsym=:t;
-                    check_bounds::Bool=false)
+                    check_bounds::Bool=true)
     @assert length(rhs) == length(vs)
 
-    vs_adj_ = adjoint.(vs)
+    vs_adj_ = get_conj(vs)
 
     # Check if there are unknown symbols
     missed = find_missing(rhs,vs;vs_adj=vs_adj_,ps=ps)
@@ -35,9 +35,9 @@ function build_ode(rhs::Vector, vs::Vector, ps=[], usym=:u, psym=:p, tsym=:t;
     us = [:($usym[$i]) for i=1:length(vs)]
     dus = [:($dusym[$i]) for i=1:length(vs)]
 
-    vs_ = _to_expression.(vs)
-    vs_adj = _to_expression.(vs_adj_)
-    rhs_ = _to_expression.(rhs)
+    vs_ = map(_to_expression, vs)
+    vs_adj = map(_to_expression, vs_adj_)
+    rhs_ = map(_to_expression, rhs)
     function _pw_func(x)
         if x in vs_
             i = findfirst(isequal(x),vs_)
@@ -58,8 +58,8 @@ function build_ode(rhs::Vector, vs::Vector, ps=[], usym=:u, psym=:p, tsym=:t;
 
         # Replace averages first
         if !isempty(avg_idx)
-            ps_avg_ = _to_expression.(ps_avg)
-            ps_adj = _to_expression.(adjoint.(ps_avg))
+            ps_avg_ = map(_to_expression, ps_avg)
+            ps_adj = map(_to_expression, get_conj(ps_avg))
             _pw_ps_avg = function(x)
                 if x in ps_avg_
                     i = findfirst(isequal(x), ps_avg_)
@@ -75,7 +75,7 @@ function build_ode(rhs::Vector, vs::Vector, ps=[], usym=:u, psym=:p, tsym=:t;
         end
 
         # Replace remaining parameters
-        ps_ = _to_expression.(ps)
+        ps_ = map(_to_expression, ps)
         _pw_ps = function(x)
             if x in ps_
                 i = findfirst(isequal(x), ps_)

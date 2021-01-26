@@ -128,7 +128,6 @@ end
 # Apply commutation relation
 function apply_commutator(fcomm, args_l, args_r, a, b)
     if acts_on(a)==acts_on(b)
-        global tmp = (args_l, fcomm(a,b), args_r)
         return *(args_l..., fcomm(a, b), args_r...)
     else
         return nothing

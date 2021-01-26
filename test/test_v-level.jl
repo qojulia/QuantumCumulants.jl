@@ -43,8 +43,9 @@ ops = find_operators(h,2)
 he = heisenberg(ops,H,J;rates=rates)
 he_avg = average(he,2)
 
-@test all((l in he_comp.lhs || l' in he_comp.lhs) for l in he_avg.lhs)
-@test all((l in he_comp.lhs || l' in he_avg.lhs) for l in he_comp.lhs)
+# @test all((Qumulants._in(l, he_comp.lhs) || l' in he_comp.lhs) for l in he_avg.lhs)
+@test all((Qumulants._in(l, he_comp.lhs) || Qumulants._in(Qumulants.get_adjoint(l), he_comp.lhs) for l in he_avg.lhs))
+@test all((Qumulants._in(l, he_comp.lhs) || Qumulants._in(Qumulants.get_adjoint(l), he_avg.lhs)) for l in he_comp.lhs)
 
 
 p = [κ, g, Δc, Γ2, Γ3, Δ2, Δ3, Ω2, Ω3]
@@ -102,7 +103,8 @@ he_f = heisenberg(ops_f,Hf,Jf;rates=rates_f)
 he_f_avg = average(he_f,2)
 
 # Find missing averages and them as parameter
-missing_avgs = filter(x->isa(x,Average), find_missing(he_f_avg));
+import SymbolicUtils
+missing_avgs = filter(SymbolicUtils.sym_isa(Average), find_missing(he_f_avg))
 
 # Gather all new parameters
 pf = [ωf; gf; κf; missing_avgs; p]
@@ -121,7 +123,7 @@ steady_vals = ComplexF64[]
 avg_exprs = Qumulants._to_expression.(he_avg.lhs)
 for m in missing_avgs
     m_ex = Qumulants._to_expression(m)
-    m_adj_ex = Qumulants._to_expression(m')
+    m_adj_ex = Qumulants._to_expression(Qumulants.get_adjoint(m))
     i = findfirst(isequal(m_ex), avg_exprs)
     j = findfirst(isequal(m_adj_ex), avg_exprs)
     if !(i isa Nothing)
