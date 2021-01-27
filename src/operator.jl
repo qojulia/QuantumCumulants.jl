@@ -37,8 +37,6 @@ function Base.isequal(t1::OperatorTerm,t2::OperatorTerm)
 end
 Base.hash(t::OperatorTerm, h::UInt) = hash(t.arguments, hash(t.f, h))
 
-# SymbolicUtils.@number_methods(AbstractOperator, OperatorTerm(f, [a]), OperatorTerm(f, [a, b])); issue with 1/a
-
 for f = [:+,:-,:*]
     @eval Base.$f(a::AbstractOperator,b::AbstractOperator) = (check_hilbert(a,b); OperatorTerm($f, [a,b]))
     @eval Base.$f(a::AbstractOperator,b::Number) = OperatorTerm($f, [a,b])

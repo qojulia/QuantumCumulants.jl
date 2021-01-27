@@ -63,7 +63,7 @@ function average(op::OperatorTerm)
         end
     elseif f === (^)
         arg, n = op.arguments
-        op_ = *((arg for i=1:n)...)
+        op_ = OperatorTerm(*, [arg for i=1:n])
         return average(op_)
     else
         return Average(op)
