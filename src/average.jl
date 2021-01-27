@@ -163,13 +163,19 @@ function cumulant_expansion(avg::SymbolicUtils.Term{<:Average},order::Int;simpli
     end
 end
 function cumulant_expansion(avg::SymbolicUtils.Term{<:Average},order::Vector;mix_choice=maximum,kwargs...)
-    aon = acts_on(SymbolicUtils.arguments(avg)[1])
+    aon = acts_on(avg)
     order_ = mix_choice(order[i] for i in aon)
     return cumulant_expansion(avg,order_;kwargs...)
 end
 cumulant_expansion(x::Number,order;kwargs...) = x
 function cumulant_expansion(x::SymbolicUtils.Symbolic,order;mix_choice=maximum, simplify=false, kwargs...)
     if SymbolicUtils.istree(x)
+        if order isa Int
+            get_order(x) <= order && return x
+        else
+            aon = acts_on(x)
+            get_order(x) <= mix_choice(order[aon]) && return x
+        end
         f = SymbolicUtils.operation(x)
         args = SymbolicUtils.arguments(x)
         cumulants = [cumulant_expansion(arg,order;simplify=false,mix_choice=mix_choice) for arg in args]
@@ -221,7 +227,12 @@ function _cumulant_expansion(args::Vector,order::Int)
                 if length(p_) > order # If the encountered moment is larger than order, apply expansion
                     push!(args_prod, _cumulant_expansion(p_, order))
                 else # Else, average and add its product
-                    push!(args_prod, Average(*(p_...)))
+                    if length(p_)==1
+                        op_ = p_
+                    else
+                        op_ = OperatorTerm(*, p_)
+                    end
+                    push!(args_prod, Average(op_))
                 end
             end
             # Add terms in sum
@@ -327,12 +338,13 @@ end
 get_order(::Number) = 0
 function get_order(t::OperatorTerm)
     if t.f in [+,-]
-        return maximum(get_order.(t.arguments))
+        order = Int[get_order(arg) for arg in t.arguments]
+        return maximum(order)
     elseif t.f === (*)
-        return length(t.arguments)
+        order = Int[get_order(arg) for arg in t.arguments]
+        return sum(order)
     elseif t.f === (^)
-        n = t.arguments[end]
-        @assert n isa Integer
+        n = t.arguments[end]::Int
         return n
     end
     error("Unknown function $(t.f)")
