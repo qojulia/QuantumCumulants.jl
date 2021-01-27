@@ -2,26 +2,6 @@
     heisenberg(ops::Vector,H::AbstractOperator)
     heisenberg(op::AbstractOperator,H::AbstractOperator)
 
-Compute a set of Heisenberg equations of the operators in `ops`
-under the Hamiltonian `H`.
-"""
-function heisenberg(a::Vector,H; multithread=false)
-    if multithread
-        lhs = Vector{AbstractOperator}(undef, length(a))
-        rhs = Vector{AbstractOperator}(undef, length(a))
-        Threads.@threads for i=1:length(a)
-            lhs[i] = qsimplify(a[i])
-            rhs[i] = qsimplify(1.0im*commutator(H,lhs[i];simplify=false))
-        end
-    else
-        lhs = qsimplify.(a)
-        rhs = qsimplify.([1.0im*commutator(H,a1;simplify=false) for a1=lhs])
-    end
-    return HeisenbergEquation(lhs,rhs,H,AbstractOperator[],Number[])
-end
-heisenberg(a::AbstractOperator,args...;kwargs...) = heisenberg([a],args...;kwargs...)
-
-"""
     heisenberg(ops::Vector,H::AbstractOperator,J::Vector;
             Jdagger::Vector=adjoint.(J),rates=ones(length(J)))
     heisenberg(op::AbstractOperator,H::AbstractOperator,J::Vector;
@@ -45,22 +25,36 @@ equivalent to the Quantum-Langevin equation where noise is neglected.
     the collapse operators.
 *`rates=ones(length(J))`: Decay rates corresponding to the collapse operators in `J`.
 """
-function heisenberg(a::Vector,H,J;Jdagger::Vector=adjoint.(J),rates=ones(length(J)),multithread=false)
-    lhs = Vector{AbstractOperator}(undef, length(a))
+function heisenberg(a::Vector,H,J;Jdagger::Vector=adjoint.(J),rates=ones(length(J)),
+                    multithread=false,simplify_input=false)
+    if simplify_input
+        lhs = map(qsimplify, a)
+    else
+        lhs = a
+    end
     rhs = Vector{AbstractOperator}(undef, length(a))
     if multithread
         Threads.@threads for i=1:length(a)
-            lhs[i] = qsimplify(a[i])
-            rhs[i] = qsimplify(1.0im*commutator(H,lhs[i];simplify=false) + _master_lindblad(lhs[i],J,Jdagger,rates))
+            rhs_ = 1.0im*commutator(H,lhs[i];simplify=false)
+            if !isempty(J)
+                rhs_ = rhs_ + _master_lindblad(lhs[i],J,Jdagger,rates)
+            end
+            rhs[i] = qsimplify(rhs_)
         end
     else
         for i=1:length(a)
-            lhs[i] = qsimplify(a[i])
-            rhs[i] = qsimplify(1.0im*commutator(H,lhs[i];simplify=false) + _master_lindblad(lhs[i],J,Jdagger,rates))
+            rhs_ = 1.0im*commutator(H,lhs[i];simplify=false)
+            if !isempty(J)
+                rhs_ = rhs_ + _master_lindblad(lhs[i],J,Jdagger,rates)
+            end
+            rhs[i] = qsimplify(rhs_)
         end
     end
     return HeisenbergEquation(lhs,rhs,H,J,rates)
 end
+heisenberg(a::AbstractOperator,args...;kwargs...) = heisenberg([a],args...;kwargs...)
+heisenberg(a::Vector,H;kwargs...) = heisenberg(a,H,[];Jdagger=[],kwargs...)
+
 function _master_lindblad(a_,J,Jdagger,rates)
     if isa(rates,Vector)
         da_diss = sum(0.5*rates[i]*(Jdagger[i]*commutator(a_,J[i];simplify=false) + commutator(Jdagger[i],a_;simplify=false)*J[i]) for i=1:length(J))
