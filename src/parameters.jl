@@ -69,17 +69,3 @@ function params(s::String)
     syms = [Symbol(p) for p in split(s, " ")]
     return params(syms...)
 end
-
-# """
-#     simplify_constants(t::NumberTerm;kwargs...)
-#
-# Standard simplification for [`SymbolicNumber`](@ref) types. Converts to a
-# `SymbolicUtils` expression and uses its standard simplification routines for
-# symbolic number variables.
-# """
-# simplify_constants(s::Number;kwargs...) = s
-# function simplify_constants(t::NumberTerm;kwargs...)
-#     s = _to_symbolic(t)
-#     s_ = SymbolicUtils.simplify(s;kwargs...)
-#     return _to_qumulants(s_)
-# end

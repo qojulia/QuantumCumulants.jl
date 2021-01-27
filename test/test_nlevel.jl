@@ -13,16 +13,16 @@ ha = NLevelSpace(:atom, (:g,:e))
 @test σee'==σee
 
 ex = σ'*σ
-@test simplify_operators(ex) == σee
+@test qsimplify(ex) == σee
 
 ex = σ*σ'
 σgg = Transition(ha, :σ,:g,:g)
-@test isequal(simplify_operators(ex), simplify_operators(σgg))
-@test isequal(simplify_operators(σgg), (one(σgg) + -1*σee))
+@test isequal(qsimplify(ex), qsimplify(σgg))
+@test isequal(qsimplify(σgg), (one(σgg) + -1*σee))
 
 
 sz = σ'*σ - σ*σ'
-@test isequal(simplify_operators(sz),simplify_operators(2*σee - one(σgg)))
+@test isequal(qsimplify(sz),qsimplify(2*σee - one(σgg)))
 
 # Integer levels
 ha = NLevelSpace(:atom, 2)
@@ -35,15 +35,15 @@ ha = NLevelSpace(:atom, 2)
 @test σee'==σee
 
 ex = σ'*σ
-@test simplify_operators(ex) == σee
+@test qsimplify(ex) == σee
 
 ex = σ*σ'
 σgg = Transition(ha, :σ,1,1)
-@test isequal(simplify_operators(ex), simplify_operators(σgg))
-@test isequal(simplify_operators(σgg), (one(σgg) + -1*σee))
+@test isequal(qsimplify(ex), qsimplify(σgg))
+@test isequal(qsimplify(σgg), (one(σgg) + -1*σee))
 
 sz = σ'*σ - σ*σ'
-@test isequal(simplify_operators(sz),simplify_operators(2*σee - one(σgg)))
+@test isequal(qsimplify(sz),qsimplify(2*σee - one(σgg)))
 
 # Product space
 ha1 = NLevelSpace(:atom, (:g,:e))
@@ -53,9 +53,9 @@ ha2 = NLevelSpace(:atom, 2)
 hprod = ha1⊗ha2
 σ1 = embed(hprod,Transition(ha1,:σ,:g,:e),1)
 σ2 = embed(hprod,Transition(ha2,:σ,1,2),2)
-@test simplify_operators(σ1'*σ1)==embed(hprod,Transition(ha1,:σ,:e,:e),1)
-@test isequal(simplify_operators(σ2*σ2'), simplify_operators(1 -embed(hprod,Transition(ha2,:σ,2,2),2)))
-@test isequal(simplify_operators(σ1*σ2), σ1*σ2)
+@test qsimplify(σ1'*σ1)==embed(hprod,Transition(ha1,:σ,:e,:e),1)
+@test isequal(qsimplify(σ2*σ2'), qsimplify(1 -embed(hprod,Transition(ha2,:σ,2,2),2)))
+@test isequal(qsimplify(σ1*σ2), σ1*σ2)
 
 @test_throws ErrorException Transition(hprod,:σ,:g,:e)
 @test Transition(hprod,:σ,:g,:e,1)==σ1

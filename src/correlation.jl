@@ -201,7 +201,7 @@ end
 function (s::Spectrum)(ω::SymbolicUtils.Symbolic,steady_vals,ps)
     A = s.Asym(ω,steady_vals,ps)
     b = s.bsym(ω,steady_vals,ps)
-    return simplify_operators.(A), simplify_operators.(b)
+    return qsimplify.(A), qsimplify.(b)
 end
 
 
@@ -364,11 +364,11 @@ function _build_spec_func(lhs, rhs, a1, a0, steady_vals, ps=[]; psym=:p, wsym=:�
 
     ω = Parameter{Number}(wsym) # Laplace transform argument i*ω
     b = [average(substitute(op, s)) for op in ops] # Initial values
-    c = [simplify_operators(c_ / (1.0im*ω)) for c_ in _find_independent(rhs, a0)]
+    c = [qsimplify(c_ / (1.0im*ω)) for c_ in _find_independent(rhs, a0)]
     aon0 = acts_on(a0)
     @assert length(aon0)==1
     rhs_ = _find_dependent(rhs, aon0[1])
-    Ax = [simplify_operators(im*ω*lhs[i] - rhs_[i]) for i=1:length(lhs)] # Element-wise form of A*x
+    Ax = [qsimplify(im*ω*lhs[i] - rhs_[i]) for i=1:length(lhs)] # Element-wise form of A*x
 
     vs = _to_expression.(lhs)
     Ax_ = _to_expression.(Ax)

@@ -14,10 +14,10 @@ a_embed = embed(h2,a,2)
 
 a1 = Destroy(h2,:a,1)
 a2 = Destroy(h2,:a,2)
-@test isequal(a1*a2',simplify_operators(a1*a2'))
+@test isequal(a1*a2',qsimplify(a1*a2'))
 
 # Composite system
-commutator(a,b) = simplify_operators(a*b - b*a)
+commutator(a,b) = qsimplify(a*b - b*a)
 
 hf = FockSpace(:cavity)
 ha = NLevelSpace(:atom,(:g,:e))
@@ -47,8 +47,8 @@ ex = (-1 + embed(h,Transition(ha,:σ,:e,:e),2))*σ
 H = ωc*a'*a + ωa*σ'*σ + g*(a'*σ + σ'*a)
 
 da = commutator(1.0im*H,a)
-@test iszero(simplify_operators(da - (-1.0im*ωc*a + (-1.0im*g)*σ)))
+@test iszero(qsimplify(da - (-1.0im*ωc*a + (-1.0im*g)*σ)))
 ds = commutator(1.0im*H,σ)
-@test iszero(simplify_operators(ds - (((0.0-1.0im)*g)*a + ((0.0-1.0im)*ωa)*σ  + (2.0im*g)*a*Transition(h,:σ,:e,:e))))
+@test iszero(qsimplify(ds - (((0.0-1.0im)*g)*a + ((0.0-1.0im)*ωa)*σ  + (2.0im*g)*a*Transition(h,:σ,:e,:e))))
 
 end # testset

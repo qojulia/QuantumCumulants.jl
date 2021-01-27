@@ -5,14 +5,13 @@ import SymbolicUtils: substitute
 using Combinatorics: partitions, combinations, permutations
 
 export HilbertSpace, ProductSpace, ⊗,
-        simplify_operators, substitute, expand,
+        qsimplify, substitute, expand,
         AbstractOperator, BasicOperator, OperatorTerm, embed,
         FockSpace, Destroy, Create,
         NLevelSpace, Transition,
         AbstractEquation, HeisenbergEquation,
         heisenberg, commutator, acts_on,
-        SymbolicNumber, NumberTerm, Parameter, @params, params,
-                simplify_constants,
+        SymbolicNumber, Parameter, @params, params,
         Average, average, cumulant_expansion, get_order, cumulant,
         find_missing, complete, find_operators, fundamental_operators,
             unique_ops, get_symbolics, get_operators, get_solution,

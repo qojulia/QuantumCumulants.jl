@@ -44,10 +44,8 @@ function substitute(de::HeisenbergEquation,dict)
 end
 
 # Simplification
-for f in [:simplify_constants,:simplify_operators]
-    @eval function $(f)(de::HeisenbergEquation;kwargs...)
-        lhs = [$(f)(l;kwargs...) for l in de.lhs]
-        rhs = [$(f)(r;kwargs...) for r in de.rhs]
-        return HeisenbergEquation(lhs,rhs,de.hamiltonian,de.jumps,de.rates)
-    end
+function qsimplify(de::HeisenbergEquation;kwargs...)
+    lhs = [qsimplify(l;kwargs...) for l in de.lhs]
+    rhs = [qsimplify(r;kwargs...) for r in de.rhs]
+    return HeisenbergEquation(lhs,rhs,de.hamiltonian,de.jumps,de.rates)
 end

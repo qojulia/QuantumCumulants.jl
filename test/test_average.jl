@@ -19,8 +19,8 @@ a = Destroy(h,:a)
 @test isequal(average((a'*a)^2), average(a'*a*a'*a))
 @test isequal(average(a'*a^2,2), average(a')*average(a^2) + -2*average(a')*average(a)^2 + 2*average(a)*average(a'*a))
 
-@test isequal(simplify_operators(average(σ)+average(σ)), average(2σ))
-@test isequal(simplify_operators(average(σ)-average(σ)), 0)
+@test isequal(qsimplify(average(σ)+average(σ)), average(2σ))
+@test isequal(qsimplify(average(σ)-average(σ)), 0)
 
 ωc, ωa = params("ω_c ω_a")
 @test isequal(average(ωc),ωc)
@@ -32,7 +32,7 @@ n = average(a'*a)
 @test isequal(cumulant_expansion(n,1), average(a')*average(a))
 
 ex = average(a*σ)*average(a) - average(a)*average(a*σ)
-@test iszero(simplify_operators(ex))
+@test iszero(qsimplify(ex))
 
 # Test cumulants
 hs = FockSpace[]
@@ -46,11 +46,11 @@ b = Destroy(h,:b,2)
 c = Destroy(h,:c,3)
 d = Destroy(h,:d,4)
 
-@test isequal(cumulant(a*b),simplify_operators(average(a*b)+ -1*average(a)*average(b)))
+@test isequal(cumulant(a*b),qsimplify(average(a*b)+ -1*average(a)*average(b)))
 @test isequal(cumulant(a*b,1), average(a*b))
-@test iszero(simplify_operators(expand(cumulant(a*b*c) - (average(a*b*c) +
+@test iszero(qsimplify(expand(cumulant(a*b*c) - (average(a*b*c) +
             2*average(a)*average(b)*average(c) - average(a)*average(b*c) -
             average(b)*average(a*c) - average(c)*average(a*b)))))
-@test isequal(simplify_operators(expand(average(a*b*c*d) - cumulant(a*b*c*d))), cumulant_expansion(average(a*b*c*d),3))
+@test isequal(qsimplify(expand(average(a*b*c*d) - cumulant(a*b*c*d))), cumulant_expansion(average(a*b*c*d),3))
 
 end # testset

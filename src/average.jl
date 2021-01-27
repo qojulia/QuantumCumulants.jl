@@ -136,7 +136,7 @@ julia> cumulant_expansion(avg,2)
 Optional arguments
 =================
 *simplify=true: Specify whether the result should be simplified.
-*kwargs...: Further keyword arguments being passed to [`simplify_constants`](@ref)
+*kwargs...: Further keyword arguments being passed to [`qsimplify`](@ref)
 """
 function cumulant_expansion(avg::SymbolicUtils.Term{<:Average},order::Int;simplify=true,kwargs...)
     @assert order > 0
@@ -146,7 +146,7 @@ function cumulant_expansion(avg::SymbolicUtils.Term{<:Average},order::Int;simpli
     else
         op = SymbolicUtils.arguments(avg)[1]
         if simplify
-            avg_ = average(simplify_operators(op))
+            avg_ = average(qsimplify(op))
         else
             avg_ = average
         end
@@ -155,7 +155,7 @@ function cumulant_expansion(avg::SymbolicUtils.Term{<:Average},order::Int;simpli
         else
             @assert SymbolicUtils.operation(op) === (*)
             if simplify
-                return simplify_operators(_cumulant_expansion(op.arguments, order), kwargs...)
+                return qsimplify(_cumulant_expansion(op.arguments, order), kwargs...)
             else
                 _cumulant_expansion(op.arguments, order)
             end
@@ -176,7 +176,7 @@ function cumulant_expansion(x::SymbolicUtils.Symbolic,order;mix_choice=maximum, 
         f = SymbolicUtils.operation(x)
         args = SymbolicUtils.arguments(x)
         cumulants = [cumulant_expansion(arg,order;simplify=false,mix_choice=mix_choice) for arg in args]
-        return simplify_operators(f(cumulants...);kwargs...)
+        return qsimplify(f(cumulants...);kwargs...)
     else
         return x
     end
@@ -268,7 +268,7 @@ function cumulant(op::OperatorTerm,n::Int=get_order(op);simplify=true,kwargs...)
         return zero(op)
     else
         if simplify
-            avg_ = average(simplify_operators(op))
+            avg_ = average(qsimplify(op))
         else
             avg_ = average(op)
         end
@@ -277,7 +277,7 @@ function cumulant(op::OperatorTerm,n::Int=get_order(op);simplify=true,kwargs...)
         else
             @assert SymbolicUtils.operation(op) === (*)
             if simplify
-                return simplify_operators(_cumulant(op.arguments, n), kwargs...)
+                return qsimplify(_cumulant(op.arguments, n), kwargs...)
             else
                 return _cumulant(op.arguments, n)
             end

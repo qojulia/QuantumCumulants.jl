@@ -36,7 +36,7 @@ SymbolicUtils.:<ₑ(a::SymbolicUtils.Symbolic{<:Number}, b::AbstractOperator) = 
 ### End of interface
 
 """
-    simplify_operators(op::AbstractOperator; rewriter=default_operator_simplifier(), kwargs...)
+    qsimplify(op::AbstractOperator; rewriter=default_operator_simplifier(), kwargs...)
 
 Simplify an operator through standard algebraic rewriting, as well as using
 fundamental commutation relations.
@@ -47,7 +47,7 @@ fundamental commutation relations.
 * rewriter: The rewriter used.
 * kwargs: Further arguments passed to `SymbolicUtils.simplify`.
 """
-function simplify_operators(op; rewriter=default_operator_simplifier(),
+function qsimplify(op; rewriter=default_operator_simplifier(),
                 kwargs...)
     return SymbolicUtils.simplify(op; rewriter=rewriter, kwargs...)
 end
