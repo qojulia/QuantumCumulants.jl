@@ -308,7 +308,7 @@ function get_order(t::OperatorTerm)
     if t.f in [+,-]
         return maximum(get_order.(t.arguments))
     elseif t.f === (*)
-        return length(t.arguments)
+        return sum(get_order.(t.arguments))
     elseif t.f === (^)
         n = t.arguments[end]
         @assert n isa Integer
