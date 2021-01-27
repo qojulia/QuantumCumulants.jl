@@ -67,7 +67,7 @@ that expressions are expanded.
 Examples
 ========
 ```
-julia> @parameters p q r
+julia> @params p q r
 (p, q, r)
 
 julia> ex = p*(q+r) + (q+p)*(r+q)

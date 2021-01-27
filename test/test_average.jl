@@ -22,7 +22,7 @@ a = Destroy(h,:a)
 @test isequal(simplify_operators(average(σ)+average(σ)), average(2σ))
 @test isequal(simplify_operators(average(σ)-average(σ)), 0)
 
-ωc, ωa = parameters("ω_c ω_a")
+ωc, ωa = params("ω_c ω_a")
 @test isequal(average(ωc),ωc)
 @test isequal(average(ωc*a),ωc*average(a))
 @test isequal(average(ωc*(a+a')) , ωc*(average(a) + average(a')))

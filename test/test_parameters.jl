@@ -9,7 +9,7 @@ h = hf⊗ha
 
 a_ = Destroy(hf,:a)
 
-@parameters p q
+@params p q
 # @test p*q isa NumberTerm
 @test p*q*a_ isa OperatorTerm
 
@@ -19,7 +19,7 @@ a = embed(h,a_,1)
 σee = embed(h,Transition(ha,:σ,:e,:e),2)
 
 # JC
-@parameters ωc ωa g
+@params ωc ωa g
 H = ωc*a'*a + ωa*σ'*σ + g*(a'*σ + σ'*a)
 
 da = commutator(1.0im*H,a)
@@ -35,7 +35,7 @@ he = heisenberg([a,σ,a'*a],H)
 @test isequal(he.rhs[3], dn)
 
 # Lossy JC
-@parameters κ γ
+@params κ γ
 J = [a,σ]
 he_diss = heisenberg([a,σ,σ'*σ],H,J;rates=[κ,γ])
 
@@ -44,7 +44,7 @@ he_diss = heisenberg([a,σ,σ'*σ],H,J;rates=[κ,γ])
 @test isequal(he_diss.rhs[3], simplify_operators((-γ)*σee + (1.0im*g)*a'*σ + (-1.0im*g)*a*σ'))
 
 # Single-atom laser
-@parameters ν
+@params ν
 J = [a,σ,σ']
 he_laser = heisenberg([a'*a,σ'*σ,a'*σ],H,J;rates=[κ,γ,ν])
 
@@ -53,7 +53,7 @@ he_laser = heisenberg([a'*a,σ'*σ,a'*σ],H,J;rates=[κ,γ,ν])
 @test iszero(simplify_operators(he_laser.rhs[3] - ((1.0im*g)*σee + (-1.0im*g)*a'*a + (1.0im*ωc + -1.0im*ωa - 0.5*(κ + γ + ν))*a'*σ + (2.0im*g)*a'*a*σee)))
 
 # Test sorting of longer term
-@parameters λ Γ N
+@params λ Γ N
 b = Destroy(h, :b)
 yy = 1.0im*σ*b*(N-1)*λ*Γ
 @test isequal(simplify_operators(yy), OperatorTerm(*, [-1.0im,Γ,λ,b,σ]) + OperatorTerm(*, [1.0im,N,Γ,λ,b,σ]))

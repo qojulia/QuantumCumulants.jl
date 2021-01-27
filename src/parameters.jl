@@ -21,18 +21,18 @@ Parameter(name) = Parameter{Number}(name)
 # Base.promote_rule(::Type{<:SymbolicNumber},::Type{<:Number}) = SymbolicNumber
 
 """
-    @parameters(ps...)
+    @params(ps...)
 
-Convenience macro to quickly define symbolic parameters.
+Convenience macro to quickly define symbolic params.
 
 Examples
 ========
 ```
-julia> @parameters ω κ
+julia> @params ω κ
 (ω, κ)
 ```
 """
-macro parameters(ps...)
+macro params(ps...)
     ex = Expr(:block)
     pnames = []
     for p in ps
@@ -46,28 +46,28 @@ macro parameters(ps...)
 end
 
 """
-    parameters(symbols::Symbol...)
-    paramters(s::String)
+    params(symbols::Symbol...)
+    params(s::String)
 
-Create symbolic parameters.
+Create symbolic params.
 
 Expamples
 =========
 ```
-julia> ps = parameters(:a, :b)
+julia> ps = params(:a, :b)
 (a, b)
 
-julia> parameters("a b") == ps
+julia> params("a b") == ps
 true
 ```
 """
-function parameters(syms::Symbol...)
+function params(syms::Symbol...)
     ps = Tuple(Parameter{Number}(s) for s in syms)
     return ps
 end
-function parameters(s::String)
+function params(s::String)
     syms = [Symbol(p) for p in split(s, " ")]
-    return parameters(syms...)
+    return params(syms...)
 end
 
 # """

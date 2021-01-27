@@ -12,7 +12,7 @@ a = Destroy(h,:a)
 σ = Transition(h,:σ,:g,:e)
 
 # Single-atom laser
-@parameters Δ g κ γ ν
+@params Δ g κ γ ν
 
 H = Δ*a'*a + g*(a'*σ + σ'*a)
 J = [a,σ,σ']
@@ -103,7 +103,7 @@ S3 = S_nophase(ω,usteady,p0)
 # When not in steady state -- cavity that decays
 h = FockSpace(:fock)
 a = Destroy(h,:a)
-@parameters ωc κ
+@params ωc κ
 H = ωc*a'*a
 he = heisenberg(a'*a,H,[a];rates=[κ])
 he_avg = average(he)

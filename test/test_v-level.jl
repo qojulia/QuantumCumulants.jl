@@ -10,8 +10,8 @@ ha = NLevelSpace(:atom, 3)
 h = hf⊗ha
 
 # Parameters
-@parameters κ g
-Δc, Γ2, Γ3, Δ2, Δ3, Ω2, Ω3 = parameters("Δ_c Γ_2 Γ_3 Δ_2 Δ_3 Ω_2 Ω_3")
+@params κ g
+Δc, Γ2, Γ3, Δ2, Δ3, Ω2, Ω3 = params("Δ_c Γ_2 Γ_3 Δ_2 Δ_3 Ω_2 Ω_3")
 
 # Operators
 a = Destroy(h,:a)
@@ -78,8 +78,8 @@ avg = average(a'*σ(2,1))
 hfilter = FockSpace(:filter)
 h_tot = h⊗hfilter
 
-# New parameters
-ωf, κf, gf = parameters("ω_f κ_f g_f")
+# New params
+ωf, κf, gf = params("ω_f κ_f g_f")
 
 # Operators
 c = Destroy(h_tot,:c, 3)
@@ -106,19 +106,19 @@ he_f_avg = average(he_f,2)
 import SymbolicUtils
 missing_avgs = filter(SymbolicUtils.sym_isa(Average), find_missing(he_f_avg))
 
-# Gather all new parameters
+# Gather all new params
 pf = [ωf; gf; κf; missing_avgs; p]
 
 # Generate function for the filter cavities
 meta_ff = build_ode(he_f_avg,pf);
 
-# Filter cavity parameters
+# Filter cavity params
 ωfn = 0.0
 κfn = 0.05κn
 gfn = 0.1κfn
 tf = 5/Γ2n
 
-# Numerical parameters - get steady state values
+# Numerical params - get steady state values
 steady_vals = ComplexF64[]
 avg_exprs = Qumulants._to_expression.(he_avg.lhs)
 for m in missing_avgs
