@@ -31,7 +31,7 @@ u0 = zeros(ComplexF64,length(he_comp))
 tmax = 10.0
 
 prob = ODEProblem(f,u0,(0.0,tmax),p0)
-sol = solve(prob,RK4());
+sol = solve(prob,RK4())
 n = getindex.(sol.u,1)
 pe = getindex.(sol.u,2)
 
@@ -76,7 +76,8 @@ S_check = abs.(S2 ./ maximum(S2) .- S1_)
 
 # Phase invariant case
 has_phase(x) = !iszero(phase(x))
-phase(avg::Average) = phase(avg.operator)
+import SymbolicUtils
+phase(avg::SymbolicUtils.Symbolic{<:Average}) = phase(avg.arguments[1])
 phase(op::Destroy) = -1
 phase(op::Create) = 1
 function phase(t::Transition)

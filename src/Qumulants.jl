@@ -32,7 +32,7 @@ include("average.jl")
 include("rules.jl")
 include("utils.jl")
 include("diffeq.jl")
-# include("correlation.jl")
+include("correlation.jl")
 # include("latexify_recipes.jl")
 include("printing.jl")
 

@@ -172,9 +172,6 @@ function cumulant_expansion(x::SymbolicUtils.Symbolic,order;mix_choice=maximum, 
     if SymbolicUtils.istree(x)
         if order isa Int
             get_order(x) <= order && return x
-        else
-            aon = acts_on(x)
-            get_order(x) <= mix_choice(order[aon]) && return x
         end
         f = SymbolicUtils.operation(x)
         args = SymbolicUtils.arguments(x)

@@ -16,7 +16,7 @@ function find_missing(rhs::Vector, vs::Vector; vs_adj::Vector=get_conj(vs), ps=[
         filter!(!SymbolicUtils.sym_isa(Parameter), missed)
     end
     filter!(x->!(_in(x, vs) || _in(x, ps) || _in(x, vs_adj)),missed)
-    isempty(ps) || (ps_adj = get_conj(ps); filter!(x -> !(x∈ps_adj), missed))
+    isempty(ps) || (ps_adj = get_conj(ps); filter!(x -> !_in(x,ps_adj), missed))
     return missed
 end
 function find_missing(de::HeisenbergEquation; kwargs...)
@@ -264,12 +264,12 @@ function get_solution(avg::SymbolicUtils.Term{<:Average},sol,he::HeisenbergEquat
 end
 
 # Internal functions
-function get_conj(v)
+function get_conj(v::SymbolicUtils.Symbolic)
     v_ = conj(v)
     rw = conj_rewriter()
     return rw(v_)
 end
-function get_conj(v::Vector)
+function get_conj(v)
     v_ = map(conj, v)
     rw = conj_rewriter()
     return map(rw, v_)
