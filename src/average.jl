@@ -228,7 +228,7 @@ function _cumulant_expansion(args::Vector,order::Int)
                     push!(args_prod, _cumulant_expansion(p_, order))
                 else # Else, average and add its product
                     if length(p_)==1
-                        op_ = p_
+                        op_ = p_[1]
                     else
                         op_ = OperatorTerm(*, p_)
                     end
