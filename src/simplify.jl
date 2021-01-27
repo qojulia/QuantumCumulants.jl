@@ -1,42 +1,42 @@
 ### Interface for SymbolicUtils
 
 # Symbolic type promotion
-SymbolicUtils.promote_symtype(f, Ts::Type{<:AbstractOperator}...) = promote_type(AbstractOperator,Ts...)
-SymbolicUtils.promote_symtype(f, T::Type{<:AbstractOperator}, Ts...) = promote_type(AbstractOperator,T)
+SymbolicUtils.promote_symtype(f, Ts::Type{<:QNumber}...) = promote_type(QNumber,Ts...)
+SymbolicUtils.promote_symtype(f, T::Type{<:QNumber}, Ts...) = promote_type(QNumber,T)
 for f in [+,-,*,/,^]
     @eval SymbolicUtils.promote_symtype(::$(typeof(f)),
-                   T::Type{<:AbstractOperator},
-                   S::Type{<:Number}) = AbstractOperator
+                   T::Type{<:QNumber},
+                   S::Type{<:Number}) = QNumber
     @eval SymbolicUtils.promote_symtype(::$(typeof(f)),
                    T::Type{<:Number},
-                   S::Type{<:AbstractOperator}) = AbstractOperator
+                   S::Type{<:QNumber}) = QNumber
     @eval SymbolicUtils.promote_symtype(::$(typeof(f)),
-                   T::Type{<:AbstractOperator},
-                   S::Type{<:AbstractOperator}) = AbstractOperator
+                   T::Type{<:QNumber},
+                   S::Type{<:QNumber}) = QNumber
 end
 
-SymbolicUtils.islike(::AbstractOperator, ::Type{<:Number}) = true
-SymbolicUtils.symtype(x::T) where T<:AbstractOperator = T
-SymbolicUtils.to_symbolic(x::AbstractOperator) = x
+SymbolicUtils.islike(::QNumber, ::Type{<:Number}) = true
+SymbolicUtils.symtype(x::T) where T<:QNumber = T
+SymbolicUtils.to_symbolic(x::QNumber) = x
 
-SymbolicUtils.istree(::BasicOperator) = false
-SymbolicUtils.istree(::OperatorTerm) = true
-SymbolicUtils.arguments(t::OperatorTerm) = t.arguments
+SymbolicUtils.istree(::QSym) = false
+SymbolicUtils.istree(::QTerm) = true
+SymbolicUtils.arguments(t::QTerm) = t.arguments
 for f in [*,+,-,/,^]
-    @eval SymbolicUtils.operation(t::OperatorTerm{<:$(typeof(f))}) = $f
+    @eval SymbolicUtils.operation(t::QTerm{<:$(typeof(f))}) = $f
 end
-SymbolicUtils.similarterm(t::OperatorTerm{F}, f::F, args::A) where {F,A} = OperatorTerm{F,A}(t.f, args)
+SymbolicUtils.similarterm(t::QTerm{F}, f::F, args::A) where {F,A} = QTerm{F,A}(t.f, args)
 
-SymbolicUtils.:<ₑ(a::AbstractOperator, b::Number) = false
-SymbolicUtils.:<ₑ(a::Number,   b::AbstractOperator) = true
-SymbolicUtils.:<ₑ(a::AbstractOperator, b::SymbolicUtils.Symbolic{<:Number}) = false
-SymbolicUtils.:<ₑ(a::SymbolicUtils.Symbolic{<:Number}, b::AbstractOperator) = true
+SymbolicUtils.:<ₑ(a::QNumber, b::Number) = false
+SymbolicUtils.:<ₑ(a::Number,   b::QNumber) = true
+SymbolicUtils.:<ₑ(a::QNumber, b::SymbolicUtils.Symbolic{<:Number}) = false
+SymbolicUtils.:<ₑ(a::SymbolicUtils.Symbolic{<:Number}, b::QNumber) = true
 
 
 ### End of interface
 
 """
-    qsimplify(op::AbstractOperator; rewriter=default_operator_simplifier(), kwargs...)
+    qsimplify(op::QNumber; rewriter=default_operator_simplifier(), kwargs...)
 
 Simplify an operator through standard algebraic rewriting, as well as using
 fundamental commutation relations.
@@ -84,7 +84,7 @@ end
 ### Functions needed for simplification
 
 # Handle noncommutative multiplication
-iscommutative(::AbstractOperator) = false
+iscommutative(::QNumber) = false
 iscommutative(::Union{SymbolicUtils.Symbolic{T},T}) where {T<:Number} = true
 
 needs_sorting_nc(x) = (x.f === (*)) && !issorted_nc(x)

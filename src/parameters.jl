@@ -1,24 +1,20 @@
 """
-    SymbolicNumber <: Number
+    CNumber <: Number
 
 Abstract type for all symbolic numbers, i.e. [`Parameter`](@ref), [`Average`](@ref)
 and corresponding expression trees.
 """
-abstract type SymbolicNumber{T} <: Number end
-Base.isequal(::SymbolicNumber,::Number) = false
-Base.isequal(::Number,::SymbolicNumber) = false
-Base.isequal(::SymbolicNumber,::SymbolicNumber) = false
+abstract type CNumber <: Number end
 
-struct Parameter{T} <: SymbolicNumber{T}
-    function Parameter{T}(name) where T<:Number
-        return SymbolicUtils.Sym{Parameter{T}}(name)
+struct Parameter <: CNumber
+    function Parameter(name)
+        return SymbolicUtils.Sym{Parameter}(name)
     end
 end
-Parameter(name) = Parameter{Number}(name)
 
-# Promoting to SymbolicNumber ensures we own the symtype; could be used to dispatch
+# Promoting to CNumber ensures we own the symtype; could be used to dispatch
 # on Base methods (e.g. latex printing); not sure in how far this is type piracy
-# Base.promote_rule(::Type{<:SymbolicNumber},::Type{<:Number}) = SymbolicNumber
+# Base.promote_rule(::Type{<:CNumber},::Type{<:Number}) = CNumber
 
 """
     @params(ps...)
@@ -62,7 +58,7 @@ true
 ```
 """
 function params(syms::Symbol...)
-    ps = Tuple(Parameter{Number}(s) for s in syms)
+    ps = Tuple(Parameter(s) for s in syms)
     return ps
 end
 function params(s::String)

@@ -31,7 +31,7 @@ let
     ]
 
     EXPAND_POW_RULES = [
-        SymbolicUtils.@rule(^(~x::SymbolicUtils.sym_isa(AbstractOperator),~y::SymbolicUtils.isliteral(Integer)) => *((~x for i=1:~y)...))
+        SymbolicUtils.@rule(^(~x::SymbolicUtils.sym_isa(QNumber),~y::SymbolicUtils.isliteral(Integer)) => *((~x for i=1:~y)...))
     ]
 
     EXPAND_PLUS_RULES = [
@@ -94,7 +94,7 @@ let
 
     function default_operator_simplifier(; kwargs...)
         SymbolicUtils.IfElse(
-            SymbolicUtils.sym_isa(AbstractOperator), SymbolicUtils.Postwalk(operator_simplifier()),
+            SymbolicUtils.sym_isa(QNumber), SymbolicUtils.Postwalk(operator_simplifier()),
             SymbolicUtils.Postwalk(number_simplifier(;kwargs...))
         )
     end

@@ -79,7 +79,7 @@ function _latexify(lhs_::Vector, rhs_::Vector)
 end
 _latexify(lhs,rhs) = _latexify([lhs],[rhs])
 
-@latexrecipe function f(op::AbstractOperator)
+@latexrecipe function f(op::QNumber)
     # Options
     cdot --> false
 
@@ -90,7 +90,7 @@ _latexify(lhs,rhs) = _latexify([lhs],[rhs])
     return ex
 end
 
-@latexrecipe function f(s::SymbolicNumber)
+@latexrecipe function f(s::CNumber)
     # Options
     cdot --> false
 

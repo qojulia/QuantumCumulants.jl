@@ -38,7 +38,7 @@ ground_state(h::NLevelSpace,aon) = h.GS
 ground_state(h::ProductSpace,aon) = ground_state(h.spaces[aon])
 
 """
-    Transition <: BasicOperator
+    Transition <: QSym
     Transition(h::NLevelSpace,name::Symbol,i,j)
 
 Fundamental operator defining a transition from level `j` to level `i` on a
@@ -55,7 +55,7 @@ julia> σ = Transition(ha,:σ,:g,:e)
 σge
 ```
 """
-struct Transition{H,S,I,A} <: BasicOperator
+struct Transition{H,S,I,A} <: QSym
     hilbert::H
     name::S
     i::I
@@ -120,11 +120,11 @@ function rewrite_gs(σ::Transition)
         args = Any[1]
         for k in levels(h,aon)
             if k != i
-                t_ = OperatorTerm(*, [-1, Transition(h, σ.name, k, k, aon)])
+                t_ = QTerm(*, [-1, Transition(h, σ.name, k, k, aon)])
                 push!(args, t_)
             end
         end
-        return OperatorTerm(+, args)
+        return QTerm(+, args)
     else
         return nothing
     end

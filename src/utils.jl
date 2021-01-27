@@ -130,7 +130,7 @@ function find_operators(h::HilbertSpace, order::Int; names=nothing, kwargs...)
         ops = [ops;fund_ops]
     end
 
-    all_ops = AbstractOperator[]
+    all_ops = QNumber[]
     for i=1:order
         for c in combinations(ops, i)
             push!(all_ops, prod(c))
@@ -141,7 +141,7 @@ function find_operators(h::HilbertSpace, order::Int; names=nothing, kwargs...)
     ops_1 = qsimplify.(all_ops)
     ops_2 = all_ops
     while ops_1 != ops_2
-        ops_2 = AbstractOperator[]
+        ops_2 = QNumber[]
         for op in ops_1
             append!(ops_2, _get_operators(op))
         end
@@ -150,15 +150,15 @@ function find_operators(h::HilbertSpace, order::Int; names=nothing, kwargs...)
 
     return unique_ops(ops_2)
 end
-find_operators(op::AbstractOperator,args...) = find_operators(hilbert(op),args...)
+find_operators(op::QNumber,args...) = find_operators(hilbert(op),args...)
 
 """
-    hilbert(::AbstractOperator)
+    hilbert(::QNumber)
 
 Return the Hilbert space of the operator.
 """
-hilbert(op::BasicOperator) = op.hilbert
-hilbert(t::OperatorTerm) = hilbert(t.arguments[findfirst(x->isa(x,AbstractOperator), t.arguments)])
+hilbert(op::QSym) = op.hilbert
+hilbert(t::QTerm) = hilbert(t.arguments[findfirst(x->isa(x,QNumber), t.arguments)])
 
 """
     fundamental_operators(::HilbertSpace)
@@ -196,13 +196,13 @@ end
 
 
 """
-    get_operators(::AbstractOperator)
+    get_operators(::QNumber)
 
-Return a list of all [`BasicOperator`](@ref) in an expression.
+Return a list of all [`QSym`](@ref) in an expression.
 """
 get_operators(x) = _get_operators(x)
-function get_operators(t::OperatorTerm{<:typeof(*)})
-    ops = AbstractOperator[]
+function get_operators(t::QTerm{<:typeof(*)})
+    ops = QNumber[]
     for arg in t.arguments
         append!(ops, get_operators(arg))
     end
@@ -210,18 +210,18 @@ function get_operators(t::OperatorTerm{<:typeof(*)})
 end
 
 _get_operators(::Number) = []
-_get_operators(op::BasicOperator) = [op]
-_get_operators(op::OperatorTerm{<:typeof(^)}) = [op]
-function _get_operators(op::OperatorTerm{<:typeof(*)})
-    args = AbstractOperator[]
+_get_operators(op::QSym) = [op]
+_get_operators(op::QTerm{<:typeof(^)}) = [op]
+function _get_operators(op::QTerm{<:typeof(*)})
+    args = QNumber[]
     for arg in op.arguments
         append!(args, _get_operators(arg))
     end
     isempty(args) && return args
     return [*(args...)]
 end
-function _get_operators(t::OperatorTerm)
-    ops = AbstractOperator[]
+function _get_operators(t::QTerm)
+    ops = QNumber[]
     for arg in t.arguments
         append!(ops, _get_operators(arg))
     end
@@ -275,9 +275,9 @@ function get_conj(v)
     return map(rw, v_)
 end
 
-get_adjoint(op::AbstractOperator) = adjoint(op)
+get_adjoint(op::QNumber) = adjoint(op)
 get_adjoint(x) = get_conj(x)
-get_adjoint(v::Vector{<:AbstractOperator}) = map(adjoint, v)
+get_adjoint(v::Vector{<:QNumber}) = map(adjoint, v)
 
 _to_expression(x::Number) = x
 function _to_expression(x::Complex) # For brackets when using latexify
@@ -290,10 +290,10 @@ function _to_expression(x::Complex) # For brackets when using latexify
         return :( $(real(x)) + $(imag(x))*im )
     end
 end
-_to_expression(op::BasicOperator) = op.name
+_to_expression(op::QSym) = op.name
 _to_expression(op::Create) = :(dagger($(op.name)))
 _to_expression(op::Transition) = :(Transition($(op.name),$(op.i),$(op.j)) )
-_to_expression(t::OperatorTerm) = :( $(Symbol(t.f))($(_to_expression.(t.arguments)...)) )
+_to_expression(t::QTerm) = :( $(Symbol(t.f))($(_to_expression.(t.arguments)...)) )
 _to_expression(p::Parameter) = p.name
 function _to_expression(avg::Average)
     ex = _to_expression(avg.operator)

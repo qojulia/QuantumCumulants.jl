@@ -10,12 +10,12 @@ end
 Base.:(==)(h1::T,h2::T) where T<:FockSpace = (h1.name==h2.name)
 
 """
-    Destroy <: BasicOperator
+    Destroy <: QSym
 
 Bosonic operator on a [`FockSpace`](@ref) representing the quantum harmonic
 oscillator annihilation operator.
 """
-struct Destroy{H<:HilbertSpace,S,A} <: BasicOperator
+struct Destroy{H<:HilbertSpace,S,A} <: QSym
     hilbert::H
     name::S
     aon::A
@@ -27,12 +27,12 @@ end
 isdestroy(a::SymbolicUtils.Sym{T}) where {T<:Destroy} = true
 
 """
-    Create <: BasicOperator
+    Create <: QSym
 
 Bosonic operator on a [`FockSpace`](@ref) representing the quantum harmonic
 oscillator creation operator.
 """
-struct Create{H<:HilbertSpace,S,A} <: BasicOperator
+struct Create{H<:HilbertSpace,S,A} <: QSym
     hilbert::H
     name::S
     aon::A

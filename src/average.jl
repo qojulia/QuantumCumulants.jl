@@ -1,20 +1,19 @@
 function average end
 
 """
-    Average <: SymbolicNumber
+    Average <: CNumber
 
 Symbolic number representing the average over an operator.
 See also: [`average`](@ref)
 """
-struct Average{T<:Number} <: SymbolicNumber{T}
-    function Average{T}(operator) where {T<:Number}
-        return SymbolicUtils.term(average, operator; type=Average{T})
+struct Average <: CNumber
+    function Average(operator)
+        return SymbolicUtils.Term{Average}(average, [operator])
     end
 end
-Average(operator) = Average{Number}(operator)
 
 # Type promotion -- average(::Operator)::Number
-SymbolicUtils.promote_symtype(average, ::Type{<:AbstractOperator}) = Average{Number}
+SymbolicUtils.promote_symtype(average, ::Type{<:QNumber}) = Average
 
 function acts_on(s::SymbolicUtils.Symbolic)
     if SymbolicUtils.istree(s)
@@ -36,14 +35,14 @@ function acts_on(s::SymbolicUtils.Symbolic)
 end
 
 """
-    average(::AbstractOperator)
-    average(::AbstractOperator,order::Int)
+    average(::QNumber)
+    average(::QNumber,order::Int)
 
 Compute the average of an operator. If `order` is given, the [`cumulant_expansion`](@ref)
 up to that order is computed immediately.
 """
-average(op::BasicOperator) = Average(op)
-function average(op::OperatorTerm)
+average(op::QSym) = Average(op)
+function average(op::QTerm)
     f = SymbolicUtils.operation(op)
     if f ∈ [+,-] # linearity
         avg = f(average.(op.arguments)...)
@@ -63,7 +62,7 @@ function average(op::OperatorTerm)
         end
     elseif f === (^)
         arg, n = op.arguments
-        op_ = OperatorTerm(*, [arg for i=1:n])
+        op_ = QTerm(*, [arg for i=1:n])
         return average(op_)
     else
         return Average(op)
@@ -72,10 +71,10 @@ end
 average(x::Union{T,SymbolicUtils.Symbolic{T}}) where T<:Number = x
 
 separate_constants(x::Union{T,SymbolicUtils.Symbolic{T}}) where T<:Number = [x],[]
-separate_constants(op::T) where T<:AbstractOperator = [],[op]
-function separate_constants(op::OperatorTerm{<:typeof(*)})
+separate_constants(op::T) where T<:QNumber = [],[op]
+function separate_constants(op::QTerm{<:typeof(*)})
     cs = filter(x->isa(x,Number)||isa(x,SymbolicUtils.Symbolic{<:Number}), op.arguments)
-    ops = filter(x->isa(x,AbstractOperator), op.arguments)
+    ops = filter(x->isa(x,QNumber), op.arguments)
     return cs, ops
 end
 
@@ -227,7 +226,7 @@ function _cumulant_expansion(args::Vector,order::Int)
                     if length(p_)==1
                         op_ = p_[1]
                     else
-                        op_ = OperatorTerm(*, p_)
+                        op_ = QTerm(*, p_)
                     end
                     push!(args_prod, Average(op_))
                 end
@@ -262,7 +261,7 @@ julia> cumulant(a*b,3)
 0
 ```
 """
-function cumulant(op::OperatorTerm,n::Int=get_order(op);simplify=true,kwargs...)
+function cumulant(op::QTerm,n::Int=get_order(op);simplify=true,kwargs...)
     order = get_order(op)
     if order < n
         return zero(op)
@@ -285,7 +284,7 @@ function cumulant(op::OperatorTerm,n::Int=get_order(op);simplify=true,kwargs...)
     end
 end
 cumulant(avg::SymbolicUtils.Term{<:Average},args...;kwargs...) = cumulant(SymbolicUtils.arguments(avg)[1],args...;kwargs...)
-cumulant(op::BasicOperator,n::Int=1;kwargs...) = isone(n) ? average(op) : zero(op)
+cumulant(op::QSym,n::Int=1;kwargs...) = isone(n) ? average(op) : zero(op)
 
 function _cumulant(args::Vector,m::Int=length(args))
     parts = [partitions(args,i) for i=1:m]
@@ -333,7 +332,7 @@ function get_order(t::SymbolicUtils.Symbolic)
     end
 end
 get_order(::Number) = 0
-function get_order(t::OperatorTerm)
+function get_order(t::QTerm)
     if t.f in [+,-]
         order = Int[get_order(arg) for arg in t.arguments]
         return maximum(order)
@@ -346,4 +345,4 @@ function get_order(t::OperatorTerm)
     end
     error("Unknown function $(t.f)")
 end
-get_order(::BasicOperator) = 1
+get_order(::QSym) = 1

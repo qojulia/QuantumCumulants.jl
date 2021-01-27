@@ -362,7 +362,7 @@ function _build_spec_func(lhs, rhs, a1, a0, steady_vals, ps=[]; psym=:p, wsym=:�
     s = Dict(a0=>a1)
     ops = [SymbolicUtils.arguments(l)[1] for l in lhs]
 
-    ω = Parameter{Number}(wsym) # Laplace transform argument i*ω
+    ω = Parameter(wsym) # Laplace transform argument i*ω
     b = [average(substitute(op, s)) for op in ops] # Initial values
     c = [qsimplify(c_ / (1.0im*ω)) for c_ in _find_independent(rhs, a0)]
     aon0 = acts_on(a0)

@@ -1,10 +1,10 @@
 """
-    heisenberg(ops::Vector,H::AbstractOperator)
-    heisenberg(op::AbstractOperator,H::AbstractOperator)
+    heisenberg(ops::Vector,H::QNumber)
+    heisenberg(op::QNumber,H::QNumber)
 
-    heisenberg(ops::Vector,H::AbstractOperator,J::Vector;
+    heisenberg(ops::Vector,H::QNumber,J::Vector;
             Jdagger::Vector=adjoint.(J),rates=ones(length(J)))
-    heisenberg(op::AbstractOperator,H::AbstractOperator,J::Vector;
+    heisenberg(op::QNumber,H::QNumber,J::Vector;
             Jdagger::Vector=adjoint.(J),rates=ones(length(J)))
 
 Compute the set of equations for the operators in `ops` under the Hamiltonian
@@ -15,7 +15,7 @@ equivalent to the Quantum-Langevin equation where noise is neglected.
 *`ops::Vector{<:AbstractVector}`: The operators of which the equations are to be computed.
 *`H::AbstractOperatr`: The Hamiltonian describing the reversible dynamics of the
     system.
-*`J::Vector{<:AbstractOperator}`: A vector containing the collapse operators of
+*`J::Vector{<:QNumber}`: A vector containing the collapse operators of
     the system. A term of the form
     ``\\sum_i J_i^\\dagger O J_i - \\frac{1}{2}\\left(J_i^\\dagger J_i O + OJ_i^\\dagger J_i\\right)``
     is added to the Heisenberg equation.
@@ -32,7 +32,7 @@ function heisenberg(a::Vector,H,J;Jdagger::Vector=adjoint.(J),rates=ones(length(
     else
         lhs = a
     end
-    rhs = Vector{AbstractOperator}(undef, length(a))
+    rhs = Vector{QNumber}(undef, length(a))
     if multithread
         Threads.@threads for i=1:length(a)
             rhs_ = 1.0im*commutator(H,lhs[i];simplify=false)
@@ -52,7 +52,7 @@ function heisenberg(a::Vector,H,J;Jdagger::Vector=adjoint.(J),rates=ones(length(
     end
     return HeisenbergEquation(lhs,rhs,H,J,rates)
 end
-heisenberg(a::AbstractOperator,args...;kwargs...) = heisenberg([a],args...;kwargs...)
+heisenberg(a::QNumber,args...;kwargs...) = heisenberg([a],args...;kwargs...)
 heisenberg(a::Vector,H;kwargs...) = heisenberg(a,H,[];Jdagger=[],kwargs...)
 
 function _master_lindblad(a_,J,Jdagger,rates)
@@ -73,7 +73,7 @@ Computes the commutator `a*b - b*a` of `a` and `b`. If `simplify` is `true`, the
 result is simplified using the [`qsimplify`](@ref) function. Further
 keyword arguments are passed to simplification.
 """
-function commutator(a::AbstractOperator,b::AbstractOperator; simplify=true, kwargs...)
+function commutator(a::QNumber,b::QNumber; simplify=true, kwargs...)
     # Check on which subspaces each of the operators act
     a_on = acts_on(a)
     b_on = acts_on(b)
@@ -87,7 +87,7 @@ function commutator(a::AbstractOperator,b::AbstractOperator; simplify=true, kwar
 end
 
 # Specialized methods for addition using linearity
-function commutator(a::OperatorTerm{<:typeof(+)},b::AbstractOperator; simplify=true, kwargs...)
+function commutator(a::QTerm{<:typeof(+)},b::QNumber; simplify=true, kwargs...)
     args = Any[]
     for arg in a.arguments
         c = commutator(arg,b; simplify=simplify, kwargs...)
@@ -101,7 +101,7 @@ function commutator(a::OperatorTerm{<:typeof(+)},b::AbstractOperator; simplify=t
         return out
     end
 end
-function commutator(a::AbstractOperator,b::OperatorTerm{<:typeof(+)}; simplify=true, kwargs...)
+function commutator(a::QNumber,b::QTerm{<:typeof(+)}; simplify=true, kwargs...)
     args = Any[]
     for arg in b.arguments
         c = commutator(a,arg; simplify=simplify, kwargs...)
@@ -115,7 +115,7 @@ function commutator(a::AbstractOperator,b::OperatorTerm{<:typeof(+)}; simplify=t
         return out
     end
 end
-function commutator(a::OperatorTerm{<:typeof(+)},b::OperatorTerm{<:typeof(+)}; simplify=true, kwargs...)
+function commutator(a::QTerm{<:typeof(+)},b::QTerm{<:typeof(+)}; simplify=true, kwargs...)
     args = Any[]
     for a_arg in a.arguments
         for b_arg in b.arguments

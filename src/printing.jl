@@ -7,12 +7,12 @@ function Base.show(io::IO,h::ProductSpace)
     end
 end
 
-Base.show(io::IO,x::BasicOperator) = write(io, x.name)
+Base.show(io::IO,x::QSym) = write(io, x.name)
 Base.show(io::IO,x::Create) = write(io, string(x.name, "′"))
 Base.show(io::IO,x::Transition) = write(io, Symbol(x.name,x.i,x.j))
 
 show_brackets = Ref(true)
-function Base.show(io::IO,x::OperatorTerm)
+function Base.show(io::IO,x::QTerm)
     show_brackets[] && write(io,"(")
     show(io, x.arguments[1])
     for i=2:length(x.arguments)
@@ -47,6 +47,6 @@ end
 #     write(io, ")(ω)")
 # end
 #
-# const T_LATEX = Union{<:AbstractOperator,<:AbstractEquation,<:SymbolicNumber,
+# const T_LATEX = Union{<:QNumber,<:AbstractEquation,<:CNumber,
 #         <:CorrelationFunction,<:Spectrum}
 # Base.show(io::IO, ::MIME"text/latex", x::T_LATEX) = write(io, latexify(x))
