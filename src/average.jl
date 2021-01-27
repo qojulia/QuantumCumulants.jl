@@ -148,7 +148,7 @@ function cumulant_expansion(avg::SymbolicUtils.Term{<:Average},order::Int;simpli
         if simplify
             avg_ = average(qsimplify(op))
         else
-            avg_ = average
+            avg_ = avg
         end
         if simplify && !isequal(avg, avg_) # TODO: better strategy to get proper ordering
             return cumulant_expansion(avg_,order;simplify=simplify,kwargs...)
