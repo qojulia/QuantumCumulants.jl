@@ -105,7 +105,8 @@ function complete(rhs::Vector, vs::Vector, H, J, rates; order=nothing, filter_fu
         missed = unique_ops(find_missing(rhs_, vs_))
         filter!(SymbolicUtils.sym_isa(Average),missed)
         filter!(!filter_func, missed)
-        subs = Dict(missed .=> 0)
+        missed_adj = map(get_adjoint, missed)
+        subs = Dict(vcat(missed, missed_adj) .=> 0)
         rhs_ = [substitute(r, subs) for r in rhs_]
     end
     return rhs_, vs_
