@@ -40,15 +40,15 @@ function Base.show(io::IO,de::HeisenbergEquation)
     end
 end
 
-# function Base.show(io::IO, c::CorrelationFunction)
-#     show(io, average(c.op1*c.op2))
-# end
-# function Base.show(io::IO, S::Spectrum)
-#     write(io, "ℱ(")
-#     show(io, S.corr)
-#     write(io, ")(ω)")
-# end
-#
-# const T_LATEX = Union{<:QNumber,<:AbstractEquation,<:CNumber,
-#         <:CorrelationFunction,<:Spectrum}
-# Base.show(io::IO, ::MIME"text/latex", x::T_LATEX) = write(io, latexify(x))
+function Base.show(io::IO, c::CorrelationFunction)
+    show(io, average(c.op1*c.op2))
+end
+function Base.show(io::IO, S::Spectrum)
+    write(io, "ℱ(")
+    show(io, S.corr)
+    write(io, ")(ω)")
+end
+
+const T_LATEX = Union{<:QNumber,<:AbstractEquation, <:SymbolicUtils.Symbolic{<:CNumber},
+        <:CorrelationFunction,<:Spectrum}
+Base.show(io::IO, ::MIME"text/latex", x::T_LATEX) = write(io, latexify(x))

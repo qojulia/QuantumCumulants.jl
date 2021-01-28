@@ -296,10 +296,6 @@ _to_expression(op::Create) = :(dagger($(op.name)))
 _to_expression(op::Transition) = :(Transition($(op.name),$(op.i),$(op.j)) )
 _to_expression(t::QTerm) = :( $(Symbol(t.f))($(_to_expression.(t.arguments)...)) )
 _to_expression(p::Parameter) = p.name
-function _to_expression(avg::Average)
-    ex = _to_expression(avg.operator)
-    return :(AVERAGE($ex))
-end
 function _to_expression(s::SymbolicUtils.Symbolic)
     if SymbolicUtils.istree(s)
         f = SymbolicUtils.operation(s)
