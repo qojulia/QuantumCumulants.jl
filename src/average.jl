@@ -6,10 +6,11 @@ function average end
 Symbolic number representing the average over an operator.
 See also: [`average`](@ref)
 """
-struct Average <: CNumber
-    function Average(operator)
-        return SymbolicUtils.Term{Average}(average, [operator])
-    end
+struct Average <: CNumber end
+
+# Direct construction of average symbolic expression
+function _average(operator)
+    return SymbolicUtils.Term{Average}(average, [operator])
 end
 
 # Type promotion -- average(::Operator)::Number
@@ -41,7 +42,7 @@ end
 Compute the average of an operator. If `order` is given, the [`cumulant_expansion`](@ref)
 up to that order is computed immediately.
 """
-average(op::QSym) = Average(op)
+average(op::QSym) = _average(op)
 function average(op::QTerm)
     f = SymbolicUtils.operation(op)
     if f ∈ [+,-] # linearity
@@ -53,7 +54,7 @@ function average(op::QTerm)
         if isempty(cs)
             op_ = expand(op)
             if isequal(op_, op)
-                return Average(op)
+                return _average(op)
             else
                 return average(op_)
             end
@@ -65,7 +66,7 @@ function average(op::QTerm)
         op_ = QTerm(*, [arg for i=1:n])
         return average(op_)
     else
-        return Average(op)
+        return _average(op)
     end
 end
 average(x::Union{T,SymbolicUtils.Symbolic{T}}) where T<:Number = x
@@ -228,7 +229,7 @@ function _cumulant_expansion(args::Vector,order::Int)
                     else
                         op_ = QTerm(*, p_)
                     end
-                    push!(args_prod, Average(op_))
+                    push!(args_prod, _average(op_))
                 end
             end
             # Add terms in sum
@@ -295,7 +296,7 @@ function _cumulant(args::Vector,m::Int=length(args))
             n = length(p[j])
             args_prod = Any[factorial(n-1)*(-1)^(n-1)]
             for p_=p[j] # Product over partition blocks
-                push!(args_prod, Average(*(p_...)))
+                push!(args_prod, _average(*(p_...)))
             end
             # Add terms in sum
             push!(args_sum, *(args_prod...))
