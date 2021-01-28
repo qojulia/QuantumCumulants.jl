@@ -24,7 +24,9 @@ end
 
 function SymbolicUtils.show_term(io::IO, t::SymbolicUtils.Term{<:Average})
     write(io, "⟨")
+    show_brackets[] = false
     show(io, SymbolicUtils.arguments(t)[1])
+    show_brackets[] = true
     write(io, "⟩")
 end
 
