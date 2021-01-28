@@ -111,7 +111,7 @@ set_default(double_linebreak=true) # hide
 using Qumulants
 
 # Symbolic parameters
-@parameters Δ g
+@params Δ g
 
 # Hilbert space
 hf = FockSpace(:cavity)

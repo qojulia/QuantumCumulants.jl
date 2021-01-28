@@ -6,6 +6,12 @@ and corresponding expression trees.
 """
 abstract type CNumber <: Number end
 
+"""
+    Parameter <: CNumber
+
+Type used as symbolic type in a `SymbolicUtils.Sym` variable to represent
+a parameter.
+"""
 struct Parameter <: CNumber
     function Parameter(name)
         return SymbolicUtils.Sym{Parameter}(name)
