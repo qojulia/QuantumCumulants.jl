@@ -20,7 +20,7 @@ export HilbertSpace, ProductSpace, ⊗,
         transition_superscript
 
 include("hilbertspace.jl")
-include("operator.jl")
+include("qnumber.jl")
 include("fock.jl")
 include("nlevel.jl")
 include("simplify.jl")

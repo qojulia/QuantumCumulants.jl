@@ -37,6 +37,47 @@ function Base.isequal(t1::QTerm,t2::QTerm)
 end
 Base.hash(t::QTerm, h::UInt) = hash(t.arguments, hash(t.f, h))
 
+
+### Interface for SymbolicUtils
+
+# Symbolic type promotion
+SymbolicUtils.promote_symtype(f, Ts::Type{<:QNumber}...) = promote_type(QNumber,Ts...)
+SymbolicUtils.promote_symtype(f, T::Type{<:QNumber}, Ts...) = promote_type(QNumber,T)
+for f in [+,-,*,/,^]
+    @eval SymbolicUtils.promote_symtype(::$(typeof(f)),
+                   T::Type{<:QNumber},
+                   S::Type{<:Number}) = QNumber
+    @eval SymbolicUtils.promote_symtype(::$(typeof(f)),
+                   T::Type{<:Number},
+                   S::Type{<:QNumber}) = QNumber
+    @eval SymbolicUtils.promote_symtype(::$(typeof(f)),
+                   T::Type{<:QNumber},
+                   S::Type{<:QNumber}) = QNumber
+end
+
+SymbolicUtils.islike(::QNumber, ::Type{<:Number}) = true
+SymbolicUtils.symtype(x::T) where T<:QNumber = T
+SymbolicUtils.to_symbolic(x::QNumber) = x
+
+SymbolicUtils.istree(::QSym) = false
+SymbolicUtils.istree(::QTerm) = true
+SymbolicUtils.arguments(t::QTerm) = t.arguments
+for f in [*,+,-,/,^]
+    @eval SymbolicUtils.operation(t::QTerm{<:$(typeof(f))}) = $f
+end
+SymbolicUtils.similarterm(t::QTerm{F}, f::F, args::A) where {F,A} = QTerm{F,A}(t.f, args)
+
+SymbolicUtils.:<ₑ(a::QNumber, b::Number) = false
+SymbolicUtils.:<ₑ(a::Number,   b::QNumber) = true
+SymbolicUtils.:<ₑ(a::QNumber, b::SymbolicUtils.Symbolic{<:Number}) = false
+SymbolicUtils.:<ₑ(a::SymbolicUtils.Symbolic{<:Number}, b::QNumber) = true
+
+
+### End of interface
+
+
+### Methods
+
 for f = [:+,:-,:*]
     @eval Base.$f(a::QNumber,b::QNumber) = (check_hilbert(a,b); QTerm($f, [a,b]))
     @eval Base.$f(a::QNumber,b::Number) = QTerm($f, [a,b])
@@ -87,6 +128,7 @@ function check_hilbert(args...)
     end
 end
 check_hilbert(x,y) = true
+
 
 """
     acts_on(op::QNumber)
