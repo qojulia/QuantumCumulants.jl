@@ -138,24 +138,24 @@ Optional arguments
 *simplify=true: Specify whether the result should be simplified.
 *kwargs...: Further keyword arguments being passed to [`qsimplify`](@ref)
 """
-function cumulant_expansion(avg::SymbolicUtils.Term{<:Average},order::Int;simplify=true,kwargs...)
+function cumulant_expansion(avg::SymbolicUtils.Term{<:Average},order::Int;simplify_input=true,simplify_output=true,kwargs...)
     @assert order > 0
     ord = get_order(avg)
     if ord <= order
         return avg
     else
         op = SymbolicUtils.arguments(avg)[1]
-        if simplify
+        if simplify_input
             avg_ = average(qsimplify(op))
         else
             avg_ = avg
         end
-        if simplify && !isequal(avg, avg_) # TODO: better strategy to get proper ordering
-            return cumulant_expansion(avg_,order;simplify=simplify,kwargs...)
+        if simplify_input && !isequal(avg, avg_)
+            return cumulant_expansion(avg_,order;simplify_input=simplify_input,simplify_output=simplify_output,kwargs...)
         else
             @assert SymbolicUtils.operation(op) === (*)
-            if simplify
-                return qsimplify(_cumulant_expansion(op.arguments, order), kwargs...)
+            if simplify_output
+                return qsimplify(_cumulant_expansion(op.arguments, order); kwargs...)
             else
                 _cumulant_expansion(op.arguments, order)
             end
@@ -168,15 +168,19 @@ function cumulant_expansion(avg::SymbolicUtils.Term{<:Average},order::Vector;mix
     return cumulant_expansion(avg,order_;kwargs...)
 end
 cumulant_expansion(x::Number,order;kwargs...) = x
-function cumulant_expansion(x::SymbolicUtils.Symbolic,order;mix_choice=maximum, simplify=false, kwargs...)
+function cumulant_expansion(x::SymbolicUtils.Symbolic,order;mix_choice=maximum,simplify_input=false,simplify_output=true,kwargs...)
     if SymbolicUtils.istree(x)
         if order isa Int
             get_order(x) <= order && return x
         end
         f = SymbolicUtils.operation(x)
         args = SymbolicUtils.arguments(x)
-        cumulants = [cumulant_expansion(arg,order;simplify=false,mix_choice=mix_choice) for arg in args]
-        return qsimplify(f(cumulants...);kwargs...)
+        cumulants = [cumulant_expansion(arg,order;simplify_input=simplify_input,simplify_output=false,mix_choice=mix_choice) for arg in args]
+        if simplify_output
+            return qsimplify(f(cumulants...);kwargs...)
+        else
+            return f(cumulants...)
+        end
     else
         return x
     end
