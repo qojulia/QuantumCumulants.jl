@@ -230,11 +230,19 @@ function get_solution(avg::Average,sol,he::DifferentialEquation{<:Number,<:Numbe
     if isnothing(idx)
         idx_ = findfirst(isequal(avg'),he.lhs)
         isnothing(idx_) && error("Could not find solution for $avg !")
-        return [conj(u[idx_]) for u in sol.u]
+        s = _get_solution(sol, idx_)
+        return map(conj, s)
     else
-        return [u[idx] for u in sol.u]
+        return _get_solution(sol, idx)
     end
 end
+function _get_solution(sol, idx)
+    # Hacky solution until we depend on MTK
+    (:u ∈ fieldnames(typeof(sol))) || error("Cannot get solution from object with type $(typeof(sol)) !")
+    return _get_solution(sol.u, idx)
+end
+_get_solution(u::Vector, idx) = u[idx]
+_get_solution(u::Vector{<:Vector}, idx) = [u_[idx] for u_ ∈ u]
 
 
 _to_expression(x::Number) = x
