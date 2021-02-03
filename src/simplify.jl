@@ -10,13 +10,40 @@ fundamental commutation relations.
 * rewriter: The rewriter used.
 * kwargs: Further arguments passed to `SymbolicUtils.simplify`.
 """
-function qsimplify(op; rewriter=default_operator_simplifier(),
-                kwargs...)
-    return SymbolicUtils.simplify(op; rewriter=rewriter, kwargs...)
+function qsimplify(x;
+                  polynorm=false,
+                  threaded=false,
+                  thread_subtree_cutoff=100,
+                  rewriter=nothing)
+    f = if rewriter === nothing
+        if threaded
+            if SymbolicUtils.symtype(x) <: QNumber
+                threaded_q_simplifier(thread_subtree_cutoff)
+            else
+                threaded_c_simplifier(thread_subtree_cutoff)
+            end
+        elseif polynorm
+            if SymbolicUtils.symtype(x) <: QNumber
+                error("Cannot use `polynormalize` on `QNumber`!")
+            else
+                serial_c_polynorm
+            end
+        else
+            if SymbolicUtils.symtype(x) <: QNumber
+                serial_q_simplifier
+            else
+                serial_c_simplifier
+            end
+        end
+    else
+        SymbolicUtils.Fixpoint(rewriter)
+    end
+
+    SymbolicUtils.PassThrough(f)(x)
 end
 
 """
-    expand(ex; rewriter=defualt_expand_simplifier(), kwargs...)
+    expand(ex; rewriter=default_expand_simplifier(), kwargs...)
 
 Simple wrapper around `SymbolicUtils.simplify` that uses a rewriter such
 that expressions are expanded.
@@ -40,8 +67,28 @@ julia> expand(ex)
 ((p*q)+(p*r)+(q*r)+(p*r)+(q*q)+(p*q))
 ```
 """
-function expand(ex; rewriter=default_expand_simplifier(), kwargs...)
-    return SymbolicUtils.simplify(ex; rewriter=rewriter, kwargs...)
+function expand(x;
+                polynorm=false,
+                threaded=false,
+                thread_subtree_cutoff=100,
+                rewriter=nothing)
+    f = if rewriter === nothing
+        if threaded
+            threaded_expand_simplifier(thread_subtree_cutoff)
+        elseif polynorm
+            if SymbolicUtils.symtype(x) <: QNumber
+                error("Cannot use `polynormalize` on `QNumber`!")
+            else
+                serial_expand_polynorm
+            end
+        else
+            serial_expand_simplifier
+        end
+    else
+        SymbolicUtils.Fixpoint(rewriter)
+    end
+
+    SymbolicUtils.PassThrough(f)(x)
 end
 
 ### Functions needed for simplification

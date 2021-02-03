@@ -139,14 +139,14 @@ function find_operators(h::HilbertSpace, order::Int; names=nothing, kwargs...)
     end
 
     # Simplify and remove non-operators iteratively
-    ops_1 = qsimplify.(all_ops)
+    ops_1 = map(qsimplify, all_ops)
     ops_2 = all_ops
-    while ops_1 != ops_2
+    while !isequal(ops_1,ops_2)
         ops_2 = QNumber[]
         for op in ops_1
             append!(ops_2, _get_operators(op))
         end
-        ops_1 = qsimplify.(ops_2)
+        ops_1 = map(qsimplify, ops_2)
     end
 
     return unique_ops(ops_2)

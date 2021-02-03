@@ -21,7 +21,6 @@ let
 
         # NLevel rules
         SymbolicUtils.@rule(*(~~a, ~x::SymbolicUtils.sym_isa(Transition), ~y::SymbolicUtils.sym_isa(Transition), ~~b) => apply_commutator(merge_transitions, ~~a, ~~b, ~x, ~y))
-        SymbolicUtils.@rule(~x::SymbolicUtils.sym_isa(Transition) => rewrite_gs(~x))
     ]
 
     EXPAND_TIMES_RULES = [
@@ -29,6 +28,8 @@ let
         SymbolicUtils.@rule(~x::needs_sorting_nc => sort_args_nc(~x))
         SymbolicUtils.@rule(*(~~a, +(~~b), ~~c) => +(map(b -> *((~~a)..., b, (~~c)...), ~~b)...))
     ]
+
+    EXPAND_TIMES_COMMUTATOR_RULES = vcat(EXPAND_TIMES_RULES, COMMUTATOR_RULES)
 
     EXPAND_POW_RULES = [
         SymbolicUtils.@rule(^(~x::SymbolicUtils.sym_isa(QNumber),~y::SymbolicUtils.isliteral(Integer)) => *((~x for i=1:~y)...))
@@ -94,7 +95,7 @@ let
 
     function default_operator_simplifier(; kwargs...)
         SymbolicUtils.IfElse(
-            SymbolicUtils.sym_isa(QNumber), SymbolicUtils.Postwalk(operator_simplifier()),
+            SymbolicUtils.sym_isa(QNumber), SymbolicUtils.Postwalk(operator_simplifier(); kwargs...),
             SymbolicUtils.Postwalk(number_simplifier(;kwargs...))
         )
     end
@@ -108,7 +109,7 @@ let
         rule_tree = [SymbolicUtils.If(SymbolicUtils.is_operation(conj), _conj_rewriter()),
                     SymbolicUtils.default_simplifier(;kwargs...)
                     ] |> SymbolicUtils.Chain
-        return SymbolicUtils.Fixpoint(SymbolicUtils.Postwalk(rule_tree))
+        return SymbolicUtils.Postwalk(rule_tree)
     end
 
     function conj_rewriter()
@@ -127,9 +128,9 @@ let
 
     function commutator_simplifier()
         rule_tree = [SymbolicUtils.If(SymbolicUtils.istree, SymbolicUtils.Chain(ASSORTED_RULES)),
-                    SymbolicUtils.If(SymbolicUtils.is_operation(*), SymbolicUtils.Chain(EXPAND_TIMES_RULES)),
+                    SymbolicUtils.If(SymbolicUtils.is_operation(*), SymbolicUtils.Chain(EXPAND_TIMES_COMMUTATOR_RULES)),
                     SymbolicUtils.If(SymbolicUtils.is_operation(^), SymbolicUtils.Chain(EXPAND_POW_RULES)),
-                    SymbolicUtils.Chain(COMMUTATOR_RULES)
+                    SymbolicUtils.@rule(~x::SymbolicUtils.sym_isa(Transition) => rewrite_gs(~x))
                     ] |> SymbolicUtils.Chain
         return SymbolicUtils.Fixpoint(SymbolicUtils.Postwalk(rule_tree))
     end
@@ -142,12 +143,41 @@ let
         return SymbolicUtils.Fixpoint(SymbolicUtils.Postwalk(rule_tree))
     end
 
-    function default_expand_simplifier()
+    function default_expand_simplifier(;kwargs...)
         rule_tree = [SymbolicUtils.If(SymbolicUtils.istree, SymbolicUtils.Chain(ASSORTED_RULES)),
                     SymbolicUtils.If(SymbolicUtils.is_operation(^), SymbolicUtils.Chain(EXPAND_POW_RULES)),
                     SymbolicUtils.If(SymbolicUtils.is_operation(*), SymbolicUtils.Chain(EXPAND_TIMES_RULES)),
                     SymbolicUtils.If(SymbolicUtils.is_operation(+), SymbolicUtils.Chain(EXPAND_PLUS_RULES)),
                     ] |> SymbolicUtils.Chain
-        return SymbolicUtils.Fixpoint(SymbolicUtils.Postwalk(rule_tree))
+        return SymbolicUtils.Postwalk(rule_tree;kwargs...)
     end
+
+    global serial_q_simplifier
+    global serial_c_simplifier
+    global threaded_q_simplifier
+    global threaded_c_simplifier
+    global serial_c_polynorm
+    global serial_expand_simplifier
+    global threaded_expand_simplifier
+
+    serial_q_simplifier = default_operator_simplifier()
+    serial_c_simplifier = SymbolicUtils.If(SymbolicUtils.istree, SymbolicUtils.Fixpoint(number_simplifier()))
+
+    threaded_q_simplifier(cutoff) = default_operator_simplifier(threaded=true,
+                                                              thread_cutoff=cutoff)
+    threaded_c_simplifier(cutoff) = SymbolicUtils.Fixpoint(number_simplifier(threaded=true,
+                                                              thread_cutoff=cutoff))
+
+    serial_c_polynorm = SymbolicUtils.If(SymbolicUtils.istree,
+                            SymbolicUtils.Fixpoint(SymbolicUtils.Chain((SymbolicUtils.polynormalize,
+                                            SymbolicUtils.Fixpoint(number_simplifier())))))
+
+    serial_expand_simplifier = SymbolicUtils.If(SymbolicUtils.istree,
+                            SymbolicUtils.Fixpoint(default_expand_simplifier()))
+    threaded_expand_simplifier(cutoff) = SymbolicUtils.Fixpoint(default_expand_simplifier(threaded=true,
+                                                              thread_cutoff=cutoff))
+
+    serial_expand_polynorm = SymbolicUtils.If(SymbolicUtils.istree,
+                          SymbolicUtils.Fixpoint(SymbolicUtils.Chain((SymbolicUtils.polynormalize,
+                                          SymbolicUtils.Fixpoint(default_expand_simplifier())))))
 end

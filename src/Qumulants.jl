@@ -21,12 +21,12 @@ export HilbertSpace, ProductSpace, ⊗,
 
 include("hilbertspace.jl")
 include("qnumber.jl")
+include("parameters.jl")
 include("fock.jl")
 include("nlevel.jl")
 include("simplify.jl")
 include("equations.jl")
 include("heisenberg.jl")
-include("parameters.jl")
 include("average.jl")
 include("rules.jl")
 include("utils.jl")
