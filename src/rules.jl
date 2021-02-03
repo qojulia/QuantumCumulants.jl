@@ -99,8 +99,13 @@ let
         )
     end
 
+    # For whatever reason, making this global fixes an "Unreachable reached" error
+    # on Julia 1.5; should be removed at some point
+    global _conj_rewriter
+    _conj_rewriter() = SymbolicUtils.Chain(CONJ_RULES)
+
     function number_simplifier(;kwargs...)
-        rule_tree = [SymbolicUtils.If(SymbolicUtils.is_operation(conj), SymbolicUtils.Chain(CONJ_RULES)),
+        rule_tree = [SymbolicUtils.If(SymbolicUtils.is_operation(conj), _conj_rewriter()),
                     SymbolicUtils.default_simplifier(;kwargs...)
                     ] |> SymbolicUtils.Chain
         return SymbolicUtils.Fixpoint(SymbolicUtils.Postwalk(rule_tree))
