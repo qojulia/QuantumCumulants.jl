@@ -12,7 +12,7 @@ a = Destroy(h,:a)
 σ = Transition(h,:σ,:g,:e)
 
 # Single-atom laser
-@params Δ g κ γ ν
+@cnumbers Δ g κ γ ν
 
 H = Δ*a'*a + g*(a'*σ + σ'*a)
 J = [a,σ,σ']

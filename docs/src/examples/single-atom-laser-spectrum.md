@@ -16,7 +16,7 @@ using OrdinaryDiffEq
 using Plots
 
 # Define parameters
-@params Δ g γ κ ν
+@cnumbers Δ g γ κ ν
 
 # Define hilbert space
 hf = FockSpace(:cavity)

@@ -84,11 +84,11 @@ Parameter
 ```
 
 ```@docs
-params
+cnumbers
 ```
 
 ```@docs
-@params
+@cnumbers
 ```
 
 ## [Simplification](@id API: Simplify)

@@ -35,7 +35,7 @@ Then we define the symbolic parameters of the system, the Hilbertspace and the n
 ```@example 3-level-laser
 # Parameters
 N = 2 #number of atoms
-κ, g, Γ23, Γ13, Γ12, Ω, Δc, Δ3 = params("κ g Γ_{23} Γ_{13} Γ_{12} Ω Δ_c Δ_3")
+κ, g, Γ23, Γ13, Γ12, Ω, Δc, Δ3 = cnumbers("κ g Γ_{23} Γ_{13} Γ_{12} Ω Δ_c Δ_3")
 
 # Hilbertspace
 hf = FockSpace(:cavity)

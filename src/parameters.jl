@@ -23,18 +23,18 @@ end
 Base.promote_rule(::Type{<:CNumber},::Type{<:Number}) = CNumber
 
 """
-    @params(ps...)
+    @cnumbers(ps...)
 
-Convenience macro to quickly define symbolic params.
+Convenience macro to quickly define symbolic cnumbers.
 
 Examples
 ========
 ```
-julia> @params ω κ
+julia> @cnumbers ω κ
 (ω, κ)
 ```
 """
-macro params(ps...)
+macro cnumbers(ps...)
     ex = Expr(:block)
     pnames = []
     for p in ps
@@ -48,26 +48,26 @@ macro params(ps...)
 end
 
 """
-    params(symbols::Symbol...)
-    params(s::String)
+    cnumbers(symbols::Symbol...)
+    cnumbers(s::String)
 
-Create symbolic params.
+Create symbolic cnumbers.
 
 Expamples
 =========
 ```
-julia> ps = params(:a, :b)
+julia> ps = cnumbers(:a, :b)
 (a, b)
 
-julia> params("a b") == ps
+julia> cnumbers("a b") == ps
 true
 ```
 """
-function params(syms::Symbol...)
+function cnumbers(syms::Symbol...)
     ps = Tuple(Parameter(s) for s in syms)
     return ps
 end
-function params(s::String)
+function cnumbers(s::String)
     syms = [Symbol(p) for p in split(s, " ")]
-    return params(syms...)
+    return cnumbers(syms...)
 end

@@ -38,7 +38,7 @@ This is the essential procedure with which correlation functions can be computed
 using Qumulants # hide
 h = FockSpace(:cavity)
 a = Destroy(h,:a)
-@params ωc κ
+@cnumbers ωc κ
 H = ωc*a'*a
 he = average(heisenberg(a'*a,H,[a];rates=[κ]))
 

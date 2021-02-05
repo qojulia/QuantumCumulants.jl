@@ -29,7 +29,7 @@ he = heisenberg(a'*σ(1,2), a'*a + σ(2,2) + a*σ(2,1))
 # N-atom laser
 # Parameters
 N = 2 #number of atoms
-κ, g, Γ23, Γ13, Γ12, Ω, Δc, Δ3 = params("κ g Γ_{23} Γ_{13} Γ_{12} Ω Δ_c Δ_3")
+κ, g, Γ23, Γ13, Γ12, Ω, Δc, Δ3 = cnumbers("κ g Γ_{23} Γ_{13} Γ_{12} Ω Δ_c Δ_3")
 
 # Hilbertspace
 hf = FockSpace(:cavity)

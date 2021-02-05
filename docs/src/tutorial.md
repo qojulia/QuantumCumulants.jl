@@ -10,7 +10,7 @@ set_default(double_linebreak=true) # hide
 using Qumulants
 
 # Define parameters
-@params Δ g γ κ ν
+@cnumbers Δ g γ κ ν
 
 # Define hilbert space
 hf = FockSpace(:cavity)
