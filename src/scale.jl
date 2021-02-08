@@ -224,11 +224,19 @@ function get_names(de::Union{DifferentialEquation, ScaleDifferentialEquation})
     indices = [findfirst(x->acts_on(x)==aon_, ops) for aon_=aon_ls]
     ops = ops[indices]
     ops_names = getfield.(ops, :name)
-    i_aons = acts_on.(ops); i_aons = [(isa(i_aon,Int) ? i_aon : i_aon.i) for i_aon in i_aons]
+    aons = acts_on.(ops)
+    i_aons = [(isa(aon,Int) ? aon : aon.i) for aon in aons]
     ops_names_new = []
-    for it=1:i_aons[end]
-        idx = findall(x->x==it, i_aons); (length(idx)==1 && (idx = idx[1]))
-        push!(ops_names_new, ops_names[idx])
+    for it=1:length(aons)
+        aon = aons[it]
+        i_aon = i_aons[it]
+        if isa(aon, Int)
+            idx = findfirst(x->x==i_aon, i_aons)
+            push!(ops_names_new, ops_names[idx])
+        elseif aon.j == 1 #ClusterAon
+            idx = findall(x->x==i_aon, i_aons)
+            push!(ops_names_new, ops_names[idx])
+        end
     end
     return ops_names_new
 end
