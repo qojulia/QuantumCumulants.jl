@@ -30,6 +30,8 @@ end
 Base.hash(c::T, h::UInt) where T<:ClusterAon = hash(T, hash(c.i, hash(c.j, h)))
 Base.getindex(v::Vector{<:HilbertSpace}, c::ClusterAon) = v[c.i]
 # Base.getindex(v::Vector, c::ClusterAon) = (v[c.i])[c.j] #TODO not very good
+get_i(x::Int) = x
+get_i(x::ClusterAon) = x.i
 Base.length(::ClusterAon) = 1
 
 extract_names(names::Vector, i::Int) = names[i]

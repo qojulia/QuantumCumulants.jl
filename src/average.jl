@@ -166,6 +166,7 @@ function cumulant_expansion(avg::Average,order::Int;simplify=true,kwargs...)
 end
 function cumulant_expansion(avg::Average,order::Vector;mix_choice=maximum,kwargs...)
     aon = acts_on(avg.operator)
+    aon = get_i.(aon)
     order_ = mix_choice(order[i] for i in aon)
     return cumulant_expansion(avg,order_;kwargs...)
 end
@@ -202,6 +203,7 @@ function check_lhs(lhs,order::Int;kwargs...)
 end
 function check_lhs(lhs,order::Vector;mix_choice=maximum)
     aon = acts_on(lhs.operator)
+    aon = get_i.(aon)
     order_ = mix_choice(order[i] for i in aon)
     (get_order(lhs) > order_) && error("Cannot form cumulant expansion of derivative! Check the left-hand-side of your equations; you may want to use a higher order!")
     return nothing

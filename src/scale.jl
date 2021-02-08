@@ -101,7 +101,7 @@ function complete(de::ScaleDifferentialEquation{<:AbstractOperator,<:AbstractOpe
     h = hilbert(de.lhs[1])
     cluster_Ns, cluster_orders, cluster_aons = get_cluster_stuff(h)
     (order isa Nothing) ? (order_ = maximum(cluster_orders)) : order_ = order
-    (order_ < maximum(get_order.(de.lhs))) && error("Cannot form cumulant expansion of derivative; you may want to use a higher order!")
+    (maximum(order_) < maximum(get_order.(de.lhs))) && error("Cannot form cumulant expansion of derivative; you may want to use a higher order!")
 
     he_avg0 = average(de,order_)
     redundants = Average[]
