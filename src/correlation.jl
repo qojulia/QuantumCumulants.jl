@@ -284,7 +284,7 @@ function _new_operator(t, h, aon=nothing; kwargs...)
         return t
     end
 end
-function _new_operator(avg::SymbolicUtils.Term{<:Average}, h, aon=nothing; kwargs...)
+function _new_operator(avg::SymbolicUtils.Term{<:AvgSym}, h, aon=nothing; kwargs...)
     op = SymbolicUtils.arguments(avg)[1]
     if isnothing(aon)
         _average(_new_operator(op, h; kwargs...))
@@ -313,7 +313,7 @@ function _complete_corr(de,aon0,lhs_new,order,steady_state; mix_choice=maximum, 
     vs_ = copy(lhs)
     rhs_ = [cumulant_expansion(r, order_) for r in rhs]
     missed = unique_ops(find_missing(rhs_, vs_))
-    filter!(SymbolicUtils.sym_isa(Average),missed)
+    filter!(SymbolicUtils.sym_isa(AvgSym),missed)
 
     function _filter_aon(x) # Filter values that act only on Hilbert space representing system at time t0
         aon = acts_on(x)
@@ -338,7 +338,7 @@ function _complete_corr(de,aon0,lhs_new,order,steady_state; mix_choice=maximum, 
         rhs_ = [rhs_;he_avg.rhs]
         vs_ = [vs_;he_avg.lhs]
         missed = unique_ops(find_missing(rhs_,vs_))
-        filter!(SymbolicUtils.sym_isa(Average),missed)
+        filter!(SymbolicUtils.sym_isa(AvgSym),missed)
         filter!(_filter_aon, missed)
         isnothing(filter_func) || filter!(filter_func, missed) # User-defined filter
     end
@@ -347,7 +347,7 @@ function _complete_corr(de,aon0,lhs_new,order,steady_state; mix_choice=maximum, 
         # Find missing values that are filtered by the custom filter function,
         # but still occur on the RHS; set those to 0
         missed = unique_ops(find_missing(rhs_, vs_))
-        filter!(SymbolicUtils.sym_isa(Average),missed)
+        filter!(SymbolicUtils.sym_isa(AvgSym),missed)
         filter!(!filter_func, missed)
         subs = Dict(missed .=> 0)
         rhs_ = [substitute(r, subs) for r in rhs_]

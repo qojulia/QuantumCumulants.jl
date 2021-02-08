@@ -11,7 +11,6 @@ where $\Delta = \omega_\mathrm{c} - \omega_\mathrm{a}$ is the detuning between t
 using Latexify # hide
 set_default(double_linebreak=true) # hide
 using Qumulants
-using SymbolicUtils: Term
 using OrdinaryDiffEq
 using Plots
 
@@ -49,7 +48,7 @@ The remaining equations will be computed automatically using the [`complete`](@r
 
 
 ```@example single-atom-laser-spectrum
-# Custom filter function -- include only phase-invaraint terms
+# Custom filter function -- include only phase-invariant terms
 ϕ(x) = 0
 ϕ(::Destroy) = -1
 ϕ(::Create) = 1
@@ -62,7 +61,7 @@ function ϕ(t::Transition)
         0
     end
 end
-ϕ(avg::Term{<:Average}) = ϕ(avg.arguments[1])
+ϕ(avg::Average) = ϕ(avg.arguments[1])
 function ϕ(t::QTerm)
     @assert t.f === (*)
     p = 0

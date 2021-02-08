@@ -77,7 +77,7 @@ S_check = abs.(S2 ./ maximum(S2) .- S1_)
 # Phase invariant case
 has_phase(x) = !iszero(phase(x))
 import SymbolicUtils
-phase(avg::SymbolicUtils.Symbolic{<:Average}) = phase(avg.arguments[1])
+phase(avg::Average) = phase(avg.arguments[1])
 phase(op::Destroy) = -1
 phase(op::Create) = 1
 function phase(t::Transition)

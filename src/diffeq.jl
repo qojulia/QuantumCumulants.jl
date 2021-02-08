@@ -52,7 +52,7 @@ function build_ode(rhs::Vector, vs::Vector, ps=[], usym=:u, psym=:p, tsym=:t;
     rhs_ = [MacroTools.postwalk(_pw_func, r) for r in rhs_]
 
     if !isempty(ps)
-        avg_idx = findall(SymbolicUtils.sym_isa(Average), ps)
+        avg_idx = findall(SymbolicUtils.sym_isa(AvgSym), ps)
         ps_avg = ps[avg_idx]
         psyms = [:($psym[$i]) for i=1:length(ps)]
 

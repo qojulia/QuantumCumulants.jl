@@ -86,7 +86,7 @@ function complete(rhs::Vector, vs::Vector, H, J, rates; order=nothing, filter_fu
     vs_ = copy(vs)
     rhs_ = [cumulant_expansion(r, order_) for r in rhs]
     missed = unique_ops(find_missing(rhs_, vs_))
-    filter!(SymbolicUtils.sym_isa(Average),missed)
+    filter!(SymbolicUtils.sym_isa(AvgSym),missed)
     isnothing(filter_func) || filter!(filter_func, missed) # User-defined filter
     while !isempty(missed)
         ops = [SymbolicUtils.arguments(m)[1] for m in missed]
@@ -95,7 +95,7 @@ function complete(rhs::Vector, vs::Vector, H, J, rates; order=nothing, filter_fu
         rhs_ = [rhs_;he_avg.rhs]
         vs_ = [vs_;he_avg.lhs]
         missed = unique_ops(find_missing(rhs_,vs_))
-        filter!(SymbolicUtils.sym_isa(Average),missed)
+        filter!(SymbolicUtils.sym_isa(AvgSym),missed)
         isnothing(filter_func) || filter!(filter_func, missed) # User-defined filter
     end
 
@@ -103,7 +103,7 @@ function complete(rhs::Vector, vs::Vector, H, J, rates; order=nothing, filter_fu
         # Find missing values that are filtered by the custom filter function,
         # but still occur on the RHS; set those to 0
         missed = unique_ops(find_missing(rhs_, vs_))
-        filter!(SymbolicUtils.sym_isa(Average),missed)
+        filter!(SymbolicUtils.sym_isa(AvgSym),missed)
         filter!(!filter_func, missed)
         missed_adj = map(get_adjoint, missed)
         subs = Dict(vcat(missed, missed_adj) .=> 0)
@@ -252,7 +252,7 @@ end
 Find the numerical solution of the average value `avg` stored in the `ODESolution`
 `sol` corresponding to the solution of the equations given by `he`.
 """
-function get_solution(avg::SymbolicUtils.Term{<:Average},sol,he::HeisenbergEquation)
+function get_solution(avg::SymbolicUtils.Term{<:AvgSym},sol,he::HeisenbergEquation)
     idx = findfirst(isequal(avg),he.lhs)
     if isnothing(idx)
         avg_ = get_adjoint(avg)

@@ -22,7 +22,7 @@ function Base.show(io::IO,x::QTerm)
     show_brackets[] && write(io,")")
 end
 
-function SymbolicUtils.show_term(io::IO, t::SymbolicUtils.Term{<:Average})
+function SymbolicUtils.show_term(io::IO, t::SymbolicUtils.Term{<:AvgSym})
     write(io, "⟨")
     show_brackets[] = false
     show(io, SymbolicUtils.arguments(t)[1])

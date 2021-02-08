@@ -1,20 +1,22 @@
 function average end
 
 """
-    Average <: CNumber
+    AvgSym <: CNumber
 
 Symbolic number representing the average over an operator.
 See also: [`average`](@ref)
 """
-struct Average <: CNumber end
+struct AvgSym <: CNumber end
+
+const Average = SymbolicUtils.Term{<:AvgSym}
 
 # Direct construction of average symbolic expression
 function _average(operator)
-    return SymbolicUtils.Term{Average}(average, [operator])
+    return SymbolicUtils.Term{AvgSym}(average, [operator])
 end
 
 # Type promotion -- average(::Operator)::Number
-SymbolicUtils.promote_symtype(average, ::Type{<:QNumber}) = Average
+SymbolicUtils.promote_symtype(average, ::Type{<:QNumber}) = AvgSym
 
 function acts_on(s::SymbolicUtils.Symbolic)
     if SymbolicUtils.istree(s)
@@ -112,7 +114,7 @@ average(arg,order;kwargs...) = cumulant_expansion(average(arg),order;kwargs...)
 """
     cumulant_expansion(avg, order::Int)
 
-For an [`Average`](@ref) of an operator, expand it in terms
+For an [`AvgSym`](@ref) of an operator, expand it in terms
 of moments up to `order` neglecting their joint cumulant.
 
 See also: https://en.wikipedia.org/wiki/Cumulant#Joint_cumulants
@@ -138,7 +140,7 @@ Optional arguments
 *simplify=true: Specify whether the result should be simplified.
 *kwargs...: Further keyword arguments being passed to [`qsimplify`](@ref)
 """
-function cumulant_expansion(avg::SymbolicUtils.Term{<:Average},order::Int;simplify_input=true,simplify_output=true,kwargs...)
+function cumulant_expansion(avg::SymbolicUtils.Term{<:AvgSym},order::Int;simplify_input=true,simplify_output=true,kwargs...)
     @assert order > 0
     ord = get_order(avg)
     if ord <= order
@@ -162,7 +164,7 @@ function cumulant_expansion(avg::SymbolicUtils.Term{<:Average},order::Int;simpli
         end
     end
 end
-function cumulant_expansion(avg::SymbolicUtils.Term{<:Average},order::Vector;mix_choice=maximum,kwargs...)
+function cumulant_expansion(avg::SymbolicUtils.Term{<:AvgSym},order::Vector;mix_choice=maximum,kwargs...)
     aon = acts_on(avg)
     order_ = mix_choice(order[i] for i in aon)
     return cumulant_expansion(avg,order_;kwargs...)
@@ -288,7 +290,7 @@ function cumulant(op::QTerm,n::Int=get_order(op);simplify=true,kwargs...)
         end
     end
 end
-cumulant(avg::SymbolicUtils.Term{<:Average},args...;kwargs...) = cumulant(SymbolicUtils.arguments(avg)[1],args...;kwargs...)
+cumulant(avg::SymbolicUtils.Term{<:AvgSym},args...;kwargs...) = cumulant(SymbolicUtils.arguments(avg)[1],args...;kwargs...)
 cumulant(op::QSym,n::Int=1;kwargs...) = isone(n) ? average(op) : zero(op)
 
 function _cumulant(args::Vector,m::Int=length(args))
@@ -328,7 +330,7 @@ julia> get_order(1)
 0
 ```
 """
-get_order(avg::SymbolicUtils.Term{<:Average}) = get_order(SymbolicUtils.arguments(avg)[1])
+get_order(avg::SymbolicUtils.Term{<:AvgSym}) = get_order(SymbolicUtils.arguments(avg)[1])
 function get_order(t::SymbolicUtils.Symbolic)
     if SymbolicUtils.istree(t)
         return maximum(map(get_order, SymbolicUtils.arguments(t)))
