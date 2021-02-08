@@ -39,13 +39,13 @@ he_comp = complete(hn_avg)
 # Compare to finding operators from start
 ops = find_operators(h,2)
 
-@test length(ops)==length(he_comp.lhs)
+@test length(ops)==length(he_comp.lhs)==16
 he = heisenberg(ops,H,J;rates=rates)
 he_avg = average(he,2)
 
 # @test all((Qumulants._in(l, he_comp.lhs) || l' in he_comp.lhs) for l in he_avg.lhs)
-@test all((Qumulants._in(l, he_comp.lhs) || Qumulants._in(Qumulants.get_adjoint(l), he_comp.lhs) for l in he_avg.lhs))
-@test all((Qumulants._in(l, he_comp.lhs) || Qumulants._in(Qumulants.get_adjoint(l), he_avg.lhs)) for l in he_comp.lhs)
+@test all((Qumulants._in(l, he_comp.lhs) || Qumulants._in(Qumulants._adjoint(l), he_comp.lhs) for l in he_avg.lhs))
+@test all((Qumulants._in(l, he_comp.lhs) || Qumulants._in(Qumulants._adjoint(l), he_avg.lhs)) for l in he_comp.lhs)
 
 
 p = [κ, g, Δc, Γ2, Γ3, Δ2, Δ3, Ω2, Ω3]
@@ -123,7 +123,7 @@ steady_vals = ComplexF64[]
 avg_exprs = Qumulants._to_expression.(he_avg.lhs)
 for m in missing_avgs
     m_ex = Qumulants._to_expression(m)
-    m_adj_ex = Qumulants._to_expression(Qumulants.get_adjoint(m))
+    m_adj_ex = Qumulants._to_expression(Qumulants._adjoint(m))
     i = findfirst(isequal(m_ex), avg_exprs)
     j = findfirst(isequal(m_adj_ex), avg_exprs)
     if !(i isa Nothing)

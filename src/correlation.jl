@@ -78,7 +78,7 @@ function initial_values(c::CorrelationFunction, u_end)
     u0 = complex(eltype(u_end))[]
     lhs0 = c.de0.lhs
     for l in lhs
-        l_adj = get_adjoint(l)
+        l_adj = _adjoint(l)
         if _in(l, lhs0)
             i = findfirst(isequal(l), lhs0)
             push!(u0, u_end[i])
@@ -210,14 +210,14 @@ function build_ode(c::CorrelationFunction, ps=[], args...; kwargs...)
     if c.steady_state
         steady_vals = c.de0.lhs
         avg = average(c.op2_0)
-        avg_adj = get_adjoint(avg)
+        avg_adj = _adjoint(avg)
         if _in(avg, steady_vals)
             idx = findfirst(isequal(avg), steady_vals)
             subs = Dict(average(c.op2) => steady_vals[idx])
             de = substitute(c.de, subs)
         elseif _in(avg_adj, steady_vals)
             idx = findfirst(isequal(avg_adj), steady_vals)
-            subs = Dict(average(c.op2) => get_adjoint(steady_vals[idx]))
+            subs = Dict(average(c.op2) => _adjoint(steady_vals[idx]))
             de = substitute(c.de, subs)
         else
             de = c.de
@@ -323,7 +323,7 @@ function _complete_corr(de,aon0,lhs_new,order,steady_state; mix_choice=maximum, 
         end
         # return !steady_state
         if steady_state # Include terms without t0-dependence only if the system is not in steady state
-            return !(_in(x, lhs_new) || _in(get_adjoint(x), lhs_new))
+            return !(_in(x, lhs_new) || _in(_adjoint(x), lhs_new))
         else
             return true
         end
@@ -381,7 +381,7 @@ function _build_spec_func(lhs, rhs, a1, a0, steady_vals, ps=[]; psym=:p, wsym=:Ï
     # Replace steady-state values
     if !isempty(steady_vals)
         ss_ = _to_expression.(steady_vals)
-        ss_adj = _to_expression.(get_adjoint.(steady_vals))
+        ss_adj = _to_expression.(_adjoint.(steady_vals))
         ssyms = [:($usteady[$i]) for i=1:length(steady_vals)]
         _pw = function(x)
             if x in ss_
@@ -400,7 +400,7 @@ function _build_spec_func(lhs, rhs, a1, a0, steady_vals, ps=[]; psym=:p, wsym=:Ï
         a0_ex = _to_expression(average(a0))
         avg1 = average(a1)
         a1_ex = _to_expression(avg1)
-        a1_ex_adj = _to_expression(get_adjoint(avg1))
+        a1_ex_adj = _to_expression(_adjoint(avg1))
         _pw2 = function(x)
             if x == a0_ex
                 i = findfirst(isequal(a1_ex), ss_)

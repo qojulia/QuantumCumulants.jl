@@ -91,7 +91,6 @@ let
     global default_operator_simplifier
     global default_expand_simplifier
     global noncommutative_simplifier
-    global conj_rewriter
 
     function default_operator_simplifier(; kwargs...)
         SymbolicUtils.IfElse(
@@ -100,24 +99,14 @@ let
         )
     end
 
-    # For whatever reason, making this global fixes an "Unreachable reached" error
-    # on Julia 1.5; should be removed at some point
-    global _conj_rewriter
-    _conj_rewriter() = SymbolicUtils.Chain(CONJ_RULES)
-
     function number_simplifier(;kwargs...)
-        rule_tree = [SymbolicUtils.If(SymbolicUtils.is_operation(conj), _conj_rewriter()),
+        rule_tree = [SymbolicUtils.If(SymbolicUtils.is_operation(conj),
+                                        SymbolicUtils.Chain(CONJ_RULES)
+                                      ),
                     SymbolicUtils.default_simplifier(;kwargs...)
                     ] |> SymbolicUtils.Chain
         return SymbolicUtils.Postwalk(rule_tree)
     end
-
-    function conj_rewriter()
-        rw = [SymbolicUtils.If(SymbolicUtils.is_operation(conj), SymbolicUtils.Chain(CONJ_RULES))
-            ] |> SymbolicUtils.Chain
-        return SymbolicUtils.Fixpoint(SymbolicUtils.Postwalk(rw))
-    end
-
 
     function operator_simplifier()
         rw_comms = commutator_simplifier()

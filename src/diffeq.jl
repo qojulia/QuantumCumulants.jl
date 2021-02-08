@@ -25,7 +25,7 @@ function build_ode(rhs::Vector, vs::Vector, ps=[], usym=:u, psym=:p, tsym=:t;
                     check_bounds::Bool=true)
     @assert length(rhs) == length(vs)
 
-    vs_adj_ = get_conj(vs)
+    vs_adj_ = map(_conj, vs)
 
     # Check if there are unknown symbols
     missed = find_missing(rhs,vs;vs_adj=vs_adj_,ps=ps)
@@ -59,7 +59,7 @@ function build_ode(rhs::Vector, vs::Vector, ps=[], usym=:u, psym=:p, tsym=:t;
         # Replace averages first
         if !isempty(avg_idx)
             ps_avg_ = map(_to_expression, ps_avg)
-            ps_adj = map(_to_expression, get_conj(ps_avg))
+            ps_adj = map(_to_expression, _conj.(ps_avg))
             _pw_ps_avg = function(x)
                 if x in ps_avg_
                     i = findfirst(isequal(x), ps_avg_)

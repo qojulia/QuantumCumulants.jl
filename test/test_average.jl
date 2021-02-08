@@ -12,7 +12,7 @@ a = Destroy(h,:a)
 
 @test isequal(average(2a), 2*average(a))
 
-@test isequal(Qumulants.conj_rewriter()(conj(average(2im*a'*σ))), (-2im)*average(a*σ'))
+@test isequal(Qumulants._conj(average(2im*a'*σ)), (-2im)*average(a*σ'))
 @test isequal(average(2*(a+a)), 2*(average(a) + average(a)))
 @test isequal(average(a^2), average(a*a))
 @test isequal(average(a^2,1), average(a)^2)

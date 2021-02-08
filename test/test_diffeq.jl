@@ -27,8 +27,7 @@ missed = find_missing(he_exp)
 @test !any(Qumulants._in(p, missed) for p=ps)
 
 # Exploit phase invariance
-subs = Dict(missed .=> 0)
-merge!(subs, Dict(Qumulants.get_conj(missed) .=> 0))
+subs = Dict([missed; Qumulants._conj.(missed)] .=> 0)
 he_nophase = substitute(he_exp, subs)
 @test isempty(find_missing(he_nophase))
 
