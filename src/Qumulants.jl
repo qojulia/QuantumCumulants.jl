@@ -6,7 +6,7 @@ using Combinatorics: partitions, combinations, permutations
 
 export HilbertSpace, ProductSpace, ⊗,
         qsimplify, substitute, expand,
-        QNumber, QSym, QTerm, embed,
+        QNumber, QSym, QTerm, embed, @qnumbers,
         FockSpace, Destroy, Create,
         NLevelSpace, Transition,
         AbstractEquation, HeisenbergEquation,

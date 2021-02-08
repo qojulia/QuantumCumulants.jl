@@ -162,3 +162,46 @@ end
 function Base.copy(t::QTerm)
     return QTerm(t.f, copy.(t.arguments))
 end
+
+"""
+    @qnumbers
+
+Convenience macro for the construction of operators.
+
+Examples
+========
+```
+julia> h = FockSpace(:fock)
+ℋ(fock)
+
+julia> @qnumbers a::Destroy(h)
+(a,)
+
+julia> h = FockSpace(:one) ⊗ FockSpace(:two)
+ℋ(one) ⊗ ℋ(two)
+
+julia> @qnumbers b::Destroy(h,2)
+(b,)
+```
+"""
+macro qnumbers(qs...)
+    ex = Expr(:block)
+    qnames = []
+    for q in qs
+        @assert q isa Expr && q.head==:(::)
+        q_ = q.args[1]
+        @assert q_ isa Symbol
+        push!(qnames, q_)
+        f = q.args[2]
+        @assert f isa Expr && f.head==:call
+        op = _make_operator(q_, f.args...)
+        ex_ = Expr(:(=), esc(q_), op)
+        push!(ex.args, ex_)
+    end
+    push!(ex.args, Expr(:tuple, map(esc, qnames)...))
+    return ex
+end
+function _make_operator(name, T, h, args...)
+    name_ = Expr(:quote, name)
+    return Expr(:call, T, esc(h), name_, args...)
+end

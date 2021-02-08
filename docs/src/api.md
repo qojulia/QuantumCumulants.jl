@@ -37,6 +37,10 @@ QTerm
 ```
 
 ```@docs
+@qnumbers
+```
+
+```@docs
 Destroy
 ```
 
