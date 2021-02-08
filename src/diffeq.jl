@@ -4,7 +4,7 @@ import MacroTools
     build_ode(rhs::Vector, vs::Vector, ps=[], usym=:u,
                 psym=:p, tsym=:t; set_unknowns_zero::Bool=false, check_bounds::Bool=false)
 
-From a set of equations contained in `eqs`, generate a `Meta.Expr` containing the
+From a set of equations for `vs` contained in `rhs`, generate a `Meta.Expr` containing the
 code for a function which can be directly passed to `OrdinaryDiffEq` in order to solve
 it. The variable vector `u` corresponds to the symbols provided in `vs`.
 

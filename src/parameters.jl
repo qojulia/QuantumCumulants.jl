@@ -1,8 +1,7 @@
 """
     CNumber <: Number
 
-Abstract type for all symbolic numbers, i.e. [`Parameter`](@ref), [`AvgSym`](@ref)
-and corresponding expression trees.
+Abstract type for all symbolic numbers, i.e. [`Parameter`](@ref), [`average`](@ref).
 """
 abstract type CNumber <: Number end
 

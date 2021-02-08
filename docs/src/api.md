@@ -104,10 +104,6 @@ expand
 ## [Average](@id API: Average)
 
 ```@docs
-Average
-```
-
-```@docs
 average
 ```
 

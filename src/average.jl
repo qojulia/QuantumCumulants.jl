@@ -114,7 +114,7 @@ average(arg,order;kwargs...) = cumulant_expansion(average(arg),order;kwargs...)
 """
     cumulant_expansion(avg, order::Int)
 
-For an [`AvgSym`](@ref) of an operator, expand it in terms
+For an [`average`](@ref) of an operator, expand it in terms
 of moments up to `order` neglecting their joint cumulant.
 
 See also: https://en.wikipedia.org/wiki/Cumulant#Joint_cumulants
