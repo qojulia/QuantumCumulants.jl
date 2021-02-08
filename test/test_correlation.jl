@@ -12,11 +12,11 @@ a = Destroy(h,:a)
 σ = Transition(h,:σ,:g,:e)
 
 # Single-atom laser
-@parameters Δ g κ γ ν
+@cnumbers Δ g κ γ ν
 
 H = Δ*a'*a + g*(a'*σ + σ'*a)
 J = [a,σ,σ']
-he_laser = heisenberg([a'*a,σ'*σ,a*σ'],H,J;rates=[κ,γ,ν],multithread=true)
+he_laser = heisenberg([a'*a,σ'*σ,a*σ'],H,J;rates=[κ,γ,ν],multithread=true,simplify_input=true)
 
 he_avg = average(he_laser,2;multithread=true)
 he_comp = complete(he_avg)
@@ -31,7 +31,7 @@ u0 = zeros(ComplexF64,length(he_comp))
 tmax = 10.0
 
 prob = ODEProblem(f,u0,(0.0,tmax),p0)
-sol = solve(prob,RK4());
+sol = solve(prob,RK4())
 n = getindex.(sol.u,1)
 pe = getindex.(sol.u,2)
 
@@ -76,7 +76,8 @@ S_check = abs.(S2 ./ maximum(S2) .- S1_)
 
 # Phase invariant case
 has_phase(x) = !iszero(phase(x))
-phase(avg::Average) = phase(avg.operator)
+import SymbolicUtils
+phase(avg::Average) = phase(avg.arguments[1])
 phase(op::Destroy) = -1
 phase(op::Create) = 1
 function phase(t::Transition)
@@ -91,7 +92,7 @@ function phase(t::Transition)
         0
     end
 end
-phase(op::OperatorTerm{<:typeof(*)}) = sum(phase(arg) for arg in op.arguments)
+phase(op::QTerm{<:typeof(*)}) = sum(phase(arg) for arg in op.arguments)
 c_nophase = CorrelationFunction(a', a, he_avg; steady_state=true, filter_func=!has_phase)
 
 S_nophase = Spectrum(c_nophase, ps)
@@ -102,7 +103,7 @@ S3 = S_nophase(ω,usteady,p0)
 # When not in steady state -- cavity that decays
 h = FockSpace(:fock)
 a = Destroy(h,:a)
-@parameters ωc κ
+@cnumbers ωc κ
 H = ωc*a'*a
 he = heisenberg(a'*a,H,[a];rates=[κ])
 he_avg = average(he)

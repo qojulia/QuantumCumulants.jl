@@ -1,50 +1,5 @@
-### Conversion to SymbolicUtils
-
-_to_symbolic(t::T) where T<:OperatorTerm = SymbolicUtils.Term{AbstractOperator}(t.f, _to_symbolic.(t.arguments))
-_to_symbolic(x::Number) = x
-_to_symbolic(x::SymbolicUtils.Symbolic) = x
-_to_symbolic(op::BasicOperator) = OPERATORS_TO_SYMS[op]
-_to_symbolic(x::Nothing) = x # can be return from simplification
-
-_to_qumulants(t::SymbolicUtils.Sym{T}) where T<:BasicOperator = SYMS_TO_OPERATORS[t]
-function _to_qumulants(t::SymbolicUtils.Term{T}) where T<:AbstractOperator
-    return OperatorTerm(t.f, _to_qumulants.(t.arguments))
-end
-_to_qumulants(x::Number) = x
-
-for f in [:acts_on, :hilbert, :levels]
-    @eval $f(s::SymbolicUtils.Sym{<:BasicOperator}, args...) = $f(_to_qumulants(s), args...)
-end
-
-# Symbolic type promotion
-SymbolicUtils.promote_symtype(f, Ts::Type{<:AbstractOperator}...) = promote_type(AbstractOperator,Ts...)
-SymbolicUtils.promote_symtype(f, T::Type{<:AbstractOperator}, Ts...) = promote_type(AbstractOperator,T)
-for f in [+,-,*,/,^]
-    @eval SymbolicUtils.promote_symtype(::$(typeof(f)),
-                   T::Type{<:AbstractOperator},
-                   S::Type{<:Number}) = AbstractOperator
-    @eval SymbolicUtils.promote_symtype(::$(typeof(f)),
-                   T::Type{<:Number},
-                   S::Type{<:AbstractOperator}) = AbstractOperator
-    @eval SymbolicUtils.promote_symtype(::$(typeof(f)),
-                   T::Type{<:AbstractOperator},
-                   S::Type{<:AbstractOperator}) = AbstractOperator#promote_type(T,S)
-end
-
-SymbolicUtils.@number_methods(SymbolicUtils.Sym{<:AbstractOperator}, SymbolicUtils.term(f, a), SymbolicUtils.term(f, a, b))
-SymbolicUtils.@number_methods(SymbolicUtils.Term{<:AbstractOperator}, SymbolicUtils.term(f, a), SymbolicUtils.term(f, a, b))
-
-Base.one(x::SymbolicUtils.Symbolic{T}) where T<:AbstractOperator = 1
-Base.zero(x::SymbolicUtils.Symbolic{T}) where T<:AbstractOperator = 0
-Base.one(x::SymbolicUtils.Sym{SymbolicUtils.FnType{A,T}}) where {A,T<:AbstractOperator} = 1
-Base.zero(x::SymbolicUtils.Sym{SymbolicUtils.FnType{A,T}}) where {A,T<:AbstractOperator} = 0
-
-SymbolicUtils.islike(::SymbolicUtils.Symbolic{<:AbstractOperator}, ::Type{<:Number}) = true
-
-### End of interface
-
 """
-    simplify_operators(op::AbstractOperator; rewriter=default_operator_simplifier(), kwargs...)
+    qsimplify(op::QNumber; rewriter=default_operator_simplifier(), kwargs...)
 
 Simplify an operator through standard algebraic rewriting, as well as using
 fundamental commutation relations.
@@ -55,17 +10,40 @@ fundamental commutation relations.
 * rewriter: The rewriter used.
 * kwargs: Further arguments passed to `SymbolicUtils.simplify`.
 """
-function simplify_operators(op::AbstractOperator; rewriter=default_operator_simplifier(),
-                kwargs...)
-    s = _to_symbolic(op)
-    s_ = SymbolicUtils.simplify(s; rewriter=rewriter, kwargs...)
-    (SymbolicUtils.symtype(s_) == Any) && @warn "SymbolicUtils.simplify returned symtype Any; recursion failed!"
-    return _to_qumulants(s_)
+function qsimplify(x;
+                  polynorm=false,
+                  threaded=false,
+                  thread_subtree_cutoff=100,
+                  rewriter=nothing)
+    f = if rewriter === nothing
+        if threaded
+            if SymbolicUtils.symtype(x) <: QNumber
+                threaded_q_simplifier(thread_subtree_cutoff)
+            else
+                threaded_c_simplifier(thread_subtree_cutoff)
+            end
+        elseif polynorm
+            if SymbolicUtils.symtype(x) <: QNumber
+                error("Cannot use `polynormalize` on `QNumber`!")
+            else
+                serial_c_polynorm
+            end
+        else
+            if SymbolicUtils.symtype(x) <: QNumber
+                serial_q_simplifier
+            else
+                serial_c_simplifier
+            end
+        end
+    else
+        SymbolicUtils.Fixpoint(rewriter)
+    end
+
+    SymbolicUtils.PassThrough(f)(x)
 end
-simplify_operators(x::Number, args...; kwargs...) = x
 
 """
-    expand(ex; rewriter=defualt_expand_simplifier(), kwargs...)
+    expand(ex; rewriter=default_expand_simplifier(), kwargs...)
 
 Simple wrapper around `SymbolicUtils.simplify` that uses a rewriter such
 that expressions are expanded.
@@ -79,7 +57,7 @@ that expressions are expanded.
 Examples
 ========
 ```
-julia> @parameters p q r
+julia> @cnumbers p q r
 (p, q, r)
 
 julia> ex = p*(q+r) + (q+p)*(r+q)
@@ -89,62 +67,34 @@ julia> expand(ex)
 ((p*q)+(p*r)+(q*r)+(p*r)+(q*q)+(p*q))
 ```
 """
-function expand(ex; rewriter=default_expand_simplifier(), kwargs...)
-    s = _to_symbolic(ex)
-    s_ = SymbolicUtils.simplify(s; rewriter=rewriter, kwargs...)
-    return _to_qumulants(s_)
-end
-
-"""
-    substitute(arg, subs; simplify=true)
-
-Substitute the symbolic argument, i.e. any subtype to [`AbstractOperator`](@ref)
-or [`SymbolicNumber`](@ref) according to the substitutions stored in a `Dict`.
-Also works on [`DifferentialEquation`](@ref). If `simplify=true`, the output
-is simplified.
-
-Examples
-=======
-```
-julia> @parameters p
-(p,)
-
-julia> substitute(p, Dict(p=>2))
-2
-```
-"""
-function substitute(op::BasicOperator, dict; kwargs...)
-    op_ = get(dict, op, nothing)
-    if !isnothing(op_)
-        check_hilbert(op_, op)
-        return op_
-    end
-    _op = get(dict, op', nothing)
-    if !isnothing(_op)
-        check_hilbert(_op, op)
-        return _op'
-    end
-    return op
-end
-function substitute(t::OperatorTerm, dict; simplify=true, kwargs...)
-    v = get(dict, t, nothing)
-    isnothing(v) || return v
-    v_ = get(dict, adjoint(t), nothing)
-    isnothing(v_) || return adjoint(v_)
-    args = [substitute(arg, dict; simplify=simplify) for arg in t.arguments]
-    if simplify
-        return simplify_operators(t.f(args...), kwargs...)
+function expand(x;
+                polynorm=false,
+                threaded=false,
+                thread_subtree_cutoff=100,
+                rewriter=nothing)
+    f = if rewriter === nothing
+        if threaded
+            threaded_expand_simplifier(thread_subtree_cutoff)
+        elseif polynorm
+            if SymbolicUtils.symtype(x) <: QNumber
+                error("Cannot use `polynormalize` on `QNumber`!")
+            else
+                serial_expand_polynorm
+            end
+        else
+            serial_expand_simplifier
+        end
     else
-        return t.f(args...)
+        SymbolicUtils.Fixpoint(rewriter)
     end
+
+    SymbolicUtils.PassThrough(f)(x)
 end
-substitute(x::Number, dict; kwargs...) = x
 
 ### Functions needed for simplification
 
 # Handle noncommutative multiplication
-iscommutative(::AbstractOperator) = false
-iscommutative(::SymbolicUtils.Symbolic{<:AbstractOperator}) = false
+iscommutative(::QNumber) = false
 iscommutative(::Union{SymbolicUtils.Symbolic{T},T}) where {T<:Number} = true
 
 needs_sorting_nc(x) = (x.f === (*)) && !issorted_nc(x)
@@ -174,17 +124,6 @@ function lt_aon(t1,t2)
     else
         return maximum(aon1)<maximum(aon2)
     end
-end
-
-function acts_on(t::SymbolicUtils.Term{T}) where T<:AbstractOperator
-    ops = filter(isoperator, t.arguments)
-    aon = Int[]
-    for op in ops
-        append!(aon, acts_on(op))
-    end
-    unique!(aon)
-    sort!(aon)
-    return aon
 end
 
 using SymbolicUtils: <ₑ

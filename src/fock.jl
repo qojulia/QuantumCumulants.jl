@@ -10,47 +10,35 @@ end
 Base.:(==)(h1::T,h2::T) where T<:FockSpace = (h1.name==h2.name)
 
 """
-    Destroy <: BasicOperator
+    Destroy <: QSym
 
 Bosonic operator on a [`FockSpace`](@ref) representing the quantum harmonic
 oscillator annihilation operator.
 """
-struct Destroy{H<:HilbertSpace,S,A} <: BasicOperator
+struct Destroy{H<:HilbertSpace,S,A} <: QSym
     hilbert::H
     name::S
     aon::A
     function Destroy{H,S,A}(hilbert::H,name::S,aon::A) where {H,S,A}
         @assert has_hilbert(FockSpace,hilbert,aon)
-        op = new(hilbert,name,aon)
-        if !haskey(OPERATORS_TO_SYMS, op)
-            sym = SymbolicUtils.Sym{Destroy}(gensym(:Destroy))
-            OPERATORS_TO_SYMS[op] = sym
-            SYMS_TO_OPERATORS[sym] = op
-        end
-        return op
+        new(hilbert,name,aon)
     end
 end
 isdestroy(a::SymbolicUtils.Sym{T}) where {T<:Destroy} = true
 
 """
-    Create <: BasicOperator
+    Create <: QSym
 
 Bosonic operator on a [`FockSpace`](@ref) representing the quantum harmonic
 oscillator creation operator.
 """
-struct Create{H<:HilbertSpace,S,A} <: BasicOperator
+struct Create{H<:HilbertSpace,S,A} <: QSym
     hilbert::H
     name::S
     aon::A
     function Create{H,S,A}(hilbert::H,name::S,aon::A) where {H,S,A}
         @assert has_hilbert(FockSpace,hilbert,aon)
-        op = new(hilbert,name,aon)
-        if !haskey(OPERATORS_TO_SYMS, op)
-            sym = SymbolicUtils.Sym{Create}(gensym(:Create))
-            OPERATORS_TO_SYMS[op] = sym
-            SYMS_TO_OPERATORS[sym] = op
-        end
-        return op
+        new(hilbert,name,aon)
     end
 end
 iscreate(a::SymbolicUtils.Sym{T}) where {T<:Create} = true

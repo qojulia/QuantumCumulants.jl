@@ -1,17 +1,17 @@
 module Qumulants
 
 import SymbolicUtils
+import SymbolicUtils: substitute
 using Combinatorics: partitions, combinations, permutations
 
 export HilbertSpace, ProductSpace, ⊗,
-        simplify_operators, substitute, expand,
-        AbstractOperator, BasicOperator, OperatorTerm, embed,
+        qsimplify, substitute, expand,
+        QNumber, QSym, QTerm, embed,
         FockSpace, Destroy, Create,
         NLevelSpace, Transition,
-        AbstractEquation, DifferentialEquation,
+        AbstractEquation, HeisenbergEquation,
         heisenberg, commutator, acts_on,
-        SymbolicNumber, NumberTerm, Parameter, @parameters, parameters,
-                simplify_constants,
+        CNumber, Parameter, @cnumbers, cnumbers,
         Average, average, cumulant_expansion, get_order, cumulant,
         find_missing, complete, find_operators, fundamental_operators,
             unique_ops, get_symbolics, get_operators, get_solution,
@@ -20,15 +20,15 @@ export HilbertSpace, ProductSpace, ⊗,
         transition_superscript
 
 include("hilbertspace.jl")
-include("operator.jl")
+include("qnumber.jl")
+include("cnumber.jl")
 include("fock.jl")
 include("nlevel.jl")
 include("simplify.jl")
-include("rules.jl")
 include("equations.jl")
 include("heisenberg.jl")
-include("parameters.jl")
 include("average.jl")
+include("rules.jl")
 include("utils.jl")
 include("diffeq.jl")
 include("correlation.jl")

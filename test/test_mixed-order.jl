@@ -12,16 +12,16 @@ h = hf⊗ha
 a = Destroy(h,:a,1)
 σ(i,j) = Transition(h,:σ,i,j)
 
-@test average(a'*a, [2,1]) == average(a'*a)
-@test average(a'*σ(1,2), [2,1]; mix_choice=minimum) == average(a')*average(σ(1,2))
+@test isequal(average(a'*a, [2,1]), average(a'*a))
+@test isequal(average(a'*σ(1,2), [2,1]; mix_choice=minimum), average(a')*average(σ(1,2)))
 
 he = heisenberg([a'*a,σ(2,2)],a'*a + σ(2,2) + a'*σ(1,2) + a*σ(2,1))
 he_avg1 = average(he,2)
 he_avg2 = average(he,[2,1])
 he_avg3 = average(he,[2,1];mix_choice=minimum)
 
-@test he_avg1 == he_avg2
-@test he_avg1 != he_avg3
+@test isequal(he_avg1, he_avg2)
+@test !isequal(he_avg1, he_avg3)
 
 he = heisenberg(a'*σ(1,2), a'*a + σ(2,2) + a*σ(2,1))
 @test_throws ErrorException average(he,[2,1];mix_choice=minimum)
@@ -29,7 +29,7 @@ he = heisenberg(a'*σ(1,2), a'*a + σ(2,2) + a*σ(2,1))
 # N-atom laser
 # Parameters
 N = 2 #number of atoms
-κ, g, Γ23, Γ13, Γ12, Ω, Δc, Δ3 = parameters("κ g Γ_{23} Γ_{13} Γ_{12} Ω Δ_c Δ_3")
+κ, g, Γ23, Γ13, Γ12, Ω, Δc, Δ3 = cnumbers("κ g Γ_{23} Γ_{13} Γ_{12} Ω Δ_c Δ_3")
 
 # Hilbertspace
 hf = FockSpace(:cavity)
@@ -57,13 +57,13 @@ he_avg_ = average(he,[2,1,1]) #second order average
 
 he_avg = complete(he_avg_;order=[2,1,1])
 @test isempty(find_missing(he_avg))
-@test isempty(findall(x -> (aon = acts_on(x.operator); 2 in aon && 3 in aon), he_avg.lhs))
+@test isempty(findall(x -> (aon = acts_on(x); 2 in aon && 3 in aon), he_avg.lhs))
 
 he_avg_ = average(he,[2,1,1];mix_choice=minimum)
 he_avg = complete(he_avg_;order=[2,1,1],mix_choice=minimum)
 @test isempty(find_missing(he_avg))
-@test isempty(findall(x -> (aon = acts_on(x.operator); 2 in aon && 3 in aon), he_avg.lhs))
-@test isempty(findall(x -> (aon = acts_on(x.operator); 1 in aon && 3 in aon), he_avg.lhs))
-@test isempty(findall(x -> (aon = acts_on(x.operator); 1 in aon && 2 in aon), he_avg.lhs))
+@test isempty(findall(x -> (aon = acts_on(x); 2 in aon && 3 in aon), he_avg.lhs))
+@test isempty(findall(x -> (aon = acts_on(x); 1 in aon && 3 in aon), he_avg.lhs))
+@test isempty(findall(x -> (aon = acts_on(x); 1 in aon && 2 in aon), he_avg.lhs))
 
 end # testset

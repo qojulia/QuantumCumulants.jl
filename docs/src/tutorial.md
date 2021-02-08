@@ -10,7 +10,7 @@ set_default(double_linebreak=true) # hide
 using Qumulants
 
 # Define parameters
-@parameters Δ g γ κ ν
+@cnumbers Δ g γ κ ν
 
 # Define hilbert space
 hf = FockSpace(:cavity)
@@ -55,7 +55,7 @@ missed = find_missing(he_avg)
 
 # Substitute them as zero
 subs = Dict(missed .=> 0)
-he_nophase = simplify_constants(substitute(he_avg, subs))
+he_nophase = qsimplify(substitute(he_avg, subs))
 ```
 
 Finally, we can generate Julia code from the above set of equations which can be solved directly using the [OrdinaryDiffEq](https://github.com/JuliaDiffEq/OrdinaryDiffEq.jl).

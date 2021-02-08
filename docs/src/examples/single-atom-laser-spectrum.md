@@ -15,7 +15,7 @@ using OrdinaryDiffEq
 using Plots
 
 # Define parameters
-@parameters Δ g γ κ ν
+@cnumbers Δ g γ κ ν
 
 # Define hilbert space
 hf = FockSpace(:cavity)
@@ -48,7 +48,7 @@ The remaining equations will be computed automatically using the [`complete`](@r
 
 
 ```@example single-atom-laser-spectrum
-# Custom filter function -- include only phase-invaraint terms
+# Custom filter function -- include only phase-invariant terms
 ϕ(x) = 0
 ϕ(::Destroy) = -1
 ϕ(::Create) = 1
@@ -61,8 +61,8 @@ function ϕ(t::Transition)
         0
     end
 end
-ϕ(avg::Average) = ϕ(avg.operator)
-function ϕ(t::OperatorTerm)
+ϕ(avg::Average) = ϕ(avg.arguments[1])
+function ϕ(t::QTerm)
     @assert t.f === (*)
     p = 0
     for arg in t.arguments
@@ -119,7 +119,7 @@ sol = solve(prob,RK4())
 nothing # hide
 ```
 
-Now, we can compute the time evolution of the correlation function in a similar way. initial_valses!!!!
+Now, we can compute the time evolution of the correlation function in a similar way. Since the initial state of this system does not necessarily depend on all steady-state values, we can use the [`initial_values`](@ref) function which automatically generates the correct initial state vector required.
 
 
 ```@example single-atom-laser-spectrum

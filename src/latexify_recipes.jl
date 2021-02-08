@@ -38,7 +38,7 @@ function _postwalk_func(x)
 end
 
 function _postwalk_average(x)
-    if MacroTools.@capture(x, AVERAGE(arg_))
+    if MacroTools.@capture(x, average(arg_))
         arg = MacroTools.postwalk(_postwalk_func, arg)
         # TODO: clean up; tricky because of nested string conversion of eg average(dagger(a))
         s = string(arg)
@@ -79,7 +79,7 @@ function _latexify(lhs_::Vector, rhs_::Vector)
 end
 _latexify(lhs,rhs) = _latexify([lhs],[rhs])
 
-@latexrecipe function f(op::AbstractOperator)
+@latexrecipe function f(op::QNumber)
     # Options
     cdot --> false
 
@@ -90,7 +90,7 @@ _latexify(lhs,rhs) = _latexify([lhs],[rhs])
     return ex
 end
 
-@latexrecipe function f(s::SymbolicNumber)
+@latexrecipe function f(s::SymbolicUtils.Symbolic{<:CNumber})
     # Options
     cdot --> false
 

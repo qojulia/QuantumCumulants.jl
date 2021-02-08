@@ -24,7 +24,7 @@ h = NLevelSpace(:atom, (:g,:e))
 
 # Operators
 σ(i,j) = Transition(h, :σ, i, j)
-@parameters Δ Ω γ
+@cnumbers Δ Ω γ
 H = Δ*σ(:e,:e) + Ω*(σ(:g,:e) + σ(:e,:g))
 J = [σ(:g,:e)]
 

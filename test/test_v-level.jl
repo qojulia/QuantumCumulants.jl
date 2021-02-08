@@ -10,8 +10,8 @@ ha = NLevelSpace(:atom, 3)
 h = hf⊗ha
 
 # Parameters
-@parameters κ g
-Δc, Γ2, Γ3, Δ2, Δ3, Ω2, Ω3 = parameters("Δ_c Γ_2 Γ_3 Δ_2 Δ_3 Ω_2 Ω_3")
+@cnumbers κ g
+Δc, Γ2, Γ3, Δ2, Δ3, Ω2, Ω3 = cnumbers("Δ_c Γ_2 Γ_3 Δ_2 Δ_3 Ω_2 Ω_3")
 
 # Operators
 a = Destroy(h,:a)
@@ -39,12 +39,13 @@ he_comp = complete(hn_avg)
 # Compare to finding operators from start
 ops = find_operators(h,2)
 
-@test length(ops)==length(he_comp.lhs)
+@test length(ops)==length(he_comp.lhs)==16
 he = heisenberg(ops,H,J;rates=rates)
 he_avg = average(he,2)
 
-@test all((l in he_comp.lhs || l' in he_comp.lhs) for l in he_avg.lhs)
-@test all((l in he_comp.lhs || l' in he_avg.lhs) for l in he_comp.lhs)
+# @test all((Qumulants._in(l, he_comp.lhs) || l' in he_comp.lhs) for l in he_avg.lhs)
+@test all((Qumulants._in(l, he_comp.lhs) || Qumulants._in(Qumulants._adjoint(l), he_comp.lhs) for l in he_avg.lhs))
+@test all((Qumulants._in(l, he_comp.lhs) || Qumulants._in(Qumulants._adjoint(l), he_avg.lhs)) for l in he_comp.lhs)
 
 
 p = [κ, g, Δc, Γ2, Γ3, Δ2, Δ3, Ω2, Ω3]
@@ -78,8 +79,8 @@ avg = average(a'*σ(2,1))
 hfilter = FockSpace(:filter)
 h_tot = h⊗hfilter
 
-# New parameters
-ωf, κf, gf = parameters("ω_f κ_f g_f")
+# New cnumbers
+ωf, κf, gf = cnumbers("ω_f κ_f g_f")
 
 # Operators
 c = Destroy(h_tot,:c, 3)
@@ -103,26 +104,27 @@ he_f = heisenberg(ops_f,Hf,Jf;rates=rates_f)
 he_f_avg = average(he_f,2)
 
 # Find missing averages and them as parameter
-missing_avgs = filter(x->isa(x,Average), find_missing(he_f_avg));
+import SymbolicUtils
+missing_avgs = filter(SymbolicUtils.sym_isa(Average), find_missing(he_f_avg))
 
-# Gather all new parameters
+# Gather all new cnumbers
 pf = [ωf; gf; κf; missing_avgs; p]
 
 # Generate function for the filter cavities
 meta_ff = build_ode(he_f_avg,pf);
 
-# Filter cavity parameters
+# Filter cavity cnumbers
 ωfn = 0.0
 κfn = 0.05κn
 gfn = 0.1κfn
 tf = 5/Γ2n
 
-# Numerical parameters - get steady state values
+# Numerical cnumbers - get steady state values
 steady_vals = ComplexF64[]
 avg_exprs = Qumulants._to_expression.(he_avg.lhs)
 for m in missing_avgs
     m_ex = Qumulants._to_expression(m)
-    m_adj_ex = Qumulants._to_expression(m')
+    m_adj_ex = Qumulants._to_expression(Qumulants._adjoint(m))
     i = findfirst(isequal(m_ex), avg_exprs)
     j = findfirst(isequal(m_adj_ex), avg_exprs)
     if !(i isa Nothing)

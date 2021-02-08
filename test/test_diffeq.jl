@@ -12,22 +12,22 @@ a = Destroy(h,:a)
 σ = Transition(h,:σ,:g,:e)
 
 # Single-atom laser
-@parameters Δ g κ γ ν
+@cnumbers Δ g κ γ ν
 
 H = Δ*a'*a + g*(a'*σ + σ'*a)
 J = [a,σ,σ']
-he_laser = heisenberg([a'*a,σ'*σ,a*σ'],H,J;rates=[κ,γ,ν],multithread=true)
+he_laser = heisenberg([a'*a,σ'*σ,a*σ'],H,J;rates=[κ,γ,ν],multithread=true,simplify_input=true)
 
 he_avg = average(he_laser;multithread=true)
 he_exp = cumulant_expansion(he_avg,2;multithread=true)
-@test he_exp == average(he_laser,2)
+@test isequal(he_exp, average(he_laser,2))
 
 ps = [Δ,g,κ,γ,ν]
 missed = find_missing(he_exp)
-@test !any(p in missed for p=ps)
+@test !any(Qumulants._in(p, missed) for p=ps)
 
 # Exploit phase invariance
-subs = Dict(missed .=> 0)
+subs = Dict([missed; Qumulants._conj.(missed)] .=> 0)
 he_nophase = substitute(he_exp, subs)
 @test isempty(find_missing(he_nophase))
 

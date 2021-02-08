@@ -4,7 +4,7 @@ import MacroTools
     build_ode(rhs::Vector, vs::Vector, ps=[], usym=:u,
                 psym=:p, tsym=:t; set_unknowns_zero::Bool=false, check_bounds::Bool=false)
 
-From a set of equations contained in `eqs`, generate a `Meta.Expr` containing the
+From a set of equations for `vs` contained in `rhs`, generate a `Meta.Expr` containing the
 code for a function which can be directly passed to `OrdinaryDiffEq` in order to solve
 it. The variable vector `u` corresponds to the symbols provided in `vs`.
 
@@ -18,14 +18,14 @@ it. The variable vector `u` corresponds to the symbols provided in `vs`.
 *`tsym=:t`: The symbol used for the time parameter.
 
 # Optional arguments
-*`check_bounds::Bool=false`: Choose whether the resulting function should contain
+*`check_bounds::Bool=true`: Choose whether the resulting function should contain
     the `@inbounds` flag, which skips bounds checking for performance.
 """
 function build_ode(rhs::Vector, vs::Vector, ps=[], usym=:u, psym=:p, tsym=:t;
-                    check_bounds::Bool=false)
+                    check_bounds::Bool=true)
     @assert length(rhs) == length(vs)
 
-    vs_adj_ = adjoint.(vs)
+    vs_adj_ = map(_conj, vs)
 
     # Check if there are unknown symbols
     missed = find_missing(rhs,vs;vs_adj=vs_adj_,ps=ps)
@@ -35,9 +35,9 @@ function build_ode(rhs::Vector, vs::Vector, ps=[], usym=:u, psym=:p, tsym=:t;
     us = [:($usym[$i]) for i=1:length(vs)]
     dus = [:($dusym[$i]) for i=1:length(vs)]
 
-    vs_ = _to_expression.(vs)
-    vs_adj = _to_expression.(vs_adj_)
-    rhs_ = _to_expression.(rhs)
+    vs_ = map(_to_expression, vs)
+    vs_adj = map(_to_expression, vs_adj_)
+    rhs_ = map(_to_expression, rhs)
     function _pw_func(x)
         if x in vs_
             i = findfirst(isequal(x),vs_)
@@ -52,14 +52,14 @@ function build_ode(rhs::Vector, vs::Vector, ps=[], usym=:u, psym=:p, tsym=:t;
     rhs_ = [MacroTools.postwalk(_pw_func, r) for r in rhs_]
 
     if !isempty(ps)
-        avg_idx = findall(x -> x isa Average, ps)
+        avg_idx = findall(SymbolicUtils.sym_isa(AvgSym), ps)
         ps_avg = ps[avg_idx]
         psyms = [:($psym[$i]) for i=1:length(ps)]
 
         # Replace averages first
         if !isempty(avg_idx)
-            ps_avg_ = _to_expression.(ps_avg)
-            ps_adj = _to_expression.(adjoint.(ps_avg))
+            ps_avg_ = map(_to_expression, ps_avg)
+            ps_adj = map(_to_expression, _conj.(ps_avg))
             _pw_ps_avg = function(x)
                 if x in ps_avg_
                     i = findfirst(isequal(x), ps_avg_)
@@ -75,7 +75,7 @@ function build_ode(rhs::Vector, vs::Vector, ps=[], usym=:u, psym=:p, tsym=:t;
         end
 
         # Replace remaining parameters
-        ps_ = _to_expression.(ps)
+        ps_ = map(_to_expression, ps)
         _pw_ps = function(x)
             if x in ps_
                 i = findfirst(isequal(x), ps_)
@@ -115,7 +115,7 @@ function build_ode(rhs::Vector, vs::Vector, ps=[], usym=:u, psym=:p, tsym=:t;
 end
 
 """
-    build_ode(eqs::DifferentialEquation, ps=[], usym=:u,
+    build_ode(eqs::HeisenbergEquation, ps=[], usym=:u,
                 psym=:p, tsym=:t; set_unknowns_zero::Bool=false, check_bounds::Bool=false)
 
 From a set of differential equations`eqs` of averages, generate a `Meta.Expr`
@@ -123,7 +123,7 @@ containing the code for a function which can be directly passed to `OrdinaryDiff
 in order to solve it.
 
 # Arguments
-*`eqs::DifferentialEquation`: The set of (average) equations.
+*`eqs::HeisenbergEquation`: The set of (average) equations.
 *`ps=[]`: List of symbolic parameters, which are parsed into parameters
     used in DiffEq functions.
 *`usym=:u`: The symbol used for the variable vector.
@@ -134,10 +134,10 @@ in order to solve it.
 *`check_bounds::Bool=false`: Choose whether the resulting function should contain
     the `@inbounds` flag, which skips bounds checking for performance.
 """
-build_ode(eqs::DifferentialEquation, args...; kwargs...) = build_ode(eqs.rhs,eqs.lhs,args...;kwargs...)
+build_ode(eqs::HeisenbergEquation, args...; kwargs...) = build_ode(eqs.rhs,eqs.lhs,args...;kwargs...)
 
 """
-    generate_ode(eqs::DifferentialEquation, ps=[], usym=:u,
+    generate_ode(eqs::HeisenbergEquation, ps=[], usym=:u,
                 psym=:p, tsym=:t; set_unknowns_zero::Bool=false, check_bounds::Bool=false)
 
 From a set of differential equations `eqs` of averages, generate a `Function`
@@ -145,7 +145,7 @@ which can be directly used in `OrdinaryDiffEq`. Essentially, this calls `Meta.ev
 on the output of the `build_ode` function.
 
 # Arguments
-*`eqs::DifferentialEquation`: The set of (average) equations.
+*`eqs::HeisenbergEquation`: The set of (average) equations.
 *`ps=[]`: List of symbolic parameters, which are parsed into parameters
     used in DiffEq functions.
 *`usym=:u`: The symbol used for the variable vector.

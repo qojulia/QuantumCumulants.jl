@@ -25,7 +25,7 @@ defines the subscript added to the name of `op2` representing the constant time.
 Note that the correlation function is stored in the first index of the underlying
 system of equations.
 """
-function CorrelationFunction(op1,op2,de0::DifferentialEquation; steady_state=false, add_subscript=0, filter_func=nothing, mix_choice=maximum, kwargs...)
+function CorrelationFunction(op1,op2,de0::HeisenbergEquation; steady_state=false, add_subscript=0, filter_func=nothing, mix_choice=maximum, kwargs...)
     h1 = hilbert(op1)
     h2 = _new_hilbert(hilbert(op2), acts_on(op2))
     h = h1⊗h2
@@ -51,7 +51,7 @@ function CorrelationFunction(op1,op2,de0::DifferentialEquation; steady_state=fal
     de_ = average(he, order)
     de = _complete_corr(de_, length(h.spaces), lhs_new, order, steady_state; filter_func=filter_func, mix_choice=mix_choice, kwargs...)
 
-    de0_ = DifferentialEquation(lhs_new, [_new_operator(r, h) for r in de0.rhs], H, J, de0.rates)
+    de0_ = HeisenbergEquation(lhs_new, [_new_operator(r, h) for r in de0.rhs], H, J, de0.rates)
     return CorrelationFunction(op1_, op2_, op2_0, de0_, de, steady_state)
 end
 
@@ -73,24 +73,25 @@ function initial_values(c::CorrelationFunction, u_end)
     a0 = c.op2_0
     a1 = c.op2
     subs = Dict(a1=>a0)
-    ops = getfield.(c.de.lhs, :operator)
+    ops = [SymbolicUtils.arguments(l)[1] for l in c.de.lhs]
     lhs = [average(substitute(op, subs)) for op in ops]
     u0 = complex(eltype(u_end))[]
     lhs0 = c.de0.lhs
     for l in lhs
-        if l in lhs0
+        l_adj = _adjoint(l)
+        if _in(l, lhs0)
             i = findfirst(isequal(l), lhs0)
             push!(u0, u_end[i])
-        elseif l' in lhs0
-            i = findfirst(isequal(l'), lhs0)
+        elseif _in(l_adj, lhs0)
+            i = findfirst(isequal(l_adj), lhs0)
             push!(u0, conj(u_end[i]))
-        elseif (l isa Number) && !(l isa SymbolicNumber)
+        elseif (l isa Number)
             push!(u0, l)
         else
             check = false
             for i=1:length(lhs0)
                 l_ = substitute(l, Dict(lhs0[i] => u_end[i]))
-                check = (l_ != l)
+                check = !isequal(l_, l)
                 check && (push!(u0, l_); break)
             end
             check || error("Could not find initial value for $l !")
@@ -185,22 +186,22 @@ end
 
 
 """
-    (s::Spectrum)(ω::SymbolicNumber,ps=[])
-    (s::Spectrum)(ω::SymbolicNumber,steady_vals,ps)
+    (s::Spectrum)(ω::Symbolic,ps=[])
+    (s::Spectrum)(ω::Symbolic,steady_vals,ps)
 
 Compute the symbolic system of linear equations that is solved numerically when
 computing the spectrum. Returns a symbolic version of the matrix `A` and the
 vector `b` describing the linear system of equations that needs to be solved
 to obtain the spectrum.
 """
-function (s::Spectrum)(ω::SymbolicNumber,ps=[])
+function (s::Spectrum)(ω::SymbolicUtils.Symbolic,ps=[])
     steady_vals = s.corr.de0.lhs
     return s(ω,steady_vals,ps)
 end
-function (s::Spectrum)(ω::SymbolicNumber,steady_vals,ps)
+function (s::Spectrum)(ω::SymbolicUtils.Symbolic,steady_vals,ps)
     A = s.Asym(ω,steady_vals,ps)
     b = s.bsym(ω,steady_vals,ps)
-    return simplify_constants.(A), simplify_constants.(b)
+    return qsimplify.(A), qsimplify.(b)
 end
 
 
@@ -209,12 +210,15 @@ function build_ode(c::CorrelationFunction, ps=[], args...; kwargs...)
     if c.steady_state
         steady_vals = c.de0.lhs
         avg = average(c.op2_0)
-        if avg in steady_vals
+        avg_adj = _adjoint(avg)
+        if _in(avg, steady_vals)
             idx = findfirst(isequal(avg), steady_vals)
-            de = substitute(c.de, Dict(average(c.op2) => steady_vals[idx]))
-        elseif avg' in steady_vals
-            idx = findfirst(isequal(avg'), steady_vals)
-            de = substitute(c.de, Dict(average(c.op2) => steady_vals[idx]'))
+            subs = Dict(average(c.op2) => steady_vals[idx])
+            de = substitute(c.de, subs)
+        elseif _in(avg_adj, steady_vals)
+            idx = findfirst(isequal(avg_adj), steady_vals)
+            subs = Dict(average(c.op2) => _adjoint(steady_vals[idx]))
+            de = substitute(c.de, subs)
         else
             de = c.de
         end
@@ -262,24 +266,30 @@ function _new_operator(t::Transition, h, aon=t.aon; add_subscript=nothing)
     end
 end
 _new_operator(x::Number, h, aon=nothing; kwargs...) = x
-function _new_operator(t::Union{<:NumberTerm,<:OperatorTerm}, h, aon=nothing; kwargs...)
-    args = []
-    if isnothing(aon)
-        for arg in t.arguments
-            push!(args, _new_operator(arg, h; kwargs...))
+function _new_operator(t, h, aon=nothing; kwargs...)
+    if SymbolicUtils.istree(t)
+        args = []
+        if isnothing(aon)
+            for arg in SymbolicUtils.arguments(t)
+                push!(args, _new_operator(arg, h; kwargs...))
+            end
+        else
+            for arg in SymbolicUtils.arguments(t)
+                push!(args, _new_operator(arg,h,aon; kwargs...))
+            end
         end
+        f = SymbolicUtils.operation(t)
+        return f(args...)
     else
-        for arg in t.arguments
-            push!(args, _new_operator(arg,h,aon; kwargs...))
-        end
+        return t
     end
-    return t.f(args...)
 end
-function _new_operator(avg::Average, h, aon=nothing; kwargs...)
+function _new_operator(avg::SymbolicUtils.Term{<:AvgSym}, h, aon=nothing; kwargs...)
+    op = SymbolicUtils.arguments(avg)[1]
     if isnothing(aon)
-        Average(_new_operator(avg.operator, h; kwargs...))
+        _average(_new_operator(op, h; kwargs...))
     else
-        Average(_new_operator(avg.operator, h, aon; kwargs...))
+        _average(_new_operator(op, h, aon; kwargs...))
     end
 end
 
@@ -303,7 +313,7 @@ function _complete_corr(de,aon0,lhs_new,order,steady_state; mix_choice=maximum, 
     vs_ = copy(lhs)
     rhs_ = [cumulant_expansion(r, order_) for r in rhs]
     missed = unique_ops(find_missing(rhs_, vs_))
-    filter!(x->isa(x,Average),missed)
+    filter!(SymbolicUtils.sym_isa(AvgSym),missed)
 
     function _filter_aon(x) # Filter values that act only on Hilbert space representing system at time t0
         aon = acts_on(x)
@@ -313,7 +323,7 @@ function _complete_corr(de,aon0,lhs_new,order,steady_state; mix_choice=maximum, 
         end
         # return !steady_state
         if steady_state # Include terms without t0-dependence only if the system is not in steady state
-            return !(x in lhs_new || x' in lhs_new)
+            return !(_in(x, lhs_new) || _in(_adjoint(x), lhs_new))
         else
             return true
         end
@@ -322,13 +332,13 @@ function _complete_corr(de,aon0,lhs_new,order,steady_state; mix_choice=maximum, 
     isnothing(filter_func) || filter!(filter_func, missed) # User-defined filter
 
     while !isempty(missed)
-        ops = getfield.(missed, :operator)
+        ops = [SymbolicUtils.arguments(m)[1] for m in missed]
         he = isempty(J) ? heisenberg(ops,H; kwargs...) : heisenberg(ops,H,J;rates=rates, kwargs...)
         he_avg = average(he,order_;mix_choice=mix_choice, kwargs...)
         rhs_ = [rhs_;he_avg.rhs]
         vs_ = [vs_;he_avg.lhs]
         missed = unique_ops(find_missing(rhs_,vs_))
-        filter!(x->isa(x,Average),missed)
+        filter!(SymbolicUtils.sym_isa(AvgSym),missed)
         filter!(_filter_aon, missed)
         isnothing(filter_func) || filter!(filter_func, missed) # User-defined filter
     end
@@ -337,12 +347,12 @@ function _complete_corr(de,aon0,lhs_new,order,steady_state; mix_choice=maximum, 
         # Find missing values that are filtered by the custom filter function,
         # but still occur on the RHS; set those to 0
         missed = unique_ops(find_missing(rhs_, vs_))
-        filter!(x->isa(x,Average),missed)
+        filter!(SymbolicUtils.sym_isa(AvgSym),missed)
         filter!(!filter_func, missed)
         subs = Dict(missed .=> 0)
         rhs_ = [substitute(r, subs) for r in rhs_]
     end
-    return DifferentialEquation(vs_, rhs_, H, J, rates)
+    return HeisenbergEquation(vs_, rhs_, H, J, rates)
 end
 
 
@@ -350,15 +360,15 @@ end
 
 function _build_spec_func(lhs, rhs, a1, a0, steady_vals, ps=[]; psym=:p, wsym=:ω, usteady=:usteady)
     s = Dict(a0=>a1)
-    ops = getfield.(lhs, :operator)
+    ops = [SymbolicUtils.arguments(l)[1] for l in lhs]
 
-    ω = Parameter{Number}(wsym) # Laplace transform argument i*ω
-    b = [average(substitute(op, s)) for op in ops] # Initial values
-    c = [simplify_constants(c_ / (1.0im*ω)) for c_ in _find_independent(rhs, a0)]
+    ω = Parameter(wsym) # Laplace transform argument i*ω
+    b = [average(qsimplify(substitute(op, s))) for op in ops] # Initial values
+    c = [qsimplify(c_ / (1.0im*ω)) for c_ in _find_independent(rhs, a0)]
     aon0 = acts_on(a0)
     @assert length(aon0)==1
     rhs_ = _find_dependent(rhs, aon0[1])
-    Ax = [simplify_constants(im*ω*lhs[i] - rhs_[i]) for i=1:length(lhs)] # Element-wise form of A*x
+    Ax = [qsimplify(im*ω*lhs[i] - rhs_[i]) for i=1:length(lhs)] # Element-wise form of A*x
 
     vs = _to_expression.(lhs)
     Ax_ = _to_expression.(Ax)
@@ -371,7 +381,7 @@ function _build_spec_func(lhs, rhs, a1, a0, steady_vals, ps=[]; psym=:p, wsym=:�
     # Replace steady-state values
     if !isempty(steady_vals)
         ss_ = _to_expression.(steady_vals)
-        ss_adj = _to_expression.(adjoint.(steady_vals))
+        ss_adj = _to_expression.(_adjoint.(steady_vals))
         ssyms = [:($usteady[$i]) for i=1:length(steady_vals)]
         _pw = function(x)
             if x in ss_
@@ -390,7 +400,7 @@ function _build_spec_func(lhs, rhs, a1, a0, steady_vals, ps=[]; psym=:p, wsym=:�
         a0_ex = _to_expression(average(a0))
         avg1 = average(a1)
         a1_ex = _to_expression(avg1)
-        a1_ex_adj = _to_expression(avg1')
+        a1_ex_adj = _to_expression(_adjoint(avg1))
         _pw2 = function(x)
             if x == a0_ex
                 i = findfirst(isequal(a1_ex), ss_)
@@ -446,7 +456,7 @@ function _build_spec_func(lhs, rhs, a1, a0, steady_vals, ps=[]; psym=:p, wsym=:�
     fAsym = :(
         ($fargs) ->
         begin
-            A = Matrix{Number}(undef, $N, $N)
+            A = Matrix{Any}(undef, $N, $N)
             y = zeros(Number, $N)
             for i=1:$N
                 y[i] = 1
@@ -495,11 +505,11 @@ function _build_spec_func(lhs, rhs, a1, a0, steady_vals, ps=[]; psym=:p, wsym=:�
 end
 
 _find_independent(rhs::Vector, a0) = [_find_independent(r, a0) for r in rhs]
-function _find_independent(r::NumberTerm, a0)
-    if r.f === (+)
-        args_ind = Number[]
+function _find_independent(r, a0)
+    if SymbolicUtils.is_operation(+)(r)
+        args_ind = []
         aon0 = acts_on(a0)
-        for arg in r.arguments
+        for arg in SymbolicUtils.arguments(r)
             aon = acts_on(arg)
             (aon0 in acts_on(arg) && length(aon)>1) || push!(args_ind, arg)
         end
@@ -511,10 +521,10 @@ function _find_independent(r::NumberTerm, a0)
 end
 
 _find_dependent(rhs::Vector, a0) = [_find_dependent(r, a0) for r in rhs]
-function _find_dependent(r::NumberTerm, a0)
-    if r.f === (+)
-        args = Number[]
-        for arg in r.arguments
+function _find_dependent(r, a0)
+    if SymbolicUtils.is_operation(+)(r)
+        args = []
+        for arg in SymbolicUtils.arguments(r)
             aon = acts_on(arg)
             (a0 in aon) && length(aon)>1 && push!(args, arg)
         end

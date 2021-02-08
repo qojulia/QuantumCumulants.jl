@@ -38,7 +38,7 @@ ground_state(h::NLevelSpace,aon) = h.GS
 ground_state(h::ProductSpace,aon) = ground_state(h.spaces[aon])
 
 """
-    Transition <: BasicOperator
+    Transition <: QSym
     Transition(h::NLevelSpace,name::Symbol,i,j)
 
 Fundamental operator defining a transition from level `j` to level `i` on a
@@ -55,7 +55,7 @@ julia> σ = Transition(ha,:σ,:g,:e)
 σge
 ```
 """
-struct Transition{H,S,I,A} <: BasicOperator
+struct Transition{H,S,I,A} <: QSym
     hilbert::H
     name::S
     i::I
@@ -64,13 +64,7 @@ struct Transition{H,S,I,A} <: BasicOperator
     function Transition{H,S,I,A}(hilbert::H,name::S,i::I,j::I,aon::A) where {H,S,I,A}
         @assert has_hilbert(NLevelSpace,hilbert,aon)
         @assert i∈levels(hilbert,aon) && j∈levels(hilbert,aon)
-        op = new(hilbert,name,i,j,aon)
-        if !haskey(OPERATORS_TO_SYMS, op)
-            sym = SymbolicUtils.Sym{Transition}(gensym(:Transition))
-            OPERATORS_TO_SYMS[op] = sym
-            SYMS_TO_OPERATORS[sym] = op
-        end
-        return op
+        new(hilbert,name,i,j,aon)
     end
 end
 Transition(hilbert::H,name::S,i::I,j::I,aon::A) where {H,S,I,A} = Transition{H,S,I,A}(hilbert,name,i,j,aon)
@@ -85,6 +79,18 @@ function Transition(hilbert::ProductSpace,name,i,j)
     end
 end
 
+function Base.isless(a::Transition, b::Transition)
+    if a.name == b.name
+        if a.i == b.i
+            return a.j < b.j
+        else
+            return a.i < b.i
+        end
+    else
+        return a.name < b.name
+    end
+end
+
 function embed(h::ProductSpace,op::T,aon::Int) where T<:Transition
     check_hilbert(h.spaces[aon],op.hilbert)
     op_ = Transition(h,op.name,op.i,op.j,aon)
@@ -94,28 +100,16 @@ levels(t::Transition,args...) = levels(t.hilbert,args...)
 ground_state(t::Transition,args...) = ground_state(t.hilbert,args...)
 
 Base.adjoint(t::Transition) = Transition(t.hilbert,t.name,t.j,t.i,acts_on(t))
-Base.:(==)(t1::Transition,t2::Transition) = (t1.hilbert==t2.hilbert && t1.name==t2.name && t1.i==t2.i && t1.j==t2.j && t1.aon==t2.aon)
+Base.isequal(t1::Transition,t2::Transition) = isequal(t1.hilbert, t2.hilbert) && isequal(t1.name,t2.name) && isequal(t1.i,t2.i) && isequal(t1.j,t2.j) && isequal(t1.aon,t2.aon)
 Base.hash(t::Transition, h::UInt) = hash(t.hilbert, hash(t.name, hash(t.i, hash(t.j, hash(t.aon, h)))))
 
 # Simplification
-istransition(x::Union{T,SymbolicUtils.Sym{T}}) where T<:Transition = true
-
-function merge_transitions(σ1::SymbolicUtils.Sym{<:Transition},σ2::SymbolicUtils.Sym{<:Transition})
-    op = merge_transitions(_to_qumulants(σ1), _to_qumulants(σ2))
-    return _to_symbolic(op)
-end
 function merge_transitions(σ1::Transition, σ2::Transition)
-    i1,j1 = σ1.i, σ1.j
-    i2,j2 = σ2.i, σ2.j
-    if j1==i2
-        return Transition(σ1.hilbert,σ1.name,i1,j2,σ1.aon)
+    if σ1.j == σ2.i
+        return Transition(σ1.hilbert,σ1.name,σ1.i,σ2.j,σ1.aon)
     else
         return 0
     end
-end
-function rewrite_gs(t::SymbolicUtils.Sym{<:Transition})
-    op = rewrite_gs(_to_qumulants(t))
-    return _to_symbolic(op)
 end
 function rewrite_gs(σ::Transition)
     h = σ.hilbert
@@ -125,9 +119,12 @@ function rewrite_gs(σ::Transition)
     if i==j==gs
         args = Any[1]
         for k in levels(h,aon)
-            (k==i) || push!(args, -1*Transition(h, σ.name, k, k, aon))
+            if k != i
+                t_ = QTerm(*, [-1, Transition(h, σ.name, k, k, aon)])
+                push!(args, t_)
+            end
         end
-        return +(args...)
+        return QTerm(+, args)
     else
         return nothing
     end

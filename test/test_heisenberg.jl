@@ -18,34 +18,34 @@ a = embed(h,a_,1)
 H = ωc*a'*a + ωa*σ'*σ + g*(a'*σ + σ'*a)
 
 da = commutator(1.0im*H,a)
-@test da == -1.0im*ωc*a + (-1.0im*g)*σ
+@test iszero(qsimplify(da - (-1.0im*ωc*a + (-1.0im*g)*σ)))
 ds = commutator(1.0im*H,σ)
-@test ds == (-1.0im*g)*a + (-1.0im*ωa)*σ + (2.0im*g)*a*σee
+@test iszero(qsimplify(ds - ((-1.0im*g)*a + (-1.0im*ωa)*σ + (2.0im*g)*a*σee)))
 dn = commutator(1.0im*H,a'*a)
-@test dn == (-1.0im*g)*a'*σ + (1.0im*g)*a*σ'
+@test iszero(qsimplify(dn - ((-1.0im*g)*a'*σ + (1.0im*g)*a*σ')))
 
 he = heisenberg([a,σ,a'*a],H)
-@test he.rhs[1] == da
-@test he.rhs[2] == ds
-@test he.rhs[3] == dn
+@test iszero(qsimplify(he.rhs[1] - (da)))
+@test iszero(qsimplify(he.rhs[2] - (ds)))
+@test iszero(qsimplify(he.rhs[3] - (dn)))
 
 # Lossy JC
 κ,γ = 3.333,0.1313131313
 J = [a,σ]
 he_diss = heisenberg([a,σ,σ'*σ],H,J;rates=[κ,γ])
 
-@test he_diss.rhs[1] == (-1.0im*ωc - 0.5κ)*a + (-1.0im*g)*σ
-@test he_diss.rhs[2] == (-1.0im*g)*a + (-1.0im*ωa - 0.5γ)*σ + (2.0im*g)*a*σee
-@test he_diss.rhs[3] == (-γ)*σee + (1.0im*g)*a'*σ + (-1.0im*g)*a*σ'
+@test iszero(qsimplify(he_diss.rhs[1] - ((-1.0im*ωc - 0.5κ)*a + (-1.0im*g)*σ)))
+@test iszero(qsimplify(he_diss.rhs[2] - ((-1.0im*g)*a + (-1.0im*ωa - 0.5γ)*σ + (2.0im*g)*a*σee)))
+@test iszero(qsimplify(he_diss.rhs[3] - ((-γ)*σee + (1.0im*g)*a'*σ + (-1.0im*g)*a*σ')))
 
 # Single-atom laser
 ν = 3.44444444
 J = [a,σ,σ']
 he_laser = heisenberg([a'*a,σ'*σ,a'*σ],H,J;rates=[κ,γ,ν])
 
-@test he_laser.rhs[1] == (-κ)*a'*a + (-1.0im*g)*a'*σ + (1.0im*g)*a*σ'
-@test he_laser.rhs[2] == ν + (-ν - γ)*σee + (1.0im*g)*a'*σ + (-1.0im*g)*a*σ'
+@test iszero(qsimplify(he_laser.rhs[1] - ((-κ)*a'*a + (-1.0im*g)*a'*σ + (1.0im*g)*a*σ')))
+@test iszero(qsimplify(he_laser.rhs[2] - (ν + (-ν - γ)*σee + (1.0im*g)*a'*σ + (-1.0im*g)*a*σ')))
 ex = (1.0im*g)*σee + (-1.0im*g)*a'*a + (1.0im*(ωc - ωa) - 0.5*(κ + γ + ν))*a'*σ + (2.0im*g)*a'*a*σee
-@test iszero(simplify_operators(he_laser.rhs[3] - ex))
+@test iszero(qsimplify(he_laser.rhs[3] - ex))
 
 end # testset

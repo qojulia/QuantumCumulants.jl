@@ -25,15 +25,15 @@ NLevelSpace
 ## [Operators](@id API: Operators)
 
 ```@docs
-AbstractOperator
+QNumber
 ```
 
 ```@docs
-BasicOperator
+QSym
 ```
 
 ```@docs
-OperatorTerm
+QTerm
 ```
 
 ```@docs
@@ -70,17 +70,13 @@ AbstractEquation
 ```
 
 ```@docs
-DifferentialEquation
+HeisenbergEquation
 ```
 
 ## [Symbolic Numbers](@id API: Symbolic numbers)
 
 ```@docs
-SymbolicNumber
-```
-
-```@docs
-NumberTerm
+CNumber
 ```
 
 ```@docs
@@ -88,36 +84,24 @@ Parameter
 ```
 
 ```@docs
-parameters
+cnumbers
 ```
 
 ```@docs
-@parameters
+@cnumbers
 ```
 
 ## [Simplification](@id API: Simplify)
 
 ```@docs
-simplify_operators
-```
-
-```@docs
-simplify_constants
+qsimplify
 ```
 
 ```@docs
 expand
 ```
 
-```@docs
-substitute
-```
-
 ## [Average](@id API: Average)
-
-```@docs
-Average
-```
 
 ```@docs
 average
