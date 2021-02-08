@@ -21,7 +21,7 @@ export HilbertSpace, ProductSpace, ⊗,
 
 include("hilbertspace.jl")
 include("qnumber.jl")
-include("parameters.jl")
+include("cnumber.jl")
 include("fock.jl")
 include("nlevel.jl")
 include("simplify.jl")
