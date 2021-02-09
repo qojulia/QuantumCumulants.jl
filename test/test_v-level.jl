@@ -14,8 +14,7 @@ h = hf⊗ha
 Δc, Γ2, Γ3, Δ2, Δ3, Ω2, Ω3 = cnumbers("Δ_c Γ_2 Γ_3 Δ_2 Δ_3 Ω_2 Ω_3")
 
 # Operators
-a = Destroy(h,:a)
-σ(i,j) = Transition(h,:σ,i,j)
+@qnumbers a::Destroy(h) σ::Transition(h)
 
 # Hamiltonian
 H_atom = -Δ2*σ(2,2) - Δ3*σ(3,3) + Ω2*(σ(2,1) + σ(1,2)) + Ω3*(σ(3,1) + σ(1,3))

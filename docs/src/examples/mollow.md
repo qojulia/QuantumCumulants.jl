@@ -23,8 +23,8 @@ Obtaining the equations of motion for the system is simple. Note that in this ca
 h = NLevelSpace(:atom, (:g,:e))
 
 # Operators
-σ(i,j) = Transition(h, :σ, i, j)
 @cnumbers Δ Ω γ
+@qnumbers σ::Transition(h)
 H = Δ*σ(:e,:e) + Ω*(σ(:g,:e) + σ(:e,:g))
 J = [σ(:g,:e)]
 

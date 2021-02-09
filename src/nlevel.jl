@@ -103,6 +103,49 @@ Base.adjoint(t::Transition) = Transition(t.hilbert,t.name,t.j,t.i,acts_on(t))
 Base.isequal(t1::Transition,t2::Transition) = isequal(t1.hilbert, t2.hilbert) && isequal(t1.name,t2.name) && isequal(t1.i,t2.i) && isequal(t1.j,t2.j) && isequal(t1.aon,t2.aon)
 Base.hash(t::Transition, h::UInt) = hash(t.hilbert, hash(t.name, hash(t.i, hash(t.j, hash(t.aon, h)))))
 
+"""
+    CallableTransition
+
+A [`Transition`](@ref) where no levels have been specified. This type is callable
+to allow for easy construction of concrete [`Transition`](@ref) instances.
+
+Examples
+========
+```
+julia> h = NLevelSpace(:atom, (:g,:e))
+ℋ(atom)
+
+julia> σ = Transition(h,:σ)
+σ
+
+julia> σ(:g,:e)
+σge
+```
+"""
+struct CallableTransition{H,S,A}
+    hilbert::H
+    name::S
+    aon::A
+end
+
+acts_on(c::CallableTransition) = c.aon
+
+function (c::CallableTransition)(i, j)
+    Transition(c.hilbert, c.name, i, j, c.aon)
+end
+
+Transition(hilbert, name, aon) = CallableTransition(hilbert, name, aon)
+Transition(hilbert::NLevelSpace, name) = CallableTransition(hilbert, name, 1)
+function Transition(hilbert::ProductSpace,name)
+    inds = findall(x->isa(x,NLevelSpace),hilbert.spaces)
+    if length(inds)==1
+        return CallableTransition(hilbert,name,inds[1])
+    else
+        isempty(inds) && error("Can only create Transition on NLevelSpace! Not included in $(hilbert)")
+        length(inds)>1 && error("More than one NLevelSpace in $(hilbert)! Specify on which Hilbert space Transition should be created with Transition(hilbert,name,i,j,acts_on)!")
+    end
+end
+
 # Simplification
 function merge_transitions(σ1::Transition, σ2::Transition)
     if σ1.j == σ2.i

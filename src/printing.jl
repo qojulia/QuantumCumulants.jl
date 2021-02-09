@@ -49,6 +49,8 @@ function Base.show(io::IO, S::Spectrum)
     write(io, ")(ω)")
 end
 
+Base.show(io::IO, c::CallableTransition) = write(io, c.name)
+
 const T_LATEX = Union{<:QNumber,<:AbstractEquation, <:SymbolicUtils.Symbolic{<:CNumber},
         <:CorrelationFunction,<:Spectrum}
 Base.show(io::IO, ::MIME"text/latex", x::T_LATEX) = write(io, latexify(x))

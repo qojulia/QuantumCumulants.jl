@@ -62,4 +62,11 @@ hprod = ha1⊗ha2
 @test Transition(hprod,:σ,1,2,2)==σ2
 @test_throws AssertionError Transition(hprod,:σ,1,2,1)
 
+# Callable constructor
+@test_throws ErrorException Transition(hprod,:σ)
+s = Transition(hprod,:σ,1)
+@test s isa Qumulants.CallableTransition
+@test s(:g,:e) == σ1
+@test acts_on(Transition(ha2,:s))==1
+
 end # testset

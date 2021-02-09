@@ -24,7 +24,6 @@ struct Destroy{H<:HilbertSpace,S,A} <: QSym
         new(hilbert,name,aon)
     end
 end
-isdestroy(a::SymbolicUtils.Sym{T}) where {T<:Destroy} = true
 
 """
     Create <: QSym
@@ -41,7 +40,6 @@ struct Create{H<:HilbertSpace,S,A} <: QSym
         new(hilbert,name,aon)
     end
 end
-iscreate(a::SymbolicUtils.Sym{T}) where {T<:Create} = true
 
 for f in [:Destroy,:Create]
     @eval $(f)(hilbert::H,name::S,aon::A) where {H,S,A} = $(f){H,S,A}(hilbert,name,aon)
