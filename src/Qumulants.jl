@@ -4,7 +4,7 @@ import SymbolicUtils
 import SymbolicUtils: substitute
 using Combinatorics: partitions, combinations, permutations
 
-export HilbertSpace, ProductSpace, ⊗,
+export HilbertSpace, ProductSpace, ⊗, tensor,
         qsimplify, substitute, expand,
         QNumber, QSym, QTerm, embed, @qnumbers,
         FockSpace, Destroy, Create,

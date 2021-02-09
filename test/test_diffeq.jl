@@ -6,7 +6,7 @@ using Test
 
 hf = FockSpace(:cavity)
 ha = NLevelSpace(:atom,(:g,:e))
-h = hf⊗ha
+h = tensor(hf, ha)
 
 @qnumbers a::Destroy(h) σ::Transition(h,:g,:e)
 

@@ -22,6 +22,10 @@ NLevelSpace
 ⊗
 ```
 
+```@docs
+tensor
+```
+
 ## [Operators](@id API: Operators)
 
 ```@docs

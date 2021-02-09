@@ -23,6 +23,7 @@ Base.hash(p::ProductSpace, h::UInt) = hash(p.spaces, h)
     ⊗(spaces::HilbertSpace...)
 
 Create a [`ProductSpace`](@ref) consisting of multiple subspaces.
+Unicode `\\otimes<tab>` alias of [`tensor`](@ref)
 
 Examples
 =======
@@ -43,6 +44,14 @@ julia> h = hf⊗ha
 ⊗(a::ProductSpace,b::ProductSpace) = ProductSpace([a.spaces;b.spaces])
 ⊗(a::HilbertSpace, b::HilbertSpace, c::HilbertSpace...) = ⊗(a⊗b,c...)
 ⊗(a::HilbertSpace) = a
+
+"""
+    tensor(spaces::HilbertSpace...)
+
+Create a [`ProductSpace`](@ref) consisting of multiple subspaces.
+See also [`⊗`](@ref).
+"""
+tensor(args...) = ⊗(args...)
 
 Base.isless(h1::HilbertSpace,h2::HilbertSpace) = isless(h1.name,h2.name)
 Base.isless(h1::ProductSpace,h2::ProductSpace) = isless(h1.spaces,h2.spaces)
