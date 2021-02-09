@@ -2,7 +2,7 @@
 
 The basic usage is probably best illustrated with a brief example. In the following, we solve a simple model for a single-atom laser.
 
-We start by loading the package, defining some symbolic parameters and the photonic annihilation operator `a` as well as the atomic lowering operator `s`. This allows us to quickly write down the Hamiltonian and the collapse operators of the system with their corresponding decay rates.
+We start by loading the package, defining some symbolic parameters and the photonic annihilation operator `a` as well as the atomic transition operator `σ`, which denotes a transition from level `j` to level `i` as `σ(i,j)`. This allows us to quickly write down the Hamiltonian and the collapse operators of the system with their corresponding decay rates.
 
 ```@example tutorial
 using Latexify # hide
@@ -18,14 +18,13 @@ ha = NLevelSpace(:atom,(:g,:e))
 h = hf ⊗ ha
 
 # Define the fundamental operators
-a = Destroy(h,:a)
-s = Transition(h,:σ,:g,:e)
+@qnumbers a::Destroy(h) σ::Transition(h)
 
 # Hamiltonian
-H = Δ*a'*a + g*(a'*s + a*s')
+H = Δ*a'*a + g*(a'*σ(:g,:e) + a*σ(:e,:g))
 
 # Collapse operators
-J = [a,s,s']
+J = [a,σ(:g,:e),σ(:e,:g)]
 rates = [κ,γ,ν]
 nothing # hide
 ```
@@ -34,7 +33,7 @@ Now, we define a list of operators of which we want to compute the Heisenberg eq
 
 ```@example tutorial
 # Derive a set of Heisenberg equations
-ops = [a'*a,s'*s,a'*s]
+ops = [a'*a,σ(:e,:e),a'*σ(:g,:e)]
 he = heisenberg(ops,H,J;rates=rates)
 ```
 
@@ -45,7 +44,7 @@ The equations derived above are differential equations for operators. In order t
 he_avg = average(he,2)
 ```
 
-The first-order contributions are always zero and can therefore be neglected. You can try adding `a` and `s` to the list of operators `ops` in order to see that yourself. Or, even more conveniently, you can use `complete(he_avg)`, which will automatically find all missing averages and compute the corresponding equations.
+The first-order contributions are always zero and can therefore be neglected. You can try adding `a` and `σ(:g,:e)` to the list of operators `ops` in order to see that yourself. Or, even more conveniently, you can use `complete(he_avg)`, which will automatically find all missing averages and compute the corresponding equations.
 
 Here, though, we will proceed by finding the missing averages, and neglecting them as zero using the `substitute` function.
 
