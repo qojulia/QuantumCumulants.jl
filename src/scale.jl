@@ -32,7 +32,7 @@ function scale(he::DifferentialEquation{<:AbstractOperator, <:AbstractOperator})
             end
         end
     end
-    he_avg_new = substitute(he_avg_new, dict_red)
+    he_avg_new = substitute(he_avg_new, dict_red) #TODO: test H = (a'+a)∑b'b , op = a'b[2] (notes 10.02.21) 
     for it=1:length(cluster_aons)
         he_avg_new.rhs = set_scale_factors_rhs(he_avg_new, cluster_orders[it], cluster_aons[it], cluster_Ns[it])
     end
@@ -105,13 +105,11 @@ function complete(de::ScaleDifferentialEquation{<:AbstractOperator,<:AbstractOpe
 
     he_avg0 = average(de,order_)
     redundants = Average[]
-    feed_redundants!(redundants,cluster_aons,he_avg0.lhs,names)
+    redundants, he_avg0.lhs = feed_redundants(redundants,cluster_aons,he_avg0.lhs,names)
     missed = unique_ops(find_missing(he_avg0.rhs, he_avg0.lhs))
     filter!(x->isa(x,Average),missed)
     isnothing(filter_func) || filter!(filter_func, missed) # User-defined filter
-    filter!(!in(redundants), missed)
-    feed_redundants!(redundants,cluster_aons,missed,names)
-    filter!(!in(redundants), missed)
+    missed, redundants = select_missing(missed, he_avg0.lhs, redundants, cluster_aons, names)
     missed = unique_ops(missed)
     lhs_ = he_avg0.lhs
     rhs_ = he_avg0.rhs
@@ -124,11 +122,7 @@ function complete(de::ScaleDifferentialEquation{<:AbstractOperator,<:AbstractOpe
         missed = unique_ops(find_missing(rhs_,lhs_))
         filter!(x->isa(x,Average),missed)
         isnothing(filter_func) || filter!(filter_func, missed) # User-defined filter
-        filter!(!in(redundants), missed)
-        missed = unique_ops(missed)
-        feed_redundants!(redundants,cluster_aons,missed,names)
-        filter!(!in(lhs_),missed)
-        filter!(!in(redundants), missed)
+        missed, redundants = select_missing(missed, lhs_, redundants, cluster_aons, names)
         missed = unique_ops(missed)
     end
     if !isnothing(filter_func)
@@ -149,6 +143,20 @@ function complete(de::ScaleDifferentialEquation{<:AbstractOperator,<:AbstractOpe
     end
     he_avg_scale = ScaleDifferentialEquation(lhs_, rhs_, H, J, rates, dict)
     return substitute(he_avg_scale, dict)
+end
+
+function select_missing(missed, lhs, reds, cluster_aons, names)
+    missed_new = eltype(missed)[]
+    for m in missed
+        if (m ∉ lhs) && (m ∉ reds)
+            reds_new, m_new = feed_redundants(reds,cluster_aons,[m],names)
+            if (m_new ∉ lhs) && (m_new ∉ reds) && (m_new ∉ missed_new)
+                push!(missed_new, m_new...) # m_new has only one element
+                push!(reds, reds_new...)
+            end
+        end
+    end
+    return missed_new, reds
 end
 
 function complete(de::ScaleDifferentialEquation{<:Number,<:Number};order=nothing, filter_func=nothing, kwargs...)
@@ -286,18 +294,18 @@ function get_ref_avg(avg, all_id_aons, names; no_adj=false) #all_id_aons is a li
     return ref_avg, all_ids
 end
 
-function feed_redundants!(redundants::Vector, cluster_aons, avg_ls, names)
+function feed_redundants(redundants_::Vector, cluster_aons, avg_ls_, names)
+    redundants = copy(redundants_)
+    avg_ls = copy(avg_ls_) #TODO maybe not needed
+    avg_ls_new = eltype(avg_ls)[]
     for itm=1:length(avg_ls)
         ref_avg, id_avgs = get_ref_avg(avg_ls[itm], cluster_aons, names)
-        if ref_avg ∉ redundants
-            avg_ls[itm] = ref_avg
-            id_avgs_adj = unique([id_avgs; adjoint.(id_avgs)])
-            filter!(!isequal(ref_avg), id_avgs_adj)
-            push!(redundants, id_avgs...)
-            unique!(redundants)
-        end
+        push!(avg_ls_new, ref_avg)
+        id_avgs_adj = unique([id_avgs; adjoint.(id_avgs); ref_avg])
+        push!(redundants, id_avgs_adj...)
+        unique!(redundants)
     end
-    return redundants
+    return redundants, avg_ls_new
 end
 
 unaverage(x) = x

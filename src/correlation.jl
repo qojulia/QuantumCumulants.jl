@@ -392,12 +392,9 @@ function _complete_corr(de::ScaleDifferentialEquation{<:AbstractOperator,<:Abstr
 
     he_avg0 = average(de,order_)
     redundants = Average[]
-    feed_redundants!(redundants,cluster_aons,he_avg0.lhs,names)
+    redundants, he_avg0.lhs = feed_redundants(redundants,cluster_aons,he_avg0.lhs,names)
     missed = unique_ops(find_missing(he_avg0.rhs, he_avg0.lhs))
     filter!(x->isa(x,Average),missed)
-    filter!(!in(redundants), missed)
-    feed_redundants!(redundants,cluster_aons,missed,names)
-    filter!(!in(redundants), missed)
     function _filter_aon(x) # Filter values that act only on Hilbert space representing system at time t0
         x = substitute(x, de0_dicts)
         aon = acts_on(x)
@@ -414,8 +411,7 @@ function _complete_corr(de::ScaleDifferentialEquation{<:AbstractOperator,<:Abstr
     end
     filter!(_filter_aon, missed)
     isnothing(filter_func) || filter!(filter_func, missed) # User-defined filter
-    feed_redundants!(redundants,cluster_aons,missed,names)
-    filter!(!in(redundants), missed)
+    missed, redundants = select_missing(missed, he_avg0.lhs, redundants, cluster_aons, names)
     missed = unique_ops(missed)
     lhs_ = he_avg0.lhs
     rhs_ = he_avg0.rhs
@@ -429,11 +425,7 @@ function _complete_corr(de::ScaleDifferentialEquation{<:AbstractOperator,<:Abstr
         filter!(x->isa(x,Average),missed)
         filter!(_filter_aon, missed)
         isnothing(filter_func) || filter!(filter_func, missed) # User-defined filter
-        filter!(!in(redundants), missed)
-        missed = unique_ops(missed)
-        feed_redundants!(redundants,cluster_aons,missed,names)
-        filter!(!in(lhs_),missed)
-        filter!(!in(redundants), missed)
+        missed, redundants = select_missing(missed, lhs_, redundants, cluster_aons, names)
         missed = unique_ops(missed)
     end
 
