@@ -17,6 +17,7 @@ export HilbertSpace, ProductSpace, ⊗, tensor,
             unique_ops, get_symbolics, get_operators, get_solution,
         build_ode, generate_ode,
         CorrelationFunction, Spectrum, initial_values,
+        scale,
         transition_superscript
 
 include("hilbertspace.jl")
@@ -32,6 +33,7 @@ include("rules.jl")
 include("utils.jl")
 include("diffeq.jl")
 include("correlation.jl")
+include("scale.jl")
 include("latexify_recipes.jl")
 include("printing.jl")
 
