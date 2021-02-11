@@ -30,7 +30,7 @@ function SymbolicUtils.show_term(io::IO, t::SymbolicUtils.Term{<:AvgSym})
     write(io, "⟩")
 end
 
-function Base.show(io::IO,de::HeisenbergEquation)
+function Base.show(io::IO,de::AbstractEquation)
     for i=1:length(de)
         write(io, "∂ₜ(")
         show(io, de.lhs[i])
