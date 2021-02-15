@@ -1,4 +1,5 @@
 using Qumulants
+using Test
 using OrdinaryDiffEq
 
 M = 2
@@ -19,46 +20,129 @@ ops = [a'*a, a'*σ(:g,:e,1), σ(:e,:e,1), σ(:e,:g,1)*σ(:g,:e,2)]
 
 he = heisenberg(ops, H, J; rates=rates)
 
-# ϕ(x) = 0
-# ϕ(::Destroy) = -1
-# ϕ(::Create) = 1
-# function ϕ(t::Transition)
-#     if (t.i==:e && t.j==:g)
-#         1
-#     elseif (t.i==:g && t.j==:e)
-#         -1
-#     else
-#         0
-#     end
-# end
-# ϕ(avg::Average) = ϕ(avg.arguments[1])
-# function ϕ(t::QTerm)
-#     @assert t.f === (*)
-#     p = 0
-#     for arg in t.arguments
-#         p += ϕ(arg)
-#     end
-#     return p
-# end
-# phase_invariant(x) = iszero(ϕ(x))
-# missed = find_missing(he_avg)
-# filter!(!phase_invariant, missed)
-#
-# he_nophase = substitute(he_avg, Dict(missed .=> 0))
-
+ϕ(x) = 0
+ϕ(::Destroy) = -1
+ϕ(::Create) = 1
+function ϕ(t::Transition)
+    if (t.i==:e && t.j==:g)
+        1
+    elseif (t.i==:g && t.j==:e)
+        -1
+    else
+        0
+    end
+end
+ϕ(avg::Average) = ϕ(avg.arguments[1])
+function ϕ(t::QTerm)
+    @assert t.f === (*)
+    p = 0
+    for arg in t.arguments
+        p += ϕ(arg)
+    end
+    return p
+end
+phase_invariant(x) = iszero(ϕ(x))
 
 # Scale
 @cnumbers N
 he_scaled = scale(he, [2,3], N)
 
+he_avg = average(he_scaled,2)
+missed = find_missing(he_avg)
+filter!(!phase_invariant, missed)
+@test isequal(missed, find_missing(he_avg))
+
+subs = Dict(missed .=> 0)
+he_nophase = substitute(he_avg, subs)
+@test isempty(find_missing(he_nophase))
+
 ps = (Δ, g, γ, κ, ν, N)
-f = generate_ode(he_scaled, ps)
+f = generate_ode(he_nophase, ps)
 p0 = (0, 1.5, 0.25, 1, 4, 7)
 u0 = zeros(ComplexF64, length(he_scaled))
 prob = ODEProblem(f, u0, (0.0, 50.0), p0)
 sol = solve(prob, RK4())
 
+ex = average(a*σ(:e,:g,1)*σ(:e,:e,2))
+refs = [average(a'*σ(:e,:e,1)*σ(:g,:e,2))]
+@test Qumulants.is_redundant(ex, [2,3], refs)
+
+ex = QTerm(*, [1, 0.0 + 2.0im, g, a, σ(:e,:e,1), σ(:e,:g,2)])
+ex_ = QTerm(*, [a, σ(:e,:g,1), σ(:e,:e,2)])
+
 ex = a*σ(:e,:g,1)*σ(:e,:e,2)
 ex2 = a'*σ(:e,:e,1)*σ(:g,:e,2)
 Qumulants.is_redundant(ex,[2,3])
-ex_ = Qumulants._replace_redundant(ex,[3,2],[:a,:σ_1,:σ_2])
+ex_ = Qumulants._swap_aon_and_name(ex,[1,3,2],[1,2,3],[:a,:σ_1,:σ_2])
+
+ex2_swapped = Qumulants._replace_redundant(ex2,[2,3],[:a,:σ_1,:σ_2],[ex],1,true)
+@test isequal(ex2_swapped, ex')
+
+# Test Holstein
+M = 2
+hc = FockSpace(:cavity)
+hvib = [FockSpace(Symbol(:mode, i)) for i=1:M]
+h = ⊗(hc, hvib...)
+@cnumbers G Δ κ γ Ω
+a = Destroy(h,:a,1)
+b = [Destroy(h,Symbol(:b_,i),i+1) for i=1:M]
+
+H = Δ*a'*a + G*sum(b[i] + b[i]' for i=1:M)*a'*a + Ω*(a+a')
+J = [a;b]
+rates = [κ;[γ for i=1:M]]
+ops = [a,a'*a,a*a,b[1],a*b[1],a'*b[1],b[1]'*b[1],b[1]*b[1],b[1]'*b[2],b[1]*b[2]]
+he = heisenberg(ops,H,J;rates=rates)
+
+ex1 = b[1]'*b[1]
+ex2 = b[1]'*b[2]
+@test !Qumulants.is_redundant(ex1, [2,3], [ex2])
+
+@cnumbers N
+he_scaled = scale(he,[2,3],N;simplify=false)
+
+he_avg = average(he_scaled,2)
+@test isempty(find_missing(he_avg))
+
+ps = (G,Δ,κ,γ,Ω,N)
+f = generate_ode(he_avg, ps)
+
+u0 = zeros(ComplexF64, length(he_avg))
+p0 = ones(length(ps))
+prob = ODEProblem(f, u0, (0.0,1.0), p0)
+sol = solve(prob, Tsit5())
+
+# Test molecule
+M = 2 # Order
+# Prameters
+@cnumbers λ ν Γ η Δ γ N
+# Hilbert space
+h_in = NLevelSpace(:internal, 2)
+hv = [FockSpace(Symbol(:vib, i)) for i=1:M]
+h = ⊗(h_in, hv...)
+# Operators
+σ(i,j) = Transition(h, :σ, i, j)
+b = [Destroy(h, Symbol(:b_, i), i+1) for i=1:M]
+# Hamiltonian
+H0 = Δ*σ(2,2) + ν*sum(b_'*b_ for b_ in b)
+H_holstein = -1*λ*sum((b_' + b_ for b_ in b))*σ(2,2)
+Hl = η*(σ(1,2) + σ(2,1))
+H = H0 + H_holstein + Hl
+# Jumps
+J = [σ(1,2); b]
+rates = [γ;[Γ for i=1:M]]
+# Equations
+ops = [σ(2,2),σ(1,2),b[1],σ(1,2)*b[1],σ(2,1)*b[1],σ(2,2)*b[1],b[1]'*b[1],b[1]*b[1],b[1]'*b[2],b[1]*b[2]]
+he = heisenberg(ops, H, J; rates=rates)
+he_scaled = scale(he,[2,3],N)
+he_avg = average(he_scaled,2)
+@test isempty(find_missing(he_avg))
+ps = (Δ,η,γ,λ,ν,Γ,N)
+# Generate function
+f = generate_ode(he_avg,ps;check_bounds=true)
+p0 = [ones(length(ps)-1); 4]
+u0 = zeros(ComplexF64,length(he_avg))
+prob1 = ODEProblem(f,u0,(0.0,1.0),p0)
+sol1 = solve(prob1,Tsit5(),abstol=1e-12,reltol=1e-12)
+bdb1 = get_solution(b[1]'b[1], sol1, he)[end]
+σ22_1 = get_solution(σ(2,2), sol1, he)[end]
+σ12_1 = get_solution(σ(1,2), sol1, he)[end]

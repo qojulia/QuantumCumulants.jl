@@ -134,7 +134,7 @@ in order to solve it.
 *`check_bounds::Bool=false`: Choose whether the resulting function should contain
     the `@inbounds` flag, which skips bounds checking for performance.
 """
-build_ode(eqs::HeisenbergEquation, args...; kwargs...) = build_ode(eqs.rhs,eqs.lhs,args...;kwargs...)
+build_ode(eqs::AbstractEquation, args...; kwargs...) = build_ode(eqs.rhs,eqs.lhs,args...;kwargs...)
 
 """
     generate_ode(eqs::HeisenbergEquation, ps=[], usym=:u,

@@ -96,9 +96,9 @@ for f in [:+,:*]
     @eval Base.$f(x::QNumber, y::QNumber, w...) = (check_hilbert(x,y,w...); QTerm($f, [x;y;w...]))
 end
 
-Base.adjoint(t::QTerm) = QTerm(t.f, adjoint.(t.arguments))
+Base.adjoint(t::QTerm) = QTerm(t.f, map(_adjoint, t.arguments))
 function Base.adjoint(t::QTerm{<:typeof(*)})
-    args = reverse(adjoint.(t.arguments))
+    args = reverse(_adjoint.(t.arguments))
     is_c = iscommutative.(args)
     args_c = args[is_c]
     args_nc = sort(args[.!is_c], lt=lt_aon)

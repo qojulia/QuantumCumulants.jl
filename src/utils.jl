@@ -19,7 +19,7 @@ function find_missing(rhs::Vector, vs::Vector; vs_adj::Vector=_conj.(vs), ps=[])
     isempty(ps) || (ps_adj = _conj.(ps); filter!(x -> !_in(x,ps_adj), missed))
     return missed
 end
-function find_missing(de::HeisenbergEquation; kwargs...)
+function find_missing(de::AbstractEquation; kwargs...)
     find_missing(de.rhs, de.lhs; kwargs...)
 end
 
@@ -212,7 +212,7 @@ end
 get_operators(x::QSym) = [x]
 
 _get_operators(::Number) = []
-_get_operators(::SymbolicUtils.Sym{<:Number}) = []
+_get_operators(::SymbolicUtils.Symbolic{<:Number}) = []
 _get_operators(op::QSym) = [op]
 _get_operators(op::QTerm{<:typeof(^)}) = [op]
 function _get_operators(op::QTerm{<:typeof(*)})

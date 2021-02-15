@@ -107,6 +107,24 @@ function average(de::HeisenbergEquation;multithread=false)
     end
     return HeisenbergEquation(lhs,rhs,de.hamiltonian,de.jumps,de.rates)
 end
+function average(de::ScaledHeisenbergEquation;multithread=false)
+    lhs = Vector{Any}(undef, length(de.lhs))
+    rhs = Vector{Any}(undef, length(de.lhs))
+    if multithread
+        Threads.@threads for i=1:length(de.lhs)
+            lhs[i] = average(de.lhs[i])
+            rhs[i] = average(de.rhs[i])
+        end
+    else
+        for i=1:length(de.lhs)
+            lhs[i] = average(de.lhs[i])
+            rhs[i] = average(de.rhs[i])
+        end
+    end
+    return ScaledHeisenbergEquation(lhs,rhs,de.hamiltonian,de.jumps,de.rates,
+            de.scale_aons, de.names, de.was_scaled, de.reference_terms
+    )
+end
 average(arg,order;kwargs...) = cumulant_expansion(average(arg),order;kwargs...)
 
 
@@ -203,6 +221,27 @@ function cumulant_expansion(de::HeisenbergEquation,order;multithread=false,mix_c
         end
     end
     return HeisenbergEquation(de.lhs,rhs,de.hamiltonian,de.jumps,de.rates)
+end
+function cumulant_expansion(de::ScaledHeisenbergEquation,order;multithread=false,mix_choice=maximum,kwargs...)
+    rhs = Vector{Any}(undef, length(de.lhs))
+    f = _redundant_rewriter(de.scale_aons, de.names, de.reference_terms)
+    if multithread
+        Threads.@threads for i=1:length(de.lhs)
+            check_lhs(de.lhs[i],order;mix_choice=mix_choice)
+            cr = cumulant_expansion(de.rhs[i],order;mix_choice=mix_choice,kwargs...)
+            rhs[i] = f(cr)
+        end
+    else
+        for i=1:length(de.lhs)
+            check_lhs(de.lhs[i],order;mix_choice=mix_choice)
+            cr = cumulant_expansion(de.rhs[i],order;mix_choice=mix_choice,kwargs...)
+            rhs[i] = f(cr)
+        end
+    end
+
+    return ScaledHeisenbergEquation(de.lhs,rhs,de.hamiltonian,de.jumps,de.rates,
+            de.scale_aons,de.names,de.was_scaled,de.reference_terms
+    )
 end
 
 function check_lhs(lhs,order::Int;kwargs...)
