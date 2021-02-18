@@ -1,4 +1,4 @@
-# Theoretical background
+# [Theoretical background](@id theory)
 
 In this section, we will describe the fundamental theoretical concepts used within **Qumulants.jl**.
 
@@ -119,8 +119,7 @@ ha = NLevelSpace(:atom,(:g,:e))
 h = hf⊗ha
 
 # Operators
-a = Destroy(h,:a)
-σ(i,j) = Transition(h,:σ,i,j)
+@qnumbers a::Destroy(h) σ::Transition(h)
 
 # Hamiltonian
 H = Δ*a'*a + g*(a'*σ(:g,:e) + a*σ(:e,:g))
