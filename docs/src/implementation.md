@@ -5,7 +5,7 @@ Let's take a closer look at each step involved from defining a system to arrivin
 
 ## Hilbert spaces
 
-The first step in treating a system with **Qumulants.jl** is to specify the Hilbert space on which the system is defined. There are two types of Hilbert spaces implemented, namely [`FockSpace`](@ref) and [`NLevelSpace`](@ref). The first describes systems whose operators follow the fundamental bosonic commutation relations (such as the quantum harmonic oscillator), whereas the latter describes systems consisting of a number of discrete energy levels (such as atoms).
+The first step in treating a system with **Qumulants.jl** is to specify the Hilbert space on which the system is defined. There are two types of Hilbert spaces implemented, namely [`FockSpace`](@ref) and [`NLevelSpace`](@ref). The first describes systems whose operators follow the fundamental bosonic commutation relations (such as the quantum harmonic oscillator), whereas the latter describes systems consisting of a finite number of energy levels with an arbitrary energy difference in between (such as atoms).
 
 A [`FockSpace`](@ref) simply needs a name in order to be defined:
 
@@ -22,13 +22,14 @@ h_atom = NLevelSpace(:atom, (:g,:e))
 nothing # hide
 ```
 
-defines an [`NLevelSpace`](@ref) with the name `:atom` and the two levels labeled by `:g` and `:e`, respectively. Note that the levels can be labeled by (almost) anything. For example, `NLevelSpace(:two_level, (1,2))` would define a Hilbert space describing a system with the two discrete energy lavels labeled by `1` and `2`. Specifically for numbers, there is also the short-hand method to write `NLevelSpace(:five_level, 5)` which creates a system with levels `1:5`. Note that by default the first level in the list of all levels is designated as the ground state. This can be changed by specifying the ground state explicitly as a third argument to [`NLevelSpace`](@ref). The ground state projector will be eliminated during simplification (see below).
+defines an [`NLevelSpace`](@ref) with the name `:atom` and the two levels labeled by `:g` and `:e`, respectively. Note that the levels can be labeled by (almost) anything. For example, `NLevelSpace(:two_level, (1,2))` would define a Hilbert space describing a system with the two discrete energy levels labeled by `1` and `2`. Specifically for numbers, there is also the short-hand method to write `NLevelSpace(:five_level, 5)` which creates a system with levels `1:5`. Note that by default the first level in the list of all levels is designated as the ground state. This can be changed by specifying the ground state explicitly as a third argument to [`NLevelSpace`](@ref), e.g. `NLevelSpace(:four_level, 4, 2)` would designate the state `2` as the ground state. The ground state projector will be eliminated during simplification (see below).
 
 Composite systems are generally described by a [`ProductSpace`](@ref), i.e. a Hilbert space that consists of multiple subspaces. Each subspace is either a [`FockSpace`](@ref) or an [`NLevelSpace`](@ref). They can be created using the [`tensor`](@ref) function or the unicode symbol [`⊗`](@ref) [\otimes]. For example
 
 ```@example hilbert-space
 h_prod1 = tensor(hf, h_atom)
 h_prod2 = tensor(h_prod1, NLevelSpace(:three_level, 3))
+h_prod3 = tensor(hf, h_atom, NLevelSpace(:three_level, 3)) # == h_prod2
 nothing # hide
 ```
 
@@ -53,7 +54,7 @@ h_atom = NLevelSpace(:atom,(:g,:e))
 nothing # hide
 ```
 
-As you can see, the destruction operator [`Destroy`](@ref) is created on a [`FockSpace`](@ref) and given a name. The transition operator, however, additionally requires you to specify the levels between which it describes the transition. Defining a transition without levels specified creates a callable instance which needs to be called with valid level labels before one can actually use it in any algebraic expressions. Note that in Bra-Ket notation, the transition operator `Transition(h, i, j)` is simply `|i><j|`.
+As you can see, the destruction operator [`Destroy`](@ref) is created on a [`FockSpace`](@ref) and given a name. The transition operator, however, additionally requires you to specify the levels between which it describes the transition. Defining a transition without levels specified creates a callable instance which needs to be called with valid level labels before one can actually use it in any algebraic expressions. Note that in Bra-Ket notation, the transition operator `Transition(h, i, j)` is simply ``|i\rangle \langle j|``. Note that the bosonic creation operator is simply given by the `adjoint` of [`Destroy`](@ref).
 
 These fundamental operators are all of the type [`QSym`](@ref), which are the basic symbolic building blocks for the noncommutative algebra used in **Qumulants.jl**. They can be combined with standard algebraic functions in expression trees, which are implemented as [`QTerm`](@ref).
 
@@ -65,14 +66,14 @@ nothing # hide
 
 Note that only operators that are defined on the same Hilbert space can be algebraically combined.
 
-In composite systems, we also need to specify on which subsystem the respective operator acts. This information is important as operators acting on different subsystems commute with one another, but operators acting on the same one do not. When multiplying together operators in a composite systems, they are automatically ordered according to the order of Hilbert spaces.
+In composite systems, we also need to specify on which subsystem the respective operator acts. This information is important as operators acting on different subsystems commute with one another, but operators acting on the same one do not. When multiplying together operators in a composite systems, they are automatically ordered according to the order of Hilbert spaces. It's specified by an additional argument when creating operators.
 
 ```@example operators
 h_prod = FockSpace(:fock1) ⊗ FockSpace(:fock2)
 a = Destroy(h_prod,:a,1)
 b = Destroy(h_prod,:b,2)
 a*b # a*b
-b*a # b*a
+b*a # a*b
 a'*b*a # a'*a*b
 nothing # hide
 ```
@@ -96,7 +97,7 @@ nothing # hide
 
 ## Symbolic parameters (a.k.a. *c*-numbers)
 
-Commutative numbers (*c*-numbers) are represented by `SymbolicUtils.Sym` from the [**SymbolicUtils.jl**](https://github.com/JuliaSymbolics/SymbolicUtils.jl) and a custom subtype to `Number` called [`CNumber`](@ref). They are generally assumed to be complex numbers and can be defined with the [`cnumbers`](@ref) function or the corresponding macro [`@cnumbers`](@ref). You can use them together with *q*-numbers to build symbolic expressions describing the Hamiltonian, e.g.
+Commutative numbers (*c*-numbers) are represented by `SymbolicUtils.Sym` from the [**SymbolicUtils.jl**](https://github.com/JuliaSymbolics/SymbolicUtils.jl) package and a custom subtype to `Number` called [`CNumber`](@ref). They are generally assumed to be complex numbers and can be defined with the [`cnumbers`](@ref) function or the corresponding macro [`@cnumbers`](@ref). You can use them together with *q*-numbers to build symbolic expressions describing the Hamiltonian, e.g.
 
 ```@example c-numbers
 using Qumulants # hide
@@ -127,7 +128,7 @@ a a^\dagger ~\Rightarrow~ a^\dagger a +1.
 For transition operators ``\sigma^{ij}`` denoting a transition from level ``j`` to level ``i``, on the other hand, we have a rule for products,
 
 ```math
-\sigma^{ij}\sigma^{kl} = \delta_{jk}\sigma^{il},
+\sigma^{ij}\sigma^{kl} ~\Rightarrow~ \delta_{jk}\sigma^{il},
 ```
 
 which is implemented as rewriting rule just so. Additionally, we use the fact that in a system with levels ``\{1,...,n\}``
@@ -136,7 +137,7 @@ which is implemented as rewriting rule just so. Additionally, we use the fact th
 \sum_{j=1}^n \sigma^{jj} = 1
 ```
 
-in order to eliminate the projector on the ground state. This reduces the amount of equations required for each [`NLevelSpace`](@ref) by 1. Note that, as mentioned before, the ground state is by default chosen to be the first (but this can be cahnged). Hence, the default rewriting rule to eliminate the ground-state projector is
+in order to eliminate the projector on the ground state. This reduces the amount of equations required for each [`NLevelSpace`](@ref) by 1. Note that, as mentioned before, the ground state is by default chosen to be the first (but this can be changed). Hence, the default rewriting rule to eliminate the ground-state projector is
 
 ```math
 \sigma^{11} ~\Rightarrow~ 1 - \sum_{j=2}^n \sigma^{jj}.
@@ -148,7 +149,7 @@ These rules are applied automatically when deriving Heisenberg equations for *q*
 using Qumulants # hide
 h = FockSpace(:fock)
 @qnumbers a::Destroy(h)
-qsimplify(a*a') # return a'*a + 1
+qsimplify(a*a') # returns a'*a + 1
 nothing # hide
 ```
 
@@ -162,7 +163,7 @@ H = ω*a'*a + η*(a + a') # Driven cavity Hamiltonian
 he = heisenberg([a, a'*a], H)
 ```
 
-To add decay to the system, you can pass an additional list of operators corresponding to the collapse operators describing the respective decay. For example, `heisenberg(a, H, [a]; rates=[κ])` would derive the equations of a cavity that is also subject to decay at a rates `κ`.
+To add decay to the system, you can pass an additional list of operators corresponding to the collapse operators describing the respective decay. For example, `heisenberg(a, H, [a]; rates=[κ])` would derive the equations of a cavity that is also subject to decay at a rate `κ`. Note that quantum noise is neglected, however (see the [theory section](@ref theory)).
 
 The equations resulting from the call to [`heisenberg`](@ref) are stored as an instance of [`HeisenbergEquation`](@ref), which stores the left-hand-side and the right-hand-side of the equations together with additional information such as the system Hamiltonian.
 
@@ -205,7 +206,7 @@ Before you can actually solve the system of equations, you need to ensure that i
 
 ## Numerical solution
 
-Finally, in order to actually solve a system of equations, we need to generate a function that can be used in the [**OrdinaryDiffEq.jl**](https://github.com/SciML/OrdinaryDiffEq.jl) package. This is done using the [`build_ode`](@ref) function, which generates an `Expr` that can be evaluated, or the [`generate_ode`](@ref) which calls `Meta.eval` on the result of [`build_ode`](@ref).
+Finally, in order to actually solve a system of equations, we need to generate a function that can be used in the [**OrdinaryDiffEq.jl**](https://github.com/SciML/OrdinaryDiffEq.jl) package. This is done using the [`build_ode`](@ref) function, which generates an `Expr` that can be evaluated, or the [`generate_ode`](@ref) which calls `Meta.eval` on the result of [`build_ode`](@ref). Note that the latter can be especially useful when you want to save a function for later usage, since you can simply convert it to a `string` and write it to a file.
 
 ```@example heisenberg
 ps = (ω, η)
