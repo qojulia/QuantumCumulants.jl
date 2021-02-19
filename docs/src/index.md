@@ -7,6 +7,8 @@
 * Then follows the key step: the equations of motion for the noncommutative operators are averaged and truncated at a specified order neglecting higher-order quantum correlations using the generalized cumulant expansion method. This results in a closed set of *c*-number ordinary differential equations.
 * Finally, the symbolic system of equations can be turned into a native Julia function which is directly usable in the [**DifferentialEquations.jl**](https://diffeq.sciml.ai/latest/) framework. This makes it straightforward to obtain a solution of the time dynamics of a system.
 
+Symbolic simplification is done using the extensive term rewriting of the [**SymbolicUtils.jl**](https://github.com/JuliaSymbolics/SymbolicUtils.jl) package together with a set of custom rewriting rules.
+
 
 ### Installation
 
