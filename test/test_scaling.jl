@@ -47,6 +47,12 @@ phase_invariant(x) = iszero(ϕ(x))
 @cnumbers N
 he_scaled = scale(he, [2,3], N)
 
+avg = average(σ(:e,:g,1)*σ(:e,:e,2))
+@test isequal(average(σ(:e,:e,1)*σ(:e,:g,2)), Qumulants.substitute_redundants(avg,[2,3],[:a,:σ_1,:σ_2]))
+
+@test Qumulants.lt_reference_order(σ(:e,:g,1),σ(:g,:e,2))
+@test !Qumulants.lt_reference_order(σ(:g,:e,1),σ(:e,:g,2))
+
 he_avg = average(he_scaled,2)
 missed = find_missing(he_avg)
 filter!(!phase_invariant, missed)
@@ -63,20 +69,7 @@ u0 = zeros(ComplexF64, length(he_scaled))
 prob = ODEProblem(f, u0, (0.0, 50.0), p0)
 sol = solve(prob, RK4())
 
-ex = average(a*σ(:e,:g,1)*σ(:e,:e,2))
-refs = [average(a'*σ(:e,:e,1)*σ(:g,:e,2))]
-@test Qumulants.is_redundant(ex, [2,3], refs)
-
-ex = QTerm(*, [1, 0.0 + 2.0im, g, a, σ(:e,:e,1), σ(:e,:g,2)])
-ex_ = QTerm(*, [a, σ(:e,:g,1), σ(:e,:e,2)])
-
-ex = a*σ(:e,:g,1)*σ(:e,:e,2)
-ex2 = a'*σ(:e,:e,1)*σ(:g,:e,2)
-Qumulants.is_redundant(ex,[2,3])
-ex_ = Qumulants._swap_aon_and_name(ex,[1,3,2],[1,2,3],[:a,:σ_1,:σ_2])
-
-ex2_swapped = Qumulants._replace_redundant(ex2,[2,3],[:a,:σ_1,:σ_2],[ex],1,true)
-@test isequal(ex2_swapped, ex')
+@test sol.u[end][1] ≈ 12.6018748
 
 # Test Holstein
 M = 2
@@ -92,10 +85,6 @@ J = [a;b]
 rates = [κ;[γ for i=1:M]]
 ops = [a,a'*a,a*a,b[1],a*b[1],a'*b[1],b[1]'*b[1],b[1]*b[1],b[1]'*b[2],b[1]*b[2]]
 he = heisenberg(ops,H,J;rates=rates)
-
-ex1 = b[1]'*b[1]
-ex2 = b[1]'*b[2]
-@test !Qumulants.is_redundant(ex1, [2,3], [ex2])
 
 @cnumbers N
 he_scaled = scale(he,[2,3],N;simplify=false)

@@ -122,7 +122,7 @@ function average(de::ScaledHeisenbergEquation;multithread=false)
         end
     end
     return ScaledHeisenbergEquation(lhs,rhs,de.hamiltonian,de.jumps,de.rates,
-            de.scale_aons, de.names, de.was_scaled, de.reference_terms
+            de.scale_aons, de.names, de.was_scaled
     )
 end
 average(arg,order;kwargs...) = cumulant_expansion(average(arg),order;kwargs...)
@@ -224,23 +224,22 @@ function cumulant_expansion(de::HeisenbergEquation,order;multithread=false,mix_c
 end
 function cumulant_expansion(de::ScaledHeisenbergEquation,order;multithread=false,mix_choice=maximum,kwargs...)
     rhs = Vector{Any}(undef, length(de.lhs))
-    f = _redundant_rewriter(de.scale_aons, de.names, de.reference_terms)
     if multithread
         Threads.@threads for i=1:length(de.lhs)
             check_lhs(de.lhs[i],order;mix_choice=mix_choice)
             cr = cumulant_expansion(de.rhs[i],order;mix_choice=mix_choice,kwargs...)
-            rhs[i] = f(cr)
+            rhs[i] = substitute_redundants(cr, de.scale_aons, de.names)
         end
     else
         for i=1:length(de.lhs)
             check_lhs(de.lhs[i],order;mix_choice=mix_choice)
             cr = cumulant_expansion(de.rhs[i],order;mix_choice=mix_choice,kwargs...)
-            rhs[i] = f(cr)
+            rhs[i] = substitute_redundants(cr, de.scale_aons, de.names)
         end
     end
 
     return ScaledHeisenbergEquation(de.lhs,rhs,de.hamiltonian,de.jumps,de.rates,
-            de.scale_aons,de.names,de.was_scaled,de.reference_terms
+            de.scale_aons,de.names,de.was_scaled
     )
 end
 
