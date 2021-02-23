@@ -71,6 +71,34 @@ sol = solve(prob, RK4())
 
 @test sol.u[end][1] ≈ 12.6018748
 
+# Some abstract tests
+M = 4
+hc = FockSpace(:cavity)
+hvib = [FockSpace(Symbol(:mode, i)) for i=1:M]
+h = ⊗(hc, hvib...)
+a = Destroy(h,:a,1)
+b = [Destroy(h,Symbol(:b_,i),i+1) for i=1:M]
+
+names = [:a;[Symbol(:b_,i) for i=1:M]]
+
+avg = average(a*b[1]*b[2]*b[2])
+@test !Qumulants.is_redundant_aon(avg,[2,3])
+Qumulants.is_redundant_non_unique_aon(avg,[2,3])
+
+avg = average(a*b[1]*b[2]*b[2])
+Qumulants.substitute_redundants(avg, [2,3], names)
+
+avg = average(b[1]'*b[2]'*b[2])
+Qumulants.substitute_redundants(avg, [2,3], names)
+
+avg = average(b[1]*b[1]*b[2]'*b[2])
+Qumulants.substitute_redundants(avg, [2,3], names)
+
+avg = average(b[1]*b[2]'*b[3]*b[4]')
+Qumulants.substitute_redundants(avg, [2:5;], names)
+
+issorted([b[1], b[2], b[3]', b[4]'], lt=Qumulants._lt_num_destroy_create)
+
 # Test Holstein
 M = 2
 hc = FockSpace(:cavity)
@@ -79,6 +107,19 @@ h = ⊗(hc, hvib...)
 @cnumbers G Δ κ γ Ω
 a = Destroy(h,:a,1)
 b = [Destroy(h,Symbol(:b_,i),i+1) for i=1:M]
+
+avg = average(a*b[1]*b[2]*b[2])
+@test !Qumulants.is_redundant_aon(avg,[2,3])
+Qumulants.is_redundant_non_unique_aon(avg,[2,3])
+
+avg = average(a*b[1]*b[2]*b[2])
+Qumulants.substitute_redundants(avg, [2,3], names)
+
+avg = average(b[1]'*b[2]'*b[2])
+Qumulants.substitute_redundants(avg, [2,3], names)
+
+avg = average(b[1]*b[1]*b[2]'*b[2])
+Qumulants.substitute_redundants(avg, [2,3], names)
 
 H = Δ*a'*a + G*sum(b[i] + b[i]' for i=1:M)*a'*a + Ω*(a+a')
 J = [a;b]

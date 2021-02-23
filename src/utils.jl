@@ -254,7 +254,7 @@ end
 Find the numerical solution of the average value `avg` stored in the `ODESolution`
 `sol` corresponding to the solution of the equations given by `he`.
 """
-function get_solution(avg::SymbolicUtils.Term{<:AvgSym},sol,he::HeisenbergEquation)
+function get_solution(avg,sol,he::AbstractEquation)
     idx = findfirst(isequal(avg),he.lhs)
     if isnothing(idx)
         avg_ = _adjoint(avg)
