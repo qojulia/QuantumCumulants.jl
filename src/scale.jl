@@ -166,21 +166,6 @@ function substitute_redundants(t::QTerm{<:typeof(*)},scale_aons,names)
                             _swap_aon_and_name(t, aon, aon_subs, names),
                             scale_aons, names
                             )
-    elseif is_redundant_non_unique_aon(t,scale_aons)
-        args_cluster = filter(x->acts_on(x)∈scale_aons,SymbolicUtils.arguments(t))
-        p = non_unique_aon_sortperm(args_cluster)
-
-        aon_subs = copy(aon)
-        names_ = names[aon]
-
-        aon_subs[idx_aon] = scale_aons[p]
-        names_[idx_aon] = names_[idx_aon][p]
-
-        return substitute_redundants(
-                            _swap_aon_and_name(t, aon, aon_subs, names_),
-                            scale_aons, names
-                            )
-
     else
         args = SymbolicUtils.arguments(t)
         args_cluster = filter(x->acts_on(x)∈scale_aons, args)
@@ -228,89 +213,40 @@ function is_redundant_aon(x,scale_aons)
     return aon[idx_aon[1]] != scale_aons[1]
 end
 
-function is_redundant_non_unique_aon(x::Average,scale_aons)
-    op = SymbolicUtils.arguments(x)[1]
-    return is_redundant_non_unique_aon(op,scale_aons)
-end
-is_redundant_non_unique_aon(x::QSym,scale_aons) = false
-function is_redundant_non_unique_aon(x::QTerm{<:typeof(*)},scale_aons)
-    args = SymbolicUtils.arguments(x)
-    idx_aon = findall(x->acts_on(x)∈scale_aons,args)
-    args[idx_aon[1]] isa Transition && return false
-
-    # Check for multiple aons whether the longest one is the first,
-    # e.g. for a_1*a_2*a_2 => a_1*a_1*a_2
-    arg_aon = Int[]
-    for arg in args[idx_aon]
-        push!(arg_aon, acts_on(arg))
-    end
-
-    unique(arg_aon) != arg_aon || return false
-
-    count = Int[]
-    i = 1
-    while i <= length(arg_aon)
-        idx = findall(isequal(arg_aon[i]),arg_aon[i:end])
-        push!(count, length(idx))
-        i += count[end]
-    end
-
-    return !issorted(count, lt=(>))
-end
-
 function sortperm_ref_order(args_cluster)
     if args_cluster[1] isa Transition
         return sortperm(args_cluster, lt=lt_reference_order)
     else
-        # TODO clean up this mess
-        arg_aon = Int[]
-        for arg in args_cluster
-            push!(arg_aon, acts_on(arg))
-        end
+        # non-unique acts_on
+        arg_aon = map(acts_on, args_cluster)
 
-        counter = Pair{Int,Int}[]
+        # Separate arguments into blocks with equal acts_on
         i = 1
-        while i <= length(arg_aon)
+        blocks = []
+        while i <= length(args_cluster)
             idx = findall(isequal(arg_aon[i]),arg_aon[i:end])
-            count = length(idx)
-            push!(counter, arg_aon[i] => count)
-            i += count
+            n = length(idx)
+            block = args_cluster[i:i+n-1]
+            push!(blocks, block)
+            i += n
         end
 
-        p = Int[]
-        sort!(counter, by=x->x[1])
-        checked_len = Int[] #already checked those
-        for c∈counter
-            c[2] ∈ checked_len && continue
-            push!(checked_len, c[2])
-            idx = findall(x->x[2]==c[2], counter)
-            if length(idx) > 1
-                blocks = []
-                idx_aon = Vector{Int}[]
-                for c1∈counter[idx]
-                    aon_ = c1[1]
-                    idx_ = findall(x->acts_on(x)==aon_, args_cluster)
-                    push!(blocks, args_cluster[idx_])
-                    push!(idx_aon, idx_)
-                end
-                p_ = sortperm(blocks, lt=_lt_num_destroy_create)
-                append!(p, p_)
-            end
-        end
-
-        return p
+        # Sort blocks by length and count of Destroy/Create
+        return sortperm(blocks, lt=_lt_num_destroy_create)
     end
 end
 
-_lt_num_destroy_create(::QSym,::QSym) = true
-_lt_num_destroy_create(::Destroy,::Create) = false
 function _lt_num_destroy_create(args1, args2)
-    f = x->isa(x,Destroy)
-    idx_destroys1 = findall(f,args1)
-    ndest1 = length(idx_destroys1)
-    idx_destroys2 = findall(f,args2)
-    ndest2 = length(idx_destroys2)
-    return ndest1 <= ndest2
+    if length(args1) != length(args2) # Sort by length first
+        return length(args1) > length(args2)
+    else # Equal length is sorted by number of Destroy (lower ones to the right)
+        f = x->isa(x,Destroy)
+        idx_destroys1 = findall(f,args1)
+        ndest1 = length(idx_destroys1)
+        idx_destroys2 = findall(f,args2)
+        ndest2 = length(idx_destroys2)
+        return ndest1 <= ndest2
+    end
 end
 
 function lt_reference_order(t1::Transition, t2::Transition)
@@ -322,25 +258,6 @@ function lt_reference_order(t1::Transition, t2::Transition)
     else
         return t1.j > t2.j
     end
-end
-
-function non_unique_aon_sortperm(args_cluster)
-    arg_aon = Int[]
-    for arg in args_cluster
-        push!(arg_aon, acts_on(arg))
-    end
-
-    counter = Pair{Int,Int}[]
-    i = 1
-    while i <= length(arg_aon)
-        idx = findall(isequal(arg_aon[i]),arg_aon[i:end])
-        count = length(idx)
-        push!(counter, arg_aon[i] => count)
-        i += count
-    end
-
-    # Sort by acts_ons which occur the most often
-    return sortperm(counter, by=x->x[2], lt=(>))
 end
 
 _swap_aon_and_name(x::Average, aon1, aon2, names) = _average(_swap_aon_and_name(x.arguments[1], aon1, aon2, names))
