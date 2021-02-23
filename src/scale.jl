@@ -7,7 +7,7 @@ function scale(he::HeisenbergEquation, scale_aons, N; simplify=true, kwargs...)
 
     for i=1:length(he)
         rhs_ = _scale(he_avg.lhs[i], he_avg.rhs[i], scale_aons, N, M, names)
-        rhs_ = substitute_redundants(rhs_, scale_aons, names)
+        # rhs_ = substitute_redundants(rhs_, scale_aons, names)
         push!(rhs, _undo_average(rhs_))
     end
 
