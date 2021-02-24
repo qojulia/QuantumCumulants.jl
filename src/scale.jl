@@ -1,18 +1,26 @@
-function scale(he::HeisenbergEquation, scale_aons, N; simplify=true, kwargs...)
-    M = length(scale_aons)
-    rhs = QNumber[]
+function scale(he::HeisenbergEquation, scale_aons_::Vector{<:Vector}, N::Vector; simplify=true, kwargs...)
     names = get_names(he)
-    he_avg_ = average(he) # Ensure correct form of expressions required for scaling
-    he_avg = substitute_redundants(he_avg_, scale_aons, names)
+    he_avg = average(he) # Ensure correct form of expressions required for scaling
+    rhs_avg = he_avg.rhs
 
-    for i=1:length(he)
-        rhs_ = _scale(he_avg.lhs[i], he_avg.rhs[i], scale_aons, N, M, names)
-        # rhs_ = substitute_redundants(rhs_, scale_aons, names)
-        push!(rhs, _undo_average(rhs_))
+    for j=1:length(scale_aons_)
+        scale_aons = scale_aons_[j]
+        M = length(scale_aons)
+        for i=1:length(rhs_avg)
+            rhs_avg[i] = _scale(he_avg.lhs[i], rhs_avg[i], scale_aons, N[j], M, names)
+        end
     end
 
+    for scale_aons∈scale_aons_
+        for i=1:length(rhs_avg)
+            rhs_avg[i] = substitute_redundants(rhs_avg[i], scale_aons, names)
+        end
+    end
+
+    rhs = map(_undo_average, rhs_avg)
+
     he_scaled = ScaledHeisenbergEquation(he.lhs,rhs,he.hamiltonian,he.jumps,he.rates,
-                scale_aons, names, ones(Bool, length(he))
+                scale_aons_, names, ones(Bool, length(he))
     )
 
     if simplify
@@ -21,6 +29,7 @@ function scale(he::HeisenbergEquation, scale_aons, N; simplify=true, kwargs...)
         return he_scaled
     end
 end
+scale(he::HeisenbergEquation, scale_aons, N; kwargs...) = scale(he, [scale_aons], [N]; kwargs...)
 
 function _scale(lhs, rhs, scale_aons, N, M, names)
     aon_lhs = acts_on(lhs)
@@ -108,7 +117,8 @@ should_scale(scale_aons,aon_lhs,was_scaled) = (x->should_scale(x, scale_aons, ao
 function should_scale(x, scale_aons, aon_lhs, was_scaled)
     h = hash(x)
     h ∈ was_scaled && return false # x was already scaled
-    aon = acts_on(x)
+    aon = [acts_on(x)...]
+    intersect!(aon, scale_aons)
     all(a ∈ aon_lhs for a ∈ aon) && return false # x acts only on things contained in lhs
     should_scale_ = any(a ∈ scale_aons for a ∈ aon) # no scaling should occur if x is not part of a cluster
     should_scale_ && push!(was_scaled, h)
@@ -118,12 +128,12 @@ end
 
 ## Dealing with redundant averages
 
-function substitute_redundants(he::HeisenbergEquation, args...)
+function substitute_redundants(he::HeisenbergEquation,scale_aons::Vector{<:Vector},names)
     lhs = []
     rhs = []
     for i=1:length(he)
-        lhs_ = substitute_redundants(he.lhs[i], args...)
-        rhs_ = substitute_redundants(he.rhs[i], args...)
+        lhs_ = substitute_redundants(he.lhs[i],scale_aons,names)
+        rhs_ = substitute_redundants(he.rhs[i],scale_aons,names)
         push!(lhs, lhs_)
         push!(rhs, rhs_)
     end
@@ -131,13 +141,15 @@ function substitute_redundants(he::HeisenbergEquation, args...)
     return HeisenbergEquation(lhs, rhs, he.hamiltonian, he.jumps, he.rates)
 end
 
-function substitute_redundants(t::SymbolicUtils.Symbolic,scale_aons,names)
+function substitute_redundants(t::SymbolicUtils.Symbolic,scale_aons::Vector{<:Vector},names)
     if SymbolicUtils.istree(t)
         f = SymbolicUtils.operation(t)
         if f === average
-            op = SymbolicUtils.arguments(t)[1]
-            op_ = substitute_redundants(op,scale_aons,names)
-            return average(op_)
+            op = copy(SymbolicUtils.arguments(t)[1])
+            for j=1:length(scale_aons)
+                op = substitute_redundants(op,scale_aons[j],names)
+            end
+            return average(op)
         else
             args = []
             for arg in SymbolicUtils.arguments(t)
@@ -150,6 +162,7 @@ function substitute_redundants(t::SymbolicUtils.Symbolic,scale_aons,names)
     end
 end
 substitute_redundants(x::Number,args...) = x
+substitute_redundants(x,scale_aons,names) = substitute_redundants(x,[scale_aons],names)
 
 function substitute_redundants(t::QTerm{<:typeof(*)},scale_aons,names)
     aon = acts_on(t)
@@ -162,8 +175,9 @@ function substitute_redundants(t::QTerm{<:typeof(*)},scale_aons,names)
             aon_subs = copy(aon)
             aon_subs[idx_aon] .= scale_aons[1:length(idx_aon)]
         end
+
         return substitute_redundants(
-                            _swap_aon_and_name(t, aon, aon_subs, names),
+                            _swap_aon_and_name(t, aon, aon_subs, names[aon_subs]),
                             scale_aons, names
                             )
     else
