@@ -41,19 +41,10 @@ Base.hash(t::QTerm, h::UInt) = hash(t.arguments, hash(t.f, h))
 # Symbolic type promotion
 SymbolicUtils.promote_symtype(f, Ts::Type{<:QNumber}...) = promote_type(QNumber,Ts...)
 SymbolicUtils.promote_symtype(f, T::Type{<:QNumber}, Ts...) = promote_type(QNumber,T)
-for f in [+,-,*,/,^]
-    @eval SymbolicUtils.promote_symtype(::$(typeof(f)),
-                   T::Type{<:QNumber},
-                   S::Type{<:Number}) = QNumber
-    @eval SymbolicUtils.promote_symtype(::$(typeof(f)),
-                   T::Type{<:Number},
-                   S::Type{<:QNumber}) = QNumber
-    @eval SymbolicUtils.promote_symtype(::$(typeof(f)),
-                   T::Type{<:QNumber},
-                   S::Type{<:QNumber}) = QNumber
-end
+SymbolicUtils.promote_symtype(f,T::Type{<:QNumber},S::Type{<:Number}) = QNumber
+SymbolicUtils.promote_symtype(f,T::Type{<:Number},S::Type{<:QNumber}) = QNumber
+SymbolicUtils.promote_symtype(f,T::Type{<:QNumber},S::Type{<:QNumber}) = QNumber
 
-SymbolicUtils.islike(::QNumber, ::Type{<:Number}) = true
 SymbolicUtils.symtype(x::T) where T<:QNumber = T
 SymbolicUtils.to_symbolic(x::QNumber) = x
 
@@ -64,12 +55,6 @@ for f in [*,+,-,/,^]
     @eval SymbolicUtils.operation(t::QTerm{<:$(typeof(f))}) = $f
 end
 SymbolicUtils.similarterm(t::QTerm{F}, f::F, args::A) where {F,A} = QTerm{F,A}(t.f, args)
-
-SymbolicUtils.:<ₑ(a::QNumber, b::Number) = false
-SymbolicUtils.:<ₑ(a::Number,   b::QNumber) = true
-SymbolicUtils.:<ₑ(a::QNumber, b::SymbolicUtils.Symbolic{<:Number}) = false
-SymbolicUtils.:<ₑ(a::SymbolicUtils.Symbolic{<:Number}, b::QNumber) = true
-
 
 ### End of interface
 
