@@ -176,7 +176,7 @@ ha = [NLevelSpace(Symbol(:atom, i, j), (:g,:e)) for j=1:N_c, i=1:M]
 h = tensor(hf, ha...)
 
 @qnumbers a::Destroy(h)
-σ(i,j,c) = [Transition(h,Symbol(:σ_,c, :_, k, :_),i,j,k+1+M*(c-1)) for k=1:N_c]
+σ(i,j,c) = [Transition(h,Symbol(:σ_,c, :_, k, :_),i,j,k+1+M*(c-1)) for k=1:M]
 
 @cnumbers κ
 ν = cnumbers([Symbol(:ν_, c) for c=1:N_c]...)
@@ -245,41 +245,16 @@ he_nophase = substitute(he_avg, subs)
 
 ps = (κ, Δ..., g..., γ..., ν..., N...)
 f = generate_ode(he_nophase, ps)
-p0 = (1, [0 for i=1:N_c]..., [1.5 for i=1:N_c]..., [0.25 for i=1:N_c]..., [4 for i=1:N_c]..., 4, 3)
+if N_c==2
+    p0 = (1, [0 for i=1:N_c]..., [1.5 for i=1:N_c]..., [0.25 for i=1:N_c]..., [4 for i=1:N_c]..., 4, 3)
+elseif N_c==3
+    p0 = (1, [0 for i=1:N_c]..., [1.5 for i=1:N_c]..., [0.25 for i=1:N_c]..., [4 for i=1:N_c]..., 2, 3, 2)
+end
 u0 = zeros(ComplexF64, length(he_scaled))
 prob = ODEProblem(f, u0, (0.0, 50.0), p0)
 sol = solve(prob, RK4(), abstol=1e-10, reltol=1e-10)
 
 @test sol.u[end][1] ≈ 12.601868534
-
-
-avg = average(σ(:e,:g,1)[2]*σ(:g,:e,2)[1])
-names = Qumulants.get_names(he)
-avg_sub = Qumulants.substitute_redundants(avg, [2,3], names)
-
-using SymbolicUtils
-function get_avg(t)
-    if SymbolicUtils.istree(t)
-        if SymbolicUtils.operation(t)===average
-            return [t]
-        else
-            avgs = []
-            for arg in SymbolicUtils.arguments(t)
-                append!(avgs, get_avg(arg))
-            end
-            return avgs
-        end
-    else
-        return []
-    end
-end
-for i=1:length(he_avg)
-    if Qumulants._in(missed[1], get_avg(he_avg.rhs[i]))
-        println(i)
-        break
-    end
-end
-
 
 # order = 2
 # N_c = 2 #number of clusters
