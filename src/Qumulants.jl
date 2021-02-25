@@ -2,6 +2,7 @@ module Qumulants
 
 import SymbolicUtils
 import SymbolicUtils: substitute
+using SymbolicUtils: @rule, @acrule, @ordered_acrule
 using Combinatorics: partitions, combinations, permutations
 
 export HilbertSpace, ProductSpace, ⊗, tensor,
