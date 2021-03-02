@@ -25,7 +25,7 @@ defines the subscript added to the name of `op2` representing the constant time.
 Note that the correlation function is stored in the first index of the underlying
 system of equations.
 """
-function CorrelationFunction(op1,op2,de0::HeisenbergEquation; steady_state=false, add_subscript=0, filter_func=nothing, mix_choice=maximum, kwargs...)
+function CorrelationFunction(op1,op2,de0::AbstractEquation; steady_state=false, add_subscript=0, filter_func=nothing, mix_choice=maximum, kwargs...)
     h1 = hilbert(op1)
     h2 = _new_hilbert(hilbert(op2), acts_on(op2))
     h = h1⊗h2
@@ -331,6 +331,9 @@ function _complete_corr(de,aon0,lhs_new,order,steady_state; mix_choice=maximum, 
     filter!(_filter_aon, missed)
     isnothing(filter_func) || filter!(filter_func, missed) # User-defined filter
 
+    filter_reds = de isa ScaledHeisenbergEquation
+    filter_reds && filter_redundants!(missed, de.scale_aons, de.names)
+
     while !isempty(missed)
         ops = [SymbolicUtils.arguments(m)[1] for m in missed]
         he = isempty(J) ? heisenberg(ops,H; kwargs...) : heisenberg(ops,H,J;rates=rates, kwargs...)
@@ -341,6 +344,7 @@ function _complete_corr(de,aon0,lhs_new,order,steady_state; mix_choice=maximum, 
         filter!(SymbolicUtils.sym_isa(AvgSym),missed)
         filter!(_filter_aon, missed)
         isnothing(filter_func) || filter!(filter_func, missed) # User-defined filter
+        filter_reds && filter_redundants!(missed, de.scale_aons, de.names)
     end
 
     if !isnothing(filter_func)
@@ -349,12 +353,17 @@ function _complete_corr(de,aon0,lhs_new,order,steady_state; mix_choice=maximum, 
         missed = unique_ops(find_missing(rhs_, vs_))
         filter!(SymbolicUtils.sym_isa(AvgSym),missed)
         filter!(!filter_func, missed)
+        filter_reds && filter_redundants!(missed, de.scale_aons, de.names)
         subs = Dict(missed .=> 0)
         rhs_ = [substitute(r, subs) for r in rhs_]
     end
-    return HeisenbergEquation(vs_, rhs_, H, J, rates)
-end
 
+    if filter_reds
+        return ScaledHeisenbergEquation(vs_, rhs_, H, J, rates, de.scale_aons, de.names, ones(Bool, length(rhs_)))
+    else
+        return HeisenbergEquation(vs_, rhs_, H, J, rates)
+    end
+end
 
 ### Auxiliary functions for Spectrum
 

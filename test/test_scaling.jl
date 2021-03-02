@@ -122,7 +122,13 @@ sol = solve(prob, RK4(), abstol=1e-10, reltol=1e-10)
 
 @test sol.u[end][1] ≈ 12.601868534
 
-# Some abstract tests
+# Spectrum
+corr = CorrelationFunction(a',a,he_nophase;steady_state=true,filter_func=phase_invariant)
+S = Spectrum(corr,ps)
+s = S(range(-π, π, length=301), sol.u[end], p0)
+@test all(s .>= 0.0)
+
+## Some abstract tests
 M = 4
 @cnumbers N
 hc = FockSpace(:cavity)
