@@ -55,8 +55,6 @@ function _scale(lhs, rhs, scale_aons, N, M, names)
     aon_lhs = acts_on(lhs)
     scale_aon_ = intersect(aon_lhs, scale_aons)
     M_ = length(scale_aon_)
-    # if length(aon_lhs)==1 && aon_lhs[1]==scale_aons[1]
-    #     N_ = 1 # TODO: do we need this?
     if iszero(M_)
         N_ = N / M
     elseif M_ == M # all clusters on lhs
@@ -352,7 +350,7 @@ function _swap_aon_and_name(op::Transition, aon1, aon2, name::Symbol)
     Transition(op.hilbert, name, op.i, op.j, aon2)
 end
 _swap_aon_and_name(op::QSym, aon1, aon2, names) = _swap_aon_and_name(op, aon1, aon2, _get_names(names, aon2))
-# _swap_aon_and_name(op::QSym, aon1, aon2, names::Vector) = _swap_aon_and_name(op, aon1, aon2, names[aon2])
+
 _get_names(names, aon::Integer) = names[aon]
 _get_names(names::Vector{<:Symbol}, aon::ClusterAon) = names[aon.j]
 _get_names(names, aon::ClusterAon) = names[aon.i][aon.j]

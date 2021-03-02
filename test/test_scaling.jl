@@ -75,6 +75,9 @@ sol1 = solve(prob1, Tsit5(), reltol=1e-12, abstol=1e-12)
 
 @test sol1.u[end][1] ≈ 0.0758608728203
 
+avg = average(a*S(2,1,1)[2])
+@test get_solution(avg, sol1, he_scale) == map(conj, get_solution(average(a'*S(1,2,1)[1]), sol1, he_scale)) == conj.(getindex.(sol1.u, 3))
+
 ## Two-level laser
 M = 2
 @cnumbers N

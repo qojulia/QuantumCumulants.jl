@@ -273,7 +273,12 @@ end
 Find the numerical solution of the average value `avg` stored in the `ODESolution`
 `sol` corresponding to the solution of the equations given by `he`.
 """
-function get_solution(avg,sol,he::AbstractEquation)
+function get_solution(avg_,sol,he::AbstractEquation)
+    avg = if he isa ScaledHeisenbergEquation
+        substitute_redundants(avg_,he.scale_aons,he.names)
+    else
+        avg_
+    end
     idx = findfirst(isequal(avg),he.lhs)
     if isnothing(idx)
         avg_ = _adjoint(avg)
