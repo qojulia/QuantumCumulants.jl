@@ -44,15 +44,15 @@ end
 for f in [:Destroy,:Create]
     @eval $(f)(hilbert::H,name::S,aon::A) where {H,S,A} = $(f){H,S,A}(hilbert,name,aon)
     @eval $(f)(hilbert::FockSpace,name) = $(f)(hilbert,name,1)
-    @eval function $(f)(hilbert::ProductSpace,name)
-        i = findall(x->isa(x,FockSpace),hilbert.spaces)
-        if length(i)==1
-            return $(f)(hilbert,name,i[1])
-        else
-            isempty(i) && error("Can only create $($(f)) on FockSpace! Not included in $(hilbert)")
-            length(i)>1 && error("More than one FockSpace in $(hilbert)! Specify on which Hilbert space $($(f)) should be created with $($(f))(hilbert,name,i)!")
-        end
-    end
+#     @eval function $(f)(hilbert::ProductSpace,name)
+#         i = findall(x->isa(x,FockSpace),hilbert.spaces)
+#         if length(i)==1
+#             return $(f)(hilbert,name,i[1])
+#         else
+#             isempty(i) && error("Can only create $($(f)) on FockSpace! Not included in $(hilbert)")
+#             length(i)>1 && error("More than one FockSpace in $(hilbert)! Specify on which Hilbert space $($(f)) should be created with $($(f))(hilbert,name,i)!")
+#         end
+#     end
     @eval function embed(h::ProductSpace,op::T,aon::Int) where T<:($(f))
         check_hilbert(h.spaces[aon],op.hilbert)
         op_ = $(f)(h,op.name,aon)

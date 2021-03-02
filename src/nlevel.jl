@@ -69,15 +69,15 @@ struct Transition{H,S,I,A} <: QSym
 end
 Transition(hilbert::H,name::S,i::I,j::I,aon::A) where {H,S,I,A} = Transition{H,S,I,A}(hilbert,name,i,j,aon)
 Transition(hilbert::NLevelSpace,name,i,j) = Transition(hilbert,name,i,j,1)
-function Transition(hilbert::ProductSpace,name,i,j)
-    inds = findall(x->isa(x,NLevelSpace),hilbert.spaces)
-    if length(inds)==1
-        return Transition(hilbert,name,i,j,inds[1])
-    else
-        isempty(inds) && error("Can only create Transition on NLevelSpace! Not included in $(hilbert)")
-        length(inds)>1 && error("More than one NLevelSpace in $(hilbert)! Specify on which Hilbert space Transition should be created with Transition(hilbert,name,i,j,acts_on)!")
-    end
-end
+# function Transition(hilbert::ProductSpace,name,i,j)
+#     inds = findall(x->isa(x,NLevelSpace),hilbert.spaces)
+#     if length(inds)==1
+#         return Transition(hilbert,name,i,j,inds[1])
+#     else
+#         isempty(inds) && error("Can only create Transition on NLevelSpace! Not included in $(hilbert)")
+#         length(inds)>1 && error("More than one NLevelSpace in $(hilbert)! Specify on which Hilbert space Transition should be created with Transition(hilbert,name,i,j,acts_on)!")
+#     end
+# end
 
 function Base.isless(a::Transition, b::Transition)
     if a.name == b.name

@@ -248,6 +248,25 @@ function unique_ops(ops)
     return seen
 end
 
+function unique_ops!(ops)
+    seen = eltype(ops)[]
+    current = 0
+    i = 1
+    while i <= lastindex(ops)
+       x = ops[i]
+       x′ = _adjoint(x)
+       if !(_in(x, seen) || _in(x′, seen))
+           current += 1
+           ops[current] = x
+           push!(seen, x)
+       end
+       i += 1
+   end
+   return resize!(ops, current)::typeof(ops)
+end
+
+
+
 """
     get_solution(avg,sol,he)
 

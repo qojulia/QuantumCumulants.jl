@@ -1,3 +1,8 @@
+function scale(he::AbstractEquation; kwargs...)
+    h = hilbert(he.hamiltonian)
+    scale_aons, N = get_cluster_stuff(h)
+    return scale(he, scale_aons, N; kwargs...)
+end
 function scale(he::HeisenbergEquation, scale_aons_::Vector{<:Vector}, N::Vector; simplify=true, kwargs...)
     names = get_names(he)
     he_avg = average(he) # Ensure correct form of expressions required for scaling
@@ -7,17 +12,16 @@ function scale(he::HeisenbergEquation, scale_aons_::Vector{<:Vector}, N::Vector;
         scale_aons = scale_aons_[j]
         M = length(scale_aons)
         for i=1:length(rhs_avg)
+            rhs_avg[i] = substitute_redundants(rhs_avg[i], scale_aons, names)
             rhs_avg[i] = _scale(he_avg.lhs[i], rhs_avg[i], scale_aons, N[j], M, names)
         end
     end
 
-    for scale_aons∈scale_aons_
-        for i=1:length(rhs_avg)
-            rhs_avg[i] = substitute_redundants(rhs_avg[i], scale_aons, names)
-        end
+    rhs = if he.lhs[1] isa Average
+        rhs_avg
+    else
+        map(_undo_average, rhs_avg)
     end
-
-    rhs = map(_undo_average, rhs_avg)
 
     he_scaled = ScaledHeisenbergEquation(he.lhs,rhs,he.hamiltonian,he.jumps,he.rates,
                 scale_aons_, names, ones(Bool, length(he))
@@ -29,15 +33,31 @@ function scale(he::HeisenbergEquation, scale_aons_::Vector{<:Vector}, N::Vector;
         return he_scaled
     end
 end
-scale(he::HeisenbergEquation, scale_aons, N; kwargs...) = scale(he, [scale_aons], [N]; kwargs...)
+
+function get_cluster_stuff(h::ClusterSpace,aon=1)
+    M = h.order
+    aons = [ClusterAon(aon,i) for i=1:M]
+    return [aons], [h.N]
+end
+function get_cluster_stuff(h::ProductSpace)
+    idx = findall(x->isa(x,ClusterSpace),h.spaces)
+    aons = Vector{<:ClusterAon}[]
+    N = []
+    for i∈idx
+        aon_, N_ = get_cluster_stuff(h.spaces[i],i)
+        append!(aons, aon_)
+        append!(N, N_)
+    end
+    return aons, N
+end
 
 function _scale(lhs, rhs, scale_aons, N, M, names)
     aon_lhs = acts_on(lhs)
     scale_aon_ = intersect(aon_lhs, scale_aons)
     M_ = length(scale_aon_)
-    if length(aon_lhs)==1 && aon_lhs[1]==scale_aons[1]
-        N_ = 1
-    elseif iszero(M_)
+    # if length(aon_lhs)==1 && aon_lhs[1]==scale_aons[1]
+    #     N_ = 1 # TODO: do we need this?
+    if iszero(M_)
         N_ = N / M
     elseif M_ == M # all clusters on lhs
         N_ = 1
@@ -80,15 +100,48 @@ function get_names(he)
     end
 
     # The following can fail if an operator for one specific acts_on is missing
-    names = Symbol[]
-    aon = 1
-    idx = findfirst(x->isequal(acts_on(x),aon), ops)
-    while !isnothing(idx)
-        push!(names, ops[idx].name)
-        aon += 1
-        idx = findfirst(x->isequal(acts_on(x),aon), ops)
+    aon = []
+    for op∈ops
+        append!(aon, acts_on(op))
     end
+    aon = unique_i_aons(aon)
+    sort!(aon)
+
+    names = []
+    for i=1:length(aon)
+        if aon[i] isa Integer
+            idx = findfirst(x->acts_on(x)==aon[i], ops)
+            push!(names, ops[idx].name)
+        else # ClusterAon
+            idx = findfirst(x->acts_on(x)==aon[i], ops)
+            names_ = Symbol[]
+            aon_i = aon[i].i
+            j = 2
+            while !isnothing(idx)
+                push!(names_, ops[idx].name)
+                c = ClusterAon(aon_i,j)
+                idx = findfirst(x->acts_on(x)==c, ops)
+                j += 1
+            end
+            push!(names, names_)
+        end
+    end
+
     return names
+end
+
+function unique_i_aons(aon)
+    seen = eltype(aon)[]
+    for a∈aon
+        if !(a∈seen)
+            if a isa Integer
+                push!(seen, a)
+            else # ClusterAon
+                isone(a.j) && push!(seen, a)
+            end
+        end
+    end
+    return seen
 end
 
 
@@ -175,9 +228,9 @@ function substitute_redundants(t::QTerm{<:typeof(*)},scale_aons,names)
             aon_subs = copy(aon)
             aon_subs[idx_aon] .= scale_aons[1:length(idx_aon)]
         end
-
+        name_idx = map(get_i, aon_subs)
         return substitute_redundants(
-                            _swap_aon_and_name(t, aon, aon_subs, names[aon_subs]),
+                            _swap_aon_and_name(t, aon, aon_subs, names[name_idx]),
                             scale_aons, names
                             )
     else
@@ -192,7 +245,7 @@ function substitute_redundants(t::QTerm{<:typeof(*)},scale_aons,names)
         else
             # acts_on and relevant names
             aon_subs = copy(aon)
-            names_ = names[aon]
+            names_ = names[map(get_i, aon)]
 
             # Permute cluster part to proper reference order
             aon_subs[idx_aon] = scale_aons[p]
@@ -206,7 +259,12 @@ end
 function substitute_redundants(x::QSym,scale_aons,names)
     if is_redundant_aon(x,scale_aons)
         aon = acts_on(x)
-        idx_aon = findfirst(in(scale_aons), aon)
+        if aon isa ClusterAon
+            i = aon.i
+            idx_aon = findfirst(x->x.i==i, scale_aons)
+        else
+            idx_aon = findfirst(in(scale_aons), aon)
+        end
         aon_sub = scale_aons[idx_aon]
         return _swap_aon_and_name(x,aon,aon_sub,names)
     else
@@ -217,14 +275,19 @@ end
 function is_redundant_aon(x,scale_aons)
     # Judge whether a term is redundant from its acts_on
     aon = acts_on(x)
-    idx_aon = findall(in(scale_aons), aon)
-    isempty(idx_aon) && return false
+    if aon isa ClusterAon
+        aon ∈ scale_aons || return false
+        return aon != scale_aons[1]
+    else
+        idx_aon = findall(in(scale_aons), aon)
+        isempty(idx_aon) && return false
 
-    for i=1:length(idx_aon)-1
-        (idx_aon[i]+1 == idx_aon[i+1]) || return true
+        for i=1:length(idx_aon)-1
+            (idx_aon[i]+1 == idx_aon[i+1]) || return true
+        end
+
+        return aon[idx_aon[1]] != scale_aons[1]
     end
-
-    return aon[idx_aon[1]] != scale_aons[1]
 end
 
 function sortperm_ref_order(args_cluster)
@@ -268,9 +331,9 @@ function lt_reference_order(t1::Transition, t2::Transition)
     if t1.i < t2.i
         return true
     elseif t1.i == t2.i
-        return t1.j < t2.j
+        return t1.j <= t2.j
     else
-        return t1.j > t2.j
+        return false
     end
 end
 
@@ -288,4 +351,77 @@ _swap_aon_and_name(op::T, aon1, aon2, name::Symbol) where T<:QSym = T(op.hilbert
 function _swap_aon_and_name(op::Transition, aon1, aon2, name::Symbol)
     Transition(op.hilbert, name, op.i, op.j, aon2)
 end
-_swap_aon_and_name(op::QSym, aon1, aon2, names) = _swap_aon_and_name(op, aon1, aon2, names[aon2])
+_swap_aon_and_name(op::QSym, aon1, aon2, names) = _swap_aon_and_name(op, aon1, aon2, _get_names(names, aon2))
+# _swap_aon_and_name(op::QSym, aon1, aon2, names::Vector) = _swap_aon_and_name(op, aon1, aon2, names[aon2])
+_get_names(names, aon::Integer) = names[aon]
+_get_names(names::Vector{<:Symbol}, aon::ClusterAon) = names[aon.j]
+_get_names(names, aon::ClusterAon) = names[aon.i][aon.j]
+function _get_names(names, aon)
+    names_ = Symbol[]
+    for a∈aon
+        n = [_get_names(names, a1) for a1∈a]
+        append!(names_, n)
+    end
+end
+
+
+## Complete
+function complete(de::ScaledHeisenbergEquation,args...;kwargs...)
+    rhs_, lhs_ = scale_complete(de.rhs,de.lhs,de.hamiltonian,de.jumps,de.rates,de.scale_aons,de.names;kwargs...)
+    return ScaledHeisenbergEquation(
+                                lhs_,rhs_,de.hamiltonian,de.jumps,
+                                de.rates,de.scale_aons,de.names,ones(Bool, length(rhs_)))
+end
+
+function scale_complete(rhs::Vector, vs::Vector, H, J, rates, scale_aons, names; order=nothing, filter_func=nothing, mix_choice=maximum, kwargs...)
+    order_lhs = maximum(get_order.(vs))
+    order_rhs = maximum(get_order.(rhs))
+    if order isa Nothing
+        order_ = max(order_lhs, order_rhs)
+    else
+        order_ = order
+    end
+    maximum(order_) >= order_lhs || error("Cannot form cumulant expansion of derivative; you may want to use a higher order!")
+
+    vs_ = copy(vs)
+    rhs_ = [cumulant_expansion(r, order_) for r in rhs]
+    missed = find_missing(rhs_, vs_)
+    filter!(SymbolicUtils.sym_isa(AvgSym),missed)
+    filter_redundants!(missed,scale_aons,names)
+    isnothing(filter_func) || filter!(filter_func, missed) # User-defined filter
+    while !isempty(missed)
+        ops = [SymbolicUtils.arguments(m)[1] for m in missed]
+        he = isempty(J) ? heisenberg(ops,H; kwargs...) : heisenberg(ops,H,J;rates=rates, kwargs...)
+        he_avg = average(he,order_;mix_choice=mix_choice, kwargs...)
+        rhs_ = [rhs_;he_avg.rhs]
+        vs_ = [vs_;he_avg.lhs]
+        missed = find_missing(rhs_,vs_)
+        filter!(SymbolicUtils.sym_isa(AvgSym),missed)
+        filter_redundants!(missed,scale_aons,names)
+        isnothing(filter_func) || filter!(filter_func, missed) # User-defined filter
+    end
+
+    if !isnothing(filter_func)
+        # Find missing values that are filtered by the custom filter function,
+        # but still occur on the RHS; set those to 0
+        missed = find_missing(rhs_, vs_)
+        filter!(SymbolicUtils.sym_isa(AvgSym),missed)
+        filter!(!filter_func, missed)
+        filter_redundants!(missed,scale_aons,names)
+        missed_adj = map(_adjoint, missed)
+        subs = Dict(vcat(missed, missed_adj) .=> 0)
+        rhs_ = [substitute(r, subs) for r in rhs_]
+    end
+    return rhs_, vs_
+end
+
+function filter_redundants!(missed,scale_aons_::Vector{<:Vector},names)
+    for scale_aons∈scale_aons_
+        f = x->substitute_redundants(x,scale_aons,names)
+        for j=1:length(missed)
+            missed[j] = f(missed[j])
+        end
+    end
+    unique_ops!(missed)
+    return missed
+end

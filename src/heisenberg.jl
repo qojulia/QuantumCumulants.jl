@@ -27,6 +27,8 @@ equivalent to the Quantum-Langevin equation where noise is neglected.
 """
 function heisenberg(a::Vector,H,J;Jdagger::Vector=adjoint.(J),rates=ones(length(J)),
                     multithread=false,simplify_input=false)
+    @assert length(rates)==length(J)==length(Jdagger)
+    J_, Jdagger_, rates_ = _expand_clusters(J,Jdagger,rates)
     if simplify_input
         lhs = map(qsimplify, a)
     else
@@ -37,7 +39,7 @@ function heisenberg(a::Vector,H,J;Jdagger::Vector=adjoint.(J),rates=ones(length(
         Threads.@threads for i=1:length(a)
             rhs_ = 1.0im*commutator(H,lhs[i];simplify=false)
             if !isempty(J)
-                rhs_ = rhs_ + _master_lindblad(lhs[i],J,Jdagger,rates)
+                rhs_ = rhs_ + _master_lindblad(lhs[i],J_,Jdagger_,rates_)
             end
             rhs[i] = qsimplify(rhs_)
         end
@@ -45,12 +47,16 @@ function heisenberg(a::Vector,H,J;Jdagger::Vector=adjoint.(J),rates=ones(length(
         for i=1:length(a)
             rhs_ = 1.0im*commutator(H,lhs[i];simplify=false)
             if !isempty(J)
-                rhs_ = rhs_ + _master_lindblad(lhs[i],J,Jdagger,rates)
+                rhs_ = rhs_ + _master_lindblad(lhs[i],J_,Jdagger_,rates_)
             end
             rhs[i] = qsimplify(rhs_)
         end
     end
-    return HeisenbergEquation(lhs,rhs,H,J,rates)
+    if has_cluster(H)
+        return scale(HeisenbergEquation(lhs,rhs,H,J_,rates_))
+    else
+        return HeisenbergEquation(lhs,rhs,H,J_,rates_)
+    end
 end
 heisenberg(a::QNumber,args...;kwargs...) = heisenberg([a],args...;kwargs...)
 heisenberg(a::Vector,H;kwargs...) = heisenberg(a,H,[];Jdagger=[],kwargs...)
@@ -130,4 +136,27 @@ function commutator(a::QTerm{<:typeof(+)},b::QTerm{<:typeof(+)}; simplify=true, 
     else
         return out
     end
+end
+
+
+function _expand_clusters(J,Jdagger,rates)
+    J_ = []
+    Jdagger_ = []
+    rates_ = []
+    for i=1:length(J)
+        if J[i] isa Vector
+            h = hilbert(J[i][1])
+            aon = acts_on(J[i][1])
+            @assert has_cluster(h, acts_on(J[i][1]))
+            append!(J_, J[i])
+            append!(Jdagger_, Jdagger[i])
+            order = h.spaces[aon].order
+            append!(rates_, [rates[i] for k=1:order])
+        else
+            push!(J_, J[i])
+            push!(Jdagger_, Jdagger[i])
+            push!(rates_, rates[i])
+        end
+    end
+    return J_,Jdagger_,rates_
 end

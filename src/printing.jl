@@ -6,6 +6,10 @@ function Base.show(io::IO,h::ProductSpace)
         show(io, h.spaces[i])
     end
 end
+function Base.show(io::IO,h::ClusterSpace)
+    write(io, "$(h.N)x")
+    show(io, h.original_space)
+end
 
 Base.show(io::IO,x::QSym) = write(io, x.name)
 Base.show(io::IO,x::Create) = write(io, string(x.name, "′"))

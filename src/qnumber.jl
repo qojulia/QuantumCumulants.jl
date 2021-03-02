@@ -135,10 +135,10 @@ Shows on which Hilbert space `op` acts. For [`QSym`](@ref) types, this
 returns an Integer, whereas for a [`QTerm`](@ref) it returns a `Vector{Int}`
 whose entries specify all subspaces on which the expression acts.
 """
-acts_on(op::QSym) = op.aon # TODO make Int[]
+acts_on(op::QSym) = op.aon
 function acts_on(t::QTerm)
     ops = filter(SymbolicUtils.sym_isa(QNumber), t.arguments)
-    aon = Int[]
+    aon = []
     for op in ops
         append!(aon, acts_on(op))
     end

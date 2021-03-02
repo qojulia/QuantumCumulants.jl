@@ -24,7 +24,7 @@ function acts_on(s::SymbolicUtils.Symbolic)
         if f === average
             return acts_on(SymbolicUtils.arguments(s)[1])
         else
-            aon = Int[]
+            aon = []
             for arg in SymbolicUtils.arguments(s)
                 append!(aon, acts_on(arg))
             end
