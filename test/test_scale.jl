@@ -33,6 +33,7 @@ rates = [κ,[Γ2 for i=1:N_c]...,[Γ3 for i=1:N_c]...,[Γ23 for i=1:N_c]...,[ν3
 # Derive equation for average photon number
 ops = [a'a, S(2,2,1)[1]]
 he_ops = heisenberg(ops,H,J;rates=rates)
+he_ops
 # Custom filter function -- include only phase-invaraint terms
 ϕ(x) = 0
 ϕ(x::Destroy) = -1
@@ -58,8 +59,7 @@ end
 phase_invariant(x) = iszero(ϕ(x))
 
 he_scale = complete(he_ops;filter_func=phase_invariant, order=order, multithread=true)
-@test length(he_scale) == 9
-
+he_scale
 ps = [Δc; κ; Γ2; Γ3; Γ23; η; ν3; ν2; Δ2; Δ3; Ω3; g; N]
 meta_f = build_ode(he_scale, ps)
 f = Meta.eval(meta_f)
@@ -67,7 +67,6 @@ u0 = zeros(ComplexF64, length(he_scale))
 
 N0 = 1000/N_c
 N_ = N0*[1.0 for c=1:N_c]
-
 p0 = [ones(length(ps)-1); N_]
 prob1 = ODEProblem(f,u0,(0.0,1.0),p0)
 sol1 = solve(prob1, Tsit5(), reltol=1e-12, abstol=1e-12)
