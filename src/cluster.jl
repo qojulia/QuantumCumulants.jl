@@ -21,7 +21,7 @@ function has_cluster(h::ProductSpace)
     end
     return false
 end
-has_cluster(h::ProductSpace,aon) = has_cluster(h.spaces[aon])
+has_cluster(h::ProductSpace,aon) = has_cluster(h.spaces[get_i(aon)])
 has_cluster(op::QNumber,args...) = has_cluster(hilbert(op),args...)
 
 struct ClusterAon{T<:Integer}

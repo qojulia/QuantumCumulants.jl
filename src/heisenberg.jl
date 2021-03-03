@@ -146,11 +146,17 @@ function _expand_clusters(J,Jdagger,rates)
     for i=1:length(J)
         if J[i] isa Vector
             h = hilbert(J[i][1])
-            aon = acts_on(J[i][1])
-            @assert has_cluster(h, acts_on(J[i][1]))
+            aon_ = acts_on(J[i][1])
+            aon = if aon_ isa Vector
+                @assert length(aon_)==1
+                aon_[1]
+            else
+                aon_
+            end
+            @assert has_cluster(h, aon)
             append!(J_, J[i])
             append!(Jdagger_, Jdagger[i])
-            order = h.spaces[aon].order
+            order = h.spaces[get_i(aon)].order
             append!(rates_, [rates[i] for k=1:order])
         else
             push!(J_, J[i])
