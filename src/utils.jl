@@ -290,6 +290,7 @@ function get_solution(avg_,sol,he::AbstractEquation)
         return _get_solution(sol, idx)
     end
 end
+get_solution(op::QNumber,sol,he::AbstractEquation) = get_solution(_average(op),sol,he)
 function _get_solution(sol, idx)
     # Hacky solution until we depend on MTK
     (:u ∈ fieldnames(typeof(sol))) || error("Cannot get solution from object with type $(typeof(sol)) !")
