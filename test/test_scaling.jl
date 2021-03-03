@@ -127,8 +127,8 @@ sol = solve(prob, RK4(), abstol=1e-10, reltol=1e-10)
 
 # Spectrum
 corr = CorrelationFunction(a',a,he_nophase;steady_state=true,filter_func=phase_invariant)
-S = Spectrum(corr,ps)
-s = S(range(-π, π, length=301), sol.u[end], p0)
+Spec = Spectrum(corr,ps)
+s = Spec(range(-π, π, length=301), sol.u[end], p0)
 @test all(s .>= 0.0)
 
 ## Some abstract tests
@@ -219,9 +219,9 @@ p0 = [ones(length(ps)-1); 4]
 u0 = zeros(ComplexF64,length(he_avg))
 prob1 = ODEProblem(f,u0,(0.0,1.0),p0)
 sol1 = solve(prob1,Tsit5(),abstol=1e-12,reltol=1e-12)
-bdb1 = get_solution(b[1]'b[1], sol1, he)[end]
-σ22_1 = get_solution(σ(2,2), sol1, he)[end]
-σ12_1 = get_solution(σ(1,2), sol1, he)[end]
+bdb1 = get_solution(b[1]'b[1], sol1, he_avg)[end]
+σ22_1 = get_solution(σ(2,2), sol1, he_avg)[end]
+σ12_1 = get_solution(σ(1,2), sol1, he_avg)[end]
 
 
 ## Two clusters
