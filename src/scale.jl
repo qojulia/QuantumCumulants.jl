@@ -325,13 +325,28 @@ function _lt_num_destroy_create(args1, args2)
 end
 
 function lt_reference_order(t1::Transition, t2::Transition)
-    isequal(acts_on(t1),acts_on(t2)) && return false
-    if t1.i < t2.i
-        return true
-    elseif t1.i == t2.i
-        return t1.j <= t2.j
+    aon = acts_on(t1)
+    isequal(aon,acts_on(t2)) && return false
+    lvls = levels(t1.hilbert, aon)
+    f = x->findfirst(isequal(x),lvls)
+    i1, j1 = f(t1.i), f(t1.j)
+    i2, j2 = f(t2.i), f(t2.j)
+    d1 = abs(i1 - j1)
+    d2 = abs(i2 - j2)
+    if d1==d2
+        if i1==i2
+            return j1 <= j2
+        else
+            m1 = min(i1, j1)
+            m2 = min(i2, j2)
+            if m1==m2
+                return i1 > i2
+            else
+                return m1 < m2
+            end
+        end
     else
-        return false
+        return d1 < d2
     end
 end
 
