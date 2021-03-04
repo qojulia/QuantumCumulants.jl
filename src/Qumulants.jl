@@ -1,8 +1,13 @@
 module Qumulants
 
+
 import SymbolicUtils
 import SymbolicUtils: substitute
 using SymbolicUtils: @rule, @acrule, @ordered_acrule
+
+import Symbolics
+using Symbolics: build_function
+
 using Combinatorics: partitions, combinations, permutations
 
 export HilbertSpace, ProductSpace, ⊗, tensor,
@@ -16,7 +21,7 @@ export HilbertSpace, ProductSpace, ⊗, tensor,
         Average, average, cumulant_expansion, get_order, cumulant,
         find_missing, complete, find_operators, fundamental_operators,
             unique_ops, get_symbolics, get_operators, get_solution,
-        build_ode, generate_ode,
+        build_function,
         CorrelationFunction, Spectrum, initial_values,
         transition_superscript
 

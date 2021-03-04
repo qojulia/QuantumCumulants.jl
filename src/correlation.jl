@@ -206,7 +206,7 @@ end
 
 
 ### Auxiliary functions for CorrelationFunction
-function build_ode(c::CorrelationFunction, ps=[], args...; kwargs...)
+function Symbolics.build_function(c::CorrelationFunction, ps=[]; kwargs...)
     if c.steady_state
         steady_vals = c.de0.lhs
         avg = average(c.op2_0)
@@ -222,14 +222,19 @@ function build_ode(c::CorrelationFunction, ps=[], args...; kwargs...)
         else
             de = c.de
         end
-        ps_ = (ps..., steady_vals...)
-        return build_ode(de, ps_, args...; kwargs...)
+        ps_ = [ps..., steady_vals...]
+        return build_function(de, ps_; kwargs...)
     else
-        ps_ = (ps..., average(c.op2))
-        return build_ode(c.de, ps_, args...; kwargs...)
+        avg = average(c.op2_0)
+        if _in(avg, c.de0.lhs) || _in(_conj(avg), c.de0.lhs)
+            ps_ = (ps..., average(c.op2))
+        else
+            ps_ = ps
+        end
+        return build_function(c.de, ps_; kwargs...)
     end
 end
-generate_ode(c::CorrelationFunction, args...; kwargs...) = Meta.eval(build_ode(c, args...; kwargs...))
+
 substitute(c::CorrelationFunction, args...; kwargs...) =
     CorrelationFunction(c.op1, c.op2, substitute(c.de0, args...; kwargs...), substitute(c.de, args...; kwargs...))
 
@@ -431,7 +436,7 @@ function _build_spec_func(lhs, rhs, a1, a0, steady_vals, ps=[]; psym=:p, wsym=:Ï
 
     # Obtain A
     line_eqs = [Expr(:(=), :(A[$i,i]), Ax_[i]) for i=1:length(Ax_)]
-    ex = build_expr(:block, line_eqs)
+    ex = Expr(:block, line_eqs...)
     N = length(line_eqs)
 
     # Function for building numeric A
@@ -471,9 +476,9 @@ function _build_spec_func(lhs, rhs, a1, a0, steady_vals, ps=[]; psym=:p, wsym=:Ï
 
     # Obtain b
     line_eqs = [Expr(:(=), :(x[$i]), b_[i]) for i=1:length(b_)]
-    ex0 = build_expr(:block, line_eqs)
+    ex0 = Expr(:block, line_eqs...)
     eqs_nz = [Expr(:(=), :(x[$i]), :($(b_[i]) + $(c_[i]))) for i=1:length(c_)]
-    ex_nz = build_expr(:block, eqs_nz)
+    ex_nz = Expr(:block, eqs_nz...)
     N = length(b_)
     # Function for numeric b
     fb = :(

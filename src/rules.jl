@@ -46,7 +46,7 @@ let
 
     CONJ_RULES = [
         @rule(conj(conj(~x)) => ~x)
-        @rule(conj(average(~x)) => average(adjoint(~x)))
+        @rule(conj(sym_average(~x)) => sym_average(adjoint(~x)))
         @rule(conj(*(~~x)) => *(map(conj, ~~x)...))
     ]
 

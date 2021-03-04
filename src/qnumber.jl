@@ -45,6 +45,11 @@ SymbolicUtils.promote_symtype(f,T::Type{<:QNumber},S::Type{<:Number}) = QNumber
 SymbolicUtils.promote_symtype(f,T::Type{<:Number},S::Type{<:QNumber}) = QNumber
 SymbolicUtils.promote_symtype(f,T::Type{<:QNumber},S::Type{<:QNumber}) = QNumber
 
+# Type promotion for average(::QNumber)::Average
+SymbolicUtils.promote_symtype(f::SymbolicUtils.Sym{SymbolicUtils.FnType{Tuple{<:QNumber},T}},
+                                ::Type{<:QNumber}) where T = T
+
+
 SymbolicUtils.symtype(x::T) where T<:QNumber = T
 SymbolicUtils.to_symbolic(x::QNumber) = x
 

@@ -49,7 +49,7 @@ Find all symbolic numbers occuring in `ex`.
 get_symbolics(x::Number) = []
 function get_symbolics(t::SymbolicUtils.Symbolic)
     if SymbolicUtils.istree(t)
-        if SymbolicUtils.is_operation(average)(t)
+        if SymbolicUtils.is_operation(sym_average)(t)
             return [t]
         else
             syms = []

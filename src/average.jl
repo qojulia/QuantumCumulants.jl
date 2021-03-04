@@ -1,5 +1,3 @@
-function average end
-
 """
     AvgSym <: CNumber
 
@@ -10,18 +8,20 @@ struct AvgSym <: CNumber end
 
 const Average = SymbolicUtils.Term{<:AvgSym}
 
-# Direct construction of average symbolic expression
-function _average(operator)
-    return SymbolicUtils.Term{AvgSym}(average, [operator])
+const sym_average = begin # Symbolic function for averages
+    T = SymbolicUtils.FnType{Tuple{QNumber}, AvgSym}
+    SymbolicUtils.Sym{T}(:avg)
 end
 
-# Type promotion -- average(::Operator)::Number
-SymbolicUtils.promote_symtype(average, ::Type{<:QNumber}) = AvgSym
+# Direct construction of average symbolic expression
+function _average(operator)
+    return SymbolicUtils.Term{AvgSym}(sym_average, [operator])
+end
 
 function acts_on(s::SymbolicUtils.Symbolic)
     if SymbolicUtils.istree(s)
         f = SymbolicUtils.operation(s)
-        if f === average
+        if f === sym_average
             return acts_on(SymbolicUtils.arguments(s)[1])
         else
             aon = Int[]

@@ -22,7 +22,7 @@ he_avg = average(he_laser,2;multithread=true)
 he_comp = complete(he_avg)
 
 ps = (Δ, g, γ, κ, ν)
-f = generate_ode(he_comp,ps)
+f = build_function(he_comp,ps;expression=false)
 
 # Numerical solution
 # p0 = [0.0,0.5,1.0,0.1,0.9]
@@ -42,7 +42,7 @@ pe = getindex.(sol.u,2)
 
 # Correlation function
 c_steady = CorrelationFunction(a', a, he_comp; steady_state=true, multithread=true)
-cf = generate_ode(c_steady, ps; check_bounds=true)
+cf = build_function(c_steady, ps; checkbounds=true, expression=false)
 
 u0_c = initial_values(c_steady, sol.u[end])
 p0_c = (p0..., sol.u[end]...)
@@ -108,7 +108,7 @@ H = ωc*a'*a
 he = heisenberg(a'*a,H,[a];rates=[κ])
 he_avg = average(he)
 ps = (ωc,κ)
-f = generate_ode(he_avg,ps)
+f = build_function(he_avg,ps;expression=false)
 n0 = 20.0
 u0 = [n0]
 p0 = (1,1)
@@ -116,7 +116,7 @@ prob = ODEProblem(f,u0,(0.0,10.0),p0)
 sol = solve(prob,RK4())
 
 c = CorrelationFunction(a', a, he_avg)
-cf = generate_ode(c, ps)
+cf = build_function(c, ps;expression=false)
 idx = 5
 u0_c = initial_values(c, sol.u[idx])
 prob_c = ODEProblem(cf,u0_c,(0.0,10.0),p0)

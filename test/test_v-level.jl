@@ -48,7 +48,7 @@ he_avg = average(he,2)
 
 
 p = [κ, g, Δc, Γ2, Γ3, Δ2, Δ3, Ω2, Ω3]
-meta_f = build_ode(he_avg,p)
+meta_f = build_function(he_avg,p)
 f = Meta.eval(meta_f)
 
 u0 = zeros(ComplexF64,length(he_avg.lhs))
@@ -110,7 +110,7 @@ missing_avgs = filter(SymbolicUtils.sym_isa(Average), find_missing(he_f_avg))
 pf = [ωf; gf; κf; missing_avgs; p]
 
 # Generate function for the filter cavities
-meta_ff = build_ode(he_f_avg,pf);
+meta_ff = build_function(he_f_avg,pf);
 
 # Filter cavity cnumbers
 ωfn = 0.0
