@@ -25,7 +25,6 @@ ps = (Δ, g, γ, κ, ν)
 f = build_function(he_comp,ps;expression=false)
 
 # Numerical solution
-# p0 = [0.0,0.5,1.0,0.1,0.9]
 p0 = (1, 1.5, 0.25, 1, 4)
 u0 = zeros(ComplexF64,length(he_comp))
 tmax = 10.0
@@ -64,10 +63,10 @@ S2 = S(ω,usteady,p0)
 # plot(ω, S2 ./ maximum(S2), label="Laplace transform")
 # xlim(-2pi,2pi)
 
-# S_ = S(ω_ls,usteady,p0)
+S_ = S(ω,usteady,p0)
 # max, ind = findmax(S_)
 # hm_idx = findmin(abs.(S_ .- 0.5max))[2]
-# fwhm = 2*abs(ω_ls[ind] - ω_ls[hm_idx])
+# fwhm = 2*abs(ω[ind] - ω[hm_idx])
 
 S1_ = S1 ./ maximum(S1)
 S1_ .-= minimum(S1_)
