@@ -206,7 +206,17 @@ function (s::Spectrum)(ω_ls,usteady,ps=[];wtol=0)
 end
 
 ### Auxiliary functions for CorrelationFunction
-function Symbolics.build_function(c::CorrelationFunction, ps=[]; kwargs...)
+function MTK.ODESystem(c::CorrelationFunction; ps=nothing, iv=SymbolicUtils.Sym{Real}(:τ), kwargs...)
+    if ps===nothing
+        ps′ = []
+        for r∈c.de.rhs
+            MTK.collect_vars!([],ps′,r,iv)
+        end
+        unique!(ps′)
+    else
+        ps′ = ps
+    end
+
     if c.steady_state
         steady_vals = c.de0.lhs
         avg = average(c.op2_0)
@@ -222,17 +232,18 @@ function Symbolics.build_function(c::CorrelationFunction, ps=[]; kwargs...)
         else
             de = c.de
         end
-        ps_ = [ps..., steady_vals...]
-        return build_function(de, ps_; kwargs...)
+        ps_ = [ps′..., steady_vals...]
     else
         avg = average(c.op2_0)
         if _in(avg, c.de0.lhs) || _in(_conj(avg), c.de0.lhs)
-            ps_ = (ps..., average(c.op2))
+            ps_ = (ps′..., average(c.op2))
         else
-            ps_ = ps
+            ps_ = ps′
         end
-        return build_function(c.de, ps_; kwargs...)
+        de = c.de
     end
+
+    return MTK.ODESystem(de; ps=ps_, iv=iv, kwargs...)
 end
 
 substitute(c::CorrelationFunction, args...; kwargs...) =

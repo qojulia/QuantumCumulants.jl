@@ -1,5 +1,6 @@
 using Qumulants
 using OrdinaryDiffEq
+using ModelingToolkit
 using Test
 
 @testset "v-level" begin
@@ -48,8 +49,7 @@ he_avg = average(he,2)
 
 
 p = [κ, g, Δc, Γ2, Γ3, Δ2, Δ3, Ω2, Ω3]
-meta_f = build_function(he_avg,p)
-f = Meta.eval(meta_f)
+sys = ODESystem(he_avg)
 
 u0 = zeros(ComplexF64,length(he_avg.lhs))
 
@@ -65,9 +65,9 @@ u0 = zeros(ComplexF64,length(he_avg.lhs))
 gn = 10.0 * Γ2n
 tmax = 5/Γ2n
 
-p0 = [κn, gn, Δcn, Γ2n, Γ3n, Δ2n, Δ3n, Ω2n, Ω3n]
-prob = ODEProblem(f,u0,(0.0,tmax),p0)
-sol = solve(prob,RK4());
+p0 = p .=> [κn, gn, Δcn, Γ2n, Γ3n, Δ2n, Δ3n, Ω2n, Ω3n]
+prob = ODEProblem(sys,u0,(0.0,tmax),p0,jac=true,sparse=true)
+sol = solve(prob,RK4())
 
 avg = average(a'*σ(2,1))
 @test get_solution(avg,sol,he_avg) == get_solution(avg,sol.u,he_avg) == map(conj, getindex.(sol.u, 7))
@@ -109,8 +109,7 @@ missing_avgs = filter(SymbolicUtils.sym_isa(Average), find_missing(he_f_avg))
 # Gather all new cnumbers
 pf = [ωf; gf; κf; missing_avgs; p]
 
-# Generate function for the filter cavities
-meta_ff = build_function(he_f_avg,pf);
+sys_f = ODESystem(he_f_avg;ps=pf)
 
 # Filter cavity cnumbers
 ωfn = 0.0
@@ -132,13 +131,12 @@ for m in missing_avgs
         push!(steady_vals, conj(sol.u[end][j]))
     end
 end
-pf0 = [ωfn;κfn;gfn;steady_vals;p0]
+pf0 = pf .=> [ωfn;κfn;gfn;steady_vals;getindex.(p0,2)]
 
 # Initial state
 u0f = zeros(ComplexF64,length(he_f_avg.lhs))
 
-ff = Meta.eval(meta_ff)
-prob_f = ODEProblem(ff,u0f,(0.0,tf),pf0);
+prob_f = ODEProblem(sys_f,u0f,(0.0,tf),pf0,jac=true)
 
 # Solve for different frequencies of the filters; the spectrum is then equal to ⟨fᵗf⟩
 ω = range(-0.8,-0.2,length=81)

@@ -51,7 +51,7 @@ julia> h = hf⊗ha
 Create a [`ProductSpace`](@ref) consisting of multiple subspaces.
 See also [`⊗`](@ref).
 """
-tensor(args...) = ⊗(args...)
+tensor(args::HilbertSpace...) = ⊗(args...)
 
 Base.isless(h1::HilbertSpace,h2::HilbertSpace) = isless(h1.name,h2.name)
 Base.isless(h1::ProductSpace,h2::ProductSpace) = isless(h1.spaces,h2.spaces)

@@ -1,53 +1,42 @@
-"""
-    build_function(he::HeisenbergEquation, ps=[]; kwargs...)
-"""
-function Symbolics.build_function(he::AbstractEquation, ps=[];
-                    t=SymbolicUtils.Sym{Real}(:t),
-                    iip=true,
-                    expression=Val{true},
-                    kwargs...)
-    rhs, vs = he.rhs, he.lhs
-    vs[1] isa Average || error("Cannot build function from q-Number equations!")
-    @assert length(rhs) == length(vs)
+# Required for calculate_tgrad
+MTK.detime_dvs(x::Average) = x
 
-    vs_adj = map(_conj, vs)
-    filter!(x->!_in(x,vs), vs_adj)
+# Needed for build_function -- how hacky is this?
+MTK.time_varying_as_func(x::Average, sys) = x
 
-    # Check if there are unknown symbols
-    missed = find_missing(rhs,vs;vs_adj=vs_adj,ps=ps)
-    isempty(missed) || throw_missing_error(missed)
+MTK.isparameter(::SymbolicUtils.Sym{<:Parameter}) = true
 
-    # Substitute all averages of which the complex conjugate is actually given
-    # by an explicit conj
-    ps_adj = [_conj(p_) for p_∈ps]
-    filter!(x->x isa Average, ps_adj)
-    filter!(x->!_in(x,ps), ps_adj)
+function MTK.ODESystem(he::HeisenbergEquation; ps=nothing, iv=SymbolicUtils.Sym{Real}(:t), kwargs...)
+    he.lhs[1] isa Average || error("Cannot convert operator equations to ODESystem. Use `average` first!")
+    missed = ps===nothing ? find_missing(he) : find_missing(he;ps=ps)
+    isempty(missed) || error("Cannot convert incomplete system to ODESystem. The following averages are missing: $missed")
 
-    rhs_ = [substitute_conj(r,vcat(vs_adj, ps_adj)) for r∈rhs]
+    vs_adj = map(_conj, he.lhs)
+    filter!(x->!_in(x,he.lhs), vs_adj)
+    rhs_ = [substitute_conj(r, vs_adj) for r∈he.rhs]
 
-    fbuilt = build_function(rhs_, vs, ps, t; expression=expression, kwargs...)
-    f = if iip
-        fbuilt[2]
-    else
-        fbuilt[1]
-    end
-    if expression == Val{true}
-        return f
-    else
-        if iip
-            return (du,u,p,t)->f(du,u,p,t)
-        else
-            return (u,p,t)->f(u,p,t)
+    D = Symbolics.Differential(iv)
+
+    if ps===nothing
+        ps′ = []
+        for r∈rhs_
+            MTK.collect_vars!([],ps′,r,iv)
         end
+        unique!(ps′)
+    else
+        ps′ = ps
     end
-end
 
-function throw_missing_error(missed)
-    error_msg = "The following parameters or averages are missing: "
-    for p1=missed
-        error_msg *= "$p1 "
+    ps_adj = filter(x->x isa Average, ps′)
+    if !isempty(ps_adj)
+        ps_adj = map(_conj, ps_adj)
+        filter!(x->!_in(x,ps′), ps_adj)
+        rhs_ = [substitute_conj(r, ps_adj) for r∈rhs_]
     end
-    error(error_msg)
+
+    eqs = [Symbolics.Equation(D(l),r) for (l,r)=zip(he.lhs,rhs_)]
+
+    return MTK.ODESystem(eqs, iv, he.lhs, ps′; kwargs...)
 end
 
 function substitute_conj(t,vs_adj)

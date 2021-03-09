@@ -1,4 +1,5 @@
 using Qumulants
+using ModelingToolkit
 using OrdinaryDiffEq
 using Test
 
@@ -22,14 +23,15 @@ he_avg = average(he_laser,2;multithread=true)
 he_comp = complete(he_avg)
 
 ps = (Δ, g, γ, κ, ν)
-f = build_function(he_comp,ps;expression=false)
+sys = ODESystem(he_comp)
+# f = build_function(he_comp,ps;expression=false)
 
 # Numerical solution
-p0 = (1, 1.5, 0.25, 1, 4)
+p0 = ps .=> (1, 1.5, 0.25, 1, 4)
 u0 = zeros(ComplexF64,length(he_comp))
 tmax = 10.0
 
-prob = ODEProblem(f,u0,(0.0,tmax),p0)
+prob = ODEProblem(sys,u0,(0.0,tmax),p0)
 sol = solve(prob,RK4())
 n = getindex.(sol.u,1)
 pe = getindex.(sol.u,2)
@@ -41,12 +43,14 @@ pe = getindex.(sol.u,2)
 
 # Correlation function
 c_steady = CorrelationFunction(a', a, he_comp; steady_state=true, multithread=true)
-cf = build_function(c_steady, ps; checkbounds=true, expression=false)
+ps_c = (ps..., he_comp.lhs...)
+csys = ODESystem(c_steady)
 
-u0_c = initial_values(c_steady, sol.u[end])
-p0_c = (p0..., sol.u[end]...)
+u0_c = c_steady.de.lhs .=> initial_values(c_steady, sol.u[end])
+steady_vals = filter(x->x isa Average, parameters(csys))
+p0_c = [p0...; steady_vals .=> [getindex(sol, s)[end] for s∈steady_vals]]
 τ = range(0.0, 10tmax; length=1001)
-prob_c = ODEProblem(cf,u0_c,(0.0,τ[end]),p0_c)
+prob_c = ODEProblem(csys,u0_c,(0.0,τ[end]),p0_c)
 sol_c = solve(prob_c,RK4(),saveat=τ,save_idxs=1)
 
 # Spectrum via FFT of g(τ)
@@ -59,11 +63,12 @@ using QuantumOptics.timecorrelations: correlation2spectrum
 S = Spectrum(c_steady, ps)
 usteady = sol.u[end]
 
-S2 = S(ω,usteady,p0)
+p0_ = getindex.(p0, 2)
+S2 = S(ω,usteady,p0_)
 # plot(ω, S2 ./ maximum(S2), label="Laplace transform")
 # xlim(-2pi,2pi)
 
-S_ = S(ω,usteady,p0)
+S_ = S(ω,usteady,p0_)
 # max, ind = findmax(S_)
 # hm_idx = findmin(abs.(S_ .- 0.5max))[2]
 # fwhm = 2*abs(ω[ind] - ω[hm_idx])
@@ -95,7 +100,7 @@ phase(op::QTerm{<:typeof(*)}) = sum(phase(arg) for arg in op.arguments)
 c_nophase = CorrelationFunction(a', a, he_avg; steady_state=true, filter_func=!has_phase)
 
 S_nophase = Spectrum(c_nophase, ps)
-S3 = S_nophase(ω,usteady,p0)
+S3 = S_nophase(ω,usteady,p0_)
 # plot(ω, S3 ./ maximum(S3), label="Laplace transform (phase invariant)")
 # legend()
 
@@ -107,18 +112,18 @@ H = ωc*a'*a
 he = heisenberg(a'*a,H,[a];rates=[κ])
 he_avg = average(he)
 ps = (ωc,κ)
-f = build_function(he_avg,ps;expression=false)
+sys = ODESystem(he_avg)
 n0 = 20.0
 u0 = [n0]
 p0 = (1,1)
-prob = ODEProblem(f,u0,(0.0,10.0),p0)
+prob = ODEProblem(sys,u0,(0.0,10.0),p0)
 sol = solve(prob,RK4())
 
 c = CorrelationFunction(a', a, he_avg)
-cf = build_function(c, ps;expression=false)
+csys = ODESystem(c)
 idx = 5
 u0_c = initial_values(c, sol.u[idx])
-prob_c = ODEProblem(cf,u0_c,(0.0,10.0),p0)
+prob_c = ODEProblem(csys,u0_c,(0.0,10.0),p0)
 sol_c = solve(prob_c,RK4(),save_idxs=1)
 # plot(sol_c.t,real.(sol_c.u), label="Re(g) -- numeric")
 # plot(sol_c.t,imag.(sol_c.u), label="Im(g) -- numeric")
