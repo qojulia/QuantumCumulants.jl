@@ -15,26 +15,6 @@ abstract type QSym <: QNumber end
 Base.isequal(a::T,b::T) where T<:QSym = isequal(a.hilbert, b.hilbert) && isequal(a.name, b.name) && isequal(a.aon, b.aon)
 Base.isless(a::QSym,b::QSym) = a.name < b.name
 
-"""
-    QTerm <: QNumber
-
-Symbolic expression tree consisting of [`QNumber`](@ref) and `Number`
-arguments.
-"""
-struct QTerm{F,ARGS} <: QNumber
-    f::F
-    arguments::ARGS
-end
-function Base.isequal(t1::QTerm,t2::QTerm)
-    t1.f===t2.f || return false
-    length(t1.arguments)==length(t2.arguments) || return false
-    for (a,b) ∈ zip(t1.arguments, t2.arguments)
-        isequal(a,b) || return false
-    end
-    return true
-end
-Base.hash(t::QTerm, h::UInt) = hash(t.arguments, hash(t.f, h))
-
 
 ### Interface for SymbolicUtils
 
@@ -49,45 +29,46 @@ SymbolicUtils.symtype(x::T) where T<:QNumber = T
 SymbolicUtils.to_symbolic(x::QNumber) = x
 
 SymbolicUtils.istree(::QSym) = false
-SymbolicUtils.istree(::QTerm) = true
-SymbolicUtils.arguments(t::QTerm) = t.arguments
-for f in [*,+,-,/,^]
-    @eval SymbolicUtils.operation(t::QTerm{<:$(typeof(f))}) = $f
-end
-SymbolicUtils.similarterm(t::QTerm{F}, f::F, args::A) where {F,A} = QTerm{F,A}(t.f, args)
 
 ### End of interface
 
 
 ### Methods
 
+const QTerm = SymbolicUtils.Term{<:QNumber}
+const QSymbolic = Union{<:QSym, <:QTerm}
+
 for f = [:+,:-,:*]
-    @eval Base.$f(a::QNumber,b::QNumber) = (check_hilbert(a,b); QTerm($f, [a,b]))
-    @eval Base.$f(a::QNumber,b::Number) = QTerm($f, [a,b])
-    @eval Base.$f(a::Number,b::QNumber) = QTerm($f, [a,b])
-    @eval Base.$f(a::QNumber,b::SymbolicUtils.Symbolic{<:Number}) = QTerm($f, [a,b])
-    @eval Base.$f(a::SymbolicUtils.Symbolic{<:Number},b::QNumber) = QTerm($f, [a,b])
+    @eval Base.$f(a::QSymbolic,b::QSymbolic) = (check_hilbert(a,b); SymbolicUtils.Term($f, [a,b]))
+    @eval Base.$f(a::QSymbolic,b::Number) = SymbolicUtils.Term($f, [a,b])
+    @eval Base.$f(a::Number,b::QSymbolic) = SymbolicUtils.Term($f, [a,b])
+    @eval Base.$f(a::QSymbolic,b::SymbolicUtils.Symbolic{<:Number}) = SymbolicUtils.Term($f, [a,b])
+    @eval Base.$f(a::SymbolicUtils.Symbolic{<:Number},b::QSymbolic) = SymbolicUtils.Term($f, [a,b])
 end
-Base.:^(a::QNumber,b::Integer) = QTerm(^, [a,b])
-Base.:/(a::QNumber,b::Number) = QTerm(/, [a,b])
-Base.:/(a::QNumber,b::SymbolicUtils.Symbolic{<:Number}) = QTerm(/, [a,b])
+Base.:^(a::QSymbolic,b::Integer) = SymbolicUtils.Term(^, [a,b])
+Base.:/(a::QSymbolic,b::Number) = SymbolicUtils.Term(/, [a,b])
+Base.:/(a::QSymbolic,b::SymbolicUtils.Symbolic{<:Number}) = SymbolicUtils.Term(/, [a,b])
 
 # Variadic methods
-Base.:-(x::QNumber) = -1*x
+Base.:-(x::QSymbolic) = -1*x
 for f in [:+,:*]
-    @eval Base.$f(x::QNumber) = x
-    @eval Base.$f(x::QNumber, w::QNumber...) = (check_hilbert(x,w...); QTerm($f, [x;w...]))
-    @eval Base.$f(x, y::QNumber, w...) = (check_hilbert(x,y,w...); QTerm($f, [x;y;w...]))
-    @eval Base.$f(x::QNumber, y::QNumber, w...) = (check_hilbert(x,y,w...); QTerm($f, [x;y;w...]))
+    @eval Base.$f(x::QSymbolic) = x
+    @eval Base.$f(x::QSymbolic, w::QSymbolic...) = (check_hilbert(x,w...); SymbolicUtils.Term($f, [x;w...]))
+    @eval Base.$f(x, y::QSymbolic, w...) = (check_hilbert(x,y,w...); SymbolicUtils.Term($f, [x;y;w...]))
+    @eval Base.$f(x::QSymbolic, y::QSymbolic, w...) = (check_hilbert(x,y,w...); SymbolicUtils.Term($f, [x;y;w...]))
 end
 
-Base.adjoint(t::QTerm) = QTerm(t.f, adjoint.(t.arguments))
-function Base.adjoint(t::QTerm{<:typeof(*)})
-    args = reverse(adjoint.(t.arguments))
-    is_c = iscommutative.(args)
-    args_c = args[is_c]
-    args_nc = sort(args[.!is_c], lt=lt_aon)
-    return QTerm(t.f, [args_c;args_nc])
+function Base.adjoint(t::QTerm)
+    args = adjoint.(SymbolicUtils.arguments(t))
+    f = SymbolicUtils.operation(t)
+    if f === (*)
+        reverse!(args)
+        is_c = iscommutative.(args)
+        args_c = args[is_c]
+        args_nc = sort(args[.!is_c], lt=lt_aon)
+        args = vcat(args_c, args_nc)
+    end
+    return SymbolicUtils.similarterm(t, f, args)
 end
 
 # Hilbert space checks
@@ -117,12 +98,12 @@ check_hilbert(x,y) = true
     acts_on(op::QNumber)
 
 Shows on which Hilbert space `op` acts. For [`QSym`](@ref) types, this
-returns an Integer, whereas for a [`QTerm`](@ref) it returns a `Vector{Int}`
+returns an Integer, whereas for a `Term` it returns a `Vector{Int}`
 whose entries specify all subspaces on which the expression acts.
 """
 acts_on(op::QSym) = op.aon # TODO make Int[]
 function acts_on(t::QTerm)
-    ops = filter(SymbolicUtils.sym_isa(QNumber), t.arguments)
+    ops = filter(SymbolicUtils.sym_isa(QNumber), SymbolicUtils.arguments(t))
     aon = Int[]
     for op in ops
         append!(aon, acts_on(op))
@@ -143,9 +124,6 @@ Base.iszero(::QNumber) = false
 function Base.copy(op::T) where T<:QSym
     fields = [getfield(op, n) for n in fieldnames(T)]
     return T(fields...)
-end
-function Base.copy(t::QTerm)
-    return QTerm(t.f, copy.(t.arguments))
 end
 
 """

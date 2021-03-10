@@ -18,7 +18,7 @@ J = [a,σ,σ']
 he_laser = heisenberg([a'*a,σ'*σ,a*σ'],H,J;rates=[κ,γ,ν],multithread=true,simplify_input=true)
 
 he_avg = average(he_laser;multithread=true)
-he_exp = cumulant_expansion(he_avg,2;multithread=true)
+he_exp = cumulant_expansion(he_avg,2;multithread=false)
 @test isequal(he_exp, average(he_laser,2))
 
 ps = [Δ,g,κ,γ,ν]

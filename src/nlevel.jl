@@ -163,11 +163,11 @@ function rewrite_gs(σ::Transition)
         args = Any[1]
         for k in levels(h,aon)
             if k != i
-                t_ = QTerm(*, [-1, Transition(h, σ.name, k, k, aon)])
+                t_ = SymbolicUtils.Term(*, [-1, Transition(h, σ.name, k, k, aon)])
                 push!(args, t_)
             end
         end
-        return QTerm(+, args)
+        return +(args...)
     else
         return nothing
     end

@@ -92,7 +92,7 @@ function phase(t::Transition)
         0
     end
 end
-phase(op::QTerm{<:typeof(*)}) = sum(phase(arg) for arg in op.arguments)
+phase(op::Qumulants.QTerm) = (@assert op.f===(*); sum(phase(arg) for arg in op.arguments))
 c_nophase = CorrelationFunction(a', a, he_avg; steady_state=true, filter_func=!has_phase)
 
 S_nophase = Spectrum(c_nophase, ps)
