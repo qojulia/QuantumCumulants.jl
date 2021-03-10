@@ -47,9 +47,9 @@ up to that order is computed immediately.
 average(op::QSym) = _average(op)
 function average(op::QTerm)
     f = SymbolicUtils.operation(op)
-    if f ∈ [+,-] # linearity
-        avg = f(average.(op.arguments)...)
-        return avg
+    if f===(+) || f===(-) # linearity
+        args = map(average, SymbolicUtils.arguments(op))
+        return f(args...)
     elseif f === (*)
         # Move constants out of average
         cs, ops = separate_constants(op)
@@ -64,8 +64,8 @@ function average(op::QTerm)
             return f(cs...)*average(f(ops...))
         end
     elseif f === (^)
-        arg, n = op.arguments
-        op_ = QTerm(*, [arg for i=1:n])
+        arg, n = SymbolicUtils.arguments(op)
+        op_ = SymbolicUtils.Term(*, [arg for i=1:n])
         return average(op_)
     else
         return _average(op)
@@ -74,11 +74,14 @@ end
 average(x::Union{T,SymbolicUtils.Symbolic{T}}) where T<:Number = x
 
 separate_constants(x::Union{T,SymbolicUtils.Symbolic{T}}) where T<:Number = [x],[]
-separate_constants(op::T) where T<:QNumber = [],[op]
-function separate_constants(op::QTerm{<:typeof(*)})
-    cs = filter(x->isa(x,Number)||isa(x,SymbolicUtils.Symbolic{<:Number}), op.arguments)
-    ops = filter(x->isa(x,QNumber), op.arguments)
-    return cs, ops
+function separate_constants(op::QTerm)
+    if SymbolicUtils.operation(op)===(*)
+        cs = filter(x->isa(x,Number)||isa(x,SymbolicUtils.Symbolic{<:Number}), op.arguments)
+        ops = filter(x->isa(x,QSymbolic), op.arguments)
+        return cs, ops
+    else
+        return [],[op]
+    end
 end
 
 """
@@ -233,7 +236,7 @@ function _cumulant_expansion(args::Vector,order::Int)
                     if length(p_)==1
                         op_ = p_[1]
                     else
-                        op_ = QTerm(*, p_)
+                        op_ = SymbolicUtils.Term(*, p_)
                     end
                     push!(args_prod, _average(op_))
                 end

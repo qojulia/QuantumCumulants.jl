@@ -32,7 +32,7 @@ function heisenberg(a::Vector,H,J;Jdagger::Vector=adjoint.(J),rates=ones(length(
     else
         lhs = a
     end
-    rhs = Vector{QNumber}(undef, length(a))
+    rhs = Vector{QSymbolic}(undef, length(a))
     if multithread
         Threads.@threads for i=1:length(a)
             rhs_ = 1.0im*commutator(H,lhs[i];simplify=false)
@@ -52,7 +52,7 @@ function heisenberg(a::Vector,H,J;Jdagger::Vector=adjoint.(J),rates=ones(length(
     end
     return HeisenbergEquation(lhs,rhs,H,J,rates)
 end
-heisenberg(a::QNumber,args...;kwargs...) = heisenberg([a],args...;kwargs...)
+heisenberg(a::QSymbolic,args...;kwargs...) = heisenberg([a],args...;kwargs...)
 heisenberg(a::Vector,H;kwargs...) = heisenberg(a,H,[];Jdagger=[],kwargs...)
 
 function _master_lindblad(a_,J,Jdagger,rates)
@@ -73,58 +73,31 @@ Computes the commutator `a*b - b*a` of `a` and `b`. If `simplify` is `true`, the
 result is simplified using the [`qsimplify`](@ref) function. Further
 keyword arguments are passed to simplification.
 """
-function commutator(a::QNumber,b::QNumber; simplify=true, kwargs...)
-    # Check on which subspaces each of the operators act
-    a_on = acts_on(a)
-    b_on = acts_on(b)
-    inds = intersect(a_on,b_on)
-    isempty(inds) && return zero(a)
-    if simplify
-        return qsimplify(a*b + -1*b*a; kwargs...)
-    else
-        return a*b + -1*b*a
-    end
-end
-
-# Specialized methods for addition using linearity
-function commutator(a::QTerm{<:typeof(+)},b::QNumber; simplify=true, kwargs...)
-    args = Any[]
-    for arg in a.arguments
-        c = commutator(arg,b; simplify=simplify, kwargs...)
-        iszero(c) || push!(args, c)
-    end
-    isempty(args) && return zero(a)
-    out = +(args...)
-    if simplify
-        return qsimplify(out; kwargs...)
-    else
-        return out
-    end
-end
-function commutator(a::QNumber,b::QTerm{<:typeof(+)}; simplify=true, kwargs...)
-    args = Any[]
-    for arg in b.arguments
-        c = commutator(a,arg; simplify=simplify, kwargs...)
-        iszero(c) || push!(args, c)
-    end
-    isempty(args) && return zero(a)
-    out = +(args...)
-    if simplify
-        return qsimplify(out; kwargs...)
-    else
-        return out
-    end
-end
-function commutator(a::QTerm{<:typeof(+)},b::QTerm{<:typeof(+)}; simplify=true, kwargs...)
-    args = Any[]
-    for a_arg in a.arguments
-        for b_arg in b.arguments
-            c = commutator(a_arg,b_arg; simplify=simplify, kwargs...)
+function commutator(a::QSymbolic,b::QSymbolic; simplify=true, kwargs...)
+    if SymbolicUtils.istree(a) && SymbolicUtils.operation(a)===(+)
+        args = Any[]
+        for arg in a.arguments
+            c = commutator(arg,b; simplify=simplify, kwargs...)
             iszero(c) || push!(args, c)
         end
+        isempty(args) && return zero(a)
+        out = +(args...)
+    elseif SymbolicUtils.istree(b) && SymbolicUtils.operation(b)===(+)
+        args = Any[]
+        for arg in b.arguments
+            c = commutator(a,arg; simplify=simplify, kwargs...)
+            iszero(c) || push!(args, c)
+        end
+        isempty(args) && return zero(a)
+        out = +(args...)
+    else
+        # Check on which subspaces each of the operators act
+        a_on = acts_on(a)
+        b_on = acts_on(b)
+        inds = intersect(a_on,b_on)
+        isempty(inds) && return zero(a)
+        out = a*b + -1*b*a
     end
-    isempty(args) && return zero(a)
-    out = +(args...)
     if simplify
         return qsimplify(out; kwargs...)
     else

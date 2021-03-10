@@ -11,7 +11,7 @@ a_ = Destroy(hf,:a)
 
 @cnumbers p q
 # @test p*q isa NumberTerm
-@test p*q*a_ isa QTerm
+@test p*q*a_ isa Qumulants.QTerm
 
 a = embed(h,a_,1)
 σ_ = Transition(ha,:σ,:g,:e)
@@ -56,6 +56,7 @@ he_laser = heisenberg([a'*a,σ'*σ,a'*σ],H,J;rates=[κ,γ,ν])
 @cnumbers λ Γ N
 b = Destroy(h, :b)
 yy = 1.0im*σ*b*(N-1)*λ*Γ
-@test isequal(qsimplify(yy), QTerm(*, [-1.0im,Γ,λ,b,σ]) + QTerm(*, [1.0im,N,Γ,λ,b,σ]))
+using SymbolicUtils: Term
+@test isequal(qsimplify(yy), Term(*, [-1.0im,Γ,λ,b,σ]) + Term(*, [1.0im,N,Γ,λ,b,σ]))
 
 end # testset

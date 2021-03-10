@@ -94,7 +94,7 @@ end
 ### Functions needed for simplification
 
 # Handle noncommutative multiplication
-iscommutative(::QNumber) = false
+iscommutative(::QSymbolic) = false
 iscommutative(::Union{SymbolicUtils.Symbolic{T},T}) where {T<:Number} = true
 
 needs_sorting_nc(x) = (x.f === (*)) && !issorted_nc(x)

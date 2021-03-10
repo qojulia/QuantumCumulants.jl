@@ -131,7 +131,7 @@ function find_operators(h::HilbertSpace, order::Int; names=nothing, kwargs...)
         ops = [ops;fund_ops]
     end
 
-    all_ops = QNumber[]
+    all_ops = QSymbolic[]
     for i=1:order
         for c in combinations(ops, i)
             push!(all_ops, prod(c))
@@ -142,7 +142,7 @@ function find_operators(h::HilbertSpace, order::Int; names=nothing, kwargs...)
     ops_1 = map(qsimplify, all_ops)
     ops_2 = all_ops
     while !isequal(ops_1,ops_2)
-        ops_2 = QNumber[]
+        ops_2 = QSymbolic[]
         for op in ops_1
             append!(ops_2, _get_operators(op))
         end
@@ -151,7 +151,7 @@ function find_operators(h::HilbertSpace, order::Int; names=nothing, kwargs...)
 
     return unique_ops(ops_2)
 end
-find_operators(op::QNumber,args...) = find_operators(hilbert(op),args...)
+find_operators(op::QSymbolic,args...) = find_operators(hilbert(op),args...)
 
 """
     hilbert(::QNumber)
@@ -159,7 +159,7 @@ find_operators(op::QNumber,args...) = find_operators(hilbert(op),args...)
 Return the Hilbert space of the operator.
 """
 hilbert(op::QSym) = op.hilbert
-hilbert(t::QTerm) = hilbert(t.arguments[findfirst(x->isa(x,QNumber), t.arguments)])
+hilbert(t::QTerm) = hilbert(t.arguments[findfirst(x->isa(x,QSymbolic), t.arguments)])
 
 """
     fundamental_operators(::HilbertSpace)
@@ -212,21 +212,24 @@ end
 
 _get_operators(::Number) = []
 _get_operators(op::QSym) = [op]
-_get_operators(op::QTerm{<:typeof(^)}) = [op]
-function _get_operators(op::QTerm{<:typeof(*)})
-    args = QNumber[]
-    for arg in op.arguments
-        append!(args, _get_operators(arg))
-    end
-    isempty(args) && return args
-    return [*(args...)]
-end
 function _get_operators(t::QTerm)
-    ops = QNumber[]
-    for arg in t.arguments
-        append!(ops, _get_operators(arg))
+    f = SymbolicUtils.operation(t)
+    if f===(*)
+        args = QSymbolic[]
+        for arg in SymbolicUtils.arguments(t)
+            append!(args, _get_operators(arg))
+        end
+        isempty(args) && return args
+        return [*(args...)]
+    elseif f===(^)
+        return [t]
+    else
+        ops = QSymbolic[]
+        for arg in SymbolicUtils.arguments(t)
+            append!(ops, _get_operators(arg))
+        end
+        return ops
     end
-    return ops
 end
 
 """
@@ -285,7 +288,7 @@ function _conj(v::SymbolicUtils.Symbolic)
 end
 _conj(x::Number) = conj(x)
 
-_adjoint(op::QNumber) = adjoint(op)
+_adjoint(op::QSymbolic) = adjoint(op)
 _adjoint(s::SymbolicUtils.Symbolic{<:Number}) = _conj(s)
 _adjoint(x) = adjoint(x)
 
