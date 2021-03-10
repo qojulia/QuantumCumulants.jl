@@ -56,7 +56,7 @@ nothing # hide
 
 As you can see, the destruction operator [`Destroy`](@ref) is created on a [`FockSpace`](@ref) and given a name. The transition operator, however, additionally requires you to specify the levels between which it describes the transition. Defining a transition without levels specified creates a callable instance which needs to be called with valid level labels before one can actually use it in any algebraic expressions. Note that in Bra-Ket notation, the transition operator `Transition(h, i, j)` is simply ``|i\rangle \langle j|``. Note that the bosonic creation operator is simply given by the `adjoint` of [`Destroy`](@ref).
 
-These fundamental operators are all of the type [`QSym`](@ref), which are the basic symbolic building blocks for the noncommutative algebra used in **Qumulants.jl**. They can be combined with standard algebraic functions in expression trees, which are implemented as [`QTerm`](@ref).
+These fundamental operators are all of the type [`QSym`](@ref), which are the basic symbolic building blocks for the noncommutative algebra used in **Qumulants.jl**. They can be combined with standard algebraic functions in expression trees, which are stored as [`SymbolicUtils.Term`].
 
 ```@example operators
 ex_fock = 0.1*a'*a

@@ -98,7 +98,7 @@ check_hilbert(x,y) = true
     acts_on(op::QNumber)
 
 Shows on which Hilbert space `op` acts. For [`QSym`](@ref) types, this
-returns an Integer, whereas for a [`QTerm`](@ref) it returns a `Vector{Int}`
+returns an Integer, whereas for a `Term` it returns a `Vector{Int}`
 whose entries specify all subspaces on which the expression acts.
 """
 acts_on(op::QSym) = op.aon # TODO make Int[]
