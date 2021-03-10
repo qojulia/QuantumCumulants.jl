@@ -74,16 +74,16 @@ end
 # Hilbert space checks
 check_hilbert(a::QSym,b::QSym) = (a.hilbert == b.hilbert) || error("Incompatible Hilbert spaces $(a.hilbert) and $(b.hilbert)!")
 function check_hilbert(a::QTerm,b::QSym)
-    a_ = findfirst(x->isa(x,QNumber), a.arguments)
+    a_ = findfirst(x->isa(x,QSymbolic), SymbolicUtils.arguments(a))
     return check_hilbert(a_,b)
 end
 function check_hilbert(a::QSym,b::QTerm)
-    b_ = findfirst(x->isa(x,QNumber), b.arguments)
+    b_ = findfirst(x->isa(x,QSymbolic), SymbolicUtils.arguments(b))
     return check_hilbert(a,b_)
 end
 function check_hilbert(a::QTerm,b::QTerm)
-    a_ = findfirst(x->isa(x,QNumber), a.arguments)
-    b_ = findfirst(x->isa(x,QNumber), b.arguments)
+    a_ = findfirst(x->isa(x,QSymbolic), SymbolicUtils.arguments(a))
+    b_ = findfirst(x->isa(x,QSymbolic), SymbolicUtils.arguments(b))
     return check_hilbert(a_,b_)
 end
 function check_hilbert(args...)
@@ -95,7 +95,7 @@ check_hilbert(x,y) = true
 
 
 """
-    acts_on(op::QNumber)
+    acts_on(op)
 
 Shows on which Hilbert space `op` acts. For [`QSym`](@ref) types, this
 returns an Integer, whereas for a `Term` it returns a `Vector{Int}`
@@ -103,7 +103,7 @@ whose entries specify all subspaces on which the expression acts.
 """
 acts_on(op::QSym) = op.aon # TODO make Int[]
 function acts_on(t::QTerm)
-    ops = filter(SymbolicUtils.sym_isa(QNumber), SymbolicUtils.arguments(t))
+    ops = filter(SymbolicUtils.sym_isa(QSymbolic), SymbolicUtils.arguments(t))
     aon = Int[]
     for op in ops
         append!(aon, acts_on(op))
