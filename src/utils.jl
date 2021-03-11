@@ -202,9 +202,9 @@ end
 Return a list of all [`QSym`](@ref) in an expression.
 """
 get_operators(x) = _get_operators(x)
-function get_operators(t::QTerm{<:typeof(*)})
-    ops = QNumber[]
-    for arg in t.arguments
+function get_operators(t::QTerm)
+    ops = QSymbolic[]
+    for arg in SymbolicUtils.arguments(t)
         append!(ops, get_operators(arg))
     end
     return ops
