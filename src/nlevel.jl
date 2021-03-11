@@ -147,14 +147,14 @@ function Transition(hilbert::ProductSpace,name)
 end
 
 # Simplification
-function merge_transitions(σ1::Transition, σ2::Transition)
+function merge_transitions(σ1, σ2)
     if σ1.j == σ2.i
-        return Transition(σ1.hilbert,σ1.name,σ1.i,σ2.j,σ1.aon)
+        return _new_transition(σ1, σ1.hilbert,σ1.name,σ1.i,σ2.j,σ1.aon)
     else
         return 0
     end
 end
-function rewrite_gs(σ::Transition)
+function rewrite_gs(σ)
     h = σ.hilbert
     aon = acts_on(σ)
     gs = ground_state(h,aon)
@@ -163,12 +163,30 @@ function rewrite_gs(σ::Transition)
         args = Any[1]
         for k in levels(h,aon)
             if k != i
-                t_ = SymbolicUtils.Term(*, [-1, Transition(h, σ.name, k, k, aon)])
+                t_ = SymbolicUtils.Term(*, [-1, _new_transition(σ, h, σ.name, k, k, aon)])
                 push!(args, t_)
             end
         end
         return +(args...)
     else
         return nothing
+    end
+end
+_new_transition(::Transition, args...) = Transition(args...)
+function _new_transition(σ::SymbolicUtils.Term{<:Transition}, args...)
+    f = SymbolicUtils.operation(σ)
+    t = _new_transition(f, args...)
+    return SymbolicUtils.similarterm(f, t, SymbolicUtils.arguments(σ))
+end
+
+for f∈[:levels,:ground_state]
+    @eval ($f)(t::SymbolicUtils.Term{<:QSym}, args...) = $(f)(SymbolicUtils.operation(t), args...)
+end
+
+function Base.getproperty(t::SymbolicUtils.Term{<:Transition}, s::Symbol)
+    if s===:i || s===:j || s===:aon || s===:name || s===:hilbert
+        return getfield(SymbolicUtils.operation(t), s)
+    else
+        return getfield(t, s)
     end
 end

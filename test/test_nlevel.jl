@@ -45,6 +45,25 @@ ex = σ*σ'
 sz = σ'*σ - σ*σ'
 @test isequal(qsimplify(sz),qsimplify(2*σee - one(σgg)))
 
+# Test with t argument
+@cnumbers t
+σ = σ(t)
+@test isequal(σ', Transition(ha, :σ, 2,1)(t))
+σee = σee(t)
+@test isequal(σee', σee)
+
+ex = σ'*σ
+@test isequal(qsimplify(ex), σee)
+
+ex = σ*σ'
+σgg = σgg(t)
+@test isequal(qsimplify(ex), qsimplify(σgg))
+@test isequal(qsimplify(σgg), (one(σgg) + -1*σee))
+
+sz = σ'*σ - σ*σ'
+@test isequal(qsimplify(sz),qsimplify(2*σee - one(σgg)))
+
+
 # Product space
 ha1 = NLevelSpace(:atom, (:g,:e))
 ha2 = NLevelSpace(:atom, 2)

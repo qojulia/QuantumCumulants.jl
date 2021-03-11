@@ -21,6 +21,15 @@ function Base.show(io::IO,x::QTerm)
     end
     show_brackets[] && write(io,")")
 end
+function Base.show(io::IO,x::SymbolicUtils.Term{<:QSym})
+    f = SymbolicUtils.operation(x)
+    args = SymbolicUtils.arguments(x)
+    t = args[1]
+    show(io, f)
+    write(io, "(")
+    show(io, t)
+    write(io, ")")
+end
 
 function SymbolicUtils.show_term(io::IO, t::SymbolicUtils.Term{<:AvgSym})
     write(io, "⟨")

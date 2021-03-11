@@ -14,7 +14,7 @@ abstract type QSym <: QNumber end
 
 Base.isequal(a::T,b::T) where T<:QSym = isequal(a.hilbert, b.hilbert) && isequal(a.name, b.name) && isequal(a.aon, b.aon)
 Base.isless(a::QSym,b::QSym) = a.name < b.name
-
+Base.nameof(a::QSym) = a.name
 
 ### Interface for SymbolicUtils
 
@@ -24,6 +24,7 @@ SymbolicUtils.promote_symtype(f, T::Type{<:QNumber}, Ts...) = promote_type(QNumb
 SymbolicUtils.promote_symtype(f,T::Type{<:QNumber},S::Type{<:Number}) = QNumber
 SymbolicUtils.promote_symtype(f,T::Type{<:Number},S::Type{<:QNumber}) = QNumber
 SymbolicUtils.promote_symtype(f,T::Type{<:QNumber},S::Type{<:QNumber}) = QNumber
+SymbolicUtils.promote_symtype(f::T, S::Type{<:Number}) where T<:QSym = T
 
 SymbolicUtils.symtype(x::T) where T<:QNumber = T
 SymbolicUtils.to_symbolic(x::QNumber) = x
@@ -71,6 +72,15 @@ function Base.adjoint(t::QTerm)
     return SymbolicUtils.similarterm(t, f, args)
 end
 
+(a::QSym)(t::SymbolicUtils.Sym) = SymbolicUtils.Term(a, [t])
+
+function Base.adjoint(t::SymbolicUtils.Term{<:QSym})
+    f = SymbolicUtils.operation(t)
+    SymbolicUtils.Term(f', SymbolicUtils.arguments(t))
+end
+
+# SymbolicUtils.similarterm(t::SymbolicUtils.Term{T}, f::QSym, args) where T<:QNumber = SymbolicUtils.Term{T}(f, args)
+
 # Hilbert space checks
 check_hilbert(a::QSym,b::QSym) = (a.hilbert == b.hilbert) || error("Incompatible Hilbert spaces $(a.hilbert) and $(b.hilbert)!")
 function check_hilbert(a::QTerm,b::QSym)
@@ -112,6 +122,7 @@ function acts_on(t::QTerm)
     sort!(aon)
     return aon
 end
+acts_on(t::SymbolicUtils.Term{<:QSym}) = acts_on(SymbolicUtils.operation(t))
 acts_on(x) = Int[]
 
 Base.one(::T) where T<:QNumber = one(T)

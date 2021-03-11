@@ -160,6 +160,7 @@ Return the Hilbert space of the operator.
 """
 hilbert(op::QSym) = op.hilbert
 hilbert(t::QTerm) = hilbert(t.arguments[findfirst(x->isa(x,QSymbolic), t.arguments)])
+hilbert(t::SymbolicUtils.Term{<:QSym}) = hilbert(SymbolicUtils.operation(t))
 
 """
     fundamental_operators(::HilbertSpace)

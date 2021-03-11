@@ -356,3 +356,4 @@ function get_order(t::QTerm)
     error("Unknown function $(t.f)")
 end
 get_order(::QSym) = 1
+get_order(::SymbolicUtils.Term{<:QSym}) = 1
