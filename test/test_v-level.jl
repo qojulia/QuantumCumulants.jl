@@ -105,12 +105,15 @@ he_f_avg = average(he_f,2)
 # Find missing averages and them as parameter
 import SymbolicUtils
 missing_avgs = filter(SymbolicUtils.sym_isa(Average), find_missing(he_f_avg))
+avg_ps = Qumulants._make_parameter.(missing_avgs)
+
+he_f_avg = substitute(he_f_avg, Dict(missing_avgs .=> avg_ps))
 
 # Gather all new cnumbers
-pf = [ωf; gf; κf; missing_avgs; p]
+pf = [ωf; gf; κf; avg_ps; p]
 
 # Generate function for the filter cavities
-meta_ff = build_ode(he_f_avg,pf);
+sys = ODESystem(he_f_avg)
 
 # Filter cavity cnumbers
 ωfn = 0.0
@@ -132,24 +135,24 @@ for m in missing_avgs
         push!(steady_vals, conj(sol.u[end][j]))
     end
 end
-pf0 = [ωfn;κfn;gfn;steady_vals;p0]
+pf0 = pf .=> [ωfn;κfn;gfn;steady_vals;getindex.(p0, 2)]
 
 # Initial state
 u0f = zeros(ComplexF64,length(he_f_avg.lhs))
 
-ff = Meta.eval(meta_ff)
-prob_f = ODEProblem(ff,u0f,(0.0,tf),pf0);
+prob_f = ODEProblem(sys,u0f,(0.0,tf),pf0,jac=true,sparse=false)
 
 # Solve for different frequencies of the filters; the spectrum is then equal to ⟨fᵗf⟩
 ω = range(-0.8,-0.2,length=81)
 spec = zeros(length(ω))
 
 freq_ind = findfirst(isequal(ωf),pf)
-nf_idx = findfirst(isequal(c'*c),ops_f)
+n_avg = average(c'*c)
 for i=1:length(ω)
+    # TODO fix indexing here
     prob_f.p[freq_ind] = ω[i]
-    sol_f = solve(prob_f,RK4(),save_idxs=nf_idx)
-    spec[i] = real(sol_f.u[end])
+    sol_f = solve(prob_f,RK4())
+    spec[i] = real(get_solution(n_avg, sol_f.u[end], he_f_avg))
 end
 
 @test all(spec .> 0.0)

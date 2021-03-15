@@ -56,12 +56,24 @@ end
 function add_vars!(varmap, vs, t)
     keys = getindex.(varmap, 1)
     for v∈vs
-        sym = Symbol(string(v))
         if !_in(v,keys)
-            var_f = SymbolicUtils.Sym{SymbolicUtils.FnType{Tuple{Any}, Number}}(sym)
-            var = var_f(t)
-            push!(varmap, v => var)
+            push!(varmap, v => _make_var(v, t))
         end
     end
+    return varmap
+end
+
+function _make_var(v, t)
+    sym = Symbol(string(v))
+    # Vars need to be of symtype Real; otherwise they get converted internally
+    # here: https://github.com/JuliaSymbolics/Symbolics.jl/blob/1f450def014628f7fe5321282f33972527fb0318/src/utils.jl#L96
+    # which causes the missingvars check to fail due to a setdiff on lists with different types
+    var_f = SymbolicUtils.Sym{SymbolicUtils.FnType{Tuple{Any}, Real}}(sym)
+    return var_f(t)
+end
+
+function make_varmap(vs, t)
+    varmap = Pair{Any,Any}[]
+    add_vars!(varmap, vs, t)
     return varmap
 end

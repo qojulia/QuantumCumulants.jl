@@ -50,19 +50,19 @@ end
 # Conversion to ODESystem
 MTK.isparameter(::SymbolicUtils.Sym{<:Parameter}) = true
 
-function MTK.ODESystem(he::HeisenbergEquation; ps=nothing, kwargs...)
+function MTK.ODESystem(he::HeisenbergEquation; kwargs...)
     eqs = MTK.equations(he)
     t = MTK.independent_variable(he)
 
-    if ps===nothing
-        ps′ = []
-        for eq∈eqs
-            MTK.collect_vars!([],ps′,eq.rhs,t)
-        end
-        unique!(ps′)
-    else
-        ps′ = ps
-    end
+    # if ps===nothing
+    #     ps′ = []
+    #     for eq∈eqs
+    #         MTK.collect_vars!([],ps′,eq.rhs,t)
+    #     end
+    #     unique!(ps′)
+    # else
+    #     ps′ = ps
+    # end
 
     # ps_adj = filter(x->x isa Average, ps′)
     # if !isempty(ps_adj)
@@ -71,5 +71,5 @@ function MTK.ODESystem(he::HeisenbergEquation; ps=nothing, kwargs...)
     #     eqs = [Symbolics.Equation(eq.lhs, substitute_conj(eq.rhs, ps_adj)) for eq∈eqs]
     # end
 
-    return MTK.ODESystem(eqs, t, MTK.states(he), ps′; kwargs...)
+    return MTK.ODESystem(eqs; kwargs...)
 end

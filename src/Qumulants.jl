@@ -24,7 +24,7 @@ export HilbertSpace, ProductSpace, ⊗, tensor,
         find_missing, complete, find_operators, fundamental_operators,
             unique_ops, get_symbolics, get_operators, get_solution,
         build_ode, generate_ode,
-        CorrelationFunction, Spectrum, initial_values,
+        CorrelationFunction, Spectrum, correlation_u0, correlation_p0,
         transition_superscript
 
 include("hilbertspace.jl")
