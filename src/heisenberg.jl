@@ -107,4 +107,4 @@ end
 
 commutator(::Union{T,SymbolicUtils.Symbolic{T}}, ::QSymbolic; kwargs...) where T<:Number = 0
 commutator(::QSymbolic, ::Union{T,SymbolicUtils.Symbolic{T}}; kwargs...) where T<:Number = 0
-commutator(::Union{T,SymbolicUtils.Symbolic{T}}, ::Union{S,SymbolicUtils.Symbolic{S}}) where {T<:Number,S<:Number} = 0
+commutator(::Union{T,SymbolicUtils.Symbolic{T}}, ::Union{S,SymbolicUtils.Symbolic{S}}; kwargs...) where {T<:Number,S<:Number} = 0
