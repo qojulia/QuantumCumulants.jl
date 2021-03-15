@@ -108,7 +108,9 @@ function average(de::HeisenbergEquation;multithread=false)
             rhs[i] = average(de.rhs[i])
         end
     end
-    return HeisenbergEquation(lhs,rhs,de.hamiltonian,de.jumps,de.rates)
+    de_ = HeisenbergEquation(lhs,rhs,de.hamiltonian,de.jumps,de.rates,de.iv,copy(de.varmap))
+    add_vars!(de_.varmap, lhs, de.iv)
+    return de_
 end
 average(arg,order;kwargs...) = cumulant_expansion(average(arg),order;kwargs...)
 
@@ -205,7 +207,7 @@ function cumulant_expansion(de::HeisenbergEquation,order;multithread=false,mix_c
             rhs[i] = cr
         end
     end
-    return HeisenbergEquation(de.lhs,rhs,de.hamiltonian,de.jumps,de.rates)
+    return HeisenbergEquation(de.lhs,rhs,de.hamiltonian,de.jumps,de.rates,de.iv,de.varmap)
 end
 
 function check_lhs(lhs,order::Int;kwargs...)

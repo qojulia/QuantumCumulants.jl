@@ -1,5 +1,6 @@
 using Qumulants
 using OrdinaryDiffEq
+using ModelingToolkit
 using Test
 
 @testset "v-level" begin
@@ -48,8 +49,7 @@ he_avg = average(he,2)
 
 
 p = [κ, g, Δc, Γ2, Γ3, Δ2, Δ3, Ω2, Ω3]
-meta_f = build_ode(he_avg,p)
-f = Meta.eval(meta_f)
+sys = ODESystem(he_avg)
 
 u0 = zeros(ComplexF64,length(he_avg.lhs))
 
@@ -65,9 +65,9 @@ u0 = zeros(ComplexF64,length(he_avg.lhs))
 gn = 10.0 * Γ2n
 tmax = 5/Γ2n
 
-p0 = [κn, gn, Δcn, Γ2n, Γ3n, Δ2n, Δ3n, Ω2n, Ω3n]
-prob = ODEProblem(f,u0,(0.0,tmax),p0)
-sol = solve(prob,RK4());
+p0 = p .=> [κn, gn, Δcn, Γ2n, Γ3n, Δ2n, Δ3n, Ω2n, Ω3n]
+prob = ODEProblem(sys,u0,(0.0,tmax),p0)
+sol = solve(prob,RK4(),jac=true,sparse=true)
 
 avg = average(a'*σ(2,1))
 @test get_solution(avg,sol,he_avg) == get_solution(avg,sol.u,he_avg) == map(conj, getindex.(sol.u, 7))

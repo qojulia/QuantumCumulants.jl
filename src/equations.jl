@@ -27,12 +27,14 @@ mutable struct HeisenbergEquation{LHS,RHS,H,J,R} <: AbstractEquation{LHS,RHS}
     hamiltonian::H
     jumps::J
     rates::R
+    iv::SymbolicUtils.Sym
+    varmap
 end
-Base.hash(eq::HeisenbergEquation, h::UInt) = hash(eq.rates, hash(eq.jumps, hash(eq.hamiltonian, hash(eq.rhs, hash(eq.lhs, h)))))
+Base.hash(eq::HeisenbergEquation, h::UInt) = hash(eq.iv, hash(eq.rates, hash(eq.jumps, hash(eq.hamiltonian, hash(eq.rhs, hash(eq.lhs, h))))))
 Base.isequal(eq1::HeisenbergEquation,eq2::HeisenbergEquation) = isequal(hash(eq1), hash(eq2))
 
-Base.getindex(de::HeisenbergEquation, i::Int) = HeisenbergEquation([de.lhs[i]],[de.rhs[i]],de.hamiltonian,de.jumps,de.rates)
-Base.getindex(de::HeisenbergEquation, i) = HeisenbergEquation(de.lhs[i],de.rhs[i],de.hamiltonian,de.jumps,de.rates)
+Base.getindex(de::HeisenbergEquation, i::Int) = HeisenbergEquation([de.lhs[i]],[de.rhs[i]],de.hamiltonian,de.jumps,de.rates,de.iv,de.varmap)
+Base.getindex(de::HeisenbergEquation, i) = HeisenbergEquation(de.lhs[i],de.rhs[i],de.hamiltonian,de.jumps,de.rates,de.iv,de.varmap)
 Base.lastindex(de::HeisenbergEquation) = lastindex(de.lhs)
 Base.length(de::HeisenbergEquation) = length(de.lhs)
 
@@ -40,12 +42,26 @@ Base.length(de::HeisenbergEquation) = length(de.lhs)
 function substitute(de::HeisenbergEquation,dict)
     lhs = [substitute(l, dict) for l in de.lhs]
     rhs = [substitute(r, dict) for r in de.rhs]
-    return HeisenbergEquation(lhs,rhs,de.hamiltonian,de.jumps,de.rates)
+    return HeisenbergEquation(lhs,rhs,de.hamiltonian,de.jumps,de.rates,de.iv,de.varmap)
 end
 
 # Simplification
 function qsimplify(de::HeisenbergEquation;kwargs...)
     lhs = [qsimplify(l;kwargs...) for l in de.lhs]
     rhs = [qsimplify(r;kwargs...) for r in de.rhs]
-    return HeisenbergEquation(lhs,rhs,de.hamiltonian,de.jumps,de.rates)
+    return HeisenbergEquation(lhs,rhs,de.hamiltonian,de.jumps,de.rates,de.iv,de.varmap)
+end
+
+# Adding MTK variables
+function add_vars!(varmap, vs, t)
+    keys = getindex.(varmap, 1)
+    for v∈vs
+        sym = Symbol(string(v))
+        if !_in(v,keys)
+            var_f = SymbolicUtils.Sym{SymbolicUtils.FnType{Tuple{Any}, Number}}(sym)
+            var = var_f(t)
+            push!(varmap, v => var)
+        end
+    end
+    return varmap
 end

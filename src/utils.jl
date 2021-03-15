@@ -71,7 +71,9 @@ and derive the corresponding equations of motion.
 """
 function complete(de::HeisenbergEquation;kwargs...)
     rhs_, lhs_ = complete(de.rhs,de.lhs,de.hamiltonian,de.jumps,de.rates;kwargs...)
-    return HeisenbergEquation(lhs_,rhs_,de.hamiltonian,de.jumps,de.rates)
+    de_ = HeisenbergEquation(lhs_,rhs_,de.hamiltonian,de.jumps,de.rates,de.iv,copy(de.varmap))
+    add_vars!(de_.varmap, lhs_, de.iv)
+    return de_
 end
 function complete(rhs::Vector, vs::Vector, H, J, rates; order=nothing, filter_func=nothing, mix_choice=maximum, kwargs...)
     order_lhs = maximum(get_order.(vs))
