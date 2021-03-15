@@ -138,6 +138,9 @@ function commutator(a::QTerm{<:typeof(+)},b::QTerm{<:typeof(+)}; simplify=true, 
     end
 end
 
+commutator(::Union{T,SymbolicUtils.Symbolic{T}},::QNumber;kwargs...) where T<:Number = 0
+commutator(::QNumber,::Union{T,SymbolicUtils.Symbolic{T}};kwargs...) where T<:Number = 0
+commutator(::Union{T,SymbolicUtils.Symbolic{T}},::Union{S,SymbolicUtils.Symbolic{S}};kwargs...) where {T<:Number,S<:Number} = 0
 
 function _expand_clusters(J,Jdagger,rates)
     J_ = []
