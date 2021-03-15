@@ -59,4 +59,12 @@ yy = 1.0im*σ*b*(N-1)*λ*Γ
 using SymbolicUtils: Term
 @test isequal(qsimplify(yy), Term(*, [-1.0im,Γ,λ,b,σ]) + Term(*, [1.0im,N,Γ,λ,b,σ]))
 
+# Test numbers in commutator
+@cnumbers Δ
+h = NLevelSpace(:a, 2)
+s(i,j) = Transition(h, :s, i, j)
+H = Δ*s(2,2) - Δ*s(1,1)
+H = qsimplify(H)
+@test iszero(qsimplify(heisenberg(s(1,2), H).rhs[1]  + 2im*Δ*s(1,2)))
+
 end # testset
