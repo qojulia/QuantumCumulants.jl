@@ -56,7 +56,7 @@ nothing # hide
 
 As you can see, the destruction operator [`Destroy`](@ref) is created on a [`FockSpace`](@ref) and given a name. The transition operator, however, additionally requires you to specify the levels between which it describes the transition. Defining a transition without levels specified creates a callable instance which needs to be called with valid level labels before one can actually use it in any algebraic expressions. Note that in Bra-Ket notation, the transition operator `Transition(h, i, j)` is simply ``|i\rangle \langle j|``. Note that the bosonic creation operator is simply given by the `adjoint` of [`Destroy`](@ref).
 
-These fundamental operators are all of the type [`QSym`](@ref), which are the basic symbolic building blocks for the noncommutative algebra used in **Qumulants.jl**. They can be combined with standard algebraic functions in expression trees, which are stored as [`SymbolicUtils.Term`].
+These fundamental operators are all of the type [`QSym`](@ref), which are the basic symbolic building blocks for the noncommutative algebra used in **Qumulants.jl**. They implement the [interface](https://symbolicutils.juliasymbolics.org/interface/) of the [**SymbolicUtils.jl**](https://github.com/JuliaSymbolics/SymbolicUtils.jl) package. Hence, they can be combined using standard algebraic functions.
 
 ```@example operators
 ex_fock = 0.1*a'*a
@@ -143,7 +143,7 @@ in order to eliminate the projector on the ground state. This reduces the amount
 \sigma^{11} ~\Rightarrow~ 1 - \sum_{j=2}^n \sigma^{jj}.
 ```
 
-These rules are applied automatically when deriving Heisenberg equations for *q*-numbers. If you manually want to apply them to an expression you can use [`qsimplify`](@ref):
+These rules are implemented as rewriting rules using [**SymbolicUtils.jl**](https://github.com/JuliaSymbolics/SymbolicUtils.jl) (see their [documentation on term rewriting](https://symbolicutils.juliasymbolics.org/rewrite/)). The rules are applied together with a custom set of rules for noncommutative variables whenever [`qsimplify`](@ref) is called on an expression involving *q*-numbers:
 
 ```@example heisenberg
 using Qumulants # hide
@@ -206,24 +206,25 @@ Before you can actually solve the system of equations, you need to ensure that i
 
 ## Numerical solution
 
-Finally, in order to actually solve a system of equations, we need to generate a function that can be used in the [**OrdinaryDiffEq.jl**](https://github.com/SciML/OrdinaryDiffEq.jl) package. This is done using the [`build_ode`](@ref) function, which generates an `Expr` that can be evaluated, or the [`generate_ode`](@ref) which calls `Meta.eval` on the result of [`build_ode`](@ref). Note that the latter can be especially useful when you want to save a function for later usage, since you can simply convert it to a `string` and write it to a file.
+Finally, in order to actually solve a system of equations, we need to convert a set of equations to an [`ODESystem`](https://mtk.sciml.ai/dev/systems/ODESystem/), which represents a symbolic set of ordinary differential equations. `ODESystem`s are part of the [**ModelingToolkit.jl**](https://github.com/SciML/ModelingToolkit.jl) framework, which allows for generating fast numerical functions that can be directly used in the [**OrdinaryDiffEq.jl**](https://github.com/SciML/OrdinaryDiffEq.jl) package. On top of that, [**ModelingToolkit.jl**](https://github.com/SciML/ModelingToolkit.jl) also offers additional enhancement, such as the symbolic computation of Jacobians for better stability and performance.
+
+To obtain an `ODESystem` from a `HeisenbergEquation`, you simply need to call the constructor:
 
 ```@example heisenberg
-ps = (ω, η)
-meta_f = build_ode(he_avg, ps)
-using MacroTools; MacroTools.striplines(meta_f)
+using ModelingToolkit
+sys = ODESystem(he_avg)
+nothing # hide
 ```
 
-Note that in addition to the system, we also need to pass a list of symbolic parameters. The order in that list is important as it will correspond to the order in which parameters need to be passed. Similarly, the solution vector will have entries in the order of the left-hand-side of the equations. The resulting function is of the form `f(du,u,p,t)`, which is precisely the format required in [**OrdinaryDiffEq.jl**](https://github.com/SciML/OrdinaryDiffEq.jl). We can solve it as follows
+Finally, to obtain a numerical solution we can construct an `ODEProblem` and solve it.
 
 ```@example heisenberg
 using OrdinaryDiffEq
-f = generate_ode(he_avg, ps) # Meta.eval(meta_f)
-p0 = (1.0, 0.1) # (ω, η) in that order
+p0 = (ω => 1.0, η => 0.1)
 u0 = zeros(ComplexF64, length(he_avg))
-prob = ODEProblem(f,u0,(0.0,1.0),p0)
+prob = ODEProblem(sys,u0,(0.0,1.0),p0)
 sol = solve(prob, RK4())
 nothing # hide
 ```
 
-Now, the state of the system at each time-step is stored in `sol.u`. As mentioned above, the order of the solution is the same as in the left-hand-side of `he_avg`. For example, `sol.u[end][1]` corresponds to ``\langle a \rangle`` at the final time. In large systems it might be tedious to keep track of the order of the expectation values, especially when using [`complete`](@ref). For convenience, you can use [`get_solution`](@ref) in such a case.
+Now, the state of the system at each time-step is stored in `sol.u`. To access one specific solution, you can simply type e.g. `sol[average(a)]` to obtain the time evolution of the expectation value ``\langle a \rangle``.
