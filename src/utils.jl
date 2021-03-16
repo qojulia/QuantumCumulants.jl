@@ -258,24 +258,19 @@ Find the numerical solution of the average value `avg` stored in the `ODESolutio
 `sol` corresponding to the solution of the equations given by `he`.
 """
 function get_solution(avg::SymbolicUtils.Term{<:AvgSym},sol,he::HeisenbergEquation)
-    idx = findfirst(isequal(avg),he.lhs)
-    if isnothing(idx)
-        avg_ = _adjoint(avg)
-        idx_ = findfirst(isequal(avg_),he.lhs)
-        isnothing(idx_) && error("Could not find solution for $avg !")
-        s = _get_solution(sol, idx_)
+    varmap = Dict(he.varmap)
+    val = get(varmap, avg, nothing)
+    if isnothing(val)
+        avg_ = _conj(avg)
+        val_ = get(varmap, avg_, nothing)
+        isnothing(val_) && error("Could not find solution for $avg !")
+        s = getindex(sol, val_)
         return map(conj, s)
     else
-        return _get_solution(sol, idx)
+        return getindex(sol, val)
     end
 end
-function _get_solution(sol, idx)
-    # Hacky solution until we depend on MTK
-    (:u ∈ fieldnames(typeof(sol))) || error("Cannot get solution from object with type $(typeof(sol)) !")
-    return _get_solution(sol.u, idx)
-end
-_get_solution(u::Vector, idx) = u[idx]
-_get_solution(u::Vector{<:Vector}, idx) = [u_[idx] for u_ ∈ u]
+get_solution(op::QSymbolic,sol,he::HeisenbergEquation) = get_solution(average(op),sol,he)
 
 # Internal functions
 _conj(v::SymbolicUtils.Term{<:AvgSym}) = _average(adjoint(v.arguments[1]))

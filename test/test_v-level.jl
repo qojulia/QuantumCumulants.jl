@@ -70,8 +70,8 @@ prob = ODEProblem(sys,u0,(0.0,tmax),p0)
 sol = solve(prob,RK4(),jac=true,sparse=true)
 
 avg = average(a'*σ(2,1))
-@test get_solution(avg,sol,he_avg) == get_solution(avg,sol.u,he_avg) == map(conj, getindex.(sol.u, 7))
-@test get_solution(avg,sol,he_avg)[end] == get_solution(avg,sol.u[end],he_avg) == conj(sol.u[end][7])
+@test get_solution(avg,sol,he_avg) == map(conj, getindex.(sol.u, 7))
+@test get_solution(avg,sol,he_avg)[end] == conj(sol.u[end][7])
 
 # Filter cavity equations to compute spectrum
 # Hilbert space
@@ -114,47 +114,5 @@ pf = [ωf; gf; κf; avg_ps; p]
 
 # Generate function for the filter cavities
 sys = ODESystem(he_f_avg)
-
-# Filter cavity cnumbers
-ωfn = 0.0
-κfn = 0.05κn
-gfn = 0.1κfn
-tf = 5/Γ2n
-
-# Numerical cnumbers - get steady state values
-steady_vals = ComplexF64[]
-avg_exprs = Qumulants._to_expression.(he_avg.lhs)
-for m in missing_avgs
-    m_ex = Qumulants._to_expression(m)
-    m_adj_ex = Qumulants._to_expression(Qumulants._adjoint(m))
-    i = findfirst(isequal(m_ex), avg_exprs)
-    j = findfirst(isequal(m_adj_ex), avg_exprs)
-    if !(i isa Nothing)
-        push!(steady_vals, sol.u[end][i])
-    else
-        push!(steady_vals, conj(sol.u[end][j]))
-    end
-end
-pf0 = pf .=> [ωfn;κfn;gfn;steady_vals;getindex.(p0, 2)]
-
-# Initial state
-u0f = zeros(ComplexF64,length(he_f_avg.lhs))
-
-prob_f = ODEProblem(sys,u0f,(0.0,tf),pf0,jac=true,sparse=false)
-
-# Solve for different frequencies of the filters; the spectrum is then equal to ⟨fᵗf⟩
-ω = range(-0.8,-0.2,length=81)
-spec = zeros(length(ω))
-
-freq_ind = findfirst(isequal(ωf),pf)
-n_avg = average(c'*c)
-for i=1:length(ω)
-    # TODO fix indexing here
-    prob_f.p[freq_ind] = ω[i]
-    sol_f = solve(prob_f,RK4())
-    spec[i] = real(get_solution(n_avg, sol_f.u[end], he_f_avg))
-end
-
-@test all(spec .> 0.0)
 
 end # testset

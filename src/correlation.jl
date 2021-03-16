@@ -97,8 +97,6 @@ function correlation_u0(c::CorrelationFunction, u_end)
             i = findfirst(isequal(l_adj), lhs0)
             push!(u0, conj(u_end[i]))
             push!(keys, _make_var(c.de.lhs[j], τ))
-        # elseif (l isa Number)
-        #     push!(u0, l)
         else
             check = false
             for i=1:length(lhs0)
