@@ -25,7 +25,6 @@ export HilbertSpace, ProductSpace, ⊗, tensor,
         Average, average, cumulant_expansion, get_order, cumulant,
         find_missing, complete, find_operators, fundamental_operators,
             unique_ops, get_symbolics, get_operators,
-        build_ode, generate_ode,
         CorrelationFunction, Spectrum, correlation_u0, correlation_p0,
         transition_superscript
 

@@ -153,7 +153,7 @@ nothing # hide
 \end{align*}
 ```
 
-Note, that **Qumulants.jl** automatizes the derivation of equations, the cumulant expansion, as well as the final step of numerical implementation using the [`generate_ode`](@ref) function.
+Note, that **Qumulants.jl** automatizes the derivation of equations, the cumulant expansion. The final step of numerical implementation is handled by the [ModelingToolkit](https://github.com/SciML/ModelingToolkit.jl) framework and works directly with the derived equations.
 
 ### References
 

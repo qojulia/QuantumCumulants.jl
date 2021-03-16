@@ -57,18 +57,19 @@ subs = Dict(missed .=> 0)
 he_nophase = qsimplify(substitute(he_avg, subs))
 ```
 
-Finally, we can generate Julia code from the above set of equations which can be solved directly using the [OrdinaryDiffEq](https://github.com/JuliaDiffEq/OrdinaryDiffEq.jl).
+Finally, we can convert the [`HeisenbergEquation`](@ref) to an `ODESystem` as defined in [ModelingToolkit](https://github.com/SciML/ModelingToolkit.jl) which can be solved numerically with [OrdinaryDiffEq](https://github.com/JuliaDiffEq/OrdinaryDiffEq.jl).
 
 ```@example tutorial
-# Generate a Julia function that to solve numerically
-p = (Δ, g, γ, κ, ν)
-f = generate_ode(he_nophase,p)
+# Generate an ODESystem
+using ModelingToolkit
+sys = ODESystem(he_nophase)
 
 # Solve the system using the OrdinaryDiffEq package
 using OrdinaryDiffEq
 u0 = zeros(ComplexF64,length(ops))
-p0 = (0, 1.5, 0.25, 1, 4)
-prob = ODEProblem(f,u0,(0.0,10.0),p0)
+p = (Δ, g, γ, κ, ν)
+p0 = p .=> (0, 1.5, 0.25, 1, 4)
+prob = ODEProblem(sys,u0,(0.0,10.0),p0)
 sol = solve(prob,RK4())
 nothing # hide
 ```

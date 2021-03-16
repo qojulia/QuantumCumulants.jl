@@ -25,7 +25,7 @@ We start by loading the needed packages.
 
 ```@example 3-level-laser
 using Qumulants
-using OrdinaryDiffEq
+using ModelingToolkit, OrdinaryDiffEq
 using Plots
 ```
 
@@ -91,11 +91,8 @@ nothing # hide
 To calculate the time evolution we create a Julia function which can be used by DifferentialEquations.jl to solve the set of ordinary differential equations.
 
 ```@example 3-level-laser
-# list of symbolic parameters
-ps = (g, Γ23, Γ13, Γ12, Ω, Δc, Δ3, κ)
-
-# function for DifferentialEquations.jl
-f = generate_ode(he_avg, ps)
+# Build an ODESystem out of the HeisenbergEquation
+sys = ODESystem(he_avg)
 nothing # hide
 ```
 
@@ -115,10 +112,12 @@ gn = 2Γ12n
 Δ3n = 0.0
 κn = 0.5Γ12n
 
-p0 = (gn, Γ23n, Γ13n, Γ12n, Ωn, Δcn, Δ3n, κn)
+# list of parameters
+ps = (g, Γ23, Γ13, Γ12, Ω, Δc, Δ3, κ)
+p0 = ps .=> (gn, Γ23n, Γ13n, Γ12n, Ωn, Δcn, Δ3n, κn)
 tend = 10.0/κn
 
-prob = ODEProblem(f,u0,(0.0,tend),p0)
+prob = ODEProblem(sys,u0,(0.0,tend),p0)
 sol = solve(prob, Tsit5(), reltol=1e-8, abstol=1e-8)
 nothing # hide
 ```
@@ -127,8 +126,8 @@ We plot the average photon number and the population inversion of the lasing tra
 
 
 ```@example 3-level-laser
-n_t = real.(getindex.(sol.u, 1))
-σ22m11_t = real.(2*getindex.(sol.u, 2) .+ getindex.(sol.u, 2) .-1 ) #σ11 + σ22 + σ33 = 𝟙
+n_t = real.(sol[average(a'*a)])
+σ22m11_t = real.(2*sol[σ(2,2,1)] .+ sol[σ(3,3,1)] .-1 ) #σ11 + σ22 + σ33 = 𝟙
 
 # Plot
 p1 = plot(sol.t, n_t, xlabel="tΓ₁₂", ylabel="⟨a⁺a⟩", legend = false)

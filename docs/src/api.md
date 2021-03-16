@@ -120,18 +120,6 @@ cumulant
 get_order
 ```
 
-
-## [Function generation](@id API: DiffEq)
-
-```@docs
-build_ode
-```
-
-```@docs
-generate_ode
-```
-
-
 ## [Correlation functions](@id API: correlation)
 
 ```@docs
@@ -143,9 +131,12 @@ Spectrum
 ```
 
 ```@docs
-initial_values
+correlation_u0
 ```
 
+```@docs
+correlation_p0
+```
 
 ## [Utility functions](@id API: Utils)
 
@@ -171,10 +162,6 @@ complete
 
 ```@docs
 unique_ops
-```
-
-```@docs
-get_solution
 ```
 
 ```@docs

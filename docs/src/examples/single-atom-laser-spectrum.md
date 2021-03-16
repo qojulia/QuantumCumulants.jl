@@ -11,7 +11,7 @@ where $\Delta = \omega_\mathrm{c} - \omega_\mathrm{a}$ is the detuning between t
 using Latexify # hide
 set_default(double_linebreak=true) # hide
 using Qumulants
-using OrdinaryDiffEq
+using ModelingToolkit, OrdinaryDiffEq
 using Plots
 
 # Define parameters
@@ -111,23 +111,23 @@ In any case, we need to compute the steady state of the system numerically.
 ```@example single-atom-laser-spectrum
 # Numerical solution
 ps = (Δ, g, γ, κ, ν)
-f = generate_ode(he,ps)
+sys = ODESystem(he)
 u0 = zeros(ComplexF64, length(he))
 p0 = (1.0, 1.5, 0.25, 1, 4)
-prob = ODEProblem(f,u0,(0.0,10.0),p0)
+prob = ODEProblem(sys,u0,(0.0,10.0),ps.=>p0)
 sol = solve(prob,RK4())
 nothing # hide
 ```
 
-Now, we can compute the time evolution of the correlation function in a similar way. Since the initial state of this system does not necessarily depend on all steady-state values, we can use the [`initial_values`](@ref) function which automatically generates the correct initial state vector required.
+Now, we can compute the time evolution of the correlation function in a similar way. Since the initial state of this system does not necessarily depend on all steady-state values, we can use the [`correlation_u0`](@ref) function which automatically generates the correct initial state vector required. Similarly, we use [`correlation_p0`](@ref) which generates the list of parameters including all needed steady-state values.
 
 
 ```@example single-atom-laser-spectrum
 # Time evolution of correlation function
-cf = generate_ode(c,ps)
-u0_c = initial_values(c,sol.u[end])
-p0_c = (p0..., sol.u[end]...)
-prob_c = ODEProblem(cf,u0_c,(0.0,500.0),p0_c)
+csys = ODESystem(c)
+u0_c = correlation_u0(c,sol.u[end])
+p0_c = correlation_p0(c,sol.u[end],ps.=>p0)
+prob_c = ODEProblem(csys,u0_c,(0.0,500.0),p0_c)
 sol_c = solve(prob_c,RK4(),save_idxs=1)
 nothing # hide
 ```
