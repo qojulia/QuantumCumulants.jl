@@ -40,7 +40,7 @@ tmax = 10.0
 
 prob = ODEProblem(sys,u0,(0.0,tmax),p0,jac=true)
 sol = solve(prob,RK4())
-n = getindex.(sol.u,1)
+n = sol[average(a'*a)]
 pe = getindex.(sol.u,2)
 
 @test all(iszero.(imag.(n)))

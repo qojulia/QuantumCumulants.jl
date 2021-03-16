@@ -251,26 +251,22 @@ function unique_ops(ops)
     return seen
 end
 
-"""
-    get_solution(avg,sol,he)
-
-Find the numerical solution of the average value `avg` stored in the `ODESolution`
-`sol` corresponding to the solution of the equations given by `he`.
-"""
-function get_solution(avg::SymbolicUtils.Term{<:AvgSym},sol,he::HeisenbergEquation)
-    varmap = Dict(he.varmap)
-    val = get(varmap, avg, nothing)
-    if isnothing(val)
-        avg_ = _conj(avg)
-        val_ = get(varmap, avg_, nothing)
-        isnothing(val_) && error("Could not find solution for $avg !")
-        s = getindex(sol, val_)
-        return map(conj, s)
+# Overload getindex to obtain solutions with averages
+function Base.getindex(sol::SciMLBase.AbstractTimeseriesSolution, avg::SymbolicUtils.Term{<:AvgSym})
+    tsym = sol.prob.f.indepsym # This is a bit hacky
+    t = SymbolicUtils.Sym{Real}(tsym)
+    syms = SciMLBase.getsyms(sol)
+    var = _make_var(avg, t)
+    sym = Symbolics.tosymbol(var)
+    if sym∈syms
+        return getindex(sol, var)
     else
-        return getindex(sol, val)
+        var_ = _make_var(_conj(avg), t)
+        return map(conj, getindex(sol, var_))
     end
 end
-get_solution(op::QSymbolic,sol,he::HeisenbergEquation) = get_solution(average(op),sol,he)
+Base.getindex(sol::SciMLBase.AbstractTimeseriesSolution, op::QSymbolic) = getindex(sol, average(op))
+
 
 # Internal functions
 _conj(v::SymbolicUtils.Term{<:AvgSym}) = _average(adjoint(v.arguments[1]))

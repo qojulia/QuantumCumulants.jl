@@ -6,6 +6,8 @@ using SymbolicUtils: @rule, @acrule, @ordered_acrule
 
 import Symbolics
 
+import SciMLBase
+
 import ModelingToolkit
 const MTK = ModelingToolkit
 import ModelingToolkit: ⊗ # just to avoid conflicts
@@ -22,7 +24,7 @@ export HilbertSpace, ProductSpace, ⊗, tensor,
         CNumber, Parameter, @cnumbers, cnumbers,
         Average, average, cumulant_expansion, get_order, cumulant,
         find_missing, complete, find_operators, fundamental_operators,
-            unique_ops, get_symbolics, get_operators, get_solution,
+            unique_ops, get_symbolics, get_operators,
         build_ode, generate_ode,
         CorrelationFunction, Spectrum, correlation_u0, correlation_p0,
         transition_superscript

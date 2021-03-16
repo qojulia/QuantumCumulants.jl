@@ -70,8 +70,7 @@ prob = ODEProblem(sys,u0,(0.0,tmax),p0)
 sol = solve(prob,RK4(),jac=true,sparse=true)
 
 avg = average(a'*σ(2,1))
-@test get_solution(avg,sol,he_avg) == map(conj, getindex.(sol.u, 7))
-@test get_solution(avg,sol,he_avg)[end] == conj(sol.u[end][7])
+@test sol[avg] == map(conj, getindex.(sol.u, 7)) == map(conj, sol[Qumulants._conj(avg)])
 
 # Filter cavity equations to compute spectrum
 # Hilbert space
