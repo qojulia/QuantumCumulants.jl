@@ -55,10 +55,18 @@ end
 # Adding MTK variables
 function add_vars!(varmap, vs, t)
     keys = getindex.(varmap, 1)
+    vals = getindex.(varmap, 2)
     for v∈vs
         if !_in(v,keys)
-            push!(varmap, v => _make_var(v, t))
+            var = _make_var(v, t)
+            !_in(var, vals) || @warn string("Two different averages have the exact same name. ",
+                    "This may lead to unexpected behavior when trying to access the solution for $v")
+            push!(keys, v)
+            push!(vals, var)
         end
+    end
+    for i=length(varmap)+1:length(keys)
+        push!(varmap, keys[i]=>vals[i])
     end
     return varmap
 end
