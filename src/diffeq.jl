@@ -52,5 +52,5 @@ MTK.isparameter(::SymbolicUtils.Sym{<:Parameter}) = true
 
 function MTK.ODESystem(he::HeisenbergEquation; kwargs...)
     eqs = MTK.equations(he)
-    return MTK.ODESystem(eqs; kwargs...)
+    return MTK.ODESystem(eqs, he.iv; kwargs...)
 end
