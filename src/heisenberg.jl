@@ -26,7 +26,8 @@ equivalent to the Quantum-Langevin equation where noise is neglected.
 *`rates=ones(length(J))`: Decay rates corresponding to the collapse operators in `J`.
 """
 function heisenberg(a::Vector,H,J;Jdagger::Vector=adjoint.(J),rates=ones(length(J)),
-                    multithread=false,simplify_input=false)
+                    multithread=false,simplify_input=false,
+                    iv=SymbolicUtils.Sym{Real}(:t))
     if simplify_input
         lhs = map(qsimplify, a)
     else
@@ -50,7 +51,7 @@ function heisenberg(a::Vector,H,J;Jdagger::Vector=adjoint.(J),rates=ones(length(
             rhs[i] = qsimplify(rhs_)
         end
     end
-    return HeisenbergEquation(lhs,rhs,H,J,rates)
+    return HeisenbergEquation(lhs,rhs,H,J,rates,iv,Pair{Any,Any}[])
 end
 heisenberg(a::QSymbolic,args...;kwargs...) = heisenberg([a],args...;kwargs...)
 heisenberg(a::Vector,H;kwargs...) = heisenberg(a,H,[];Jdagger=[],kwargs...)

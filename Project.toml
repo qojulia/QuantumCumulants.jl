@@ -4,6 +4,9 @@ version = "v0.0.0"
 
 [deps]
 SymbolicUtils = "d1185830-fcd6-423d-90d6-eec64667417b"
+Symbolics = "0c5d862f-8b57-4792-8d23-62f2024744c7"
+SciMLBase = "0bca4576-84f4-4d90-8ffe-ffa030f20462"
+ModelingToolkit = "961ee093-0014-501f-94e3-6117800e7a78"
 Combinatorics = "861a8166-3701-5b0c-9a16-15d98fcdc6aa"
 MacroTools = "1914dd2f-81c6-5fcd-8719-6d5c9610ff09"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
@@ -12,6 +15,9 @@ LaTeXStrings = "b964fa9f-0449-5b57-a5c2-d3ea65f4040f"
 
 [compat]
 SymbolicUtils = "0.8, 0.9"
+Symbolics = "0.1"
+SciMLBase = "1"
+ModelingToolkit = "5"
 Combinatorics = "1"
 Latexify = "0.13"
 LaTeXStrings = "1"
@@ -20,8 +26,9 @@ julia = "1"
 [extras]
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 OrdinaryDiffEq = "1dea7af3-3e70-54e6-95c3-0bf5283fa5ed"
+ModelingToolkit = "961ee093-0014-501f-94e3-6117800e7a78"
 Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
 QuantumOptics = "6e0679c1-51ea-5a7c-ac74-d61b76210b0c"
 
 [targets]
-test = ["OrdinaryDiffEq", "QuantumOptics", "Random", "Test"]
+test = ["OrdinaryDiffEq", "ModelingToolkit", "QuantumOptics", "Random", "Test"]

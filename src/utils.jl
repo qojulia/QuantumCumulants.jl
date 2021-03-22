@@ -71,7 +71,9 @@ and derive the corresponding equations of motion.
 """
 function complete(de::HeisenbergEquation;kwargs...)
     rhs_, lhs_ = complete(de.rhs,de.lhs,de.hamiltonian,de.jumps,de.rates;kwargs...)
-    return HeisenbergEquation(lhs_,rhs_,de.hamiltonian,de.jumps,de.rates)
+    de_ = HeisenbergEquation(lhs_,rhs_,de.hamiltonian,de.jumps,de.rates,de.iv,copy(de.varmap))
+    add_vars!(de_.varmap, lhs_, de.iv)
+    return de_
 end
 function complete(rhs::Vector, vs::Vector, H, J, rates; order=nothing, filter_func=nothing, mix_choice=maximum, kwargs...)
     order_lhs = maximum(get_order.(vs))
@@ -249,31 +251,22 @@ function unique_ops(ops)
     return seen
 end
 
-"""
-    get_solution(avg,sol,he)
-
-Find the numerical solution of the average value `avg` stored in the `ODESolution`
-`sol` corresponding to the solution of the equations given by `he`.
-"""
-function get_solution(avg::SymbolicUtils.Term{<:AvgSym},sol,he::HeisenbergEquation)
-    idx = findfirst(isequal(avg),he.lhs)
-    if isnothing(idx)
-        avg_ = _adjoint(avg)
-        idx_ = findfirst(isequal(avg_),he.lhs)
-        isnothing(idx_) && error("Could not find solution for $avg !")
-        s = _get_solution(sol, idx_)
-        return map(conj, s)
+# Overload getindex to obtain solutions with averages
+function Base.getindex(sol::SciMLBase.AbstractTimeseriesSolution, avg::SymbolicUtils.Term{<:AvgSym})
+    tsym = sol.prob.f.indepsym # This is a bit hacky
+    t = SymbolicUtils.Sym{Real}(tsym)
+    syms = SciMLBase.getsyms(sol)
+    var = _make_var(avg, t)
+    sym = Symbolics.tosymbol(var)
+    if sym∈syms
+        return getindex(sol, var)
     else
-        return _get_solution(sol, idx)
+        var_ = _make_var(_conj(avg), t)
+        return map(conj, getindex(sol, var_))
     end
 end
-function _get_solution(sol, idx)
-    # Hacky solution until we depend on MTK
-    (:u ∈ fieldnames(typeof(sol))) || error("Cannot get solution from object with type $(typeof(sol)) !")
-    return _get_solution(sol.u, idx)
-end
-_get_solution(u::Vector, idx) = u[idx]
-_get_solution(u::Vector{<:Vector}, idx) = [u_[idx] for u_ ∈ u]
+Base.getindex(sol::SciMLBase.AbstractTimeseriesSolution, op::QSymbolic) = getindex(sol, average(op))
+
 
 # Internal functions
 _conj(v::SymbolicUtils.Term{<:AvgSym}) = _average(adjoint(v.arguments[1]))

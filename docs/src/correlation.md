@@ -49,21 +49,21 @@ When the [`CorrelationFunction`](@ref) is constructed, an additional Hilbert spa
 
 The equation for ``g(t,\tau)`` is now stored in the first entry of `c.de`. To solve the above numerically, we need to generate code and solve the equations numerically.
 ```@example correlation
-using OrdinaryDiffEq
+using ModelingToolkit, OrdinaryDiffEq
 
-f = generate_ode(he,(ωc,κ))
+sys = ODESystem(he)
 n0 = 20.0 # Initial number of photons in the cavity
 u0 = [n0]
 p0 = (1,1)
-prob = ODEProblem(f,u0,(0.0,2.0),p0) # End time not in steady state
+prob = ODEProblem(sys,u0,(0.0,2.0),p0) # End time not in steady state
 sol = solve(prob,RK4())
 nothing # hide
 ```
-Numerical computing the correlation function works in the same way. Note, the initial state of the correlation function depends on the final state of the system. However, in general it does not depend on *all* the final values of the system. The correct values can be picked out automatically using the `initial_values` function.
+Numerical computing the correlation function works in the same way. Note, the initial state of the correlation function depends on the final state of the system. However, in general it does not depend on *all* the final values of the system. The correct values can be picked out automatically using the [`correlation_u0`](@ref) function.
 ```@example correlation
-cf = generate_ode(c, (ωc,κ))
-u0_c = initial_values(c, sol.u[end])
-prob_c = ODEProblem(cf,u0_c,(0.0,10.0),p0)
+csys = ODESystem(c)
+u0_c = correlation_u0(c, sol.u[end])
+prob_c = ODEProblem(csys,u0_c,(0.0,10.0),p0)
 sol_c = solve(prob_c,RK4(),save_idxs=1)
 nothing # hide
 ```
