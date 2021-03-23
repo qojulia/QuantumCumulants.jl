@@ -293,7 +293,7 @@ function acts_on(q::QMul)
         aon_ = acts_on(arg)
         aon_ ∈ aon || push!(aon, aon_)
     end
-    return aon_
+    return aon
 end
 function acts_on(q::QAdd)
     aon = Int[]

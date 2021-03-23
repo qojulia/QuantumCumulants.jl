@@ -28,7 +28,8 @@ system of equations.
 function CorrelationFunction(op1,op2,de0::HeisenbergEquation;
                             steady_state=false, add_subscript=0,
                             filter_func=nothing, mix_choice=maximum,
-                            iv=SymbolicUtils.Sym{Real}(:τ), kwargs...)
+                            iv=SymbolicUtils.Sym{Real}(:τ),
+                            simplify=true, kwargs...)
     h1 = hilbert(op1)
     h2 = _new_hilbert(hilbert(op2), acts_on(op2))
     h = h1⊗h2
@@ -41,24 +42,36 @@ function CorrelationFunction(op1,op2,de0::HeisenbergEquation;
     op2_0 = _new_operator(op2, h)
     H = _new_operator(H0, h)
     J = [_new_operator(j, h) for j in J0]
-    lhs_new = [_new_operator(l, h) for l in de0.lhs]
+    lhs_new = [_new_operator(l, h) for l in de0.states]
 
-    order_lhs = maximum(get_order(l) for l in de0.lhs)
+    order_lhs = maximum(get_order(l) for l in de0.states)
     order_corr = get_order(op1_*op2_)
     order = max(order_lhs, order_corr)
     @assert order > 1
     op_ = op1_*op2_
     @assert get_order(op_) <= order
 
-    he = heisenberg(op_,H,J;rates=de0.rates,iv=iv)
-    de_ = average(he, order)
-    de = _complete_corr(de_, length(h.spaces), lhs_new, order, steady_state;
+    de = heisenberg(op_,H,J;rates=de0.rates,iv=iv,expand=true,order=order)
+    _complete_corr!(de, length(h.spaces), lhs_new, order, steady_state;
                             filter_func=filter_func,
                             mix_choice=mix_choice,
+                            simplify=simplify,
                             kwargs...)
 
     varmap = make_varmap(lhs_new, de0.iv)
-    de0_ = HeisenbergEquation(lhs_new, [_new_operator(r, h) for r in de0.rhs], H, J, de0.rates, de0.iv, varmap)
+    de0_ = begin
+        eqs = Symbolics.Equation[]
+        eqs_op = Symbolics.Equation[]
+        ops = map(undo_average, lhs_new)
+        for i=1:length(de0.equations)
+            rhs = _new_operator(de0.equations[i].rhs, h)
+            rhs_op = _new_operator(de0.operator_equations[i].rhs, h)
+            push!(eqs, Symbolics.Equation(lhs_new[i], rhs))
+            push!(eqs_op, Symbolics.Equation(ops[i], rhs_op))
+        end
+        HeisenbergEquation(eqs,eqs_op,lhs_new,ops,H,J,de0.rates,de0.iv,varmap,order)
+    end
+
     return CorrelationFunction(op1_, op2_, op2_0, de0_, de, steady_state)
 end
 
@@ -74,10 +87,10 @@ function correlation_u0(c::CorrelationFunction, u_end)
     a0 = c.op2_0
     a1 = c.op2
     subs = Dict(a1=>a0)
-    ops = [SymbolicUtils.arguments(l)[1] for l in c.de.lhs]
+    ops = c.de.operators
     lhs = [average(substitute(op, subs)) for op in ops]
     u0 = complex(eltype(u_end))[]
-    lhs0 = c.de0.lhs
+    lhs0 = c.de0.states
     τ = MTK.independent_variable(c.de)
     keys = []
     for j=1:length(lhs)
@@ -86,17 +99,17 @@ function correlation_u0(c::CorrelationFunction, u_end)
         if _in(l, lhs0)
             i = findfirst(isequal(l), lhs0)
             push!(u0, u_end[i])
-            push!(keys, _make_var(c.de.lhs[j], τ))
+            push!(keys, make_var(c.de.equations[j].lhs, τ))
         elseif _in(l_adj, lhs0)
             i = findfirst(isequal(l_adj), lhs0)
             push!(u0, conj(u_end[i]))
-            push!(keys, _make_var(c.de.lhs[j], τ))
+            push!(keys, make_var(c.de.equations[j].lhs, τ))
         else
             check = false
             for i=1:length(lhs0)
                 l_ = substitute(l, Dict(lhs0[i] => u_end[i]))
                 check = !isequal(l_, l)
-                check && (push!(u0, l_); push!(keys, _make_var(c.de.lhs[i], τ)); break)
+                check && (push!(u0, l_); push!(keys, make_var(c.de.equations[i].lhs, τ)); break)
             end
             check || error("Could not find initial value for $l !")
         end
@@ -114,20 +127,20 @@ See also: [`CorrelationFunction`](@ref) [`correlation_u0`](@ref)
 """
 function correlation_p0(c::CorrelationFunction, u_end, ps=Pair{Any,Any}[])
     if c.steady_state
-        steady_vals = c.de0.lhs
+        steady_vals = c.de0.states
         steady_params = map(_make_parameter, steady_vals)
         ps′ = (ps..., (steady_params .=> u_end)...)
     else
         # Check if <a0> is contained
         avg = average(c.op2_0)
         conj_avg = _conj(avg)
-        if _in(avg, c.de0.lhs)
+        if _in(avg, c.de0.states)
             p = _make_parameter(avg)
-            idx = findfirst(isequal(avg), c.de.lhs0)
+            idx = findfirst(isequal(avg), c.de0.states)
             ps′ = (ps..., p=>u_end[idx])
-        elseif _in(conj_avg, c.de0.lhs)
+        elseif _in(conj_avg, c.de0.states)
             p = _make_parameter(conj_avg)
-            idx = findfirst(isequal(conj_avg), c.de0.lhs)
+            idx = findfirst(isequal(conj_avg), c.de0.states)
             ps′ = (ps..., p=>u_end[idx])
         end
     end
@@ -242,30 +255,35 @@ function MTK.ODESystem(c::CorrelationFunction; kwargs...)
     τ = MTK.independent_variable(c.de)
 
     ps = []
-    for r∈c.de.rhs
-        MTK.collect_vars!([],ps,r,τ)
+    for eq∈c.de.equations
+        MTK.collect_vars!([],ps,eq.rhs,τ)
     end
     unique!(ps)
 
     if c.steady_state
-        steady_vals = c.de0.lhs
+        steady_vals = c.de0.states
+        steady_hashes = map(hash, steady_vals)
         avg = average(c.op2_0)
+        h = hash(avg)
         avg_adj = _adjoint(avg)
-        if _in(avg, steady_vals)
-            idx = findfirst(isequal(avg), steady_vals)
+        h′ = hash(avg_adj)
+        idx = findfirst(isequal(h), steady_hashes)
+        if idx === nothing
+            idx_ = findfirst(isequal(h′), steady_hashes)
+            if idx_ === nothing
+                de = c.de
+            else
+                subs = Dict(average(c.op2) => _adjoint(steady_vals[idx_]))
+                de = substitute(c.de, subs)
+            end
+        else
             subs = Dict(average(c.op2) => steady_vals[idx])
             de = substitute(c.de, subs)
-        elseif _in(avg_adj, steady_vals)
-            idx = findfirst(isequal(avg_adj), steady_vals)
-            subs = Dict(average(c.op2) => _adjoint(steady_vals[idx]))
-            de = substitute(c.de, subs)
-        else
-            de = c.de
         end
         ps_ = [ps..., steady_vals...]
     else
         avg = average(c.op2_0)
-        if _in(avg, c.de0.lhs) || _in(_conj(avg), c.de0.lhs)
+        if _in(avg, c.de0.states) || _in(_conj(avg), c.de0.states)
             ps_ = [ps..., average(c.op2)]
         else
             ps_ = [ps...]
@@ -276,22 +294,27 @@ function MTK.ODESystem(c::CorrelationFunction; kwargs...)
     ps_avg = filter(x->x isa Average, ps_)
     ps_adj = map(_conj, ps_avg)
     filter!(x->!_in(x,ps_avg), ps_adj)
+    ps_adj_hash = hash.(ps_adj)
 
-    rhs = [substitute_conj(r, ps_adj) for r∈de.rhs]
+    de_ = deepcopy(de)
+    for i=1:length(de.equations)
+        lhs = de_.equations[i].lhs
+        rhs = substitute_conj(de_.equations[i].rhs, ps_adj, ps_adj_hash)
+        de_.equations[i] = Symbolics.Equation(lhs, rhs)
+    end
 
     if c.steady_state
         steady_params = map(_make_parameter, steady_vals)
         subs_params = Dict(steady_vals .=> steady_params)
-        rhs = [substitute(r, subs_params) for r∈rhs]
+        for i=1:length(de.equations)
+            de_.equations[i] = substitute(de_.equations[i], subs_params)
+        end
     end
 
     ps_ = map(_make_parameter, ps_)
 
-    de_ = deepcopy(de)
-    de_.rhs .= rhs
-
     eqs = MTK.equations(de_)
-    return MTK.ODESystem(eqs, τ, MTK.states(de_), ps_; kwargs...)
+    return MTK.ODESystem(eqs, τ; kwargs...)
 end
 
 substitute(c::CorrelationFunction, args...; kwargs...) =
@@ -364,16 +387,23 @@ function _new_operator(avg::SymbolicUtils.Term{<:AvgSym}, h, aon=nothing; kwargs
     end
 end
 
-function _complete_corr(de,aon0,lhs_new,order,steady_state; mix_choice=maximum, filter_func=nothing, kwargs...)
-    lhs = de.lhs
-    rhs = de.rhs
+function _complete_corr!(de,aon0,lhs_new,order,steady_state;
+                                mix_choice=maximum,
+                                simplify=true,
+                                filter_func=nothing,
+                                kwargs...)
+    vs = de.states
 
     H = de.hamiltonian
     J = de.jumps
     rates = de.rates
 
-    order_lhs = maximum(get_order.(lhs))
-    order_rhs = maximum(get_order.(rhs))
+    order_lhs = maximum(get_order.(vs))
+    order_rhs = 0
+    for i=1:length(de.equations)
+        k = get_order(de.equations[i].rhs)
+        k > order_rhs && (order_rhs = k)
+    end
     if order isa Nothing
         order_ = max(order_lhs, order_rhs)
     else
@@ -381,10 +411,15 @@ function _complete_corr(de,aon0,lhs_new,order,steady_state; mix_choice=maximum, 
     end
     maximum(order_) >= order_lhs || error("Cannot form cumulant expansion of derivative; you may want to use a higher order!")
 
-    vs_ = copy(lhs)
-    rhs_ = [cumulant_expansion(r, order_) for r in rhs]
-    missed = unique_ops(find_missing(rhs_, vs_))
-    filter!(SymbolicUtils.sym_isa(AvgSym),missed)
+    vhash = map(hash, vs)
+    vs′ = map(_conj, vs)
+    vs′hash = map(hash, vs′)
+    filter!(!in(vhash), vs′hash)
+    missed = find_missing(de.equations, vhash, vs′hash; get_adjoints=false)
+
+    vhash_new = map(hash, lhs_new)
+    vhash_new′ = map(hash, _adjoint.(lhs_new))
+    filter!(!in(vhash_new), vhash_new′)
 
     function _filter_aon(x) # Filter values that act only on Hilbert space representing system at time t0
         aon = acts_on(x)
@@ -392,9 +427,9 @@ function _complete_corr(de,aon0,lhs_new,order,steady_state; mix_choice=maximum, 
             length(aon)==1 && return false
             return true
         end
-        # return !steady_state
         if steady_state # Include terms without t0-dependence only if the system is not in steady state
-            return !(_in(x, lhs_new) || _in(_adjoint(x), lhs_new))
+            h = hash(x)
+            return !(h∈vhash_new || h∈vhash_new′)
         else
             return true
         end
@@ -403,13 +438,25 @@ function _complete_corr(de,aon0,lhs_new,order,steady_state; mix_choice=maximum, 
     isnothing(filter_func) || filter!(filter_func, missed) # User-defined filter
 
     while !isempty(missed)
-        ops = [SymbolicUtils.arguments(m)[1] for m in missed]
-        he = isempty(J) ? heisenberg(ops,H; kwargs...) : heisenberg(ops,H,J;rates=rates, kwargs...)
-        he_avg = average(he,order_;mix_choice=mix_choice, kwargs...)
-        rhs_ = [rhs_;he_avg.rhs]
-        vs_ = [vs_;he_avg.lhs]
-        missed = unique_ops(find_missing(rhs_,vs_))
-        filter!(SymbolicUtils.sym_isa(AvgSym),missed)
+        ops_ = [SymbolicUtils.arguments(m)[1] for m in missed]
+        he = heisenberg(ops_,de.hamiltonian,de.jumps;
+                                rates=de.rates,
+                                simplify=simplify,
+                                expand=true,
+                                order=order_,
+                                iv=de.iv,
+                                kwargs...)
+
+        _append!(de, he)
+
+        vhash_ = hash.(he.states)
+        vs′hash_ = hash.(_conj.(he.states))
+        append!(vhash, vhash_)
+        for i=1:length(vhash_)
+            vs′hash_[i] ∈ vhash_ || push!(vs′hash, vs′hash_[i])
+        end
+
+        missed = find_missing(he.equations, vhash, vs′hash; get_adjoints=false)
         filter!(_filter_aon, missed)
         isnothing(filter_func) || filter!(filter_func, missed) # User-defined filter
     end
@@ -417,19 +464,18 @@ function _complete_corr(de,aon0,lhs_new,order,steady_state; mix_choice=maximum, 
     if !isnothing(filter_func)
         # Find missing values that are filtered by the custom filter function,
         # but still occur on the RHS; set those to 0
-        missed = unique_ops(find_missing(rhs_, vs_))
-        filter!(SymbolicUtils.sym_isa(AvgSym),missed)
+        missed = find_missing(de.equations, vhash, vs′hash; get_adjoints=false)
         filter!(!filter_func, missed)
-        subs = Dict(missed .=> 0)
-        rhs_ = [substitute(r, subs) for r in rhs_]
+        missed_adj = map(_adjoint, missed)
+        subs = Dict(vcat(missed, missed_adj) .=> 0)
+        for i=1:length(de.equations)
+            de.equations[i] = substitute(de.equations[i], subs)
+            de.states[i] = de.equations[i].lhs
+        end
     end
 
-    varmap = copy(de.varmap)
-    τ = de.iv
-    add_vars!(varmap, vs_, τ)
-    return HeisenbergEquation(vs_, rhs_, H, J, rates, τ, varmap)
+    return de
 end
-
 
 ### Auxiliary functions for Spectrum
 

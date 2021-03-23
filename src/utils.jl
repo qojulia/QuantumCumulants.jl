@@ -167,6 +167,7 @@ function complete!(de::HeisenbergEquation;
                                 simplify=simplify,
                                 expand=true,
                                 order=order_,
+                                iv=de.iv,
                                 kwargs...)
 
         _append!(de, he)
@@ -192,11 +193,6 @@ function complete!(de::HeisenbergEquation;
         for i=1:length(de.equations)
             de.equations[i] = substitute(de.equations[i], subs)
             de.states[i] = de.equations[i].lhs
-        end
-        if false
-            for i=1:length(de.equations)
-                de.equations[i] = SymbolicUtils.simplify(de.equations[i])
-            end
         end
     end
     return de

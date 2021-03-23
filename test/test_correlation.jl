@@ -17,9 +17,9 @@ a = Destroy(h,:a)
 
 H = Δ*a'*a + g*(a'*σ + σ'*a)
 J = [a,σ,σ']
-he_laser = heisenberg([a'*a,σ'*σ,a*σ'],H,J;rates=[κ,γ,ν],multithread=true,simplify_input=true)
+he_laser = heisenberg([a'*a,σ'*σ,a*σ'],H,J;rates=[κ,γ,ν])
 
-he_avg = average(he_laser,2;multithread=true)
+he_avg = cumulant_expansion(he_laser,2)
 he_comp = complete(he_avg)
 
 ps = (Δ, g, γ, κ, ν)
@@ -42,7 +42,7 @@ pe = getindex.(sol.u,2)
 @test all(1.0 .>= real.(pe) .>= 0.0)
 
 # Correlation function
-c_steady = CorrelationFunction(a', a, he_comp; steady_state=true, multithread=true)
+c_steady = CorrelationFunction(a', a, he_comp; steady_state=true)
 csys = ODESystem(c_steady)
 
 u0_c = correlation_u0(c_steady, sol.u[end])
@@ -56,8 +56,8 @@ sol_c = solve(prob_c,RK4(),saveat=τ,save_idxs=1)
 # Spectrum via FFT of g(τ)
 using QuantumOptics.timecorrelations: correlation2spectrum
 ω, S1 = correlation2spectrum(sol_c.t, sol_c.u)
-# using PyPlot; pygui(true)
-# plot(ω, S1 ./ maximum(S1), label="FFT of g(τ)")
+using PyPlot; pygui(true)
+plot(ω, S1 ./ maximum(S1), label="FFT of g(τ)")
 
 # Spectrum via Laplace transform
 S = Spectrum(c_steady, ps)

@@ -159,9 +159,9 @@ function cumulant_expansion(de::HeisenbergEquation,order;multithread=false,mix_c
             eqs_out[i] = Symbolics.Equation(vs[i], cr)
         end
     else
-        for i=1:length(de.lhs)
+        for i=1:length(eqs)
             cr = cumulant_expansion(eqs[i].rhs,order;mix_choice=mix_choice,kwargs...)
-            eqs_out[i] = Symbolics.Equation(vs[i], cr)
+            eqs_out[i] = Symbolics.Equation(eqs[i].lhs, cr)
         end
     end
     return HeisenbergEquation(eqs_out,de.operator_equations,de.states,de.operators,

@@ -55,14 +55,14 @@ function Base.show(io::IO,de::HeisenbergEquation)
     end
 end
 
-# function Base.show(io::IO, c::CorrelationFunction)
-#     show(io, average(c.op1*c.op2))
-# end
-# function Base.show(io::IO, S::Spectrum)
-#     write(io, "ℱ(")
-#     show(io, S.corr)
-#     write(io, ")(ω)")
-# end
+function Base.show(io::IO, c::CorrelationFunction)
+    show(io, average(c.op1*c.op2))
+end
+function Base.show(io::IO, S::Spectrum)
+    write(io, "ℱ(")
+    show(io, S.corr)
+    write(io, ")(ω)")
+end
 
 Base.show(io::IO, c::CallableTransition) = write(io, c.name)
 
