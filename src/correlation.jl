@@ -156,12 +156,14 @@ Type representing the spectrum, i.e. the Fourier transform of a
 To actually compute the spectrum at a frequency `ω`, construct the type on top
 of a correlation function and call it with `Spectrum(c)(ω,usteady,p0)`.
 """
-struct Spectrum{C,FA,FB,FAS,FBS}
-    corr::C
-    Afunc::FA
-    bfunc::FB
-    Asym::FAS
-    bsym::FBS
+struct Spectrum
+    corr
+    Afunc
+    bfunc
+    cfunc
+    A
+    b
+    c
 end
 
 """
@@ -181,16 +183,15 @@ julia> S = Spectrum(c)
 ℱ(⟨a′*a_0⟩)(ω)
 ```
 """
-function Spectrum(c::CorrelationFunction, ps=[]; kwargs...)
+function Spectrum(c::CorrelationFunction, ps=[]; w=SymbolicUtils.Sym{Parameter}(:ω), kwargs...)
     c.steady_state || error("Cannot use Laplace transform when not in steady state! Use `CorrelationFunction(op1,op2,de0;steady_state=true)` or try computing the Fourier transform of the time evolution of the correlation function directly.")
     de = c.de
     de0 = c.de0
-    fAsym, fbsym, Ameta, bmeta = _build_spec_func(de.lhs, de.rhs, c.op2_0, c.op2, de0.lhs, ps; kwargs...)
-    Afunc = Meta.eval(Ameta)
-    bfunc = Meta.eval(bmeta)
-    Asymfunc = Meta.eval(fAsym)
-    bsymfunc = Meta.eval(fbsym)
-    return Spectrum(c, Afunc, bfunc, Asymfunc, bsymfunc)
+    lhs = getfield.(de.equations, :lhs)
+    rhs = getfield.(de.equations, :rhs)
+    lhs0 = getfield.(de0.equations, :lhs)
+    A,b,c_,Afunc,bfunc,cfunc = _build_spec_func(w, lhs, rhs, c.op2_0, c.op2, lhs0, ps; kwargs...)
+    return Spectrum(c, Afunc, bfunc, cfunc, A, b, c_)
 end
 
 """
@@ -207,9 +208,15 @@ as zero, i.e. whenever `abs(ω) <= wtol` the term proportional to `1/(im*ω)` is
 neglected to avoid divergences.
 """
 function (s::Spectrum)(ω::Real,usteady,ps=[];wtol=0)
-    A = s.Afunc(ω,usteady,ps)
-    b = s.bfunc(ω,usteady,ps,wtol)
-    return 2*real(getindex(inv(A)*b, 1))
+    A = s.Afunc[1](ω,usteady,ps)
+    b = s.bfunc[1](usteady,ps)
+    if abs(ω) <= wtol
+        b_ = b
+    else
+        c = s.cfunc[1](ω,usteady,ps)
+        b_ = b .+ c
+    end
+    return 2*real(getindex(A \ b_, 1))
 end
 
 """
@@ -219,35 +226,32 @@ From an instance of [`Spectrum`](@ref) `s`, actually compute the spectral power
 density at all frequencies in `ω_ls`.
 """
 function (s::Spectrum)(ω_ls,usteady,ps=[];wtol=0)
-    _Af = ω -> s.Afunc(ω, usteady, ps)
-    _bf = ω -> s.bfunc(ω, usteady, ps, wtol)
     s_ = Vector{real(eltype(usteady))}(undef, length(ω_ls))
-    for i=1:length(ω_ls)
-        A = _Af(ω_ls[i])
-        b = _bf(ω_ls[i])
-        s_[i] = 2*real(inv(A)*b)[1]
+    A = s.Afunc[1](ω_ls[1],usteady,ps)
+    b0 = s.bfunc[1](usteady,ps)
+    b = copy(b0)
+    c = s.cfunc[1](ω_ls[1],usteady,ps)
+
+    if abs(ω_ls[1]) <= wtol
+        s_[1] = 2*real(getindex(A \ b, 1))
+    else
+        s_[1] = 2*real(getindex(A \ (b .+ c), 1))
     end
+
+    Afunc! = (A,ω) -> s.Afunc[2](A,ω,usteady,ps)
+    cfunc! = (c,ω) -> s.cfunc[2](c,ω,usteady,ps)
+    @inbounds for i=2:length(ω_ls)
+        Afunc!(A,ω_ls[i])
+        if abs(ω_ls[i]) <= wtol
+            s_[i] = 2*real(getindex(A \ b0, 1))
+        else
+            cfunc!(c,ω_ls[i])
+            @. b = b0 + c
+            s_[i] = 2*real(getindex(A \ b, 1))
+        end
+    end
+
     return s_
-end
-
-
-"""
-    (s::Spectrum)(ω::Symbolic,ps=[])
-    (s::Spectrum)(ω::Symbolic,steady_vals,ps)
-
-Compute the symbolic system of linear equations that is solved numerically when
-computing the spectrum. Returns a symbolic version of the matrix `A` and the
-vector `b` describing the linear system of equations that needs to be solved
-to obtain the spectrum.
-"""
-function (s::Spectrum)(ω::SymbolicUtils.Symbolic,ps=[])
-    steady_vals = s.corr.de0.lhs
-    return s(ω,steady_vals,ps)
-end
-function (s::Spectrum)(ω::SymbolicUtils.Symbolic,steady_vals,ps)
-    A = s.Asym(ω,steady_vals,ps)
-    b = s.bsym(ω,steady_vals,ps)
-    return qsimplify.(A), qsimplify.(b)
 end
 
 # Convert to ODESystem
@@ -393,7 +397,6 @@ function _complete_corr!(de,aon0,lhs_new,order,steady_state;
                                 filter_func=nothing,
                                 kwargs...)
     vs = de.states
-
     H = de.hamiltonian
     J = de.jumps
     rates = de.rates
@@ -479,150 +482,45 @@ end
 
 ### Auxiliary functions for Spectrum
 
-function _build_spec_func(lhs, rhs, a1, a0, steady_vals, ps=[]; psym=:p, wsym=:ω, usteady=:usteady)
+function _build_spec_func(ω, lhs, rhs, a1, a0, steady_vals, ps=[])
     s = Dict(a0=>a1)
     ops = [SymbolicUtils.arguments(l)[1] for l in lhs]
 
-    ω = Parameter(wsym) # Laplace transform argument i*ω
-    b = [average(qsimplify(substitute(op, s))) for op in ops] # Initial values
-    c = [qsimplify(c_ / (1.0im*ω)) for c_ in _find_independent(rhs, a0)]
+    b = [average(substitute(op, s)) for op in ops] # Initial values
+    c = [SymbolicUtils.simplify(c_ / (1.0im*ω)) for c_ in _find_independent(rhs, a0)]
     aon0 = acts_on(a0)
     @assert length(aon0)==1
     rhs_ = _find_dependent(rhs, aon0[1])
-    Ax = [qsimplify(im*ω*lhs[i] - rhs_[i]) for i=1:length(lhs)] # Element-wise form of A*x
+    Ax = [im*ω*lhs[i] - rhs_[i] for i=1:length(lhs)] # Element-wise form of A*x
 
-    vs = _to_expression.(lhs)
-    Ax_ = _to_expression.(Ax)
-    b_ = _to_expression.(b)
-    c_ = _to_expression.(c)
+    # Substitute <a0> by steady-state average <a>
+    s_avg = Dict(average(a0) => average(a1))
+    Ax = [substitute(A, s_avg) for A∈Ax]
+    c = [substitute(c_, s_avg) for c_∈c]
 
-    # Replace Laplace transform variables
-    Ax_ = [MacroTools.postwalk(x -> x in vs ? :( y[$(findfirst(isequal(x), vs))] ) : x, A) for A in Ax_]
-
-    # Replace steady-state values
-    if !isempty(steady_vals)
-        ss_ = _to_expression.(steady_vals)
-        ss_adj = _to_expression.(_adjoint.(steady_vals))
-        ssyms = [:($usteady[$i]) for i=1:length(steady_vals)]
-        _pw = function(x)
-            if x in ss_
-                ssyms[findfirst(isequal(x), ss_)]
-            elseif x in ss_adj
-                :( conj($(ssyms[findfirst(isequal(x), ss_adj)])) )
-            else
-                x
-            end
-        end
-        Ax_ = [MacroTools.postwalk(_pw, A) for A in Ax_]
-        b_ = [MacroTools.postwalk(_pw, b1) for b1 in b_]
-        c_ = [MacroTools.postwalk(_pw, c1) for c1 in c_]
-
-        # Replace <a0> by <a> steady state value
-        a0_ex = _to_expression(average(a0))
-        avg1 = average(a1)
-        a1_ex = _to_expression(avg1)
-        a1_ex_adj = _to_expression(_adjoint(avg1))
-        _pw2 = function(x)
-            if x == a0_ex
-                i = findfirst(isequal(a1_ex), ss_)
-                if isnothing(i)
-                    j = findfirst(isequal(a1_ex_adj), ss_)
-                    return :( conj($(ssyms[j])) )
-                else
-                    return ssyms[i]
-                end
-            else
-                x
-            end
-        end
-        Ax_ = [MacroTools.postwalk(_pw2, A) for A in Ax_]
-        b_ = [MacroTools.postwalk(_pw2, b1) for b1 in b_]
-        c_ = [MacroTools.postwalk(_pw2, c1) for c1 in c_]
+    # Compute symbolic A column-wise by substituting unit vectors into element-wise form of A*x
+    A = Matrix{Any}(undef, length(Ax), length(Ax))
+    for i=1:length(Ax)
+        subs_vals = zeros(length(Ax))
+        subs_vals[i] = 1
+        subs = Dict(lhs .=> subs_vals)
+        A_i = [SymbolicUtils.simplify(substitute(Ax[j],subs)) for j=1:length(Ax)]
+        A[:,i] = A_i
     end
 
+    # Substitute conjugates
+    vs_adj = map(_conj, steady_vals)
+    filter!(x->!_in(x,steady_vals), vs_adj)
+    vs′hash = map(hash, vs_adj)
+    A = [substitute_conj(A_,vs_adj,vs′hash) for A_∈A]
+    c = [substitute_conj(c_,vs_adj,vs′hash) for c_∈c]
 
-    # Replace parameters
-    if !isempty(ps)
-        ps_ = _to_expression.(ps)
-        psyms = [:($psym[$i]) for i=1:length(ps)]
-        Ax_ = [MacroTools.postwalk(x -> (x in ps_) ? psyms[findfirst(isequal(x), ps_)] : x, A) for A in Ax_]
-        b_ = [MacroTools.postwalk(x -> (x in ps_) ? psyms[findfirst(isequal(x), ps_)] : x, b1) for b1 in b_]
-        c_ = [MacroTools.postwalk(x -> (x in ps_) ? psyms[findfirst(isequal(x), ps_)] : x, c1) for c1 in c_]
-    end
+    # Build functions
+    Afunc = Symbolics.build_function(A, ω, steady_vals, ps; expression=false)
+    bfunc = Symbolics.build_function(b, steady_vals, ps; expression=false)
+    cfunc = Symbolics.build_function(c, ω, steady_vals, ps; expression=false)
 
-    # Obtain A
-    line_eqs = [Expr(:(=), :(A[$i,i]), Ax_[i]) for i=1:length(Ax_)]
-    ex = Expr(:block, line_eqs...)
-    N = length(line_eqs)
-
-    # Function for building numeric A
-    fargs = :($wsym,$usteady,$psym)
-    fA = :(
-        ($fargs) ->
-        begin
-            T = complex(promote_type(map(eltype, $fargs)...))
-            A = Matrix{T}(undef, $N, $N)
-            y = zeros(T, $N)
-            for i=1:$N
-                y[i] = one(T)
-                begin
-                    $ex
-                end
-                y[i] = zero(T)
-            end
-            return A
-        end
-    )
-    # Function for building symbolic A
-    fAsym = :(
-        ($fargs) ->
-        begin
-            A = Matrix{Any}(undef, $N, $N)
-            y = zeros(Number, $N)
-            for i=1:$N
-                y[i] = 1
-                begin
-                    $ex
-                end
-                y[i] = 0
-            end
-            return A
-        end
-    )
-
-    # Obtain b
-    line_eqs = [Expr(:(=), :(x[$i]), b_[i]) for i=1:length(b_)]
-    ex0 = Expr(:block, line_eqs...)
-    eqs_nz = [Expr(:(=), :(x[$i]), :($(b_[i]) + $(c_[i]))) for i=1:length(c_)]
-    ex_nz = Expr(:block, eqs_nz...)
-    N = length(b_)
-    # Function for numeric b
-    fb = :(
-        ($wsym,$usteady,$psym,wtol=0) ->
-        begin
-            T = complex(promote_type(eltype($usteady), eltype($psym)))
-            x = zeros(T, $N)
-            if abs($wsym)<=wtol
-                $ex0
-            else
-                $ex_nz
-            end
-            return x
-        end
-    )
-    # Function for symbolic b
-    fbsym = :(
-        ($fargs) ->
-        begin
-            x = zeros(Number, $N)
-            begin
-                $ex_nz
-            end
-            return x
-        end
-    )
-
-    return fAsym, fbsym, fA, fb
+    return A, b, c, Afunc, bfunc, cfunc
 end
 
 _find_independent(rhs::Vector, a0) = [_find_independent(r, a0) for r in rhs]

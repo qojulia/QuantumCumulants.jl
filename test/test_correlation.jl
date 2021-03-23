@@ -64,13 +64,8 @@ S = Spectrum(c_steady, ps)
 usteady = sol.u[end]
 
 S2 = S(ω,usteady,getindex.(p0, 2))
-# plot(ω, S2 ./ maximum(S2), label="Laplace transform")
-# xlim(-2pi,2pi)
-
-# S_ = S(ω_ls,usteady,p0)
-# max, ind = findmax(S_)
-# hm_idx = findmin(abs.(S_ .- 0.5max))[2]
-# fwhm = 2*abs(ω_ls[ind] - ω_ls[hm_idx])
+plot(ω, S2 ./ maximum(S2), label="Laplace transform")
+xlim(-2pi,2pi)
 
 S1_ = S1 ./ maximum(S1)
 S1_ .-= minimum(S1_)
@@ -95,13 +90,13 @@ function phase(t::Transition)
         0
     end
 end
-phase(op::Qumulants.QTerm) = (@assert op.f===(*); sum(phase(arg) for arg in op.arguments))
+phase(op::Qumulants.QMul) = sum(phase(arg) for arg in op.args_nc)
 c_nophase = CorrelationFunction(a', a, he_avg; steady_state=true, filter_func=!has_phase)
 
 S_nophase = Spectrum(c_nophase, ps)
 S3 = S_nophase(ω,usteady,getindex.(p0, 2))
-# plot(ω, S3 ./ maximum(S3), label="Laplace transform (phase invariant)")
-# legend()
+plot(ω, S3 ./ maximum(S3), label="Laplace transform (phase invariant)")
+legend()
 
 # When not in steady state -- cavity that decays
 h = FockSpace(:fock)
@@ -109,16 +104,15 @@ a = Destroy(h,:a)
 @cnumbers ωc κ
 H = ωc*a'*a
 he = heisenberg(a'*a,H,[a];rates=[κ])
-he_avg = average(he)
 ps = (ωc,κ)
-sys = ODESystem(he_avg)
+sys = ODESystem(he)
 n0 = 20.0
 u0 = [n0]
 p0 = (1,1)
 prob = ODEProblem(sys,u0,(0.0,10.0),p0)
 sol = solve(prob,RK4())
 
-c = CorrelationFunction(a', a, he_avg)
+c = CorrelationFunction(a', a, he)
 csys = ODESystem(c)
 idx = 5
 u0_c = correlation_u0(c, sol.u[idx])

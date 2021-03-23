@@ -10,18 +10,23 @@ struct AvgSym <: CNumber end
 
 const Average = SymbolicUtils.Term{<:AvgSym}
 
+const sym_average = begin # Symbolic function for averages
+    T = SymbolicUtils.FnType{Tuple{QNumber}, AvgSym}
+    SymbolicUtils.Sym{T}(:avg)
+end
+
 # Direct construction of average symbolic expression
 function _average(operator)
-    return SymbolicUtils.Term{AvgSym}(average, [operator])
+    return SymbolicUtils.Term{AvgSym}(sym_average, [operator])
 end
 
 # Type promotion -- average(::Operator)::Number
-SymbolicUtils.promote_symtype(average, ::Type{<:QNumber}) = AvgSym
+# SymbolicUtils.promote_symtype(::typeof(sym_average), ::Type{<:QNumber}) = AvgSym
 
 function acts_on(s::SymbolicUtils.Symbolic)
     if SymbolicUtils.istree(s)
         f = SymbolicUtils.operation(s)
-        if f === average
+        if f === sym_average
             return acts_on(SymbolicUtils.arguments(s)[1])
         else
             aon = Int[]
@@ -64,7 +69,7 @@ average(x::SNuN) = x
 function undo_average(t)
     if SymbolicUtils.istree(t)
         f = SymbolicUtils.operation(t)
-        if f === average
+        if f === sym_average
             return SymbolicUtils.arguments(t)[1]
         else
             args = map(undo_average, SymbolicUtils.arguments(t))
@@ -116,7 +121,7 @@ function cumulant_expansion(x::SymbolicUtils.Symbolic,order::Integer;simplify=tr
     if SymbolicUtils.istree(x)
         get_order(x) <= order && return x
         f = SymbolicUtils.operation(x)
-        if f===average
+        if f===sym_average
             op = SymbolicUtils.arguments(x)[1]
             return _cumulant_expansion(op.args_nc, order)
         else
@@ -272,7 +277,7 @@ julia> get_order(1)
 get_order(avg::SymbolicUtils.Term{<:AvgSym}) = get_order(SymbolicUtils.arguments(avg)[1])
 function get_order(t::SymbolicUtils.Symbolic)
     if SymbolicUtils.istree(t)
-        if SymbolicUtils.operation(t)===average
+        if SymbolicUtils.operation(t)===sym_average
             return get_order(SymbolicUtils.arguments(t)[1])
         else
             return maximum(map(get_order, SymbolicUtils.arguments(t)))
