@@ -15,9 +15,17 @@ Generally created by computing the tensor product [`⊗`](@ref) of subspaces.
 """
 struct ProductSpace{S} <: HilbertSpace
     spaces::S
+    hash::UInt
+    function ProductSpace(spaces::S) where S
+        h = hash(ProductSpace, hash(spaces, zero(UInt)))
+        new{S}(spaces, h)
+    end
 end
-Base.:(==)(h1::T,h2::T) where T<:ProductSpace = h1.spaces==h2.spaces
-Base.hash(p::ProductSpace, h::UInt) = hash(p.spaces, h)
+Base.:(==)(h1::T,h2::T) where T<:ProductSpace = isequal(h1.hash, h2.hash)
+function Base.hash(p::ProductSpace, h::UInt)
+    iszero(h) && return p.hash
+    return hash(hash(p, zero(UInt)), h)
+end
 
 """
     ⊗(spaces::HilbertSpace...)

@@ -1,12 +1,10 @@
 """
 Abstract type for equations.
 """
-abstract type AbstractEquation{LHS,RHS} end
-Base.isequal(::AbstractEquation,::AbstractEquation) = false
+abstract type AbstractHeisenbergEquation end
 
 """
-    HeisenbergEquation{LHS,RHS,H,J,R} <: AbstractEquation{LHS,RHS}
-    HeisenbergEquation(lhs,rhs,H,J,rates)
+    HeisenbergEquation <: AbstractHeisenbergEquation
 
 Type defining a system of differential equations, where `lhs` is a vector of
 derivatives and `rhs` is a vector of expressions. In addition, it keeps track
@@ -21,48 +19,62 @@ the system.
 *`rates`: Decay rates corresponding to the `jumps`.
 
 """
-mutable struct HeisenbergEquation{LHS,RHS,H,J,R} <: AbstractEquation{LHS,RHS}
-    lhs::Vector{LHS}
-    rhs::Vector{RHS}
-    hamiltonian::H
-    jumps::J
-    rates::R
+struct HeisenbergEquation <: AbstractHeisenbergEquation
+    equations::Vector{Symbolics.Equation}
+    operator_equations::Vector{Symbolics.Equation}
+    states::Vector
+    operators::Vector{QNumber}
+    hamiltonian::QNumber
+    jumps::Vector{QNumber}
+    rates::Vector
     iv::SymbolicUtils.Sym
-    varmap
+    varmap::Vector{Pair}
+    order::Union{Int,Vector{<:Int},Nothing}
 end
-Base.hash(eq::HeisenbergEquation, h::UInt) = hash(eq.iv, hash(eq.rates, hash(eq.jumps, hash(eq.hamiltonian, hash(eq.rhs, hash(eq.lhs, h))))))
-Base.isequal(eq1::HeisenbergEquation,eq2::HeisenbergEquation) = isequal(hash(eq1), hash(eq2))
 
-Base.getindex(de::HeisenbergEquation, i::Int) = HeisenbergEquation([de.lhs[i]],[de.rhs[i]],de.hamiltonian,de.jumps,de.rates,de.iv,de.varmap)
-Base.getindex(de::HeisenbergEquation, i) = HeisenbergEquation(de.lhs[i],de.rhs[i],de.hamiltonian,de.jumps,de.rates,de.iv,de.varmap)
-Base.lastindex(de::HeisenbergEquation) = lastindex(de.lhs)
-Base.length(de::HeisenbergEquation) = length(de.lhs)
+Base.getindex(de::HeisenbergEquation, i::Int) = de.equations[i]
+Base.getindex(de::HeisenbergEquation, i) = de.equations[i]
+Base.lastindex(de::HeisenbergEquation) = lastindex(de.equations)
+Base.length(de::HeisenbergEquation) = length(de.equations)
+
+function _append!(de::HeisenbergEquation, he::HeisenbergEquation)
+    append!(de.equations, he.equations)
+    append!(de.operator_equations, he.operator_equations)
+    append!(de.states, he.states)
+    append!(de.operators, he.operators)
+    append!(de.varmap, he.varmap)
+    return de
+end
 
 # Substitution
 function substitute(de::HeisenbergEquation,dict)
-    lhs = [substitute(l, dict) for l in de.lhs]
-    rhs = [substitute(r, dict) for r in de.rhs]
-    return HeisenbergEquation(lhs,rhs,de.hamiltonian,de.jumps,de.rates,de.iv,de.varmap)
+    eqs = [substitute(eq, dict) for eq∈de.equations]
+    states = getfield.(eqs, :lhs)
+    return HeisenbergEquation(eqs, de.operator_equations, states, de.operators, de.hamiltonian, de.jumps, de.rates, de.iv, de.varmap, de.order)
 end
 
 # Simplification
-function qsimplify(de::HeisenbergEquation;kwargs...)
-    lhs = [qsimplify(l;kwargs...) for l in de.lhs]
-    rhs = [qsimplify(r;kwargs...) for r in de.rhs]
-    return HeisenbergEquation(lhs,rhs,de.hamiltonian,de.jumps,de.rates,de.iv,de.varmap)
+function SymbolicUtils.simplify(de::HeisenbergEquation;kwargs...)
+    eqs = [SymbolicUtils.simplify(eq;kwargs...) for eq∈de.equations]
+    eqs_op = [SymbolicUtils.simplify(eq;kwargs...) for eq∈de.operator_equations]
+    return HeisenbergEquation(eqs,eqs_op,de.states,de.operators,de.hamiltonian,de.jumps,de.rates,de.iv,de.varmap,de.order)
 end
 
 # Adding MTK variables
 function add_vars!(varmap, vs, t)
     keys = getindex.(varmap, 1)
     vals = getindex.(varmap, 2)
-    for v∈vs
-        if !_in(v,keys)
-            var = _make_var(v, t)
-            !_in(var, vals) || @warn string("Two different averages have the exact same name. ",
-                    "This may lead to unexpected behavior when trying to access the solution for $v")
-            push!(keys, v)
+    hashkeys = map(hash, keys)
+    hashvals = map(hash, vals)
+    hashvs = map(hash, vs)
+    for i=1:length(vs)
+        if !(hashvs[i] ∈ hashkeys)
+            var = make_var(vs[i], t)
+            !(hash(var) ∈ hashvals) || @warn string("Two different averages have the exact same name. ",
+                    "This may lead to unexpected behavior when trying to access the solution for $(vals[i])")
+            push!(keys, vs[i])
             push!(vals, var)
+            push!(hashkeys, hashvs[i])
         end
     end
     for i=length(varmap)+1:length(keys)
@@ -71,7 +83,7 @@ function add_vars!(varmap, vs, t)
     return varmap
 end
 
-function _make_var(v, t)
+function make_var(v, t)
     sym = Symbol(string(v))
     # Vars need to be of symtype Real; otherwise they get converted internally
     # here: https://github.com/JuliaSymbolics/Symbolics.jl/blob/1f450def014628f7fe5321282f33972527fb0318/src/utils.jl#L96

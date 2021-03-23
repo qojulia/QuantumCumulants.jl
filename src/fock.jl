@@ -19,9 +19,11 @@ struct Destroy{H<:HilbertSpace,S,A} <: QSym
     hilbert::H
     name::S
     aon::A
+    hash::UInt
     function Destroy{H,S,A}(hilbert::H,name::S,aon::A) where {H,S,A}
         @assert has_hilbert(FockSpace,hilbert,aon)
-        new(hilbert,name,aon)
+        h = hash(Destroy, hash(hilbert, hash(name, hash(aon, zero(UInt)))))
+        new(hilbert,name,aon,h)
     end
 end
 
@@ -59,7 +61,7 @@ for f in [:Destroy,:Create]
         return op_
     end
     @eval function Base.hash(op::T, h::UInt) where T<:($(f))
-        hash(op.hilbert, hash(op.name, hash(op.aon, hash($(f), h))))
+        hash(T, hash(op.hilbert, hash(op.name, hash(op.aon, h))))
     end
 end
 
@@ -67,4 +69,16 @@ Base.adjoint(op::Destroy) = Create(op.hilbert,op.name,acts_on(op))
 Base.adjoint(op::Create) = Destroy(op.hilbert,op.name,acts_on(op))
 
 # Commutation relation in simplification
-commute_bosonic(a,b) = b*a + one(a)
+function *(a::Destroy,b::Create)
+    check_hilbert(a,b)
+    aon_a = acts_on(a)
+    aon_b = acts_on(b)
+    if aon_a == aon_b
+        return b*a + 1
+    elseif aon_a < aon_b
+        return QMul(1, [a,b])
+    else
+        return QMul(1, [b,a])
+    end
+end
+ismergeable(::Destroy,::Create) = true
