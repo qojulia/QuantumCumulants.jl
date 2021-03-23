@@ -56,16 +56,16 @@ sol_c = solve(prob_c,RK4(),saveat=τ,save_idxs=1)
 # Spectrum via FFT of g(τ)
 using QuantumOptics.timecorrelations: correlation2spectrum
 ω, S1 = correlation2spectrum(sol_c.t, sol_c.u)
-using PyPlot; pygui(true)
-plot(ω, S1 ./ maximum(S1), label="FFT of g(τ)")
+# using PyPlot; pygui(true)
+# plot(ω, S1 ./ maximum(S1), label="FFT of g(τ)")
 
 # Spectrum via Laplace transform
 S = Spectrum(c_steady, ps)
 usteady = sol.u[end]
 
 S2 = S(ω,usteady,getindex.(p0, 2))
-plot(ω, S2 ./ maximum(S2), label="Laplace transform")
-xlim(-2pi,2pi)
+# plot(ω, S2 ./ maximum(S2), label="Laplace transform")
+# xlim(-2pi,2pi)
 
 S1_ = S1 ./ maximum(S1)
 S1_ .-= minimum(S1_)
@@ -95,8 +95,8 @@ c_nophase = CorrelationFunction(a', a, he_avg; steady_state=true, filter_func=!h
 
 S_nophase = Spectrum(c_nophase, ps)
 S3 = S_nophase(ω,usteady,getindex.(p0, 2))
-plot(ω, S3 ./ maximum(S3), label="Laplace transform (phase invariant)")
-legend()
+# plot(ω, S3 ./ maximum(S3), label="Laplace transform (phase invariant)")
+# legend()
 
 # When not in steady state -- cavity that decays
 h = FockSpace(:fock)

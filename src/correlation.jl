@@ -513,6 +513,7 @@ function _build_spec_func(ω, lhs, rhs, a1, a0, steady_vals, ps=[])
     filter!(x->!_in(x,steady_vals), vs_adj)
     vs′hash = map(hash, vs_adj)
     A = [substitute_conj(A_,vs_adj,vs′hash) for A_∈A]
+    b = [substitute_conj(b_,vs_adj,vs′hash) for b_∈b]
     c = [substitute_conj(c_,vs_adj,vs′hash) for c_∈c]
 
     # Build functions
