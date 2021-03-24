@@ -91,11 +91,6 @@ function Transition(hilbert::ProductSpace,name,i,j)
     end
 end
 
-function embed(h::ProductSpace,op::T,aon::Int) where T<:Transition
-    check_hilbert(h.spaces[aon],op.hilbert)
-    op_ = Transition(h,op.name,op.i,op.j,aon)
-    return op_
-end
 levels(t::Transition,args...) = levels(t.hilbert,args...)
 ground_state(t::Transition,args...) = ground_state(t.hilbert,args...)
 

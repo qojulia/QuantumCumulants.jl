@@ -100,6 +100,7 @@ function Base.isequal(a::QMul, b::QMul)
 end
 
 function *(a::QSym,b::QSym)
+    check_hilbert(a, b)
     args = [a,b]
     sort!(args, by=acts_on)
     QMul(1,args)
@@ -139,6 +140,8 @@ function *(a::QMul, b::QMul)
     arg_c = a.arg_c*b.arg_c
     return merge_commutators(arg_c,args_nc)
 end
+
+Base.:/(a::QNumber, b::SNuN) = (1/b) * a
 
 function merge_commutators(arg_c,args_nc)
     i = 1

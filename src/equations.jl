@@ -85,10 +85,7 @@ end
 
 function make_var(v, t)
     sym = Symbol(string(v))
-    # Vars need to be of symtype Real; otherwise they get converted internally
-    # here: https://github.com/JuliaSymbolics/Symbolics.jl/blob/1f450def014628f7fe5321282f33972527fb0318/src/utils.jl#L96
-    # which causes the missingvars check to fail due to a setdiff on lists with different types
-    var_f = SymbolicUtils.Sym{SymbolicUtils.FnType{Tuple{Any}, Real}}(sym)
+    var_f = SymbolicUtils.Sym{SymbolicUtils.FnType{Tuple{Any}, Complex}}(sym)
     return var_f(t)
 end
 

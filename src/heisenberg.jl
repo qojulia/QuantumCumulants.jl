@@ -30,6 +30,7 @@ function heisenberg(a::Vector,H,J;Jdagger::Vector=adjoint.(J),rates=ones(Int,len
                     simplify=true,
                     expand=false,
                     order=nothing,
+                    mix_choice=maximum,
                     iv=SymbolicUtils.Sym{Real}(:t))
 
     # Derive operator equations
@@ -59,7 +60,7 @@ function heisenberg(a::Vector,H,J;Jdagger::Vector=adjoint.(J),rates=ones(Int,len
 
     if expand
         order===nothing && error("Need given order for cumulant expansion!")
-        rhs_avg = [cumulant_expansion(r, order; simplify=simplify) for r∈rhs_avg]
+        rhs_avg = [cumulant_expansion(r, order; simplify=simplify, mix_choice=mix_choice) for r∈rhs_avg]
     end
 
     eqs_avg = [Symbolics.Equation(l,r) for (l,r)=zip(vs,rhs_avg)]

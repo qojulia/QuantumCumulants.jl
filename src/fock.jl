@@ -19,11 +19,9 @@ struct Destroy{H<:HilbertSpace,S,A} <: QSym
     hilbert::H
     name::S
     aon::A
-    hash::UInt
     function Destroy{H,S,A}(hilbert::H,name::S,aon::A) where {H,S,A}
         @assert has_hilbert(FockSpace,hilbert,aon)
-        h = hash(Destroy, hash(hilbert, hash(name, hash(aon, zero(UInt)))))
-        new(hilbert,name,aon,h)
+        new(hilbert,name,aon)
     end
 end
 
@@ -54,11 +52,6 @@ for f in [:Destroy,:Create]
             isempty(i) && error("Can only create $($(f)) on FockSpace! Not included in $(hilbert)")
             length(i)>1 && error("More than one FockSpace in $(hilbert)! Specify on which Hilbert space $($(f)) should be created with $($(f))(hilbert,name,i)!")
         end
-    end
-    @eval function embed(h::ProductSpace,op::T,aon::Int) where T<:($(f))
-        check_hilbert(h.spaces[aon],op.hilbert)
-        op_ = $(f)(h,op.name,aon)
-        return op_
     end
     @eval function Base.hash(op::T, h::UInt) where T<:($(f))
         hash(T, hash(op.hilbert, hash(op.name, hash(op.aon, h))))

@@ -16,15 +16,14 @@ a = Destroy(h,:a,1)
 @test isequal(average(a'*σ(1,2), [2,1]; mix_choice=minimum), average(a')*average(σ(1,2)))
 
 he = heisenberg([a'*a,σ(2,2)],a'*a + σ(2,2) + a'*σ(1,2) + a*σ(2,1))
-he_avg1 = average(he,2)
-he_avg2 = average(he,[2,1])
-he_avg3 = average(he,[2,1];mix_choice=minimum)
+he_avg1 = cumulant_expansion(he,2)
+he_avg2 = cumulant_expansion(he,[2,1])
+he_avg3 = cumulant_expansion(he,[2,1];mix_choice=minimum)
 
-@test isequal(he_avg1, he_avg2)
-@test !isequal(he_avg1, he_avg3)
+@test isequal(he_avg1.equations, he_avg2.equations)
+@test !isequal(he_avg1.equations, he_avg3.equations)
 
 he = heisenberg(a'*σ(1,2), a'*a + σ(2,2) + a*σ(2,1))
-@test_throws ErrorException average(he,[2,1];mix_choice=minimum)
 
 # N-atom laser
 # Parameters
@@ -53,17 +52,17 @@ rates = [κ;[Γ12 for i=1:N];[Γ13 for i=1:N];[Γ23 for i=1:N]]
 ops = [a'a, σ(2,2,1), σ(3,3,1)]
 
 he = heisenberg(ops,H,J; rates=rates)
-he_avg_ = average(he,[2,1,1]) #second order average
+he_avg_ = cumulant_expansion(he,[2,1,1]) #second order average
 
 he_avg = complete(he_avg_;order=[2,1,1])
 @test isempty(find_missing(he_avg))
-@test isempty(findall(x -> (aon = acts_on(x); 2 in aon && 3 in aon), he_avg.lhs))
+@test isempty(findall(x -> (aon = acts_on(x); 2 in aon && 3 in aon), he_avg.states))
 
-he_avg_ = average(he,[2,1,1];mix_choice=minimum)
+he_avg_ = cumulant_expansion(he,[2,1,1];mix_choice=minimum)
 he_avg = complete(he_avg_;order=[2,1,1],mix_choice=minimum)
 @test isempty(find_missing(he_avg))
-@test isempty(findall(x -> (aon = acts_on(x); 2 in aon && 3 in aon), he_avg.lhs))
-@test isempty(findall(x -> (aon = acts_on(x); 1 in aon && 3 in aon), he_avg.lhs))
-@test isempty(findall(x -> (aon = acts_on(x); 1 in aon && 2 in aon), he_avg.lhs))
+@test isempty(findall(x -> (aon = acts_on(x); 2 in aon && 3 in aon), he_avg.states))
+@test isempty(findall(x -> (aon = acts_on(x); 1 in aon && 3 in aon), he_avg.states))
+@test isempty(findall(x -> (aon = acts_on(x); 1 in aon && 2 in aon), he_avg.states))
 
 end # testset

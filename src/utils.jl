@@ -126,7 +126,7 @@ function complete(de::HeisenbergEquation;kwargs...)
     return de_
 end
 function complete!(de::HeisenbergEquation;
-                                order=nothing,
+                                order=de.order,
                                 filter_func=nothing,
                                 mix_choice=maximum,
                                 simplify=true,
@@ -148,7 +148,9 @@ function complete!(de::HeisenbergEquation;
     if order_ != de.order
         for i=1:length(de.equations)
             lhs = de.equations[i].lhs
-            rhs = cumulant_expansion(de.equations[i].rhs, order_; simplify=simplify)
+            rhs = cumulant_expansion(de.equations[i].rhs,order_;
+                                        mix_choice=mix_choice,
+                                        simplify=simplify)
             de.equations[i] = Symbolics.Equation(lhs, rhs)
         end
     end
@@ -167,6 +169,7 @@ function complete!(de::HeisenbergEquation;
                                 simplify=simplify,
                                 expand=true,
                                 order=order_,
+                                mix_choice=mix_choice,
                                 iv=de.iv,
                                 kwargs...)
 
@@ -220,22 +223,14 @@ function find_operators(h::HilbertSpace, order::Int; names=nothing, kwargs...)
     all_ops = QNumber[]
     for i=1:order
         for c in combinations(ops, i)
-            push!(all_ops, prod(c))
+            c_ = prod(reverse(c)) # get normal ordering
+            iszero(c_) || push!(all_ops, c_)
         end
     end
 
-    # Simplify and remove non-operators iteratively
-    ops_1 = map(qsimplify, all_ops)
-    ops_2 = all_ops
-    while !isequal(ops_1,ops_2)
-        ops_2 = QNumber[]
-        for op in ops_1
-            append!(ops_2, _get_operators(op))
-        end
-        ops_1 = map(qsimplify, ops_2)
-    end
-
-    return unique_ops(ops_2)
+    filter!(x->!(x isa QAdd), all_ops)
+    unique_ops!(all_ops)
+    return all_ops
 end
 find_operators(op::QNumber,args...) = find_operators(hilbert(op),args...)
 
@@ -272,6 +267,16 @@ function fundamental_operators(h::ProductSpace;kwargs...)
     end
     return ops
 end
+
+for T ∈ [:Destroy,:Create,:Transition]
+    @eval function embed(h::ProductSpace,op::($T),i)
+        fields = [getfield(op, s) for s∈fieldnames($T)]
+        fields[1] = h
+        fields[end] = i
+        return $(T)(fields...)
+    end
+end
+
 
 
 """
@@ -312,19 +317,33 @@ end
 
 """
     unique_ops(ops)
+    unique_ops!(ops)
 
 For a given list of operators, return only unique ones taking into account
 their adjoints.
 """
 function unique_ops(ops)
-    seen = eltype(ops)[]
-    ops_adj = _adjoint.(ops)
-    for (op,op′) in zip(ops,ops_adj)
-        if !(_in(op, seen) || _in(op′, seen))
-            push!(seen, op)
+    ops_ = deepcopy(ops)
+    unique_ops!(ops_)
+    return ops_
+end
+function unique_ops!(ops)
+    hashes = map(hash, ops)
+    hashes′ = map(hash, map(_adjoint, ops))
+    seen_hashes = UInt[]
+    i = 1
+    while i <= length(ops)
+        if hashes[i] ∈ seen_hashes || hashes′[i] ∈ seen_hashes
+            deleteat!(ops, i)
+            deleteat!(hashes, i)
+            deleteat!(hashes′, i)
+        else
+            push!(seen_hashes, hashes[i])
+            hashes[i]==hashes′[i] || push!(seen_hashes, hashes′[i])
+            i += 1
         end
     end
-    return seen
+    return ops
 end
 
 # Overload getindex to obtain solutions with averages

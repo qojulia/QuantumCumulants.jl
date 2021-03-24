@@ -1,4 +1,5 @@
 using Qumulants
+using SymbolicUtils
 using Test
 
 @testset "average" begin
@@ -19,20 +20,19 @@ a = Destroy(h,:a)
 @test isequal(average((a'*a)^2), average(a'*a*a'*a))
 @test isequal(average(a'*a^2,2), average(a')*average(a^2) + -2*average(a')*average(a)^2 + 2*average(a)*average(a'*a))
 
-@test isequal(qsimplify(average(σ)+average(σ)), average(2σ))
-@test isequal(qsimplify(average(σ)-average(σ)), 0)
+@test isequal(simplify(average(σ)+average(σ)), average(2σ))
+@test iszero(simplify(average(σ)-average(σ)))
 
 ωc, ωa = cnumbers("ω_c ω_a")
 @test isequal(average(ωc),ωc)
 @test isequal(average(ωc*a),ωc*average(a))
-@test isequal(average(ωc*(a+a')) , ωc*(average(a) + average(a')))
+@test isequal(average(ωc*(a+a')) , ωc*average(a) + ωc*average(a'))
 
 n = average(a'*a)
 @test isequal(cumulant_expansion(n,2), n)
 @test isequal(cumulant_expansion(n,1), average(a')*average(a))
 
-ex = average(a*σ)*average(a) - average(a)*average(a*σ)
-@test iszero(qsimplify(ex))
+@test iszero(average(a*σ)*average(a) - average(a)*average(a*σ))
 
 # Test cumulants
 hs = FockSpace[]
@@ -46,11 +46,11 @@ b = Destroy(h,:b,2)
 c = Destroy(h,:c,3)
 d = Destroy(h,:d,4)
 
-@test isequal(cumulant(a*b),qsimplify(average(a*b)+ -1*average(a)*average(b)))
+@test isequal(cumulant(a*b),simplify(average(a*b)+ -1*average(a)*average(b)))
 @test isequal(cumulant(a*b,1), average(a*b))
-@test iszero(qsimplify(expand(cumulant(a*b*c) - (average(a*b*c) +
+@test iszero(simplify(cumulant(a*b*c) - (average(a*b*c) +
             2*average(a)*average(b)*average(c) - average(a)*average(b*c) -
-            average(b)*average(a*c) - average(c)*average(a*b)))))
-@test isequal(qsimplify(expand(average(a*b*c*d) - cumulant(a*b*c*d))), cumulant_expansion(average(a*b*c*d),3))
+            average(b)*average(a*c) - average(c)*average(a*b))))
+@test isequal(simplify(average(a*b*c*d) - cumulant(a*b*c*d)), cumulant_expansion(average(a*b*c*d),3))
 
 end # testset

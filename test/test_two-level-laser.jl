@@ -2,6 +2,8 @@ using Qumulants
 using ModelingToolkit, OrdinaryDiffEq
 using Test
 
+@testset "two-level-laser" begin
+
 N = 10
 
 Δ = cnumbers((Symbol(:Δ_, i) for i=1:N)...)
@@ -55,7 +57,7 @@ p0 = [κ => 1,
     (g .=> 1.5 .* ones(N))...,
     (Δ .=> ones(N))...,]
 
-prob = ODEProblem(sys,u0,(0.0,10.0),p0)
+prob = ODEProblem(sys,u0,(0.0,10.0),p0,jac=true,sparse=true)
 
 sol = solve(prob,RK4())
 
@@ -97,3 +99,5 @@ prob_comp = ODEProblem(sys_comp,u0,(0.0,10.0),p0)
 sol_comp = solve(prob_comp,RK4())
 
 @test getindex.(sol.u, 1) ≈ getindex.(sol_comp.u, 1)
+
+end # testset

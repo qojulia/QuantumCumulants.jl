@@ -65,6 +65,7 @@ function average(op::QTerm)
     end
 end
 average(x::SNuN) = x
+average(x,order;kwargs...) = cumulant_expansion(average(x),order;kwargs...)
 
 function undo_average(t)
     if SymbolicUtils.istree(t)
@@ -115,7 +116,7 @@ julia> cumulant_expansion(avg,2)
 Optional arguments
 =================
 *simplify=true: Specify whether the result should be simplified.
-*kwargs...: Further keyword arguments being passed to [`qsimplify`](@ref)
+*kwargs...: Further keyword arguments being passed to simplification.
 """
 function cumulant_expansion(x::SymbolicUtils.Symbolic,order::Integer;simplify=true,kwargs...)
     if SymbolicUtils.istree(x)
@@ -144,9 +145,9 @@ function cumulant_expansion(x::SymbolicUtils.Symbolic,order;mix_choice=maximum,s
     if SymbolicUtils.istree(x)
         f = SymbolicUtils.operation(x)
         args = SymbolicUtils.arguments(x)
-        cumulants = [cumulant_expansion(arg,order;simplify_input=simplify_input,simplify_output=false,mix_choice=mix_choice) for arg in args]
-        if simplify_output
-            return qsimplify(f(cumulants...);kwargs...)
+        cumulants = [cumulant_expansion(arg,order;simplify=simplify,mix_choice=mix_choice) for arg in args]
+        if simplify
+            return SymbolicUtils.simplify(f(cumulants...);kwargs...)
         else
             return f(cumulants...)
         end
@@ -246,7 +247,7 @@ function _cumulant(args::Vector,m::Int=length(args))
             n = length(p[j])
             args_prod = Any[factorial(n-1)*(-1)^(n-1)]
             for p_=p[j] # Product over partition blocks
-                push!(args_prod, _average(*(p_...)))
+                push!(args_prod, _average(QMul(1, p_)))
             end
             # Add terms in sum
             push!(args_sum, *(args_prod...))
