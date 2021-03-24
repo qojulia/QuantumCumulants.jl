@@ -118,7 +118,7 @@ function correlation_u0(c::CorrelationFunction, u_end)
 end
 
 """
-    correlation_p0(c::CorrelationFunction, u_end, ps=[])
+    correlation_p0(c::CorrelationFunction, u_end, ps=Pair[])
 
 Find all occurring steady-state values and add them to a list of parameters to
 pass this to the `ODEProblem`.

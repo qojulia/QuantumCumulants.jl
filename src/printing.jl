@@ -66,6 +66,6 @@ end
 
 Base.show(io::IO, c::CallableTransition) = write(io, c.name)
 
-# const T_LATEX = Union{<:QNumber,<:AbstractEquation, <:SymbolicUtils.Symbolic{<:CNumber},
-#         <:CorrelationFunction,<:Spectrum}
-# Base.show(io::IO, ::MIME"text/latex", x::T_LATEX) = write(io, latexify(x))
+const T_LATEX = Union{<:QNumber,<:AbstractHeisenbergEquation, <:SymbolicUtils.Symbolic{<:CNumber},
+        <:CorrelationFunction,<:Spectrum}
+Base.show(io::IO, ::MIME"text/latex", x::T_LATEX) = write(io, latexify(x))

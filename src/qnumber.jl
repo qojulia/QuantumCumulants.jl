@@ -75,7 +75,7 @@ struct QMul <: QTerm
         end
     end
 end
-Base.hash(q::T, h::UInt) where T<:QMul = hash(T, hash(q.arg_c, SymbolicUtils.hashvec(q.args_nc, h)))#hash(T, hash(q.arg_c, hash(q.h, h)))
+Base.hash(q::T, h::UInt) where T<:QMul = hash(T, hash(q.arg_c, SymbolicUtils.hashvec(q.args_nc, h)))
 Base.isless(a::QMul, b::QMul) = isless(a.h, b.h)
 
 SymbolicUtils.operation(::QMul) = (*)

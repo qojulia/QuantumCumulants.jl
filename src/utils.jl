@@ -320,29 +320,3 @@ _conj(x::Number) = conj(x)
 _adjoint(op::QNumber) = adjoint(op)
 _adjoint(s::SymbolicUtils.Symbolic{<:Number}) = _conj(s)
 _adjoint(x) = adjoint(x)
-
-_to_expression(x::Number) = x
-function _to_expression(x::Complex) # For brackets when using latexify
-    iszero(x) && return x
-    if iszero(real(x))
-        return :( $(imag(x))*im )
-    elseif iszero(imag(x))
-        return real(x)
-    else
-        return :( $(real(x)) + $(imag(x))*im )
-    end
-end
-_to_expression(op::QSym) = op.name
-_to_expression(op::Create) = :(dagger($(op.name)))
-_to_expression(op::Transition) = :(Transition($(op.name),$(op.i),$(op.j)) )
-_to_expression(t::QTerm) = :( $(Symbol(t.f))($(_to_expression.(t.arguments)...)) )
-_to_expression(p::Parameter) = p.name
-function _to_expression(s::SymbolicUtils.Symbolic)
-    if SymbolicUtils.istree(s)
-        f = SymbolicUtils.operation(s)
-        args = map(_to_expression, SymbolicUtils.arguments(s))
-        return :( $(Symbol(f))($(args...)) )
-    else
-        return nameof(s)
-    end
-end

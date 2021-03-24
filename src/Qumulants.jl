@@ -2,7 +2,6 @@ module Qumulants
 
 import SymbolicUtils
 import SymbolicUtils: substitute
-using SymbolicUtils: @rule, @acrule, @ordered_acrule
 
 import Symbolics
 
@@ -12,7 +11,7 @@ import ModelingToolkit
 const MTK = ModelingToolkit
 import ModelingToolkit: ⊗ # just to avoid conflicts
 
-using Combinatorics: partitions, combinations, permutations
+using Combinatorics: partitions, combinations
 
 export HilbertSpace, ProductSpace, ⊗, tensor,
         QSym, QTerm, @qnumbers,
@@ -38,7 +37,7 @@ include("average.jl")
 include("utils.jl")
 include("diffeq.jl")
 include("correlation.jl")
-# include("latexify_recipes.jl")
+include("latexify_recipes.jl")
 include("printing.jl")
 
 
