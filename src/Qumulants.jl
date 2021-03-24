@@ -23,7 +23,7 @@ export HilbertSpace, ProductSpace, ⊗, tensor,
         CNumber, Parameter, @cnumbers, cnumbers,
         Average, average, cumulant_expansion, get_order, cumulant,
         find_missing, complete, complete!, find_operators, fundamental_operators,
-            unique_ops, unique_ops!, get_symbolics, get_operators,
+            unique_ops, unique_ops!,
         CorrelationFunction, Spectrum, correlation_u0, correlation_p0,
         transition_superscript
 

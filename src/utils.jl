@@ -92,28 +92,6 @@ function _in(x, itr)
 end
 
 """
-    get_symbolics(ex)
-
-Find all symbolic numbers occuring in `ex`.
-"""
-get_symbolics(x::Number) = []
-function get_symbolics(t::SymbolicUtils.Symbolic)
-    if SymbolicUtils.istree(t)
-        if SymbolicUtils.is_operation(average)(t)
-            return [t]
-        else
-            syms = []
-            for arg in SymbolicUtils.arguments(t)
-                append!(syms, get_symbolics(arg))
-            end
-            return unique(syms)
-        end
-    else
-        return [t]
-    end
-end
-
-"""
     complete(de::HeisenbergEquation)
     complete!(de::HeisenbergEquation)
 
@@ -277,43 +255,6 @@ for T ∈ [:Destroy,:Create,:Transition]
     end
 end
 
-
-
-"""
-    get_operators(::QNumber)
-
-Return a list of all [`QSym`](@ref) in an expression.
-"""
-get_operators(x) = _get_operators(x)
-function get_operators(t::QTerm)
-    ops = QNumber[]
-    for arg in SymbolicUtils.arguments(t)
-        append!(ops, get_operators(arg))
-    end
-    return ops
-end
-
-_get_operators(::Number) = []
-_get_operators(op::QSym) = [op]
-function _get_operators(t::QTerm)
-    f = SymbolicUtils.operation(t)
-    if f===(*)
-        args = QNumber[]
-        for arg in SymbolicUtils.arguments(t)
-            append!(args, _get_operators(arg))
-        end
-        isempty(args) && return args
-        return [*(args...)]
-    elseif f===(^)
-        return [t]
-    else
-        ops = QNumber[]
-        for arg in SymbolicUtils.arguments(t)
-            append!(ops, _get_operators(arg))
-        end
-        return ops
-    end
-end
 
 """
     unique_ops(ops)
