@@ -29,6 +29,7 @@ function CorrelationFunction(op1,op2,de0::HeisenbergEquation;
                             steady_state=false, add_subscript=0,
                             filter_func=nothing, mix_choice=maximum,
                             iv=SymbolicUtils.Sym{Real}(:τ),
+                            order=nothing,
                             simplify=true, kwargs...)
     h1 = hilbert(op1)
     h2 = _new_hilbert(hilbert(op2), acts_on(op2))
@@ -44,15 +45,23 @@ function CorrelationFunction(op1,op2,de0::HeisenbergEquation;
     J = [_new_operator(j, h) for j in J0]
     lhs_new = [_new_operator(l, h) for l in de0.states]
 
-    order_lhs = maximum(get_order(l) for l in de0.states)
-    order_corr = get_order(op1_*op2_)
-    order = max(order_lhs, order_corr)
-    @assert order > 1
+    order_ = if order===nothing
+        if de0.order===nothing
+            de0.order
+            order_lhs = maximum(get_order(l) for l in de0.states)
+            order_corr = get_order(op1_*op2_)
+            max(order_lhs, order_corr)
+        else
+            de0.order
+        end
+    else
+        order
+    end
     op_ = op1_*op2_
-    @assert get_order(op_) <= order
+    @assert get_order(op_) <= order_
 
-    de = heisenberg(op_,H,J;rates=de0.rates,iv=iv,expand=true,order=order)
-    _complete_corr!(de, length(h.spaces), lhs_new, order, steady_state;
+    de = heisenberg(op_,H,J;rates=de0.rates,iv=iv,expand=true,order=order_)
+    _complete_corr!(de, length(h.spaces), lhs_new, order_, steady_state;
                             filter_func=filter_func,
                             mix_choice=mix_choice,
                             simplify=simplify,
@@ -69,7 +78,7 @@ function CorrelationFunction(op1,op2,de0::HeisenbergEquation;
             push!(eqs, Symbolics.Equation(lhs_new[i], rhs))
             push!(eqs_op, Symbolics.Equation(ops[i], rhs_op))
         end
-        HeisenbergEquation(eqs,eqs_op,lhs_new,ops,H,J,de0.rates,de0.iv,varmap,order)
+        HeisenbergEquation(eqs,eqs_op,lhs_new,ops,H,J,de0.rates,de0.iv,varmap,order_)
     end
 
     return CorrelationFunction(op1_, op2_, op2_0, de0_, de, steady_state)
@@ -401,19 +410,6 @@ function _complete_corr!(de,aon0,lhs_new,order,steady_state;
     J = de.jumps
     rates = de.rates
 
-    order_lhs = maximum(get_order.(vs))
-    order_rhs = 0
-    for i=1:length(de.equations)
-        k = get_order(de.equations[i].rhs)
-        k > order_rhs && (order_rhs = k)
-    end
-    if order isa Nothing
-        order_ = max(order_lhs, order_rhs)
-    else
-        order_ = order
-    end
-    maximum(order_) >= order_lhs || error("Cannot form cumulant expansion of derivative; you may want to use a higher order!")
-
     vhash = map(hash, vs)
     vs′ = map(_conj, vs)
     vs′hash = map(hash, vs′)
@@ -446,7 +442,7 @@ function _complete_corr!(de,aon0,lhs_new,order,steady_state;
                                 rates=de.rates,
                                 simplify=simplify,
                                 expand=true,
-                                order=order_,
+                                order=order,
                                 iv=de.iv,
                                 kwargs...)
 
