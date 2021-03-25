@@ -1,9 +1,9 @@
 # Qumulants.jl
-**Qumulants.jl** is a package for the symbolic derivation of Heisenberg equations in Julia. Averages over the resulting equations can be automatically expanded in terms of cumulants to an arbitrary order. This procedure yields a system of symbolic *c*-number differential equations. Finally, these *c*-number equations can be solved on a numeric level.
+**Qumulants.jl** is a package for the symbolic derivation of equations of motion for average values of quantum mechanical operators in Julia. The equations are derived using fundamental commutation relations of operators and can be automatically expanded in terms of cumulants to an arbitrary order. This results in a closed set of symbolic differential equations. Finally, these equations can be solved on a numeric level.
 
-The noncommutative symbolic algebra, the application of commutation relations as well as general simplification, are implemented using [SymbolicUtils.jl](https://github.com/JuliaSymbolics/SymbolicUtils.jl).
+For the application of commutation relations **Qumulants.jl** implements a simple noncommutative algebra, where any commutation relations are applied immediately. All other symbolic simplification and rewriting is done using the [Symbolics.jl](https://github.com/JuliaSymbolics/Symbolics.jl) package.
 
-To obtain a numerical solution, equations derived with **Qumulants.jl** can be converted to [ModelingToolkit.jl](https://github.com/SciML/ModelingToolkit.jl), which is part of the [DifferentialEquations.jl] ecosystem.
+To obtain a numerical solution, equations derived with **Qumulants.jl** can be converted to [ModelingToolkit.jl](https://github.com/SciML/ModelingToolkit.jl), which is part of the [DifferentialEquations.jl](https://github.com/SciML/DifferentialEquations.jl) ecosystem and bridges the gap between symbolics and numerics.
 
 ## Development status
 
