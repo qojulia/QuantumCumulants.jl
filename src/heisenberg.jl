@@ -12,8 +12,8 @@ Compute the set of equations for the operators in `ops` under the Hamiltonian
 equivalent to the Quantum-Langevin equation where noise is neglected.
 
 # Arguments
-*`ops::Vector{<:AbstractVector}`: The operators of which the equations are to be computed.
-*`H::AbstractOperatr`: The Hamiltonian describing the reversible dynamics of the
+*`ops::Vector`: The operators of which the equations are to be computed.
+*`H::QNumber`: The Hamiltonian describing the reversible dynamics of the
     system.
 *`J::Vector{<:QNumber}`: A vector containing the collapse operators of
     the system. A term of the form
@@ -24,6 +24,14 @@ equivalent to the Quantum-Langevin equation where noise is neglected.
 *`Jdagger::Vector=adjoint.(J)`: Vector containing the hermitian conjugates of
     the collapse operators.
 *`rates=ones(length(J))`: Decay rates corresponding to the collapse operators in `J`.
+*`multithread=false`: Specify whether the derivation of equations for all operators in `ops`
+    should be multithreaded using `Threads.@threads`.
+*`simplify=true`: Specify whether the derived equations should be simplified.
+*`expand=false`: Specify whether to directly perform a [`cumulant_expansion`](@ref)
+    on the derived equations. If set to `true`, an `order` also needs to be specified.
+*`mix_choice=maximum`: If the provided `order` is a `Vector`, `mix_choice` determines
+    which `order` to prefer on terms that act on multiple Hilbert spaces.
+*`iv=SymbolicUtils.Sym{Real}(:t)`: The independent variable (time parameter) of the system.
 """
 function heisenberg(a::Vector,H,J;Jdagger::Vector=adjoint.(J),rates=ones(Int,length(J)),
                     multithread=false,

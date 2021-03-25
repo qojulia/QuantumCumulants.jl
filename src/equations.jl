@@ -12,11 +12,17 @@ of the Hamiltonian, the collapse operators and the corresponding decay rates of
 the system.
 
 # Fields
-*`lhs`: Vector of operators or averages of which the derivatives are taken.
-*`rhs`: Vector of expressions to which the derivatives are equal.
+*`equations`: Vector of the differential equations of averages.
+*`operator_equations`: Vector of the operator differential equations.
+*`states`: Vector containing the averages on the left-hand-side of the equations.
+*`operators`: Vector containing the operators on the left-hand-side of the equations.
 *`hamiltonian`: Operator defining the system Hamiltonian.
 *`jumps`: Vector of operators specifying the decay processes.
 *`rates`: Decay rates corresponding to the `jumps`.
+*`iv`: The independent variable (time parameter) of the system.
+*`varmap`: Vector of pairs that map the averages to time-dependent variables.
+    That format is necessary for ModelingToolkit functionality.
+*`order`: The order at which the [`cumulant_expansion`](@ref) has been performed.
 
 """
 struct HeisenbergEquation <: AbstractHeisenbergEquation

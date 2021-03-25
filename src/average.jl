@@ -20,9 +20,6 @@ function _average(operator)
     return SymbolicUtils.Term{AvgSym}(sym_average, [operator])
 end
 
-# Type promotion -- average(::Operator)::Number
-# SymbolicUtils.promote_symtype(::typeof(sym_average), ::Type{<:QNumber}) = AvgSym
-
 function acts_on(s::SymbolicUtils.Symbolic)
     if SymbolicUtils.istree(s)
         f = SymbolicUtils.operation(s)
@@ -44,7 +41,7 @@ end
 
 """
     average(::QNumber)
-    average(::QNumber,order::Int)
+    average(::QNumber,order)
 
 Compute the average of an operator. If `order` is given, the [`cumulant_expansion`](@ref)
 up to that order is computed immediately.
@@ -278,11 +275,7 @@ julia> get_order(1)
 get_order(avg::SymbolicUtils.Term{<:AvgSym}) = get_order(SymbolicUtils.arguments(avg)[1])
 function get_order(t::SymbolicUtils.Symbolic)
     if SymbolicUtils.istree(t)
-        if SymbolicUtils.operation(t)===sym_average
-            return get_order(SymbolicUtils.arguments(t)[1])
-        else
-            return maximum(map(get_order, SymbolicUtils.arguments(t)))
-        end
+        return maximum(map(get_order, SymbolicUtils.arguments(t)))
     else
         return 0
     end

@@ -536,7 +536,12 @@ function _find_independent(r, a0)
         isempty(args_ind) && return 0
         return +(args_ind...)
     else
-        return 0
+        aon_r = acts_on(r)
+        aon0 = acts_on(a0)
+        same = (length(aon_r)==length(aon0)) && all(a ∈ aon0 for a∈aon_r) &&
+                all(a ∈ aon_r for a ∈ aon0)
+        same && return 0
+        return r
     end
 end
 
@@ -551,6 +556,11 @@ function _find_dependent(r, a0)
         isempty(args) && return 0
         return +(args...)
     else
-        return 0
+        aon_r = acts_on(r)
+        aon0 = acts_on(a0)
+        same = (length(aon_r)==length(aon0)) && all(a ∈ aon0 for a∈aon_r) &&
+                all(a ∈ aon_r for a ∈ aon0)
+        same || return 0
+        return r
     end
 end

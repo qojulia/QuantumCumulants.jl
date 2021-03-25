@@ -1,21 +1,40 @@
 """
-    find_missing(rhs::Vector, vs::Vector, vs_adj=_conj(vs), ps=[])
+    find_missing(he::HeisenbergEquation, vs_adj=nothing, get_adjoints=true)
 
-For a list of expressions contained in `rhs`, check whether all occurring symbols
-are contained either in the variables given in `vs`. If a list of parameters `ps`
-is provided, parameters that do not occur in the list `ps` are also added to the list.
-Returns a list of missing symbols.
+Find all averages on the right-hand-side of in `he.equations` that are not
+listed `he.states`. For a complete system this list is empty.
+
+Optional arguments
+=================
+
+*`vs_adj`: List of the complex conjugates of `he.states`. If set to `nothing`
+    the list is generated internally.
+*`get_adjoints=true`: Specify whether a complex conjugate of an average should be
+    explicitly listed as missing.
+
+see also: [`complete`](@ref), [`complete!`](@ref)
 """
-function find_missing(rhs::Vector, vs::Vector; vs_adj::Vector=_conj.(vs), get_adjoints=true)
+function find_missing(he::HeisenbergEquation; vs_adj=nothing, get_adjoints=true)
+    vs = he.states
+    vhash = map(hash, vs)
+    vs′ = if vs_adj===nothing
+        map(_conj, vs)
+    else
+        vs_adj
+    end
+    vs′hash = map(hash, vs′)
+    filter!(!in(vhash), vs′hash)
+
     missed = []
     missed_hashes = UInt[]
-    vhash = map(hash, vs)
-    v′hash = map(hash, vs_adj)
-    for r∈rhs
-        find_missing!(missed, missed_hashes, r, vhash, v′hash; get_adjoints=get_adjoints)
+
+    eqs = he.equations
+    for i=1:length(eqs)
+        find_missing!(missed, missed_hashes, eqs[i].rhs, vhash, vs′hash; get_adjoints=get_adjoints)
     end
     return missed
 end
+
 function find_missing!(missed, missed_hashes, r::SymbolicUtils.Symbolic, vhash, vs′hash; get_adjoints=true)
     if SymbolicUtils.istree(r)
         for arg∈SymbolicUtils.arguments(r)
@@ -52,27 +71,6 @@ function find_missing(eqs::Vector, vhash::Vector{UInt}, vs′hash::Vector{UInt};
     return missed
 end
 
-function find_missing(he::HeisenbergEquation; vs_adj=nothing, get_adjoints=true)
-    vs = he.states
-    vhash = map(hash, vs)
-    vs′ = if vs_adj===nothing
-        map(_conj, vs)
-    else
-        vs_adj
-    end
-    vs′hash = map(hash, vs′)
-    filter!(!in(vhash), vs′hash)
-
-    missed = []
-    missed_hashes = UInt[]
-
-    eqs = he.equations
-    for i=1:length(eqs)
-        find_missing!(missed, missed_hashes, eqs[i].rhs, vhash, vs′hash; get_adjoints=get_adjoints)
-    end
-    return missed
-end
-
 """
     _in(x, itr)
 
@@ -96,7 +94,21 @@ end
     complete!(de::HeisenbergEquation)
 
 From a set of differential equation of averages, find all averages that are missing
-and derive the corresponding equations of motion.
+and derive the corresponding equations of motion. Uses [`find_missing`](@ref)
+and [`heisenberg`](@ref) to do so.
+
+Optional arguments
+==================
+
+*`order=de.order`: The order at which the [`cumulant_expansion`](@ref) is performed
+    on the newly derived equations. If `nothing`, the order is inferred from the
+    existing equations.
+*`filter_func=nothing`: Custom function that specifies whether some averages should
+    be ignored when completing a system. This works by calling `filter!(filter_func, missed)`
+    where `missed` is the vector resulting from [`find_missing`](@ref). Occurrences
+    of averages for which `filter_func` returns `false` are substituted to 0.
+*`kwargs...`: Further keyword arguments are passed on to [`heisenberg`](@ref) and
+    simplification.
 """
 function complete(de::HeisenbergEquation;kwargs...)
     de_ = deepcopy(de)
@@ -105,6 +117,7 @@ function complete(de::HeisenbergEquation;kwargs...)
 end
 function complete!(de::HeisenbergEquation;
                                 order=de.order,
+                                multithread=false,
                                 filter_func=nothing,
                                 mix_choice=maximum,
                                 simplify=true,
@@ -116,7 +129,7 @@ function complete!(de::HeisenbergEquation;
         k = get_order(de.equations[i].rhs)
         k > order_rhs && (order_rhs = k)
     end
-    if order isa Nothing
+    if order === nothing
         order_ = max(order_lhs, order_rhs)
     else
         order_ = order
@@ -145,6 +158,7 @@ function complete!(de::HeisenbergEquation;
         he = heisenberg(ops_,de.hamiltonian,de.jumps;
                                 rates=de.rates,
                                 simplify=simplify,
+                                multithread=multithread,
                                 expand=true,
                                 order=order_,
                                 mix_choice=mix_choice,
