@@ -91,7 +91,6 @@ end
 
 """
     complete(de::HeisenbergEquation)
-    complete!(de::HeisenbergEquation)
 
 From a set of differential equation of averages, find all averages that are missing
 and derive the corresponding equations of motion. Uses [`find_missing`](@ref)
@@ -109,12 +108,20 @@ Optional arguments
     of averages for which `filter_func` returns `false` are substituted to 0.
 *`kwargs...`: Further keyword arguments are passed on to [`heisenberg`](@ref) and
     simplification.
+
+see also: [`find_missing`](@ref), [`heisenberg`](@ref)
 """
 function complete(de::HeisenbergEquation;kwargs...)
     de_ = deepcopy(de)
     complete!(de_;kwargs...)
     return de_
 end
+
+"""
+    complete!(de::HeisenbergEquation)
+
+In-place version of [`complete`](@ref)
+"""
 function complete!(de::HeisenbergEquation;
                                 order=de.order,
                                 multithread=false,
@@ -272,7 +279,6 @@ end
 
 """
     unique_ops(ops)
-    unique_ops!(ops)
 
 For a given list of operators, return only unique ones taking into account
 their adjoints.
@@ -282,6 +288,12 @@ function unique_ops(ops)
     unique_ops!(ops_)
     return ops_
 end
+
+"""
+    unique_ops!(ops)
+
+In-place version of [`unique_ops`](@ref).
+"""
 function unique_ops!(ops)
     hashes = map(hash, ops)
     hashes′ = map(hash, map(_adjoint, ops))

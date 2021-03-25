@@ -40,7 +40,7 @@ The first equation we want to derive is that for the average photon number $\lan
 
 ```@example single-atom-laser-spectrum
 # Derive equation for average photon number
-he_n = average(heisenberg(a'*a,H,J;rates=rates), 2)
+he_n = heisenberg(a'*a,H,J;rates=rates,expand=true,order=2)
 nothing # hide
 ```
 
@@ -62,10 +62,9 @@ function ϕ(t::Transition)
     end
 end
 ϕ(avg::Average) = ϕ(avg.arguments[1])
-function ϕ(t::QTerm)
-    @assert t.f === (*)
+function ϕ(t::Qumulants.QMul)
     p = 0
-    for arg in t.arguments
+    for arg in t.args_nc
         p += ϕ(arg)
     end
     return p

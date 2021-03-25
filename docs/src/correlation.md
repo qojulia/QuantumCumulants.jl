@@ -40,14 +40,14 @@ h = FockSpace(:cavity)
 a = Destroy(h,:a)
 @cnumbers ωc κ
 H = ωc*a'*a
-he = average(heisenberg(a'*a,H,[a];rates=[κ]))
+he = heisenberg(a'*a,H,[a];rates=[κ])
 
 c = CorrelationFunction(a', a, he)
 nothing # hide
 ```
 When the [`CorrelationFunction`](@ref) is constructed, an additional Hilbert space is added internally which represents the system at the time ``t``. In our case, this means that another [`FockSpace`](@ref) is added. Note that all operators involved in the correlation function are defined on the [`ProductSpace`](@ref) including this additional Hilbert space.
 
-The equation for ``g(t,\tau)`` is now stored in the first entry of `c.de`. To solve the above numerically, we need to generate code and solve the equations numerically.
+The equation for ``g(t,\tau)`` is now stored in the first entry of `c.de`. To solve the above numerically, we need to convert to an `ODESystem` and solve numerically.
 ```@example correlation
 using ModelingToolkit, OrdinaryDiffEq
 
@@ -59,7 +59,7 @@ prob = ODEProblem(sys,u0,(0.0,2.0),p0) # End time not in steady state
 sol = solve(prob,RK4())
 nothing # hide
 ```
-Numerical computing the correlation function works in the same way. Note, the initial state of the correlation function depends on the final state of the system. However, in general it does not depend on *all* the final values of the system. The correct values can be picked out automatically using the [`correlation_u0`](@ref) function.
+Numerically computing the correlation function works in the same way. Note, the initial state of the correlation function depends on the final state of the system. However, in general it does not depend on *all* the final values of the system. The correct values can be picked out automatically using the [`correlation_u0`](@ref) function.
 ```@example correlation
 csys = ODESystem(c)
 u0_c = correlation_u0(c, sol.u[end])
@@ -96,7 +96,7 @@ using QuantumOptics.timecorrelations: correlation2spectrum
 ω, s = correlation2spectrum(τ, sol_c.(τ))
 nothing # hide
 ```
-The spectrum obtained in this way roughly has a FWHM of `κ` and is based around the chosen `ωc`. The fact that the FWHM is not *exactly* `κ` illustrates the computation drawback: in order to obtain the correct FWHM we would have to increase the integration time by orders of magnitude. For larger system, this can be computationally expensive.
+The spectrum obtained in this way roughly has a FWHM of `κ` and is based around the chosen `ωc`. The fact that the FWHM is not *exactly* `κ` illustrates the computation drawback: in order to obtain the correct FWHM we would have to increase the integration time by orders of magnitude. For larger systems, this can be computationally expensive.
 
 
 ### Steady state: using the Laplace transform
@@ -113,11 +113,11 @@ We define ``\textbf{x}(s) = \mathcal{L}\left(\textbf{y}(\tau)\right)``, i.e. ``\
 ```
 The Laplace transform is equivalent to the Fourier transform at the point ``s=i \omega``, i.e. the spectrum is given by ``S(\omega) = 2\text{Re}\left\{x_1(i\omega)\right\}``. Therefore, we can reduce the task to solving the equation
 ```math
-A\textbf{x} = b,
+A\textbf{x} = b + c,
 ```
-where ``A = i\omega - \textbf{M}`` and ``b = \textbf{y}(0) + \textbf{c}/(i\omega)``. In most cases, solving the above matrix equation is much faster than doing an additional time evolution to obtain the correlation function.
+where ``A = i\omega - \textbf{M}``, ``b = \textbf{y}(0)`` and ``c=\textbf{c}/(i\omega)``. In most cases, solving the above matrix equation is much faster than doing an additional time evolution to obtain the correlation function.
 
-This approach is implemented with the [`Spectrum`](@ref) type, which performs the Laplace transform and generates a function that returns the matrix ``A`` and the vector ``b`` in numerical form depending on the steady-state values and given parameters. This can be used as follows
+This approach is implemented with the [`Spectrum`](@ref) type, which performs the Laplace transform and computes the matrix ``A`` and the vectors ``b`` and ``c`` symbolically. Additionally, functions that return all those things in numerical form depending on the steady-state values and given parameters are generated via [Symbolics](https://github.com/JuliaSymbolics/Symbolics.jl) `build_function`. Usage is as follows:
 
 ```@example correlation
 c = CorrelationFunction(a', a, he; steady_state=true) # need to specify steady state

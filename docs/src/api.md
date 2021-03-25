@@ -34,6 +34,10 @@ QSym
 ```
 
 ```@docs
+QTerm
+```
+
+```@docs
 @qnumbers
 ```
 
@@ -64,11 +68,7 @@ commutator
 acts_on
 ```
 
-## [Differential Equations](@id API: Differential equations)
-
-```@docs
-AbstractEquation
-```
+## [Heisenberg equations](@id API: Differential equations)
 
 ```@docs
 HeisenbergEquation
@@ -90,16 +90,6 @@ cnumbers
 
 ```@docs
 @cnumbers
-```
-
-## [Simplification](@id API: Simplify)
-
-```@docs
-qsimplify
-```
-
-```@docs
-expand
 ```
 
 ## [Average](@id API: Average)
@@ -145,14 +135,6 @@ find_missing
 ```
 
 ```@docs
-get_symbolics
-```
-
-```@docs
-get_operators
-```
-
-```@docs
 find_operators
 ```
 
@@ -161,7 +143,15 @@ complete
 ```
 
 ```@docs
+complete!
+```
+
+```@docs
 unique_ops
+```
+
+```@docs
+unique_ops!
 ```
 
 ```@docs
