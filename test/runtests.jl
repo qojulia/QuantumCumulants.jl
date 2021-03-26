@@ -1,7 +1,6 @@
 names = [
     "test_fock.jl"
     "test_nlevel.jl"
-    "test_embed.jl"
     "test_heisenberg.jl"
     "test_parameters.jl"
     "test_average.jl"
@@ -9,7 +8,7 @@ names = [
     "test_v-level.jl"
     "test_mixed-order.jl"
     "test_correlation.jl"
-    # "test_multisystems.jl"
+    "test_two-level-laser.jl"
     # "test_higher-order.jl"
 ]
 

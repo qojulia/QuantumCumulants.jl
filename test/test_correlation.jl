@@ -17,9 +17,9 @@ a = Destroy(h,:a)
 
 H = Δ*a'*a + g*(a'*σ + σ'*a)
 J = [a,σ,σ']
-he_laser = heisenberg([a'*a,σ'*σ,a*σ'],H,J;rates=[κ,γ,ν],multithread=true,simplify_input=true)
+he_laser = heisenberg([a'*a,σ'*σ,a*σ'],H,J;rates=[κ,γ,ν])
 
-he_avg = average(he_laser,2;multithread=true)
+he_avg = cumulant_expansion(he_laser,2)
 he_comp = complete(he_avg)
 
 ps = (Δ, g, γ, κ, ν)
@@ -42,7 +42,7 @@ pe = getindex.(sol.u,2)
 @test all(1.0 .>= real.(pe) .>= 0.0)
 
 # Correlation function
-c_steady = CorrelationFunction(a', a, he_comp; steady_state=true, multithread=true)
+c_steady = CorrelationFunction(a', a, he_comp; steady_state=true)
 csys = ODESystem(c_steady)
 
 u0_c = correlation_u0(c_steady, sol.u[end])
@@ -67,11 +67,6 @@ S2 = S(ω,usteady,getindex.(p0, 2))
 # plot(ω, S2 ./ maximum(S2), label="Laplace transform")
 # xlim(-2pi,2pi)
 
-# S_ = S(ω_ls,usteady,p0)
-# max, ind = findmax(S_)
-# hm_idx = findmin(abs.(S_ .- 0.5max))[2]
-# fwhm = 2*abs(ω_ls[ind] - ω_ls[hm_idx])
-
 S1_ = S1 ./ maximum(S1)
 S1_ .-= minimum(S1_)
 S_check = abs.(S2 ./ maximum(S2) .- S1_)
@@ -95,7 +90,7 @@ function phase(t::Transition)
         0
     end
 end
-phase(op::Qumulants.QTerm) = (@assert op.f===(*); sum(phase(arg) for arg in op.arguments))
+phase(op::Qumulants.QMul) = sum(phase(arg) for arg in op.args_nc)
 c_nophase = CorrelationFunction(a', a, he_avg; steady_state=true, filter_func=!has_phase)
 
 S_nophase = Spectrum(c_nophase, ps)
@@ -109,16 +104,15 @@ a = Destroy(h,:a)
 @cnumbers ωc κ
 H = ωc*a'*a
 he = heisenberg(a'*a,H,[a];rates=[κ])
-he_avg = average(he)
 ps = (ωc,κ)
-sys = ODESystem(he_avg)
+sys = ODESystem(he)
 n0 = 20.0
 u0 = [n0]
 p0 = (1,1)
 prob = ODEProblem(sys,u0,(0.0,10.0),p0)
 sol = solve(prob,RK4())
 
-c = CorrelationFunction(a', a, he_avg)
+c = CorrelationFunction(a', a, he)
 csys = ODESystem(c)
 idx = 5
 u0_c = correlation_u0(c, sol.u[idx])

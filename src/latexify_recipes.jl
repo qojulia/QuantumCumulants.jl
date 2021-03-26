@@ -2,7 +2,6 @@ using Latexify
 import MacroTools
 using LaTeXStrings
 
-const tsym_latex = Ref(:t)
 const transition_idx_script = Ref(:^)
 
 """
@@ -38,7 +37,7 @@ function _postwalk_func(x)
 end
 
 function _postwalk_average(x)
-    if MacroTools.@capture(x, average(arg_))
+    if MacroTools.@capture(x, AVG(arg_))
         arg = MacroTools.postwalk(_postwalk_func, arg)
         # TODO: clean up; tricky because of nested string conversion of eg average(dagger(a))
         s = string(arg)
@@ -51,16 +50,18 @@ function _postwalk_average(x)
     return x
 end
 
-@latexrecipe function f(de::AbstractEquation)
+@latexrecipe function f(de::AbstractHeisenbergEquation)
     # Options
     env --> :align
     cdot --> false
 
-    lhs, rhs = _latexify(de.lhs,de.rhs)
+    lhs = getfield.(de.equations, :lhs)
+    rhs = getfield.(de.equations, :rhs)
+    lhs, rhs = _latexify(lhs, rhs, de.iv)
     return lhs, rhs
 end
 
-function _latexify(lhs_::Vector, rhs_::Vector)
+function _latexify(lhs_, rhs_, t)
 
     # Convert eqs to Exprs
     rhs = _to_expression.(rhs_)
@@ -70,7 +71,7 @@ function _latexify(lhs_::Vector, rhs_::Vector)
     lhs = [MacroTools.postwalk(_postwalk_func, eq) for eq=lhs]
     lhs = [MacroTools.postwalk(_postwalk_average, eq) for eq=lhs]
 
-    tsym = tsym_latex[]
+    tsym = Symbol(t)
     dt = Symbol(:d, tsym)
     ddt = :(d/$(dt))
     lhs = [:($ddt * ($l)) for l=lhs]
@@ -109,4 +110,44 @@ end
 @latexrecipe function f(S::Spectrum)
     l = latexstring(L"\mathcal{F}(", latexify(S.corr), L")(\omega)")
     return l
+end
+
+_to_expression(x::Number) = x
+function _to_expression(x::Complex) # For brackets when using latexify
+    iszero(x) && return x
+    if iszero(real(x))
+        return :( $(imag(x))*im )
+    elseif iszero(imag(x))
+        return real(x)
+    else
+        return :( $(real(x)) + $(imag(x))*im )
+    end
+end
+_to_expression(op::QSym) = op.name
+_to_expression(op::Create) = :(dagger($(op.name)))
+_to_expression(op::Transition) = :(Transition($(op.name),$(op.i),$(op.j)) )
+function _to_expression(t::QMul)
+    args = if isone(t.arg_c)
+        t.args_nc
+    else
+        SymbolicUtils.arguments(t)
+    end
+    return :( *($(_to_expression.(args)...)) )
+end
+_to_expression(t::QAdd) = :( +($(_to_expression.(t.arguments)...)) )
+
+_to_expression(p::Parameter) = p.name
+function _to_expression(s::SymbolicUtils.Symbolic)
+    if SymbolicUtils.istree(s)
+        f = SymbolicUtils.operation(s)
+        fsym = if f === sym_average
+            :AVG
+        else
+            Symbol(f)
+        end
+        args = map(_to_expression, SymbolicUtils.arguments(s))
+        return :( $(fsym)($(args...)) )
+    else
+        return nameof(s)
+    end
 end

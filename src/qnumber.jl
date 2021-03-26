@@ -12,87 +12,275 @@ Abstract type representing fundamental operator types.
 """
 abstract type QSym <: QNumber end
 
+"""
+    QTerm <: QNumber
+
+Abstract type representing noncommutative expressions.
+"""
+abstract type QTerm <: QNumber end
+
 Base.isequal(a::T,b::T) where T<:QSym = isequal(a.hilbert, b.hilbert) && isequal(a.name, b.name) && isequal(a.aon, b.aon)
 Base.isless(a::QSym,b::QSym) = a.name < b.name
 
 
-### Interface for SymbolicUtils
+## Interface for SymbolicUtils
 
 # Symbolic type promotion
-SymbolicUtils.promote_symtype(f, Ts::Type{<:QNumber}...) = promote_type(QNumber,Ts...)
-SymbolicUtils.promote_symtype(f, T::Type{<:QNumber}, Ts...) = promote_type(QNumber,T)
-SymbolicUtils.promote_symtype(f,T::Type{<:QNumber},S::Type{<:Number}) = QNumber
-SymbolicUtils.promote_symtype(f,T::Type{<:Number},S::Type{<:QNumber}) = QNumber
-SymbolicUtils.promote_symtype(f,T::Type{<:QNumber},S::Type{<:QNumber}) = QNumber
+# SymbolicUtils.promote_symtype(f, Ts::Type{<:QNumber}...) = promote_type(QNumber,Ts...)
+# SymbolicUtils.promote_symtype(f, T::Type{<:QNumber}, Ts...) = promote_type(QNumber,T)
+# SymbolicUtils.promote_symtype(f,T::Type{<:QNumber},S::Type{<:Number}) = QNumber
+# SymbolicUtils.promote_symtype(f,T::Type{<:Number},S::Type{<:QNumber}) = QNumber
+# SymbolicUtils.promote_symtype(f,T::Type{<:QNumber},S::Type{<:QNumber}) = QNumber
 
-SymbolicUtils.symtype(x::T) where T<:QNumber = T
-SymbolicUtils.to_symbolic(x::QNumber) = x
+# SymbolicUtils.symtype(x::T) where T<:QNumber = T
 
 SymbolicUtils.istree(::QSym) = false
+SymbolicUtils.istree(::QTerm) = true
 
-### End of interface
-
-
-### Methods
-
-const QTerm = SymbolicUtils.Term{<:QNumber}
-const QSymbolic = Union{<:QSym, <:QTerm}
-
-for f = [:+,:-,:*]
-    @eval Base.$f(a::QSymbolic,b::QSymbolic) = (check_hilbert(a,b); SymbolicUtils.Term($f, [a,b]))
-    @eval Base.$f(a::QSymbolic,b::Number) = SymbolicUtils.Term($f, [a,b])
-    @eval Base.$f(a::Number,b::QSymbolic) = SymbolicUtils.Term($f, [a,b])
-    @eval Base.$f(a::QSymbolic,b::SymbolicUtils.Symbolic{<:Number}) = SymbolicUtils.Term($f, [a,b])
-    @eval Base.$f(a::SymbolicUtils.Symbolic{<:Number},b::QSymbolic) = SymbolicUtils.Term($f, [a,b])
-end
-Base.:^(a::QSymbolic,b::Integer) = SymbolicUtils.Term(^, [a,b])
-Base.:/(a::QSymbolic,b::Number) = SymbolicUtils.Term(/, [a,b])
-Base.:/(a::QSymbolic,b::SymbolicUtils.Symbolic{<:Number}) = SymbolicUtils.Term(/, [a,b])
-
-# Variadic methods
-Base.:-(x::QSymbolic) = -1*x
-for f in [:+,:*]
-    @eval Base.$f(x::QSymbolic) = x
-    @eval Base.$f(x::QSymbolic, w::QSymbolic...) = (check_hilbert(x,w...); SymbolicUtils.Term($f, [x;w...]))
-    @eval Base.$f(x, y::QSymbolic, w...) = (check_hilbert(x,y,w...); SymbolicUtils.Term($f, [x;y;w...]))
-    @eval Base.$f(x::QSymbolic, y::QSymbolic, w...) = (check_hilbert(x,y,w...); SymbolicUtils.Term($f, [x;y;w...]))
+# Standard simplify
+function SymbolicUtils.simplify(x::QNumber;kwargs...)
+    avg = average(x)
+    avg_ = SymbolicUtils.simplify(avg;kwargs...)
+    return undo_average(avg_)
 end
 
-function Base.adjoint(t::QTerm)
-    args = adjoint.(SymbolicUtils.arguments(t))
-    f = SymbolicUtils.operation(t)
-    if f === (*)
-        reverse!(args)
-        is_c = iscommutative.(args)
-        args_c = args[is_c]
-        args_nc = sort(args[.!is_c], lt=lt_aon)
-        args = vcat(args_c, args_nc)
-    end
-    return SymbolicUtils.similarterm(t, f, args)
-end
+## End of interface
 
-# Hilbert space checks
-check_hilbert(a::QSym,b::QSym) = (a.hilbert == b.hilbert) || error("Incompatible Hilbert spaces $(a.hilbert) and $(b.hilbert)!")
-function check_hilbert(a::QTerm,b::QSym)
-    a_ = findfirst(x->isa(x,QSymbolic), SymbolicUtils.arguments(a))
-    return check_hilbert(a_,b)
-end
-function check_hilbert(a::QSym,b::QTerm)
-    b_ = findfirst(x->isa(x,QSymbolic), SymbolicUtils.arguments(b))
-    return check_hilbert(a,b_)
-end
-function check_hilbert(a::QTerm,b::QTerm)
-    a_ = findfirst(x->isa(x,QSymbolic), SymbolicUtils.arguments(a))
-    b_ = findfirst(x->isa(x,QSymbolic), SymbolicUtils.arguments(b))
-    return check_hilbert(a_,b_)
-end
-function check_hilbert(args...)
-    for i=1:length(args)-1
-        check_hilbert(args[i], args[i+1])
+## Methods
+import Base: *, +, -
+const SNuN = Union{<:SymbolicUtils.Symbolic{<:Number}, <:Number}
+
+Base.:~(a::QNumber, b::QNumber) = Symbolics.Equation(a, b)
+
+## Multiplication
+"""
+    QMul <: QTerm
+
+Represent a multiplication involving [`QSym`](@ref) types.
+
+Fields:
+======
+
+* arg_c: The commutative prefactor.
+* args_nc: A vector containing all [`QSym`](@ref) types.
+"""
+struct QMul <: QTerm
+    arg_c
+    args_nc::Vector{Any}
+    function QMul(arg_c,args_nc)
+        if SymbolicUtils._isone(arg_c) && length(args_nc)==1
+            return args_nc[1]
+        else
+            return new(arg_c, args_nc)
+        end
     end
 end
-check_hilbert(x,y) = true
+Base.hash(q::T, h::UInt) where T<:QMul = hash(T, hash(q.arg_c, SymbolicUtils.hashvec(q.args_nc, h)))
+Base.isless(a::QMul, b::QMul) = isless(a.h, b.h)
 
+SymbolicUtils.operation(::QMul) = (*)
+SymbolicUtils.arguments(a::QMul) = vcat(a.arg_c, a.args_nc)
+# SymbolicUtils.similarterm(::QMul, ::typeof(*), args) = QMul(Ref(args[1]), args[2:end])
+
+function Base.adjoint(q::QMul)
+    args_nc = map(adjoint, q.args_nc)
+    reverse!(args_nc)
+    sort!(args_nc, by=acts_on)
+    return QMul(conj(q.arg_c),args_nc)
+end
+
+
+function Base.isequal(a::QMul, b::QMul)
+    isequal(a.arg_c, b.arg_c) || return false
+    length(a.args_nc)==length(b.args_nc) || return false
+    for (arg_a, arg_b) ∈ zip(a.args_nc, b.args_nc)
+        isequal(arg_a,arg_b) || return false
+    end
+    return true
+end
+
+function *(a::QSym,b::QSym)
+    check_hilbert(a, b)
+    args = [a,b]
+    sort!(args, by=acts_on)
+    QMul(1,args)
+end
+
+function *(a::QSym, b::SNuN)
+    SymbolicUtils._iszero(b) && return b
+    SymbolicUtils._isone(b) && return a
+    return QMul(b,[a])
+end
+*(b::SNuN, a::QNumber) = a*b
+
+function *(a::QMul, b::SNuN)
+    SymbolicUtils._iszero(b) && return b
+    SymbolicUtils._isone(b) && return a
+    arg_c = a.arg_c * b
+    return QMul(arg_c, a.args_nc)
+end
+
+function *(a::QSym, b::QMul)
+    check_hilbert(a, b)
+    args_nc = vcat(a,b.args_nc)
+    sort!(args_nc, by=acts_on)
+    return merge_commutators(b.arg_c,args_nc)
+end
+function *(a::QMul, b::QSym)
+    check_hilbert(a, b)
+    args_nc = vcat(a.args_nc, b)
+    sort!(args_nc, by=acts_on)
+    return merge_commutators(a.arg_c,args_nc)
+end
+
+function *(a::QMul, b::QMul)
+    check_hilbert(a, b)
+    args_nc = vcat(a.args_nc, b.args_nc)
+    sort!(args_nc, by=acts_on)
+    arg_c = a.arg_c*b.arg_c
+    return merge_commutators(arg_c,args_nc)
+end
+
+Base.:/(a::QNumber, b::SNuN) = (1/b) * a
+
+function merge_commutators(arg_c,args_nc)
+    i = 1
+    was_merged = false
+    while i<length(args_nc)
+        if _ismergeable(args_nc[i], args_nc[i+1])
+            args_nc[i] = *(args_nc[i], args_nc[i+1])
+            iszero(args_nc[i]) && return 0
+            deleteat!(args_nc, i+1)
+            was_merged = true
+        end
+        i += 1
+    end
+    if was_merged
+        return *(arg_c, args_nc...)
+    else
+        return QMul(arg_c, args_nc)
+    end
+end
+
+_ismergeable(a,b) = isequal(acts_on(a),acts_on(b)) && ismergeable(a,b) && isequal(hilbert(a),hilbert(b))
+ismergeable(a,b) = false
+
+## Powers
+function Base.:^(a::QNumber, n::Integer)
+    iszero(n) && return 1
+    isone(n) && return a
+    return *((a for i=1:n)...)
+end
+
+## Addition
+"""
+    QAdd <: QTerm
+
+Represent an addition involving [`QNumber`](@ref) and other types.
+"""
+struct QAdd <: QTerm
+    arguments::Vector{Any}
+end
+
+Base.hash(q::T, h::UInt) where T<:QAdd = hash(T, SymbolicUtils.hashvec(q.arguments, h))
+function Base.isequal(a::QAdd,b::QAdd)
+    length(a.arguments)==length(b.arguments) || return false
+    for (arg_a,arg_b) ∈ zip(a.arguments, b.arguments)
+        isequal(arg_a, arg_b) || return false
+    end
+    return true
+end
+
+SymbolicUtils.operation(::QAdd) = (+)
+SymbolicUtils.arguments(a::QAdd) = a.arguments
+# SymbolicUtils.similarterm(::QAdd, ::typeof(+), args) = QAdd(args)
+
+Base.adjoint(q::QAdd) = QAdd(map(adjoint, q.arguments))
+
+-(a::QNumber) = -1*a
+-(a,b::QNumber) = a + (-b)
+-(a::QNumber,b) = a + (-b)
+-(a::QNumber,b::QNumber) = a + (-b)
+
++(a::QNumber, b::SNuN) = QAdd([a,b])
++(a::SNuN,b::QNumber) = +(b,a)
+function +(a::QAdd,b::SNuN)
+    SymbolicUtils._iszero(b) && return a
+    args = vcat(a.arguments, b)
+    return QAdd(args)
+end
+
+function +(a::QNumber, b::QNumber)
+    check_hilbert(a, b)
+    args = [a,b]
+    return QAdd(args)
+end
+
+function +(a::QAdd,b::QNumber)
+    check_hilbert(a, b)
+    args = vcat(a.arguments, b)
+    return QAdd(args)
+end
+function +(b::QNumber,a::QAdd)
+    check_hilbert(a, b)
+    args = vcat(a.arguments, b)
+    return QAdd(args)
+end
+function +(a::QAdd,b::QAdd)
+    check_hilbert(a, b)
+    args = vcat(a.arguments, b.arguments)
+    return QAdd(args)
+end
+
+function *(a::QAdd, b)
+    check_hilbert(a, b)
+    args = Any[a_ * b for a_ ∈ a.arguments]
+    flatten_adds!(args)
+    q = QAdd(args)
+    return q
+end
+function *(a::QNumber, b::QAdd)
+    check_hilbert(a, b)
+    args = Any[a * b_ for b_ ∈ b.arguments]
+    flatten_adds!(args)
+    q = QAdd(args)
+    return q
+end
+function *(a::QAdd, b::QAdd)
+    check_hilbert(a, b)
+    args = []
+    for a_ ∈ a.arguments, b_ ∈ b.arguments
+        push!(args, a_ * b_)
+    end
+    flatten_adds!(args)
+    q = QAdd(args)
+    return q
+end
+
+function flatten_adds!(args)
+    i = 1
+    while i <= length(args)
+        if args[i] isa QAdd
+            append!(args,args[i].arguments)
+            deleteat!(args, i)
+        end
+        i += 1
+    end
+    return args
+end
+
+
+
+## Hilbert space checks
+check_hilbert(a::QNumber,b::QNumber) = (hilbert(a) == hilbert(b)) || error("Incompatible Hilbert spaces $(a.hilbert) and $(b.hilbert)!")
+check_hilbert(x,y) = nothing
+
+hilbert(a::QSym) = a.hilbert
+hilbert(a::QMul) = hilbert(a.args_nc[1])
+function hilbert(a::QAdd)
+    idx = findfirst(x->x isa QNumber, a.arguments)
+    hilbert(a.arguments[idx])
+end
 
 """
     acts_on(op)
@@ -101,12 +289,19 @@ Shows on which Hilbert space `op` acts. For [`QSym`](@ref) types, this
 returns an Integer, whereas for a `Term` it returns a `Vector{Int}`
 whose entries specify all subspaces on which the expression acts.
 """
-acts_on(op::QSym) = op.aon # TODO make Int[]
-function acts_on(t::QTerm)
-    ops = filter(SymbolicUtils.sym_isa(QSymbolic), SymbolicUtils.arguments(t))
+acts_on(op::QSym) = op.aon
+function acts_on(q::QMul)
     aon = Int[]
-    for op in ops
-        append!(aon, acts_on(op))
+    for arg ∈ q.args_nc
+        aon_ = acts_on(arg)
+        aon_ ∈ aon || push!(aon, aon_)
+    end
+    return aon
+end
+function acts_on(q::QAdd)
+    aon = Int[]
+    for arg ∈ q.arguments
+        append!(aon, acts_on(arg))
     end
     unique!(aon)
     sort!(aon)
@@ -120,11 +315,6 @@ Base.isone(::QNumber) = false
 Base.zero(::T) where T<:QNumber = zero(T)
 Base.zero(::Type{<:QNumber}) = 0
 Base.iszero(::QNumber) = false
-
-function Base.copy(op::T) where T<:QSym
-    fields = [getfield(op, n) for n in fieldnames(T)]
-    return T(fields...)
-end
 
 """
     @qnumbers

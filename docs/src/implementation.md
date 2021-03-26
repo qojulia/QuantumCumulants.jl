@@ -149,7 +149,7 @@ These rules are implemented as rewriting rules using [**SymbolicUtils.jl**](http
 using Qumulants # hide
 h = FockSpace(:fock)
 @qnumbers a::Destroy(h)
-qsimplify(a*a') # returns a'*a + 1
+a*a' # returns a'*a + 1
 nothing # hide
 ```
 
@@ -195,11 +195,7 @@ average(a'*a, 1) # short-hand for cumulants_expansion(average(a'*a), 1)
 nothing #hide
 ```
 
-When applying this to a system of equations, you obtain a set of *c*-number differential equations.
-
-```@example heisenberg
-he_avg = average(he,2)
-```
+<!-- When applying this to a system of equations, you obtain a set of *c*-number differential equations. -->
 
 Before you can actually solve the system of equations, you need to ensure that it is complete, i.e. there are no averages missing. This can be checked with [`find_missing`](@ref). Alternatively, you can automatically complete a system of equations using the [`complete`](@ref) function which will internally use [`find_missing`](@ref) to look for missing averages and derive equations for those.
 
@@ -212,7 +208,7 @@ To obtain an `ODESystem` from a `HeisenbergEquation`, you simply need to call th
 
 ```@example heisenberg
 using ModelingToolkit
-sys = ODESystem(he_avg)
+sys = ODESystem(he)
 nothing # hide
 ```
 
@@ -221,7 +217,7 @@ Finally, to obtain a numerical solution we can construct an `ODEProblem` and sol
 ```@example heisenberg
 using OrdinaryDiffEq
 p0 = (ω => 1.0, η => 0.1)
-u0 = zeros(ComplexF64, length(he_avg))
+u0 = zeros(ComplexF64, length(he))
 prob = ODEProblem(sys,u0,(0.0,1.0),p0)
 sol = solve(prob, RK4())
 nothing # hide

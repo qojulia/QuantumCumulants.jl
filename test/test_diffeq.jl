@@ -16,11 +16,10 @@ h = tensor(hf, ha)
 
 H = Δ*a'*a + g*(a'*σ + σ'*a)
 J = [a,σ,σ']
-he_laser = heisenberg([a'*a,σ'*σ,a*σ'],H,J;rates=[κ,γ,ν],multithread=true,simplify_input=true)
+he_avg = heisenberg([a'*a,σ'*σ,a*σ'],H,J;rates=[κ,γ,ν])
 
-he_avg = average(he_laser;multithread=true)
-he_exp = cumulant_expansion(he_avg,2;multithread=false)
-@test isequal(he_exp, average(he_laser,2))
+he_exp = cumulant_expansion(he_avg,2)
+@test isequal(he_exp.equations, heisenberg([a'*a,σ'*σ,a*σ'],H,J;rates=[κ,γ,ν],expand=true,order=2).equations)
 
 ps = [Δ,g,κ,γ,ν]
 missed = find_missing(he_exp)

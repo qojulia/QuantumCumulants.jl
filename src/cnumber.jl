@@ -18,7 +18,7 @@ struct Parameter <: CNumber
 end
 
 # Promoting to CNumber ensures we own the symtype; could be used to dispatch
-# on Base methods (e.g. latex printing); not sure in how far this is type piracy
+# on Base methods (e.g. latex printing)
 Base.promote_rule(::Type{<:CNumber},::Type{<:Number}) = CNumber
 
 """

@@ -25,13 +25,13 @@ H = H_atom + H_cav
 # Jump operators
 J = [a,σ(1,2),σ(1,3)]
 rates = [κ,Γ2,Γ3]
-ops = [a'*a];
+ops = [a'*a]
 
 # Derive first equation
 he_n = heisenberg([a'*a],H,J;rates=rates)
 
 # Average and expand to 2nd order
-hn_avg = average(he_n,2)
+hn_avg = cumulant_expansion(he_n,2)
 
 # Complete the system
 he_comp = complete(hn_avg)
@@ -39,19 +39,19 @@ he_comp = complete(hn_avg)
 # Compare to finding operators from start
 ops = find_operators(h,2)
 
-@test length(ops)==length(he_comp.lhs)==16
+@test length(ops)==length(he_comp)==16
 he = heisenberg(ops,H,J;rates=rates)
-he_avg = average(he,2)
+he_avg = cumulant_expansion(he,2)
 
 # @test all((Qumulants._in(l, he_comp.lhs) || l' in he_comp.lhs) for l in he_avg.lhs)
-@test all((Qumulants._in(l, he_comp.lhs) || Qumulants._in(Qumulants._adjoint(l), he_comp.lhs) for l in he_avg.lhs))
-@test all((Qumulants._in(l, he_comp.lhs) || Qumulants._in(Qumulants._adjoint(l), he_avg.lhs)) for l in he_comp.lhs)
+@test all((Qumulants._in(l, he_comp.states) || Qumulants._in(Qumulants._adjoint(l), he_comp.states) for l in he_avg.states))
+@test all((Qumulants._in(l, he_comp.states) || Qumulants._in(Qumulants._adjoint(l), he_avg.states)) for l in he_comp.states)
 
 
 p = [κ, g, Δc, Γ2, Γ3, Δ2, Δ3, Ω2, Ω3]
 sys = ODESystem(he_avg)
 
-u0 = zeros(ComplexF64,length(he_avg.lhs))
+u0 = zeros(ComplexF64,length(he_avg))
 
 # Parameters - numerical values
 Γ3n = 1.0
@@ -99,11 +99,10 @@ filter!(x->(3 in acts_on(x)), ops_f)
 
 # Compute equations
 he_f = heisenberg(ops_f,Hf,Jf;rates=rates_f)
-he_f_avg = average(he_f,2)
+he_f_avg = cumulant_expansion(he_f,2)
 
 # Find missing averages and them as parameter
-import SymbolicUtils
-missing_avgs = filter(SymbolicUtils.sym_isa(Average), find_missing(he_f_avg))
+missing_avgs = find_missing(he_f_avg)
 avg_ps = Qumulants._make_parameter.(missing_avgs)
 
 he_f_avg = substitute(he_f_avg, Dict(missing_avgs .=> avg_ps))
@@ -112,6 +111,6 @@ he_f_avg = substitute(he_f_avg, Dict(missing_avgs .=> avg_ps))
 pf = [ωf; gf; κf; avg_ps; p]
 
 # Generate function for the filter cavities
-sys = ODESystem(he_f_avg)
+sys_f = ODESystem(he_f_avg)
 
 end # testset

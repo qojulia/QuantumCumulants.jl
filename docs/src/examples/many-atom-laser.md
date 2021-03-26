@@ -71,7 +71,7 @@ Later we will complete the system automatically, which has the disadvantage that
 ops = [a'a, σ(2,2,1), σ(3,3,1)]
 
 he = heisenberg(ops,H,J; rates=rates)
-he_avg_ = average(he,2) #second order average
+he_avg_ = cumulant_expansion(he,2) #second order average
 nothing # hide
 ```
 
@@ -84,7 +84,7 @@ nothing # hide
 ```
 
 ```@example 3-level-laser
-he_avg = complete(he_avg_; multithread=true) #automatically complete the system
+he_avg = complete(he_avg_) #automatically complete the system
 nothing # hide
 ```
 

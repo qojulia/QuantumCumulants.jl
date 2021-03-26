@@ -29,7 +29,7 @@ H = Δ*σ(:e,:e) + Ω*(σ(:g,:e) + σ(:e,:g))
 J = [σ(:g,:e)]
 
 # Equations
-he = average(heisenberg([σ(:e,:g),σ(:e,:e)], H, J; rates=[γ]))
+he = heisenberg([σ(:e,:g),σ(:e,:e)], H, J; rates=[γ])
 ```
 
 In order to compute the spectrum, we first need to compute the correlation function given by

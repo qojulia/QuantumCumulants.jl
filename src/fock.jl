@@ -53,13 +53,8 @@ for f in [:Destroy,:Create]
             length(i)>1 && error("More than one FockSpace in $(hilbert)! Specify on which Hilbert space $($(f)) should be created with $($(f))(hilbert,name,i)!")
         end
     end
-    @eval function embed(h::ProductSpace,op::T,aon::Int) where T<:($(f))
-        check_hilbert(h.spaces[aon],op.hilbert)
-        op_ = $(f)(h,op.name,aon)
-        return op_
-    end
     @eval function Base.hash(op::T, h::UInt) where T<:($(f))
-        hash(op.hilbert, hash(op.name, hash(op.aon, hash($(f), h))))
+        hash(T, hash(op.hilbert, hash(op.name, hash(op.aon, h))))
     end
 end
 
@@ -67,4 +62,16 @@ Base.adjoint(op::Destroy) = Create(op.hilbert,op.name,acts_on(op))
 Base.adjoint(op::Create) = Destroy(op.hilbert,op.name,acts_on(op))
 
 # Commutation relation in simplification
-commute_bosonic(a,b) = b*a + one(a)
+function *(a::Destroy,b::Create)
+    check_hilbert(a,b)
+    aon_a = acts_on(a)
+    aon_b = acts_on(b)
+    if aon_a == aon_b
+        return b*a + 1
+    elseif aon_a < aon_b
+        return QMul(1, [a,b])
+    else
+        return QMul(1, [b,a])
+    end
+end
+ismergeable(::Destroy,::Create) = true
