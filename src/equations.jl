@@ -1,12 +1,10 @@
 """
 Abstract type for equations.
 """
-abstract type AbstractEquation{LHS,RHS} end
-Base.isequal(::AbstractEquation,::AbstractEquation) = false
+abstract type AbstractHeisenbergEquation end
 
 """
-    HeisenbergEquation{LHS,RHS,H,J,R} <: AbstractEquation{LHS,RHS}
-    HeisenbergEquation(lhs,rhs,H,J,rates)
+    HeisenbergEquation <: AbstractHeisenbergEquation
 
 Type defining a system of differential equations, where `lhs` is a vector of
 derivatives and `rhs` is a vector of expressions. In addition, it keeps track
@@ -14,71 +12,109 @@ of the Hamiltonian, the collapse operators and the corresponding decay rates of
 the system.
 
 # Fields
-*`lhs`: Vector of operators or averages of which the derivatives are taken.
-*`rhs`: Vector of expressions to which the derivatives are equal.
+*`equations`: Vector of the differential equations of averages.
+*`operator_equations`: Vector of the operator differential equations.
+*`states`: Vector containing the averages on the left-hand-side of the equations.
+*`operators`: Vector containing the operators on the left-hand-side of the equations.
 *`hamiltonian`: Operator defining the system Hamiltonian.
 *`jumps`: Vector of operators specifying the decay processes.
 *`rates`: Decay rates corresponding to the `jumps`.
+*`iv`: The independent variable (time parameter) of the system.
+*`varmap`: Vector of pairs that map the averages to time-dependent variables.
+    That format is necessary for ModelingToolkit functionality.
+*`order`: The order at which the [`cumulant_expansion`](@ref) has been performed.
 
 """
-mutable struct HeisenbergEquation{LHS,RHS,H,J,R} <: AbstractEquation{LHS,RHS}
-    lhs::Vector{LHS}
-    rhs::Vector{RHS}
-    hamiltonian::H
-    jumps::J
-    rates::R
+struct HeisenbergEquation <: AbstractHeisenbergEquation
+    equations::Vector{Symbolics.Equation}
+    operator_equations::Vector{Symbolics.Equation}
+    states::Vector
+    operators::Vector{QNumber}
+    hamiltonian::QNumber
+    jumps::Vector{QNumber}
+    rates::Vector
+    iv::SymbolicUtils.Sym
+    varmap::Vector{Pair}
+    order::Union{Int,Vector{<:Int},Nothing}
 end
-Base.hash(eq::HeisenbergEquation, h::UInt) = hash(eq.rates, hash(eq.jumps, hash(eq.hamiltonian, hash(eq.rhs, hash(eq.lhs, h)))))
-Base.isequal(eq1::HeisenbergEquation,eq2::HeisenbergEquation) = isequal(hash(eq1), hash(eq2))
 
-Base.getindex(de::HeisenbergEquation, i::Int) = HeisenbergEquation([de.lhs[i]],[de.rhs[i]],de.hamiltonian,de.jumps,de.rates)
-Base.getindex(de::HeisenbergEquation, i) = HeisenbergEquation(de.lhs[i],de.rhs[i],de.hamiltonian,de.jumps,de.rates)
-Base.lastindex(de::HeisenbergEquation) = lastindex(de.lhs)
-Base.length(de::HeisenbergEquation) = length(de.lhs)
+Base.getindex(de::AbstractHeisenbergEquation, i::Int) = de.equations[i]
+Base.getindex(de::AbstractHeisenbergEquation, i) = de.equations[i]
+Base.lastindex(de::AbstractHeisenbergEquation) = lastindex(de.equations)
+Base.length(de::AbstractHeisenbergEquation) = length(de.equations)
+
+function _append!(de::T, he::T) where T<:AbstractHeisenbergEquation
+    append!(de.equations, he.equations)
+    append!(de.operator_equations, he.operator_equations)
+    append!(de.states, he.states)
+    append!(de.operators, he.operators)
+    append!(de.varmap, he.varmap)
+    return de
+end
 
 # Substitution
-function substitute(de::HeisenbergEquation,dict)
-    lhs = [substitute(l, dict) for l in de.lhs]
-    rhs = [substitute(r, dict) for r in de.rhs]
-    return HeisenbergEquation(lhs,rhs,de.hamiltonian,de.jumps,de.rates)
+function substitute(de::T,dict) where T<:AbstractHeisenbergEquation
+    eqs = [substitute(eq, dict) for eq∈de.equations]
+    states = getfield.(eqs, :lhs)
+    fields = [getfield(de, s) for s∈fieldnames(T)[4:end]]
+    return T(eqs, de.operator_equations, states, fields...)
 end
 
 # Simplification
-function qsimplify(de::HeisenbergEquation;kwargs...)
-    lhs = [qsimplify(l;kwargs...) for l in de.lhs]
-    rhs = [qsimplify(r;kwargs...) for r in de.rhs]
-    return HeisenbergEquation(lhs,rhs,de.hamiltonian,de.jumps,de.rates)
+function SymbolicUtils.simplify(de::T;kwargs...) where T<:AbstractHeisenbergEquation
+    eqs = [SymbolicUtils.simplify(eq;kwargs...) for eq∈de.equations]
+    eqs_op = [SymbolicUtils.simplify(eq;kwargs...) for eq∈de.operator_equations]
+    fields = [getfield(de, s) for s∈fieldnames(T)[3:end]]
+    return T(eqs,eqs_op,fields...)
 end
 
-
-mutable struct ScaledHeisenbergEquation{LHS,RHS,H,J,R,A,N,W} <: AbstractEquation{LHS,RHS}
-    lhs::Vector{LHS}
-    rhs::Vector{RHS}
-    hamiltonian::H
-    jumps::J
-    rates::R
-    scale_aons::A
-    names::N
-    was_scaled::W
-end
-Base.hash(eq::ScaledHeisenbergEquation, h::UInt) = hash(eq.was_scaled, hash(eq.names, hash(eq.scale_aons, hash(eq.rates, hash(eq.jumps, hash(eq.hamiltonian, hash(eq.rhs, hash(eq.lhs, h))))))))
-Base.isequal(eq1::ScaledHeisenbergEquation,eq2::ScaledHeisenbergEquation) = isequal(hash(eq1), hash(eq2))
-
-Base.getindex(de::ScaledHeisenbergEquation, i::Int) = ScaledHeisenbergEquation([de.lhs[i]],[de.rhs[i]],de.hamiltonian,de.jumps,de.rates,de.scale_aons,de.names,de.was_scaled[i])
-Base.getindex(de::ScaledHeisenbergEquation, i) = ScaledHeisenbergEquation(de.lhs[i],de.rhs[i],de.hamiltonian,de.jumps,de.rates,de.scale_aons,de.names,de.was_scaled[i])
-Base.lastindex(de::ScaledHeisenbergEquation) = lastindex(de.lhs)
-Base.length(de::ScaledHeisenbergEquation) = length(de.lhs)
-
-# Substitution
-function substitute(de::ScaledHeisenbergEquation,dict)
-    lhs = [substitute(l, dict) for l in de.lhs]
-    rhs = [substitute(r, dict) for r in de.rhs]
-    return ScaledHeisenbergEquation(lhs,rhs,de.hamiltonian,de.jumps,de.rates,de.scale_aons,de.names,de.was_scaled)
+# Adding MTK variables
+function add_vars!(varmap, vs, t)
+    keys = getindex.(varmap, 1)
+    vals = getindex.(varmap, 2)
+    hashkeys = map(hash, keys)
+    hashvals = map(hash, vals)
+    hashvs = map(hash, vs)
+    for i=1:length(vs)
+        if !(hashvs[i] ∈ hashkeys)
+            var = make_var(vs[i], t)
+            !(hash(var) ∈ hashvals) || @warn string("Two different averages have the exact same name. ",
+                    "This may lead to unexpected behavior when trying to access the solution for $(vals[i])")
+            push!(keys, vs[i])
+            push!(vals, var)
+            push!(hashkeys, hashvs[i])
+        end
+    end
+    for i=length(varmap)+1:length(keys)
+        push!(varmap, keys[i]=>vals[i])
+    end
+    return varmap
 end
 
-# Simplification
-function qsimplify(de::ScaledHeisenbergEquation;kwargs...)
-    lhs = [qsimplify(l;kwargs...) for l in de.lhs]
-    rhs = [qsimplify(r;kwargs...) for r in de.rhs]
-    return ScaledHeisenbergEquation(lhs,rhs,de.hamiltonian,de.jumps,de.rates,de.scale_aons,de.names,de.was_scaled)
+function make_var(v, t)
+    sym = Symbol(string(v))
+    var_f = SymbolicUtils.Sym{SymbolicUtils.FnType{Tuple{Any}, Complex}}(sym)
+    return var_f(t)
+end
+
+function make_varmap(vs, t)
+    varmap = Pair{Any,Any}[]
+    add_vars!(varmap, vs, t)
+    return varmap
+end
+
+struct ScaledHeisenbergEquation <: AbstractHeisenbergEquation
+    equations::Vector{Symbolics.Equation}
+    operator_equations::Vector{Symbolics.Equation}
+    states::Vector
+    operators::Vector{QNumber}
+    hamiltonian::QNumber
+    jumps::Vector{QNumber}
+    rates::Vector
+    iv::SymbolicUtils.Sym
+    varmap::Vector{Pair}
+    order::Union{Int,Vector{<:Int},Nothing}
+    scale_aons
+    names::Vector{Symbol}
+    was_scaled::Vector{Bool}
 end

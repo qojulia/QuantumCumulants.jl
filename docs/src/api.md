@@ -26,11 +26,8 @@ NLevelSpace
 tensor
 ```
 
-## [Operators](@id API: Operators)
+## [q-Numbers](@id API: Operators)
 
-```@docs
-QNumber
-```
 
 ```@docs
 QSym
@@ -71,11 +68,7 @@ commutator
 acts_on
 ```
 
-## [Differential Equations](@id API: Differential equations)
-
-```@docs
-AbstractEquation
-```
+## [Heisenberg equations](@id API: Differential equations)
 
 ```@docs
 HeisenbergEquation
@@ -99,16 +92,6 @@ cnumbers
 @cnumbers
 ```
 
-## [Simplification](@id API: Simplify)
-
-```@docs
-qsimplify
-```
-
-```@docs
-expand
-```
-
 ## [Average](@id API: Average)
 
 ```@docs
@@ -127,18 +110,6 @@ cumulant
 get_order
 ```
 
-
-## [Function generation](@id API: DiffEq)
-
-```@docs
-build_ode
-```
-
-```@docs
-generate_ode
-```
-
-
 ## [Correlation functions](@id API: correlation)
 
 ```@docs
@@ -150,22 +121,17 @@ Spectrum
 ```
 
 ```@docs
-initial_values
+correlation_u0
 ```
 
+```@docs
+correlation_p0
+```
 
 ## [Utility functions](@id API: Utils)
 
 ```@docs
 find_missing
-```
-
-```@docs
-get_symbolics
-```
-
-```@docs
-get_operators
 ```
 
 ```@docs
@@ -177,11 +143,15 @@ complete
 ```
 
 ```@docs
+complete!
+```
+
+```@docs
 unique_ops
 ```
 
 ```@docs
-get_solution
+unique_ops!
 ```
 
 ```@docs

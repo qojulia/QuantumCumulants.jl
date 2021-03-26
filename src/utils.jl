@@ -1,26 +1,74 @@
 """
-    find_missing(rhs::Vector, vs::Vector, vs_adj=_conj(vs), ps=[])
+    find_missing(he::HeisenbergEquation, vs_adj=nothing, get_adjoints=true)
 
-For a list of expressions contained in `rhs`, check whether all occurring symbols
-are contained either in the variables given in `vs`. If a list of parameters `ps`
-is provided, parameters that do not occur in the list `ps` are also added to the list.
-Returns a list of missing symbols.
+Find all averages on the right-hand-side of in `he.equations` that are not
+listed `he.states`. For a complete system this list is empty.
+
+Optional arguments
+=================
+
+*`vs_adj`: List of the complex conjugates of `he.states`. If set to `nothing`
+    the list is generated internally.
+*`get_adjoints=true`: Specify whether a complex conjugate of an average should be
+    explicitly listed as missing.
+
+see also: [`complete`](@ref), [`complete!`](@ref)
 """
-function find_missing(rhs::Vector, vs::Vector; vs_adj::Vector=_conj.(vs), ps=[])
+function find_missing(he::AbstractHeisenbergEquation; vs_adj=nothing, get_adjoints=true)
+    vs = he.states
+    vhash = map(hash, vs)
+    vs′ = if vs_adj===nothing
+        map(_conj, vs)
+    else
+        vs_adj
+    end
+    vs′hash = map(hash, vs′)
+    filter!(!in(vhash), vs′hash)
+
     missed = []
-    for e=rhs
-        append!(missed,get_symbolics(e))
+    missed_hashes = UInt[]
+
+    eqs = he.equations
+    for i=1:length(eqs)
+        find_missing!(missed, missed_hashes, eqs[i].rhs, vhash, vs′hash; get_adjoints=get_adjoints)
     end
-    unique!(missed)
-    if isempty(ps)
-        filter!(!SymbolicUtils.sym_isa(Parameter), missed)
-    end
-    filter!(x->!(_in(x, vs) || _in(x, ps) || _in(x, vs_adj)),missed)
-    isempty(ps) || (ps_adj = _conj.(ps); filter!(x -> !_in(x,ps_adj), missed))
     return missed
 end
-function find_missing(de::AbstractEquation; kwargs...)
-    find_missing(de.rhs, de.lhs; kwargs...)
+
+function find_missing!(missed, missed_hashes, r::SymbolicUtils.Symbolic, vhash, vs′hash; get_adjoints=true)
+    if SymbolicUtils.istree(r)
+        for arg∈SymbolicUtils.arguments(r)
+            find_missing!(missed, missed_hashes, arg, vhash, vs′hash; get_adjoints=get_adjoints)
+        end
+    end
+    return missed
+end
+function find_missing!(missed, missed_hashes, r::Average, vhash, vs′hash; get_adjoints=true)
+    rhash = hash(r)
+    if !(rhash ∈ vhash) && !(rhash ∈ vs′hash) && !(rhash ∈ missed_hashes)
+        push!(missed, r)
+        push!(missed_hashes, rhash)
+        if !get_adjoints
+            # To avoid collecting adjoints as missing variables,
+            # collect the hash of the adjoint right away
+            r′ = _conj(r)
+            r′hash = hash(r′)
+            if !(r′hash ∈ missed_hashes)
+                push!(missed_hashes, r′hash)
+            end
+        end
+    end
+    return missed
+end
+find_missing!(missed, missed_hashes, r::Number, vs, vs′hash; kwargs...) = missed
+
+function find_missing(eqs::Vector, vhash::Vector{UInt}, vs′hash::Vector{UInt}; get_adjoints=true)
+    missed = []
+    missed_hashes = UInt[]
+    for i=1:length(eqs)
+        find_missing!(missed, missed_hashes, eqs[i].rhs, vhash, vs′hash; get_adjoints=get_adjoints)
+    end
+    return missed
 end
 
 """
@@ -42,74 +90,114 @@ function _in(x, itr)
 end
 
 """
-    get_symbolics(ex)
-
-Find all symbolic numbers occuring in `ex`.
-"""
-get_symbolics(x::Number) = []
-function get_symbolics(t::SymbolicUtils.Symbolic)
-    if SymbolicUtils.istree(t)
-        if SymbolicUtils.is_operation(average)(t)
-            return [t]
-        else
-            syms = []
-            for arg in SymbolicUtils.arguments(t)
-                append!(syms, get_symbolics(arg))
-            end
-            return unique(syms)
-        end
-    else
-        return [t]
-    end
-end
-
-"""
     complete(de::HeisenbergEquation)
 
 From a set of differential equation of averages, find all averages that are missing
-and derive the corresponding equations of motion.
+and derive the corresponding equations of motion. Uses [`find_missing`](@ref)
+and [`heisenberg`](@ref) to do so.
+
+Optional arguments
+==================
+
+*`order=de.order`: The order at which the [`cumulant_expansion`](@ref) is performed
+    on the newly derived equations. If `nothing`, the order is inferred from the
+    existing equations.
+*`filter_func=nothing`: Custom function that specifies whether some averages should
+    be ignored when completing a system. This works by calling `filter!(filter_func, missed)`
+    where `missed` is the vector resulting from [`find_missing`](@ref). Occurrences
+    of averages for which `filter_func` returns `false` are substituted to 0.
+*`kwargs...`: Further keyword arguments are passed on to [`heisenberg`](@ref) and
+    simplification.
+
+see also: [`find_missing`](@ref), [`heisenberg`](@ref)
 """
 function complete(de::HeisenbergEquation;kwargs...)
-    rhs_, lhs_ = complete(de.rhs,de.lhs,de.hamiltonian,de.jumps,de.rates;kwargs...)
-    return HeisenbergEquation(lhs_,rhs_,de.hamiltonian,de.jumps,de.rates)
+    de_ = deepcopy(de)
+    complete!(de_;kwargs...)
+    return de_
 end
-function complete(rhs::Vector, vs::Vector, H, J, rates; order=nothing, filter_func=nothing, mix_choice=maximum, kwargs...)
+
+"""
+    complete!(de::HeisenbergEquation)
+
+In-place version of [`complete`](@ref)
+"""
+function complete!(de::HeisenbergEquation;
+                                order=de.order,
+                                multithread=false,
+                                filter_func=nothing,
+                                mix_choice=maximum,
+                                simplify=true,
+                                kwargs...)
+    vs = de.states
     order_lhs = maximum(get_order.(vs))
-    order_rhs = maximum(get_order.(rhs))
-    if order isa Nothing
+    order_rhs = 0
+    for i=1:length(de.equations)
+        k = get_order(de.equations[i].rhs)
+        k > order_rhs && (order_rhs = k)
+    end
+    if order === nothing
         order_ = max(order_lhs, order_rhs)
     else
         order_ = order
     end
     maximum(order_) >= order_lhs || error("Cannot form cumulant expansion of derivative; you may want to use a higher order!")
 
-    vs_ = copy(vs)
-    rhs_ = [cumulant_expansion(r, order_) for r in rhs]
-    missed = unique_ops(find_missing(rhs_, vs_))
-    filter!(SymbolicUtils.sym_isa(AvgSym),missed)
+    if order_ != de.order
+        for i=1:length(de.equations)
+            lhs = de.equations[i].lhs
+            rhs = cumulant_expansion(de.equations[i].rhs,order_;
+                                        mix_choice=mix_choice,
+                                        simplify=simplify)
+            de.equations[i] = Symbolics.Equation(lhs, rhs)
+        end
+    end
+
+    vhash = map(hash, vs)
+    vs′ = map(_conj, vs)
+    vs′hash = map(hash, vs′)
+    filter!(!in(vhash), vs′hash)
+    missed = find_missing(de.equations, vhash, vs′hash; get_adjoints=false)
     isnothing(filter_func) || filter!(filter_func, missed) # User-defined filter
+
     while !isempty(missed)
-        ops = [SymbolicUtils.arguments(m)[1] for m in missed]
-        he = isempty(J) ? heisenberg(ops,H; kwargs...) : heisenberg(ops,H,J;rates=rates, kwargs...)
-        he_avg = average(he,order_;mix_choice=mix_choice, kwargs...)
-        rhs_ = [rhs_;he_avg.rhs]
-        vs_ = [vs_;he_avg.lhs]
-        missed = unique_ops(find_missing(rhs_,vs_))
-        filter!(SymbolicUtils.sym_isa(AvgSym),missed)
+        ops_ = [SymbolicUtils.arguments(m)[1] for m in missed]
+        he = heisenberg(ops_,de.hamiltonian,de.jumps;
+                                rates=de.rates,
+                                simplify=simplify,
+                                multithread=multithread,
+                                expand=true,
+                                order=order_,
+                                mix_choice=mix_choice,
+                                iv=de.iv,
+                                kwargs...)
+
+        _append!(de, he)
+
+        vhash_ = hash.(he.states)
+        vs′hash_ = hash.(_conj.(he.states))
+        append!(vhash, vhash_)
+        for i=1:length(vhash_)
+            vs′hash_[i] ∈ vhash_ || push!(vs′hash, vs′hash_[i])
+        end
+
+        missed = find_missing(he.equations, vhash, vs′hash; get_adjoints=false)
         isnothing(filter_func) || filter!(filter_func, missed) # User-defined filter
     end
 
     if !isnothing(filter_func)
         # Find missing values that are filtered by the custom filter function,
         # but still occur on the RHS; set those to 0
-        missed = unique_ops(find_missing(rhs_, vs_))
-        filter!(SymbolicUtils.sym_isa(AvgSym),missed)
+        missed = find_missing(de.equations, vhash, vs′hash; get_adjoints=false)
         filter!(!filter_func, missed)
         missed_adj = map(_adjoint, missed)
         subs = Dict(vcat(missed, missed_adj) .=> 0)
-        rhs_ = [substitute(r, subs) for r in rhs_]
+        for i=1:length(de.equations)
+            de.equations[i] = substitute(de.equations[i], subs)
+            de.states[i] = de.equations[i].lhs
+        end
     end
-    return rhs_, vs_
+    return de
 end
 
 """
@@ -134,32 +222,16 @@ function find_operators(h::HilbertSpace, order::Int; names=nothing, kwargs...)
     all_ops = QNumber[]
     for i=1:order
         for c in combinations(ops, i)
-            push!(all_ops, prod(c))
+            c_ = prod(reverse(c)) # get normal ordering
+            iszero(c_) || push!(all_ops, c_)
         end
     end
 
-    # Simplify and remove non-operators iteratively
-    ops_1 = map(qsimplify, all_ops)
-    ops_2 = all_ops
-    while !isequal(ops_1,ops_2)
-        ops_2 = QNumber[]
-        for op in ops_1
-            append!(ops_2, _get_operators(op))
-        end
-        ops_1 = map(qsimplify, ops_2)
-    end
-
-    return unique_ops(ops_2)
+    filter!(x->!(x isa QAdd), all_ops)
+    unique_ops!(all_ops)
+    return all_ops
 end
 find_operators(op::QNumber,args...) = find_operators(hilbert(op),args...)
-
-"""
-    hilbert(::QNumber)
-
-Return the Hilbert space of the operator.
-"""
-hilbert(op::QSym) = op.hilbert
-hilbert(t::QTerm) = hilbert(t.arguments[findfirst(x->isa(x,QNumber), t.arguments)])
 
 """
     fundamental_operators(::HilbertSpace)
@@ -197,107 +269,57 @@ end
 
 
 """
-    get_operators(::QNumber)
-
-Return a list of all [`QSym`](@ref) in an expression.
-"""
-get_operators(x) = _get_operators(x)
-function get_operators(t::QTerm)
-    ops = QNumber[]
-    for arg in t.arguments
-        append!(ops, get_operators(arg))
-    end
-    return ops
-end
-get_operators(x::QSym) = [x]
-
-_get_operators(::Number) = []
-_get_operators(::SymbolicUtils.Symbolic{<:Number}) = []
-_get_operators(op::QSym) = [op]
-_get_operators(op::QTerm{<:typeof(^)}) = [op]
-function _get_operators(op::QTerm{<:typeof(*)})
-    args = QNumber[]
-    for arg in op.arguments
-        append!(args, _get_operators(arg))
-    end
-    isempty(args) && return args
-    return [*(args...)]
-end
-function _get_operators(t::QTerm)
-    ops = QNumber[]
-    for arg in t.arguments
-        append!(ops, _get_operators(arg))
-    end
-    return ops
-end
-
-"""
     unique_ops(ops)
 
 For a given list of operators, return only unique ones taking into account
 their adjoints.
 """
 function unique_ops(ops)
-    seen = eltype(ops)[]
-    ops_adj = _adjoint.(ops)
-    for (op,op′) in zip(ops,ops_adj)
-        if !(_in(op, seen) || _in(op′, seen))
-            push!(seen, op)
+    ops_ = deepcopy(ops)
+    unique_ops!(ops_)
+    return ops_
+end
+
+"""
+    unique_ops!(ops)
+
+In-place version of [`unique_ops`](@ref).
+"""
+function unique_ops!(ops)
+    hashes = map(hash, ops)
+    hashes′ = map(hash, map(_adjoint, ops))
+    seen_hashes = UInt[]
+    i = 1
+    while i <= length(ops)
+        if hashes[i] ∈ seen_hashes || hashes′[i] ∈ seen_hashes
+            deleteat!(ops, i)
+            deleteat!(hashes, i)
+            deleteat!(hashes′, i)
+        else
+            push!(seen_hashes, hashes[i])
+            hashes[i]==hashes′[i] || push!(seen_hashes, hashes′[i])
+            i += 1
         end
     end
-    return seen
+    return ops
 end
 
-function unique_ops!(ops)
-    seen = eltype(ops)[]
-    current = 0
-    i = 1
-    while i <= lastindex(ops)
-       x = ops[i]
-       x′ = _adjoint(x)
-       if !(_in(x, seen) || _in(x′, seen))
-           current += 1
-           ops[current] = x
-           push!(seen, x)
-       end
-       i += 1
-   end
-   return resize!(ops, current)::typeof(ops)
-end
-
-
-
-"""
-    get_solution(avg,sol,he)
-
-Find the numerical solution of the average value `avg` stored in the `ODESolution`
-`sol` corresponding to the solution of the equations given by `he`.
-"""
-function get_solution(avg_,sol,he::AbstractEquation)
-    avg = if he isa ScaledHeisenbergEquation
-        substitute_redundants(avg_,he.scale_aons,he.names)
+# Overload getindex to obtain solutions with averages
+function Base.getindex(sol::SciMLBase.AbstractTimeseriesSolution, avg::SymbolicUtils.Term{<:AvgSym})
+    tsym = sol.prob.f.indepsym # This is a bit hacky
+    t = SymbolicUtils.Sym{Real}(tsym)
+    syms = SciMLBase.getsyms(sol)
+    var = make_var(avg, t)
+    sym = Symbolics.tosymbol(var)
+    if sym∈syms
+        return getindex(sol, var)
     else
-        avg_
-    end
-    idx = findfirst(isequal(avg),he.lhs)
-    if isnothing(idx)
-        avg_ = _adjoint(avg)
-        idx_ = findfirst(isequal(avg_),he.lhs)
-        isnothing(idx_) && error("Could not find solution for $avg !")
-        s = _get_solution(sol, idx_)
-        return map(conj, s)
-    else
-        return _get_solution(sol, idx)
+        var_ = make_var(_conj(avg), t)
+        return map(conj, getindex(sol, var_))
     end
 end
-get_solution(op::QNumber,sol,he::AbstractEquation) = get_solution(_average(op),sol,he)
-function _get_solution(sol, idx)
-    # Hacky solution until we depend on MTK
-    (:u ∈ fieldnames(typeof(sol))) || error("Cannot get solution from object with type $(typeof(sol)) !")
-    return _get_solution(sol.u, idx)
-end
-_get_solution(u::Vector, idx) = u[idx]
-_get_solution(u::Vector{<:Vector}, idx) = [u_[idx] for u_ ∈ u]
+Base.getindex(sol::SciMLBase.AbstractTimeseriesSolution, op::QNumber) = getindex(sol, average(op))
+
 
 # Internal functions
 _conj(v::SymbolicUtils.Term{<:AvgSym}) = _average(adjoint(v.arguments[1]))
@@ -315,29 +337,3 @@ _conj(x::Number) = conj(x)
 _adjoint(op::QNumber) = adjoint(op)
 _adjoint(s::SymbolicUtils.Symbolic{<:Number}) = _conj(s)
 _adjoint(x) = adjoint(x)
-
-_to_expression(x::Number) = x
-function _to_expression(x::Complex) # For brackets when using latexify
-    iszero(x) && return x
-    if iszero(real(x))
-        return :( $(imag(x))*im )
-    elseif iszero(imag(x))
-        return real(x)
-    else
-        return :( $(real(x)) + $(imag(x))*im )
-    end
-end
-_to_expression(op::QSym) = op.name
-_to_expression(op::Create) = :(dagger($(op.name)))
-_to_expression(op::Transition) = :(Transition($(op.name),$(op.i),$(op.j)) )
-_to_expression(t::QTerm) = :( $(Symbol(t.f))($(_to_expression.(t.arguments)...)) )
-_to_expression(p::Parameter) = p.name
-function _to_expression(s::SymbolicUtils.Symbolic)
-    if SymbolicUtils.istree(s)
-        f = SymbolicUtils.operation(s)
-        args = map(_to_expression, SymbolicUtils.arguments(s))
-        return :( $(Symbol(f))($(args...)) )
-    else
-        return nameof(s)
-    end
-end

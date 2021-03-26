@@ -18,12 +18,27 @@ Base.show(io::IO,x::Transition) = write(io, Symbol(x.name,x.i,x.j))
 show_brackets = Ref(true)
 function Base.show(io::IO,x::QTerm)
     show_brackets[] && write(io,"(")
-    show(io, x.arguments[1])
-    for i=2:length(x.arguments)
-        show(io, x.f)
-        show(io, x.arguments[i])
+    show(io, SymbolicUtils.arguments(x)[1])
+    f = SymbolicUtils.operation(x)
+    for i=2:length(SymbolicUtils.arguments(x))
+        show(io, f)
+        show(io, SymbolicUtils.arguments(x)[i])
     end
     show_brackets[] && write(io,")")
+end
+
+function Base.show(io::IO,x::QMul)
+    if !SymbolicUtils._isone(x.arg_c)
+        show(io, x.arg_c)
+        show(io, *)
+    end
+    show_brackets[] && write(io, "(")
+    show(io, x.args_nc[1])
+    for i=2:length(x.args_nc)
+        show(io, *)
+        show(io, x.args_nc[i])
+    end
+    show_brackets[] && write(io, ")")
 end
 
 function SymbolicUtils.show_term(io::IO, t::SymbolicUtils.Term{<:AvgSym})
@@ -34,12 +49,12 @@ function SymbolicUtils.show_term(io::IO, t::SymbolicUtils.Term{<:AvgSym})
     write(io, "⟩")
 end
 
-function Base.show(io::IO,de::AbstractEquation)
-    for i=1:length(de)
+function Base.show(io::IO,de::AbstractHeisenbergEquation)
+    for i=1:length(de.equations)
         write(io, "∂ₜ(")
-        show(io, de.lhs[i])
+        show(io, de.equations[i].lhs)
         write(io, ") = ")
-        show(io, de.rhs[i])
+        show(io, de.equations[i].rhs)
         write(io, "\n")
     end
 end
@@ -55,6 +70,6 @@ end
 
 Base.show(io::IO, c::CallableTransition) = write(io, c.name)
 
-const T_LATEX = Union{<:QNumber,<:AbstractEquation, <:SymbolicUtils.Symbolic{<:CNumber},
+const T_LATEX = Union{<:QNumber,<:AbstractHeisenbergEquation, <:SymbolicUtils.Symbolic{<:CNumber},
         <:CorrelationFunction,<:Spectrum}
 Base.show(io::IO, ::MIME"text/latex", x::T_LATEX) = write(io, latexify(x))

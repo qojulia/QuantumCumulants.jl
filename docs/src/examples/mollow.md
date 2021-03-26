@@ -11,7 +11,7 @@ where $\Delta = \omega_\ell - \omega_a$ is the detuning between the laser and th
 using Latexify # hide
 set_default(double_linebreak=true) # hide
 using Qumulants
-using OrdinaryDiffEq
+using ModelingToolkit, OrdinaryDiffEq
 using Plots
 ```
 
@@ -29,7 +29,7 @@ H = Δ*σ(:e,:e) + Ω*(σ(:g,:e) + σ(:e,:g))
 J = [σ(:g,:e)]
 
 # Equations
-he = average(heisenberg([σ(:e,:g),σ(:e,:e)], H, J; rates=[γ]))
+he = heisenberg([σ(:e,:g),σ(:e,:e)], H, J; rates=[γ])
 ```
 
 In order to compute the spectrum, we first need to compute the correlation function given by
@@ -89,11 +89,11 @@ To find the spectrum, we first need to compute the time evolution of the system 
 
 
 ```@example mollow
-f = generate_ode(he,ps)
+sys = ODESystem(he)
 
 p0 = (0.0,2.0,1.0)
 u0 = zeros(ComplexF64, 2)
-prob = ODEProblem(f,u0,(0.0,20.0),p0)
+prob = ODEProblem(sys,u0,(0.0,20.0),ps .=> p0)
 sol = solve(prob,RK4())
 nothing # hide
 ```

@@ -3,6 +3,7 @@ using Qumulants
 
 pages = [
         "index.md",
+        # "implementation.md",
         "theory.md",
         "tutorial.md",
         "correlation.md",

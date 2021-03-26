@@ -1,6 +1,6 @@
 """
     NLevelSpace <: HilbertSpace
-    NLevelSpace(name::Symbol,levels,GS=1)
+    NLevelSpace(name::Symbol,levels,GS=levels[1])
 
 Define a [`HilbertSpace`](@ref) for an object consisting of `N` discrete energy
 levels. The given `levels` must be an integer specifying the number of levels,
@@ -67,7 +67,19 @@ struct Transition{H,S,I,A} <: QSym
         new(hilbert,name,i,j,aon)
     end
 end
-Transition(hilbert::H,name::S,i::I,j::I,aon::A) where {H,S,I,A} = Transition{H,S,I,A}(hilbert,name,i,j,aon)
+function Transition(hilbert::H,name::S,i::I,j::I,aon::A) where {H,S,I,A}
+    gs = ground_state(hilbert, aon)
+    if isequal(i,j) && isequal(i,gs)
+        args = Any[1]
+        for k∈levels(hilbert, aon)
+            isequal(k,gs) && continue
+            push!(args, QMul(-1, [Transition{H,S,I,A}(hilbert,name,k,k,aon)]))
+        end
+        return QAdd(args)
+    else
+        return Transition{H,S,I,A}(hilbert,name,i,j,aon)
+    end
+end
 Transition(hilbert::NLevelSpace,name,i,j) = Transition(hilbert,name,i,j,1)
 # function Transition(hilbert::ProductSpace,name,i,j)
 #     inds = findall(x->isa(x,NLevelSpace),hilbert.spaces)
@@ -79,23 +91,6 @@ Transition(hilbert::NLevelSpace,name,i,j) = Transition(hilbert,name,i,j,1)
 #     end
 # end
 
-function Base.isless(a::Transition, b::Transition)
-    if a.name == b.name
-        if a.i == b.i
-            return a.j < b.j
-        else
-            return a.i < b.i
-        end
-    else
-        return a.name < b.name
-    end
-end
-
-function embed(h::ProductSpace,op::T,aon::Int) where T<:Transition
-    check_hilbert(h.spaces[aon],op.hilbert)
-    op_ = Transition(h,op.name,op.i,op.j,aon)
-    return op_
-end
 levels(t::Transition,args...) = levels(t.hilbert,args...)
 ground_state(t::Transition,args...) = ground_state(t.hilbert,args...)
 
@@ -147,28 +142,20 @@ function Transition(hilbert::ProductSpace,name)
 end
 
 # Simplification
-function merge_transitions(σ1::Transition, σ2::Transition)
-    if σ1.j == σ2.i
-        return Transition(σ1.hilbert,σ1.name,σ1.i,σ2.j,σ1.aon)
-    else
-        return 0
-    end
-end
-function rewrite_gs(σ::Transition)
-    h = σ.hilbert
-    aon = acts_on(σ)
-    gs = ground_state(h,aon)
-    i,j = σ.i, σ.j
-    if i==j==gs
-        args = Any[1]
-        for k in levels(h,aon)
-            if k != i
-                t_ = QTerm(*, [-1, Transition(h, σ.name, k, k, aon)])
-                push!(args, t_)
-            end
+function *(a::Transition,b::Transition)
+    check_hilbert(a, b)
+    aon_a = acts_on(a)
+    aon_b = acts_on(b)
+    if aon_a == aon_b
+        if isequal(a.j, b.i)
+            return Transition(a.hilbert, a.name, a.i, b.j, a.aon)
+        else
+            return 0
         end
-        return QTerm(+, args)
+    elseif aon_a < aon_b
+        return QMul(1, [a,b])
     else
-        return nothing
+        return QMul(1, [b,a])
     end
 end
+ismergeable(::Transition,::Transition) = true

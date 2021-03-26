@@ -1,5 +1,6 @@
 using Qumulants
 using OrdinaryDiffEq
+using ModelingToolkit
 using Test
 
 @testset "diffeq" begin
@@ -15,11 +16,10 @@ h = tensor(hf, ha)
 
 H = Δ*a'*a + g*(a'*σ + σ'*a)
 J = [a,σ,σ']
-he_laser = heisenberg([a'*a,σ'*σ,a*σ'],H,J;rates=[κ,γ,ν],multithread=true,simplify_input=true)
+he_avg = heisenberg([a'*a,σ'*σ,a*σ'],H,J;rates=[κ,γ,ν])
 
-he_avg = average(he_laser;multithread=true)
-he_exp = cumulant_expansion(he_avg,2;multithread=true)
-@test isequal(he_exp, average(he_laser,2))
+he_exp = cumulant_expansion(he_avg,2)
+@test isequal(he_exp.equations, heisenberg([a'*a,σ'*σ,a*σ'],H,J;rates=[κ,γ,ν],expand=true,order=2).equations)
 
 ps = [Δ,g,κ,γ,ν]
 missed = find_missing(he_exp)
@@ -30,16 +30,16 @@ subs = Dict([missed; Qumulants._conj.(missed)] .=> 0)
 he_nophase = substitute(he_exp, subs)
 @test isempty(find_missing(he_nophase))
 
-f = generate_ode(he_nophase,ps)
+sys = ODESystem(he_nophase)
 
 # Numerical solution
-p0 = [0.0,0.5,1.0,0.1,0.9]
+p0 = ps .=> [0.0,0.5,1.0,0.1,0.9]
 u0 = zeros(ComplexF64,3)
 tmax = 10.0
 
-prob = ODEProblem(f,u0,(0.0,tmax),p0)
-sol = solve(prob,RK4());
-n = getindex.(sol.u,1)
+prob = ODEProblem(sys,u0,(0.0,tmax),p0,jac=true)
+sol = solve(prob,RK4())
+n = sol[average(a'*a)]
 pe = getindex.(sol.u,2)
 
 @test all(iszero.(imag.(n)))

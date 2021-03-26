@@ -2,21 +2,28 @@ module Qumulants
 
 import SymbolicUtils
 import SymbolicUtils: substitute
-using Combinatorics: partitions, combinations, permutations
+
+import Symbolics
+
+import SciMLBase
+
+import ModelingToolkit
+const MTK = ModelingToolkit
+import ModelingToolkit: ⊗ # just to avoid conflicts
+
+using Combinatorics: partitions, combinations
 
 export HilbertSpace, ProductSpace, ⊗, tensor,
-        qsimplify, substitute, expand,
-        QNumber, QSym, QTerm, embed, @qnumbers,
+        QSym, QTerm, @qnumbers,
         FockSpace, Destroy, Create,
         NLevelSpace, Transition,
-        AbstractEquation, HeisenbergEquation,
+        HeisenbergEquation,
         heisenberg, commutator, acts_on,
         CNumber, Parameter, @cnumbers, cnumbers,
         Average, average, cumulant_expansion, get_order, cumulant,
-        find_missing, complete, find_operators, fundamental_operators,
-            unique_ops, get_symbolics, get_operators, get_solution,
-        build_ode, generate_ode,
-        CorrelationFunction, Spectrum, initial_values,
+        find_missing, complete, complete!, find_operators, fundamental_operators,
+            unique_ops, unique_ops!,
+        CorrelationFunction, Spectrum, correlation_u0, correlation_p0,
         ClusterSpace,
         scale,
         transition_superscript
@@ -26,11 +33,9 @@ include("qnumber.jl")
 include("cnumber.jl")
 include("fock.jl")
 include("nlevel.jl")
-include("simplify.jl")
 include("equations.jl")
 include("heisenberg.jl")
 include("average.jl")
-include("rules.jl")
 include("utils.jl")
 include("diffeq.jl")
 include("correlation.jl")

@@ -1,4 +1,4 @@
-function scale(he::AbstractEquation; kwargs...)
+function scale(he::AbstractHeisenbergEquation; kwargs...)
     h = hilbert(he.hamiltonian)
     scale_aons, N = get_cluster_stuff(h)
     return scale(he, scale_aons, N; kwargs...)
@@ -215,7 +215,7 @@ end
 substitute_redundants(x::Number,args...) = x
 substitute_redundants(x,scale_aons,names) = substitute_redundants(x,[scale_aons],names)
 
-function substitute_redundants(t::QTerm{<:typeof(*)},scale_aons,names)
+function substitute_redundants(t::QMul,scale_aons,names)
     aon = acts_on(t)
     idx_aon = findall(in(scale_aons), aon)
     isempty(idx_aon) && return t
@@ -351,7 +351,7 @@ function lt_reference_order(t1::Transition, t2::Transition)
 end
 
 _swap_aon_and_name(x::Average, aon1, aon2, names) = _average(_swap_aon_and_name(x.arguments[1], aon1, aon2, names))
-function _swap_aon_and_name(t::QTerm{<:typeof(*)}, aon1, aon2, names)
+function _swap_aon_and_name(t::QMul, aon1, aon2, names)
     args = []
     for arg in SymbolicUtils.arguments(t)
         idx = findfirst(isequal(acts_on(arg)), aon1)

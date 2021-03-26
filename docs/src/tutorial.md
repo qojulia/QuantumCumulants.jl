@@ -37,16 +37,16 @@ ops = [a'*a,σ(:e,:e),a'*σ(:g,:e)]
 he = heisenberg(ops,H,J;rates=rates)
 ```
 
-The equations derived above are differential equations for operators. In order to convert them to *c*-number equations, we need to average over them. To obtain a closed set of equations, we expand higher-order products to second order.
+To obtain a closed set of equations, we expand higher-order products to second order.
 
 ```@example tutorial
-# Average the above equations and expand to second order
-he_avg = average(he,2)
+# Expand the above equations to second order
+he_avg = cumulant_expansion(he,2)
 ```
 
 The first-order contributions are always zero and can therefore be neglected. You can try adding `a` and `σ(:g,:e)` to the list of operators `ops` in order to see that yourself. Or, even more conveniently, you can use `complete(he_avg)`, which will automatically find all missing averages and compute the corresponding equations.
 
-Here, though, we will proceed by finding the missing averages, and neglecting them as zero using the `substitute` function.
+Here, though, we will proceed by finding the missing averages, and neglecting them as zero using the `substitute` and `simplify` function from [Symbolics](https://github.com/JuliaSymbolics/Symbolics.jl).
 
 ```@example tutorial
 # Find the missing averages
@@ -54,31 +54,33 @@ missed = find_missing(he_avg)
 
 # Substitute them as zero
 subs = Dict(missed .=> 0)
-he_nophase = qsimplify(substitute(he_avg, subs))
+using Symbolics
+he_nophase = simplify(substitute(he_avg, subs))
 ```
 
-Finally, we can generate Julia code from the above set of equations which can be solved directly using the [OrdinaryDiffEq](https://github.com/JuliaDiffEq/OrdinaryDiffEq.jl).
+Finally, we can convert the [`HeisenbergEquation`](@ref) to an `ODESystem` as defined in [ModelingToolkit](https://github.com/SciML/ModelingToolkit.jl) which can be solved numerically with [OrdinaryDiffEq](https://github.com/JuliaDiffEq/OrdinaryDiffEq.jl).
 
 ```@example tutorial
-# Generate a Julia function that to solve numerically
-p = (Δ, g, γ, κ, ν)
-f = generate_ode(he_nophase,p)
+# Generate an ODESystem
+using ModelingToolkit
+sys = ODESystem(he_nophase)
 
 # Solve the system using the OrdinaryDiffEq package
 using OrdinaryDiffEq
 u0 = zeros(ComplexF64,length(ops))
-p0 = (0, 1.5, 0.25, 1, 4)
-prob = ODEProblem(f,u0,(0.0,10.0),p0)
+p = (Δ, g, γ, κ, ν)
+p0 = p .=> (0, 1.5, 0.25, 1, 4)
+prob = ODEProblem(sys,u0,(0.0,10.0),p0)
 sol = solve(prob,RK4())
 nothing # hide
 ```
 
-The photon number of our laser and the excited state population of the atom are now stored in the first two fields of `sol.u`.
+Just as with variables in [ModelingToolkit](https://github.com/SciML/ModelingToolkit.jl), the solution of the respective averages can be accessed with a `getindex` method. In the following we extract and plot the photon number and the atomic excited state population by indexing the solution:
 
 ```@example tutorial
 using Plots
-n = real.(getindex.(sol.u, 1))
-pe = real.(getindex.(sol.u, 2))
+n = real.(sol[a'*a])
+pe = real.(sol[σ(:e,:e)])
 plot(sol.t, n, label="Photon number", xlabel="t")
 plot!(sol.t, pe, label="Excited state population")
 savefig("tutorial.svg") # hide

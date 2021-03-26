@@ -12,8 +12,8 @@ Compute the set of equations for the operators in `ops` under the Hamiltonian
 equivalent to the Quantum-Langevin equation where noise is neglected.
 
 # Arguments
-*`ops::Vector{<:AbstractVector}`: The operators of which the equations are to be computed.
-*`H::AbstractOperatr`: The Hamiltonian describing the reversible dynamics of the
+*`ops::Vector`: The operators of which the equations are to be computed.
+*`H::QNumber`: The Hamiltonian describing the reversible dynamics of the
     system.
 *`J::Vector{<:QNumber}`: A vector containing the collapse operators of
     the system. A term of the form
@@ -24,123 +24,169 @@ equivalent to the Quantum-Langevin equation where noise is neglected.
 *`Jdagger::Vector=adjoint.(J)`: Vector containing the hermitian conjugates of
     the collapse operators.
 *`rates=ones(length(J))`: Decay rates corresponding to the collapse operators in `J`.
+*`multithread=false`: Specify whether the derivation of equations for all operators in `ops`
+    should be multithreaded using `Threads.@threads`.
+*`simplify=true`: Specify whether the derived equations should be simplified.
+*`expand=false`: Specify whether to directly perform a [`cumulant_expansion`](@ref)
+    on the derived equations. If set to `true`, an `order` also needs to be specified.
+*`mix_choice=maximum`: If the provided `order` is a `Vector`, `mix_choice` determines
+    which `order` to prefer on terms that act on multiple Hilbert spaces.
+*`iv=SymbolicUtils.Sym{Real}(:t)`: The independent variable (time parameter) of the system.
 """
-function heisenberg(a::Vector,H,J;Jdagger::Vector=adjoint.(J),rates=ones(length(J)),
-                    multithread=false,simplify_input=false)
-    @assert length(rates)==length(J)==length(Jdagger)
+function heisenberg(a::Vector,H,J;Jdagger::Vector=adjoint.(J),rates=ones(Int,length(J)),
+                    multithread=false,
+                    simplify=true,
+                    expand=false,
+                    order=nothing,
+                    mix_choice=maximum,
+                    iv=SymbolicUtils.Sym{Real}(:t))
+
     J_, Jdagger_, rates_ = _expand_clusters(J,Jdagger,rates)
-    if simplify_input
-        lhs = map(qsimplify, a)
-    else
-        lhs = a
-    end
-    rhs = Vector{QNumber}(undef, length(a))
+    # Derive operator equations
+    rhs = Vector{Any}(undef, length(a))
+    imH = im*H
     if multithread
         Threads.@threads for i=1:length(a)
-            rhs_ = 1.0im*commutator(H,lhs[i];simplify=false)
-            if !isempty(J)
-                rhs_ = rhs_ + _master_lindblad(lhs[i],J_,Jdagger_,rates_)
-            end
-            rhs[i] = qsimplify(rhs_)
+            rhs_ = commutator(imH,a[i])
+            rhs_diss = _master_lindblad(a[i],J_,Jdagger_,rates_)
+            rhs[i] = rhs_ + rhs_diss
         end
     else
         for i=1:length(a)
-            rhs_ = 1.0im*commutator(H,lhs[i];simplify=false)
-            if !isempty(J)
-                rhs_ = rhs_ + _master_lindblad(lhs[i],J_,Jdagger_,rates_)
-            end
-            rhs[i] = qsimplify(rhs_)
+            rhs_ = commutator(imH,a[i])
+            rhs_diss = _master_lindblad(a[i],J_,Jdagger_,rates_)
+            rhs[i] = rhs_ + rhs_diss
         end
     end
+
+    # Average
+    vs = map(average, a)
+    rhs_avg = map(average, rhs)
+    if simplify
+        rhs_avg = map(SymbolicUtils.simplify, rhs_avg)
+    end
+    rhs = map(undo_average, rhs_avg)
+
+    if expand
+        order===nothing && error("Need given order for cumulant expansion!")
+        rhs_avg = [cumulant_expansion(r, order; simplify=simplify, mix_choice=mix_choice) for r∈rhs_avg]
+    end
+
+    eqs_avg = [Symbolics.Equation(l,r) for (l,r)=zip(vs,rhs_avg)]
+    eqs = [Symbolics.Equation(l,r) for (l,r)=zip(a,rhs)]
+
+    varmap = make_varmap(vs, iv)
+
+    he = HeisenbergEquation(eqs_avg,eqs,vs,a,H,J_,rates_,iv,varmap,order)
     if has_cluster(H)
-        return scale(HeisenbergEquation(lhs,rhs,H,J_,rates_))
+        return scale(he)
     else
-        return HeisenbergEquation(lhs,rhs,H,J_,rates_)
+        return he
     end
 end
 heisenberg(a::QNumber,args...;kwargs...) = heisenberg([a],args...;kwargs...)
 heisenberg(a::Vector,H;kwargs...) = heisenberg(a,H,[];Jdagger=[],kwargs...)
 
 function _master_lindblad(a_,J,Jdagger,rates)
+    args = Any[]
     if isa(rates,Vector)
-        da_diss = sum(0.5*rates[i]*(Jdagger[i]*commutator(a_,J[i];simplify=false) + commutator(Jdagger[i],a_;simplify=false)*J[i]) for i=1:length(J))
+        for i=1:length(J)
+            c1 = 0.5*rates[i]*Jdagger[i]*commutator(a_,J[i])
+            c2 = 0.5*rates[i]*commutator(Jdagger[i],a_)*J[i]
+            push_or_append_nz_args!(args, c1)
+            push_or_append_nz_args!(args, c2)
+        end
     elseif isa(rates,Matrix)
-        da_diss = sum(0.5*rates[i,j]*(Jdagger[i]*commutator(a_,J[j];simplify=false) + commutator(Jdagger[i],a_;simplify=false)*J[j]) for i=1:length(J), j=1:length(J))
+        for i=1:length(J), j=1:length(J)
+            c1 = 0.5*rates[i,j]*Jdagger[i]*commutator(a_,J[j])
+            c2 = 0.5*rates[i,j]*commutator(Jdagger[i],a_)*J[j]
+            push_or_append_nz_args!(args, c1)
+            push_or_append_nz_args!(args, c2)
+        end
     else
         error("Unknown rates type!")
     end
-    return qsimplify(da_diss)
+    isempty(args) && return 0
+    return QAdd(args)
 end
 
+
+## Commutator methods
 """
-    commutator(a,b; simplify=true, kwargs...)
+    commutator(a,b)
 
-Computes the commutator `a*b - b*a` of `a` and `b`. If `simplify` is `true`, the
-result is simplified using the [`qsimplify`](@ref) function. Further
-keyword arguments are passed to simplification.
+Computes the commutator `a*b - b*a`.
 """
-function commutator(a::QNumber,b::QNumber; simplify=true, kwargs...)
-    # Check on which subspaces each of the operators act
-    a_on = acts_on(a)
-    b_on = acts_on(b)
-    inds = intersect(a_on,b_on)
-    isempty(inds) && return zero(a)
-    if simplify
-        return qsimplify(a*b + -1*b*a; kwargs...)
-    else
-        return a*b + -1*b*a
+commutator(a,b) = _commutator(a,b)
+_commutator(a, b) = a*b - b*a
+commutator(a::QNumber,b::SNuN) = 0
+commutator(a::SNuN,b::QNumber) = 0
+commutator(::SNuN,::SNuN) = 0
+function commutator(a::QSym,b::QSym)
+    acts_on(a)==acts_on(b) || return 0
+    isequal(a,b) && return 0
+    return _commutator(a,b)
+end
+function commutator(a::QMul,b::QSym)
+    aon = acts_on(b)
+    idx = findfirst(x->isequal(acts_on(x),aon),a.args_nc)
+    idx===nothing && return 0
+    return _commutator(a,b)
+end
+function commutator(a::QSym,b::QMul)
+    aon = acts_on(a)
+    idx = findfirst(x->isequal(acts_on(x),aon),b.args_nc)
+    idx===nothing && return 0
+    return _commutator(a,b)
+end
+function commutator(a::QMul,b::QMul)
+    # isequal(a.h, b.h) && return 0
+    aon_a = map(acts_on, a.args_nc)
+    aon_b = map(acts_on, b.args_nc)
+    aon = intersect(aon_a,aon_b)
+    isempty(aon) && return 0
+    return _commutator(a,b)
+end
+function commutator(a::QAdd,b::QNumber)
+    args = []
+    for a_∈a.arguments
+        c = commutator(a_,b)
+        push_or_append_nz_args!(args, c)
     end
+    isempty(args) && return 0
+    return QAdd(args)
+end
+function commutator(a::QNumber,b::QAdd)
+    args = []
+    for b∈b.arguments
+        c = commutator(a,b_)
+        push_or_append_nz_args!(args, c)
+    end
+    isempty(args) && return 0
+    return QAdd(args)
+end
+function commutator(a::QAdd,b::QAdd)
+    args = []
+    for a_∈a.arguments, b_∈b.arguments
+        c = commutator(a_,b_)
+        push_or_append_nz_args!(args, c)
+    end
+    isempty(args) && return 0
+    return QAdd(args)
 end
 
-# Specialized methods for addition using linearity
-function commutator(a::QTerm{<:typeof(+)},b::QNumber; simplify=true, kwargs...)
-    args = Any[]
-    for arg in a.arguments
-        c = commutator(arg,b; simplify=simplify, kwargs...)
-        iszero(c) || push!(args, c)
+function push_or_append_nz_args!(args,c)
+    if !SymbolicUtils._iszero(c)
+        push!(args, c)
     end
-    isempty(args) && return zero(a)
-    out = +(args...)
-    if simplify
-        return qsimplify(out; kwargs...)
-    else
-        return out
-    end
+    return args
 end
-function commutator(a::QNumber,b::QTerm{<:typeof(+)}; simplify=true, kwargs...)
-    args = Any[]
-    for arg in b.arguments
-        c = commutator(a,arg; simplify=simplify, kwargs...)
-        iszero(c) || push!(args, c)
+function push_or_append_nz_args!(args,c::QAdd)
+    @inbounds for i=1:length(c.arguments)
+        push_or_append_nz_args!(args, c.arguments[i])
     end
-    isempty(args) && return zero(a)
-    out = +(args...)
-    if simplify
-        return qsimplify(out; kwargs...)
-    else
-        return out
-    end
+    return args
 end
-function commutator(a::QTerm{<:typeof(+)},b::QTerm{<:typeof(+)}; simplify=true, kwargs...)
-    args = Any[]
-    for a_arg in a.arguments
-        for b_arg in b.arguments
-            c = commutator(a_arg,b_arg; simplify=simplify, kwargs...)
-            iszero(c) || push!(args, c)
-        end
-    end
-    isempty(args) && return zero(a)
-    out = +(args...)
-    if simplify
-        return qsimplify(out; kwargs...)
-    else
-        return out
-    end
-end
-
-commutator(::Union{T,SymbolicUtils.Symbolic{T}},::QNumber;kwargs...) where T<:Number = 0
-commutator(::QNumber,::Union{T,SymbolicUtils.Symbolic{T}};kwargs...) where T<:Number = 0
-commutator(::Union{T,SymbolicUtils.Symbolic{T}},::Union{S,SymbolicUtils.Symbolic{S}};kwargs...) where {T<:Number,S<:Number} = 0
 
 function _expand_clusters(J,Jdagger,rates)
     J_ = []
