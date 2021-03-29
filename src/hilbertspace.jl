@@ -5,7 +5,7 @@ Abstract type for representing Hilbert spaces.
 """
 abstract type HilbertSpace end
 Base.:(==)(h1::HilbertSpace,h2::HilbertSpace) = false
-Base.hash(h::HilbertSpace, i::UInt) = hash(h.name, i)
+Base.hash(h::T, i::UInt) where T<:HilbertSpace = hash(T, hash(h.name, i))
 
 """
     ProductSpace <: HilbertSpace
