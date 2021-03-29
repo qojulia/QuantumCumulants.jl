@@ -19,7 +19,7 @@ S(i,j,c) = Transition(h,Symbol(:σ, c),i, j, 1+c) #c=cluster
 @test !(Qumulants.has_cluster(hf))
 
 @test S(2,2,1) ≠ S(2,2,2) ≠ S(2,2,3)
-@test isequal(qsimplify(S(2,2,2)[1]*S(2,2,1)[2]), S(2,2,1)[2]*S(2,2,2)[1])
+@test isequal(S(2,2,2)[1]*S(2,2,1)[2], S(2,2,1)[2]*S(2,2,2)[1])
 @test length(S(2,2,1)) == length(S(2,2,2)) == length(S(2,2,3)) == order
 @test acts_on(S(2,2,1)[1]) == Qumulants.ClusterAon(2,1)
 @test acts_on(S(2,2,2)[2]) == Qumulants.ClusterAon(3,2)

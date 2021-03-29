@@ -23,6 +23,7 @@ function has_cluster(h::ProductSpace)
 end
 has_cluster(h::ProductSpace,aon) = has_cluster(h.spaces[get_i(aon)])
 has_cluster(op::QNumber,args...) = has_cluster(hilbert(op),args...)
+has_cluster(avg::Average,args...) = has_cluster(undo_average(avg),args...)
 
 struct ClusterAon{T<:Integer}
     i::T
@@ -77,7 +78,17 @@ function Transition(hilbert::H,name::S,i::I,j::I,aon::A) where {H<:ProductSpace,
         op = Transition(hilbert.spaces[aon].original_space,name,i,j,1)
         return _cluster(hilbert, op, aon)
     else
-        return Transition{H,S,I,A}(hilbert,name,i,j,aon)
+        gs = ground_state(hilbert, aon)
+        if isequal(i,j) && isequal(i,gs)
+            args = Any[1]
+            for k∈levels(hilbert, aon)
+                isequal(k,gs) && continue
+                push!(args, QMul(-1, [Transition{H,S,I,A}(hilbert,name,k,k,aon)]))
+            end
+            return QAdd(args)
+        else
+            return Transition{H,S,I,A}(hilbert,name,i,j,aon)
+        end
     end
 end
 

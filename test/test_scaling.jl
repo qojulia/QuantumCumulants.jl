@@ -1,6 +1,7 @@
 using Qumulants
 using Test
 using OrdinaryDiffEq
+using ModelingToolkit
 
 @testset "scaling" begin
 
@@ -25,15 +26,14 @@ S(i,j,c) = Transition(h,Symbol(:σ, c),i, j, 1+c) #c=cluster
 # Hamiltonian
 H = Δc*a'*a + sum(Δ2[c]*sum(S(2,2,c)) for c=1:N_c) + sum(Δ3[c]*sum(S(3,3,c)) for c=1:N_c) +
     sum(Ω3[c]*(sum(S(3,1,c)) + sum(S(1,3,c))) for c=1:N_c) + sum(g[c]*(a'*sum(S(1,2,c)) + a*sum(S(2,1,c))) for c=1:N_c)
-H = qsimplify(H)
 # Collapse operators
 J = [a,[S(1,2,c) for c=1:N_c]..., [S(1,3,c) for c=1:N_c]..., [S(2,3,c) for c=1:N_c]..., [S(3,3,c) for c=1:N_c]..., [S(2,2,c) for c=1:N_c]..., a'a]
 rates = [κ,[Γ2 for i=1:N_c]...,[Γ3 for i=1:N_c]...,[Γ23 for i=1:N_c]...,[ν3 for i=1:N_c]...,[ν2 for i=1:N_c]...,η]
 
 # Derive equation for average photon number
 ops = [a'a, S(2,2,1)[1], a'*S(1,2,1)[1]]
-he_ops = heisenberg(ops,H,J;rates=rates)
-# Custom filter function -- include only phase-invaraint terms
+he = heisenberg(ops,H,J;rates=rates,expand=true,order=2)
+# Custom filter function -- include only phase-invariant terms
 ϕ(x) = 0
 ϕ(x::Destroy) = -1
 ϕ(x::Create) = 1
@@ -47,36 +47,34 @@ function ϕ(t::Transition)
     end
 end
 ϕ(avg::Average) = ϕ(avg.arguments[1])
-function ϕ(t::QTerm)
-    @assert t.f === (*)
+function ϕ(t::Qumulants.QMul)
     p = 0
-    for arg in t.arguments
+    for arg in t.args_nc
         p += ϕ(arg)
     end
     return p
 end
 phase_invariant(x) = iszero(ϕ(x))
 
-he_avg = average(he_ops,2)
+he_avg = cumulant_expansion(he,2)
 he_scale = complete(he_avg;filter_func=phase_invariant, order=order, multithread=false)
 @test length(he_scale) == 9
 
 ps = [Δc; κ; Γ2; Γ3; Γ23; η; ν3; ν2; Δ2; Δ3; Ω3; g; N]
-meta_f = build_ode(he_scale, ps)
-f = Meta.eval(meta_f)
+sys = ODESystem(he_scale)
 u0 = zeros(ComplexF64, length(he_scale))
 
 N0 = 1000/N_c
 N_ = N0*[1.0 for c=1:N_c]
 
-p0 = [ones(length(ps)-1); N_]
-prob1 = ODEProblem(f,u0,(0.0,1.0),p0)
+p0 = ps .=> [ones(length(ps)-1); N_]
+prob1 = ODEProblem(sys,u0,(0.0,1.0),p0)
 sol1 = solve(prob1, Tsit5(), reltol=1e-12, abstol=1e-12)
 
 @test sol1.u[end][1] ≈ 0.0758608728203
 
 avg = average(a*S(2,1,1)[2])
-@test get_solution(avg, sol1, he_scale) == map(conj, get_solution(average(a'*S(1,2,1)[1]), sol1, he_scale)) == conj.(getindex.(sol1.u, 3))
+# TODO: @test sol1[avg], sol1, he_scale) == map(conj, get_solution(average(a'*S(1,2,1)[1]), sol1, he_scale)) == conj.(getindex.(sol1.u, 3))
 
 ## Two-level laser
 M = 2
@@ -95,10 +93,10 @@ H = Δ*a'*a + g*sum(a'*σ(:g,:e)[i] + a*σ(:e,:g)[i] for i=1:M)
 J = [a;[σ(:g,:e)[i] for i=1:M];[σ(:e,:g)[i] for i=1:M]]
 rates = [κ; [γ for i=1:M]; [ν for i=1:M]]
 
-he = heisenberg(a'*a, H, J; rates=rates)
+he = heisenberg(a'*a, H, J; rates=rates, expand=true, order=2)
 
 # Complete
-he_scaled = complete(average(he,2);filter_func=phase_invariant)
+he_scaled = complete(he;filter_func=phase_invariant)
 
 names = he_scaled.names
 avg = average(σ(:e,:g)[1]*σ(:e,:e)[2])
@@ -107,20 +105,14 @@ avg = average(σ(:e,:g)[1]*σ(:e,:e)[2])
 @test Qumulants.lt_reference_order(σ(:e,:g)[1],σ(:g,:e)[2])
 @test !Qumulants.lt_reference_order(σ(:g,:e)[1],σ(:e,:g)[2])
 
-he_avg = average(he_scaled,2)
-missed = find_missing(he_avg)
-filter!(!phase_invariant, missed)
-@test isequal(missed, find_missing(he_avg))
-
-subs = Dict(missed .=> 0)
-he_nophase = substitute(he_avg, subs)
-@test isempty(find_missing(he_nophase))
+he_avg = cumulant_expansion(he_scaled,2)
+@test isempty(find_missing(he_avg))
 
 ps = (Δ, g, γ, κ, ν, N)
-f = generate_ode(he_nophase, ps)
-p0 = (0, 1.5, 0.25, 1, 4, 7)
+sys = ODESystem(he_avg)
+p0 = ps .=> (0, 1.5, 0.25, 1, 4, 7)
 u0 = zeros(ComplexF64, length(he_scaled))
-prob = ODEProblem(f, u0, (0.0, 50.0), p0)
+prob = ODEProblem(sys, u0, (0.0, 50.0), p0)
 sol = solve(prob, RK4(), abstol=1e-10, reltol=1e-10)
 
 @test sol.u[end][1] ≈ 12.601868534
@@ -128,7 +120,7 @@ sol = solve(prob, RK4(), abstol=1e-10, reltol=1e-10)
 # Spectrum
 corr = CorrelationFunction(a',a,he_nophase;steady_state=true,filter_func=phase_invariant)
 Spec = Spectrum(corr,ps)
-s = Spec(range(-π, π, length=301), sol.u[end], p0)
+s = Spec(range(-π, π, length=301), sol.u[end], getindex.(p0,2))
 @test all(s .>= 0.0)
 
 ## Some abstract tests
@@ -176,15 +168,15 @@ rates = [κ,γ]
 ops = [a,a'*a,a*a,b[1],a*b[1],a'*b[1],b[1]'*b[1],b[1]*b[1],b[1]'*b[2],b[1]*b[2]]
 he = heisenberg(ops,H,J;rates=rates)
 
-he_avg = average(he,2)
+he_avg = cumulant_expansion(he,2)
 @test isempty(find_missing(he_avg))
 
 ps = (G,Δ,κ,γ,Ω,N)
-f = generate_ode(he_avg, ps)
+sys = ODESystem(he_avg)
 
 u0 = zeros(ComplexF64, length(he_avg))
-p0 = ones(length(ps))
-prob = ODEProblem(f, u0, (0.0,1.0), p0)
+p0 = ps .=> ones(length(ps))
+prob = ODEProblem(sys, u0, (0.0,1.0), p0)
 sol = solve(prob, Tsit5())
 
 # Test molecule
@@ -210,18 +202,18 @@ rates = [γ,Γ]
 # Equations
 ops = [σ(2,2),σ(1,2),b[1],σ(1,2)*b[1],σ(2,1)*b[1],σ(2,2)*b[1],b[1]'*b[1],b[1]*b[1],b[1]'*b[2],b[1]*b[2]]
 he = heisenberg(ops, H, J; rates=rates)
-he_avg = average(he,2)
+he_avg = cumulant_expansion(he,2)
 @test isempty(find_missing(he_avg))
 ps = (Δ,η,γ,λ,ν,Γ,N)
 # Generate function
-f = generate_ode(he_avg,ps;check_bounds=true)
-p0 = [ones(length(ps)-1); 4]
+sys = ODESystem(he_avg)
+p0 = ps .=> [ones(length(ps)-1); 4]
 u0 = zeros(ComplexF64,length(he_avg))
-prob1 = ODEProblem(f,u0,(0.0,1.0),p0)
+prob1 = ODEProblem(sys,u0,(0.0,1.0),p0)
 sol1 = solve(prob1,Tsit5(),abstol=1e-12,reltol=1e-12)
-bdb1 = get_solution(b[1]'b[1], sol1, he_avg)[end]
-σ22_1 = get_solution(σ(2,2), sol1, he_avg)[end]
-σ12_1 = get_solution(σ(1,2), sol1, he_avg)[end]
+bdb1 = sol1[b[1]'*b[1]][end]
+σ22_1 = sol1[σ(2,2)][end]
+σ12_1 = sol1[σ(1,2)][end]
 
 
 ## Two clusters
@@ -243,12 +235,11 @@ h = tensor(hf, hc...)
 g = cnumbers([Symbol(:g_, c) for c=1:N_c]...)
 
 H = sum(Δ[c]*σ(:e,:e,c)[k] for c=1:N_c, k=1:M) + sum(g[c]*(a'*σ(:g,:e,c)[i] + a*σ(:e,:g,c)[i]) for i=1:M, c=1:N_c)
-H = qsimplify(H)
 J = [a;[σ(:g,:e,c) for c=1:N_c];[σ(:e,:g,c) for c=1:N_c]]
 rates = [κ,γ...,ν...]
 
 ops = [a'*a]
-he = average(heisenberg(ops, H, J; rates=rates),2)
+he = heisenberg(ops, H, J; rates=rates, expand=true, order=2)
 
 # Scale
 he_scaled = complete(he; filter_func=phase_invariant)
@@ -256,14 +247,14 @@ he_scaled = complete(he; filter_func=phase_invariant)
 @test isempty(find_missing(he_scaled))
 
 ps = (κ, Δ..., g..., γ..., ν..., N...)
-f = generate_ode(he_scaled, ps)
+sys = ODESystem(he_scaled)
 if N_c==2
     p0 = (1, [0 for i=1:N_c]..., [1.5 for i=1:N_c]..., [0.25 for i=1:N_c]..., [4 for i=1:N_c]..., 4, 3)
 elseif N_c==3
     p0 = (1, [0 for i=1:N_c]..., [1.5 for i=1:N_c]..., [0.25 for i=1:N_c]..., [4 for i=1:N_c]..., 2, 3, 2)
 end
 u0 = zeros(ComplexF64, length(he_scaled))
-prob = ODEProblem(f, u0, (0.0, 50.0), p0)
+prob = ODEProblem(sys, u0, (0.0, 50.0), p0)
 sol = solve(prob, RK4(), abstol=1e-10, reltol=1e-10)
 
 @test sol.u[end][1] ≈ 12.601868534

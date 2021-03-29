@@ -115,6 +115,6 @@ struct ScaledHeisenbergEquation <: AbstractHeisenbergEquation
     varmap::Vector{Pair}
     order::Union{Int,Vector{<:Int},Nothing}
     scale_aons
-    names::Vector{Symbol}
+    names::Vector
     was_scaled::Vector{Bool}
 end

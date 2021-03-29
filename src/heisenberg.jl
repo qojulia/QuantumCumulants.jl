@@ -79,7 +79,7 @@ function heisenberg(a::Vector,H,J;Jdagger::Vector=adjoint.(J),rates=ones(Int,len
 
     he = HeisenbergEquation(eqs_avg,eqs,vs,a,H,J_,rates_,iv,varmap,order)
     if has_cluster(H)
-        return scale(he)
+        return scale(he;simplify=simplify,expand=expand,order=order,mix_choice=mix_choice)
     else
         return he
     end

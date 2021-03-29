@@ -159,7 +159,7 @@ function cumulant_expansion(de::HeisenbergEquation,order;multithread=false,mix_c
     if multithread
         Threads.@threads for i=1:length(eqs)
             cr = cumulant_expansion(eqs[i].rhs,order;mix_choice=mix_choice,kwargs...)
-            eqs_out[i] = Symbolics.Equation(vs[i], cr)
+            eqs_out[i] = Symbolics.Equation(eqs[i].lhs, cr)
         end
     else
         for i=1:length(eqs)
@@ -172,24 +172,28 @@ function cumulant_expansion(de::HeisenbergEquation,order;multithread=false,mix_c
                             order)
 end
 function cumulant_expansion(de::ScaledHeisenbergEquation,order;multithread=false,mix_choice=maximum,kwargs...)
-    rhs = Vector{Any}(undef, length(de.lhs))
+    order==de.order && return de
+    eqs = de.equations
+    eqs_out = Vector{Symbolics.Equation}(undef, length(eqs))
     if multithread
-        Threads.@threads for i=1:length(de.lhs)
-            check_lhs(de.lhs[i],order;mix_choice=mix_choice)
-            cr = cumulant_expansion(de.rhs[i],order;mix_choice=mix_choice,kwargs...)
-            rhs[i] = substitute_redundants(cr, de.scale_aons, de.names)
+        Threads.@threads for i=1:length(eqs)
+            cr = cumulant_expansion(eqs[i].rhs,order;mix_choice=mix_choice,kwargs...)
+            cr = substitute_redundants(cr, de.scale_aons, de.names)
+            eqs_out[i] = Symbolics.Equation(eqs[i].lhs, cr)
         end
     else
-        for i=1:length(de.lhs)
-            check_lhs(de.lhs[i],order;mix_choice=mix_choice)
-            cr = cumulant_expansion(de.rhs[i],order;mix_choice=mix_choice,kwargs...)
-            rhs[i] = substitute_redundants(cr, de.scale_aons, de.names)
+        for i=1:length(eqs)
+            cr = cumulant_expansion(eqs[i].rhs,order;mix_choice=mix_choice,kwargs...)
+            cr = substitute_redundants(cr, de.scale_aons, de.names)
+            eqs_out[i] = Symbolics.Equation(eqs[i].lhs, cr)
         end
     end
 
-    return ScaledHeisenbergEquation(de.lhs,rhs,de.hamiltonian,de.jumps,de.rates,
-            de.scale_aons,de.names,de.was_scaled
-    )
+    return ScaledHeisenbergEquation(eqs_out,de.operator_equations,de.states,de.operators,
+                                    de.hamiltonian,de.jumps,de.rates,de.iv,
+                                    de.varmap,order,
+                                    de.scale_aons,de.names,de.was_scaled
+                                    )
 end
 
 function _cumulant_expansion(args::Vector,order::Int)

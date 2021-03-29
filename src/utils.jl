@@ -111,7 +111,7 @@ Optional arguments
 
 see also: [`find_missing`](@ref), [`heisenberg`](@ref)
 """
-function complete(de::HeisenbergEquation;kwargs...)
+function complete(de::AbstractHeisenbergEquation;kwargs...)
     de_ = deepcopy(de)
     complete!(de_;kwargs...)
     return de_

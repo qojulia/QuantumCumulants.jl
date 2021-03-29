@@ -3,32 +3,57 @@ function scale(he::AbstractHeisenbergEquation; kwargs...)
     scale_aons, N = get_cluster_stuff(h)
     return scale(he, scale_aons, N; kwargs...)
 end
-function scale(he::HeisenbergEquation, scale_aons_::Vector{<:Vector}, N::Vector; simplify=true, kwargs...)
+function scale(he::HeisenbergEquation, scale_aons::Vector{<:Vector}, N::Vector;
+                                                    simplify=true, expand=false,
+                                                    order=nothing, mix_choice=maximum,
+                                                    kwargs...)
     names = get_names(he)
-    he_avg = average(he) # Ensure correct form of expressions required for scaling
-    rhs_avg = he_avg.rhs
+    equations = Symbolics.Equation[]
+    for i=1:length(he.equations)
+        lhs = he.operator_equations[i].lhs
+        rhs = he.operator_equations[i].rhs
+        push!(equations, average(lhs) ~ average(rhs))
+    end
 
-    for j=1:length(scale_aons_)
-        scale_aons = scale_aons_[j]
-        M = length(scale_aons)
-        for i=1:length(rhs_avg)
-            rhs_avg[i] = substitute_redundants(rhs_avg[i], scale_aons, names)
-            rhs_avg[i] = _scale(he_avg.lhs[i], rhs_avg[i], scale_aons, N[j], M, names)
+    for j=1:length(scale_aons)
+        scale_aons_ = scale_aons[j]
+        M = length(scale_aons_)
+        for i=1:length(he.equations)
+            rhs = _scale(he.states[i], equations[i].rhs, scale_aons_, N[j], M, names)
+            if !expand
+                rhs = substitute_redundants(rhs, scale_aons_, names)
+            end
+            equations[i] = Symbolics.Equation(equations[i].lhs, rhs)
         end
     end
 
-    rhs = if he.lhs[1] isa Average
-        rhs_avg
-    else
-        map(_undo_average, rhs_avg)
+    operator_equations = he.operator_equations
+    for i=1:length(operator_equations)
+        rhs = undo_average(equations[i].rhs)
+        operator_equations[i] = Symbolics.Equation(operator_equations[i].lhs, rhs)
     end
 
-    he_scaled = ScaledHeisenbergEquation(he.lhs,rhs,he.hamiltonian,he.jumps,he.rates,
-                scale_aons_, names, ones(Bool, length(he))
+    if expand
+        order===nothing && error("Need given order for cumulant expansion!")
+        for i=1:length(equations)
+            rhs = cumulant_expansion(equations[i].rhs, order; simplify=simplify, mix_choice=mix_choice)
+            for j=1:length(scale_aons)
+                rhs = substitute_redundants(rhs, scale_aons[j], names)
+            end
+            equations[i] = equations[i].lhs ~ rhs
+        end
+    end
+
+    he_scaled = ScaledHeisenbergEquation(equations,operator_equations,
+                                    he.states, he.operators,
+                                    he.hamiltonian,he.jumps,he.rates,
+                                    he.iv, he.varmap, he.order,
+                                    scale_aons,names,ones(Bool, length(he)
+                                    )
     )
 
     if simplify
-        return qsimplify(he_scaled; kwargs...)
+        return Symbolics.simplify(he_scaled; kwargs...)
     else
         return he_scaled
     end
@@ -62,28 +87,8 @@ function _scale(lhs, rhs, scale_aons, N, M, names)
     else
         N_ = (N - (M-M_)) / (M - M_)
     end
-    rhs_ = _scaling_rewrite(rhs, N_, scale_aons, aon_lhs, names)
-    return rhs_
-end
-
-_undo_average(x::Number) = x
-function _undo_average(x::SymbolicUtils.Symbolic)
-    if SymbolicUtils.istree(x)
-        f = SymbolicUtils.operation(x)
-        if f === average
-            return SymbolicUtils.arguments(x)[1]
-        else
-            args = map(_undo_average, SymbolicUtils.arguments(x))
-            T = SymbolicUtils._promote_symtype(f, args)
-            if T <: QNumber
-                return QTerm(f, args)
-            else
-                return SymbolicUtils.similarterm(x, f, args)
-            end
-        end
-    else
-        return x
-    end
+    rhs = _scaling_rewrite(rhs, N_, scale_aons, aon_lhs, names)
+    return rhs
 end
 
 function get_names(he)
@@ -93,7 +98,7 @@ function get_names(he)
     for j ∈ J
         append!(ops, get_operators(j))
     end
-    for l ∈ he.lhs
+    for l ∈ he.operators
         append!(ops, get_operators(l))
     end
 
@@ -142,6 +147,27 @@ function unique_i_aons(aon)
     return seen
 end
 
+get_operators(q::QSym) = [q]
+function get_operators(q::QMul)
+    ops = QSym[]
+    seen_hashes = UInt[]
+    for arg ∈ q.args_nc
+        h = hash(arg)
+        if !(h ∈ seen_hashes)
+            push!(seen_hashes, h)
+            push!(ops, arg)
+        end
+    end
+    return ops
+end
+function get_operators(q::QAdd)
+    ops = QSym[]
+    for arg∈q.arguments
+        append!(ops, get_operators(arg))
+    end
+    unique_ops!(ops)
+    return ops
+end
 
 ## Scaling terms by the correct factor
 
@@ -154,7 +180,7 @@ function _scaling_rewrite(rhs, N, scale_aons, aon_lhs, names)
 
         rule_tree = [
             SymbolicUtils.If(
-                SymbolicUtils.is_operation(average), SymbolicUtils.Chain(SCALE_RULES)
+                SymbolicUtils.is_operation(sym_average), SymbolicUtils.Chain(SCALE_RULES)
                 ),
         ] |> SymbolicUtils.Chain
         SymbolicUtils.Postwalk(rule_tree)
@@ -180,13 +206,11 @@ end
 ## Dealing with redundant averages
 
 function substitute_redundants(he::HeisenbergEquation,scale_aons::Vector{<:Vector},names)
-    lhs = []
-    rhs = []
-    for i=1:length(he)
-        lhs_ = substitute_redundants(he.lhs[i],scale_aons,names)
-        rhs_ = substitute_redundants(he.rhs[i],scale_aons,names)
-        push!(lhs, lhs_)
-        push!(rhs, rhs_)
+    eqs = Symbolics.Equation[]
+    for i=1:length(he.equations)
+        lhs = substitute_redundants(he.equations[i].lhs,scale_aons,names)
+        rhs = substitute_redundants(he.equations[i].rhs,scale_aons,names)
+        push!(eqs, Symbolics.Equation(lhs, rhs))
     end
     # TODO substitute jumps and hamiltonian?
     return HeisenbergEquation(lhs, rhs, he.hamiltonian, he.jumps, he.rates)
@@ -195,8 +219,8 @@ end
 function substitute_redundants(t::SymbolicUtils.Symbolic,scale_aons::Vector{<:Vector},names)
     if SymbolicUtils.istree(t)
         f = SymbolicUtils.operation(t)
-        if f === average
-            op = copy(SymbolicUtils.arguments(t)[1])
+        if f === sym_average
+            op = deepcopy(SymbolicUtils.arguments(t)[1])
             for j=1:length(scale_aons)
                 op = substitute_redundants(op,scale_aons[j],names)
             end
@@ -232,7 +256,7 @@ function substitute_redundants(t::QMul,scale_aons,names)
                             scale_aons, names
                             )
     else
-        args = SymbolicUtils.arguments(t)
+        args = t.args_nc
         args_cluster = filter(x->acts_on(x)∈scale_aons, args)
 
         # Get the proper ordering
@@ -352,13 +376,13 @@ end
 
 _swap_aon_and_name(x::Average, aon1, aon2, names) = _average(_swap_aon_and_name(x.arguments[1], aon1, aon2, names))
 function _swap_aon_and_name(t::QMul, aon1, aon2, names)
-    args = []
-    for arg in SymbolicUtils.arguments(t)
+    args = QSym[]
+    for arg ∈ t.args_nc
         idx = findfirst(isequal(acts_on(arg)), aon1)
         push!(args, _swap_aon_and_name(arg, aon1[idx], aon2[idx], names[idx]))
     end
     sort!(args, by=acts_on)
-    return QTerm(*, args)
+    return QMul(t.arg_c, args)
 end
 _swap_aon_and_name(op::T, aon1, aon2, name::Symbol) where T<:QSym = T(op.hilbert, name, aon2)
 function _swap_aon_and_name(op::Transition, aon1, aon2, name::Symbol)
@@ -379,62 +403,104 @@ end
 
 
 ## Complete
-function complete(de::ScaledHeisenbergEquation,args...;kwargs...)
-    rhs_, lhs_ = scale_complete(de.rhs,de.lhs,de.hamiltonian,de.jumps,de.rates,de.scale_aons,de.names;kwargs...)
-    return ScaledHeisenbergEquation(
-                                lhs_,rhs_,de.hamiltonian,de.jumps,
-                                de.rates,de.scale_aons,de.names,ones(Bool, length(rhs_)))
-end
-
-function scale_complete(rhs::Vector, vs::Vector, H, J, rates, scale_aons, names; order=nothing, filter_func=nothing, mix_choice=maximum, kwargs...)
+function complete!(de::ScaledHeisenbergEquation;
+                                order=de.order,
+                                multithread=false,
+                                filter_func=nothing,
+                                mix_choice=maximum,
+                                simplify=true,
+                                kwargs...)
+    vs = de.states
     order_lhs = maximum(get_order.(vs))
-    order_rhs = maximum(get_order.(rhs))
-    if order isa Nothing
+    order_rhs = 0
+    for i=1:length(de.equations)
+        k = get_order(de.equations[i].rhs)
+        k > order_rhs && (order_rhs = k)
+    end
+    if order === nothing
         order_ = max(order_lhs, order_rhs)
     else
         order_ = order
     end
     maximum(order_) >= order_lhs || error("Cannot form cumulant expansion of derivative; you may want to use a higher order!")
 
-    vs_ = copy(vs)
-    rhs_ = [cumulant_expansion(r, order_) for r in rhs]
-    missed = find_missing(rhs_, vs_)
-    filter!(SymbolicUtils.sym_isa(AvgSym),missed)
-    filter_redundants!(missed,scale_aons,names)
+    if order_ != de.order
+        for i=1:length(de.equations)
+            lhs = de.equations[i].lhs
+            rhs = cumulant_expansion(de.equations[i].rhs,order_;
+                                        mix_choice=mix_choice,
+                                        simplify=simplify)
+            de.equations[i] = Symbolics.Equation(lhs, rhs)
+        end
+    end
+
+    names = de.names
+    scale_aons = de.scale_aons
+
+    vhash = map(hash, vs)
+    vs′ = map(_conj, vs)
+    vs′hash = map(hash, vs′)
+    filter!(!in(vhash), vs′hash)
+    missed = find_missing(de.equations, vhash, vs′hash; get_adjoints=false)
+    filter_redundants!(missed,scale_aons,names,vhash,vs′hash)
     isnothing(filter_func) || filter!(filter_func, missed) # User-defined filter
+
     while !isempty(missed)
-        ops = [SymbolicUtils.arguments(m)[1] for m in missed]
-        he = isempty(J) ? heisenberg(ops,H; kwargs...) : heisenberg(ops,H,J;rates=rates, kwargs...)
-        he_avg = average(he,order_;mix_choice=mix_choice, kwargs...)
-        rhs_ = [rhs_;he_avg.rhs]
-        vs_ = [vs_;he_avg.lhs]
-        missed = find_missing(rhs_,vs_)
-        filter!(SymbolicUtils.sym_isa(AvgSym),missed)
-        filter_redundants!(missed,scale_aons,names)
+        ops_ = [SymbolicUtils.arguments(m)[1] for m in missed]
+        he = heisenberg(ops_,de.hamiltonian,de.jumps;
+                                rates=de.rates,
+                                simplify=simplify,
+                                multithread=multithread,
+                                expand=true,
+                                order=order_,
+                                mix_choice=mix_choice,
+                                iv=de.iv,
+                                kwargs...)
+
+        _append!(de, he)
+
+        vhash_ = hash.(he.states)
+        vs′hash_ = hash.(_conj.(he.states))
+        append!(vhash, vhash_)
+        for i=1:length(vhash_)
+            vs′hash_[i] ∈ vhash_ || push!(vs′hash, vs′hash_[i])
+        end
+
+        missed = find_missing(he.equations, vhash, vs′hash; get_adjoints=false)
+        filter_redundants!(missed,scale_aons,names,vhash,vs′hash)
         isnothing(filter_func) || filter!(filter_func, missed) # User-defined filter
     end
 
     if !isnothing(filter_func)
         # Find missing values that are filtered by the custom filter function,
         # but still occur on the RHS; set those to 0
-        missed = find_missing(rhs_, vs_)
-        filter!(SymbolicUtils.sym_isa(AvgSym),missed)
+        missed = find_missing(de)
         filter!(!filter_func, missed)
         filter_redundants!(missed,scale_aons,names)
         missed_adj = map(_adjoint, missed)
         subs = Dict(vcat(missed, missed_adj) .=> 0)
-        rhs_ = [substitute(r, subs) for r in rhs_]
-    end
-    return rhs_, vs_
-end
-
-function filter_redundants!(missed,scale_aons_::Vector{<:Vector},names)
-    for scale_aons∈scale_aons_
-        f = x->substitute_redundants(x,scale_aons,names)
-        for j=1:length(missed)
-            missed[j] = f(missed[j])
+        for i=1:length(de.equations)
+            de.equations[i] = substitute(de.equations[i], subs)
+            de.states[i] = de.equations[i].lhs
         end
     end
-    unique_ops!(missed)
+    return de
+end
+
+function filter_redundants!(missed,scale_aons_::Vector{<:Vector},names,vhash=UInt[],vs′hash=UInt[])
+    j = 1
+    while j <= length(missed)
+        for scale_aons∈scale_aons_
+            missed[j] = substitute_redundants(missed[j],scale_aons,names)
+        end
+        h = hash(missed[j])
+        h′ = hash(_adjoint(missed[j]))
+        if h∈vhash || h′∈vhash || h∈vs′hash || h′∈vs′hash
+            deleteat!(missed, j)
+        else
+            j += 1
+            push!(vhash, h)
+        end
+    end
     return missed
 end
