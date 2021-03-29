@@ -267,6 +267,14 @@ function fundamental_operators(h::ProductSpace;kwargs...)
     return ops
 end
 
+for T ∈ [:Destroy,:Create,:Transition]
+    @eval function embed(h::ProductSpace,op::($T),i)
+        fields = [getfield(op, s) for s∈fieldnames($T)]
+        fields[1] = h
+        fields[end] = i
+        return $(T)(fields...)
+    end
+end
 
 """
     unique_ops(ops)

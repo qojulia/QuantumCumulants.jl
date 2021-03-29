@@ -118,7 +118,7 @@ sol = solve(prob, RK4(), abstol=1e-10, reltol=1e-10)
 @test sol.u[end][1] ≈ 12.601868534
 
 # Spectrum
-corr = CorrelationFunction(a',a,he_nophase;steady_state=true,filter_func=phase_invariant)
+corr = CorrelationFunction(a',a,he_avg;steady_state=true,filter_func=phase_invariant)
 Spec = Spectrum(corr,ps)
 s = Spec(range(-π, π, length=301), sol.u[end], getindex.(p0,2))
 @test all(s .>= 0.0)
@@ -249,9 +249,9 @@ he_scaled = complete(he; filter_func=phase_invariant)
 ps = (κ, Δ..., g..., γ..., ν..., N...)
 sys = ODESystem(he_scaled)
 if N_c==2
-    p0 = (1, [0 for i=1:N_c]..., [1.5 for i=1:N_c]..., [0.25 for i=1:N_c]..., [4 for i=1:N_c]..., 4, 3)
+    p0 = ps .=> (1, [0 for i=1:N_c]..., [1.5 for i=1:N_c]..., [0.25 for i=1:N_c]..., [4 for i=1:N_c]..., 4, 3)
 elseif N_c==3
-    p0 = (1, [0 for i=1:N_c]..., [1.5 for i=1:N_c]..., [0.25 for i=1:N_c]..., [4 for i=1:N_c]..., 2, 3, 2)
+    p0 = ps .=> (1, [0 for i=1:N_c]..., [1.5 for i=1:N_c]..., [0.25 for i=1:N_c]..., [4 for i=1:N_c]..., 2, 3, 2)
 end
 u0 = zeros(ComplexF64, length(he_scaled))
 prob = ODEProblem(sys, u0, (0.0, 50.0), p0)
