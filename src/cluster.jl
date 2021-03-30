@@ -1,14 +1,4 @@
-# TODO: error on ProductSpace
-struct ClusterSpace{H<:HilbertSpace,NType,M<:Integer} <: HilbertSpace
-    original_space::H
-    N::NType
-    order::M
-end
-Base.:(==)(h1::T,h2::T) where T<:ClusterSpace = (h1.original_space==h2.original_space && isequal(h1.N,h2.N) && h1.order==h2.order)
-Base.hash(c::ClusterSpace, h::UInt) = hash(c.original_space, hash(c.N, hash(c.order, h)))
-
-has_hilbert(::Type{T},::ClusterSpace{<:T},args...) where T<:HilbertSpace = true
-
+## ClusterSpace methods
 for f in [:levels,:ground_state]
     @eval $(f)(c::ClusterSpace{<:NLevelSpace}, args...) = $(f)(c.original_space, args...)
 end
@@ -25,10 +15,7 @@ has_cluster(h::ProductSpace,aon) = has_cluster(h.spaces[get_i(aon)])
 has_cluster(op::QNumber,args...) = has_cluster(hilbert(op),args...)
 has_cluster(avg::Average,args...) = has_cluster(undo_average(avg),args...)
 
-struct ClusterAon{T<:Integer}
-    i::T
-    j::T
-end
+# ClusterAon methods
 Base.hash(c::T, h::UInt) where T<:ClusterAon = hash(T, hash(c.i, hash(c.j, h)))
 Base.getindex(v::Vector{<:HilbertSpace}, c::ClusterAon) = v[c.i]
 get_i(x::Integer) = x
@@ -56,8 +43,6 @@ function Base.isless(c1::ClusterAon,c2::ClusterAon)
     end
 end
 Base.iterate(c::ClusterAon, state=1) = isone(state) ? (c,state+1) : nothing
-
-const AonType = Union{Int,ClusterAon{Int}}
 
 # TODO: clean up operator constructors
 function Transition(h::ClusterSpace{<:NLevelSpace}, name, i, j, aon::Int=1)

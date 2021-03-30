@@ -61,6 +61,32 @@ See also [`⊗`](@ref).
 """
 tensor(args...) = ⊗(args...)
 
+"""
+    ClusterSpace <: HilbertSpace
+    ClusterSpace(original_space,N,order)
+
+A Hilbert space representing `N` identical copies of another Hilbert space, with
+correlations up to a specified `order`.
+"""
+struct ClusterSpace{H<:HilbertSpace,NType,M<:Integer} <: HilbertSpace
+    original_space::H
+    N::NType
+    order::M
+end
+Base.:(==)(h1::T,h2::T) where T<:ClusterSpace = (h1.original_space==h2.original_space && isequal(h1.N,h2.N) && h1.order==h2.order)
+Base.hash(c::ClusterSpace, h::UInt) = hash(c.original_space, hash(c.N, hash(c.order, h)))
+
+"""
+    ClusterAon(i,j)
+
+When an operator acts on the Hilbert space `i` which is a [`ClusterSpace`](@ref),
+the index `j` denotes which copy of the Hilbert space the operator acts on.
+"""
+struct ClusterAon{T<:Integer}
+    i::T
+    j::T
+end
+
 Base.isless(h1::HilbertSpace,h2::HilbertSpace) = isless(h1.name,h2.name)
 Base.isless(h1::ProductSpace,h2::ProductSpace) = isless(h1.spaces,h2.spaces)
 
@@ -72,3 +98,4 @@ end
 has_hilbert(::Type{T},::T,args...) where T<:HilbertSpace = true
 has_hilbert(T::Type{<:HilbertSpace},h::ProductSpace,aon) = has_hilbert(T,h.spaces[aon])
 has_hilbert(::Type{<:HilbertSpace},::HilbertSpace,args...) = false
+has_hilbert(::Type{T},::ClusterSpace{<:T},args...) where T<:HilbertSpace = true
