@@ -512,13 +512,36 @@ function _build_spec_func(ω, lhs, rhs, a1, a0, steady_vals, ps=[])
     b = [substitute_conj(b_,vs_adj,vs′hash) for b_∈b]
     c = [substitute_conj(c_,vs_adj,vs′hash) for c_∈c]
 
+    # Keep Symbolics.unflatten_long_ops from stepping into symbolic average
+    # functions by substituting. This can be removed once averages store
+    # operators as metadata
+    A1 = [_substitute_vars(A_) for A_∈A]
+    b1 = [_substitute_vars(b_) for b_∈b]
+    c1 = [_substitute_vars(c_) for c_∈c]
+
     # Build functions
-    Afunc = Symbolics.build_function(A, ω, steady_vals, ps; expression=false)
-    bfunc = Symbolics.build_function(b, steady_vals, ps; expression=false)
-    cfunc = Symbolics.build_function(c, ω, steady_vals, ps; expression=false)
+    Afunc = Symbolics.build_function(A1, ω, steady_vals, ps; expression=false)
+    bfunc = Symbolics.build_function(b1, steady_vals, ps; expression=false)
+    cfunc = Symbolics.build_function(c1, ω, steady_vals, ps; expression=false)
 
     return A, b, c, Afunc, bfunc, cfunc
 end
+
+function _substitute_vars(t::SymbolicUtils.Symbolic)
+    if SymbolicUtils.istree(t)
+        f = SymbolicUtils.operation(t)
+        if f === sym_average
+            sym = Symbol(string(t))
+            return SymbolicUtils.Sym{Complex}(sym)
+        else
+            args = [_substitute_vars(arg) for arg∈SymbolicUtils.arguments(t)]
+            return SymbolicUtils.similarterm(t, f, args)
+        end
+    else
+        return t
+    end
+end
+_substitute_vars(x::Number) = x
 
 _find_independent(rhs::Vector, a0) = [_find_independent(r, a0) for r in rhs]
 function _find_independent(r, a0)
