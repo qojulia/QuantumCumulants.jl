@@ -1,5 +1,5 @@
 using Documenter
-using Qumulants
+using QuantumCumulants
 
 pages = [
         "index.md",
@@ -16,13 +16,13 @@ pages = [
     ]
 
 makedocs(
-    sitename = "Qumulants.jl",
-    modules = [Qumulants],
+    sitename = "QuantumCumulants.jl",
+    modules = [QuantumCumulants],
     pages = pages,
     checkdocs=:exports,
     format = Documenter.HTML(mathengine=MathJax())
     )
 
 deploydocs(
-    repo = "github.com/david-pl/Qumulants.jl.git",
+    repo = "github.com/david-pl/QuantumCumulants.jl.git",
     )

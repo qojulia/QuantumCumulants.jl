@@ -10,7 +10,7 @@ where $\Delta = \omega_\mathrm{c} - \omega_\mathrm{a}$ is the detuning between t
 ```@example single-atom-laser-spectrum
 using Latexify # hide
 set_default(double_linebreak=true) # hide
-using Qumulants
+using QuantumCumulants
 using ModelingToolkit, OrdinaryDiffEq
 using Plots
 
@@ -62,7 +62,7 @@ function ϕ(t::Transition)
     end
 end
 ϕ(avg::Average) = ϕ(avg.arguments[1])
-function ϕ(t::Qumulants.QMul)
+function ϕ(t::QuantumCumulants.QMul)
     p = 0
     for arg in t.args_nc
         p += ϕ(arg)

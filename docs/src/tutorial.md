@@ -7,7 +7,7 @@ We start by loading the package, defining some symbolic parameters and the photo
 ```@example tutorial
 using Latexify # hide
 set_default(double_linebreak=true) # hide
-using Qumulants
+using QuantumCumulants
 
 # Define parameters
 @cnumbers Δ g γ κ ν

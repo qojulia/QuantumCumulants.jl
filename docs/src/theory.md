@@ -1,6 +1,6 @@
 # [Theoretical background](@id theory)
 
-In this section, we will describe the fundamental theoretical concepts used within **Qumulants.jl**.
+In this section, we will describe the fundamental theoretical concepts used within **QuantumCumulants.jl**.
 
 ## The Quantum Langevin equation
 
@@ -10,7 +10,7 @@ In an open quantum system, the equation of motion of an operator ``\mathcal{O}``
 \dot{\mathcal{O}} = \frac{i}{\hbar}[H,\mathcal{O}] + \sum_n \frac{\gamma_n}{2}\left(2c_n^\dagger \mathcal{O}c_n - c_n^\dagger c_n \mathcal{O} - \mathcal{O}c_n^\dagger c_n\right) + \text{noise}.
 ```
 
-Note that we did not specify the noise term, since under the assumption of white noise it does not contribute to averages. We can therefore neglect it in the following. The above equation is an operator equation, i.e. solving it directly has the same numerical complexity as solving a stochastic master equation. However, averaging over the above we obtain a *c*-number equation, which, in principle, is easy to solve. This is the basic idea in **Qumulants.jl**: derive equations of motions of operators, and then convert them to easily solvable *c*-number differential equations. However, as we will see, there is another crucial step required, namely the cumulant expansion.
+Note that we did not specify the noise term, since under the assumption of white noise it does not contribute to averages. We can therefore neglect it in the following. The above equation is an operator equation, i.e. solving it directly has the same numerical complexity as solving a stochastic master equation. However, averaging over the above we obtain a *c*-number equation, which, in principle, is easy to solve. This is the basic idea in **QuantumCumulants.jl**: derive equations of motions of operators, and then convert them to easily solvable *c*-number differential equations. However, as we will see, there is another crucial step required, namely the cumulant expansion.
 
 ## A brief example
 
@@ -57,7 +57,7 @@ The above system can, however, not be solved since we encounter terms such as ``
 
 ## Cumulant expansion
 
-To obtain a closed set of *c*-number equations, we truncate the in principle infinite set of equations at a certain order. By order, we essentially mean the length of an operator product, e.g. ``\langle a \rangle`` is of order ``1``, ``\langle a^\dagger a \rangle`` and ``\langle a^\dagger \sigma^{ge}\rangle`` are of the order ``2``. The order of a system determines its size and the accuracy of the underlying approximation. It is therefore an essential concept in **Qumulants.jl**.
+To obtain a closed set of *c*-number equations, we truncate the in principle infinite set of equations at a certain order. By order, we essentially mean the length of an operator product, e.g. ``\langle a \rangle`` is of order ``1``, ``\langle a^\dagger a \rangle`` and ``\langle a^\dagger \sigma^{ge}\rangle`` are of the order ``2``. The order of a system determines its size and the accuracy of the underlying approximation. It is therefore an essential concept in **QuantumCumulants.jl**.
 
 The way in which we truncate a system of equations is called the generalized cumulant expansion (see also [R. Kubo, *Generalized Cumulant Expansion Method*](https://www.jstage.jst.go.jp/article/jpsj1946/17/7/17_7_1100/_article/-char/ja/)). The joint cumulant, which we denote by ``\langle\cdot\rangle_c`` of a product of operators ``X_1 X_2 ... X_n`` of order ``n`` is given by
 
@@ -103,12 +103,12 @@ Returning to the example of the Jaynes-Cummings Hamiltonian, we could use the cu
 \end{align*}
 ```
 
-Now this system of equations forms a closed set, and can readily be implemented and solved numerically. Of course, solving the Jaynes-Cummings model in mean field is not very interesting. We could make it more interesting by doing a second-order cumulant expansion. However, this would involve deriving the equations for all the second-order averages, which is quite tedious. So instead, let's just be lazy and use **Qumulants.jl** to do it,
+Now this system of equations forms a closed set, and can readily be implemented and solved numerically. Of course, solving the Jaynes-Cummings model in mean field is not very interesting. We could make it more interesting by doing a second-order cumulant expansion. However, this would involve deriving the equations for all the second-order averages, which is quite tedious. So instead, let's just be lazy and use **QuantumCumulants.jl** to do it,
 
 ```@example theory-JC
 using Latexify # hide
 set_default(double_linebreak=true) # hide
-using Qumulants
+using QuantumCumulants
 
 # Symbolic parameters
 @cnumbers Δ g
@@ -152,7 +152,7 @@ nothing # hide
 \end{align*}
 ```
 
-Note, that **Qumulants.jl** automatizes the derivation of equations and the cumulant expansion. Furthermore, the final step of numerical implementation is handled by converting to the [**ModelingToolkit.jl**](https://github.com/SciML/ModelingToolkit.jl) framework.
+Note, that **QuantumCumulants.jl** automatizes the derivation of equations and the cumulant expansion. Furthermore, the final step of numerical implementation is handled by converting to the [**ModelingToolkit.jl**](https://github.com/SciML/ModelingToolkit.jl) framework.
 
 ### References
 

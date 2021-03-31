@@ -10,7 +10,7 @@ where $\Delta = \omega_\ell - \omega_a$ is the detuning between the laser and th
 ```@example mollow
 using Latexify # hide
 set_default(double_linebreak=true) # hide
-using Qumulants
+using QuantumCumulants
 using ModelingToolkit, OrdinaryDiffEq
 using Plots
 ```
