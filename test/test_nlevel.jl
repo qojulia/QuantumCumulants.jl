@@ -1,4 +1,4 @@
-using Qumulants
+using QuantumCumulants
 using SymbolicUtils
 using Test
 
@@ -60,7 +60,7 @@ hprod = ha1⊗ha2
 # Callable constructor
 @test_throws ErrorException Transition(hprod,:σ)
 s = Transition(hprod,:σ,1)
-@test s isa Qumulants.CallableTransition
+@test s isa QuantumCumulants.CallableTransition
 @test s(:g,:e) == σ1
 @test acts_on(Transition(ha2,:s))==1
 

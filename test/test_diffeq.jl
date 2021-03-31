@@ -1,4 +1,4 @@
-using Qumulants
+using QuantumCumulants
 using OrdinaryDiffEq
 using ModelingToolkit
 using Test
@@ -23,10 +23,10 @@ he_exp = cumulant_expansion(he_avg,2)
 
 ps = [Δ,g,κ,γ,ν]
 missed = find_missing(he_exp)
-@test !any(Qumulants._in(p, missed) for p=ps)
+@test !any(QuantumCumulants._in(p, missed) for p=ps)
 
 # Exploit phase invariance
-subs = Dict([missed; Qumulants._conj.(missed)] .=> 0)
+subs = Dict([missed; QuantumCumulants._conj.(missed)] .=> 0)
 he_nophase = substitute(he_exp, subs)
 @test isempty(find_missing(he_nophase))
 

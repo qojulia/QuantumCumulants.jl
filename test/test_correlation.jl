@@ -1,4 +1,4 @@
-using Qumulants
+using QuantumCumulants
 using OrdinaryDiffEq
 using ModelingToolkit
 using Test
@@ -79,7 +79,7 @@ phase(avg::Average) = phase(avg.arguments[1])
 phase(op::Destroy) = -1
 phase(op::Create) = 1
 function phase(t::Transition)
-    lvls = Qumulants.levels(t.hilbert, t.aon)
+    lvls = QuantumCumulants.levels(t.hilbert, t.aon)
     i = findfirst(isequal(t.i), lvls)
     j = findfirst(isequal(t.j), lvls)
     if i < j
@@ -90,7 +90,7 @@ function phase(t::Transition)
         0
     end
 end
-phase(op::Qumulants.QMul) = sum(phase(arg) for arg in op.args_nc)
+phase(op::QuantumCumulants.QMul) = sum(phase(arg) for arg in op.args_nc)
 c_nophase = CorrelationFunction(a', a, he_avg; steady_state=true, filter_func=!has_phase)
 
 S_nophase = Spectrum(c_nophase, ps)

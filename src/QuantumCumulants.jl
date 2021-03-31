@@ -1,4 +1,4 @@
-module Qumulants
+module QuantumCumulants
 
 import SymbolicUtils
 import SymbolicUtils: substitute

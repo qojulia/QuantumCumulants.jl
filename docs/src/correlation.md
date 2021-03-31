@@ -33,9 +33,9 @@ Note that this is generally valid, and will lead to a system of equations that i
 g(t,\tau) = \langle a^\dagger(t)a(t)\rangle e^{(i\omega_\mathrm{c} - \kappa/2)\tau}.
 ```
 
-This is the essential procedure with which correlation functions can be computed within **Qumulants.jl**. In code, the above is just:
+This is the essential procedure with which correlation functions can be computed within **QuantumCumulants.jl**. In code, the above is just:
 ```@example correlation
-using Qumulants # hide
+using QuantumCumulants # hide
 h = FockSpace(:cavity)
 a = Destroy(h,:a)
 @cnumbers ωc κ
@@ -84,7 +84,7 @@ There are two possible ways two compute the spectrum given a correlation functio
 1. Solving the differential equation needed to obtain ``g(t,\tau)`` and taking the Fourier transform.
 2. Taking the (symbolic) Laplace transform of the system of equations describing a correlation function.
 
-On the one hand, the first approach works generally, but is computationally more intense. The second approach, on the other hand, yields a simple linear system of equations which is easy to solve, but only works when the correlation function has been computed starting from the steady state. Both methods can be easily used with **Qumulants.jl**.
+On the one hand, the first approach works generally, but is computationally more intense. The second approach, on the other hand, yields a simple linear system of equations which is easy to solve, but only works when the correlation function has been computed starting from the steady state. Both methods can be easily used with **QuantumCumulants.jl**.
 
 
 ### Numerical solution of ``g(t,\tau)``

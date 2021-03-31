@@ -1,4 +1,4 @@
-using Qumulants
+using QuantumCumulants
 using SymbolicUtils
 using Test
 
@@ -12,7 +12,7 @@ a = Destroy(h,:a)
 
 @cnumbers p q
 # @test p*q isa NumberTerm
-@test p*q*a isa Qumulants.QTerm
+@test p*q*a isa QuantumCumulants.QTerm
 
 σ = Transition(h,:σ,:g,:e)
 σee = Transition(h,:σ,:e,:e)
@@ -56,7 +56,7 @@ he_laser = heisenberg([a'*a,σ'*σ,a'*σ],H,J;rates=[κ,γ,ν])
 b = Destroy(h, :b)
 yy = 1im*σ*b*(N-1)*λ*Γ
 using SymbolicUtils: Term
-@test isequal(simplify(yy), Qumulants.QMul(im*Γ*λ*(N-1), [b, σ]))
+@test isequal(simplify(yy), QuantumCumulants.QMul(im*Γ*λ*(N-1), [b, σ]))
 
 # Test numbers in commutator
 @cnumbers Δ

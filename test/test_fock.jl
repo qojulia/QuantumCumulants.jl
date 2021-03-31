@@ -1,4 +1,4 @@
-using Qumulants
+using QuantumCumulants
 using SymbolicUtils
 using Test
 
