@@ -26,13 +26,13 @@ Base.isless(a::QSym,b::QSym) = a.name < b.name
 ## Interface for SymbolicUtils
 
 # Symbolic type promotion
-# SymbolicUtils.promote_symtype(f, Ts::Type{<:QNumber}...) = promote_type(QNumber,Ts...)
-# SymbolicUtils.promote_symtype(f, T::Type{<:QNumber}, Ts...) = promote_type(QNumber,T)
-# SymbolicUtils.promote_symtype(f,T::Type{<:QNumber},S::Type{<:Number}) = QNumber
-# SymbolicUtils.promote_symtype(f,T::Type{<:Number},S::Type{<:QNumber}) = QNumber
-# SymbolicUtils.promote_symtype(f,T::Type{<:QNumber},S::Type{<:QNumber}) = QNumber
+SymbolicUtils.promote_symtype(f, Ts::Type{<:QNumber}...) = promote_type(Ts...)
+SymbolicUtils.promote_symtype(f, T::Type{<:QNumber}, Ts...) = T
+SymbolicUtils.promote_symtype(f,T::Type{<:QNumber},S::Type{<:Number}) = T
+SymbolicUtils.promote_symtype(f,T::Type{<:Number},S::Type{<:QNumber}) = S
+SymbolicUtils.promote_symtype(f,T::Type{<:QNumber},S::Type{<:QNumber}) = promote_type(T,S)
 
-# SymbolicUtils.symtype(x::T) where T<:QNumber = T
+SymbolicUtils.symtype(x::T) where T<:QNumber = T
 
 SymbolicUtils.istree(::QSym) = false
 SymbolicUtils.istree(::QTerm) = true
@@ -80,7 +80,12 @@ Base.isless(a::QMul, b::QMul) = isless(a.h, b.h)
 
 SymbolicUtils.operation(::QMul) = (*)
 SymbolicUtils.arguments(a::QMul) = vcat(a.arg_c, a.args_nc)
-# SymbolicUtils.similarterm(::QMul, ::typeof(*), args) = QMul(Ref(args[1]), args[2:end])
+function SymbolicUtils.similarterm(::QMul, ::typeof(*), args)
+    args_c = filter(x->!(x isa QNumber), args)
+    args_nc = filter(x->x isa QNumber, args)
+    arg_c = *(args_c...)
+    return QMul(arg_c, args_nc)
+end
 
 function Base.adjoint(q::QMul)
     args_nc = map(adjoint, q.args_nc)
@@ -193,7 +198,7 @@ end
 
 SymbolicUtils.operation(::QAdd) = (+)
 SymbolicUtils.arguments(a::QAdd) = a.arguments
-# SymbolicUtils.similarterm(::QAdd, ::typeof(+), args) = QAdd(args)
+SymbolicUtils.similarterm(::QAdd, ::typeof(+), args) = QAdd(args)
 
 Base.adjoint(q::QAdd) = QAdd(map(adjoint, q.arguments))
 
