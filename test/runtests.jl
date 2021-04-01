@@ -11,7 +11,7 @@ names = [
     "test_two-level-laser.jl"
     "test_cluster.jl"
     "test_scaling.jl"
-    # "test_higher-order.jl"
+    "test_higher-order.jl"
 ]
 
 detected_tests = filter(

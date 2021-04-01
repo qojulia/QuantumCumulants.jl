@@ -5,12 +5,12 @@ Let's take a closer look at each step involved from defining a system to arrivin
 
 ## Hilbert spaces
 
-The first step in treating a system with **Qumulants.jl** is to specify the Hilbert space on which the system is defined. There are two types of Hilbert spaces implemented, namely [`FockSpace`](@ref) and [`NLevelSpace`](@ref). The first describes systems whose operators follow the fundamental bosonic commutation relations (such as the quantum harmonic oscillator), whereas the latter describes systems consisting of a finite number of energy levels with an arbitrary energy difference in between (such as atoms).
+The first step in treating a system with **QuantumCumulants.jl** is to specify the Hilbert space on which the system is defined. There are two types of Hilbert spaces implemented, namely [`FockSpace`](@ref) and [`NLevelSpace`](@ref). The first describes systems whose operators follow the fundamental bosonic commutation relations (such as the quantum harmonic oscillator), whereas the latter describes systems consisting of a finite number of energy levels with an arbitrary energy difference in between (such as atoms).
 
 A [`FockSpace`](@ref) simply needs a name in order to be defined:
 
 ```@example hilbert-space
-using Qumulants # hide
+using QuantumCumulants # hide
 hf = FockSpace(:fock1)
 nothing # hide
 ```
@@ -38,12 +38,12 @@ creates two product spaces. The first, `h_prod1`, consists of the previously def
 
 ## Operators (a.k.a. *q*-numbers)
 
-Once the Hilbert space of the system has been defined, we can proceed by defining operators, or *q*-numbers, on them. They are the fundamental building blocks of symbolic expressions in **Qumulants.jl**. Again, there are essentially two kinds of operators implemented: the quantum harmonic destruction operator [`Destroy`](@ref) which acts on a [`FockSpace`](@ref), as well as a [`Transition`](@ref) operator which describes a transition between any two levels on an [`NLevelSpace`](@ref). Of course, these operators can only be defined on the corresponding Hilbert spaces.
+Once the Hilbert space of the system has been defined, we can proceed by defining operators, or *q*-numbers, on them. They are the fundamental building blocks of symbolic expressions in **QuantumCumulants.jl**. Again, there are essentially two kinds of operators implemented: the quantum harmonic destruction operator [`Destroy`](@ref) which acts on a [`FockSpace`](@ref), as well as a [`Transition`](@ref) operator which describes a transition between any two levels on an [`NLevelSpace`](@ref). Of course, these operators can only be defined on the corresponding Hilbert spaces.
 
 Here are a few examples:
 
 ```@example operators
-using Qumulants # hide
+using QuantumCumulants # hide
 hf = FockSpace(:fock)
 a = Destroy(hf, :a)
 
@@ -56,7 +56,7 @@ nothing # hide
 
 As you can see, the destruction operator [`Destroy`](@ref) is created on a [`FockSpace`](@ref) and given a name. The transition operator, however, additionally requires you to specify the levels between which it describes the transition. Defining a transition without levels specified creates a callable instance which needs to be called with valid level labels before one can actually use it in any algebraic expressions. Note that in Bra-Ket notation, the transition operator `Transition(h, i, j)` is simply ``|i\rangle \langle j|``. Note that the bosonic creation operator is simply given by the `adjoint` of [`Destroy`](@ref).
 
-These fundamental operators are all of the type [`QSym`](@ref), which are the basic symbolic building blocks for the noncommutative algebra used in **Qumulants.jl**. They implement the [interface](https://symbolicutils.juliasymbolics.org/interface/) of the [**SymbolicUtils.jl**](https://github.com/JuliaSymbolics/SymbolicUtils.jl) package. Hence, they can be combined using standard algebraic functions.
+These fundamental operators are all of the type [`QSym`](@ref), which are the basic symbolic building blocks for the noncommutative algebra used in **QuantumCumulants.jl**. They implement the [interface](https://symbolicutils.juliasymbolics.org/interface/) of the [**SymbolicUtils.jl**](https://github.com/JuliaSymbolics/SymbolicUtils.jl) package. Hence, they can be combined using standard algebraic functions.
 
 ```@example operators
 ex_fock = 0.1*a'*a
@@ -100,7 +100,7 @@ nothing # hide
 Commutative numbers (*c*-numbers) are represented by `SymbolicUtils.Sym` from the [**SymbolicUtils.jl**](https://github.com/JuliaSymbolics/SymbolicUtils.jl) package and a custom subtype to `Number` called [`CNumber`](@ref). They are generally assumed to be complex numbers and can be defined with the [`cnumbers`](@ref) function or the corresponding macro [`@cnumbers`](@ref). You can use them together with *q*-numbers to build symbolic expressions describing the Hamiltonian, e.g.
 
 ```@example c-numbers
-using Qumulants # hide
+using QuantumCumulants # hide
 h = FockSpace(:fock)
 @cnumbers ω η
 @qnumbers a::Destroy(h)
@@ -146,7 +146,7 @@ in order to eliminate the projector on the ground state. This reduces the amount
 These rules are implemented as rewriting rules using [**SymbolicUtils.jl**](https://github.com/JuliaSymbolics/SymbolicUtils.jl) (see their [documentation on term rewriting](https://symbolicutils.juliasymbolics.org/rewrite/)). The rules are applied together with a custom set of rules for noncommutative variables whenever [`qsimplify`](@ref) is called on an expression involving *q*-numbers:
 
 ```@example heisenberg
-using Qumulants # hide
+using QuantumCumulants # hide
 h = FockSpace(:fock)
 @qnumbers a::Destroy(h)
 a*a' # returns a'*a + 1
@@ -175,7 +175,7 @@ Averaging (using [`average`](@ref)) and the [`cumulant_expansion`](@ref) are ess
 The order of an average is given by the number of constituents in the product. For example
 
 ```@example cumulant
-using Qumulants # hide
+using QuantumCumulants # hide
 h = FockSpace(:fock)
 @qnumbers a::Destroy(h)
 

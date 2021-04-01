@@ -15,6 +15,9 @@ const sym_average = begin # Symbolic function for averages
     SymbolicUtils.Sym{T}(:avg)
 end
 
+# Type promotion -- average(::QNumber)::Number
+SymbolicUtils.promote_symtype(::typeof(sym_average), ::Type{<:QNumber}) = AvgSym
+
 # Direct construction of average symbolic expression
 function _average(operator)
     return SymbolicUtils.Term{AvgSym}(sym_average, [operator])

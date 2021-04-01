@@ -1,4 +1,4 @@
-using Qumulants
+using QuantumCumulants
 using Test
 
 @testset "mixed-order" begin

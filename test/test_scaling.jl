@@ -1,4 +1,4 @@
-using Qumulants
+using QuantumCumulants
 using Test
 using OrdinaryDiffEq
 using ModelingToolkit
@@ -47,7 +47,7 @@ function ϕ(t::Transition)
     end
 end
 ϕ(avg::Average) = ϕ(avg.arguments[1])
-function ϕ(t::Qumulants.QMul)
+function ϕ(t::QuantumCumulants.QMul)
     p = 0
     for arg in t.args_nc
         p += ϕ(arg)
@@ -100,10 +100,10 @@ he_scaled = complete(he;filter_func=phase_invariant)
 
 names = he_scaled.names
 avg = average(σ(:e,:g)[1]*σ(:e,:e)[2])
-@test isequal(average(σ(:e,:e)[1]*σ(:e,:g)[2]), Qumulants.substitute_redundants(avg,[Qumulants.ClusterAon(2,1),Qumulants.ClusterAon(2,2)],names))
+@test isequal(average(σ(:e,:e)[1]*σ(:e,:g)[2]), QuantumCumulants.substitute_redundants(avg,[QuantumCumulants.ClusterAon(2,1),QuantumCumulants.ClusterAon(2,2)],names))
 
-@test Qumulants.lt_reference_order(σ(:e,:g)[1],σ(:g,:e)[2])
-@test !Qumulants.lt_reference_order(σ(:g,:e)[1],σ(:e,:g)[2])
+@test QuantumCumulants.lt_reference_order(σ(:e,:g)[1],σ(:g,:e)[2])
+@test !QuantumCumulants.lt_reference_order(σ(:g,:e)[1],σ(:e,:g)[2])
 
 he_avg = cumulant_expansion(he_scaled,2)
 @test isempty(find_missing(he_avg))
@@ -134,22 +134,22 @@ a = Destroy(h,:a,1)
 b = Destroy(h,:b,2)
 
 names = [:a,[Symbol(:b_,i) for i=1:M]]
-scale_aons = [Qumulants.ClusterAon(2,i) for i=1:M]
+scale_aons = [QuantumCumulants.ClusterAon(2,i) for i=1:M]
 
 avg = average(a*b[1]*b[2]*b[2])
-avg_sub = Qumulants.substitute_redundants(avg, scale_aons, names)
+avg_sub = QuantumCumulants.substitute_redundants(avg, scale_aons, names)
 @test isequal(average(a*b[1]*b[1]*b[2]), avg_sub)
 
 avg = average(b[1]'*b[2]'*b[2])
-avg_sub = Qumulants.substitute_redundants(avg, scale_aons, names)
+avg_sub = QuantumCumulants.substitute_redundants(avg, scale_aons, names)
 @test isequal(avg_sub, average(b[1]'*b[1]*b[2]'))
 
 avg = average(b[1]*b[1]*b[2]'*b[2])
-avg_sub = Qumulants.substitute_redundants(avg, scale_aons, names)
+avg_sub = QuantumCumulants.substitute_redundants(avg, scale_aons, names)
 @test isequal(avg_sub, average(b[1]'*b[1]*b[2]*b[2]))
 
 avg = average(b[1]*b[2]'*b[3]*b[4]')
-avg_sub = Qumulants.substitute_redundants(avg, scale_aons, names)
+avg_sub = QuantumCumulants.substitute_redundants(avg, scale_aons, names)
 @test isequal(avg_sub, average(b[1]'*b[2]'*b[3]*b[4]))
 
 # Test Holstein

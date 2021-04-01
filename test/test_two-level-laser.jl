@@ -1,4 +1,4 @@
-using Qumulants
+using QuantumCumulants
 using ModelingToolkit, OrdinaryDiffEq
 using Test
 
@@ -76,7 +76,7 @@ function ϕ(t::Transition)
         return 0
     end
 end
-function ϕ(q::Qumulants.QMul)
+function ϕ(q::QuantumCumulants.QMul)
     p = 0
     for arg ∈ q.args_nc
         p += ϕ(arg)

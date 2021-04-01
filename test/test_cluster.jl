@@ -1,4 +1,4 @@
-using Qumulants
+using QuantumCumulants
 using Test
 
 @testset "cluster" begin
@@ -15,14 +15,14 @@ h = ⊗(hf, ha_c...)
 a = Destroy(h,:a,1)
 S(i,j,c) = Transition(h,Symbol(:σ, c),i, j, 1+c) #c=cluster
 
-@test Qumulants.has_cluster(h)
-@test !(Qumulants.has_cluster(hf))
+@test QuantumCumulants.has_cluster(h)
+@test !(QuantumCumulants.has_cluster(hf))
 
 @test S(2,2,1) ≠ S(2,2,2) ≠ S(2,2,3)
 @test isequal(S(2,2,2)[1]*S(2,2,1)[2], S(2,2,1)[2]*S(2,2,2)[1])
 @test length(S(2,2,1)) == length(S(2,2,2)) == length(S(2,2,3)) == order
-@test acts_on(S(2,2,1)[1]) == Qumulants.ClusterAon(2,1)
-@test acts_on(S(2,2,2)[2]) == Qumulants.ClusterAon(3,2)
+@test acts_on(S(2,2,1)[1]) == QuantumCumulants.ClusterAon(2,1)
+@test acts_on(S(2,2,2)[2]) == QuantumCumulants.ClusterAon(3,2)
 @test acts_on(S(2,2,1)[1]) < acts_on(S(2,2,1)[2]) < acts_on(S(2,2,2)[1])
 
 end #testset

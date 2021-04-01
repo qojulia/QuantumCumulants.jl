@@ -1,4 +1,4 @@
-using Qumulants
+using QuantumCumulants
 using OrdinaryDiffEq
 using ModelingToolkit
 using Test
@@ -43,9 +43,9 @@ ops = find_operators(h,2)
 he = heisenberg(ops,H,J;rates=rates)
 he_avg = cumulant_expansion(he,2)
 
-# @test all((Qumulants._in(l, he_comp.lhs) || l' in he_comp.lhs) for l in he_avg.lhs)
-@test all((Qumulants._in(l, he_comp.states) || Qumulants._in(Qumulants._adjoint(l), he_comp.states) for l in he_avg.states))
-@test all((Qumulants._in(l, he_comp.states) || Qumulants._in(Qumulants._adjoint(l), he_avg.states)) for l in he_comp.states)
+# @test all((QuantumCumulants._in(l, he_comp.lhs) || l' in he_comp.lhs) for l in he_avg.lhs)
+@test all((QuantumCumulants._in(l, he_comp.states) || QuantumCumulants._in(QuantumCumulants._adjoint(l), he_comp.states) for l in he_avg.states))
+@test all((QuantumCumulants._in(l, he_comp.states) || QuantumCumulants._in(QuantumCumulants._adjoint(l), he_avg.states)) for l in he_comp.states)
 
 
 p = [κ, g, Δc, Γ2, Γ3, Δ2, Δ3, Ω2, Ω3]
@@ -70,7 +70,7 @@ prob = ODEProblem(sys,u0,(0.0,tmax),p0)
 sol = solve(prob,RK4(),jac=true,sparse=true)
 
 avg = average(a'*σ(2,1))
-@test sol[avg] == map(conj, getindex.(sol.u, 7)) == map(conj, sol[Qumulants._conj(avg)])
+@test sol[avg] == map(conj, getindex.(sol.u, 7)) == map(conj, sol[QuantumCumulants._conj(avg)])
 
 # Filter cavity equations to compute spectrum
 # Hilbert space
@@ -103,7 +103,7 @@ he_f_avg = cumulant_expansion(he_f,2)
 
 # Find missing averages and them as parameter
 missing_avgs = find_missing(he_f_avg)
-avg_ps = Qumulants._make_parameter.(missing_avgs)
+avg_ps = QuantumCumulants._make_parameter.(missing_avgs)
 
 he_f_avg = substitute(he_f_avg, Dict(missing_avgs .=> avg_ps))
 
