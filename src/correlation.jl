@@ -151,6 +151,8 @@ function correlation_p0(c::CorrelationFunction, u_end, ps=Pair{Any,Any}[])
             p = _make_parameter(conj_avg)
             idx = findfirst(isequal(conj_avg), c.de0.states)
             ps′ = (ps..., p=>u_end[idx])
+        else
+            ps′ = ps
         end
     end
     return ps′
