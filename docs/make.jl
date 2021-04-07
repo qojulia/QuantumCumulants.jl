@@ -24,5 +24,5 @@ makedocs(
     )
 
 deploydocs(
-    repo = "github.com/david-pl/QuantumCumulants.jl.git",
+    repo = "github.com/qojulia/QuantumCumulants.jl.git",
     )

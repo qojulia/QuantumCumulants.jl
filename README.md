@@ -7,7 +7,7 @@ To obtain a numerical solution, equations derived with **QuantumCumulants.jl** c
 
 ## Development status
 
-![CI](https://github.com/david-pl/QuantumCumulants.jl/workflows/CI/badge.svg) [![Codecov][codecov-img]][codecov-url] [![Documentation][docs-img]][docs-url]
+![CI](https://github.com/qojulia/QuantumCumulants.jl/workflows/CI/badge.svg) [![Codecov][codecov-img]][codecov-url] [![Documentation][docs-img]][docs-url]
 
 Note that **QuantumCumulants.jl** is still at a very early stage of development.
 
@@ -16,15 +16,15 @@ Note that **QuantumCumulants.jl** is still at a very early stage of development.
 The package can be installed with
 
 ```julia
-|pkg> add https://github.com/david-pl/QuantumCumulants.jl.git
+|pkg> add https://github.com/qojulia/QuantumCumulants.jl.git
 ```
 
 ## Documentation
 
 Please refer to the latest [Documentation][docs-url] for more details and examples.
 
-[codecov-url]: https://codecov.io/gh/david-pl/QuantumCumulants.jl/branch/master/
-[codecov-img]: https://codecov.io/gh/david-pl/QuantumCumulants.jl/branch/master/graph/badge.svg
+[codecov-url]: https://codecov.io/gh/qojulia/QuantumCumulants.jl/branch/master/
+[codecov-img]: https://codecov.io/gh/qojulia/QuantumCumulants.jl/branch/master/graph/badge.svg
 
-[docs-url]: https://david-pl.github.io/QuantumCumulants.jl/dev/
+[docs-url]: https://qojulia.github.io/QuantumCumulants.jl/dev/
 [docs-img]: https://img.shields.io/badge/docs-dev-blue.svg

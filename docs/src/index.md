@@ -13,7 +13,7 @@
 **QuantumCumulants.jl** is not officially released (yet) and so has to be installed directly from GitHub. This can be done with
 
 ```julia
-|pkg> add https://github.com/david-pl/QuantumCumulants.jl.git
+|pkg> add https://github.com/qojulia/QuantumCumulants.jl.git
 ```
 
 For a full list of functions, check out the [API](@ref).
