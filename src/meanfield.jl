@@ -1,10 +1,10 @@
 """
-    heisenberg(ops::Vector,H::QNumber)
-    heisenberg(op::QNumber,H::QNumber)
+    meanfield(ops::Vector,H::QNumber)
+    meanfield(op::QNumber,H::QNumber)
 
-    heisenberg(ops::Vector,H::QNumber,J::Vector;
+    meanfield(ops::Vector,H::QNumber,J::Vector;
             Jdagger::Vector=adjoint.(J),rates=ones(length(J)))
-    heisenberg(op::QNumber,H::QNumber,J::Vector;
+    meanfield(op::QNumber,H::QNumber,J::Vector;
             Jdagger::Vector=adjoint.(J),rates=ones(length(J)))
 
 Compute the set of equations for the operators in `ops` under the Hamiltonian
@@ -33,7 +33,7 @@ equivalent to the Quantum-Langevin equation where noise is neglected.
     which `order` to prefer on terms that act on multiple Hilbert spaces.
 *`iv=SymbolicUtils.Sym{Real}(:t)`: The independent variable (time parameter) of the system.
 """
-function heisenberg(a::Vector,H,J;Jdagger::Vector=adjoint.(J),rates=ones(Int,length(J)),
+function meanfield(a::Vector,H,J;Jdagger::Vector=adjoint.(J),rates=ones(Int,length(J)),
                     multithread=false,
                     simplify=true,
                     order=nothing,
@@ -74,10 +74,10 @@ function heisenberg(a::Vector,H,J;Jdagger::Vector=adjoint.(J),rates=ones(Int,len
 
     varmap = make_varmap(vs, iv)
 
-    return HeisenbergEquation(eqs_avg,eqs,vs,a,H,J,rates,iv,varmap,order)
+    return MeanfieldEquations(eqs_avg,eqs,vs,a,H,J,rates,iv,varmap,order)
 end
-heisenberg(a::QNumber,args...;kwargs...) = heisenberg([a],args...;kwargs...)
-heisenberg(a::Vector,H;kwargs...) = heisenberg(a,H,[];Jdagger=[],kwargs...)
+meanfield(a::QNumber,args...;kwargs...) = meanfield([a],args...;kwargs...)
+meanfield(a::Vector,H;kwargs...) = meanfield(a,H,[];Jdagger=[],kwargs...)
 
 function _master_lindblad(a_,J,Jdagger,rates)
     args = Any[]

@@ -36,7 +36,7 @@ H = sum(Δ[i]*σ(:e,:e,i) for i=1:N) + sum(g[i]*(a'*σ(:g,:e,i) + a*σ(:e,:g,i))
 J = [a;[σ(:g,:e,k) for k=1:N];[σ(:e,:g,k) for k=1:N]]
 Jdagger = adjoint.(J)
 rates = [κ,γ...,ν...]
-he = heisenberg(ops, H, J; Jdagger=Jdagger, rates=rates, simplify=true, order=2)
+he = meanfield(ops, H, J; Jdagger=Jdagger, rates=rates, simplify=true, order=2)
 
 missed = find_missing(he)
 
@@ -86,7 +86,7 @@ end
 ϕ(avg::Average) = ϕ(avg.arguments[1])
 phase_invariant(x) = iszero(ϕ(x))
 
-he_n = heisenberg(a'*a, H, J; rates=rates)
+he_n = meanfield(a'*a, H, J; rates=rates)
 complete!(he_n;filter_func=phase_invariant)
 
 @test length(he_n.equations) == length(ops)

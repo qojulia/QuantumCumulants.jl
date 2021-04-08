@@ -2,7 +2,7 @@ using QuantumCumulants
 using SymbolicUtils
 using Test
 
-@testset "heisenberg" begin
+@testset "meanfield" begin
 
 hf = FockSpace(:cavity)
 ha = NLevelSpace(:atom,(:g,:e))
@@ -23,7 +23,7 @@ ds = commutator(im*H,σ)
 dn = commutator(im*H,a'*a)
 @test iszero(simplify(dn - ((-im*g)*a'*σ + (im*g)*a*σ')))
 
-he = heisenberg([a,σ,a'*a],H)
+he = meanfield([a,σ,a'*a],H)
 @test iszero(simplify(he.operator_equations[1].rhs - (da)))
 @test iszero(simplify(he.operator_equations[2].rhs - (ds)))
 @test iszero(simplify(he.operator_equations[3].rhs - (dn)))
@@ -31,7 +31,7 @@ he = heisenberg([a,σ,a'*a],H)
 # Lossy JC
 κ,γ = 3.333,0.1313131313
 J = [a,σ]
-he_diss = heisenberg([a,σ,σ'*σ],H,J;rates=[κ,γ])
+he_diss = meanfield([a,σ,σ'*σ],H,J;rates=[κ,γ])
 
 @test iszero(simplify(he_diss.operator_equations[1].rhs - ((-im*ωc - 0.5κ)*a + (-im*g)*σ)))
 @test iszero(simplify(he_diss.operator_equations[2].rhs - ((-im*g)*a + (-im*ωa - 0.5γ)*σ + (2im*g)*a*σee)))
@@ -40,7 +40,7 @@ he_diss = heisenberg([a,σ,σ'*σ],H,J;rates=[κ,γ])
 # Single-atom laser
 ν = 3.44444444
 J = [a,σ,σ']
-he_laser = heisenberg([a'*a,σ'*σ,a'*σ],H,J;rates=[κ,γ,ν])
+he_laser = meanfield([a'*a,σ'*σ,a'*σ],H,J;rates=[κ,γ,ν])
 
 @test iszero(simplify(he_laser.operator_equations[1].rhs - ((-κ)*a'*a + (-im*g)*a'*σ + (im*g)*a*σ')))
 @test iszero(simplify(he_laser.operator_equations[2].rhs - (ν + (-ν - γ)*σee + (im*g)*a'*σ + (-im*g)*a*σ')))

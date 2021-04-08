@@ -12,7 +12,7 @@ $\frac{d}{dt} \rho = - \frac{i}{\hbar} \left[ H, \rho \right] + \mathcal{L}[\rho
 
 with $\mathcal{L}[\rho] = \frac{\gamma}{2} (2 J \rho J^\dagger - J^\dagger J \rho - \rho J^\dagger J)$ the Liouvillian superoperator in standard Lindblad form for a dissipative process with jump operator $J$ and rate $R$.
 
-With **QuantumCumulants.jl** we describe the system dynamics with averages, which are deduced from the operator equations of motion in the Heisenberg picture. In the Heisenberg picture open systems are descibed by the quantum Langevin equation. Assuming white noise, we can omit the stochastic terms of the quantum Langevin equation when computing averages. Thus we get the following equation for the time evolution of a system operator average $\langle O \rangle$ (if $O$ is not explicitly time dependent):
+With **QuantumCumulants.jl** we describe the system dynamics with averages, which are deduced from the operator equations of motion in the Heisenberg picture. In the Heisenberg picture open systems are described by the quantum Langevin equation. Assuming white noise, we can omit the stochastic terms of the quantum Langevin equation when computing averages. Thus we get the following equation for the time evolution of a system operator average $\langle O \rangle$ (if $O$ is not explicitly time dependent):
 
 $\frac{d}{dt} \langle O \rangle = \frac{i}{\hbar} \left[ H, O \right] + \bar{\mathcal{L}}[O].$
 
@@ -70,8 +70,8 @@ Later we will complete the system automatically, which has the disadvantage that
 # list of operators
 ops = [a'a, σ(2,2,1), σ(3,3,1)]
 
-he = heisenberg(ops,H,J; rates=rates)
-he_avg_ = cumulant_expansion(he,2) #second order average
+me = meanfield(ops,H,J; rates=rates)
+me_expanded = cumulant_expansion(me,2) #second order average
 nothing # hide
 ```
 
@@ -84,15 +84,15 @@ nothing # hide
 ```
 
 ```@example 3-level-laser
-he_avg = complete(he_avg_) #automatically complete the system
+me_comp = complete(me_expanded) #automatically complete the system
 nothing # hide
 ```
 
 To calculate the time evolution we create a Julia function which can be used by DifferentialEquations.jl to solve the set of ordinary differential equations.
 
 ```@example 3-level-laser
-# Build an ODESystem out of the HeisenbergEquation
-sys = ODESystem(he_avg)
+# Build an ODESystem out of the MeanfieldEquations
+sys = ODESystem(me_comp)
 nothing # hide
 ```
 
@@ -101,7 +101,7 @@ Finally we compute the time evolution after defining an initial state and numeri
 
 ```@example 3-level-laser
 # initial state
-u0 = zeros(ComplexF64, length(he_avg))
+u0 = zeros(ComplexF64, length(me_comp))
 
 Γ12n = 1.0
 Γ23n = 20Γ12n

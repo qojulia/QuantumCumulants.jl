@@ -15,7 +15,7 @@ a = Destroy(h,:a,1)
 @test isequal(average(a'*a, [2,1]), average(a'*a))
 @test isequal(average(a'*σ(1,2), [2,1]; mix_choice=minimum), average(a')*average(σ(1,2)))
 
-he = heisenberg([a'*a,σ(2,2)],a'*a + σ(2,2) + a'*σ(1,2) + a*σ(2,1))
+he = meanfield([a'*a,σ(2,2)],a'*a + σ(2,2) + a'*σ(1,2) + a*σ(2,1))
 he_avg1 = cumulant_expansion(he,2)
 he_avg2 = cumulant_expansion(he,[2,1])
 he_avg3 = cumulant_expansion(he,[2,1];mix_choice=minimum)
@@ -23,7 +23,7 @@ he_avg3 = cumulant_expansion(he,[2,1];mix_choice=minimum)
 @test isequal(he_avg1.equations, he_avg2.equations)
 @test !isequal(he_avg1.equations, he_avg3.equations)
 
-he = heisenberg(a'*σ(1,2), a'*a + σ(2,2) + a*σ(2,1))
+he = meanfield(a'*σ(1,2), a'*a + σ(2,2) + a*σ(2,1))
 
 # N-atom laser
 # Parameters
@@ -51,7 +51,7 @@ rates = [κ;[Γ12 for i=1:N];[Γ13 for i=1:N];[Γ23 for i=1:N]]
 # list of operators
 ops = [a'a, σ(2,2,1), σ(3,3,1)]
 
-he = heisenberg(ops,H,J; rates=rates)
+he = meanfield(ops,H,J; rates=rates)
 he_avg_ = cumulant_expansion(he,[2,1,1]) #second order average
 
 he_avg = complete(he_avg_;order=[2,1,1])
