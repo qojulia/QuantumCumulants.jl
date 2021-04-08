@@ -40,7 +40,7 @@ The first equation we want to derive is that for the average photon number $\lan
 
 ```@example single-atom-laser-spectrum
 # Derive equation for average photon number
-he_n = heisenberg(a'*a,H,J;rates=rates,expand=true,order=2)
+he_n = heisenberg(a'*a,H,J;rates=rates,order=2)
 nothing # hide
 ```
 
