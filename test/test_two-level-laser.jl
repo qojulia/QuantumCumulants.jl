@@ -36,7 +36,7 @@ H = sum(Δ[i]*σ(:e,:e,i) for i=1:N) + sum(g[i]*(a'*σ(:g,:e,i) + a*σ(:e,:g,i))
 J = [a;[σ(:g,:e,k) for k=1:N];[σ(:e,:g,k) for k=1:N]]
 Jdagger = adjoint.(J)
 rates = [κ,γ...,ν...]
-he = heisenberg(ops, H, J; Jdagger=Jdagger, rates=rates, simplify=true, expand=true, order=2)
+he = heisenberg(ops, H, J; Jdagger=Jdagger, rates=rates, simplify=true, order=2)
 
 missed = find_missing(he)
 

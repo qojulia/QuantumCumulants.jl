@@ -19,7 +19,7 @@ J = [a,σ,σ']
 he_avg = heisenberg([a'*a,σ'*σ,a*σ'],H,J;rates=[κ,γ,ν])
 
 he_exp = cumulant_expansion(he_avg,2)
-@test isequal(he_exp.equations, heisenberg([a'*a,σ'*σ,a*σ'],H,J;rates=[κ,γ,ν],expand=true,order=2).equations)
+@test isequal(he_exp.equations, heisenberg([a'*a,σ'*σ,a*σ'],H,J;rates=[κ,γ,ν],order=2).equations)
 
 ps = [Δ,g,κ,γ,ν]
 missed = find_missing(he_exp)

@@ -127,7 +127,7 @@ _to_expression(op::QSym) = op.name
 _to_expression(op::Create) = :(dagger($(op.name)))
 _to_expression(op::Transition) = :(Transition($(op.name),$(op.i),$(op.j)) )
 function _to_expression(t::QMul)
-    args = if isone(t.arg_c)
+    args = if SymbolicUtils._isone(t.arg_c)
         t.args_nc
     else
         SymbolicUtils.arguments(t)

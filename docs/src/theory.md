@@ -128,7 +128,7 @@ H = Δ*a'*a + g*(a'*σ(:g,:e) + a*σ(:e,:g))
 ops = find_operators(h,2)
 
 # Derive equations
-he = heisenberg(ops,H;expand=true,order=2) # expand to second order
+he = heisenberg(ops,H;order=2) # expand to second order
 nothing # hide
 ```
 

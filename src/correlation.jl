@@ -60,7 +60,7 @@ function CorrelationFunction(op1,op2,de0::AbstractHeisenbergEquation;
     op_ = op1_*op2_
     @assert get_order(op_) <= order_
 
-    de = heisenberg(op_,H,J;rates=de0.rates,iv=iv,expand=true,order=order_)
+    de = heisenberg(op_,H,J;rates=de0.rates,iv=iv,order=order_)
     _complete_corr!(de, length(h.spaces), lhs_new, order_, steady_state;
                             filter_func=filter_func,
                             mix_choice=mix_choice,
@@ -446,7 +446,6 @@ function _complete_corr!(de,aon0,lhs_new,order,steady_state;
         he = heisenberg(ops_,de.hamiltonian,de.jumps;
                                 rates=de.rates,
                                 simplify=simplify,
-                                expand=true,
                                 order=order,
                                 iv=de.iv,
                                 kwargs...)

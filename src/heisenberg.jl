@@ -27,8 +27,8 @@ equivalent to the Quantum-Langevin equation where noise is neglected.
 *`multithread=false`: Specify whether the derivation of equations for all operators in `ops`
     should be multithreaded using `Threads.@threads`.
 *`simplify=true`: Specify whether the derived equations should be simplified.
-*`expand=false`: Specify whether to directly perform a [`cumulant_expansion`](@ref)
-    on the derived equations. If set to `true`, an `order` also needs to be specified.
+*`order=nothing`: Specify to which `order` a [`cumulant_expansion`](@ref) is performed.
+    If `nothing`, this step is skipped.
 *`mix_choice=maximum`: If the provided `order` is a `Vector`, `mix_choice` determines
     which `order` to prefer on terms that act on multiple Hilbert spaces.
 *`iv=SymbolicUtils.Sym{Real}(:t)`: The independent variable (time parameter) of the system.
@@ -36,7 +36,6 @@ equivalent to the Quantum-Langevin equation where noise is neglected.
 function heisenberg(a::Vector,H,J;Jdagger::Vector=adjoint.(J),rates=ones(Int,length(J)),
                     multithread=false,
                     simplify=true,
-                    expand=false,
                     order=nothing,
                     mix_choice=maximum,
                     iv=SymbolicUtils.Sym{Real}(:t))
@@ -67,8 +66,7 @@ function heisenberg(a::Vector,H,J;Jdagger::Vector=adjoint.(J),rates=ones(Int,len
     end
     rhs = map(undo_average, rhs_avg)
 
-    if expand
-        order===nothing && error("Need given order for cumulant expansion!")
+    if order !== nothing
         rhs_avg = [cumulant_expansion(r, order; simplify=simplify, mix_choice=mix_choice) for r∈rhs_avg]
     end
 
@@ -79,7 +77,7 @@ function heisenberg(a::Vector,H,J;Jdagger::Vector=adjoint.(J),rates=ones(Int,len
 
     he = HeisenbergEquation(eqs_avg,eqs,vs,a,H,J_,rates_,iv,varmap,order)
     if has_cluster(H)
-        return scale(he;simplify=simplify,expand=expand,order=order,mix_choice=mix_choice)
+        return scale(he;simplify=simplify,order=order,mix_choice=mix_choice)
     else
         return he
     end

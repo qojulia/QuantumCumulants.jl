@@ -21,6 +21,9 @@ end
 # on Base methods (e.g. latex printing)
 Base.promote_rule(::Type{<:CNumber},::Type{<:Number}) = CNumber
 
+Base.one(::Type{Parameter}) = 1
+Base.zero(::Type{Parameter}) = 0
+
 """
     @cnumbers(ps...)
 

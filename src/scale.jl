@@ -4,7 +4,7 @@ function scale(he::AbstractHeisenbergEquation; kwargs...)
     return scale(he, scale_aons, N; kwargs...)
 end
 function scale(he::HeisenbergEquation, scale_aons::Vector{<:Vector}, N::Vector;
-                                                    simplify=true, expand=false,
+                                                    simplify=true,
                                                     order=nothing, mix_choice=maximum,
                                                     kwargs...)
     names = get_names(he)
@@ -20,7 +20,7 @@ function scale(he::HeisenbergEquation, scale_aons::Vector{<:Vector}, N::Vector;
         M = length(scale_aons_)
         for i=1:length(he.equations)
             rhs = _scale(he.states[i], equations[i].rhs, scale_aons_, N[j], M, names)
-            if !expand
+            if order===nothing
                 rhs = substitute_redundants(rhs, scale_aons_, names)
             end
             equations[i] = Symbolics.Equation(equations[i].lhs, rhs)
@@ -33,8 +33,7 @@ function scale(he::HeisenbergEquation, scale_aons::Vector{<:Vector}, N::Vector;
         operator_equations[i] = Symbolics.Equation(operator_equations[i].lhs, rhs)
     end
 
-    if expand
-        order===nothing && error("Need given order for cumulant expansion!")
+    if order !== nothing
         for i=1:length(equations)
             rhs = cumulant_expansion(equations[i].rhs, order; simplify=simplify, mix_choice=mix_choice)
             for j=1:length(scale_aons)
@@ -451,7 +450,6 @@ function complete!(de::ScaledHeisenbergEquation;
                                 rates=de.rates,
                                 simplify=simplify,
                                 multithread=multithread,
-                                expand=true,
                                 order=order_,
                                 mix_choice=mix_choice,
                                 iv=de.iv,

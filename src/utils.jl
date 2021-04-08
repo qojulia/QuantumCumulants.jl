@@ -166,7 +166,6 @@ function complete!(de::HeisenbergEquation;
                                 rates=de.rates,
                                 simplify=simplify,
                                 multithread=multithread,
-                                expand=true,
                                 order=order_,
                                 mix_choice=mix_choice,
                                 iv=de.iv,
