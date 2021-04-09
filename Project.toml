@@ -1,6 +1,6 @@
 name = "QuantumCumulants"
 uuid = "35bcea6d-e19f-57db-af74-8011de6c7255"
-version = "v0.0.0"
+version = "v0.1.0"
 
 [deps]
 SymbolicUtils = "d1185830-fcd6-423d-90d6-eec64667417b"
