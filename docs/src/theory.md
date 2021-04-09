@@ -128,7 +128,7 @@ H = Δ*a'*a + g*(a'*σ(:g,:e) + a*σ(:e,:g))
 ops = find_operators(h,2)
 
 # Derive equations
-me = meanfield(ops,H;order=2) # expand to second order
+meanfield(ops,H;order=2) # expand to second order
 nothing # hide
 ```
 

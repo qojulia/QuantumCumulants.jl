@@ -29,7 +29,7 @@ H = Δ*σ(:e,:e) + Ω*(σ(:g,:e) + σ(:e,:g))
 J = [σ(:g,:e)]
 
 # Equations
-me = meanfield([σ(:e,:g),σ(:e,:e)], H, J; rates=[γ])
+eqs = meanfield([σ(:e,:g),σ(:e,:e)], H, J; rates=[γ])
 ```
 
 In order to compute the spectrum, we first need to compute the correlation function given by
@@ -43,7 +43,7 @@ The correlation function of the system given by `me` can be computed as follows.
 
 ```@example mollow
 # Correlation Function
-c = CorrelationFunction(σ(:e,:g), σ(:g,:e), me; steady_state=true)
+c = CorrelationFunction(σ(:e,:g), σ(:g,:e), eqs; steady_state=true)
 nothing # hide
 ```
 

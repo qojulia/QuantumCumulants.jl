@@ -34,28 +34,28 @@ Now, we define a list of operators of which we want to compute the mean-field eq
 ```@example tutorial
 # Derive a set of equations
 ops = [a'*a,σ(:e,:e),a'*σ(:g,:e)]
-me = meanfield(ops,H,J;rates=rates)
+eqs = meanfield(ops,H,J;rates=rates)
 ```
 
 To obtain a closed set of equations, we expand higher-order products to second order.
 
 ```@example tutorial
 # Expand the above equations to second order
-me_expanded = cumulant_expansion(me,2)
+eqs_expanded = cumulant_expansion(eqs,2)
 ```
 
-The first-order contributions are always zero and can therefore be neglected. You can try adding `a` and `σ(:g,:e)` to the list of operators `ops` in order to see that yourself. Or, even more conveniently, you can use `complete(me_expanded)`, which will automatically find all missing averages and compute the corresponding equations.
+The first-order contributions are always zero and can therefore be neglected. You can try adding `a` and `σ(:g,:e)` to the list of operators `ops` in order to see that yourself. Or, even more conveniently, you can use `complete(eqs_expanded)`, which will automatically find all missing averages and compute the corresponding equations.
 
 Here, though, we will proceed by finding the missing averages, and neglecting them as zero using the `substitute` and `simplify` function from [Symbolics](https://github.com/JuliaSymbolics/Symbolics.jl).
 
 ```@example tutorial
 # Find the missing averages
-missed = find_missing(me_expanded)
+missed = find_missing(eqs_expanded)
 
 # Substitute them as zero
 subs = Dict(missed .=> 0)
 using Symbolics
-he_nophase = simplify(substitute(me_expanded, subs))
+eqs_nophase = simplify(substitute(eqs_expanded, subs))
 ```
 
 Finally, we can convert the [`MeanfieldEquations`](@ref) to an `ODESystem` as defined in [ModelingToolkit](https://github.com/SciML/ModelingToolkit.jl) which can be solved numerically with [OrdinaryDiffEq](https://github.com/JuliaDiffEq/OrdinaryDiffEq.jl).
@@ -63,7 +63,7 @@ Finally, we can convert the [`MeanfieldEquations`](@ref) to an `ODESystem` as de
 ```@example tutorial
 # Generate an ODESystem
 using ModelingToolkit
-sys = ODESystem(he_nophase)
+sys = ODESystem(eqs_nophase)
 
 # Solve the system using the OrdinaryDiffEq package
 using OrdinaryDiffEq

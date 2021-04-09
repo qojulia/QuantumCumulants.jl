@@ -70,8 +70,8 @@ Later we will complete the system automatically, which has the disadvantage that
 # list of operators
 ops = [a'a, σ(2,2,1), σ(3,3,1)]
 
-me = meanfield(ops,H,J; rates=rates)
-me_expanded = cumulant_expansion(me,2) #second order average
+eqs = meanfield(ops,H,J; rates=rates)
+eqs_expanded = cumulant_expansion(eqs,2) #second order average
 nothing # hide
 ```
 
@@ -84,7 +84,7 @@ nothing # hide
 ```
 
 ```@example 3-level-laser
-me_comp = complete(me_expanded) #automatically complete the system
+me_comp = complete(eqs_expanded) #automatically complete the system
 nothing # hide
 ```
 
