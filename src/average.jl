@@ -155,7 +155,7 @@ function cumulant_expansion(x::SymbolicUtils.Symbolic,order;mix_choice=maximum,s
         return x
     end
 end
-function cumulant_expansion(de::HeisenbergEquation,order;multithread=false,mix_choice=maximum,kwargs...)
+function cumulant_expansion(de::MeanfieldEquations,order;multithread=false,mix_choice=maximum,kwargs...)
     order==de.order && return de
     eqs = de.equations
     eqs_out = Vector{Symbolics.Equation}(undef, length(eqs))
@@ -170,7 +170,7 @@ function cumulant_expansion(de::HeisenbergEquation,order;multithread=false,mix_c
             eqs_out[i] = Symbolics.Equation(eqs[i].lhs, cr)
         end
     end
-    return HeisenbergEquation(eqs_out,de.operator_equations,de.states,de.operators,
+    return MeanfieldEquations(eqs_out,de.operator_equations,de.states,de.operators,
                             de.hamiltonian,de.jumps,de.rates,de.iv,de.varmap,
                             order)
 end

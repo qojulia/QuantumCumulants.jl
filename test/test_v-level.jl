@@ -28,7 +28,7 @@ rates = [κ,Γ2,Γ3]
 ops = [a'*a]
 
 # Derive first equation
-he_n = heisenberg([a'*a],H,J;rates=rates)
+he_n = meanfield([a'*a],H,J;rates=rates)
 
 # Average and expand to 2nd order
 hn_avg = cumulant_expansion(he_n,2)
@@ -40,7 +40,7 @@ he_comp = complete(hn_avg)
 ops = find_operators(h,2)
 
 @test length(ops)==length(he_comp)==16
-he = heisenberg(ops,H,J;rates=rates)
+he = meanfield(ops,H,J;rates=rates)
 he_avg = cumulant_expansion(he,2)
 
 # @test all((QuantumCumulants._in(l, he_comp.lhs) || l' in he_comp.lhs) for l in he_avg.lhs)
@@ -98,7 +98,7 @@ ops_f = find_operators(h_tot,2;names=[:a,:σ,:c])
 filter!(x->(3 in acts_on(x)), ops_f)
 
 # Compute equations
-he_f = heisenberg(ops_f,Hf,Jf;rates=rates_f)
+he_f = meanfield(ops_f,Hf,Jf;rates=rates_f)
 he_f_avg = cumulant_expansion(he_f,2)
 
 # Find missing averages and them as parameter

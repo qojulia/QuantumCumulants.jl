@@ -53,7 +53,7 @@ phase_invariant(x) = iszero(ϕ(x))
 
 
 # Derive equations
-he_n = heisenberg(a'*a,H,J;rates=rates)
+he_n = meanfield(a'*a,H,J;rates=rates)
 
 ## Fourth order
 he4 = complete(he_n;order=4,filter_func=phase_invariant)

@@ -29,7 +29,7 @@ H = Δ*σ(:e,:e) + Ω*(σ(:g,:e) + σ(:e,:g))
 J = [σ(:g,:e)]
 
 # Equations
-he = heisenberg([σ(:e,:g),σ(:e,:e)], H, J; rates=[γ])
+me = meanfield([σ(:e,:g),σ(:e,:e)], H, J; rates=[γ])
 ```
 
 In order to compute the spectrum, we first need to compute the correlation function given by
@@ -38,12 +38,12 @@ $g(\tau) = \langle \sigma^{eg}(t_0+\tau)\sigma^{ge}(t_0)\rangle \equiv \langle \
 
 where $t_0$ is any time after which the original system has reached steady state. Note, that in the second step we simplified the notation by dropping the temporal arguments. The subscript $0$ indicates operators given at $t_0$.
 
-The correlation function of the system given by `he` can be computed as follows.
+The correlation function of the system given by `me` can be computed as follows.
 
 
 ```@example mollow
 # Correlation Function
-c = CorrelationFunction(σ(:e,:g), σ(:g,:e), he; steady_state=true)
+c = CorrelationFunction(σ(:e,:g), σ(:g,:e), me; steady_state=true)
 nothing # hide
 ```
 
@@ -89,7 +89,7 @@ To find the spectrum, we first need to compute the time evolution of the system 
 
 
 ```@example mollow
-sys = ODESystem(he)
+sys = ODESystem(me)
 
 p0 = (0.0,2.0,1.0)
 u0 = zeros(ComplexF64, 2)

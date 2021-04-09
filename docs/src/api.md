@@ -54,10 +54,10 @@ Transition
 ```
 
 
-## [Heisenberg](@id API: Heisenberg)
+## [Mean field](@id API: Meanfield)
 
 ```@docs
-heisenberg
+meanfield
 ```
 
 ```@docs
@@ -68,10 +68,8 @@ commutator
 acts_on
 ```
 
-## [Heisenberg equations](@id API: Differential equations)
-
 ```@docs
-HeisenbergEquation
+MeanfieldEquations
 ```
 
 ## [Symbolic Numbers](@id API: Symbolic numbers)

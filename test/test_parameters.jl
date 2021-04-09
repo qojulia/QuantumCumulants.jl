@@ -28,7 +28,7 @@ ds = commutator(1im*H,σ)
 dn = commutator(1im*H,a'*a)
 @test iszero(simplify(dn - ((-1im*g)*a'*σ + (1im*g)*a*σ')))
 
-he = heisenberg([a,σ,a'*a],H)
+he = meanfield([a,σ,a'*a],H)
 @test iszero(simplify(he.operator_equations[1].rhs - da))
 @test iszero(simplify(he.operator_equations[2].rhs - ds))
 @test iszero(simplify(he.operator_equations[3].rhs - dn))
@@ -36,7 +36,7 @@ he = heisenberg([a,σ,a'*a],H)
 # Lossy JC
 @cnumbers κ γ
 J = [a,σ]
-he_diss = heisenberg([a,σ,σ'*σ],H,J;rates=[κ,γ])
+he_diss = meanfield([a,σ,σ'*σ],H,J;rates=[κ,γ])
 
 @test iszero(simplify(he_diss.operator_equations[1].rhs - ((-1im*ωc - 0.5κ)*a + (-1im*g)*σ); expand=true))
 @test iszero(simplify(he_diss.operator_equations[2].rhs - ((-1im*g)*a + (-1im*ωa - 0.5γ)*σ + (2im*g)*a*σee); expand=true))
@@ -45,7 +45,7 @@ he_diss = heisenberg([a,σ,σ'*σ],H,J;rates=[κ,γ])
 # Single-atom laser
 @cnumbers ν
 J = [a,σ,σ']
-he_laser = heisenberg([a'*a,σ'*σ,a'*σ],H,J;rates=[κ,γ,ν])
+he_laser = meanfield([a'*a,σ'*σ,a'*σ],H,J;rates=[κ,γ,ν])
 
 @test iszero(simplify(he_laser.operator_equations[1].rhs - ((-κ)*a'*a + (-1im*g)*a'*σ + (1im*g)*a*σ')))
 @test iszero(simplify(he_laser.operator_equations[2].rhs - (ν + (-ν - γ)*σee + (1im*g)*a'*σ + (-1im*g)*a*σ'); expand=true))
@@ -63,6 +63,6 @@ h = NLevelSpace(:a, 2)
 s(i,j) = Transition(h, :s, i, j)
 H = Δ*s(2,2) - Δ*s(1,1)
 H = simplify(H)
-@test iszero(simplify(heisenberg(s(1,2), H).operator_equations[1].rhs  + 2im*Δ*s(1,2)))
+@test iszero(simplify(meanfield(s(1,2), H).operator_equations[1].rhs  + 2im*Δ*s(1,2)))
 
 end # testset

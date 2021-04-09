@@ -50,7 +50,7 @@ function _postwalk_average(x)
     return x
 end
 
-@latexrecipe function f(de::AbstractHeisenbergEquation)
+@latexrecipe function f(de::AbstractMeanfieldEquations)
     # Options
     env --> :align
     cdot --> false

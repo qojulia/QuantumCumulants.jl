@@ -109,7 +109,7 @@ nothing # hide
 ```
 
 
-## Deriving Heisenberg equations and simplification
+## Deriving equations and simplification
 
 The equations of motion of *q*-numbers are determined by evaluating commutators. This can be done by using fundamental commutation relations in the term rewriting rules.
 
@@ -145,7 +145,7 @@ in order to eliminate the projector on the ground state. This reduces the amount
 
 These rules are implemented as rewriting rules using [**SymbolicUtils.jl**](https://github.com/JuliaSymbolics/SymbolicUtils.jl) (see their [documentation on term rewriting](https://symbolicutils.juliasymbolics.org/rewrite/)). The rules are applied together with a custom set of rules for noncommutative variables whenever [`qsimplify`](@ref) is called on an expression involving *q*-numbers:
 
-```@example heisenberg
+```@example meanfield
 using QuantumCumulants # hide
 h = FockSpace(:fock)
 @qnumbers a::Destroy(h)
@@ -153,19 +153,19 @@ a*a' # returns a'*a + 1
 nothing # hide
 ```
 
-In order to derive equations of motion, you need to specify a Hamiltonian and the operator (or a list of operators) of which you want to derive the Heisenberg equations and pass them to [`heisenberg`](@ref).
+In order to derive equations of motion, you need to specify a Hamiltonian and the operator (or a list of operators) of which you want to derive the Heisenberg equations and pass them to [`meanfield`](@ref).
 
-```@example heisenberg
+```@example meanfield
 using Latexify # hide
 set_default(double_linebreak=true) # hide
 @cnumbers ω η
 H = ω*a'*a + η*(a + a') # Driven cavity Hamiltonian
-he = heisenberg([a, a'*a], H)
+me = meanfield([a, a'*a], H)
 ```
 
-To add decay to the system, you can pass an additional list of operators corresponding to the collapse operators describing the respective decay. For example, `heisenberg(a, H, [a]; rates=[κ])` would derive the equations of a cavity that is also subject to decay at a rate `κ`. Note that quantum noise is neglected, however (see the [theory section](@ref theory)).
+To add decay to the system, you can pass an additional list of operators corresponding to the collapse operators describing the respective decay. For example, `meanfield(a, H, [a]; rates=[κ])` would derive the equations of a cavity that is also subject to decay at a rate `κ`. Note that quantum noise is neglected, however (see the [theory section](@ref theory)).
 
-The equations resulting from the call to [`heisenberg`](@ref) are stored as an instance of [`HeisenbergEquation`](@ref), which stores the left-hand-side and the right-hand-side of the equations together with additional information such as the system Hamiltonian.
+The equations resulting from the call to [`meanfield`](@ref) are stored as an instance of [`MeanfieldEquations`](@ref), which stores the left-hand-side and the right-hand-side of the equations together with additional information such as the system Hamiltonian.
 
 
 ## Cumulant expansion
@@ -204,20 +204,20 @@ Before you can actually solve the system of equations, you need to ensure that i
 
 Finally, in order to actually solve a system of equations, we need to convert a set of equations to an [`ODESystem`](https://mtk.sciml.ai/dev/systems/ODESystem/), which represents a symbolic set of ordinary differential equations. `ODESystem`s are part of the [**ModelingToolkit.jl**](https://github.com/SciML/ModelingToolkit.jl) framework, which allows for generating fast numerical functions that can be directly used in the [**OrdinaryDiffEq.jl**](https://github.com/SciML/OrdinaryDiffEq.jl) package. On top of that, [**ModelingToolkit.jl**](https://github.com/SciML/ModelingToolkit.jl) also offers additional enhancement, such as the symbolic computation of Jacobians for better stability and performance.
 
-To obtain an `ODESystem` from a `HeisenbergEquation`, you simply need to call the constructor:
+To obtain an `ODESystem` from a `MeanfieldEquations`, you simply need to call the constructor:
 
-```@example heisenberg
+```@example meanfield
 using ModelingToolkit
-sys = ODESystem(he)
+sys = ODESystem(me)
 nothing # hide
 ```
 
 Finally, to obtain a numerical solution we can construct an `ODEProblem` and solve it.
 
-```@example heisenberg
+```@example meanfield
 using OrdinaryDiffEq
 p0 = (ω => 1.0, η => 0.1)
-u0 = zeros(ComplexF64, length(he))
+u0 = zeros(ComplexF64, length(me))
 prob = ODEProblem(sys,u0,(0.0,1.0),p0)
 sol = solve(prob, RK4())
 nothing # hide
