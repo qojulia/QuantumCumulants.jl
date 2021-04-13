@@ -9,11 +9,11 @@ QuantumOptics = "6e0679c1-51ea-5a7c-ac74-d61b76210b0c"
 MacroTools = "1914dd2f-81c6-5fcd-8719-6d5c9610ff09"
 
 [compat]
-Documenter = "~0.25"
+Documenter = "~0.26"
 OrdinaryDiffEq = "5"
 ModelingToolkit = "5"
 Symbolics = "0.1"
 Plots = "1"
-Latexify = "0.13"
+Latexify = "0.14"
 QuantumOptics = "0.8"
 MacroTools = "0.5"
