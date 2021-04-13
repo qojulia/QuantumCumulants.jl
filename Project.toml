@@ -16,7 +16,7 @@ Symbolics = "0c5d862f-8b57-4792-8d23-62f2024744c7"
 [compat]
 Combinatorics = "1"
 LaTeXStrings = "1"
-Latexify = "0.13"
+Latexify = "0.13, 0.14, 0.15"
 MacroTools = "0.5"
 ModelingToolkit = "5"
 SciMLBase = "1"
