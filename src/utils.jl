@@ -1,21 +1,21 @@
 """
-    find_missing(he::HeisenbergEquation, vs_adj=nothing, get_adjoints=true)
+    find_missing(me::MeanfieldEquations, vs_adj=nothing, get_adjoints=true)
 
-Find all averages on the right-hand-side of in `he.equations` that are not
-listed `he.states`. For a complete system this list is empty.
+Find all averages on the right-hand-side of in `me.equations` that are not
+listed `me.states`. For a complete system this list is empty.
 
 Optional arguments
 =================
 
-*`vs_adj`: List of the complex conjugates of `he.states`. If set to `nothing`
+*`vs_adj`: List of the complex conjugates of `me.states`. If set to `nothing`
     the list is generated internally.
 *`get_adjoints=true`: Specify whether a complex conjugate of an average should be
     explicitly listed as missing.
 
 see also: [`complete`](@ref), [`complete!`](@ref)
 """
-function find_missing(he::AbstractHeisenbergEquation; vs_adj=nothing, get_adjoints=true)
-    vs = he.states
+function find_missing(me::AbstractMeanfieldEquations; vs_adj=nothing, get_adjoints=true)
+    vs = me.states
     vhash = map(hash, vs)
     vs′ = if vs_adj===nothing
         map(_conj, vs)
@@ -28,7 +28,7 @@ function find_missing(he::AbstractHeisenbergEquation; vs_adj=nothing, get_adjoin
     missed = []
     missed_hashes = UInt[]
 
-    eqs = he.equations
+    eqs = me.equations
     for i=1:length(eqs)
         find_missing!(missed, missed_hashes, eqs[i].rhs, vhash, vs′hash; get_adjoints=get_adjoints)
     end
@@ -90,11 +90,11 @@ function _in(x, itr)
 end
 
 """
-    complete(de::HeisenbergEquation)
+    complete(de::MeanfieldEquations)
 
 From a set of differential equation of averages, find all averages that are missing
 and derive the corresponding equations of motion. Uses [`find_missing`](@ref)
-and [`heisenberg`](@ref) to do so.
+and [`meanfield`](@ref) to do so.
 
 Optional arguments
 ==================
@@ -106,23 +106,23 @@ Optional arguments
     be ignored when completing a system. This works by calling `filter!(filter_func, missed)`
     where `missed` is the vector resulting from [`find_missing`](@ref). Occurrences
     of averages for which `filter_func` returns `false` are substituted to 0.
-*`kwargs...`: Further keyword arguments are passed on to [`heisenberg`](@ref) and
+*`kwargs...`: Further keyword arguments are passed on to [`meanfield`](@ref) and
     simplification.
 
-see also: [`find_missing`](@ref), [`heisenberg`](@ref)
+see also: [`find_missing`](@ref), [`meanfield`](@ref)
 """
-function complete(de::AbstractHeisenbergEquation;kwargs...)
+function complete(de::AbstractMeanfieldEquations;kwargs...)
     de_ = deepcopy(de)
     complete!(de_;kwargs...)
     return de_
 end
 
 """
-    complete!(de::HeisenbergEquation)
+    complete!(de::MeanfieldEquations)
 
 In-place version of [`complete`](@ref)
 """
-function complete!(de::HeisenbergEquation;
+function complete!(de::AbstractMeanfieldEquations;
                                 order=de.order,
                                 multithread=false,
                                 filter_func=nothing,
@@ -162,7 +162,7 @@ function complete!(de::HeisenbergEquation;
 
     while !isempty(missed)
         ops_ = [SymbolicUtils.arguments(m)[1] for m in missed]
-        he = heisenberg(ops_,de.hamiltonian,de.jumps;
+        me = meanfield(ops_,de.hamiltonian,de.jumps;
                                 rates=de.rates,
                                 simplify=simplify,
                                 multithread=multithread,
@@ -171,16 +171,16 @@ function complete!(de::HeisenbergEquation;
                                 iv=de.iv,
                                 kwargs...)
 
-        _append!(de, he)
+        _append!(de, me)
 
-        vhash_ = hash.(he.states)
-        vs′hash_ = hash.(_conj.(he.states))
+        vhash_ = hash.(me.states)
+        vs′hash_ = hash.(_conj.(me.states))
         append!(vhash, vhash_)
         for i=1:length(vhash_)
             vs′hash_[i] ∈ vhash_ || push!(vs′hash, vs′hash_[i])
         end
 
-        missed = find_missing(he.equations, vhash, vs′hash; get_adjoints=false)
+        missed = find_missing(me.equations, vhash, vs′hash; get_adjoints=false)
         isnothing(filter_func) || filter!(filter_func, missed) # User-defined filter
     end
 

@@ -17,7 +17,7 @@ a = Destroy(h,:a)
 
 H = Δ*a'*a + g*(a'*σ + σ'*a)
 J = [a,σ,σ']
-he_laser = heisenberg([a'*a,σ'*σ,a*σ'],H,J;rates=[κ,γ,ν])
+he_laser = meanfield([a'*a,σ'*σ,a*σ'],H,J;rates=[κ,γ,ν])
 
 he_avg = cumulant_expansion(he_laser,2)
 he_comp = complete(he_avg)
@@ -103,7 +103,7 @@ h = FockSpace(:fock)
 a = Destroy(h,:a)
 @cnumbers ωc κ
 H = ωc*a'*a
-he = heisenberg(a'*a,H,[a];rates=[κ])
+he = meanfield(a'*a,H,[a];rates=[κ])
 ps = (ωc,κ)
 sys = ODESystem(he)
 n0 = 20.0

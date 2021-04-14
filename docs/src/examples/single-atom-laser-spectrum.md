@@ -40,7 +40,7 @@ The first equation we want to derive is that for the average photon number $\lan
 
 ```@example single-atom-laser-spectrum
 # Derive equation for average photon number
-he_n = heisenberg(a'*a,H,J;rates=rates,order=2)
+eq_n = meanfield(a'*a,H,J;rates=rates,order=2)
 nothing # hide
 ```
 
@@ -72,7 +72,7 @@ end
 phase_invariant(x) = iszero(ϕ(x))
 
 # Complete equations
-he = complete(he_n;filter_func=phase_invariant)
+eqs = complete(eq_n;filter_func=phase_invariant)
 ```
 
 In order to compute the spectrum, we first compute the correlation function $g(\tau) = \langle a^\dagger(t_0 + \tau) a(t_0)\rangle \equiv \langle a^\dagger a_0\rangle.$
@@ -82,7 +82,7 @@ Note that the [`CorrelationFunction`](@ref) finds the equation for $g(\tau)$ and
 
 ```@example single-atom-laser-spectrum
 # Correlation function
-c = CorrelationFunction(a', a, he; steady_state=true, filter_func=phase_invariant)
+c = CorrelationFunction(a', a, eqs; steady_state=true, filter_func=phase_invariant)
 nothing # hide
 ```
 
@@ -110,8 +110,8 @@ In any case, we need to compute the steady state of the system numerically.
 ```@example single-atom-laser-spectrum
 # Numerical solution
 ps = (Δ, g, γ, κ, ν)
-sys = ODESystem(he)
-u0 = zeros(ComplexF64, length(he))
+sys = ODESystem(eqs)
+u0 = zeros(ComplexF64, length(eqs))
 p0 = (1.0, 1.5, 0.25, 1, 4)
 prob = ODEProblem(sys,u0,(0.0,10.0),ps.=>p0)
 sol = solve(prob,RK4())

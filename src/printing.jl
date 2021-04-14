@@ -49,7 +49,7 @@ function SymbolicUtils.show_term(io::IO, t::SymbolicUtils.Term{<:AvgSym})
     write(io, "⟩")
 end
 
-function Base.show(io::IO,de::AbstractHeisenbergEquation)
+function Base.show(io::IO,de::AbstractMeanfieldEquations)
     for i=1:length(de.equations)
         write(io, "∂ₜ(")
         show(io, de.equations[i].lhs)
@@ -70,6 +70,6 @@ end
 
 Base.show(io::IO, c::CallableTransition) = write(io, c.name)
 
-const T_LATEX = Union{<:QNumber,<:AbstractHeisenbergEquation, <:SymbolicUtils.Symbolic{<:CNumber},
+const T_LATEX = Union{<:QNumber,<:AbstractMeanfieldEquations, <:SymbolicUtils.Symbolic{<:CNumber},
         <:CorrelationFunction,<:Spectrum}
 Base.show(io::IO, ::MIME"text/latex", x::T_LATEX) = write(io, latexify(x))

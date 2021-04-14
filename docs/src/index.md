@@ -10,10 +10,10 @@
 
 ### Installation
 
-**QuantumCumulants.jl** is not officially released (yet) and so has to be installed directly from GitHub. This can be done with
+**QuantumCumulants.jl** is a registered Julia package and can be installed using the package manager:
 
 ```julia
-|pkg> add https://github.com/qojulia/QuantumCumulants.jl.git
+|pkg> add QuantumCumulants
 ```
 
 For a full list of functions, check out the [API](@ref).

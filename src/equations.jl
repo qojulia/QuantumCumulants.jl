@@ -1,10 +1,10 @@
 """
 Abstract type for equations.
 """
-abstract type AbstractHeisenbergEquation end
+abstract type AbstractMeanfieldEquations end
 
 """
-    HeisenbergEquation <: AbstractHeisenbergEquation
+    MeanfieldEquations <: AbstractMeanfieldEquations
 
 Type defining a system of differential equations, where `lhs` is a vector of
 derivatives and `rhs` is a vector of expressions. In addition, it keeps track
@@ -25,7 +25,7 @@ the system.
 *`order`: The order at which the [`cumulant_expansion`](@ref) has been performed.
 
 """
-struct HeisenbergEquation <: AbstractHeisenbergEquation
+struct MeanfieldEquations <: AbstractMeanfieldEquations
     equations::Vector{Symbolics.Equation}
     operator_equations::Vector{Symbolics.Equation}
     states::Vector
@@ -38,22 +38,22 @@ struct HeisenbergEquation <: AbstractHeisenbergEquation
     order::Union{Int,Vector{<:Int},Nothing}
 end
 
-Base.getindex(de::AbstractHeisenbergEquation, i::Int) = de.equations[i]
-Base.getindex(de::AbstractHeisenbergEquation, i) = de.equations[i]
-Base.lastindex(de::AbstractHeisenbergEquation) = lastindex(de.equations)
-Base.length(de::AbstractHeisenbergEquation) = length(de.equations)
+Base.getindex(de::AbstractMeanfieldEquations, i::Int) = de.equations[i]
+Base.getindex(de::AbstractMeanfieldEquations, i) = de.equations[i]
+Base.lastindex(de::AbstractMeanfieldEquations) = lastindex(de.equations)
+Base.length(de::AbstractMeanfieldEquations) = length(de.equations)
 
-function _append!(de::T, he::T) where T<:AbstractHeisenbergEquation
-    append!(de.equations, he.equations)
-    append!(de.operator_equations, he.operator_equations)
-    append!(de.states, he.states)
-    append!(de.operators, he.operators)
-    append!(de.varmap, he.varmap)
+function _append!(de::T, me::T) where T<:AbstractMeanfieldEquations
+    append!(de.equations, me.equations)
+    append!(de.operator_equations, me.operator_equations)
+    append!(de.states, me.states)
+    append!(de.operators, me.operators)
+    append!(de.varmap, me.varmap)
     return de
 end
 
 # Substitution
-function substitute(de::T,dict) where T<:AbstractHeisenbergEquation
+function substitute(de::T,dict) where T<:AbstractMeanfieldEquations
     eqs = [substitute(eq, dict) for eq∈de.equations]
     states = getfield.(eqs, :lhs)
     fields = [getfield(de, s) for s∈fieldnames(T)[4:end]]
@@ -61,7 +61,7 @@ function substitute(de::T,dict) where T<:AbstractHeisenbergEquation
 end
 
 # Simplification
-function SymbolicUtils.simplify(de::T;kwargs...) where T<:AbstractHeisenbergEquation
+function SymbolicUtils.simplify(de::T;kwargs...) where T<:AbstractMeanfieldEquations
     eqs = [SymbolicUtils.simplify(eq;kwargs...) for eq∈de.equations]
     eqs_op = [SymbolicUtils.simplify(eq;kwargs...) for eq∈de.operator_equations]
     fields = [getfield(de, s) for s∈fieldnames(T)[3:end]]
@@ -103,7 +103,7 @@ function make_varmap(vs, t)
     return varmap
 end
 
-struct ScaledHeisenbergEquation <: AbstractHeisenbergEquation
+struct ScaledMeanfieldEquations <: AbstractMeanfieldEquations
     equations::Vector{Symbolics.Equation}
     operator_equations::Vector{Symbolics.Equation}
     states::Vector

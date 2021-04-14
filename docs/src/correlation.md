@@ -40,9 +40,9 @@ h = FockSpace(:cavity)
 a = Destroy(h,:a)
 @cnumbers ωc κ
 H = ωc*a'*a
-he = heisenberg(a'*a,H,[a];rates=[κ])
+me = meanfield(a'*a,H,[a];rates=[κ])
 
-c = CorrelationFunction(a', a, he)
+c = CorrelationFunction(a', a, me)
 nothing # hide
 ```
 When the [`CorrelationFunction`](@ref) is constructed, an additional Hilbert space is added internally which represents the system at the time ``t``. In our case, this means that another [`FockSpace`](@ref) is added. Note that all operators involved in the correlation function are defined on the [`ProductSpace`](@ref) including this additional Hilbert space.
@@ -51,7 +51,7 @@ The equation for ``g(t,\tau)`` is now stored in the first entry of `c.de`. To so
 ```@example correlation
 using ModelingToolkit, OrdinaryDiffEq
 
-sys = ODESystem(he)
+sys = ODESystem(me)
 n0 = 20.0 # Initial number of photons in the cavity
 u0 = [n0]
 p0 = (1,1)
@@ -120,7 +120,7 @@ where ``A = i\omega - \textbf{M}``, ``b = \textbf{y}(0)`` and ``c=\textbf{c}/(i\
 This approach is implemented with the [`Spectrum`](@ref) type, which performs the Laplace transform and computes the matrix ``A`` and the vectors ``b`` and ``c`` symbolically. Additionally, functions that return all those things in numerical form depending on the steady-state values and given parameters are generated via [Symbolics](https://github.com/JuliaSymbolics/Symbolics.jl) `build_function`. Usage is as follows:
 
 ```@example correlation
-c = CorrelationFunction(a', a, he; steady_state=true) # need to specify steady state
+c = CorrelationFunction(a', a, me; steady_state=true) # need to specify steady state
 S = Spectrum(c,(ωc,κ))
 nothing # hide
 ```

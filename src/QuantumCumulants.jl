@@ -17,8 +17,8 @@ export HilbertSpace, ProductSpace, ⊗, tensor,
         QSym, QTerm, @qnumbers,
         FockSpace, Destroy, Create,
         NLevelSpace, Transition,
-        HeisenbergEquation,
-        heisenberg, commutator, acts_on,
+        MeanfieldEquations,
+        meanfield, commutator, acts_on,
         CNumber, Parameter, @cnumbers, cnumbers,
         Average, average, cumulant_expansion, get_order, cumulant,
         find_missing, complete, complete!, find_operators, fundamental_operators,
@@ -34,7 +34,7 @@ include("cnumber.jl")
 include("fock.jl")
 include("nlevel.jl")
 include("equations.jl")
-include("heisenberg.jl")
+include("meanfield.jl")
 include("average.jl")
 include("utils.jl")
 include("diffeq.jl")
@@ -44,5 +44,6 @@ include("scale.jl")
 include("latexify_recipes.jl")
 include("printing.jl")
 
+@deprecate heisenberg(args...; kwargs...) meanfield(args...; kwargs...)
 
 end # module

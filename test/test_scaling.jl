@@ -32,7 +32,7 @@ rates = [κ,[Γ2 for i=1:N_c]...,[Γ3 for i=1:N_c]...,[Γ23 for i=1:N_c]...,[ν3
 
 # Derive equation for average photon number
 ops = [a'a, S(2,2,1)[1], a'*S(1,2,1)[1]]
-he = heisenberg(ops,H,J;rates=rates,order=2)
+he = meanfield(ops,H,J;rates=rates,order=2)
 # Custom filter function -- include only phase-invariant terms
 ϕ(x) = 0
 ϕ(x::Destroy) = -1
@@ -93,7 +93,7 @@ H = Δ*a'*a + g*sum(a'*σ(:g,:e)[i] + a*σ(:e,:g)[i] for i=1:M)
 J = [a;[σ(:g,:e)[i] for i=1:M];[σ(:e,:g)[i] for i=1:M]]
 rates = [κ; [γ for i=1:M]; [ν for i=1:M]]
 
-he = heisenberg(a'*a, H, J; rates=rates, order=2)
+he = meanfield(a'*a, H, J; rates=rates, order=2)
 
 # Complete
 he_scaled = complete(he;filter_func=phase_invariant)
@@ -166,7 +166,7 @@ H = Δ*a'*a + G*sum(b[i] + b[i]' for i=1:M)*a'*a + Ω*(a+a')
 J = [a,b]
 rates = [κ,γ]
 ops = [a,a'*a,a*a,b[1],a*b[1],a'*b[1],b[1]'*b[1],b[1]*b[1],b[1]'*b[2],b[1]*b[2]]
-he = heisenberg(ops,H,J;rates=rates)
+he = meanfield(ops,H,J;rates=rates)
 
 he_avg = cumulant_expansion(he,2)
 @test isempty(find_missing(he_avg))
@@ -201,7 +201,7 @@ J = [σ(1,2), b]
 rates = [γ,Γ]
 # Equations
 ops = [σ(2,2),σ(1,2),b[1],σ(1,2)*b[1],σ(2,1)*b[1],σ(2,2)*b[1],b[1]'*b[1],b[1]*b[1],b[1]'*b[2],b[1]*b[2]]
-he = heisenberg(ops, H, J; rates=rates)
+he = meanfield(ops, H, J; rates=rates)
 he_avg = cumulant_expansion(he,2)
 @test isempty(find_missing(he_avg))
 ps = (Δ,η,γ,λ,ν,Γ,N)
@@ -239,7 +239,7 @@ J = [a;[σ(:g,:e,c) for c=1:N_c];[σ(:e,:g,c) for c=1:N_c]]
 rates = [κ,γ...,ν...]
 
 ops = [a'*a]
-he = heisenberg(ops, H, J; rates=rates, order=2)
+he = meanfield(ops, H, J; rates=rates, order=2)
 
 # Scale
 he_scaled = complete(he; filter_func=phase_invariant)

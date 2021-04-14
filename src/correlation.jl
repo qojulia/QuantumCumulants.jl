@@ -25,7 +25,7 @@ defines the subscript added to the name of `op2` representing the constant time.
 Note that the correlation function is stored in the first index of the underlying
 system of equations.
 """
-function CorrelationFunction(op1,op2,de0::AbstractHeisenbergEquation;
+function CorrelationFunction(op1,op2,de0::AbstractMeanfieldEquations;
                             steady_state=false, add_subscript=0,
                             filter_func=nothing, mix_choice=maximum,
                             iv=SymbolicUtils.Sym{Real}(:τ),
@@ -60,7 +60,7 @@ function CorrelationFunction(op1,op2,de0::AbstractHeisenbergEquation;
     op_ = op1_*op2_
     @assert get_order(op_) <= order_
 
-    de = heisenberg(op_,H,J;rates=de0.rates,iv=iv,order=order_)
+    de = meanfield(op_,H,J;rates=de0.rates,iv=iv,order=order_)
     _complete_corr!(de, length(h.spaces), lhs_new, order_, steady_state;
                             filter_func=filter_func,
                             mix_choice=mix_choice,
@@ -78,7 +78,7 @@ function CorrelationFunction(op1,op2,de0::AbstractHeisenbergEquation;
             push!(eqs, Symbolics.Equation(lhs_new[i], rhs))
             push!(eqs_op, Symbolics.Equation(ops[i], rhs_op))
         end
-        HeisenbergEquation(eqs,eqs_op,lhs_new,ops,H,J,de0.rates,de0.iv,varmap,order_)
+        MeanfieldEquations(eqs,eqs_op,lhs_new,ops,H,J,de0.rates,de0.iv,varmap,order_)
     end
 
     return CorrelationFunction(op1_, op2_, op2_0, de0_, de, steady_state)
@@ -438,28 +438,28 @@ function _complete_corr!(de,aon0,lhs_new,order,steady_state;
     filter!(_filter_aon, missed)
     isnothing(filter_func) || filter!(filter_func, missed) # User-defined filter
 
-    filter_reds = de isa ScaledHeisenbergEquation
+    filter_reds = de isa ScaledMeanfieldEquations
     filter_reds && filter_redundants!(missed, de.scale_aons, de.names)
 
     while !isempty(missed)
         ops_ = [SymbolicUtils.arguments(m)[1] for m in missed]
-        he = heisenberg(ops_,de.hamiltonian,de.jumps;
+        me = meanfield(ops_,de.hamiltonian,de.jumps;
                                 rates=de.rates,
                                 simplify=simplify,
                                 order=order,
                                 iv=de.iv,
                                 kwargs...)
 
-        _append!(de, he)
+        _append!(de, me)
 
-        vhash_ = hash.(he.states)
-        vs′hash_ = hash.(_conj.(he.states))
+        vhash_ = hash.(me.states)
+        vs′hash_ = hash.(_conj.(me.states))
         append!(vhash, vhash_)
         for i=1:length(vhash_)
             vs′hash_[i] ∈ vhash_ || push!(vs′hash, vs′hash_[i])
         end
 
-        missed = find_missing(he.equations, vhash, vs′hash; get_adjoints=false)
+        missed = find_missing(me.equations, vhash, vs′hash; get_adjoints=false)
         filter!(_filter_aon, missed)
         isnothing(filter_func) || filter!(filter_func, missed) # User-defined filter
         filter_reds && filter_redundants!(missed, de.scale_aons, de.names)

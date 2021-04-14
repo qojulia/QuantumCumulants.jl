@@ -1,7 +1,7 @@
 names = [
     "test_fock.jl"
     "test_nlevel.jl"
-    "test_heisenberg.jl"
+    "test_meanfield.jl"
     "test_parameters.jl"
     "test_average.jl"
     "test_diffeq.jl"

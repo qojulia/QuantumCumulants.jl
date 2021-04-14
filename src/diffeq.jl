@@ -1,11 +1,11 @@
 # Relevant parts of ODESystem interface
-MTK.independent_variable(he::AbstractHeisenbergEquation) = he.iv
-MTK.states(he::AbstractHeisenbergEquation) = he.states
+MTK.independent_variable(me::AbstractMeanfieldEquations) = me.iv
+MTK.states(me::AbstractMeanfieldEquations) = me.states
 
-function MTK.equations(he::AbstractHeisenbergEquation)
+function MTK.equations(me::AbstractMeanfieldEquations)
     # Get the MTK variables
-    varmap = he.varmap
-    vs = MTK.states(he)
+    varmap = me.varmap
+    vs = MTK.states(me)
     vhash = map(hash, vs)
 
     # Substitute conjugate variables by explicit conj
@@ -20,7 +20,7 @@ function MTK.equations(he::AbstractHeisenbergEquation)
             i += 1
         end
     end
-    rhs = [substitute_conj(eq.rhs, vs′, vs′hash) for eq∈he.equations]
+    rhs = [substitute_conj(eq.rhs, vs′, vs′hash) for eq∈me.equations]
 
     # Substitute to MTK variables on rhs
     subs = Dict(varmap)
@@ -28,7 +28,7 @@ function MTK.equations(he::AbstractHeisenbergEquation)
     vs_mtk = getindex.(varmap, 2)
 
     # Return equations
-    t = MTK.independent_variable(he)
+    t = MTK.independent_variable(me)
     D = MTK.Differential(t)
     return [Symbolics.Equation(D(vs_mtk[i]), rhs[i]) for i=1:length(vs)]
 end
@@ -56,7 +56,7 @@ end
 # Conversion to ODESystem
 MTK.isparameter(::SymbolicUtils.Sym{<:Parameter}) = true
 
-function MTK.ODESystem(he::AbstractHeisenbergEquation, iv=he.iv; kwargs...)
-    eqs = MTK.equations(he)
+function MTK.ODESystem(me::AbstractMeanfieldEquations, iv=me.iv; kwargs...)
+    eqs = MTK.equations(me)
     return MTK.ODESystem(eqs, iv; kwargs...)
 end

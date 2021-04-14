@@ -1,9 +1,9 @@
-function scale(he::AbstractHeisenbergEquation; kwargs...)
+function scale(he::AbstractMeanfieldEquations; kwargs...)
     h = hilbert(he.hamiltonian)
     scale_aons, N = get_cluster_stuff(h)
     return scale(he, scale_aons, N; kwargs...)
 end
-function scale(he::HeisenbergEquation, scale_aons::Vector{<:Vector}, N::Vector;
+function scale(he::MeanfieldEquations, scale_aons::Vector{<:Vector}, N::Vector;
                                                     simplify=true,
                                                     order=nothing, mix_choice=maximum,
                                                     kwargs...)
@@ -43,7 +43,7 @@ function scale(he::HeisenbergEquation, scale_aons::Vector{<:Vector}, N::Vector;
         end
     end
 
-    he_scaled = ScaledHeisenbergEquation(equations,operator_equations,
+    he_scaled = ScaledMeanfieldEquations(equations,operator_equations,
                                     he.states, he.operators,
                                     he.hamiltonian,he.jumps,he.rates,
                                     he.iv, he.varmap, he.order,
@@ -204,7 +204,7 @@ end
 
 ## Dealing with redundant averages
 
-function substitute_redundants(he::HeisenbergEquation,scale_aons::Vector{<:Vector},names)
+function substitute_redundants(he::MeanfieldEquations,scale_aons::Vector{<:Vector},names)
     eqs = Symbolics.Equation[]
     for i=1:length(he.equations)
         lhs = substitute_redundants(he.equations[i].lhs,scale_aons,names)
@@ -212,7 +212,7 @@ function substitute_redundants(he::HeisenbergEquation,scale_aons::Vector{<:Vecto
         push!(eqs, Symbolics.Equation(lhs, rhs))
     end
     # TODO substitute jumps and hamiltonian?
-    return HeisenbergEquation(lhs, rhs, he.hamiltonian, he.jumps, he.rates)
+    return MeanfieldEquations(lhs, rhs, he.hamiltonian, he.jumps, he.rates)
 end
 
 function substitute_redundants(t::SymbolicUtils.Symbolic,scale_aons::Vector{<:Vector},names)
@@ -402,7 +402,7 @@ end
 
 
 ## Complete
-function complete!(de::ScaledHeisenbergEquation;
+function complete!(de::ScaledMeanfieldEquations;
                                 order=de.order,
                                 multithread=false,
                                 filter_func=nothing,
@@ -446,7 +446,7 @@ function complete!(de::ScaledHeisenbergEquation;
 
     while !isempty(missed)
         ops_ = [SymbolicUtils.arguments(m)[1] for m in missed]
-        he = heisenberg(ops_,de.hamiltonian,de.jumps;
+        he = meanfield(ops_,de.hamiltonian,de.jumps;
                                 rates=de.rates,
                                 simplify=simplify,
                                 multithread=multithread,
