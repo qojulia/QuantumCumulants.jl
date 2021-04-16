@@ -7,6 +7,8 @@ abstract type HilbertSpace end
 Base.:(==)(h1::HilbertSpace,h2::HilbertSpace) = false
 Base.hash(h::T, i::UInt) where T<:HilbertSpace = hash(T, hash(h.name, i))
 
+abstract type ConcreteHilbertSpace <: HilbertSpace end
+
 """
     ProductSpace <: HilbertSpace
 
@@ -68,7 +70,7 @@ tensor(args...) = ⊗(args...)
 A Hilbert space representing `N` identical copies of another Hilbert space, with
 correlations up to a specified `order`.
 """
-struct ClusterSpace{H<:HilbertSpace,NType,M<:Integer} <: HilbertSpace
+struct ClusterSpace{H<:ConcreteHilbertSpace,NType,M<:Integer} <: HilbertSpace
     original_space::H
     N::NType
     order::M

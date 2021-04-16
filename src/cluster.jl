@@ -44,59 +44,6 @@ function Base.isless(c1::ClusterAon,c2::ClusterAon)
 end
 Base.iterate(c::ClusterAon, state=1) = isone(state) ? (c,state+1) : nothing
 
-# TODO: clean up operator constructors
-function Transition(h::ClusterSpace{<:NLevelSpace}, name, i, j, aon::Int=1)
-    op = Transition(hilbert.original_space,name,i,j,aon)
-    return _cluster(h,op,aon)
-end
-function Transition(hilbert::ProductSpace,name,i,j)
-    inds = findall(x->isa(x,NLevelSpace) || isa(x,ClusterSpace{<:NLevelSpace}),hilbert.spaces)
-    if length(inds)==1
-        return Transition(hilbert,name,i,j,inds[1])
-    else
-        isempty(inds) && error("Can only create Transition on NLevelSpace! Not included in $(hilbert)")
-        length(inds)>1 && error("More than one NLevelSpace in $(hilbert)! Specify on which Hilbert space Transition should be created with Transition(hilbert,name,i,j,acts_on)!")
-    end
-end
-function Transition(hilbert::H,name::S,i::I,j::I,aon::A) where {H<:ProductSpace,S,I,A<:Int}
-    if hilbert.spaces[aon] isa ClusterSpace
-        op = Transition(hilbert.spaces[aon].original_space,name,i,j,1)
-        return _cluster(hilbert, op, aon)
-    else
-        gs = ground_state(hilbert, aon)
-        if isequal(i,j) && isequal(i,gs)
-            args = Any[1]
-            for k∈levels(hilbert, aon)
-                isequal(k,gs) && continue
-                push!(args, QMul(-1, [Transition{H,S,I,A}(hilbert,name,k,k,aon)]))
-            end
-            return QAdd(args)
-        else
-            return Transition{H,S,I,A}(hilbert,name,i,j,aon)
-        end
-    end
-end
-
-for f in [:Destroy,:Create]
-    @eval function $(f)(hilbert::H,name::S,aon::A) where {H<:ProductSpace,S,A<:Int}
-        if hilbert.spaces[aon] isa ClusterSpace
-            op = $(f)(hilbert.spaces[aon].original_space,name)
-            return _cluster(hilbert, op, aon)
-        else
-            return $(f){H,S,A}(hilbert,name,aon)
-        end
-    end
-    @eval function $(f)(hilbert::ProductSpace,name)
-        i = findall(x->isa(x,FockSpace) || isa(x,ClusterSpace{<:FockSpace}),hilbert.spaces)
-        if length(i)==1
-            return $(f)(hilbert,name,i[1])
-        else
-            isempty(i) && error("Can only create $($(f)) on FockSpace! Not included in $(hilbert)")
-            length(i)>1 && error("More than one FockSpace in $(hilbert)! Specify on which Hilbert space $($(f)) should be created with $($(f))(hilbert,name,i)!")
-        end
-    end
-end
-
 function _cluster(h::ProductSpace, op::QSym, aon::Int)
     order = h.spaces[aon].order
     return _cluster(h, op, aon, order)

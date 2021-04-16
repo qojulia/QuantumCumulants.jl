@@ -19,7 +19,7 @@ julia> ha = NLevelSpace(:a,(:g,:e))
 ℋ(a)
 ```
 """
-struct NLevelSpace{S,L,G} <: HilbertSpace
+struct NLevelSpace{S,L,G} <: ConcreteHilbertSpace
     name::S
     levels::L
     GS::G
@@ -81,15 +81,37 @@ function Transition(hilbert::H,name::S,i::I,j::I,aon::A) where {H,S,I,A}
     end
 end
 Transition(hilbert::NLevelSpace,name,i,j) = Transition(hilbert,name,i,j,1)
-# function Transition(hilbert::ProductSpace,name,i,j)
-#     inds = findall(x->isa(x,NLevelSpace),hilbert.spaces)
-#     if length(inds)==1
-#         return Transition(hilbert,name,i,j,inds[1])
-#     else
-#         isempty(inds) && error("Can only create Transition on NLevelSpace! Not included in $(hilbert)")
-#         length(inds)>1 && error("More than one NLevelSpace in $(hilbert)! Specify on which Hilbert space Transition should be created with Transition(hilbert,name,i,j,acts_on)!")
-#     end
-# end
+function Transition(hilbert::ProductSpace,name,i,j)
+    inds = findall(x->isa(x,NLevelSpace) || isa(x,ClusterSpace{<:NLevelSpace}),hilbert.spaces)
+    if length(inds)==1
+        return Transition(hilbert,name,i,j,inds[1])
+    else
+        isempty(inds) && error("Can only create Transition on NLevelSpace! Not included in $(hilbert)")
+        length(inds)>1 && error("More than one NLevelSpace in $(hilbert)! Specify on which Hilbert space Transition should be created with Transition(hilbert,name,i,j,acts_on)!")
+    end
+end
+function Transition(hilbert::H,name::S,i::I,j::I,aon::A) where {H<:ProductSpace,S,I,A<:Int}
+    if hilbert.spaces[aon] isa ClusterSpace
+        op = Transition(hilbert.spaces[aon].original_space,name,i,j,1)
+        return _cluster(hilbert, op, aon)
+    else
+        gs = ground_state(hilbert, aon)
+        if isequal(i,j) && isequal(i,gs)
+            args = Any[1]
+            for k∈levels(hilbert, aon)
+                isequal(k,gs) && continue
+                push!(args, QMul(-1, [Transition{H,S,I,A}(hilbert,name,k,k,aon)]))
+            end
+            return QAdd(args)
+        else
+            return Transition{H,S,I,A}(hilbert,name,i,j,aon)
+        end
+    end
+end
+function Transition(h::ClusterSpace{<:NLevelSpace}, name, i, j, aon::Int=1)
+    op = Transition(hilbert.original_space,name,i,j,aon)
+    return _cluster(h,op,aon)
+end
 
 levels(t::Transition,args...) = levels(t.hilbert,args...)
 ground_state(t::Transition,args...) = ground_state(t.hilbert,args...)

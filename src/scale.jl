@@ -168,6 +168,7 @@ function get_operators(q::QAdd)
     return ops
 end
 
+
 ## Scaling terms by the correct factor
 
 function _scaling_rewrite(rhs, N, scale_aons, aon_lhs, names)
