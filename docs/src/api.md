@@ -19,6 +19,10 @@ NLevelSpace
 ```
 
 ```@docs
+ClusterSpace
+```
+
+```@docs
 ⊗
 ```
 
