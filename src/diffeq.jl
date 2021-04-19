@@ -1,8 +1,8 @@
 # Relevant parts of ODESystem interface
-MTK.independent_variable(me::MeanfieldEquations) = me.iv
-MTK.states(me::MeanfieldEquations) = me.states
+MTK.independent_variable(me::AbstractMeanfieldEquations) = me.iv
+MTK.states(me::AbstractMeanfieldEquations) = me.states
 
-function MTK.equations(me::MeanfieldEquations)
+function MTK.equations(me::AbstractMeanfieldEquations)
     # Get the MTK variables
     varmap = me.varmap
     vs = MTK.states(me)
@@ -56,7 +56,7 @@ end
 # Conversion to ODESystem
 MTK.isparameter(::SymbolicUtils.Sym{<:Parameter}) = true
 
-function MTK.ODESystem(me::MeanfieldEquations, iv=me.iv; kwargs...)
+function MTK.ODESystem(me::AbstractMeanfieldEquations, iv=me.iv; kwargs...)
     eqs = MTK.equations(me)
     return MTK.ODESystem(eqs, iv; kwargs...)
 end

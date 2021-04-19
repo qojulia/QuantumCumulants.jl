@@ -287,6 +287,7 @@ function hilbert(a::QAdd)
     hilbert(a.arguments[idx])
 end
 
+const AonType = Union{<:Int,<:ClusterAon}
 """
     acts_on(op)
 
@@ -296,7 +297,7 @@ whose entries specify all subspaces on which the expression acts.
 """
 acts_on(op::QSym) = op.aon
 function acts_on(q::QMul)
-    aon = Int[]
+    aon = AonType[]
     for arg ∈ q.args_nc
         aon_ = acts_on(arg)
         aon_ ∈ aon || push!(aon, aon_)
@@ -304,7 +305,7 @@ function acts_on(q::QMul)
     return aon
 end
 function acts_on(q::QAdd)
-    aon = Int[]
+    aon = AonType[]
     for arg ∈ q.arguments
         append!(aon, acts_on(arg))
     end

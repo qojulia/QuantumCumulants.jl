@@ -25,7 +25,7 @@ defines the subscript added to the name of `op2` representing the constant time.
 Note that the correlation function is stored in the first index of the underlying
 system of equations.
 """
-function CorrelationFunction(op1,op2,de0::MeanfieldEquations;
+function CorrelationFunction(op1,op2,de0::AbstractMeanfieldEquations;
                             steady_state=false, add_subscript=0,
                             filter_func=nothing, mix_choice=maximum,
                             iv=SymbolicUtils.Sym{Real}(:τ),
@@ -438,6 +438,9 @@ function _complete_corr!(de,aon0,lhs_new,order,steady_state;
     filter!(_filter_aon, missed)
     isnothing(filter_func) || filter!(filter_func, missed) # User-defined filter
 
+    filter_reds = de isa ScaledMeanfieldEquations
+    filter_reds && filter_redundants!(missed, de.scale_aons, de.names)
+
     while !isempty(missed)
         ops_ = [SymbolicUtils.arguments(m)[1] for m in missed]
         me = meanfield(ops_,de.hamiltonian,de.jumps;
@@ -459,6 +462,7 @@ function _complete_corr!(de,aon0,lhs_new,order,steady_state;
         missed = find_missing(me.equations, vhash, vs′hash; get_adjoints=false)
         filter!(_filter_aon, missed)
         isnothing(filter_func) || filter!(filter_func, missed) # User-defined filter
+        filter_reds && filter_redundants!(missed, de.scale_aons, de.names)
     end
 
     if !isnothing(filter_func)
@@ -466,6 +470,7 @@ function _complete_corr!(de,aon0,lhs_new,order,steady_state;
         # but still occur on the RHS; set those to 0
         missed = find_missing(de.equations, vhash, vs′hash; get_adjoints=false)
         filter!(!filter_func, missed)
+        filter_reds && filter_redundants!(missed, de.scale_aons, de.names)
         missed_adj = map(_adjoint, missed)
         subs = Dict(vcat(missed, missed_adj) .=> 0)
         for i=1:length(de.equations)

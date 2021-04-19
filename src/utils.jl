@@ -14,7 +14,7 @@ Optional arguments
 
 see also: [`complete`](@ref), [`complete!`](@ref)
 """
-function find_missing(me::MeanfieldEquations; vs_adj=nothing, get_adjoints=true)
+function find_missing(me::AbstractMeanfieldEquations; vs_adj=nothing, get_adjoints=true)
     vs = me.states
     vhash = map(hash, vs)
     vs′ = if vs_adj===nothing
@@ -111,7 +111,7 @@ Optional arguments
 
 see also: [`find_missing`](@ref), [`meanfield`](@ref)
 """
-function complete(de::MeanfieldEquations;kwargs...)
+function complete(de::AbstractMeanfieldEquations;kwargs...)
     de_ = deepcopy(de)
     complete!(de_;kwargs...)
     return de_
@@ -122,7 +122,7 @@ end
 
 In-place version of [`complete`](@ref)
 """
-function complete!(de::MeanfieldEquations;
+function complete!(de::AbstractMeanfieldEquations;
                                 order=de.order,
                                 multithread=false,
                                 filter_func=nothing,
@@ -274,7 +274,6 @@ for T ∈ [:Destroy,:Create,:Transition]
         return $(T)(fields...)
     end
 end
-
 
 """
     unique_ops(ops)

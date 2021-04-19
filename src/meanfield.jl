@@ -40,19 +40,20 @@ function meanfield(a::Vector,H,J;Jdagger::Vector=adjoint.(J),rates=ones(Int,leng
                     mix_choice=maximum,
                     iv=SymbolicUtils.Sym{Real}(:t))
 
+    J_, Jdagger_, rates_ = _expand_clusters(J,Jdagger,rates)
     # Derive operator equations
     rhs = Vector{Any}(undef, length(a))
     imH = im*H
     if multithread
         Threads.@threads for i=1:length(a)
             rhs_ = commutator(imH,a[i])
-            rhs_diss = _master_lindblad(a[i],J,Jdagger,rates)
+            rhs_diss = _master_lindblad(a[i],J_,Jdagger_,rates_)
             rhs[i] = rhs_ + rhs_diss
         end
     else
         for i=1:length(a)
             rhs_ = commutator(imH,a[i])
-            rhs_diss = _master_lindblad(a[i],J,Jdagger,rates)
+            rhs_diss = _master_lindblad(a[i],J_,Jdagger_,rates_)
             rhs[i] = rhs_ + rhs_diss
         end
     end
@@ -74,7 +75,12 @@ function meanfield(a::Vector,H,J;Jdagger::Vector=adjoint.(J),rates=ones(Int,leng
 
     varmap = make_varmap(vs, iv)
 
-    return MeanfieldEquations(eqs_avg,eqs,vs,a,H,J,rates,iv,varmap,order)
+    me = MeanfieldEquations(eqs_avg,eqs,vs,a,H,J_,rates_,iv,varmap,order)
+    if has_cluster(H)
+        return scale(me;simplify=simplify,order=order,mix_choice=mix_choice)
+    else
+        return me
+    end
 end
 meanfield(a::QNumber,args...;kwargs...) = meanfield([a],args...;kwargs...)
 meanfield(a::Vector,H;kwargs...) = meanfield(a,H,[];Jdagger=[],kwargs...)
@@ -178,4 +184,32 @@ function push_or_append_nz_args!(args,c::QAdd)
         push_or_append_nz_args!(args, c.arguments[i])
     end
     return args
+end
+
+function _expand_clusters(J,Jdagger,rates)
+    J_ = []
+    Jdagger_ = []
+    rates_ = []
+    for i=1:length(J)
+        if J[i] isa Vector
+            h = hilbert(J[i][1])
+            aon_ = acts_on(J[i][1])
+            aon = if aon_ isa Vector
+                @assert length(aon_)==1
+                aon_[1]
+            else
+                aon_
+            end
+            @assert has_cluster(h, aon)
+            append!(J_, J[i])
+            append!(Jdagger_, Jdagger[i])
+            order = h.spaces[get_i(aon)].order
+            append!(rates_, [rates[i] for k=1:order])
+        else
+            push!(J_, J[i])
+            push!(Jdagger_, Jdagger[i])
+            push!(rates_, rates[i])
+        end
+    end
+    return J_,Jdagger_,rates_
 end

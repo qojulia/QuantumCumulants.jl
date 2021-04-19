@@ -29,7 +29,7 @@ function acts_on(s::SymbolicUtils.Symbolic)
         if f === sym_average
             return acts_on(SymbolicUtils.arguments(s)[1])
         else
-            aon = Int[]
+            aon = []
             for arg in SymbolicUtils.arguments(s)
                 append!(aon, acts_on(arg))
             end
@@ -136,7 +136,7 @@ function cumulant_expansion(x::SymbolicUtils.Symbolic,order::Integer;simplify=tr
 end
 function cumulant_expansion(avg::SymbolicUtils.Term{<:AvgSym},order::Vector;mix_choice=maximum,kwargs...)
     aon = acts_on(avg)
-    order_ = mix_choice(order[i] for i in aon)
+    order_ = mix_choice(order[get_i(i)] for i in aon)
     return cumulant_expansion(avg,order_;kwargs...)
 end
 cumulant_expansion(x::Number,order;kwargs...) = x
@@ -162,7 +162,7 @@ function cumulant_expansion(de::MeanfieldEquations,order;multithread=false,mix_c
     if multithread
         Threads.@threads for i=1:length(eqs)
             cr = cumulant_expansion(eqs[i].rhs,order;mix_choice=mix_choice,kwargs...)
-            eqs_out[i] = Symbolics.Equation(vs[i], cr)
+            eqs_out[i] = Symbolics.Equation(eqs[i].lhs, cr)
         end
     else
         for i=1:length(eqs)
@@ -173,6 +173,30 @@ function cumulant_expansion(de::MeanfieldEquations,order;multithread=false,mix_c
     return MeanfieldEquations(eqs_out,de.operator_equations,de.states,de.operators,
                             de.hamiltonian,de.jumps,de.rates,de.iv,de.varmap,
                             order)
+end
+function cumulant_expansion(de::ScaledMeanfieldEquations,order;multithread=false,mix_choice=maximum,kwargs...)
+    order==de.order && return de
+    eqs = de.equations
+    eqs_out = Vector{Symbolics.Equation}(undef, length(eqs))
+    if multithread
+        Threads.@threads for i=1:length(eqs)
+            cr = cumulant_expansion(eqs[i].rhs,order;mix_choice=mix_choice,kwargs...)
+            cr = substitute_redundants(cr, de.scale_aons, de.names)
+            eqs_out[i] = Symbolics.Equation(eqs[i].lhs, cr)
+        end
+    else
+        for i=1:length(eqs)
+            cr = cumulant_expansion(eqs[i].rhs,order;mix_choice=mix_choice,kwargs...)
+            cr = substitute_redundants(cr, de.scale_aons, de.names)
+            eqs_out[i] = Symbolics.Equation(eqs[i].lhs, cr)
+        end
+    end
+
+    return ScaledMeanfieldEquations(eqs_out,de.operator_equations,de.states,de.operators,
+                                    de.hamiltonian,de.jumps,de.rates,de.iv,
+                                    de.varmap,order,
+                                    de.scale_aons,de.names,de.was_scaled
+                                    )
 end
 
 function _cumulant_expansion(args::Vector,order::Int)

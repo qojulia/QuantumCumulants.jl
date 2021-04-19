@@ -24,6 +24,8 @@ export HilbertSpace, ProductSpace, ⊗, tensor,
         find_missing, complete, complete!, find_operators, fundamental_operators,
             unique_ops, unique_ops!,
         CorrelationFunction, Spectrum, correlation_u0, correlation_p0,
+        ClusterSpace,
+        scale,
         transition_superscript
 
 include("hilbertspace.jl")
@@ -37,6 +39,8 @@ include("average.jl")
 include("utils.jl")
 include("diffeq.jl")
 include("correlation.jl")
+include("cluster.jl")
+include("scale.jl")
 include("latexify_recipes.jl")
 include("printing.jl")
 

@@ -38,12 +38,12 @@ struct MeanfieldEquations <: AbstractMeanfieldEquations
     order::Union{Int,Vector{<:Int},Nothing}
 end
 
-Base.getindex(de::MeanfieldEquations, i::Int) = de.equations[i]
-Base.getindex(de::MeanfieldEquations, i) = de.equations[i]
-Base.lastindex(de::MeanfieldEquations) = lastindex(de.equations)
-Base.length(de::MeanfieldEquations) = length(de.equations)
+Base.getindex(de::AbstractMeanfieldEquations, i::Int) = de.equations[i]
+Base.getindex(de::AbstractMeanfieldEquations, i) = de.equations[i]
+Base.lastindex(de::AbstractMeanfieldEquations) = lastindex(de.equations)
+Base.length(de::AbstractMeanfieldEquations) = length(de.equations)
 
-function _append!(de::MeanfieldEquations, me::MeanfieldEquations)
+function _append!(de::T, me::T) where T<:AbstractMeanfieldEquations
     append!(de.equations, me.equations)
     append!(de.operator_equations, me.operator_equations)
     append!(de.states, me.states)
@@ -53,17 +53,19 @@ function _append!(de::MeanfieldEquations, me::MeanfieldEquations)
 end
 
 # Substitution
-function substitute(de::MeanfieldEquations,dict)
+function substitute(de::T,dict) where T<:AbstractMeanfieldEquations
     eqs = [substitute(eq, dict) for eq∈de.equations]
     states = getfield.(eqs, :lhs)
-    return MeanfieldEquations(eqs, de.operator_equations, states, de.operators, de.hamiltonian, de.jumps, de.rates, de.iv, de.varmap, de.order)
+    fields = [getfield(de, s) for s∈fieldnames(T)[4:end]]
+    return T(eqs, de.operator_equations, states, fields...)
 end
 
 # Simplification
-function SymbolicUtils.simplify(de::MeanfieldEquations;kwargs...)
+function SymbolicUtils.simplify(de::T;kwargs...) where T<:AbstractMeanfieldEquations
     eqs = [SymbolicUtils.simplify(eq;kwargs...) for eq∈de.equations]
     eqs_op = [SymbolicUtils.simplify(eq;kwargs...) for eq∈de.operator_equations]
-    return MeanfieldEquations(eqs,eqs_op,de.states,de.operators,de.hamiltonian,de.jumps,de.rates,de.iv,de.varmap,de.order)
+    fields = [getfield(de, s) for s∈fieldnames(T)[3:end]]
+    return T(eqs,eqs_op,fields...)
 end
 
 # Adding MTK variables
@@ -99,4 +101,20 @@ function make_varmap(vs, t)
     varmap = Pair{Any,Any}[]
     add_vars!(varmap, vs, t)
     return varmap
+end
+
+struct ScaledMeanfieldEquations <: AbstractMeanfieldEquations
+    equations::Vector{Symbolics.Equation}
+    operator_equations::Vector{Symbolics.Equation}
+    states::Vector
+    operators::Vector{QNumber}
+    hamiltonian::QNumber
+    jumps::Vector{QNumber}
+    rates::Vector
+    iv::SymbolicUtils.Sym
+    varmap::Vector{Pair}
+    order::Union{Int,Vector{<:Int},Nothing}
+    scale_aons
+    names::Vector
+    was_scaled::Vector{Bool}
 end

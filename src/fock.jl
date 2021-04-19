@@ -4,7 +4,7 @@
 [`HilbertSpace`](@ref) defining a Fock space for bosonic operators.
 See also: [`Destroy`](@ref), [`Create`](@ref)
 """
-struct FockSpace{S} <: HilbertSpace
+struct FockSpace{S} <: ConcreteHilbertSpace
     name::S
 end
 Base.:(==)(h1::T,h2::T) where T<:FockSpace = (h1.name==h2.name)
@@ -44,8 +44,16 @@ end
 for f in [:Destroy,:Create]
     @eval $(f)(hilbert::H,name::S,aon::A) where {H,S,A} = $(f){H,S,A}(hilbert,name,aon)
     @eval $(f)(hilbert::FockSpace,name) = $(f)(hilbert,name,1)
+    @eval function $(f)(hilbert::H,name::S,aon::A) where {H<:ProductSpace,S,A<:Int}
+        if hilbert.spaces[aon] isa ClusterSpace
+            op = $(f)(hilbert.spaces[aon].original_space,name)
+            return _cluster(hilbert, op, aon)
+        else
+            return $(f){H,S,A}(hilbert,name,aon)
+        end
+    end
     @eval function $(f)(hilbert::ProductSpace,name)
-        i = findall(x->isa(x,FockSpace),hilbert.spaces)
+        i = findall(x->isa(x,FockSpace) || isa(x,ClusterSpace{<:FockSpace}),hilbert.spaces)
         if length(i)==1
             return $(f)(hilbert,name,i[1])
         else
