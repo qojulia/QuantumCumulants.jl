@@ -156,7 +156,7 @@ function commutator(a::QAdd,b::QNumber)
 end
 function commutator(a::QNumber,b::QAdd)
     args = []
-    for b∈b.arguments
+    for b_∈b.arguments
         c = commutator(a,b_)
         push_or_append_nz_args!(args, c)
     end
