@@ -259,4 +259,34 @@ sol = solve(prob, RK4(), abstol=1e-10, reltol=1e-10)
 
 @test sol.u[end][1] ≈ 12.601868534
 
+### 6-level laser
+
+order = 2
+# Define parameters
+@cnumbers Δc κ g Γ12 Γ13 Γ24 Γ34 Γ54 Γ16 Γ64 Δ3 Δ4 Δ5 Δ6 Ω13 Ω34 Ω54 Ω64 η ν12 ν13 ν34 ν54 ν64 N
+
+# Define hilbert space
+hf = FockSpace(:cavity)
+ha = NLevelSpace(:atom,6)
+ha_c = ClusterSpace(ha,N,order)
+h = ⊗(hf, ha_c)
+# Define the fundamental operators
+a = Destroy(h,:a,1)
+σ(i,j) = Transition(h,:σ,i,j)
+@test length(σ(6,6)) == order
+
+# Hamiltonian
+H = Δc*a'a + Δ3*sum(σ(3,3)) + Δ4*sum(σ(4,4)) + Δ5*sum(σ(5,5)) + Δ6*sum(σ(6,6)) +
+    Ω13*(sum(σ(3,1)) + sum(σ(1,3))) + Ω34*(sum(σ(3,4)) + sum(σ(4,3))) + Ω54*(sum(σ(5,4)) + sum(σ(4,5))) + Ω64*(sum(σ(6,4)) + sum(σ(4,6))) +
+    g*(a'*sum(σ(1,2)) + a*sum(σ(2,1)))
+# Collapse operators
+J = [a, σ(1,2), σ(1,3), σ(2,4), σ(3,4), σ(5,4), σ(6,4), σ(1,6), σ(2,2), σ(3,3)+σ(4,4)+σ(5,5)+σ(6,6), σ(4,4)+σ(5,5)+σ(6,6), σ(5,5), σ(6,6), a'a]
+rates = [κ, Γ12, Γ13, Γ24, Γ34, Γ54, Γ64, Γ16, ν12, ν13, ν34, ν54, ν64, η]
+
+# Derive equation for average photon number
+ops = [a'a, σ(2,2)[1], σ(3,3)[1], σ(4,4)[1], σ(5,5)[1], σ(6,6)[1]]
+eqs_ops = meanfield(ops,H,J;rates=rates, order=order, multithread=true)
+
+@test length(eqs_ops) == length(ops)
+
 end # testset
