@@ -312,21 +312,22 @@ function unique_ops!(ops)
 end
 
 # Overload getindex to obtain solutions with averages
-function Base.getindex(sol::SciMLBase.AbstractTimeseriesSolution, avg::SymbolicUtils.Term{<:AvgSym})
-    tsym = sol.prob.f.indepsym # This is a bit hacky
-    t = SymbolicUtils.Sym{Real}(tsym)
-    syms = SciMLBase.getsyms(sol)
-    var = make_var(avg, t)
-    sym = Symbolics.tosymbol(var)
-    if sym∈syms
-        return getindex(sol, var)
-    else
-        var_ = make_var(_conj(avg), t)
-        return map(conj, getindex(sol, var_))
+for T ∈ [:AbstractTimeseriesSolution,:AbstractNoTimeSolution]
+    @eval function Base.getindex(sol::SciMLBase.$(T), avg::SymbolicUtils.Term{<:AvgSym})
+        tsym = sol.prob.f.indepsym # This is a bit hacky
+        t = SymbolicUtils.Sym{Real}(tsym)
+        syms = SciMLBase.getsyms(sol)
+        var = make_var(avg, t)
+        sym = Symbolics.tosymbol(var)
+        if sym∈syms
+            return getindex(sol, var)
+        else
+            var_ = make_var(_conj(avg), t)
+            return map(conj, getindex(sol, var_))
+        end
     end
+    @eval Base.getindex(sol::SciMLBase.$(T), op::QNumber) = getindex(sol, average(op))
 end
-Base.getindex(sol::SciMLBase.AbstractTimeseriesSolution, op::QNumber) = getindex(sol, average(op))
-
 
 # Internal functions
 _conj(v::SymbolicUtils.Term{<:AvgSym}) = _average(adjoint(v.arguments[1]))
