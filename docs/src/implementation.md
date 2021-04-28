@@ -38,7 +38,8 @@ creates two product spaces. The first, `h_prod1`, consists of the previously def
 
 ## Operators (a.k.a. *q*-numbers)
 
-Once the Hilbert space of the system has been defined, we can proceed by defining operators, or *q*-numbers, on them. They are the fundamental building blocks of symbolic expressions in **QuantumCumulants.jl**. Again, there are essentially two kinds of operators implemented: the quantum harmonic destruction operator [`Destroy`](@ref) which acts on a [`FockSpace`](@ref), as well as a [`Transition`](@ref) operator which describes a transition between any two levels on an [`NLevelSpace`](@ref). Of course, these operators can only be defined on the corresponding Hilbert spaces.
+Once the Hilbert space of the system has been defined, we can proceed by defining operators, or *q*-numbers, on them. They are the fundamental building blocks of symbolic expressions in **QuantumCumulants.jl**. Again, there are essentially two kinds of operators implemented: the quantum harmonic destruction operator [`Destroy`](@ref) which acts on a [`FockSpace`](@ref), as well as a [`Transition`](@ref) operator which describes a transition between any two levels on an [`NLevelSpace`](@ref). These operators can only be defined on the corresponding Hilbert spaces.
+Note that there is no intrinsic reason that prevents us from implementing more types of operators ([see below](@ref interface)), there was simply no need to do that so far.
 
 Here are a few examples:
 
@@ -54,9 +55,9 @@ h_atom = NLevelSpace(:atom,(:g,:e))
 nothing # hide
 ```
 
-As you can see, the destruction operator [`Destroy`](@ref) is created on a [`FockSpace`](@ref) and given a name. The transition operator, however, additionally requires you to specify the levels between which it describes the transition. Defining a transition without levels specified creates a callable instance which needs to be called with valid level labels before one can actually use it in any algebraic expressions. Note that in Bra-Ket notation, the transition operator `Transition(h, i, j)` is simply ``|i\rangle \langle j|``. Note that the bosonic creation operator is simply given by the `adjoint` of [`Destroy`](@ref).
+As you can see, the destruction operator [`Destroy`](@ref) is created on a [`FockSpace`](@ref) and given a name. The transition operator, however, additionally requires you to specify the levels between which it describes the transition. Defining a transition without levels specified creates a callable instance which needs to be called with valid level labels before one can actually use it in any algebraic expressions. Note that in Bra-Ket notation, the transition operator `Transition(h, i, j)` is simply ``|i\rangle \langle j|``. Also, the bosonic creation operator is simply given by the `adjoint` of [`Destroy`](@ref).
 
-These fundamental operators are all of the type [`QSym`](@ref), which are the basic symbolic building blocks for the noncommutative algebra used in **QuantumCumulants.jl**. They implement the [interface](https://symbolicutils.juliasymbolics.org/interface/) of the [**SymbolicUtils.jl**](https://github.com/JuliaSymbolics/SymbolicUtils.jl) package. Hence, they can be combined using standard algebraic functions.
+These fundamental operators are all of subtypes of [`QSym`](@ref), and constitute the basic symbolic building blocks for the noncommutative algebra used in **QuantumCumulants.jl**. They can be combined using standard algebraic functions.
 
 ```@example operators
 ex_fock = 0.1*a'*a
@@ -64,7 +65,7 @@ ex_trans = im*(σ(:g,:e) - σ(:e,:g))
 nothing # hide
 ```
 
-Note that only operators that are defined on the same Hilbert space can be algebraically combined.
+Note that only operators that are defined on the same Hilbert space can be algebraically combined. The resulting expressions are stored as [`QTerm`](@ref) types.
 
 In composite systems, we also need to specify on which subsystem the respective operator acts. This information is important as operators acting on different subsystems commute with one another, but operators acting on the same one do not. When multiplying together operators in a composite systems, they are automatically ordered according to the order of Hilbert spaces. It's specified by an additional argument when creating operators.
 
@@ -108,10 +109,9 @@ H = ω*a'*a + η*(a + a')
 nothing # hide
 ```
 
+## Operator expressions and commutation relations
 
-## Deriving equations and simplification
-
-The equations of motion of *q*-numbers are determined by evaluating commutators. This can be done by using fundamental commutation relations in the term rewriting rules.
+The equations of motion of *q*-numbers are determined by evaluating commutators. This can be done by using fundamental commutation relations, which are immediately applied whenever operators are combined in an algebraic expression.
 
 For the quantum harmonic oscillator destruction operator ``a``, we have the canonical commutator
 
@@ -143,7 +143,11 @@ in order to eliminate the projector on the ground state. This reduces the amount
 \sigma^{11} ~\Rightarrow~ 1 - \sum_{j=2}^n \sigma^{jj}.
 ```
 
-These rules are implemented as rewriting rules using [**SymbolicUtils.jl**](https://github.com/JuliaSymbolics/SymbolicUtils.jl) (see their [documentation on term rewriting](https://symbolicutils.juliasymbolics.org/rewrite/)). The rules are applied together with a custom set of rules for noncommutative variables whenever [`qsimplify`](@ref) is called on an expression involving *q*-numbers:
+Any expression involving operators is stored as a [`QTerm`](@ref) type. The expression trees are structured such that the application of commutation relations can be done efficiently. There are two concrete subtypes of [`QTerm`](@ref), namely `QMul` representing a multiplication and `QAdd` representing an addition. Methods of multiplication and addition are implemented such that `QSym < QMul < QAdd`, i.e. a multiplication can only consist of numbers and fundamental operators (it cannot contain another multiplication or addition) and `QAdd` is always at the highest level possibly containing numbers, `QSym`s and `QMul`s (but no other `QAdd`s). This makes it easy and efficient to recurse through the expression tree and find pairs of operators that should be rewritten according to some commutation relation.
+
+Note that only simplification using commutation relations is implemented directly in **QuantumCumulants.jl**. For any other simplification routines, operators are averaged (without applying a cumulant expansion) which makes them numbers. Those numbers are stored as expressions in [**SymbolicUtils.jl**](https://github.com/JuliaSymbolics/SymbolicUtils.jl) and simplified according to standard simplification rules. Afterwards, they can be converted back into [`QTerm`](@ref) expressions.
+
+Here's a short example:
 
 ```@example meanfield
 using QuantumCumulants # hide
@@ -153,7 +157,7 @@ a*a' # returns a'*a + 1
 nothing # hide
 ```
 
-In order to derive equations of motion, you need to specify a Hamiltonian and the operator (or a list of operators) of which you want to derive the Heisenberg equations and pass them to [`meanfield`](@ref).
+In order to derive equations of motion, you need to specify a Hamiltonian and the operator (or a list of operators) of which you want to derive the Heisenberg equations and pass them to [`meanfield`](@ref), which stores both the operator as well as the average equations. In the end, we only want to work with averages.
 
 ```@example meanfield
 using Latexify # hide
@@ -163,14 +167,9 @@ H = ω*a'*a + η*(a + a') # Driven cavity Hamiltonian
 me = meanfield([a, a'*a], H)
 ```
 
-To add decay to the system, you can pass an additional list of operators corresponding to the collapse operators describing the respective decay. For example, `meanfield(a, H, [a]; rates=[κ])` would derive the equations of a cavity that is also subject to decay at a rate `κ`. Note that quantum noise is neglected, however (see the [theory section](@ref theory)).
-
-The equations resulting from the call to [`meanfield`](@ref) are stored as an instance of [`MeanfieldEquations`](@ref), which stores the left-hand-side and the right-hand-side of the equations together with additional information such as the system Hamiltonian.
-
-
 ## Cumulant expansion
 
-Averaging (using [`average`](@ref)) and the [`cumulant_expansion`](@ref) are essential to convert the system of *q*-number equations to *c*-number equations. Averaging alone converts any operator product to a *c*-number, yet you will not arrive at a closed set of equations without truncating at a specific order. An average is stored as a symbolic expression. Specifically, the average of an operator `op` is internally represented by `SymbolicUtils.Term{AvgSym}(average, [op])`.
+Averaging (using [`average`](@ref)) and the [`cumulant_expansion`](@ref) are essential to convert the system of *q*-number equations to *c*-number equations. Averaging alone converts any operator product to a *c*-number, yet you will not arrive at a closed set of equations without truncating at a specific order. An average is stored as a symbolic expression. Specifically, the average of an operator `op` is internally represented by `SymbolicUtils.Term{AvgSym}(sym_average, [op])`.
 
 The order of an average is given by the number of constituents in the product. For example
 
@@ -191,20 +190,19 @@ The cumulant expansion can then be used to express any average by averages up to
 
 ```@example cumulant
 cumulant_expansion(avg2, 1)
-average(a'*a, 1) # short-hand for cumulants_expansion(average(a'*a), 1)
+average(a'*a, 1) # short-hand for cumulant_expansion(average(a'*a), 1)
 nothing #hide
 ```
 
-<!-- When applying this to a system of equations, you obtain a set of *c*-number differential equations. -->
-
+When deriving the equations of motion using the [`meanfield`](@ref) function, the [`cumulant_expansion`](@ref) is immediately applied if you specify an order, e.g `meafield(ops,H;order=2)`.
 Before you can actually solve the system of equations, you need to ensure that it is complete, i.e. there are no averages missing. This can be checked with [`find_missing`](@ref). Alternatively, you can automatically complete a system of equations using the [`complete`](@ref) function which will internally use [`find_missing`](@ref) to look for missing averages and derive equations for those.
 
 
 ## Numerical solution
 
-Finally, in order to actually solve a system of equations, we need to convert a set of equations to an [`ODESystem`](https://mtk.sciml.ai/dev/systems/ODESystem/), which represents a symbolic set of ordinary differential equations. `ODESystem`s are part of the [**ModelingToolkit.jl**](https://github.com/SciML/ModelingToolkit.jl) framework, which allows for generating fast numerical functions that can be directly used in the [**OrdinaryDiffEq.jl**](https://github.com/SciML/OrdinaryDiffEq.jl) package. On top of that, [**ModelingToolkit.jl**](https://github.com/SciML/ModelingToolkit.jl) also offers additional enhancement, such as the symbolic computation of Jacobians for better stability and performance.
+Finally, in order to actually solve a system of equations, we need to convert a set of equations to an [`ODESystem`](https://mtk.sciml.ai/dev/systems/ODESystem/), which represents a symbolic set of ordinary differential equations. `ODESystem`s are part of the [**ModelingToolkit.jl**](https://github.com/SciML/ModelingToolkit.jl) framework, which allows for generating fast numerical functions that can be directly used in the [**OrdinaryDiffEq.jl**](https://github.com/SciML/OrdinaryDiffEq.jl) package. On top of that, [**ModelingToolkit.jl**](https://github.com/SciML/ModelingToolkit.jl) also offers a variety of additional functionality, such as the symbolic computation of Jacobians for better stability and performance.
 
-To obtain an `ODESystem` from a `MeanfieldEquations`, you simply need to call the constructor:
+To obtain an `ODESystem` from [`MeanfieldEquations`](@ref), you simply need to call the constructor:
 
 ```@example meanfield
 using ModelingToolkit
@@ -224,3 +222,62 @@ nothing # hide
 ```
 
 Now, the state of the system at each time-step is stored in `sol.u`. To access one specific solution, you can simply type e.g. `sol[average(a)]` to obtain the time evolution of the expectation value ``\langle a \rangle``.
+
+
+## [The *q*-number interface](@id interface)
+
+While there are currently only two different Hilbert spaces and two different types of fundamental operators implemented, their implementations are somewhat generic. This means that one can implement custom operator types along with some commutation relations for rewriting. The requirements for that are:
+
+* Custom operator types need to be subtypes of [`QSym`](@ref).
+* `Base.:*(::Operator1, ::Operator2)`: A multiplication method that rewrites according to a commutation relation has to be implemented.
+* `QuantumCumulants.ismergeable(::Operator1, ::Operator2) = true` is required so pairs of `Operator1` and `Operator2` are detected in longer expressions and rewritten according to their commutation relation.
+* Optional: custom Hilbert space type matching the new operators.
+
+
+#### Example: Harmonic oscillator quadratures
+
+To illustrate, say we would like to implement the quantum harmonic oscillator in terms of the position operator ``x`` and the momentum operator ``p`` rather than the ladder operators. They fulfill the commutation relation
+
+```math
+[x,p] = i
+```
+
+and we will use it to rewrite occurrences of ``xp \Rightarrow px + i``. For simplicity, we will define them on a [`FockSpace`](@ref) instead of defining a custom Hilbert space as well.
+
+```@example custom-operators
+using Latexify # hide
+set_default(double_linebreak=true) # hide
+using QuantumCumulants
+
+struct Position <: QSym
+    hilbert
+    name
+    aon
+end
+
+struct Momentum <: QSym
+    hilbert
+    name
+    aon
+end
+```
+
+Note that any subtype to [`QSym`](@ref) needs to have the three fields shown above. More fields could be added, but the three shown here are always required. Now, for the methods we simply need:
+
+```@example custom-operators
+QuantumCumulants.ismergeable(::Position,::Momentum) = true
+Base.:*(x::Position,p::Momentum) = im + p*x
+```
+
+And that's it. We can now use our new operator types in expressions and derive equations of motion for them.
+
+```@example custom-operators
+h = FockSpace(:oscillator)
+x = Position(h,:x,1)
+p = Momentum(h,:p,1)
+
+@cnumbers ω m
+H = p^2/(2m) + 0.5m*ω^2*x^2
+
+eqs = meanfield([x,p],H)
+```

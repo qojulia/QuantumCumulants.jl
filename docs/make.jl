@@ -3,10 +3,10 @@ using QuantumCumulants
 
 pages = [
         "index.md",
-        # "implementation.md",
         "theory.md",
         "tutorial.md",
         "correlation.md",
+        "implementation.md",
         "api.md",
         "Examples" => [
             "examples/single-atom-laser-spectrum.md"
@@ -20,7 +20,10 @@ makedocs(
     modules = [QuantumCumulants],
     pages = pages,
     checkdocs=:exports,
-    format = Documenter.HTML(mathengine=MathJax())
+    format = Documenter.HTML(
+                            mathengine=MathJax(),
+                            footer="[**Back to GitHub**](https://github.com/qojulia/QuantumCumulants.jl)"
+                            )
     )
 
 deploydocs(
