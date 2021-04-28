@@ -7,7 +7,7 @@ To obtain a numerical solution, equations derived with **QuantumCumulants.jl** c
 
 ## Development status
 
-![CI](https://github.com/qojulia/QuantumCumulants.jl/workflows/CI/badge.svg) [![Codecov][codecov-img]][codecov-url] [![Documentation][docs-img]][docs-url]
+![CI](https://github.com/qojulia/QuantumCumulants.jl/workflows/CI/badge.svg) [![Codecov][codecov-img]][codecov-url] [![Documentation][docs-stable-img]][docs-stable-url] [![Documentation][docs-dev-img]][docs-dev-url]
 
 Note that **QuantumCumulants.jl** is still at an early stage of development.
 
@@ -63,5 +63,8 @@ The above code implements the Jaynes-Cummings Hamiltonian describing an optical 
 [codecov-url]: https://codecov.io/gh/qojulia/QuantumCumulants.jl/branch/master/
 [codecov-img]: https://codecov.io/gh/qojulia/QuantumCumulants.jl/branch/master/graph/badge.svg
 
-[docs-url]: https://qojulia.github.io/QuantumCumulants.jl/dev/
-[docs-img]: https://img.shields.io/badge/docs-dev-blue.svg
+[docs-dev-url]: https://qojulia.github.io/QuantumCumulants.jl/dev/
+[docs-dev-img]: https://img.shields.io/badge/docs-dev-blue.svg
+
+[docs-stable-url]: https://qojulia.github.io/QuantumCumulants.jl/stable/
+[docs-stable-img]: https://img.shields.io/badge/docs-stable-blue.svg
