@@ -270,7 +270,7 @@ function substitute_redundants(t::QMul,scale_aons,names)
             names_ = names[map(get_i, aon)]
 
             # Permute cluster part to proper reference order
-            aon_subs[idx_aon] = scale_aons[p]
+            aon_subs[idx_aon[p]] = scale_aons[1:length(idx_aon)]
             names_[idx_aon] = names_[idx_aon][p]
 
             # Swap and return
@@ -301,14 +301,13 @@ function is_redundant_aon(x,scale_aons)
         aon ∈ scale_aons || return false
         return aon != scale_aons[1]
     else
-        idx_aon = findall(in(scale_aons), aon)
+        idx_aon = findall(in(aon), scale_aons)
         isempty(idx_aon) && return false
-
         for i=1:length(idx_aon)-1
             (idx_aon[i]+1 == idx_aon[i+1]) || return true
         end
-
-        return aon[idx_aon[1]] != scale_aons[1]
+        idx = findfirst(in(scale_aons), aon)
+        return aon[idx] != scale_aons[1]
     end
 end
 
@@ -400,7 +399,6 @@ function _get_names(names, aon)
         append!(names_, n)
     end
 end
-
 
 ## Complete
 function complete!(de::ScaledMeanfieldEquations;
