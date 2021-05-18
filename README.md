@@ -60,6 +60,21 @@ plot(sol.t, n, xlabel="t", label="n")
 
 The above code implements the Jaynes-Cummings Hamiltonian describing an optical cavity mode that couples to a two-level atom. Additionally, the decay processes are specified. Then, mean-field equations for the average values of the operators `[a,σ(:g,:e),σ(:e,:e)]` are derived and expanded to first order (average values of products are factorized). For the numerical solution an `ODESystem` (from [ModelingToolkit.jl](https://github.com/SciML/ModelingToolkit.jl)) is created and solved with the [OrdinaryDiffEq.jl](https://github.com/SciML/OrdinaryDiffEq.jl) library. Finally, the time dynamics of the photon number `n` is plotted.
 
+
+## Citing
+
+If you find **QuantumCumulants.jl** useful in your research, please consider citing [this paper](https://arxiv.org/abs/2105.01657):
+
+```
+@article{plankensteiner2021quantumcumulants,
+  title={{QuantumCumulants.jl}: {A Julia} framework for generalized mean-field equations in open quantum systems},
+  author={Plankensteiner, David and Hotter, Christoph and Ritsch, Helmut},
+  journal={arXiv preprint arXiv:2105.01657},
+  year={2021},
+  url={https://arxiv.org/abs/2105.01657}
+}
+```
+
 [codecov-url]: https://codecov.io/gh/qojulia/QuantumCumulants.jl/branch/master/
 [codecov-img]: https://codecov.io/gh/qojulia/QuantumCumulants.jl/branch/master/graph/badge.svg
 
