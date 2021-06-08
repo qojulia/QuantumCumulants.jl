@@ -313,8 +313,15 @@ end
 
 function sortperm_ref_order(args_cluster)
     if args_cluster[1] isa Transition
-        return sortperm(args_cluster, lt=lt_reference_order)
+        ϕ = phase(args_cluster)
+        if ϕ < 0
+            return sortperm(args_cluster, lt=lt_neg_phase)
+        else
+            return sortperm(args_cluster, lt=lt_pos_phase)
+        end
     else
+        ϕ = phase(args_cluster)
+
         # non-unique acts_on
         arg_aon = map(acts_on, args_cluster)
 
@@ -330,11 +337,31 @@ function sortperm_ref_order(args_cluster)
         end
 
         # Sort blocks by length and count of Destroy/Create
-        return sortperm(blocks, lt=_lt_num_destroy_create)
+        lt = (a,b) -> _lt_num_destroy_create(ϕ, a, b)
+        return sortperm(blocks, lt=lt)
     end
 end
 
-function _lt_num_destroy_create(args1, args2)
+function phase(args_cluster)
+    ϕ = 0
+    for arg ∈ args_cluster
+        ϕ += phase(arg)::Int
+    end
+    return ϕ
+end
+
+function phase(t::Transition)
+    h = hilbert(t)
+    lvls = levels(h,acts_on(t))
+    i = findfirst(isequal(t.i), lvls)
+    j = findfirst(isequal(t.j), lvls)
+    return i-j
+end
+
+phase(::Destroy) = -1
+phase(::Create) = 1
+
+function _lt_num_destroy_create(ϕ, args1, args2)
     if length(args1) != length(args2) # Sort by length first
         return length(args1) > length(args2)
     else # Equal length is sorted by number of Destroy (lower ones to the right)
@@ -343,11 +370,15 @@ function _lt_num_destroy_create(args1, args2)
         ndest1 = length(idx_destroys1)
         idx_destroys2 = findall(f,args2)
         ndest2 = length(idx_destroys2)
-        return ndest1 <= ndest2
+        if ϕ < 0
+            return ndest1 > ndest2
+        else
+            return ndest1 <= ndest2
+        end
     end
 end
 
-function lt_reference_order(t1::Transition, t2::Transition)
+function lt_pos_phase(t1::Transition, t2::Transition)
     aon = acts_on(t1)
     isequal(aon,acts_on(t2)) && return false
     lvls = levels(t1.hilbert, aon)
@@ -372,6 +403,41 @@ function lt_reference_order(t1::Transition, t2::Transition)
         return d1 < d2
     end
 end
+
+function lt_neg_phase(t1::Transition, t2::Transition)
+    aon = acts_on(t1)
+    isequal(aon,acts_on(t2)) && return false
+    lvls = levels(t1.hilbert, aon)
+    f = x->findfirst(isequal(x),lvls)
+    i1, j1 = f(t1.i), f(t1.j)
+    i2, j2 = f(t2.i), f(t2.j)
+    if i1==j1 && i2==j2
+        return i1 < i2
+    elseif i1==j1
+        return true
+    elseif i2==j2
+        return false
+    else
+        d1 = abs(i1 - j1)
+        d2 = abs(i2 - j2)
+        if d1==d2
+            if i1==i2
+                j1 > j2
+            else
+                m1 = min(i1, j1)
+                m2 = min(i2, j2)
+                if m1==m2
+                    i1 <= i2
+                else
+                    m1 < m2
+                end
+            end
+        else
+            d1 >= d2
+        end
+    end
+end
+
 
 _swap_aon_and_name(x::Average, aon1, aon2, names) = _average(_swap_aon_and_name(x.arguments[1], aon1, aon2, names))
 function _swap_aon_and_name(t::QMul, aon1, aon2, names)
