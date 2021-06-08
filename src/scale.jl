@@ -411,15 +411,15 @@ function lt_neg_phase(t1::Transition, t2::Transition)
     f = x->findfirst(isequal(x),lvls)
     i1, j1 = f(t1.i), f(t1.j)
     i2, j2 = f(t2.i), f(t2.j)
-    if i1==j1 && i2==j2
+    d1 = abs(i1 - j1)
+    d2 = abs(i2 - j2)
+    if d1==d2==0
         return i1 < i2
-    elseif i1==j1
+    elseif d1==0
         return true
-    elseif i2==j2
+    elseif d2==0
         return false
     else
-        d1 = abs(i1 - j1)
-        d2 = abs(i2 - j2)
         if d1==d2
             if i1==i2
                 j1 > j2
@@ -433,7 +433,7 @@ function lt_neg_phase(t1::Transition, t2::Transition)
                 end
             end
         else
-            d1 >= d2
+            d1 > d2
         end
     end
 end
