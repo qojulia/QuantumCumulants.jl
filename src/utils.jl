@@ -330,7 +330,17 @@ for T ∈ [:AbstractTimeseriesSolution,:AbstractNoTimeSolution]
 end
 
 # Internal functions
-_conj(v::SymbolicUtils.Term{<:AvgSym}) = _average(adjoint(v.arguments[1]))
+function _conj(v::SymbolicUtils.Term{<:AvgSym})
+    arg = v.arguments[1]
+    adj_arg = adjoint(arg)
+    if has_cluster(arg)
+        aons, N = get_cluster_stuff(hilbert(arg))
+        names = get_names(arg)
+        return substitute_redundants(_average(adj_arg), aons, names)
+    else
+        return _average(adj_arg)
+    end
+end
 function _conj(v::SymbolicUtils.Symbolic)
     if SymbolicUtils.istree(v)
         f = SymbolicUtils.operation(v)

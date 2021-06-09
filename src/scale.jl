@@ -90,6 +90,26 @@ function _scale(lhs, rhs, scale_aons, N, M, names)
     return rhs
 end
 
+function get_names(q::Union{QSym,QMul})
+    ops = get_operators(q)
+    hs = hilbert(ops[1]).spaces
+    names = [(isa(h, ClusterSpace) ? [any for i=1:h.order] : any) for h in hs]
+    (q isa QMul) ? (q_args = q.args_nc) : (q_args = [q])
+    for arg in q_args
+        aon = acts_on(arg)
+        if isa(aon, Int)
+            names[aon] = arg.name
+        else #ClusterAon
+            h = hs[aon.i]
+            order = h.order
+            op_name = h.op_name
+            cluster_names = [Symbol(op_name, :_, i) for i=1:order]
+            names[aon.i] = cluster_names
+        end
+    end
+    return names
+end
+
 function get_names(he)
     H = he.hamiltonian
     J = he.jumps
