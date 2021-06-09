@@ -92,17 +92,17 @@ end
 
 function get_names(q::Union{QSym,QMul})
     ops = get_operators(q)
+    unique_ops!(ops)
     hs = hilbert(ops[1]).spaces
     names = [(isa(h, ClusterSpace) ? [any for i=1:h.order] : any) for h in hs]
-    (q isa QMul) ? (q_args = q.args_nc) : (q_args = [q])
-    for arg in q_args
-        aon = acts_on(arg)
+    for op in ops
+        aon = acts_on(op)
         if isa(aon, Int)
-            names[aon] = arg.name
+            names[aon] = op.name
         else #ClusterAon
             h = hs[aon.i]
             order = h.order
-            op_name = h.op_name
+            op_name = h.op_name[]
             cluster_names = [Symbol(op_name, :_, i) for i=1:order]
             names[aon.i] = cluster_names
         end
@@ -120,35 +120,22 @@ function get_names(he)
     for l ∈ he.operators
         append!(ops, get_operators(l))
     end
-
-    # The following can fail if an operator for one specific acts_on is missing
-    aon = []
-    for op∈ops
-        append!(aon, acts_on(op))
-    end
-    aon = unique_i_aons(aon)
-    sort!(aon)
-
-    names = []
-    for i=1:length(aon)
-        if aon[i] isa Integer
-            idx = findfirst(x->acts_on(x)==aon[i], ops)
-            push!(names, ops[idx].name)
-        else # ClusterAon
-            idx = findfirst(x->acts_on(x)==aon[i], ops)
-            names_ = Symbol[]
-            aon_i = aon[i].i
-            j = 2
-            while !isnothing(idx)
-                push!(names_, ops[idx].name)
-                c = ClusterAon(aon_i,j)
-                idx = findfirst(x->acts_on(x)==c, ops)
-                j += 1
-            end
-            push!(names, names_)
+    unique_ops!(ops)
+    hs = hilbert(ops[1]).spaces
+    names = [(isa(h, ClusterSpace) ? [any for i=1:h.order] : any) for h in hs]
+    # q_args = get_args_nc(q)
+    for op in ops
+        aon = acts_on(op)
+        if isa(aon, Int)
+            names[aon] = op.name
+        else #ClusterAon
+            h = hs[aon.i]
+            order = h.order
+            op_name = h.op_name[]
+            cluster_names = [Symbol(op_name, :_, i) for i=1:order]
+            names[aon.i] = cluster_names
         end
     end
-
     return names
 end
 

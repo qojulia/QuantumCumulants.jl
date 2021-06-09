@@ -46,7 +46,7 @@ for f in [:Destroy,:Create]
     @eval $(f)(hilbert::FockSpace,name) = $(f)(hilbert,name,1)
     @eval function $(f)(hilbert::H,name::S,aon::A) where {H<:ProductSpace,S,A<:Int}
         if hilbert.spaces[aon] isa ClusterSpace
-            hilbert.spaces[get_i(aon)].op_name = name
+            hilbert.spaces[get_i(aon)].op_name[] = name
             op = $(f)(hilbert.spaces[aon].original_space,name)
             return _cluster(hilbert, op, aon)
         else

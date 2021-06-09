@@ -69,15 +69,15 @@ tensor(args...) = ⊗(args...)
 A Hilbert space representing `N` identical copies of another Hilbert space, with
 correlations up to a specified `order`.
 """
-mutable struct ClusterSpace{H<:ConcreteHilbertSpace,NType,M<:Integer,n} <: HilbertSpace
+struct ClusterSpace{H<:ConcreteHilbertSpace,NType,M<:Integer,S} <: HilbertSpace
     original_space::H
     N::NType
     order::M
-    op_name::n
+    op_name::S
 end
 Base.:(==)(h1::T,h2::T) where T<:ClusterSpace = (h1.original_space==h2.original_space && isequal(h1.N,h2.N) && h1.order==h2.order && isequal(h1.name, h2.name))
 Base.hash(c::ClusterSpace, h::UInt) = hash(c.original_space, hash(c.N, hash(c.order, h)))
-ClusterSpace(h,N,M) = ClusterSpace(h,N,M,:noname)
+ClusterSpace(h,N,M) = ClusterSpace(h,N,M,Ref(:_NO_NAME))
 
 """
     ClusterAon(i,j)

@@ -385,7 +385,6 @@ function ϕ(t::QuantumCumulants.QMul)
 end
 phase_invariant(x) = iszero(ϕ(x))
 he_scale = complete(he_ops; filter_func=phase_invariant, order=order, multithread=true)
-length(he_scale)
 @test length(he_scale) == 66
 @test isempty(find_missing(he_scale))
 
