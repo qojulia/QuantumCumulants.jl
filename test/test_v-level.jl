@@ -43,9 +43,8 @@ ops = find_operators(h,2)
 he = meanfield(ops,H,J;rates=rates)
 he_avg = cumulant_expansion(he,2)
 
-# @test all((QuantumCumulants._in(l, he_comp.lhs) || l' in he_comp.lhs) for l in he_avg.lhs)
-@test all((QuantumCumulants._in(l, he_comp.states) || QuantumCumulants._in(QuantumCumulants._adjoint(l), he_comp.states) for l in he_avg.states))
-@test all((QuantumCumulants._in(l, he_comp.states) || QuantumCumulants._in(QuantumCumulants._adjoint(l), he_avg.states)) for l in he_comp.states)
+@test all(((l ∈ Set(he_comp.states) || QuantumCumulants._adjoint(l) ∈ Set(he_comp.states))) for l in he_avg.states)
+@test all(((l ∈ Set(he_comp.states) || QuantumCumulants._adjoint(l) ∈ Set(he_avg.states))) for l in he_comp.states)
 
 
 p = [κ, g, Δc, Γ2, Γ3, Δ2, Δ3, Ω2, Ω3]

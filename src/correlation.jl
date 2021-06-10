@@ -105,11 +105,11 @@ function correlation_u0(c::CorrelationFunction, u_end)
     for j=1:length(lhs)
         l=lhs[j]
         l_adj = _adjoint(l)
-        if _in(l, lhs0)
+        if l ∈ Set(lhs0)
             i = findfirst(isequal(l), lhs0)
             push!(u0, u_end[i])
             push!(keys, make_var(c.de.equations[j].lhs, τ))
-        elseif _in(l_adj, lhs0)
+        elseif l_adj ∈ Set(lhs0)
             i = findfirst(isequal(l_adj), lhs0)
             push!(u0, conj(u_end[i]))
             push!(keys, make_var(c.de.equations[j].lhs, τ))
@@ -143,11 +143,11 @@ function correlation_p0(c::CorrelationFunction, u_end, ps=Pair{Any,Any}[])
         # Check if <a0> is contained
         avg = average(c.op2_0)
         conj_avg = _conj(avg)
-        if _in(avg, c.de0.states)
+        if avg ∈ Set(c.de0.states)
             p = _make_parameter(avg)
             idx = findfirst(isequal(avg), c.de0.states)
             ps′ = (ps..., p=>u_end[idx])
-        elseif _in(conj_avg, c.de0.states)
+        elseif conj_avg ∈ Set(c.de0.states)
             p = _make_parameter(conj_avg)
             idx = findfirst(isequal(conj_avg), c.de0.states)
             ps′ = (ps..., p=>u_end[idx])
@@ -298,7 +298,7 @@ function MTK.ODESystem(c::CorrelationFunction; kwargs...)
         ps_ = [ps..., steady_vals...]
     else
         avg = average(c.op2_0)
-        if _in(avg, c.de0.states) || _in(_conj(avg), c.de0.states)
+        if avg ∈ Set(c.de0.states) || _conj(avg) ∈ Set(c.de0.states)
             ps_ = [ps..., average(c.op2)]
         else
             ps_ = [ps...]
@@ -308,7 +308,7 @@ function MTK.ODESystem(c::CorrelationFunction; kwargs...)
 
     ps_avg = filter(x->x isa Average, ps_)
     ps_adj = map(_conj, ps_avg)
-    filter!(x->!_in(x,ps_avg), ps_adj)
+    filter!(x->!(x ∈ Set(ps_avg)), ps_adj)
     ps_adj_hash = hash.(ps_adj)
 
     de_ = deepcopy(de)
@@ -512,7 +512,7 @@ function _build_spec_func(ω, lhs, rhs, a1, a0, steady_vals, ps=[])
 
     # Substitute conjugates
     vs_adj = map(_conj, steady_vals)
-    filter!(x->!_in(x,steady_vals), vs_adj)
+    filter!(x->!(x ∈ Set(steady_vals)), vs_adj)
     vs′hash = map(hash, vs_adj)
     A = [substitute_conj(A_,vs_adj,vs′hash) for A_∈A]
     b = [substitute_conj(b_,vs_adj,vs′hash) for b_∈b]

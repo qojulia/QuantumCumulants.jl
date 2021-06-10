@@ -72,24 +72,6 @@ function find_missing(eqs::Vector, vhash::Vector{UInt}, vs′hash::Vector{UInt};
 end
 
 """
-    _in(x, itr)
-
-Same as `Base.in` but uses `isequal` instead of `==`.
-"""
-function _in(x, itr)
-    anymissing = false
-    for y in itr
-        v = isequal(y, x)
-        if ismissing(v)
-            anymissing = true
-        elseif v
-            return true
-        end
-    end
-    return anymissing ? missing : false
-end
-
-"""
     complete(de::MeanfieldEquations)
 
 From a set of differential equation of averages, find all averages that are missing

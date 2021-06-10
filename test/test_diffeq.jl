@@ -24,7 +24,7 @@ he_exp = cumulant_expansion(he_avg,2)
 
 ps = [Δ,g,κ,γ,ν]
 missed = find_missing(he_exp)
-@test !any(QuantumCumulants._in(p, missed) for p=ps)
+@test !any(p ∈ Set(missed) for p=ps)
 
 # Exploit phase invariance
 subs = Dict([missed; QuantumCumulants._conj.(missed)] .=> 0)
