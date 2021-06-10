@@ -90,11 +90,9 @@ function _scale(lhs, rhs, scale_aons, N, M, names)
     return rhs
 end
 
-function get_names(q::Union{QSym,QMul})
-    ops = get_operators(q)
-    unique_ops!(ops)
+function _get_names_ops(ops)
     hs = hilbert(ops[1]).spaces
-    names = [(isa(h, ClusterSpace) ? [any for i=1:h.order] : any) for h in hs]
+    names = Vector{Any}(undef, length(hs))
     for op in ops
         aon = acts_on(op)
         if isa(aon, Int)
@@ -110,6 +108,11 @@ function get_names(q::Union{QSym,QMul})
     return names
 end
 
+function get_names(q::Union{QSym,QMul})
+    ops = get_operators(q)
+    unique_ops!(ops)
+    _get_names_ops(ops)
+end
 function get_names(he)
     H = he.hamiltonian
     J = he.jumps
@@ -121,22 +124,7 @@ function get_names(he)
         append!(ops, get_operators(l))
     end
     unique_ops!(ops)
-    hs = hilbert(ops[1]).spaces
-    names = [(isa(h, ClusterSpace) ? [any for i=1:h.order] : any) for h in hs]
-    # q_args = get_args_nc(q)
-    for op in ops
-        aon = acts_on(op)
-        if isa(aon, Int)
-            names[aon] = op.name
-        else #ClusterAon
-            h = hs[aon.i]
-            order = h.order
-            op_name = h.op_name[]
-            cluster_names = [Symbol(op_name, :_, i) for i=1:order]
-            names[aon.i] = cluster_names
-        end
-    end
-    return names
+    _get_names_ops(ops)
 end
 
 function unique_i_aons(aon)
