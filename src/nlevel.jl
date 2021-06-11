@@ -92,6 +92,7 @@ function Transition(hilbert::ProductSpace,name,i,j)
 end
 function Transition(hilbert::H,name::S,i::I,j::I,aon::A) where {H<:ProductSpace,S,I,A<:Int}
     if hilbert.spaces[aon] isa ClusterSpace
+        hilbert.spaces[get_i(aon)].op_name[] = name # write original name of operator into hilbertspace
         op = Transition(hilbert.spaces[aon].original_space,name,i,j,1)
         return _cluster(hilbert, op, aon)
     else
@@ -109,6 +110,7 @@ function Transition(hilbert::H,name::S,i::I,j::I,aon::A) where {H<:ProductSpace,
     end
 end
 function Transition(h::ClusterSpace{<:NLevelSpace}, name, i, j, aon::Int=1)
+    hilbert.spaces[get_i(aon)].op_name[] = name
     op = Transition(hilbert.original_space,name,i,j,aon)
     return _cluster(h,op,aon)
 end

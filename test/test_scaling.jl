@@ -333,7 +333,7 @@ end
 phase_invariant(x) = iszero(ϕ(x))
 
 he_scale = complete(he_ops; filter_func=phase_invariant, order=order, multithread=true)
-@test length(he_scale) == 19
+@test length(he_scale) == 18
 @test isempty(find_missing(he_scale))
 
 ### 4th order synchronization
@@ -347,7 +347,6 @@ haA = NLevelSpace(:atomA,2)
 haB = NLevelSpace(:atomB,2)
 heA = ClusterSpace(haA, NA, order) #atom ensemble 1
 heB = ClusterSpace(haB, NB, order) #atom ensemble 2
-
 h = ⊗(hf, heA, heB)
 # Define the fundamental operators
 a = Destroy(h,:a,1)
@@ -362,6 +361,7 @@ rates = [κ, γ, wA, γ, wB, νA, νB]
 # Derive equation for average photon number
 ops = [a'a, σA(2,2)[1], σB(2,2)[1]]
 he_ops = meanfield(ops,H,J;rates=rates, multithread=true, order=order)
+
 # Custom filter function -- include only phase-invaraint terms
 ϕ(x) = 0
 ϕ(x::Destroy) = -1
@@ -385,7 +385,19 @@ function ϕ(t::QuantumCumulants.QMul)
 end
 phase_invariant(x) = iszero(ϕ(x))
 he_scale = complete(he_ops; filter_func=phase_invariant, order=order, multithread=true)
-@test length(he_scale) == 72
+@test length(he_scale) == 66
 @test isempty(find_missing(he_scale))
+
+sys = ODESystem(he_scale)
+u0 = zeros(ComplexF64, length(he_scale))
+ps = [δA, δB, ΩA, ΩB, wA, wB, νA, νB, γ, κ, δc, NA, NB]
+p0 = ps.=>[1.0 + i/20 for i=1:length(ps)]
+prob = ODEProblem(sys,u0,(0.0,1.0),p0)
+sol = solve(prob,RK4())
+
+uend = copy(sol.u[end])
+@test length(unique(uend)) == 66
+uend_f = filter(x->imag(x) != 0, uend)
+@test 2*length(uend_f) == length(unique([uend_f; adjoint.(uend_f)]))
 
 end # testset

@@ -90,6 +90,34 @@ function _scale(lhs, rhs, scale_aons, N, M, names)
     return rhs
 end
 
+function _get_names_ops(ops)
+    hs_ = hilbert(ops[1])
+    if isa(hs_, ProductSpace)
+        hs = hilbert(ops[1]).spaces
+    else
+        hs = [hs_]
+    end
+    names = Vector{Any}(undef, length(hs))
+    for op in ops
+        aon = acts_on(op)
+        if isa(aon, Int)
+            names[aon] = op.name
+        else #ClusterAon
+            h = hs[aon.i]
+            order = h.order
+            op_name = h.op_name[]
+            cluster_names = [Symbol(op_name, :_, i) for i=1:order]
+            names[aon.i] = cluster_names
+        end
+    end
+    return names
+end
+
+function get_names(q::Union{QSym,QMul})
+    ops = get_operators(q)
+    unique_ops!(ops)
+    _get_names_ops(ops)
+end
 function get_names(he)
     H = he.hamiltonian
     J = he.jumps
@@ -100,36 +128,8 @@ function get_names(he)
     for l ∈ he.operators
         append!(ops, get_operators(l))
     end
-
-    # The following can fail if an operator for one specific acts_on is missing
-    aon = []
-    for op∈ops
-        append!(aon, acts_on(op))
-    end
-    aon = unique_i_aons(aon)
-    sort!(aon)
-
-    names = []
-    for i=1:length(aon)
-        if aon[i] isa Integer
-            idx = findfirst(x->acts_on(x)==aon[i], ops)
-            push!(names, ops[idx].name)
-        else # ClusterAon
-            idx = findfirst(x->acts_on(x)==aon[i], ops)
-            names_ = Symbol[]
-            aon_i = aon[i].i
-            j = 2
-            while !isnothing(idx)
-                push!(names_, ops[idx].name)
-                c = ClusterAon(aon_i,j)
-                idx = findfirst(x->acts_on(x)==c, ops)
-                j += 1
-            end
-            push!(names, names_)
-        end
-    end
-
-    return names
+    unique_ops!(ops)
+    _get_names_ops(ops)
 end
 
 function unique_i_aons(aon)
