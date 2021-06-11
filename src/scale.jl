@@ -91,7 +91,12 @@ function _scale(lhs, rhs, scale_aons, N, M, names)
 end
 
 function _get_names_ops(ops)
-    hs = hilbert(ops[1]).spaces
+    hs_ = hilbert(ops[1])
+    if isa(hs_, ProductSpace)
+        hs = hilbert(ops[1]).spaces
+    else
+        hs = [hs_]
+    end
     names = Vector{Any}(undef, length(hs))
     for op in ops
         aon = acts_on(op)
