@@ -38,7 +38,7 @@ $g(\tau) = \langle \sigma^{eg}(t_0+\tau)\sigma^{ge}(t_0)\rangle \equiv \langle \
 
 where $t_0$ is any time after which the original system has reached steady state. Note, that in the second step we simplified the notation by dropping the temporal arguments. The subscript $0$ indicates operators given at $t_0$.
 
-The correlation function of the system given by `me` can be computed as follows.
+The correlation function of the system given by `eqs` can be computed as follows.
 
 
 ```@example mollow
