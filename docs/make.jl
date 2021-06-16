@@ -1,6 +1,8 @@
 using Documenter
 using QuantumCumulants
 
+ENV["GKSwstype"] = "100" # enable headless mode for GR to suppress warnings when plotting
+
 pages = [
         "index.md",
         "theory.md",
@@ -28,4 +30,5 @@ makedocs(
 
 deploydocs(
     repo = "github.com/qojulia/QuantumCumulants.jl.git",
+    push_preview = false,
     )
