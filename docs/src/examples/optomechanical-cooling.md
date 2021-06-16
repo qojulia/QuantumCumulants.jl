@@ -40,8 +40,15 @@ We are specifically interested in the average number of photons $\langle a^\dagg
 # Derive equations
 ops = [a'*a, b'*b]
 eqs = meanfield(ops,H,J;rates=rates,order=2)
+nothing # hide
 ```
 
+```math
+\begin{align}
+\frac{d}{dt} \langle a^\dagger  a\rangle  =& -1 i E \langle a^\dagger\rangle  + 1 i E \langle a\rangle  -1.0 \kappa \langle a^\dagger  a\rangle  \\
+\frac{d}{dt} \langle b^\dagger  b\rangle  =& -1 i G \left( \langle a^\dagger\rangle  \langle a  b^\dagger\rangle  + \langle b^\dagger\rangle  \langle a^\dagger  a\rangle  + \langle a\rangle  \langle a^\dagger  b^\dagger\rangle  -2 \langle a^\dagger\rangle  \langle b^\dagger\rangle  \langle a\rangle  \right) + 1 i G \left( \langle a^\dagger\rangle  \langle a  b\rangle  + \langle a\rangle  \langle a^\dagger  b\rangle  + \langle b\rangle  \langle a^\dagger  a\rangle  -2 \langle a^\dagger\rangle  \langle a\rangle  \langle b\rangle  \right)
+\end{align}
+```
 
 To get a closed set of equations we automatically complete the system, where we restrict our description to second order cumulant expansion.
 
@@ -49,6 +56,21 @@ To get a closed set of equations we automatically complete the system, where we 
 ```@example optomechanics
 # Complete equations
 eqs_completed = complete(eqs)
+nothing # hide
+```
+
+
+```math
+\begin{align}
+\frac{d}{dt} \langle a^\dagger  a\rangle  =& -1 i E \langle a^\dagger\rangle  + 1 i E \langle a\rangle  -1.0 \kappa \langle a^\dagger  a\rangle  \\
+\frac{d}{dt} \langle b^\dagger  b\rangle  =& -1 i G \left( \langle a^\dagger\rangle  \langle a  b^\dagger\rangle  + \langle b^\dagger\rangle  \langle a^\dagger  a\rangle  + \langle a\rangle  \langle a^\dagger  b^\dagger\rangle  -2 \langle a^\dagger\rangle  \langle b^\dagger\rangle  \langle a\rangle  \right) + 1 i G \left( \langle a^\dagger\rangle  \langle a  b\rangle  + \langle a\rangle  \langle a^\dagger  b\rangle  + \langle b\rangle  \langle a^\dagger  a\rangle  -2 \langle a^\dagger\rangle  \langle a\rangle  \langle b\rangle  \right) \\
+\frac{d}{dt} \langle a^\dagger\rangle  =& 1 i E + G \left( 1 i \langle a^\dagger  b^\dagger\rangle  + 1 i \langle a^\dagger  b\rangle  \right) -1 i \Delta \langle a^\dagger\rangle  -0.5 \kappa \langle a^\dagger\rangle  \\
+\frac{d}{dt} \langle a  b^\dagger\rangle  =& G \left( -2 i \langle b^\dagger\rangle  \langle a  b^\dagger\rangle  -1 i \langle b^\dagger\rangle  \langle a  b\rangle  -1 i \langle a\rangle  \langle b^\dagger  b^\dagger\rangle  -1 i \langle a\rangle  \langle b^\dagger  b\rangle  + 2 i \langle a\rangle  \langle b^\dagger\rangle ^{2} -1 i \langle b\rangle  \langle a  b^\dagger\rangle  + 2 i \langle b^\dagger\rangle  \langle a\rangle  \langle b\rangle  \right) -1 i E \langle b^\dagger\rangle  + 1 i G \left( \langle a^\dagger\rangle  \langle a  a\rangle  -2 \langle a^\dagger\rangle  \langle a\rangle ^{2} + 2 \langle a\rangle  \langle a^\dagger  a\rangle  \right) + 1 i \Delta \langle a  b^\dagger\rangle  -0.5 \kappa \langle a  b^\dagger\rangle  + 1 i {\omega}m \langle a  b^\dagger\rangle  \\
+\frac{d}{dt} \langle b^\dagger\rangle  =& 1 i G \langle a^\dagger  a\rangle  + 1 i {\omega}m \langle b^\dagger\rangle  \\
+\frac{d}{dt} \langle a^\dagger  b^\dagger\rangle  =& G \left( 1 i \langle a^\dagger\rangle  + 2 i \langle a^\dagger\rangle  \langle a^\dagger  a\rangle  + 1 i \langle a^\dagger\rangle  \langle b^\dagger  b^\dagger\rangle  + 1 i \langle a^\dagger\rangle  \langle b^\dagger  b\rangle  -2 i \langle a^\dagger\rangle  \langle b^\dagger\rangle ^{2} + 2 i \langle b^\dagger\rangle  \langle a^\dagger  b^\dagger\rangle  + 1 i \langle b^\dagger\rangle  \langle a^\dagger  b\rangle  + 1 i \langle a\rangle  \langle a^\dagger  a^\dagger\rangle  -2 i \langle a\rangle  \langle a^\dagger\rangle ^{2} + 1 i \langle b\rangle  \langle a^\dagger  b^\dagger\rangle  -2 i \langle a^\dagger\rangle  \langle b^\dagger\rangle  \langle b\rangle  \right) + 1 i E \langle b^\dagger\rangle  -1 i \Delta \langle a^\dagger  b^\dagger\rangle  -0.5 \kappa \langle a^\dagger  b^\dagger\rangle  + 1 i {\omega}m \langle a^\dagger  b^\dagger\rangle  \\
+\frac{d}{dt} \langle b^\dagger  b^\dagger\rangle  =& 2 i G \left( \langle a^\dagger\rangle  \langle a  b^\dagger\rangle  + \langle b^\dagger\rangle  \langle a^\dagger  a\rangle  + \langle a\rangle  \langle a^\dagger  b^\dagger\rangle  -2 \langle a^\dagger\rangle  \langle b^\dagger\rangle  \langle a\rangle  \right) + 2 i {\omega}m \langle b^\dagger  b^\dagger\rangle  \\
+\frac{d}{dt} \langle a  a\rangle  =& G \left( -2 i \langle b^\dagger\rangle  \langle a  a\rangle  + 4 i \langle b^\dagger\rangle  \langle a\rangle ^{2} -4 i \langle a\rangle  \langle a  b^\dagger\rangle  -4 i \langle a\rangle  \langle a  b\rangle  -2 i \langle b\rangle  \langle a  a\rangle  + 4 i \langle b\rangle  \langle a\rangle ^{2} \right) -2 i E \langle a\rangle  + 2 i \Delta \langle a  a\rangle  -1.0 \kappa \langle a  a\rangle
+\end{align}
 ```
 
 
