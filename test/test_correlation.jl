@@ -98,6 +98,35 @@ S3 = S_nophase(ω,usteady,getindex.(p0, 2))
 # plot(ω, S3 ./ maximum(S3), label="Laplace transform (phase invariant)")
 # legend()
 
+# Test Mollow triplet
+h = NLevelSpace(:atom, (:g,:e))
+@cnumbers Δ Ω γ
+@qnumbers σ::Transition(h)
+H = Δ*σ(:e,:e) + Ω*(σ(:g,:e) + σ(:e,:g))
+J = [σ(:g,:e)]
+eqs = meanfield([σ(:e,:g),σ(:e,:e)], H, J; rates=[γ])
+
+ps = (Δ,Ω,γ)
+p0 = (20.0,5.0,1.0)
+u0 = zeros(ComplexF64, 2)
+sys = ODESystem(eqs)
+prob = ODEProblem(sys,u0,(0.0,20.0),ps .=> p0)
+sol = solve(prob,RK4())
+
+@test sol.retcode == :Success
+
+c = CorrelationFunction(σ(:e,:g), σ(:g,:e), eqs; steady_state=true)
+csys = ODESystem(c)
+cu0 = correlation_u0(c, sol.u[end])
+@test length(cu0) == 3
+cp0 = correlation_p0(c, sol.u[end], ps .=> p0)
+@test length(cp0) == 5
+
+cprob = ODEProblem(csys,cu0,(0.0,20.0),cp0)
+csol = solve(cprob, RK4())
+
+@test csol.retcode == :Success
+
 # When not in steady state -- cavity that decays
 h = FockSpace(:fock)
 a = Destroy(h,:a)
