@@ -15,6 +15,7 @@ pages = [
             "examples/mollow.md"
             "examples/many-atom-laser.md"
             "examples/optomechanical-cooling.md"
+            "examples/superradiant-laser.md"
             ]
     ]
 
