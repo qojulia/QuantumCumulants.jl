@@ -309,28 +309,6 @@ rates = [κ, γ, wA, γ, νA]
 # Derive equation for average photon number
 ops = [a'a, σA(2,2)[1]]
 he_ops = meanfield(ops,H,J;rates=rates, multithread=true, order=order)
-# Custom filter function -- include only phase-invaraint terms
-ϕ(x) = 0
-ϕ(x::Destroy) = -1
-ϕ(x::Create) = 1
-function ϕ(t::Transition)
-    if (t.i==1 && t.j==2)
-        -1
-    elseif (t.i==2 && t.j==1)
-        1
-    else
-        0
-    end
-end
-ϕ(avg::Average) = ϕ(avg.arguments[1])
-function ϕ(t::QuantumCumulants.QMul)
-    p = 0
-    for arg in t.args_nc
-        p += ϕ(arg)
-    end
-    return p
-end
-phase_invariant(x) = iszero(ϕ(x))
 
 he_scale = complete(he_ops; filter_func=phase_invariant, order=order, multithread=true)
 @test length(he_scale) == 18
@@ -362,28 +340,6 @@ rates = [κ, γ, wA, γ, wB, νA, νB]
 ops = [a'a, σA(2,2)[1], σB(2,2)[1]]
 he_ops = meanfield(ops,H,J;rates=rates, multithread=true, order=order)
 
-# Custom filter function -- include only phase-invaraint terms
-ϕ(x) = 0
-ϕ(x::Destroy) = -1
-ϕ(x::Create) = 1
-function ϕ(t::Transition)
-    if (t.i==1 && t.j==2)
-        -1
-    elseif (t.i==2 && t.j==1)
-        1
-    else
-        0
-    end
-end
-ϕ(avg::Average) = ϕ(avg.arguments[1])
-function ϕ(t::QuantumCumulants.QMul)
-    p = 0
-    for arg in t.args_nc
-        p += ϕ(arg)
-    end
-    return p
-end
-phase_invariant(x) = iszero(ϕ(x))
 he_scale = complete(he_ops; filter_func=phase_invariant, order=order, multithread=true)
 @test length(he_scale) == 66
 @test isempty(find_missing(he_scale))
