@@ -1,8 +1,8 @@
 # Superradiant Laser
 
-Using symmetry properties of a system can reduce the number of needed equations dramatically. A common approximation for laser systems to handle sufficiently big atom numbers is to assume that several atoms in the system behave completely identical. This means all the identical atoms have the same averages.
+Using symmetry properties of a system can reduce the number of needed equations dramatically. A common approximation for laser systems to handle sufficiently big atom numbers is to assume that several atoms in the system behave completely identically. This means all the identical atoms have the same averages.
 
-In this example we describe a so-called superradiant lase, where we assume all atoms to be identical. This model has been described in [D. Meiser et al., Phys. Rev. Lett. 102, 163601 (2009):](https://journals.aps.org/prl/abstract/10.1103/PhysRevLett.102.163601) The Hamiltonian of this system is
+In this example we describe a so-called superradiant laser, where we assume all atoms to be identical. This model has been described in [D. Meiser et al., Phys. Rev. Lett. 102, 163601 (2009):](https://journals.aps.org/prl/abstract/10.1103/PhysRevLett.102.163601) The Hamiltonian of this system is
 
 $H = - \hbar \Delta a^\dagger a +  \hbar \sum\limits_{j=1}^{N}  g_j (a^\dagger \sigma^{12}_{j} + a \sigma^{21}_{j}),$
 
@@ -19,7 +19,7 @@ using OrdinaryDiffEq, SteadyStateDiffEq, ModelingToolkit
 using Plots
 ```
 
-To give QuantumCumulants the information that several atoms behave identical we need to create a $\texttt{ClusterSpace}$ on the desired Hilbert space. This $\texttt{ClusterSpace}$ additionally needs the order $M$ of the system and a symbolic parameter for the number of identical elements $N$.
+To give QuantumCumulants the information that several atoms behave identically we need to create a $\texttt{ClusterSpace}$ on the desired Hilbert space. This $\texttt{ClusterSpace}$ additionally needs the order $M$ of the system and a symbolic parameter for the number of identical elements $N$.
 
 
 ```@example superradiant-laser
@@ -46,7 +46,7 @@ Now we can define the operators on the composite Hilbert space including the $\t
 
 What is different, however, is that the transition operator defined on the $\texttt{ClusterSpace}$ is an array of $M$ transitions defined on internally created sub-Hilbert spaces. The reason for this is the following: Although we assume all atoms to be identical, we still need to keep track of the correlations between different atoms. Since $\langle \sigma^{21}_1 \sigma^{12}_1 \rangle = \langle \sigma^{22}_1 \rangle$ is obviously not equal to $\langle \sigma^{21}_1 \sigma^{12}_2 \rangle$ at least a second atom is needed for a second order description. On the other hand, as all atoms are the same, it must hold that $\langle \sigma^{21}_1 \sigma^{12}_2 \rangle = \langle \sigma^{21}_\alpha \sigma^{12}_\beta \rangle$ for all $\alpha \ne \beta$, therefore two atoms are sufficient. For higher orders and or bosonic operators the arguments are the same.
 
-The symbolic calculations rules for these operators living on a $\texttt{ClusterSpace}$ are implemented such that e.g. $\sum\limits_j \sigma^{22}_j$ can be written by $sum(\sigma(2,2))$ in the code. For the jump operators the syntax is as follows: If a jump operator is an operator-array on a $\texttt{ClusterSpace}$ the jump is assumed to be individual. To describe collective behaviour within the jumps we need to write the sum of the operator-array, e.g. $J = [sum(\sigma(2,2))]$ for collective dephasing. The Hamiltonian and the dissipative processes for individual atomic behaviour is therefore
+The symbolic calculation rules for these operators acting on a $\texttt{ClusterSpace}$ are implemented such that e.g. $\sum\limits_j \sigma^{22}_j$ can be written as $sum(\sigma(2,2))$ in the code. For the jump operators the syntax is such that individual atomic dissipation is written as $J = [σ(i,j)]$, whereas collective behaviour is expressed as $J = sum(σ(i,j))$. The Hamiltonian and the dissipative processes for individual atomic behaviour are therefore
 
 
 ```@example superradiant-laser
@@ -102,7 +102,7 @@ nothing # hide
 \end{align}
 ```
 
-To calculate the dynamic of the system we create a system of ordinary differential equations, which can be used by [DifferentialEquations.jl](https://diffeq.sciml.ai/stable/).
+To calculate the dynamics of the system we create a system of ordinary differential equations, which can be used by [DifferentialEquations.jl](https://diffeq.sciml.ai/stable/).
 
 
 ```@example superradiant-laser
@@ -110,7 +110,7 @@ sys = ODESystem(eqs_c)
 nothing # hide
 ```
 
-Finally we need to define the numerical parameters and the initial value of the system. We will consider $2 \cdot 10^5$ Strontium atoms which are repumped with a rate of $R = 1\text{Hz}$ on the clock transition ($\Gamma = 1 \text{mHz}$). The atom-cavity coupling rate is $g = 1\text{Hz}$, the cavity has a linewidth of $\kappa = 5\text{kHz}$ and is detuned from the atomic resonance by $\Delta = 2.5\text{Hz}$.
+Finally we need to define the numerical parameters and the initial state of the system. We will consider $2 \cdot 10^5$ Strontium atoms which are repumped with a rate of $R = 1\text{Hz}$ on the clock transition ($\Gamma = 1 \text{mHz}$). The atom-cavity coupling rate is $g = 1\text{Hz}$, the cavity has a linewidth of $\kappa = 5\text{kHz}$ and is detuned from the atomic resonance by $\Delta = 2.5\text{Hz}$.
 
 
 ```@example superradiant-laser
@@ -158,7 +158,7 @@ savefig("superradiant_laser_time.svg") # hide
 
 ## Spectrum
 
-We calculate the spectrum here with the Laplace transform of the two-time corelation function. This is implemented with the function $\texttt{Spectrum}$.
+We calculate the spectrum here with the Laplace transform of the two-time correlation function. This is implemented with the function $\texttt{Spectrum}$.
 
 
 ```@example superradiant-laser
@@ -185,7 +185,7 @@ nothing # hide
 ```
 
 
-To ensure to be in the steady state we use a steady solver to calculate it. To this end we need to define the $\texttt{SteadyStateProblem}$ and specify the desired method. We also need to increase the $\texttt{maxiters}$ and the solver accuracy to handle this numerical involved problem.
+To ensure we are in the steady state we use a steady solver to calculate it. To this end we need to define the $\texttt{SteadyStateProblem}$ and specify the desired method. We also need to increase the $\texttt{maxiters}$ and the solver accuracy to handle this numerically involved problem.
 
 
 ```@example superradiant-laser
@@ -220,4 +220,4 @@ Beside the narrow linewidth we can also see another key feature of the superradi
 
 !!! note
 
-    The implementation of the scaling rules are still on an early stage and they are quite 'experimental'. Using them for more complicated system could lead to wrong results and should therefore be always check twice.
+    The implementation of the scaling rules are still in an early stage of development and they are quite 'experimental'. So make sure to double check the equations when using them in more complicated systems.
