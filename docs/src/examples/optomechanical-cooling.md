@@ -33,7 +33,7 @@ rates = [κ]
 nothing # hide
 ```
 
-We are specifically interested in the average number of photons $\langle a^\dagger a \rangle$ and phonons $\langle b^\dagger b \rangle$. Thus we first derive the equations for these two averages.
+We are specifically interested in the average number of photons $\langle a^\dagger a \rangle$ and phonons $\langle b^\dagger b \rangle$. Thus we first derive the equations for these two averages. We restrict our description to a second order cumulant expansion.
 
 
 ```@example optomechanics
@@ -50,7 +50,7 @@ nothing # hide
 \end{align}
 ```
 
-To get a closed set of equations we automatically complete the system, where we restrict our description to second order cumulant expansion.
+To get a closed set of equations we automatically complete the system.
 
 
 ```@example optomechanics
@@ -82,7 +82,7 @@ sys = ODESystem(eqs_completed)
 nothing # hide
 ```
 
-Finally we need to define the numerical parameters and the initial value of the system. We will consider the membrane at room temperature. Its vibrational mode is in a thermal state with an average number of phonons that can be estimated from $k_B T = n_\mathrm{vib}\hbar \omega_m$. If the resonator has a resonance frequency of $\omega_m = 10\mathrm{MHz}$, then the number of phonons at room temperature ($T\approx 300K$) is approximately $n_\mathrm{vib} \approx 4\times 10^6$.
+Finally we need to define the numerical parameters and the initial state of the system. We will consider the membrane at room temperature. Its vibrational mode is in a thermal state with an average number of phonons that can be estimated from $k_B T = n_\mathrm{vib}\hbar \omega_m$. If the resonator has a resonance frequency of $\omega_m = 10\mathrm{MHz}$, then the number of phonons at room temperature ($T\approx 300K$) is approximately $n_\mathrm{vib} \approx 4\times 10^6$.
 
 
 ```@example optomechanics
@@ -106,7 +106,7 @@ photons = real.(sol[a'a])
 
 p1 = plot(t, T, ylabel="T in K", legend=false)
 p2 = plot(t, photons, xlabel="t⋅ωm", ylabel="⟨a⁺a⟩", legend=false)
-plot(p1, p2, layout=(2,1), size=(500,400))
+plot(p1, p2, layout=(2,1), size=(650,400))
 savefig("opto_cooling.svg") # hide
 ```
 
