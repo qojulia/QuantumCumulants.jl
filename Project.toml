@@ -20,7 +20,7 @@ Latexify = "0.13, 0.14, 0.15"
 MacroTools = "0.5"
 ModelingToolkit = "5"
 SciMLBase = "1"
-SymbolicUtils = "0.10"
+SymbolicUtils = "0.10, 0.13"
 Symbolics = "0.1"
 julia = "1"
 
