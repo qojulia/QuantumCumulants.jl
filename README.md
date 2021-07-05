@@ -65,7 +65,7 @@ The above code implements the Jaynes-Cummings Hamiltonian describing an optical 
 
 If you find **QuantumCumulants.jl** useful in your research, please consider citing [this paper](https://arxiv.org/abs/2105.01657):
 
-```
+```bib
 @article{plankensteiner2021quantumcumulants,
   title={{QuantumCumulants.jl}: {A Julia} framework for generalized mean-field equations in open quantum systems},
   author={Plankensteiner, David and Hotter, Christoph and Ritsch, Helmut},
