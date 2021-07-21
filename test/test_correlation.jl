@@ -127,6 +127,19 @@ csol = solve(cprob, RK4())
 
 @test csol.retcode == :Success
 
+# Mollow when not in steady state
+c = CorrelationFunction(σ(:e,:g), σ(:g,:e), eqs; steady_state=false)
+csys = ODESystem(c)
+cu0 = correlation_u0(c, sol.u[end])
+@test length(cu0) == 3
+cp0 = correlation_p0(c, sol.u[end], ps .=> p0)
+@test length(cp0) == 4
+
+cprob = ODEProblem(csys,cu0,(0.0,20.0),cp0)
+csol_ns = solve(cprob, RK4())
+
+@test all(csol_ns.u .≈ csol.u)
+
 # When not in steady state -- cavity that decays
 h = FockSpace(:fock)
 a = Destroy(h,:a)

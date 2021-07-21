@@ -301,12 +301,18 @@ function MTK.ODESystem(c::CorrelationFunction; kwargs...)
         ps_ = [ps..., steady_vals...]
     else
         avg = average(c.op2_0)
-        if avg ∈ Set(c.de0.states) || _conj(avg) ∈ Set(c.de0.states)
-            ps_ = [ps..., average(c.op2)]
+        if avg ∈ Set(c.de0.states)
+            avg2 = average(c.op2)
+            ps_ = [ps..., avg]
+            de = substitute(c.de, Dict(avg2 => avg))
+        elseif _conj(avg) ∈ Set(c.de0.states)
+            avg2 = average(c.op2)
+            ps_ = [ps..., _conj(avg)]
+            de = substitute(c.de, Dict(avg2 => avg))
         else
             ps_ = [ps...]
+            de = c.de
         end
-        de = c.de
     end
 
     ps_avg = filter(x->x isa Average, ps_)
@@ -321,15 +327,18 @@ function MTK.ODESystem(c::CorrelationFunction; kwargs...)
         de_.equations[i] = Symbolics.Equation(lhs, rhs)
     end
 
+    avg0 = average(c.op2_0)
     if c.steady_state
         steady_params = map(_make_parameter, steady_vals)
         subs_params = Dict(steady_vals .=> steady_params)
-        for i=1:length(de.equations)
-            de_.equations[i] = substitute(de_.equations[i], subs_params)
-        end
+        de_ = substitute(de_, subs_params)
+    elseif avg0 ∈ Set(c.de0.states)
+        avg0_par = _make_parameter(avg0)
+        de_ = substitute(de_, Dict(avg0 => avg0_par))
+    elseif _conj(avg0) ∈ Set(c.de0.states)
+        avg0_par = _make_parameter(_conj(avg0))
+        de_ = substitute(de_, Dict(_conj(avg0) => avg0_par))
     end
-
-    ps_ = map(_make_parameter, ps_)
 
     eqs = MTK.equations(de_)
     return MTK.ODESystem(eqs, τ; kwargs...)
