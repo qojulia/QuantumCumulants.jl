@@ -12,6 +12,22 @@ Abstract type representing fundamental operator types.
 """
 abstract type QSym <: QNumber end
 
+# Generic hash fallback for interface -- this will be slow
+function Base.hash(op::T, h::UInt) where T<:QSym
+    n = fieldcount(T)
+    if n == 3
+        # These three fields need to be defined for any QSym
+        return hash(T, hash(op.hilbert, hash(op.name, hash(op.aon, h))))
+    else
+        # If there are more we'll need to iterate through
+        h_ = copy(h)
+        for k = n:-1:4
+            h_ = hash(getfield(op, k), h_)
+        end
+        return hash(T, hash(op.hilbert, hash(op.name, hash(op.aon, h))))
+    end
+end
+
 """
     QTerm <: QNumber
 
