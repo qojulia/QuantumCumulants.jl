@@ -40,6 +40,9 @@ function meanfield(a::Vector,H,J;Jdagger::Vector=adjoint.(J),rates=ones(Int,leng
                     mix_choice=maximum,
                     iv=SymbolicUtils.Sym{Real}(:t))
 
+    if rates isa Matrix
+        J = [J]; Jdagger = [Jdagger]; rates = [rates]
+    end
     J_, Jdagger_, rates_ = _expand_clusters(J,Jdagger,rates)
     # Derive operator equations
     rhs = Vector{Any}(undef, length(a))
@@ -72,10 +75,9 @@ function meanfield(a::Vector,H,J;Jdagger::Vector=adjoint.(J),rates=ones(Int,leng
 
     eqs_avg = [Symbolics.Equation(l,r) for (l,r)=zip(vs,rhs_avg)]
     eqs = [Symbolics.Equation(l,r) for (l,r)=zip(a,rhs)]
-
     varmap = make_varmap(vs, iv)
 
-    me = MeanfieldEquations(eqs_avg,eqs,vs,a,H,J_,rates_,iv,varmap,order)
+    me = MeanfieldEquations(eqs_avg,eqs,vs,a,H,J_,Jdagger_,rates_,iv,varmap,order)
     if has_cluster(H)
         return scale(me;simplify=simplify,order=order,mix_choice=mix_choice)
     else
@@ -87,22 +89,22 @@ meanfield(a::Vector,H;kwargs...) = meanfield(a,H,[];Jdagger=[],kwargs...)
 
 function _master_lindblad(a_,J,Jdagger,rates)
     args = Any[]
-    if isa(rates,Vector)
-        for i=1:length(J)
-            c1 = 0.5*rates[i]*Jdagger[i]*commutator(a_,J[i])
-            c2 = 0.5*rates[i]*commutator(Jdagger[i],a_)*J[i]
+    for k=1:length(J)
+        if isa(rates[k],SymbolicUtils.Sym) || isa(rates[k],Number)
+            c1 = 0.5*rates[k]*Jdagger[k]*commutator(a_,J[k])
+            c2 = 0.5*rates[k]*commutator(Jdagger[k],a_)*J[k]
             push_or_append_nz_args!(args, c1)
             push_or_append_nz_args!(args, c2)
+        elseif isa(rates[k],Matrix)
+            for i=1:length(J[k]), j=1:length(J[k])
+                c1 = 0.5*rates[k][i,j]*Jdagger[k][i]*commutator(a_,J[k][j])
+                c2 = 0.5*rates[k][i,j]*commutator(Jdagger[k][i],a_)*J[k][j]
+                push_or_append_nz_args!(args, c1)
+                push_or_append_nz_args!(args, c2)
+            end
+        else
+            error("Unknown rates type!")
         end
-    elseif isa(rates,Matrix)
-        for i=1:length(J), j=1:length(J)
-            c1 = 0.5*rates[i,j]*Jdagger[i]*commutator(a_,J[j])
-            c2 = 0.5*rates[i,j]*commutator(Jdagger[i],a_)*J[j]
-            push_or_append_nz_args!(args, c1)
-            push_or_append_nz_args!(args, c2)
-        end
-    else
-        error("Unknown rates type!")
     end
     isempty(args) && return 0
     return QAdd(args)
@@ -191,7 +193,7 @@ function _expand_clusters(J,Jdagger,rates)
     Jdagger_ = []
     rates_ = []
     for i=1:length(J)
-        if J[i] isa Vector
+        if (J[i] isa Vector) && !(rates[i] isa Matrix)
             h = hilbert(J[i][1])
             aon_ = acts_on(J[i][1])
             aon = if aon_ isa Vector

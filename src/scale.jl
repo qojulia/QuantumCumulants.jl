@@ -45,7 +45,7 @@ function scale(he::MeanfieldEquations, scale_aons::Vector{<:Vector}, N::Vector;
 
     he_scaled = ScaledMeanfieldEquations(equations,operator_equations,
                                     he.states, he.operators,
-                                    he.hamiltonian,he.jumps,he.rates,
+                                    he.hamiltonian,he.jumps,he.jumps_dagger,he.rates,
                                     he.iv, he.varmap, he.order,
                                     scale_aons,names,ones(Bool, length(he)
                                     )
@@ -213,7 +213,7 @@ function substitute_redundants(he::MeanfieldEquations,scale_aons::Vector{<:Vecto
         push!(eqs, Symbolics.Equation(lhs, rhs))
     end
     # TODO substitute jumps and hamiltonian?
-    return MeanfieldEquations(lhs, rhs, he.hamiltonian, he.jumps, he.rates)
+    return MeanfieldEquations(lhs, rhs, he.hamiltonian, he.jumps, he.jumps_dagger, he.rates)
 end
 
 function substitute_redundants(t::SymbolicUtils.Symbolic,scale_aons::Vector{<:Vector},names)
@@ -446,6 +446,7 @@ function complete!(de::ScaledMeanfieldEquations;
     while !isempty(missed)
         ops_ = [SymbolicUtils.arguments(m)[1] for m in missed]
         he = meanfield(ops_,de.hamiltonian,de.jumps;
+                                Jdagger=de.jumps_dagger,
                                 rates=de.rates,
                                 simplify=simplify,
                                 multithread=multithread,

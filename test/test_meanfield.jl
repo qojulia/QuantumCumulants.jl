@@ -47,4 +47,36 @@ he_laser = meanfield([a'*a,σ'*σ,a'*σ],H,J;rates=[κ,γ,ν])
 ex = (im*g)*σee + (-im*g)*a'*a + (im*(ωc - ωa) - 0.5*(κ + γ + ν))*a'*σ + (2im*g)*a'*a*σee
 @test iszero(simplify(he_laser.operator_equations[3].rhs - ex))
 
+# collective decay
+N=2
+@cnumbers G11 G12 G21 G22 δ
+h = ⊗([NLevelSpace(Symbol(:atom,i),2) for i=1:N]...)
+σ_(i,j,k) = Transition(h,Symbol("σ__{$k}"),i,j,k)
+H = δ*(σ_(2,2,1)+σ_(2,2,2))
+J = [[σ_(1,2,1), σ_(1,2,2)]]
+rates = [[G11 G12; G21 G22]]
+ops_0 = [σ_(1,2,1)]
+eqs1 = meanfield(ops_0,H,J; rates=rates)
+eqs_c1 = complete(eqs1)
+eqs2 = meanfield(ops_0,H,J[1]; rates=rates[1])
+eqs_c2 = complete(eqs2)
+@test length(eqs_c2) == 4
+
+JumpOp = Transition{ProductSpace{Vector{NLevelSpace{Symbol, UnitRange{Int64}, Int64}}}, Symbol, Int64, Int64}[]
+JumpOpConj = Transition{ProductSpace{Vector{NLevelSpace{Symbol, UnitRange{Int64}, Int64}}}, Symbol, Int64, Int64}[]
+for i=1:N
+    for j=1:N
+        push!(JumpOp,σ_(1,2,i))
+        push!(JumpOpConj,σ_(2,1,j))
+    end
+end
+rates=[G11, G21, G12, G22]
+eqs3 = meanfield(ops_0,H,JumpOp;Jdagger=JumpOpConj, rates=rates)
+eqs_c3 = complete(eqs3)
+
+ops4_0 = QuantumCumulants.undo_average.(eqs_c1.states)
+eqs4 = meanfield(ops4_0,H,JumpOp;Jdagger=JumpOpConj, rates=rates)
+eqs_c4 = complete(eqs4)
+@test eqs_c1.equations == eqs_c2.equations == eqs_c3.equations == eqs_c4.equations # jumps_dagger are different
+
 end # testset

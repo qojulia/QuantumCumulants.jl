@@ -171,7 +171,7 @@ function cumulant_expansion(de::MeanfieldEquations,order;multithread=false,mix_c
         end
     end
     return MeanfieldEquations(eqs_out,de.operator_equations,de.states,de.operators,
-                            de.hamiltonian,de.jumps,de.rates,de.iv,de.varmap,
+                            de.hamiltonian,de.jumps,de.jumps_dagger,de.rates,de.iv,de.varmap,
                             order)
 end
 function cumulant_expansion(de::ScaledMeanfieldEquations,order;multithread=false,mix_choice=maximum,kwargs...)
@@ -193,7 +193,7 @@ function cumulant_expansion(de::ScaledMeanfieldEquations,order;multithread=false
     end
 
     return ScaledMeanfieldEquations(eqs_out,de.operator_equations,de.states,de.operators,
-                                    de.hamiltonian,de.jumps,de.rates,de.iv,
+                                    de.hamiltonian,de.jumps,de.jumps_dagger,de.rates,de.iv,
                                     de.varmap,order,
                                     de.scale_aons,de.names,de.was_scaled
                                     )

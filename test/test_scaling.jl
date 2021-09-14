@@ -33,6 +33,7 @@ rates = [κ,[Γ2 for i=1:N_c]...,[Γ3 for i=1:N_c]...,[Γ23 for i=1:N_c]...,[ν3
 # Derive equation for average photon number
 ops = [a'a, S(2,2,1)[1], a'*S(1,2,1)[1]]
 he = meanfield(ops,H,J;rates=rates,order=2)
+
 # Custom filter function -- include only phase-invariant terms
 ϕ(x) = 0
 ϕ(x::Destroy) = -1
