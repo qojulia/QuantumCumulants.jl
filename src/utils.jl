@@ -145,6 +145,7 @@ function complete!(de::AbstractMeanfieldEquations;
     while !isempty(missed)
         ops_ = [SymbolicUtils.arguments(m)[1] for m in missed]
         me = meanfield(ops_,de.hamiltonian,de.jumps;
+                                Jdagger=de.jumps_dagger,
                                 rates=de.rates,
                                 simplify=simplify,
                                 multithread=multithread,

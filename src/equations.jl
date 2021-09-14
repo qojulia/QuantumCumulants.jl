@@ -18,6 +18,7 @@ the system.
 *`operators`: Vector containing the operators on the left-hand-side of the equations.
 *`hamiltonian`: Operator defining the system Hamiltonian.
 *`jumps`: Vector of operators specifying the decay processes.
+*`jumps`: Vector of operators specifying the adjoint of the decay processes.
 *`rates`: Decay rates corresponding to the `jumps`.
 *`iv`: The independent variable (time parameter) of the system.
 *`varmap`: Vector of pairs that map the averages to time-dependent variables.
@@ -31,7 +32,8 @@ struct MeanfieldEquations <: AbstractMeanfieldEquations
     states::Vector
     operators::Vector{QNumber}
     hamiltonian::QNumber
-    jumps::Vector{QNumber}
+    jumps::Vector
+    jumps_dagger
     rates::Vector
     iv::SymbolicUtils.Sym
     varmap::Vector{Pair}
@@ -109,7 +111,8 @@ struct ScaledMeanfieldEquations <: AbstractMeanfieldEquations
     states::Vector
     operators::Vector{QNumber}
     hamiltonian::QNumber
-    jumps::Vector{QNumber}
+    jumps::Vector
+    jumps_dagger
     rates::Vector
     iv::SymbolicUtils.Sym
     varmap::Vector{Pair}

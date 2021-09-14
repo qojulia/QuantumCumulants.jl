@@ -37,12 +37,14 @@ function CorrelationFunction(op1,op2,de0::AbstractMeanfieldEquations;
 
     H0 = de0.hamiltonian
     J0 = de0.jumps
+    Jd0 = de0.jumps_dagger
 
     op1_ = _new_operator(op1, h)
     op2_ = _new_operator(op2, h, length(h.spaces); add_subscript=add_subscript)
     op2_0 = _new_operator(op2, h)
     H = _new_operator(H0, h)
     J = [_new_operator(j, h) for j in J0]
+    Jd = [_new_operator(j, h) for j in Jd0]
     lhs_new = [_new_operator(l, h) for l in de0.states]
 
     order_ = if order===nothing
@@ -60,7 +62,7 @@ function CorrelationFunction(op1,op2,de0::AbstractMeanfieldEquations;
     op_ = op1_*op2_
     @assert get_order(op_) <= order_
 
-    de = meanfield(op_,H,J;rates=de0.rates,iv=iv,order=order_)
+    de = meanfield(op_,H,J;Jdagger=Jd,rates=de0.rates,iv=iv,order=order_)
     _complete_corr!(de, length(h.spaces), lhs_new, order_, steady_state;
                             filter_func=filter_func,
                             mix_choice=mix_choice,
@@ -78,7 +80,7 @@ function CorrelationFunction(op1,op2,de0::AbstractMeanfieldEquations;
             push!(eqs, Symbolics.Equation(lhs_new[i], rhs))
             push!(eqs_op, Symbolics.Equation(ops[i], rhs_op))
         end
-        MeanfieldEquations(eqs,eqs_op,lhs_new,ops,H,J,de0.rates,de0.iv,varmap,order_)
+        MeanfieldEquations(eqs,eqs_op,lhs_new,ops,H,J,Jd,de0.rates,de0.iv,varmap,order_)
     end
 
     return CorrelationFunction(op1_, op2_, op2_0, de0_, de, steady_state)
@@ -422,6 +424,7 @@ function _complete_corr!(de,aon0,lhs_new,order,steady_state;
     vs = de.states
     H = de.hamiltonian
     J = de.jumps
+    Jd = de.jumps_dagger
     rates = de.rates
 
     vhash = map(hash, vs)
@@ -455,8 +458,9 @@ function _complete_corr!(de,aon0,lhs_new,order,steady_state;
 
     while !isempty(missed)
         ops_ = [SymbolicUtils.arguments(m)[1] for m in missed]
-        me = meanfield(ops_,de.hamiltonian,de.jumps;
-                                rates=de.rates,
+        me = meanfield(ops_,H,J;
+                                Jdagger=Jd,
+                                rates=rates,
                                 simplify=simplify,
                                 order=order,
                                 iv=de.iv,
