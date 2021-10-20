@@ -63,7 +63,7 @@ Finally, we can convert the [`MeanfieldEquations`](@ref) to an `ODESystem` as de
 ```@example tutorial
 # Generate an ODESystem
 using ModelingToolkit
-sys = ODESystem(eqs_nophase)
+@named sys = ODESystem(eqs_nophase)
 
 # Solve the system using the OrdinaryDiffEq package
 using OrdinaryDiffEq

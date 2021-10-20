@@ -1,3 +1,7 @@
+# TODO: Remove these once https://github.com/JuliaSymbolics/Symbolics.jl/pull/160 is merged
+Symbolics.toexpr(n::Complex{Symbolics.Num}, st) = :($Complex($(Symbolics.toexpr(real(n), st)), $(Symbolics.toexpr(imag(n), st))))
+Symbolics.Num(x::Complex{Symbolics.Num}) = x
+
 """
     QNumber
 
@@ -11,6 +15,7 @@ abstract type QNumber end
 Abstract type representing fundamental operator types.
 """
 abstract type QSym <: QNumber end
+SymbolicUtils.metadata(::QSym) = nothing
 
 # Generic hash fallback for interface -- this will be slow
 function Base.hash(op::T, h::UInt) where T<:QSym
@@ -35,9 +40,7 @@ Abstract type representing noncommutative expressions.
 """
 abstract type QTerm <: QNumber end
 
-Base.isequal(a::T,b::T) where T<:QSym = isequal(a.hilbert, b.hilbert) && isequal(a.name, b.name) && isequal(a.aon, b.aon)
-Base.isless(a::QSym,b::QSym) = a.name < b.name
-
+Base.isless(a::QSym, b::QSym) = a.name < b.name
 
 ## Interface for SymbolicUtils
 
@@ -80,34 +83,38 @@ Fields:
 * arg_c: The commutative prefactor.
 * args_nc: A vector containing all [`QSym`](@ref) types.
 """
-struct QMul <: QTerm
+struct QMul{M} <: QTerm
     arg_c
     args_nc::Vector{Any}
-    function QMul(arg_c,args_nc)
+    metadata::M
+    function QMul{M}(arg_c, args_nc, metadata) where {M}
         if SymbolicUtils._isone(arg_c) && length(args_nc)==1
             return args_nc[1]
         else
-            return new(arg_c, args_nc)
+            return new(arg_c, args_nc, metadata)
         end
     end
 end
-Base.hash(q::T, h::UInt) where T<:QMul = hash(T, hash(q.arg_c, SymbolicUtils.hashvec(q.args_nc, h)))
+QMul(arg_c, args_nc; metadata::M=NO_METADATA) where {M} = QMul{M}(arg_c, args_nc, metadata)
+Base.hash(q::QMul, h::UInt) = hash(QMul, hash(q.arg_c, SymbolicUtils.hashvec(q.args_nc, h)))
 Base.isless(a::QMul, b::QMul) = isless(a.h, b.h)
 
 SymbolicUtils.operation(::QMul) = (*)
 SymbolicUtils.arguments(a::QMul) = vcat(a.arg_c, a.args_nc)
-function SymbolicUtils.similarterm(::QMul, ::typeof(*), args)
+function SymbolicUtils.similarterm(::QMul, ::typeof(*), args; metadata=NO_METADATA)
     args_c = filter(x->!(x isa QNumber), args)
     args_nc = filter(x->x isa QNumber, args)
     arg_c = *(args_c...)
-    return QMul(arg_c, args_nc)
+    return QMul(arg_c, args_nc; metadata)
 end
+
+SymbolicUtils.metadata(a::QMul) = a.metadata
 
 function Base.adjoint(q::QMul)
     args_nc = map(adjoint, q.args_nc)
     reverse!(args_nc)
     sort!(args_nc, by=acts_on)
-    return QMul(conj(q.arg_c),args_nc)
+    return QMul(conj(q.arg_c), args_nc; q.metadata)
 end
 
 
@@ -214,7 +221,9 @@ end
 
 SymbolicUtils.operation(::QAdd) = (+)
 SymbolicUtils.arguments(a::QAdd) = a.arguments
-SymbolicUtils.similarterm(::QAdd, ::typeof(+), args) = QAdd(args)
+SymbolicUtils.similarterm(::QAdd, ::typeof(+), args; metadata=NO_METADATA) = QAdd(args; metadata)
+
+SymbolicUtils.metadata(q::QAdd) = q.metadata
 
 Base.adjoint(q::QAdd) = QAdd(map(adjoint, q.arguments))
 
@@ -267,6 +276,7 @@ function *(a::QNumber, b::QAdd)
     q = QAdd(args)
     return q
 end
+
 function *(a::QAdd, b::QAdd)
     check_hilbert(a, b)
     args = []
@@ -378,5 +388,6 @@ macro qnumbers(qs...)
 end
 function _make_operator(name, T, h, args...)
     name_ = Expr(:quote, name)
-    return Expr(:call, T, esc(h), name_, args...)
+    d = Base.ImmutableDict{DataType, Any}(Symbolics.VariableSource, (:qnumbers, name))
+    return Expr(:call, T, esc(h), name_, args..., Expr(:kw, :metadata, Expr(:quote, d)))
 end

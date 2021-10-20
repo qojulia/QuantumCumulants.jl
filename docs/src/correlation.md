@@ -51,7 +51,7 @@ The equation for ``g(t,\tau)`` is now stored in the first entry of `c.de`. To so
 ```@example correlation
 using ModelingToolkit, OrdinaryDiffEq
 
-sys = ODESystem(me)
+@named sys = ODESystem(me)
 n0 = 20.0 # Initial number of photons in the cavity
 u0 = [n0]
 p0 = (1,1)
@@ -61,7 +61,7 @@ nothing # hide
 ```
 Numerically computing the correlation function works in the same way. Note, the initial state of the correlation function depends on the final state of the system. However, in general it does not depend on *all* the final values of the system. The correct values can be picked out automatically using the [`correlation_u0`](@ref) function.
 ```@example correlation
-csys = ODESystem(c)
+@named csys = ODESystem(c)
 u0_c = correlation_u0(c, sol.u[end])
 prob_c = ODEProblem(csys,u0_c,(0.0,10.0),p0)
 sol_c = solve(prob_c,RK4(),save_idxs=1)

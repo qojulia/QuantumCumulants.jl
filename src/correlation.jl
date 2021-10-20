@@ -102,7 +102,7 @@ function correlation_u0(c::CorrelationFunction, u_end)
     lhs = [average(substitute(op, subs)) for op in ops]
     u0 = complex(eltype(u_end))[]
     lhs0 = c.de0.states
-    τ = MTK.independent_variable(c.de)
+    τ = MTK.get_iv(c.de)
     keys = []
     for j=1:length(lhs)
         l=lhs[j]
@@ -272,7 +272,7 @@ end
 
 # Convert to ODESystem
 function MTK.ODESystem(c::CorrelationFunction; kwargs...)
-    τ = MTK.independent_variable(c.de)
+    τ = MTK.get_iv(c.de)
 
     ps = []
     for eq∈c.de.equations
@@ -351,7 +351,8 @@ substitute(c::CorrelationFunction, args...; kwargs...) =
 
 function _make_parameter(s::Average)
     name = Symbol(string(s))
-    return SymbolicUtils.Sym{Parameter}(name)
+    sym = SymbolicUtils.Sym{Parameter}(name)
+    return SymbolicUtils.setmetadata(sym, Symbolics.VariableSource, (:_make_parameter, name))
 end
 _make_parameter(s::SymbolicUtils.Symbolic{<:Parameter}) = s
 
@@ -369,23 +370,23 @@ _new_hilbert(h::NLevelSpace, aon) = NLevelSpace(Symbol(h.name, 0), h.levels, h.G
 
 function _new_operator(op::Destroy, h, aon=op.aon; add_subscript=nothing)
     if isnothing(add_subscript)
-        Destroy(h, op.name, aon)
+        Destroy(h, op.name, aon; op.metadata)
     else
-        Destroy(h, Symbol(op.name, :_, add_subscript), aon)
+        Destroy(h, Symbol(op.name, :_, add_subscript), aon; op.metadata)
     end
 end
 function _new_operator(op::Create, h, aon=op.aon; add_subscript=nothing)
     if isnothing(add_subscript)
-        Create(h, op.name, aon)
+        Create(h, op.name, aon; op.metadata)
     else
-        Create(h, Symbol(op.name, :_, add_subscript), aon)
+        Create(h, Symbol(op.name, :_, add_subscript), aon; op.metadata)
     end
 end
 function _new_operator(t::Transition, h, aon=t.aon; add_subscript=nothing)
     if isnothing(add_subscript)
-        Transition(h, t.name, t.i, t.j, aon)
+        Transition(h, t.name, t.i, t.j, aon; t.metadata)
     else
-        Transition(h, Symbol(t.name, :_, add_subscript), t.i, t.j, aon)
+        Transition(h, Symbol(t.name, :_, add_subscript), t.i, t.j, aon; t.metadata)
     end
 end
 _new_operator(x::Number, h, aon=nothing; kwargs...) = x
@@ -554,7 +555,8 @@ function _substitute_vars(t::SymbolicUtils.Symbolic)
         f = SymbolicUtils.operation(t)
         if f === sym_average
             sym = Symbol(string(t))
-            return SymbolicUtils.Sym{Complex}(sym)
+            return SymbolicUtils.setmetadata(SymbolicUtils.Sym{Complex}(sym),
+                Symbolics.VariableSource, (:_substitute_vars, sym))
         else
             args = [_substitute_vars(arg) for arg∈SymbolicUtils.arguments(t)]
             return SymbolicUtils.similarterm(t, f, args)

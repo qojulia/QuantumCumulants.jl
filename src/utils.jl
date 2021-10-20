@@ -251,7 +251,7 @@ end
 
 for T ∈ [:Destroy,:Create,:Transition]
     @eval function embed(h::ProductSpace,op::($T),i)
-        fields = [getfield(op, s) for s∈fieldnames($T)]
+        fields = [getfield(op, s) for s∈fieldnames($T) if s≠:metadata]
         fields[1] = h
         fields[end] = i
         return $(T)(fields...)

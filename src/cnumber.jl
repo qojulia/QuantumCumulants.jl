@@ -5,6 +5,8 @@ Abstract type for all symbolic numbers, i.e. [`Parameter`](@ref), [`average`](@r
 """
 abstract type CNumber <: Number end
 
+default_meta(name) = Base.ImmutableDict{DataType, Any}(Symbolics.VariableSource, (:Parameter, name))
+
 """
     Parameter <: CNumber
 
@@ -12,8 +14,8 @@ Type used as symbolic type in a `SymbolicUtils.Sym` variable to represent
 a parameter.
 """
 struct Parameter <: CNumber
-    function Parameter(name)
-        return SymbolicUtils.Sym{Parameter}(name)
+    function Parameter(name; metadata=default_meta(name))
+        return SymbolicUtils.Sym{Parameter, typeof(metadata)}(name, metadata)
     end
 end
 
@@ -42,7 +44,8 @@ macro cnumbers(ps...)
     for p in ps
         @assert p isa Symbol
         push!(pnames, p)
-        ex_ = Expr(:(=), esc(p), Expr(:call, :Parameter, Expr(:quote, p)))
+        d = Base.ImmutableDict{DataType, Any}(Symbolics.VariableSource, (:cnumbers, p))
+        ex_ = Expr(:(=), esc(p), Expr(:call, :Parameter, Expr(:quote, p), Expr(:kw, :metadata, Expr(:quote, d))))
         push!(ex.args, ex_)
     end
     push!(ex.args, Expr(:tuple, map(esc, pnames)...))
@@ -66,7 +69,7 @@ true
 ```
 """
 function cnumbers(syms::Symbol...)
-    ps = Tuple(Parameter(s) for s in syms)
+    ps = Tuple(Parameter(s; metadata=Base.ImmutableDict{DataType, Any}(Symbolics.VariableSource, (:cnumbers, s))) for s in syms)
     return ps
 end
 function cnumbers(s::String)

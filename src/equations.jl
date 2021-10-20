@@ -95,8 +95,9 @@ end
 
 function make_var(v, t)
     sym = Symbol(string(v))
-    var_f = SymbolicUtils.Sym{SymbolicUtils.FnType{Tuple{Any}, Complex}}(sym)
-    return var_f(t)
+    d = Base.ImmutableDict{DataType, Any}(Symbolics.VariableSource, (:make_var, sym))
+    var_f = SymbolicUtils.Sym{SymbolicUtils.FnType{Tuple{Any}, Complex}}(sym; metadata=d)
+    return SymbolicUtils.Term{Complex}(var_f, [t]; metadata=d)
 end
 
 function make_varmap(vs, t)

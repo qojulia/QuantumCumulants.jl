@@ -28,6 +28,8 @@ export HilbertSpace, ProductSpace, ⊗, tensor,
         scale,
         transition_superscript
 
+const NO_METADATA = nothing
+
 include("hilbertspace.jl")
 include("qnumber.jl")
 include("cnumber.jl")

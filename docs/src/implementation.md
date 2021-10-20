@@ -206,7 +206,7 @@ To obtain an `ODESystem` from [`MeanfieldEquations`](@ref), you simply need to c
 
 ```@example meanfield
 using ModelingToolkit
-sys = ODESystem(me)
+@named sys = ODESystem(me)
 nothing # hide
 ```
 

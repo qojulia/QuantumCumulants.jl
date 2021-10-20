@@ -92,7 +92,7 @@ To calculate the time evolution we create a Julia function which can be used by 
 
 ```@example 3-level-laser
 # Build an ODESystem out of the MeanfieldEquations
-sys = ODESystem(me_comp)
+@named sys = ODESystem(me_comp)
 nothing # hide
 ```
 
