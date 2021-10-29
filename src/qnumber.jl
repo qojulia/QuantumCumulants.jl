@@ -15,7 +15,6 @@ abstract type QNumber end
 Abstract type representing fundamental operator types.
 """
 abstract type QSym <: QNumber end
-SymbolicUtils.metadata(::QSym) = nothing
 
 # Generic hash fallback for interface -- this will be slow
 function Base.hash(op::T, h::UInt) where T<:QSym
@@ -27,9 +26,11 @@ function Base.hash(op::T, h::UInt) where T<:QSym
         # If there are more we'll need to iterate through
         h_ = copy(h)
         for k = n:-1:4
-            h_ = hash(getfield(op, k), h_)
+            if fieldname(typeof(op), k) !== :metadata
+                h_ = hash(getfield(op, k), h_)
+            end
         end
-        return hash(T, hash(op.hilbert, hash(op.name, hash(op.aon, h))))
+        return hash(T, hash(op.hilbert, hash(op.name, hash(op.aon, h_))))
     end
 end
 
@@ -386,8 +387,10 @@ macro qnumbers(qs...)
     push!(ex.args, Expr(:tuple, map(esc, qnames)...))
     return ex
 end
+source_metadata(source, name) = 
+    Base.ImmutableDict{DataType, Any}(Symbolics.VariableSource, (source, name))
 function _make_operator(name, T, h, args...)
     name_ = Expr(:quote, name)
-    d = Base.ImmutableDict{DataType, Any}(Symbolics.VariableSource, (:qnumbers, name))
+    d = source_metadata(:qnumbers, name)
     return Expr(:call, T, esc(h), name_, args..., Expr(:kw, :metadata, Expr(:quote, d)))
 end

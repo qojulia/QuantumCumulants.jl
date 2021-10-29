@@ -9,7 +9,6 @@ import SciMLBase
 
 import ModelingToolkit
 const MTK = ModelingToolkit
-import ModelingToolkit: ⊗ # just to avoid conflicts
 
 using Combinatorics: partitions, combinations
 
