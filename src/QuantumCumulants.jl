@@ -27,7 +27,10 @@ export HilbertSpace, ProductSpace, ⊗, tensor,
         scale,
         transition_superscript
 
-const NO_METADATA = nothing
+const NO_METADATA = SymbolicUtils.NO_METADATA
+
+source_metadata(source, name) = 
+    Base.ImmutableDict{DataType, Any}(Symbolics.VariableSource, (source, name))
 
 include("hilbertspace.jl")
 include("qnumber.jl")

@@ -1,7 +1,3 @@
-# TODO: Remove these once https://github.com/JuliaSymbolics/Symbolics.jl/pull/160 is merged
-Symbolics.toexpr(n::Complex{Symbolics.Num}, st) = :($Complex($(Symbolics.toexpr(real(n), st)), $(Symbolics.toexpr(imag(n), st))))
-Symbolics.Num(x::Complex{Symbolics.Num}) = x
-
 """
     QNumber
 
@@ -387,8 +383,7 @@ macro qnumbers(qs...)
     push!(ex.args, Expr(:tuple, map(esc, qnames)...))
     return ex
 end
-source_metadata(source, name) = 
-    Base.ImmutableDict{DataType, Any}(Symbolics.VariableSource, (source, name))
+
 function _make_operator(name, T, h, args...)
     name_ = Expr(:quote, name)
     d = source_metadata(:qnumbers, name)

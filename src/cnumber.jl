@@ -5,8 +5,6 @@ Abstract type for all symbolic numbers, i.e. [`Parameter`](@ref), [`average`](@r
 """
 abstract type CNumber <: Number end
 
-default_meta(name) = source_metadata(:Parameter, name)
-
 """
     Parameter <: CNumber
 
@@ -14,7 +12,7 @@ Type used as symbolic type in a `SymbolicUtils.Sym` variable to represent
 a parameter.
 """
 struct Parameter <: CNumber
-    function Parameter(name; metadata=default_meta(name))
+    function Parameter(name; metadata=source_metadata(:Parameter, name))
         return SymbolicUtils.Sym{Parameter, typeof(metadata)}(name, metadata)
     end
 end
