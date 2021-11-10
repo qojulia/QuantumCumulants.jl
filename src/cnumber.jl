@@ -13,7 +13,8 @@ a parameter.
 """
 struct Parameter <: CNumber
     function Parameter(name; metadata=source_metadata(:Parameter, name))
-        return SymbolicUtils.Sym{Parameter, typeof(metadata)}(name, metadata)
+        s = SymbolicUtils.Sym{Parameter, typeof(metadata)}(name, metadata)
+        return SymbolicUtils.setmetadata(s, MTK.MTKParameterCtx, true)
     end
 end
 

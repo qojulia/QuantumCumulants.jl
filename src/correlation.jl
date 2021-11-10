@@ -199,7 +199,7 @@ julia> S = Spectrum(c)
 ℱ(⟨a′*a_0⟩)(ω)
 ```
 """
-function Spectrum(c::CorrelationFunction, ps=[]; w=SymbolicUtils.Sym{Parameter}(:ω), kwargs...)
+function Spectrum(c::CorrelationFunction, ps=[]; w=Parameter(:ω), kwargs...)
     c.steady_state || error("Cannot use Laplace transform when not in steady state! Use `CorrelationFunction(op1,op2,de0;steady_state=true)` or try computing the Fourier transform of the time evolution of the correlation function directly.")
     de = c.de
     de0 = c.de0
@@ -351,7 +351,7 @@ substitute(c::CorrelationFunction, args...; kwargs...) =
 
 function _make_parameter(s::Average)
     name = Symbol(string(s))
-    sym = SymbolicUtils.Sym{Parameter}(name)
+    sym = Parameter(name)
     return SymbolicUtils.setmetadata(sym, Symbolics.VariableSource, (:_make_parameter, name))
 end
 _make_parameter(s::SymbolicUtils.Symbolic{<:Parameter}) = s

@@ -53,9 +53,6 @@ function substitute_conj(t,vs′,vs′hash)
     end
 end
 
-# Conversion to ODESystem
-MTK.isparameter(::SymbolicUtils.Sym{<:Parameter}) = true
-
 function MTK.ODESystem(me::AbstractMeanfieldEquations, iv=me.iv; kwargs...)
     eqs = MTK.equations(me)
     return MTK.ODESystem(eqs, iv; kwargs...)
