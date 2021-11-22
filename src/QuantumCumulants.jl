@@ -4,6 +4,7 @@ import SymbolicUtils
 import SymbolicUtils: substitute
 
 import Symbolics
+import TermInterface
 
 import SciMLBase
 
