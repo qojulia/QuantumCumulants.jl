@@ -12,16 +12,18 @@ ModelingToolkit = "961ee093-0014-501f-94e3-6117800e7a78"
 SciMLBase = "0bca4576-84f4-4d90-8ffe-ffa030f20462"
 SymbolicUtils = "d1185830-fcd6-423d-90d6-eec64667417b"
 Symbolics = "0c5d862f-8b57-4792-8d23-62f2024744c7"
+TermInterface = "8ea1fca8-c5ef-4a55-8b96-4e9afe9c9a3c"
 
 [compat]
 Combinatorics = "1"
 LaTeXStrings = "1"
 Latexify = "0.13, 0.14, 0.15"
 MacroTools = "0.5"
-ModelingToolkit = "6"
+ModelingToolkit = "7"
 SciMLBase = "1"
-SymbolicUtils = "0.17"
-Symbolics = "3"
+SymbolicUtils = "0.18"
+Symbolics = "4"
+TermInterface = "0.2"
 julia = "1.6"
 
 [extras]

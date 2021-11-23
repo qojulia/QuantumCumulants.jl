@@ -41,6 +41,8 @@ Base.isless(a::QSym, b::QSym) = a.name < b.name
 
 ## Interface for SymbolicUtils
 
+TermInterface.exprhead(::QNumber) = :call
+
 # Symbolic type promotion
 SymbolicUtils.promote_symtype(f, Ts::Type{<:QNumber}...) = promote_type(Ts...)
 SymbolicUtils.promote_symtype(f, T::Type{<:QNumber}, Ts...) = T
@@ -98,7 +100,8 @@ Base.isless(a::QMul, b::QMul) = isless(a.h, b.h)
 
 SymbolicUtils.operation(::QMul) = (*)
 SymbolicUtils.arguments(a::QMul) = vcat(a.arg_c, a.args_nc)
-function SymbolicUtils.similarterm(::QMul, ::typeof(*), args; metadata=NO_METADATA)
+
+function SymbolicUtils.similarterm(::QMul, ::typeof(*), args; metadata=NO_METADATA, exprhead=nothing)
     args_c = filter(x->!(x isa QNumber), args)
     args_nc = filter(x->x isa QNumber, args)
     arg_c = *(args_c...)
@@ -218,7 +221,7 @@ end
 
 SymbolicUtils.operation(::QAdd) = (+)
 SymbolicUtils.arguments(a::QAdd) = a.arguments
-SymbolicUtils.similarterm(::QAdd, ::typeof(+), args; metadata=NO_METADATA) = QAdd(args; metadata)
+SymbolicUtils.similarterm(::QAdd, ::typeof(+), args; metadata=NO_METADATA, exprhead=nothing) = QAdd(args; metadata)
 
 SymbolicUtils.metadata(q::QAdd) = q.metadata
 
