@@ -106,7 +106,7 @@ To calculate the dynamics of the system we create a system of ordinary different
 
 
 ```@example superradiant-laser
-sys = ODESystem(eqs_c)
+@named sys = ODESystem(eqs_c)
 nothing # hide
 ```
 

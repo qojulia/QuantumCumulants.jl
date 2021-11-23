@@ -55,70 +55,71 @@ julia> σ = Transition(ha,:σ,:g,:e)
 σge
 ```
 """
-struct Transition{H,S,I,A} <: QSym
+struct Transition{H,S,I,A,M} <: QSym
     hilbert::H
     name::S
     i::I
     j::I
     aon::A
-    function Transition{H,S,I,A}(hilbert::H,name::S,i::I,j::I,aon::A) where {H,S,I,A}
+    metadata::M
+    function Transition{H,S,I,A,M}(hilbert::H, name::S, i::I, j::I, aon::A, metadata::M) where {H,S,I,A,M}
         @assert has_hilbert(NLevelSpace,hilbert,aon)
         @assert i∈levels(hilbert,aon) && j∈levels(hilbert,aon)
-        new(hilbert,name,i,j,aon)
+        new(hilbert, name, i, j, aon, metadata)
     end
 end
-function Transition(hilbert::H,name::S,i::I,j::I,aon::A) where {H,S,I,A}
+function Transition(hilbert::H, name::S, i::I, j::I, aon::A; metadata::M=NO_METADATA) where {H,S,I,A,M}
     gs = ground_state(hilbert, aon)
     if isequal(i,j) && isequal(i,gs)
         args = Any[1]
         for k∈levels(hilbert, aon)
             isequal(k,gs) && continue
-            push!(args, QMul(-1, [Transition{H,S,I,A}(hilbert,name,k,k,aon)]))
+            push!(args, QMul(-1, [Transition{H,S,I,A,M}(hilbert, name, k, k, aon, metadata)]))
         end
         return QAdd(args)
     else
-        return Transition{H,S,I,A}(hilbert,name,i,j,aon)
+        return Transition{H,S,I,A,M}(hilbert, name, i, j, aon, metadata)
     end
 end
-Transition(hilbert::NLevelSpace,name,i,j) = Transition(hilbert,name,i,j,1)
-function Transition(hilbert::ProductSpace,name,i,j)
+Transition(hilbert::NLevelSpace,name,i,j; metadata=NO_METADATA) = Transition(hilbert,name,i,j,1; metadata)
+function Transition(hilbert::ProductSpace,name,i,j; metadata=NO_METADATA)
     inds = findall(x->isa(x,NLevelSpace) || isa(x,ClusterSpace{<:NLevelSpace}),hilbert.spaces)
     if length(inds)==1
-        return Transition(hilbert,name,i,j,inds[1])
+        return Transition(hilbert,name,i,j,inds[1]; metadata)
     else
         isempty(inds) && error("Can only create Transition on NLevelSpace! Not included in $(hilbert)")
         length(inds)>1 && error("More than one NLevelSpace in $(hilbert)! Specify on which Hilbert space Transition should be created with Transition(hilbert,name,i,j,acts_on)!")
     end
 end
-function Transition(hilbert::H,name::S,i::I,j::I,aon::A) where {H<:ProductSpace,S,I,A<:Int}
+function Transition(hilbert::H,name::S,i::I,j::I,aon::A; metadata::M=NO_METADATA) where {H<:ProductSpace,S,I,A<:Int,M}
     if hilbert.spaces[aon] isa ClusterSpace
         hilbert.spaces[get_i(aon)].op_name[] = name # write original name of operator into hilbertspace
-        op = Transition(hilbert.spaces[aon].original_space,name,i,j,1)
-        return _cluster(hilbert, op, aon)
+        op = Transition(hilbert.spaces[aon].original_space,name,i,j,1; metadata)
+        return _cluster(hilbert, op, aon) # TODO maybe need metadata?
     else
         gs = ground_state(hilbert, aon)
         if isequal(i,j) && isequal(i,gs)
             args = Any[1]
             for k∈levels(hilbert, aon)
                 isequal(k,gs) && continue
-                push!(args, QMul(-1, [Transition{H,S,I,A}(hilbert,name,k,k,aon)]))
+                push!(args, QMul(-1, [Transition{H,S,I,A,M}(hilbert,name,k,k,aon,metadata)]))
             end
             return QAdd(args)
         else
-            return Transition{H,S,I,A}(hilbert,name,i,j,aon)
+            return Transition{H,S,I,A,M}(hilbert,name,i,j,aon,metadata)
         end
     end
 end
-function Transition(h::ClusterSpace{<:NLevelSpace}, name, i, j, aon::Int=1)
+function Transition(h::ClusterSpace{<:NLevelSpace}, name, i, j, aon::Int=1; metadata=NO_METADATA)
     hilbert.spaces[get_i(aon)].op_name[] = name
-    op = Transition(hilbert.original_space,name,i,j,aon)
-    return _cluster(h,op,aon)
+    op = Transition(hilbert.original_space,name,i,j,aon; metadata)
+    return _cluster(h,op,aon) # TODO maybe need metadata?
 end
 
 levels(t::Transition,args...) = levels(t.hilbert,args...)
 ground_state(t::Transition,args...) = ground_state(t.hilbert,args...)
 
-Base.adjoint(t::Transition) = Transition(t.hilbert,t.name,t.j,t.i,acts_on(t))
+Base.adjoint(t::Transition) = Transition(t.hilbert,t.name,t.j,t.i,acts_on(t); t.metadata)
 Base.isequal(t1::Transition,t2::Transition) = isequal(t1.hilbert, t2.hilbert) && isequal(t1.name,t2.name) && isequal(t1.i,t2.i) && isequal(t1.j,t2.j) && isequal(t1.aon,t2.aon)
 Base.hash(t::Transition, h::UInt) = hash(t.hilbert, hash(t.name, hash(t.i, hash(t.j, hash(t.aon, h)))))
 
@@ -141,24 +142,25 @@ julia> σ(:g,:e)
 σge
 ```
 """
-struct CallableTransition{H,S,A}
+struct CallableTransition{H,S,A,M}
     hilbert::H
     name::S
     aon::A
+    metadata::M
 end
 
 acts_on(c::CallableTransition) = c.aon
 
 function (c::CallableTransition)(i, j)
-    Transition(c.hilbert, c.name, i, j, c.aon)
+    Transition(c.hilbert, c.name, i, j, c.aon; c.metadata)
 end
 
-Transition(hilbert, name, aon) = CallableTransition(hilbert, name, aon)
-Transition(hilbert::NLevelSpace, name) = CallableTransition(hilbert, name, 1)
-function Transition(hilbert::ProductSpace,name)
+Transition(hilbert, name, aon; metadata=NO_METADATA) = CallableTransition(hilbert, name, aon, metadata)
+Transition(hilbert::NLevelSpace, name; metadata=NO_METADATA) = CallableTransition(hilbert, name, 1, metadata)
+function Transition(hilbert::ProductSpace,name; metadata=NO_METADATA)
     inds = findall(x->isa(x,NLevelSpace),hilbert.spaces)
     if length(inds)==1
-        return CallableTransition(hilbert,name,inds[1])
+        return CallableTransition(hilbert,name,inds[1],metadata)
     else
         isempty(inds) && error("Can only create Transition on NLevelSpace! Not included in $(hilbert)")
         length(inds)>1 && error("More than one NLevelSpace in $(hilbert)! Specify on which Hilbert space Transition should be created with Transition(hilbert,name,i,j,acts_on)!")

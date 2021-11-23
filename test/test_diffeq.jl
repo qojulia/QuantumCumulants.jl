@@ -31,7 +31,7 @@ subs = Dict([missed; QuantumCumulants._conj.(missed)] .=> 0)
 he_nophase = substitute(he_exp, subs)
 @test isempty(find_missing(he_nophase))
 
-sys = ODESystem(he_nophase)
+@named sys = ODESystem(he_nophase)
 
 # Numerical solution
 p0 = ps .=> [0.0,0.5,1.0,0.1,0.9]

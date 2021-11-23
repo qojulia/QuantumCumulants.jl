@@ -1,5 +1,5 @@
 # Relevant parts of ODESystem interface
-MTK.independent_variable(me::AbstractMeanfieldEquations) = me.iv
+MTK.get_iv(me::AbstractMeanfieldEquations) = me.iv
 MTK.states(me::AbstractMeanfieldEquations) = me.states
 
 function MTK.equations(me::AbstractMeanfieldEquations)
@@ -28,7 +28,7 @@ function MTK.equations(me::AbstractMeanfieldEquations)
     vs_mtk = getindex.(varmap, 2)
 
     # Return equations
-    t = MTK.independent_variable(me)
+    t = MTK.get_iv(me)
     D = MTK.Differential(t)
     return [Symbolics.Equation(D(vs_mtk[i]), rhs[i]) for i=1:length(vs)]
 end
@@ -52,9 +52,6 @@ function substitute_conj(t,vs′,vs′hash)
         return t
     end
 end
-
-# Conversion to ODESystem
-MTK.isparameter(::SymbolicUtils.Sym{<:Parameter}) = true
 
 function MTK.ODESystem(me::AbstractMeanfieldEquations, iv=me.iv; kwargs...)
     eqs = MTK.equations(me)

@@ -23,7 +23,7 @@ he_avg = cumulant_expansion(he_laser,2)
 he_comp = complete(he_avg)
 
 ps = (Δ, g, γ, κ, ν)
-sys = ODESystem(he_comp)
+@named sys = ODESystem(he_comp)
 
 # Numerical solution
 # p0 = [0.0,0.5,1.0,0.1,0.9]
@@ -43,7 +43,7 @@ pe = getindex.(sol.u,2)
 
 # Correlation function
 c_steady = CorrelationFunction(a', a, he_comp; steady_state=true)
-csys = ODESystem(c_steady)
+@named csys = ODESystem(c_steady)
 
 u0_c = correlation_u0(c_steady, sol.u[end])
 p0_c = correlation_p0(c_steady, sol.u[end], p0)
@@ -109,14 +109,14 @@ eqs = meanfield([σ(:e,:g),σ(:e,:e)], H, J; rates=[γ])
 ps = (Δ,Ω,γ)
 p0 = (20.0,5.0,1.0)
 u0 = zeros(ComplexF64, 2)
-sys = ODESystem(eqs)
+@named sys = ODESystem(eqs)
 prob = ODEProblem(sys,u0,(0.0,20.0),ps .=> p0)
 sol = solve(prob,RK4())
 
 @test sol.retcode == :Success
 
 c = CorrelationFunction(σ(:e,:g), σ(:g,:e), eqs; steady_state=true)
-csys = ODESystem(c)
+@named csys = ODESystem(c)
 cu0 = correlation_u0(c, sol.u[end])
 @test length(cu0) == 3
 cp0 = correlation_p0(c, sol.u[end], ps .=> p0)
@@ -129,7 +129,7 @@ csol = solve(cprob, RK4())
 
 # Mollow when not in steady state
 c = CorrelationFunction(σ(:e,:g), σ(:g,:e), eqs; steady_state=false)
-csys = ODESystem(c)
+@named csys = ODESystem(c)
 cu0 = correlation_u0(c, sol.u[end])
 @test length(cu0) == 3
 cp0 = correlation_p0(c, sol.u[end], ps .=> p0)
@@ -147,7 +147,7 @@ a = Destroy(h,:a)
 H = ωc*a'*a
 he = meanfield(a'*a,H,[a];rates=[κ])
 ps = (ωc,κ)
-sys = ODESystem(he)
+@named sys = ODESystem(he)
 n0 = 20.0
 u0 = [n0]
 p0 = (1,1)
@@ -155,7 +155,7 @@ prob = ODEProblem(sys,u0,(0.0,10.0),p0)
 sol = solve(prob,RK4())
 
 c = CorrelationFunction(a', a, he)
-csys = ODESystem(c)
+@named csys = ODESystem(c)
 idx = 5
 u0_c = correlation_u0(c, sol.u[idx])
 prob_c = ODEProblem(csys,u0_c,(0.0,10.0),p0)

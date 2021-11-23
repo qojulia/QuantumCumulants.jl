@@ -48,7 +48,7 @@ he_nophase = substitute(he, subs)
 
 eqs_mtk = equations(he_nophase)
 
-sys = ODESystem(he_nophase)
+@named sys = ODESystem(he_nophase)
 
 u0 = zeros(ComplexF64, length(ops))
 p0 = [κ => 1,
@@ -93,7 +93,7 @@ complete!(he_n;filter_func=phase_invariant)
 @test isempty(find_missing(he_n))
 
 
-sys_comp = ODESystem(he_n)
+@named sys_comp = ODESystem(he_n)
 prob_comp = ODEProblem(sys_comp,u0,(0.0,10.0),p0)
 
 sol_comp = solve(prob_comp,RK4())

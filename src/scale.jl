@@ -383,9 +383,11 @@ function _swap_aon_and_name(t::QMul, aon1, aon2, names)
     sort!(args, by=acts_on)
     return QMul(t.arg_c, args)
 end
-_swap_aon_and_name(op::T, aon1, aon2, name::Symbol) where T<:QSym = T(op.hilbert, name, aon2)
+for T in (:Create, :Destroy)
+    @eval _swap_aon_and_name(op::$(T), aon1, aon2, name::Symbol) = $(T)(op.hilbert, name, aon2; op.metadata)
+end
 function _swap_aon_and_name(op::Transition, aon1, aon2, name::Symbol)
-    Transition(op.hilbert, name, op.i, op.j, aon2)
+    Transition(op.hilbert, name, op.i, op.j, aon2; op.metadata)
 end
 _swap_aon_and_name(op::QSym, aon1, aon2, names) = _swap_aon_and_name(op, aon1, aon2, _get_names(names, aon2))
 

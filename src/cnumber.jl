@@ -12,8 +12,9 @@ Type used as symbolic type in a `SymbolicUtils.Sym` variable to represent
 a parameter.
 """
 struct Parameter <: CNumber
-    function Parameter(name)
-        return SymbolicUtils.Sym{Parameter}(name)
+    function Parameter(name; metadata=source_metadata(:Parameter, name))
+        s = SymbolicUtils.Sym{Parameter, typeof(metadata)}(name, metadata)
+        return SymbolicUtils.setmetadata(s, MTK.MTKParameterCtx, true)
     end
 end
 
@@ -42,7 +43,8 @@ macro cnumbers(ps...)
     for p in ps
         @assert p isa Symbol
         push!(pnames, p)
-        ex_ = Expr(:(=), esc(p), Expr(:call, :Parameter, Expr(:quote, p)))
+        d = source_metadata(:cnumbers, p)
+        ex_ = Expr(:(=), esc(p), Expr(:call, :Parameter, Expr(:quote, p), Expr(:kw, :metadata, Expr(:quote, d))))
         push!(ex.args, ex_)
     end
     push!(ex.args, Expr(:tuple, map(esc, pnames)...))
@@ -66,7 +68,7 @@ true
 ```
 """
 function cnumbers(syms::Symbol...)
-    ps = Tuple(Parameter(s) for s in syms)
+    ps = Tuple(Parameter(s; metadata=source_metadata(:cnumbers, s)) for s in syms)
     return ps
 end
 function cnumbers(s::String)

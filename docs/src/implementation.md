@@ -206,7 +206,7 @@ To obtain an `ODESystem` from [`MeanfieldEquations`](@ref), you simply need to c
 
 ```@example meanfield
 using ModelingToolkit
-sys = ODESystem(me)
+@named sys = ODESystem(me)
 nothing # hide
 ```
 
@@ -253,23 +253,39 @@ struct Position <: QSym
     hilbert
     name
     aon
+    metadata
 end
+Position(hilbert, name, aon; metadata=QuantumCumulants.source_metadata(:Position, name)) =
+    Position(hilbert, name, aon, metadata)
 
 struct Momentum <: QSym
     hilbert
     name
     aon
+    metadata
 end
+Momentum(hilbert, name, aon; metadata=QuantumCumulants.source_metadata(:Momentum, name)) =
+    Momentum(hilbert, name, aon, metadata)
 ```
 
-Note that any subtype to [`QSym`](@ref) needs to have the three fields shown above. More fields could be added, but the three shown here are always required. Now, for the methods we simply need:
+Note that any subtype to [`QSym`](@ref) needs to have the four fields shown above, and the 
+associated outer constructor. The outer constructor is needed for the interface to 
+Symbolics.jl. More fields could be added, but the four shown here are always required. 
+Now, for methods we simply need:
 
 ```@example custom-operators
 QuantumCumulants.ismergeable(::Position,::Momentum) = true
 Base.:*(x::Position,p::Momentum) = im + p*x
+for T in (:Position, :Momentum)
+    @eval Base.isequal(a::$T, b::$T) = isequal(a.hilbert, b.hilbert) && isequal(a.name, b.name) && isequal(a.aon, b.aon)
+end
 ```
 
-And that's it. We can now use our new operator types in expressions and derive equations of motion for them.
+The `Base.isequal` methods do not compare metadata fields. Note that if your subtypes of 
+[`QSym`](@ref) have type parameters, you must also implement a method of `Base.hash` such 
+that `isequal(x,y)` implies `hash(x) == hash(y)`.
+
+We can now use our new operator types in expressions and derive equations of motion for them.
 
 ```@example custom-operators
 h = FockSpace(:oscillator)
