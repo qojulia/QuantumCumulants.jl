@@ -100,6 +100,7 @@ Base.isless(a::QMul, b::QMul) = isless(a.h, b.h)
 
 SymbolicUtils.operation(::QMul) = (*)
 SymbolicUtils.arguments(a::QMul) = vcat(a.arg_c, a.args_nc)
+
 function SymbolicUtils.similarterm(::QMul, ::typeof(*), args; metadata=NO_METADATA, exprhead=nothing)
     args_c = filter(x->!(x isa QNumber), args)
     args_nc = filter(x->x isa QNumber, args)
