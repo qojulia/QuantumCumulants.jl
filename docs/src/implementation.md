@@ -266,6 +266,7 @@ struct Momentum <: QSym
 end
 Momentum(hilbert, name, aon; metadata=QuantumCumulants.source_metadata(:Momentum, name)) =
     Momentum(hilbert, name, aon, metadata)
+nothing # hide
 ```
 
 Note that any subtype to [`QSym`](@ref) needs to have the four fields shown above, and the 
