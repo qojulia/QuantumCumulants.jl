@@ -29,4 +29,16 @@ H = ωc*a'*a
 da = simplify(1.0im*(H*a - a*H))
 @test isequal(da , (0.0-1.0im)*ωc*a)
 
+# Test substitute by numbers
+@syms x
+@test iszero(substitute(x*a, Dict(x=>0)))
+@test isequal(substitute(x*a, Dict(x=>1)), a)
+@test iszero(substitute(x*a, Dict(a=>0)))
+
+# Test substitute by syms
+@syms y
+@test isequal(substitute(x*a, Dict(x=>y)), y*a)
+@test isequal(substitute(x*a, Dict(a=>y)), x*y)
+@test isequal(substitute(x*(a+a'), Dict(x => y)), y*(a + a'))
+
 end # testset
