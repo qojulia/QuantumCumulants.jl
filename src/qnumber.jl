@@ -42,6 +42,9 @@ Base.isless(a::QSym, b::QSym) = a.name < b.name
 ## Interface for SymbolicUtils
 
 TermInterface.exprhead(::QNumber) = :call
+TermInterface.istree(::QSym) = false
+TermInterface.istree(::QTerm) = true
+TermInterface.istree(::Type{T}) where {T<:QTerm} = true
 
 # Symbolic type promotion
 SymbolicUtils.promote_symtype(f, Ts::Type{<:QNumber}...) = promote_type(Ts...)
@@ -51,9 +54,6 @@ SymbolicUtils.promote_symtype(f,T::Type{<:Number},S::Type{<:QNumber}) = S
 SymbolicUtils.promote_symtype(f,T::Type{<:QNumber},S::Type{<:QNumber}) = promote_type(T,S)
 
 SymbolicUtils.symtype(x::T) where T<:QNumber = T
-
-SymbolicUtils.istree(::QSym) = false
-SymbolicUtils.istree(::QTerm) = true
 
 # Standard simplify
 function SymbolicUtils.simplify(x::QNumber;kwargs...)
