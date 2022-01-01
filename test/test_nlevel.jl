@@ -64,4 +64,6 @@ s = Transition(hprod,:σ,1)
 @test s(:g,:e) == σ1
 @test acts_on(Transition(ha2,:s))==1
 
+@test_throws ArgumentError NLevelSpace(:atom, (:g,:e), 1)
+
 end # testset

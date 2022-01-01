@@ -23,7 +23,12 @@ struct NLevelSpace{S,L,G} <: ConcreteHilbertSpace
     name::S
     levels::L
     GS::G
+    function NLevelSpace{S,L,G}(name::S, levels::L, GS::G) where {S,L,G}
+        (GS ∈ levels) || throw(ArgumentError("Ground state $GS not in levels $levels"))
+        return new(name, levels, GS)
+    end
 end
+NLevelSpace(name::S, levels::L, GS::G) where {S,L,G} = NLevelSpace{S,L,G}(name, levels, GS)
 NLevelSpace(name,N::Int,GS) = NLevelSpace(name,1:N,GS)
 NLevelSpace(name,N::Int) = NLevelSpace(name,1:N,1)
 NLevelSpace(name,levels) = NLevelSpace(name,levels,levels[1])
