@@ -17,6 +17,8 @@ pages = [
             "examples/optomechanical-cooling.md"
             "examples/superradiant-laser.md"
             "examples/excitation-transport-chain.md"
+            "examples/cavity_antiresonance.md"
+            "examples/ramsey_spectroscopy.md"
             ]
     ]
 
