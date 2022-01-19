@@ -1,6 +1,6 @@
 name = "QuantumCumulants"
 uuid = "35bcea6d-e19f-57db-af74-8011de6c7255"
-version = "0.2.3"
+version = "0.2.4"
 
 [deps]
 Combinatorics = "861a8166-3701-5b0c-9a16-15d98fcdc6aa"
@@ -19,7 +19,7 @@ Combinatorics = "1"
 LaTeXStrings = "1"
 Latexify = "0.13, 0.14, 0.15"
 MacroTools = "0.5"
-ModelingToolkit = "7, 8"
+ModelingToolkit = "7, 8 - 8.2.0"
 SciMLBase = "1"
 SymbolicUtils = "0.18, 0.19"
 Symbolics = "4"
