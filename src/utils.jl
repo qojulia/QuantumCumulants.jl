@@ -294,6 +294,164 @@ function unique_ops!(ops)
     return ops
 end
 
+
+# Conversion to numerics
+
+"""
+    to_numeric(q::QNumber, b::QuantumOpticsBase.Basis; level_map = nothing)
+    to_numeric(q::QNumber, state; level_map = nothing)
+
+Convert a symbolic operator `q` to its equivalent numeric (matrix) form on the
+basis `b`. The optional argument `level_map` can be set to a dictionary that
+specifies how to map levels of a [`Transition`](@ref) to the ones given
+in an `NLevelBasis`. **Note:** If the levels of a transition are symbolic,
+setting `level_map` is required.
+
+See also: [`numeric_average`](@ref), [`initial_values`](@ref)
+
+Examples
+========
+
+julia> to_numeric(Destroy(FockSpace(:fock), :a), FockBasis(10))
+Operator(dim=11x11)
+  basis: Fock(cutoff=10)[...]
+
+"""
+function to_numeric(op::QSym, b::QuantumOpticsBase.Basis; kwargs...)
+    check_basis_match(op.hilbert, b)
+    return _to_numeric(op, b; kwargs...)
+end
+
+_to_numeric(op::Destroy, b::QuantumOpticsBase.FockBasis; kwargs...) = QuantumOpticsBase.destroy(b)
+_to_numeric(op::Create, b::QuantumOpticsBase.FockBasis; kwargs...) = QuantumOpticsBase.create(b)
+function _to_numeric(op::Transition, b::QuantumOpticsBase.NLevelBasis; kwargs...)
+    i, j = _convert_levels(op; kwargs...)
+    return QuantumOpticsBase.transition(b, i, j)
+end
+
+function _convert_levels(op; level_map = nothing)
+    i, j = op.i, op.j
+    if level_map === nothing
+        if (!(i isa Number) || !(j isa Number))
+            throw(ArgumentError("Mapping from symbolic levels $(i) and $(j) to NLevelBasis requires kwarg level_map to be set"))
+        end
+        return op.i, op.j  # assume mapping between integers is just equal
+    else
+        i = level_map[op.i]
+        j = level_map[op.j]
+        return i, j
+    end
+end
+
+check_basis_match(h, b) = throw(ArgumentError("Hilbert space $h and basis $b are incompatible!"))
+check_basis_match(::FockSpace, ::QuantumOpticsBase.FockBasis) = nothing
+function check_basis_match(h::NLevelSpace, b::QuantumOpticsBase.NLevelBasis)
+    if length(h.levels) != length(b)
+        throw(ArgumentError("Hilbert space $h and basis $b have incompatible levels!"))
+    end
+end
+
+function check_basis_match(h::ProductSpace, b::QuantumOpticsBase.CompositeBasis)
+    length(h.spaces) == length(b.bases) || throw(ArgumentError("Hilbert space $h and basis $b don't have the same number of subspaces!"))
+    for (h_, b_) ∈ zip(h.spaces, b.bases)
+        check_basis_match(h_, b_)
+    end
+end
+
+# function check_basis_match
+
+# Composite bases
+function to_numeric(op::QSym, b::QuantumOpticsBase.CompositeBasis; kwargs...)
+    check_basis_match(op.hilbert, b)
+    aon = acts_on(op)
+    op_num = _to_numeric(op, b.bases[aon]; kwargs...)
+    return QuantumOpticsBase.embed(b, aon, op_num)
+end
+
+# Symbolic expressions
+function to_numeric(op::QTerm, b::QuantumOpticsBase.Basis; kwargs...)
+    f = SymbolicUtils.operation(op)
+    args = SymbolicUtils.arguments(op)
+    if f === (*)
+        if isone(args[1])
+            deleteat!(args, 1)
+        end
+        args_num = [to_numeric(arg, b; kwargs...) for arg ∈ args]
+        op_num = one(b)
+        tmp = QuantumOpticsBase.SparseOperator(b)
+        for arg ∈ args_num
+            mul!(tmp, op_num, arg)
+            op_num = tmp
+        end
+    elseif f === (+)
+        if iszero(args[1])
+            deleteat!(args, 1)
+        end
+        args_num = [to_numeric(arg, b; kwargs...) for arg ∈ args]
+        op_num = QuantumOpticsBase.SparseOperator(b)
+        for arg ∈ args_num
+            op_num.data .+= arg.data
+        end
+    elseif f === (-)
+        args_num = [to_numeric(arg, b; kwargs...) for arg ∈ args]
+        op_num = QuantumOpticsBase.SparseOperator(b)
+        for arg ∈ args_num
+            op_num.data .-= arg.data
+        end
+    else
+        args_num = [to_numeric(arg, b; kwargs...) for arg ∈ args]
+        op_num = f(args_num...)
+    end
+    return op_num
+end
+
+function to_numeric(x::Number, b::QuantumOpticsBase.Basis; kwargs...)
+    op = one(b)
+    rmul!(op, x)
+    return op
+end
+
+
+"""
+    numeric_average(avg::Average, state; level_map = nothing)
+    numeric_average(q::QNumber, state; level_map = nothing)
+
+From a symbolic average `avg` or operator `q`, compute the corresponding
+numerical average value with the given quantum state `state`. This state
+can either be of type `QuantumOpticsBase.StateVector` or `QuantumOpticsBase.Operator`.
+
+See also: [`initial_values`](@ref), [`to_numeric`](@ref)
+"""
+function numeric_average(avg::Average, state; kwargs...)
+    op = undo_average(avg)
+    return numeric_average(op, state; kwargs...)
+end
+to_numeric(op::QNumber, state; kwargs...) = to_numeric(op, QuantumOpticsBase.basis(state); kwargs...)
+
+function numeric_average(op::QNumber, state; kwargs...)
+    op_num = to_numeric(op, state; kwargs...)
+    return QuantumOpticsBase.expect(op_num, state)
+end
+
+"""
+    initial_values(eqs::MeanfieldEquations, state; level_map = nothing)
+
+For a set of symbolic equations `eqs` compute the initial state average values
+corresponding to the numeric quantum state `state` of the system. The quantum
+state can either be of type `QuantumOpticsBase.StateVector` or `QuantumOpticsBase.Operator`.
+
+See also: [`to_numeric`](@ref), [`numeric_average`](@ref)
+"""
+function initial_values(de::MeanfieldEquations, state; kwargs...)
+    vs = de.states
+    vals = eltype(state)[]
+    for v ∈ vs
+        push!(vals, numeric_average(v, state; kwargs...))
+    end
+    return vals
+end
+
+
 # Overload getindex to obtain solutions with averages
 for T ∈ [:AbstractTimeseriesSolution,:AbstractNoTimeSolution]
     @eval function Base.getindex(sol::SciMLBase.$(T), avg::SymbolicUtils.Term{<:AvgSym})

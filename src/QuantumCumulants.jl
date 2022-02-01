@@ -12,6 +12,10 @@ import ModelingToolkit
 const MTK = ModelingToolkit
 
 using Combinatorics: partitions, combinations
+using LinearAlgebra
+
+using QuantumOpticsBase
+import QuantumOpticsBase: ⊗, tensor
 
 export HilbertSpace, ProductSpace, ⊗, tensor,
         QSym, QTerm, @qnumbers,
@@ -22,7 +26,7 @@ export HilbertSpace, ProductSpace, ⊗, tensor,
         CNumber, Parameter, @cnumbers, cnumbers,
         Average, average, cumulant_expansion, get_order, cumulant,
         find_missing, complete, complete!, find_operators, fundamental_operators,
-            unique_ops, unique_ops!,
+            unique_ops, unique_ops!, to_numeric, numeric_average, initial_values,
         CorrelationFunction, Spectrum, correlation_u0, correlation_p0,
         ClusterSpace,
         scale,
