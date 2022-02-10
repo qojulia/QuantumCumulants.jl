@@ -90,7 +90,7 @@ meanfield(a::Vector,H;kwargs...) = meanfield(a,H,[];Jdagger=[],kwargs...)
 function _master_lindblad(a_,J,Jdagger,rates)
     args = Any[]
     for k=1:length(J)
-        if isa(rates[k],SymbolicUtils.Sym) || isa(rates[k],Number)
+        if isa(rates[k],SymbolicUtils.Symbolic) || isa(rates[k],Number) || isa(rates[k],Function)
             c1 = 0.5*rates[k]*Jdagger[k]*commutator(a_,J[k])
             c2 = 0.5*rates[k]*commutator(Jdagger[k],a_)*J[k]
             push_or_append_nz_args!(args, c1)
