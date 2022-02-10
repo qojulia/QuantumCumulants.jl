@@ -1,5 +1,6 @@
 using QuantumCumulants
 using SymbolicUtils
+using ModelingToolkit
 using Test
 
 @testset "parameters" begin
@@ -50,6 +51,8 @@ he_laser = meanfield([a'*a,σ'*σ,a'*σ],H,J;rates=[κ,γ,ν])
 @test iszero(simplify(he_laser.operator_equations[1].rhs - ((-κ)*a'*a + (-1im*g)*a'*σ + (1im*g)*a*σ')))
 @test iszero(simplify(he_laser.operator_equations[2].rhs - (ν + (-ν - γ)*σee + (1im*g)*a'*σ + (-1im*g)*a*σ'); expand=true))
 # @test iszero(simplify(he_laser.operator_equations[3].rhs - ((1im*g)*σee + (-1im*g)*a'*a + (1im*ωc + -1im*ωa - 0.5*(κ + γ + ν))*a'*σ + (2im*g)*a'*a*σee); expand=true))
+
+
 
 # Test sorting of longer term
 @cnumbers λ Γ N
