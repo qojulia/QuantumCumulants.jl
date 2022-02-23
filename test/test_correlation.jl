@@ -150,7 +150,7 @@ ps = (ωc,κ)
 @named sys = ODESystem(he)
 n0 = 20.0
 u0 = [n0]
-p0 = (1,1)
+p0 = (1 + 0im, 1 + 0im)
 prob = ODEProblem(sys,u0,(0.0,10.0),p0)
 sol = solve(prob,RK4())
 
