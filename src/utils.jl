@@ -376,31 +376,17 @@ function to_numeric(op::QTerm, b::QuantumOpticsBase.Basis; kwargs...)
         if isone(args[1])
             deleteat!(args, 1)
         end
-        args_num = [to_numeric(arg, b; kwargs...) for arg ∈ args]
         op_num = one(b)
         tmp = QuantumOpticsBase.SparseOperator(b)
-        for arg ∈ args_num
-            mul!(tmp, op_num, arg)
+        for arg ∈ args
+            mul!(tmp, op_num, to_numeric(arg, b; kwargs...))
             op_num = tmp
         end
-    elseif f === (+)
-        if iszero(args[1])
-            deleteat!(args, 1)
-        end
-        args_num = [to_numeric(arg, b; kwargs...) for arg ∈ args]
-        op_num = QuantumOpticsBase.SparseOperator(b)
-        for arg ∈ args_num
-            op_num.data .+= arg.data
-        end
-    elseif f === (-)
-        args_num = [to_numeric(arg, b; kwargs...) for arg ∈ args]
-        op_num = QuantumOpticsBase.SparseOperator(b)
-        for arg ∈ args_num
-            op_num.data .-= arg.data
-        end
     else
-        args_num = [to_numeric(arg, b; kwargs...) for arg ∈ args]
-        op_num = f(args_num...)
+        op_num = to_numeric(args[1], b; kwargs...)
+        for arg ∈ args[2:end]
+            op_num = f(op_num, to_numeric(arg, b; kwargs...))
+        end
     end
     return op_num
 end
