@@ -96,7 +96,7 @@ struct QMul{M} <: QTerm
 end
 QMul(arg_c, args_nc; metadata::M=NO_METADATA) where {M} = QMul{M}(arg_c, args_nc, metadata)
 Base.hash(q::QMul, h::UInt) = hash(QMul, hash(q.arg_c, SymbolicUtils.hashvec(q.args_nc, h)))
-Base.isless(a::QMul, b::QMul) = isless(a.h, b.h)
+#Base.isless(a::QMul, b::QMul) = isless(a.h, b.h)
 
 SymbolicUtils.operation(::QMul) = (*)
 SymbolicUtils.arguments(a::QMul) = vcat(a.arg_c, a.args_nc)

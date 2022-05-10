@@ -212,8 +212,12 @@ function _cumulant_expansion(args::Vector,order::Int)
                 if length(p_) > order # If the encountered moment is larger than order, apply expansion
                     push!(args_prod, _cumulant_expansion(p_, order))
                 else # Else, average and add its product
-                    op_ = QMul(1, p_)
-                    push!(args_prod, _average(op_))
+                    #op_ = QMul(1, p_) # <- this will NOT simplify the output
+                    op_ = merge_commutators(1,p_) #<- this will simplify the output
+                    #normally this is completely fine the way it was, however for indexed operators, some of the cumulants after the expansion will commute in another way,
+                    #as they did before, since the order of indices inside the multiplication may change, leading to inaccurate results
+                    #push!(args_prod, _average(op_)) changed this line to be more general
+                    push!(args_prod, average(op_))
                 end
             end
             # Add terms in sum
