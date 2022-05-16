@@ -6,6 +6,7 @@ include("doubleSums.jl")
 #function that takes indexed operators and double indexed varaibles to calculate the meanfield equations
 #the jump operators have to have same indices as the indices specified by the double indexed variable
 function indexedMeanfield(a::Vector,H,J;Jdagger::Vector=adjoint.(J),rates=ones(Int,length(J)),
+    extraIndices::Vector{Index}=Index[],
     multithread=false,
     simplify=true,
     order=nothing,
@@ -68,8 +69,6 @@ function indexed_master_lindblad(a_,J,Jdagger,rates_)
             if J[k][2].ind != rates[k].metadata.ind2
                 error("unequal index of second jump operator and variable")
             end
-            #c = 0.5*rates[k]*(2*Jdagger[k][1]*a_*J[k][2] - Jdagger[k][1]*J[k][2]*a_ - a_*Jdagger[k][1]*J[k][2])
-            #c = 0.5*rates[k]*(2*J[k][1]*a_*Jdagger[k][2] - Jdagger[k][1]*J[k][2]*a_ - a_*Jdagger[k][1]*J[k][2])
             c1 = Jdagger[k][1]*commutator(a_,J[k][2])
             c2 = commutator(Jdagger[k][1],a_)*J[k][2]
             c = 0.5*rates[k]*(c1+c2)
@@ -212,7 +211,8 @@ function indexedComplete!(de::AbstractMeanfieldEquations;
 
     return de
 end
-
+# TODO: remove the q-index dependency and use user-input on higher order expansion
+# Function for extending find_missing function onto summation terms
 function findMissingSumTerms(missed,de::MeanfieldEquations)
     missed_ = copy(missed)
     indices = nothing #gets initial indices, that are on the lhs
@@ -241,6 +241,7 @@ function findMissingSumTerms(missed,de::MeanfieldEquations)
     return missed_
 end
 
+#Utility Functions
 function sortByIndex(term::Term{AvgSym, Nothing})
     arg = arguments(term)[1]
     if typeof(arg) <: QMul
@@ -250,7 +251,6 @@ function sortByIndex(term::Term{AvgSym, Nothing})
     end
     return term
 end
-
 #checks if there is a sum (or multiple) in the equation rhs term, if so it returns the sums (as symbol) as a vector
 function checkIfSum(term)
     sums = Any[]
@@ -264,7 +264,6 @@ function checkIfSum(term)
     end
     return sums
 end
-
 function getOps(ops::Term{AvgSym, Nothing})
     args = arguments(ops)[1]
     if typeof(args) <: QMul 
@@ -273,7 +272,6 @@ function getOps(ops::Term{AvgSym, Nothing})
         return typeof(args) == IndexedOperator ? Any[args.op] : Any[args]
     end
 end
-
 function getOps(ops::QMul)
     arr = Any[]
     for arg in ops.args_nc
@@ -285,9 +283,7 @@ function getOps(ops::QMul)
     end
     return arr
 end
-
 getOps(x) = Vector{Vector{Any}}()
-
 function isNotIn(terms::Vector{Any},vects::Vector{Vector{Any}})
     for vect in vects
         if isequal(terms,vect)

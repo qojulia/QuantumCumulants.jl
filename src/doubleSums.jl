@@ -34,17 +34,6 @@ struct IndexedDoubleSum <:QTerm
                         push!(NEI_,index)
                     end 
                 end
-                #=
-                indexMapping = Tuple{Index,Index}[]
-                for ind in NEI
-                    push!(indexMapping,(sumIndex,ind))
-                end
-                for ind in innerSum.nonEqualIndices
-                    push!(indexMapping,(innerSum.sumIndex, ind))
-                end
-                newTerm = reorder(innerSum.term,indexMapping)
-                newSum = IndexedSingleSum(newTerm,innerSum.sumIndex,Index[])
-                =#
                 indicesToOrder = sort([innerSum.sumIndex,sumIndex],by=getIndName)
                 newargs = orderByIndex(innerSum.term.args_nc,indicesToOrder)
                 qmul = merge_commutators(innerSum.term.arg_c,newargs)
@@ -92,7 +81,7 @@ function IndexedDoubleSum(term::QMul,outerInd::Index,innerInd::Index,ne::Bool)
 end
 
 hilbert(elem::IndexedDoubleSum) = hilbert(elem.sumIndex)
-
+#adds
 +(sum1::IndexedDoubleSum, sum2::IndexedDoubleSum) = (sum1.sumIndex == sum2.sumIndex) && checkInnerSums(sum1,sum2) ? 0 : QAdd([sum1,sum2])
 +(elem::SNuN,sum::IndexedDoubleSum) = QAdd([elem,sum])
 +(op::QNumber,sum::IndexedDoubleSum) = QAdd([op,sum])
@@ -101,7 +90,7 @@ function +(op::QAdd,sum::IndexedDoubleSum)
     push!(args,sum)
     return QAdd(args)
 end
-
+#multiplications
 function *(elem::SNuN, sum::IndexedDoubleSum)
     if elem == 0
         return 0
@@ -114,30 +103,6 @@ function *(sum::IndexedDoubleSum,elem::SNuN)
     end
     return IndexedDoubleSum(sum.innerSum*elem,sum.sumIndex,sum.NEI)
 end
-
-function *(elem::QNumber,sum::IndexedDoubleSum)
-    #=
-    NEI = copy(sum.NEI)
-    if typeof(elem) == IndexedOperator || typeof(elem) == IndexedVariable
-        if elem.ind != sum.sumIndex && elem.ind ∉ NEI
-            push!(NEI,elem.ind)
-        end
-    end
-    =#
-    return IndexedDoubleSum(elem*sum.innerSum,sum.sumIndex,sum.NEI)
-end
-function *(sum::IndexedDoubleSum,elem::QNumber)
-    #=
-    NEI = copy(sum.NEI)
-    if typeof(elem) == IndexedOperator || typeof(elem) == IndexedVariable
-        if elem.ind != sum.sumIndex && elem.ind ∉ NEI
-            push!(NEI,elem.ind)
-        end
-    end
-    =#
-    return IndexedDoubleSum(sum.innerSum*elem,sum.sumIndex,sum.NEI)
-end
-
 function *(elem,sum::IndexedDoubleSum)
     NEI = copy(sum.NEI)
     if typeof(elem) == IndexedOperator || typeof(elem) == IndexedVariable
@@ -147,8 +112,12 @@ function *(elem,sum::IndexedDoubleSum)
     end
     return IndexedDoubleSum(elem*sum.innerSum,sum.sumIndex,NEI)
 end
+*(elem::QNumber,sum::IndexedDoubleSum) = IndexedDoubleSum(elem*sum.innerSum,sum.sumIndex,sum.NEI)
+*(sum::IndexedDoubleSum,elem::QNumber) = IndexedDoubleSum(sum.innerSum*elem,sum.sumIndex,sum.NEI)
     
 SymbolicUtils.istree(a::IndexedDoubleSum) = false
+checkInnerSums(sum1::IndexedDoubleSum, sum2::IndexedDoubleSum) = ((sum1.innerSum + sum2.innerSum) == 0)
+reorder(dsum::IndexedDoubleSum,indexMapping::Vector{Tuple{Index,Index}}) = IndexedDoubleSum(reorder(dsum.innerSum,indexMapping),dsum.sumIndex,dsum.NEI)
 #Base functions
 function Base.show(io::IO,elem::IndexedDoubleSum)
     write(io,"Σ", "($(elem.sumIndex.name)=1:$(elem.sumIndex.rangeN))")
@@ -160,5 +129,3 @@ function Base.show(io::IO,elem::IndexedDoubleSum)
     end
     show(io,elem.innerSum)
 end
-checkInnerSums(sum1::IndexedDoubleSum, sum2::IndexedDoubleSum) = ((sum1.innerSum + sum2.innerSum) == 0)
-reorder(dsum::IndexedDoubleSum,indexMapping::Vector{Tuple{Index,Index}}) = IndexedDoubleSum(reorder(dsum.innerSum,indexMapping),dsum.sumIndex,dsum.NEI)
