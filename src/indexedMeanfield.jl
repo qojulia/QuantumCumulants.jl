@@ -6,7 +6,6 @@ include("doubleSums.jl")
 #function that takes indexed operators and double indexed varaibles to calculate the meanfield equations
 #the jump operators have to have same indices as the indices specified by the double indexed variable
 function indexedMeanfield(a::Vector,H,J;Jdagger::Vector=adjoint.(J),rates=ones(Int,length(J)),
-    extraIndices::Vector{Index}=Index[],
     multithread=false,
     simplify=true,
     order=nothing,
@@ -105,6 +104,7 @@ function indexedComplete!(de::AbstractMeanfieldEquations;
     filter_func=nothing,
     mix_choice=maximum,
     simplify=true,
+    extraIndices::Vector=[],
     kwargs...)
     vs = de.states
     order_lhs = maximum(get_order.(vs))
@@ -135,10 +135,12 @@ function indexedComplete!(de::AbstractMeanfieldEquations;
     vs′hash = map(hash, vs′)
     filter!(!in(vhash), vs′hash)
     missed = find_missing(de.equations, vhash, vs′hash; get_adjoints=false)
-    isnothing(filter_func) || filter!(filter_func, missed) # User-defined filter
 
-    missed = findMissingSumTerms(missed,de)
+    if order != 1
+        missed = findMissingSumTerms(missed,de;extraIndices=extraIndices)
+    end
     missed = sortByIndex.(missed)
+    isnothing(filter_func) || filter!(filter_func, missed) # User-defined filter
 
     filter!(x -> (isNotIn(getOps(x),getOps.(de.states)) && isNotIn(getOps(sortByIndex(_conj(x))),getOps.(de.states))), missed)
     indices_ = nothing
@@ -179,10 +181,12 @@ function indexedComplete!(de::AbstractMeanfieldEquations;
         end
 
         missed = find_missing(me.equations, vhash, vs′hash; get_adjoints=false)
-        isnothing(filter_func) || filter!(filter_func, missed) # User-defined filter
 
-        missed = findMissingSumTerms(missed,de)
+        if order != 1
+            missed = findMissingSumTerms(missed,de;extraIndices=extraIndices)
+        end
         missed = sortByIndex.(missed)
+        isnothing(filter_func) || filter!(filter_func, missed) # User-defined filter
 
         filter!(x -> (isNotIn(getOps(x),getOps.(de.states)) && isNotIn(getOps(sortByIndex(_conj(x))),getOps.(de.states))), missed)
         for i = 1:length(missed)
@@ -200,6 +204,10 @@ function indexedComplete!(de::AbstractMeanfieldEquations;
         # Find missing values that are filtered by the custom filter function,
         # but still occur on the RHS; set those to 0
         missed = find_missing(de.equations, vhash, vs′hash; get_adjoints=false)
+        if order != 1
+            missed = findMissingSumTerms(missed,de;extraIndices=extraIndices)
+        end
+        missed = sortByIndex.(missed)
         filter!(!filter_func, missed)
         missed_adj = map(_adjoint, missed)
         subs = Dict(vcat(missed, missed_adj) .=> 0)
@@ -213,17 +221,21 @@ function indexedComplete!(de::AbstractMeanfieldEquations;
 end
 # TODO: remove the q-index dependency and use user-input on higher order expansion
 # Function for extending find_missing function onto summation terms
-function findMissingSumTerms(missed,de::MeanfieldEquations)
+function findMissingSumTerms(missed,de::MeanfieldEquations;extraIndices::Vector=[])
     missed_ = copy(missed)
     indices = nothing #gets initial indices, that are on the lhs
     for i = 1:length(de.states)
         indices = getIndices(de.states[i])
         isempty(indices) || break
     end
-    extraIndex = Index(indices[1].hilb,:q,indices[1].rangeN)
+    if de.order > 1 &&  de.order - 1 != length(extraIndices)
+        error("Please make sure that for higher orders of cumulant expansion, you also use the indices argument to provide additional indices for calculation.")
+    end
+    extraIndex = Index(indices[1].hilb,extraIndices[1],indices[1].rangeN) #for 2nd order only, this is sufficient
     sums = Any[]
     for eq in de.equations
         sums = checkIfSum(eq.rhs)
+        Dsums = checkIfDSum(eq.rhs)
         for sum in sums
             avrgs = getAvrgs(sum) #get vector of all avrgs in the sum
             for avr in avrgs
@@ -260,6 +272,18 @@ function checkIfSum(term)
         args = arguments(term)
         for arg in args
             sums = vcat(sums,checkIfSum(arg))
+        end
+    end
+    return sums
+end
+function checkIfDSum(term)
+    sums = Any[]
+    if typeof(term) == SymbolicUtils.Sym{Parameter,IndexedAverageDoubleSum}
+        return [term]
+    elseif typeof(term) <: SymbolicUtils.Add || typeof(term) <: SymbolicUtils.Mul
+        args = arguments(term)
+        for arg in args
+            sums = vcat(sums,checkIfDSum(arg))
         end
     end
     return sums

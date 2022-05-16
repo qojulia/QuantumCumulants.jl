@@ -178,7 +178,7 @@ struct SpecialIndexedAverage <: CNumber #An average-Term with special condition,
             for arg in arguments(term)
                 push!(adds,SpecialIndexedAverage(arg,indexMapping))
             end
-            return +(adds...)
+            return sum(adds)
         end
         metadata = new(term,indexMapping)
         neis = writeIndexNEIs(indexMapping)
@@ -430,7 +430,7 @@ function evaluateTerm(indSum::SymbolicUtils.Sym{Parameter, IndexedAverageSum}, i
     if isempty(adds)
         return 0
     end
-    return +(adds...) #add everything back up
+    return sum(adds) #add everything back up
 end
 function evaluateTerm(term::SymbolicUtils.Sym{Parameter, IndexedVariable}, indMap::Dict{Index,Int64})
     indVar = term.metadata
@@ -572,7 +572,7 @@ function insertIndex(term::SymbolicUtils.Add,ind::Index,value::Int64)
     for arg in arguments(term)
         push!(args,insertIndex(arg,ind,value))
     end
-    return +(args...)
+    return sum(args)
 end
 function insertIndex(term::SymbolicUtils.Pow,ind::Index,value::Int64)
     return insertIndex(arguments(term)[1],ind,value)^(arguments(term)[2])
@@ -709,27 +709,29 @@ function evalME(me::MeanfieldEquations;mapping::Dict{Symbol,Int64}=Dict{Symbol,I
     varmap = make_varmap(vs, me.iv)
     return MeanfieldEquations(newEqs,me.operator_equations,vs,me.operators,me.hamiltonian,me.jumps,me.jumps_dagger,me.rates,me.iv,varmap,me.order)
 end
-#TODO change the adds to a sum of adds -> instead of +(adds...) do something like sum(term_i for i = 1:N)
-function evalTerm(sum::SymbolicUtils.Sym{Parameter,IndexedAverageSum};mapping::Dict{Symbol,Int64}=Dict{Symbol,Int64}())
-    adds = []
+
+function evalTerm(sum_::SymbolicUtils.Sym{Parameter,IndexedAverageSum};mapping::Dict{Symbol,Int64}=Dict{Symbol,Int64}())
+    adds = Vector{Any}(nothing,sum_.metadata.sumIndex.rangeN)
     rangeEval = 0
-    if sum.metadata.sumIndex.rangeN in keys(mapping)
-        rangeEval = mapping[sum.metadata.sumIndex.rangeN]
+    if sum_.metadata.sumIndex.rangeN in keys(mapping)
+        rangeEval = mapping[sum_.metadata.sumIndex.rangeN]
     else
-        rangeEval = sum.metadata.sumIndex.rangeN
+        rangeEval = sum_.metadata.sumIndex.rangeN
     end
     for i = 1:rangeEval
-        if i in sum.metadata.nonEqualIndices
+        if i in sum_.metadata.nonEqualIndices
             continue
         end
-        push!(adds,orderTermsByNumber(insertIndex(sum.metadata.term,sum.metadata.sumIndex,i)))
+        adds[i] = orderTermsByNumber(insertIndex(sum_.metadata.term,sum_.metadata.sumIndex,i))
     end
     if isempty(adds)
         return 0
     elseif length(adds) == 1
         return adds[1]
     end
-    return +(adds...)
+    filter!(x -> x!=nothing,adds)
+    temp = sum(adds)
+    return temp
 end
 function evalTerm(sum::SymbolicUtils.Sym{Parameter,IndexedAverageDoubleSum};mapping::Dict{Symbol,Int64})
     return evalTerm(IndexedAverageDoubleSum(evalTerm(sum.metadata.innerSum;mapping),sum.metadata.sumIndex,sum.metadata.nonEqualIndices);mapping)
@@ -756,7 +758,7 @@ function evalTerm(term::SymbolicUtils.Add;mapping::Dict{Symbol,Int64}=Dict{Symbo
     elseif length(adds) == 1
         return adds[1]
     end
-    return +(adds...)
+    return sum(adds)
 end
 evalTerm(x;mapping::Dict{Symbol,Int64}) = x
 evalEq(eq::Symbolics.Equation;mapping::Dict{Symbol,Int64}=Dict{Symbol,Int64}()) = Symbolics.Equation(eq.lhs,evalTerm(eq.rhs;mapping))
@@ -792,7 +794,7 @@ function orderTermsByNumber(add::SymbolicUtils.Add)
     for arg in args
         push!(args_, orderTermsByNumber(arg))
     end
-    return +(args_...)
+    return sum(args_)
 end
 orderTermsByNumber(eq::Symbolics.Equation) = Symbolics.Equation(eq.lhs,orderTermsByNumber(eq.rhs))
 orderTermsByNumber(x) = x
@@ -826,14 +828,15 @@ function insertValues(term::SymbolicUtils.Mul,valMapping::Dict{Sym{Parameter, nu
     return *(mults...)
 end
 function insertValues(term::SymbolicUtils.Add,valMapping::Dict{Sym{Parameter, numberedVariable},SNuN})
-    adds = []
+    adds = Vector{Any}(nothing,length(arguments(term)))
     for arg in arguments(term)
         push!(adds, insertValues(arg,valMapping))
     end
     if length(adds) == 1
         return adds[1]
     end
-    return +(adds...)
+    filter!(x -> x!=nothing,adds)
+    return sum(adds)
 end
 function insertValues(val::SymbolicUtils.Sym{Parameter,numberedVariable},valMapping::Dict{Sym{Parameter, numberedVariable},SNuN})
     if length(valMapping) == 1
@@ -918,13 +921,12 @@ function getIndices(term::QMul)
     return indices
 end
 getIndices(a::QNumber) = typeof(a) == IndexedOperator ? [a.ind] : []
-
+containsIndex(term::SymbolicUtils.Term{AvgSym,Nothing},ind::Index) = ind ∈ getIndices(term)
 
 #simplify functions not "really" needed, they are nice to have, since equation creation of Symbolics sometimes does not simplify certain terms
 #function to reduce multiplication of numbers with a sum into just a sum of multiplication
 function simplifyMultiplication(term::SymbolicUtils.Mul)
     args = arguments(term)
-    sum = nothing
     sumArg = 0
     found = false
     #check where sum is, if sum is there
@@ -950,7 +952,7 @@ function simplifyMultiplication(term::SymbolicUtils.Mul)
     for arg in arguments(args[sumArg]) #arguments in the sum
         push!(adds, simplifyMultiplication(*(lefts...) * arg *(rights...)))
     end
-    return +(adds...)
+    return sum(adds)
 end
 function simplifyAdd(term::SymbolicUtils.Add)
     adds = []
@@ -961,7 +963,7 @@ function simplifyAdd(term::SymbolicUtils.Add)
             push!(adds,arg)
         end
     end
-    return +(adds...)
+    return sum(adds)
 end
 function simplifyEquation(eq::Symbolics.Equation)
     if typeof(eq.rhs) <: SymbolicUtils.Add
@@ -1022,7 +1024,7 @@ function evaluateTerm(term::SymbolicUtils.Add, indMap::Dict{Index,Int64})
     for arg in arguments(term)
         push!(addterms,evaluateTerm(arg, indMap))
     end
-    return +(addterms...)
+    return sum(addterms)
 end
 
 function Base.show(io::IO,indSum::IndexedAverageSum) 

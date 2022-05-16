@@ -629,6 +629,13 @@ function check_term(a::IndexedSingleSum,b::IndexedSingleSum)
 end
 function Base.isequal(a::IndexedSingleSum, b::IndexedSingleSum)
     isequal(a.sumIndex,b.sumIndex) || return false
+    typeof(a.term) == typeof(b.term) || return false
+    if !(typeof(a.term) <: QMul) || !(typeof(b.term) <: QMul)
+        return isequal(a.term,b.term)
+    end
+    if (typeof(a.term) == IndexedOperator && typeof(b.term) != IndexedOperator) || (typeof(b.term) == IndexedOperator && typeof(a.term) != IndexedOperator)
+        return false
+    end
     isequal(a.term.arg_c, b.term.arg_c) || return false
     length(a.term.args_nc)==length(b.term.args_nc) || return false
     for (arg_a, arg_b) ∈ zip(orderByIndex(a.term.args_nc,[a.sumIndex]), orderByIndex(b.term.args_nc,[b.sumIndex]))

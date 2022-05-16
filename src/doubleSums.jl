@@ -59,9 +59,9 @@ function IndexedDoubleSum(term::QAdd, sumIndex::Index,NEI::Vector{Index})
     end
     return +(sums...)
 end
-
 IndexedDoubleSum(term::QSym,ind::Index,NEI::Vector{Index}) = IndexedSingleSum(term,ind,NEI)
 IndexedDoubleSum(term::SNuN,ind::Index,NEI::Vector{Index}) = IndexedSingleSum(term,ind,NEI)
+IndexedDoubleSum(x,ind::Index) = IndexedDoubleSum(x,ind,Index[])
 
 #In this constructor the NEI is considered so, that all indices given in ind are unequal to any of the NEI
 function IndexedDoubleSum(term::QMul,ind::Vector{Index},NEI::Vector{Index})
@@ -129,3 +129,4 @@ function Base.show(io::IO,elem::IndexedDoubleSum)
     end
     show(io,elem.innerSum)
 end
+Base.isequal(a::IndexedDoubleSum,b::IndexedDoubleSum) = isequal(a.innerSum,b.innerSum) && isequal(a.sumIndex,b.sumIndex) && isequal(a.NEI,b.NEI)
