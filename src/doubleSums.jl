@@ -52,6 +52,7 @@ struct IndexedDoubleSum <:QTerm
         end
     end
 end
+#TODO: apperantly in Julia this is not the best way of instantiating objects... rather include these constructor inside the struct definition
 function IndexedDoubleSum(term::QAdd, sumIndex::Index,NEI::Vector{Index})
     sums = []
     for arg in term.arguments

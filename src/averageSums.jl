@@ -22,7 +22,6 @@ const NO_METADATA = SymbolicUtils.NO_METADATA
 
 struct AvgSum <: CNumber end
 
-const SNuN = Union{<:SymbolicUtils.Symbolic{<:Number}, <:Number}
 const Average_Sum = SymbolicUtils.Term{<:AvgSum}
 const indornum = Union{<:Index,<:Int64}
 
@@ -333,215 +332,6 @@ SymbolicUtils.arguments(op::IndexedAverageSum) = op.term
 SymbolicUtils.arguments(op::Sym{Parameter, IndexedAverageDoubleSum}) = arguments(op.metadata)
 SymbolicUtils.arguments(op::IndexedAverageDoubleSum) = op.innerSum
 
-#evaluate functions are not needed anymore, are now included into the insert functions, still kept here for references
-function evaluateTerm(indDSum::SymbolicUtils.Sym{Parameter, IndexedAverageDoubleSum}, indMap::Dict{Index,Int64})
-    innerSum = indDSum.metadata.innerSum
-    return IndexedAverageSum(evaluateTerm(innerSum,indMap))
-end
-function evaluateTerm(term::SymbolicUtils.Term{AvgSym, Nothing}, indMap::Dict{Index,Int64})
-    args = arguments(term)
-    newargs = []
-    args_ = 0
-    if typeof(args[1]) <: QMul #Qmul
-        for arg in args[1].args_nc
-            if typeof(arg) == IndexedOperator && arg.ind ∈ keys(indMap) #index of operator in the indexmapping
-                push!(newargs, NumberedOperator(arg.op,indMap[arg.ind]))
-            else    #index of operator not in the indexmapping, or has no index
-                push!(newargs,arg) 
-            end
-        end
-    else #single op
-        if typeof(args[1]) == IndexedOperator && args[1].ind ∈ keys(indMap)
-            return average(NumberedOperator(args[1].op,indMap[args[1].ind]))
-        else
-            return average(args[1])
-        end
-    end
-    return average(*(newargs...))
-end
-#Evaluate SingleSum
-function evaluateTerm(indSum::SymbolicUtils.Sym{Parameter, IndexedAverageSum}, indMap::Dict{Index,Int64})
-    adds = []
-    term = indSum.metadata.term
-    args = arguments(term)
-    sumInd = indSum.metadata.sumIndex
-    NEIs = indSum.metadata.nonEqualIndices
-    NEIvals = []
-    for ind in NEIs #ordnung anzahl indices in lhs
-        if ind in keys(indMap)
-            push!(NEIvals,indMap[ind])
-        end
-    end
-    for i = 1:sumInd.rangeN #ordnung N <- !!
-        if i in NEIvals
-            continue
-        end 
-        NEValMapping = Tuple{Index,Int64}[]
-        args_after = []
-        for arg in args
-            meta = 0
-            if typeof(arg) == SymbolicUtils.Sym{Parameter, IndexedVariable} # symbols like gₖ 
-                meta = arg.metadata
-                if meta.ind == sumInd # k = j
-                    push!(args_after,SingleNumberedVariable(meta.name,i))
-                elseif meta.ind ∈ keys(indMap) # k => Number
-                    push!(args_after,SingleNumberedVariable(meta.name,indMap[meta.ind]))
-                else #neither
-                    push!(args_after, arg)
-                end
-            elseif typeof(arg) == SymbolicUtils.Term{AvgSym, Nothing} #At this stage the terms making it into the if clausle are average symbols like ⟨a∗σ21j⟩
-                indices_  = getIndices(arg) #all indices that are in the term
-                for ind in indices_ #all indices that are not in the indMap and are not the summation index
-                    if ind == sumInd || ind ∈ keys(indMap)
-                        continue
-                    else
-                        push!(NEValMapping,(ind,i)) #save those indices for later (create terms like (k≠1)<σₖ*σ₁>)
-                    end
-                end
-                newargs = []
-                args_ = 0
-                avrg_args = arguments(arg)[1]
-                if typeof(avrg_args) <: QMul
-                    args_ = avrg_args.args_nc
-                else
-                    args_ = [avrg_args]
-                end
-                for avrg_arg in args_ #loop over arguments inside the average
-                    if typeof(avrg_arg) == IndexedOperator && avrg_arg.ind == sumInd #this is the interesting case, index of operator the same as the summation index
-                        push!(newargs, NumberedOperator(avrg_arg.op,i))
-                    elseif typeof(avrg_arg) == IndexedOperator && avrg_arg.ind ∈ keys(indMap) #index of operator in the indexmapping
-                        push!(newargs, NumberedOperator(avrg_arg.op,indMap[avrg_arg.ind]))
-                    else    #index of operator not in the indexmapping, or has no index
-                        push!(newargs,avrg_arg) 
-                    end
-                end
-                if length(newargs) == 1
-                    push!(args_after, average(newargs[1]))
-                else
-                    push!(args_after, average(*(newargs...))) #stick everything back together
-                end
-            else
-                push!(args_after, arg)
-            end
-        end
-         push!(adds, NumberedIndexedAverage(*(args_after...),NEValMapping))#multiply everything, that was originaly in the sum
-        
-    end
-    if isempty(adds)
-        return 0
-    end
-    return sum(adds) #add everything back up
-end
-function evaluateTerm(term::SymbolicUtils.Sym{Parameter, IndexedVariable}, indMap::Dict{Index,Int64})
-    indVar = term.metadata
-    if indVar.ind ∈ keys(indMap)
-        return SingleNumberedVariable(indVar.name, indMap[indVar.ind])
-    end
-    return term
-end
-function evaluateTerm(term::SymbolicUtils.Mul, indMap::Dict{Index,Int64})
-    args = arguments(term)
-    newterms = []
-    for arg in args
-        push!(newterms, evaluateTerm(arg, indMap))
-    end
-    return *(newterms...)
-end
-function evaluateTerm(term::SymbolicUtils.Pow, indMap::Dict{Index,Int64})
-    avg = arguments(term)[1]
-    pow = arguments(term)[2]
-    return evaluateTerm(avg,indMap)^pow
-end
-function evaluateTerm(term::Vector,indMap::Dict{Index,Int64})
-    result = []
-    for op in term
-        newops = []
-        if op.ind ∉ keys(indMap)
-            for i = 1:op.ind.rangeN
-                push!(newops, NumberedOperator(op.op,i))
-            end
-        else
-            push!(newops,NumberedOperator(op.op,indMap[op.ind]))
-        end
-        vcat(result,newops)
-    end
-    return result
-end
-function evaluateTerm(x,indMap)
-    try
-        args = arguments(x)
-        f = operation(x)
-        newterms = []
-        for arg in args
-            push!(newterms, evaluateTerm(arg, indMap))
-        end
-        return f(newterms...)
-    catch e
-        return x
-    end
-end
-evaluateTerm(term::SNuN, indMap::Dict{Index,Int64}) = term
-evaluateTerm(x) = evaluateTerm(x, Dict{Index,Int64}())
-#function that evaluates several equations given by one indexed equation, using index into number substituation
-#this function requires, that the range of an index is a number, not a symbol
-function evaluateEquation(eq::Equation)
-    lhs = eq.lhs
-    rhs = eq.rhs
-    rhs_ = []
-    lhs_ = []
-    if containsIndexedOps(lhs)
-        ind_ = getIndices(lhs)
-        maxRange = 1
-        for ind in ind_
-            maxRange = maxRange * ind.rangeN
-        end
-        for i = 1:maxRange
-            tuples = []
-            factor = 1
-            for k = 1:length(ind_)
-                if k != 1
-                    factor = factor * ind_[k-1].rangeN
-                end
-                push!(tuples, (ind_[k] => (((i ÷ factor) % ind_[k].rangeN)+1) ))    #(((i ÷ factor) % ind_[k])+1) corresponds in this case for the assotiated index the corresponding index in the initial index-list should have for the i-th equation
-            end
-            Mapping = Dict(tuples) #create correstponding index-mapping
-
-            if length(unique(values(Mapping))) != length(values(Mapping)) #true if values(Mapping) contains duplicated values
-                continue
-            end
-
-            push!(lhs_, orderTermsByNumber(evaluateTerm(lhs, Mapping)))
-            push!(rhs_, orderTermsByNumber(evaluateTerm(rhs, Mapping)))
-        end
-    else
-        rhs_ = [orderTermsByNumber(evaluateTerm(rhs,Dict{Index,Int64}()))]
-        lhs_ = [orderTermsByNumber(evaluateTerm(lhs,Dict{Index,Int64}()))]
-    end
-    eqs = [Symbolics.Equation(l,r) for (l,r)=zip(lhs_,rhs_)]
-    return eqs
-end
-#function for evaluating indexed-meanfield equations
-function evaluateMeanfieldEquations(me::MeanfieldEquations)
-    newEqs = []
-    newOpEqs = []
-    eqs = copy(me.equations)
-    for eq in eqs
-        evals = evaluateEquation(eq) #returns vector of equations -> need to iterate again
-        for eq_ in evals
-            if (eq_.lhs ∉ getLHS.(newEqs)) && (_conj(eq_.lhs) ∉ getLHS.(newEqs)) && (orderTermsByNumber(_conj(eq_.lhs)) ∉ orderTermsByNumber.(getLHS.(newEqs))) && (orderTermsByNumber(eq.lhs) ∉ orderTermsByNumber.(getLHS.(newEqs)))
-                push!(newEqs, eq_)
-            end
-        end
-    end
-    vs = []
-    for eq in newEqs
-        push!(vs,eq.lhs)
-    end
-    varmap = make_varmap(vs, me.iv)
-    newME = MeanfieldEquations(newEqs,newOpEqs,vs,me.operators,me.hamiltonian,me.jumps,me.jumps_dagger,me.rates,me.iv,varmap,me.order)
-    return newME
-end
-
 #this is the new method, insert values directly into the average before calculating anything, simplifies evaluation afterwards extremely
 #function for inserting index, k -> 1,2,...,N
 function insertIndex(sum::SymbolicUtils.Sym{Parameter,IndexedAverageSum}, ind::Index, value::Int64)
@@ -637,7 +427,7 @@ insertIndex(eq::Symbolics.Equation,ind::Index,value::Int64) = Symbolics.Equation
 insertIndex(term::IndexedOperator,ind::Index,value::Int64) = term.ind == ind ? NumberedOperator(term.op,value) : term
 insertIndex(term::SymbolicUtils.Sym{Parameter,IndexedVariable},ind::Index,value::Int64) = term.metadata.ind == ind ? SingleNumberedVariable(term.metadata.name,value) : term
 insertIndex(x,ind::Index,value::Int64) = x
-function insertIndices(eq::Symbolics.Equation,map::Dict{Index,Int64};mapping::Dict{Symbol,Int64}=Dict{Symbol,Int64}())
+function insertIndices(eq::Symbolics.Equation,map::Dict{Index,Int64};mapping::Dict{SymbolicUtils.Sym,Int64}=Dict{Symbol,Int64}())
     eq_ = eq
     while !isempty(map)
         pair = first(map)
@@ -646,7 +436,7 @@ function insertIndices(eq::Symbolics.Equation,map::Dict{Index,Int64};mapping::Di
     end
     return evalEq(eq_;mapping) #return finished equation
 end
-function evalEquation(eq::Symbolics.Equation,arr,indices;mapping::Dict{Symbol,Int64}=Dict{Symbol,Int64}())
+function evalEquation(eq::Symbolics.Equation,arr,indices;mapping::Dict{SymbolicUtils.Sym,Int64}=Dict{Symbol,Int64}())
     if !(isempty(indices))
         eqs = Vector{Any}(nothing, length(arr))
         #Threads.@threads 
@@ -655,12 +445,12 @@ function evalEquation(eq::Symbolics.Equation,arr,indices;mapping::Dict{Symbol,In
             eq_ = orderTermsByNumber(insertIndices(eq,dict;mapping))
             eqs[i] = eq_
         end
-        return filter(x -> x != nothing,eqs)
+        return filter(x -> !=(x,nothing),eqs)
     else
         return [evalEq(eq;mapping)]
     end
 end
-function evalME(me::MeanfieldEquations;mapping::Dict{Symbol,Int64}=Dict{Symbol,Int64}())#this is still pretty slow
+function evalME(me::MeanfieldEquations;mapping::Dict{SymbolicUtils.Sym,Int64}=Dict{Symbol,Int64}())#this is still pretty slow
     indices = nothing
     for eq in me.equations
         if containsIndexedOps(eq.lhs) && length(getIndices(eq.lhs)) == me.order
@@ -710,14 +500,24 @@ function evalME(me::MeanfieldEquations;mapping::Dict{Symbol,Int64}=Dict{Symbol,I
     return MeanfieldEquations(newEqs,me.operator_equations,vs,me.operators,me.hamiltonian,me.jumps,me.jumps_dagger,me.rates,me.iv,varmap,me.order)
 end
 
-function evalTerm(sum_::SymbolicUtils.Sym{Parameter,IndexedAverageSum};mapping::Dict{Symbol,Int64}=Dict{Symbol,Int64}())
-    adds = Vector{Any}(nothing,sum_.metadata.sumIndex.rangeN)
+function evalTerm(sum_::SymbolicUtils.Sym{Parameter,IndexedAverageSum};mapping::Dict{SymbolicUtils.Sym,Int64}=Dict{SymbolicUtils.Sym,Int64}())
     rangeEval = 0
     if sum_.metadata.sumIndex.rangeN in keys(mapping)
         rangeEval = mapping[sum_.metadata.sumIndex.rangeN]
     else
-        rangeEval = sum_.metadata.sumIndex.rangeN
+        if typeof(sum_.metadata.sumIndex.rangeN) <: SymbolicUtils.Mul
+            args = arguments(sum_.metadata.sumIndex.rangeN)
+            for i=1:length(args)
+                if args[i] in keys(mapping)
+                    args[i] = mapping[args[i]]
+                end
+            end
+            rangeEval = *(args...)
+        else
+            rangeEval = sum_.metadata.sumIndex.rangeN
+        end
     end
+    adds = Vector{Any}(nothing,rangeEval)
     for i = 1:rangeEval
         if i in sum_.metadata.nonEqualIndices
             continue
@@ -729,14 +529,14 @@ function evalTerm(sum_::SymbolicUtils.Sym{Parameter,IndexedAverageSum};mapping::
     elseif length(adds) == 1
         return adds[1]
     end
-    filter!(x -> x!=nothing,adds)
+    filter!(x -> !=(x,nothing),adds)
     temp = sum(adds)
     return temp
 end
-function evalTerm(sum::SymbolicUtils.Sym{Parameter,IndexedAverageDoubleSum};mapping::Dict{Symbol,Int64})
+function evalTerm(sum::SymbolicUtils.Sym{Parameter,IndexedAverageDoubleSum};mapping::Dict{SymbolicUtils.Sym,Int64})
     return evalTerm(IndexedAverageDoubleSum(evalTerm(sum.metadata.innerSum;mapping),sum.metadata.sumIndex,sum.metadata.nonEqualIndices);mapping)
 end
-function evalTerm(term::SymbolicUtils.Mul;mapping::Dict{Symbol,Int64}=Dict{Symbol,Int64}()) 
+function evalTerm(term::SymbolicUtils.Mul;mapping::Dict{SymbolicUtils.Sym,Int64}=Dict{Symbol,Int64}()) 
     mults = []
     for arg in arguments(term)
         push!(mults,evalTerm(arg;mapping))
@@ -748,7 +548,7 @@ function evalTerm(term::SymbolicUtils.Mul;mapping::Dict{Symbol,Int64}=Dict{Symbo
     end
     return *(mults...)
 end
-function evalTerm(term::SymbolicUtils.Add;mapping::Dict{Symbol,Int64}=Dict{Symbol,Int64}()) 
+function evalTerm(term::SymbolicUtils.Add;mapping::Dict{SymbolicUtils.Sym,Int64}=Dict{Symbol,Int64}()) 
     adds = []
     for arg in arguments(term)
         push!(adds,evalTerm(arg;mapping))
@@ -760,8 +560,8 @@ function evalTerm(term::SymbolicUtils.Add;mapping::Dict{Symbol,Int64}=Dict{Symbo
     end
     return sum(adds)
 end
-evalTerm(x;mapping::Dict{Symbol,Int64}) = x
-evalEq(eq::Symbolics.Equation;mapping::Dict{Symbol,Int64}=Dict{Symbol,Int64}()) = Symbolics.Equation(eq.lhs,evalTerm(eq.rhs;mapping))
+evalTerm(x;mapping::Dict{SymbolicUtils.Sym,Int64}) = x
+evalEq(eq::Symbolics.Equation;mapping::Dict{SymbolicUtils.Sym,Int64}=Dict{SymbolicUtils.Sym,Int64}()) = Symbolics.Equation(eq.lhs,evalTerm(eq.rhs;mapping))
 
 function getLHS(eq::Symbolics.Equation)
     return eq.lhs
@@ -835,7 +635,7 @@ function insertValues(term::SymbolicUtils.Add,valMapping::Dict{Sym{Parameter, nu
     if length(adds) == 1
         return adds[1]
     end
-    filter!(x -> x!=nothing,adds)
+    filter!(x -> !=(x,nothing),adds)
     return sum(adds)
 end
 function insertValues(val::SymbolicUtils.Sym{Parameter,numberedVariable},valMapping::Dict{Sym{Parameter, numberedVariable},SNuN})
@@ -1017,16 +817,6 @@ function getAvrgs(sum::SymbolicUtils.Sym{Parameter,IndexedAverageSum})
         return ops
     end
 end
-
-#not sure if needed, I think not
-function evaluateTerm(term::SymbolicUtils.Add, indMap::Dict{Index,Int64})
-    addterms = []
-    for arg in arguments(term)
-        push!(addterms,evaluateTerm(arg, indMap))
-    end
-    return sum(addterms)
-end
-
 function Base.show(io::IO,indSum::IndexedAverageSum) 
     write(io, "Σ", "($(indSum.sumIndex.name)", "=1:$(indSum.sumIndex.rangeN))",)
     if !(isempty(indSum.nonEqualIndices))

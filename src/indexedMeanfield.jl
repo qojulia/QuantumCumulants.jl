@@ -138,6 +138,7 @@ function indexedComplete!(de::AbstractMeanfieldEquations;
 
     if order != 1
         missed = findMissingSumTerms(missed,de;extraIndices=extraIndices)
+        missed = findMissingSpecialTerms(missed,de)
     end
     missed = sortByIndex.(missed)
     isnothing(filter_func) || filter!(filter_func, missed) # User-defined filter
@@ -184,6 +185,7 @@ function indexedComplete!(de::AbstractMeanfieldEquations;
 
         if order != 1
             missed = findMissingSumTerms(missed,de;extraIndices=extraIndices)
+            missed = findMissingSpecialTerms(missed,de)
         end
         missed = sortByIndex.(missed)
         isnothing(filter_func) || filter!(filter_func, missed) # User-defined filter
@@ -206,6 +208,7 @@ function indexedComplete!(de::AbstractMeanfieldEquations;
         missed = find_missing(de.equations, vhash, vs′hash; get_adjoints=false)
         if order != 1
             missed = findMissingSumTerms(missed,de;extraIndices=extraIndices)
+            missed = findMissingSpecialTerms(missed,de)
         end
         missed = sortByIndex.(missed)
         filter!(!filter_func, missed)
@@ -247,6 +250,23 @@ function findMissingSumTerms(missed,de::MeanfieldEquations;extraIndices::Vector=
                         push!(missed_,changed)
                     end
                 end
+            end
+        end
+    end
+    return missed_
+end
+function findMissingSpecialTerms(missed,me::MeanfieldEquations)
+    missed_ = copy(missed)
+    vs = me.states
+    vhash = map(hash, vs)
+    vs′=map(_conj, vs)
+    vs′hash = map(hash, vs′)
+    filter!(!in(vhash), vs′hash)
+    missed_hashes = map(hash,missed_)
+    for eq in me.equations
+        for arg in arguments(eq.rhs)
+            if typeof(arg) == SymbolicUtils.Sym{Parameter,SpecialIndexedAverage}
+                missed_ = find_missing!(missed_, missed_hashes, arg.metadata.term, vhash, vs′hash)
             end
         end
     end
@@ -316,3 +336,4 @@ function isNotIn(terms::Vector{Any},vects::Vector{Vector{Any}})
     end
     return true
 end
+isNotIn(terms::Vector{Any},vects::Vector{Any}) = isNotIn(terms,[vects])

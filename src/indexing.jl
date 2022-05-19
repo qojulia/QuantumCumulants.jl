@@ -23,7 +23,7 @@ import ModelingToolkit
 const MTK = ModelingToolkit
 
 using Combinatorics: partitions, combinations
-
+using StaticLint
 const NO_METADATA = SymbolicUtils.NO_METADATA
 
 #this section can be removed once integrated in the QuantumCumulants.jl file
@@ -49,13 +49,14 @@ include("printing.jl")
 include("QuantumCumulants.jl")
 
 const Summable = Union{<:QNumber,<:CNumber}
+const ranges = Union{<:SymbolicUtils.Sym,<:Number,<:SymbolicUtils.Mul}
 
 struct AvgSym <: CNumber end
 
 struct Index #main tool
     hilb::HilbertSpace
     name::Symbol
-    rangeN::Union{<:Symbol,<:Number}
+    rangeN::ranges
 end
 struct IndexedVariable <: CNumber #just a symbel, that can be manipulated via the metadata field
     name::Symbol
@@ -610,8 +611,8 @@ Base.isless(b::QSym,a::IndexedVariable) = false
 Base.isless(a::Index,b::Index) = a.name < b.name
 Base.isless(a::IndexedSingleSum,b::IndexedSingleSum) = Base.isless(a.sumIndex,b.sumIndex)
 
-Base.isequal(ind1::Index,ind2::Index) = (ind1.name == ind2.name) && (ind1.rangeN == ind2.rangeN) && (ind1.hilb == ind2.hilb)
-Base.:(==)(ind1::Index,ind2::Index) = (ind1.name == ind2.name) && (ind1.rangeN == ind2.rangeN) && (ind1.hilb == ind2.hilb)
+Base.isequal(ind1::Index,ind2::Index) = (ind1.name == ind2.name) && isequal(ind1.rangeN,ind2.rangeN) && (ind1.hilb == ind2.hilb)
+Base.:(==)(ind1::Index,ind2::Index) = (ind1.name == ind2.name) && (ind1.hilb == ind2.hilb) && isequal(ind1.rangeN,ind2.rangeN)
 Base.isequal(a::SpecialIndexedTerm,b::SpecialIndexedTerm) = isequal(a.term, b.term) && isequal(a.indexMapping, b.indexMapping)
 
 #checks if two sums have opposite numeric values
@@ -700,7 +701,7 @@ function changeIndex(term::QMul, from::Index, to::Index)
     end
     return merge_commutators(arg_c,args_nc)
 end
-function changeIndex(term::Term{AvgSym, Nothing}, from::Index,to::Index)
+function changeIndex(term::SymbolicUtils.Term{AvgSym, Nothing}, from::Index,to::Index)
     qmul = arguments(term)[1]
     return average(changeIndex(qmul,from,to))
 end
