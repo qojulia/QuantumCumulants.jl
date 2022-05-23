@@ -207,7 +207,7 @@ function indexedComplete!(de::AbstractMeanfieldEquations;
         # but still occur on the RHS; set those to 0
         missed = find_missing(de.equations, vhash, vs′hash; get_adjoints=false)
         if order != 1
-            missed = findMissingSumTerms(missed,de;extraIndices=extraIndices)
+            missed = findMissingSumTerms(missed,de;extraIndices=extraIndices,checking=false)
             missed = findMissingSpecialTerms(missed,de)
         end
         missed = sortByIndex.(missed)
@@ -224,7 +224,7 @@ function indexedComplete!(de::AbstractMeanfieldEquations;
 end
 # TODO: remove the q-index dependency and use user-input on higher order expansion
 # Function for extending find_missing function onto summation terms
-function findMissingSumTerms(missed,de::MeanfieldEquations;extraIndices::Vector=[])
+function findMissingSumTerms(missed,de::MeanfieldEquations;extraIndices::Vector=[],checking=true)
     missed_ = copy(missed)
     indices = nothing #gets initial indices, that are on the lhs
     for i = 1:length(de.states)
@@ -245,8 +245,12 @@ function findMissingSumTerms(missed,de::MeanfieldEquations;extraIndices::Vector=
                 changed_ = changeIndex(avr,sum.metadata.sumIndex,extraIndex)
                 if typeof(changed_) == Term{AvgSym, Nothing}
                     changed = sortByIndex(changed_)    # this can be done, since terms inside the sum commute anyway
-                    if ((isNotIn(getOps(changed),getOps.(de.states)) && isNotIn(getOps(sortByIndex(_conj(changed))),getOps.(de.states))) && 
-                            isNotIn(getOps(changed),getOps.(missed_)) && isNotIn(getOps(sortByIndex(_conj(changed))),getOps.(missed_)))
+                    if checking
+                        if ((isNotIn(getOps(changed),getOps.(de.states)) && isNotIn(getOps(sortByIndex(_conj(changed))),getOps.(de.states))) && 
+                                isNotIn(getOps(changed),getOps.(missed_)) && isNotIn(getOps(sortByIndex(_conj(changed))),getOps.(missed_)))
+                            push!(missed_,changed)
+                        end
+                    else
                         push!(missed_,changed)
                     end
                 end
@@ -265,6 +269,9 @@ function findMissingSpecialTerms(missed,me::MeanfieldEquations)
     missed_hashes = map(hash,missed_)
     for eq in me.equations
         for arg in arguments(eq.rhs)
+            if typeof(arg) == Int64
+                continue
+            end
             if typeof(arg) == SymbolicUtils.Sym{Parameter,SpecialIndexedAverage}
                 missed_ = find_missing!(missed_, missed_hashes, arg.metadata.term, vhash, vs′hash)
             end
