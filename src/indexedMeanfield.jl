@@ -58,34 +58,40 @@ function indexedMeanfield(a::Vector,H,J;Jdagger::Vector=adjoint.(J),rates=ones(I
     end
 end
 
-function indexed_master_lindblad(a_,J,Jdagger,rates_)
+function indexed_master_lindblad(a_,J,Jdagger,rates)
     args = Any[]
     for k=1:length(J)
-        if typeof(rates[k]) == SymbolicUtils.Sym{Parameter,DoubleIndexedVariable}
-            if J[k][1].ind != rates[k].metadata.ind1
-                error("unequal index of first jump operator and variable")
-            end
-            if J[k][2].ind != rates[k].metadata.ind2
-                error("unequal index of second jump operator and variable")
-            end
-            c1 = Jdagger[k][1]*commutator(a_,J[k][2])
-            c2 = commutator(Jdagger[k][1],a_)*J[k][2]
-            c = 0.5*rates[k]*(c1+c2)
-            push!(args,IndexedDoubleSum(IndexedSingleSum((c),J[k][1].ind,Index[]),J[k][2].ind,Index[]))
-        elseif isa(rates[k],SymbolicUtils.Symbolic) || isa(rates[k],Number) || isa(rates[k],Function)
+        if typeof(J[k]) == IndexedOperator
             c1 = 0.5*rates[k]*Jdagger[k]*commutator(a_,J[k])
             c2 = 0.5*rates[k]*commutator(Jdagger[k],a_)*J[k]
-            push_or_append_nz_args!(args, c1)
-            push_or_append_nz_args!(args, c2)
-        elseif isa(rates[k],Matrix)
-            for i=1:length(J[k]), j=1:length(J[k])
-                c1 = 0.5*rates[k][i,j]*Jdagger[k][i]*commutator(a_,J[k][j])
-                c2 = 0.5*rates[k][i,j]*commutator(Jdagger[k][i],a_)*J[k][j]
+            push!(args, IndexedSingleSum(c1+c2,J[k].ind,Index[]))
+        else
+            if typeof(rates[k]) == SymbolicUtils.Sym{Parameter,DoubleIndexedVariable}
+                if J[k][1].ind != rates[k].metadata.ind1
+                    error("unequal index of first jump operator and variable")
+                end
+                if J[k][2].ind != rates[k].metadata.ind2
+                    error("unequal index of second jump operator and variable")
+                end
+                c1 = Jdagger[k][1]*commutator(a_,J[k][2])
+                c2 = commutator(Jdagger[k][1],a_)*J[k][2]
+                c = 0.5*rates[k]*(c1+c2)
+                push!(args,IndexedDoubleSum(IndexedSingleSum((c),J[k][1].ind,Index[]),J[k][2].ind,Index[]))
+            elseif isa(rates[k],SymbolicUtils.Symbolic) || isa(rates[k],Number) || isa(rates[k],Function)
+                c1 = 0.5*rates[k]*Jdagger[k]*commutator(a_,J[k])
+                c2 = 0.5*rates[k]*commutator(Jdagger[k],a_)*J[k]
                 push_or_append_nz_args!(args, c1)
                 push_or_append_nz_args!(args, c2)
+            elseif isa(rates[k],Matrix)
+                for i=1:length(J[k]), j=1:length(J[k])
+                    c1 = 0.5*rates[k][i,j]*Jdagger[k][i]*commutator(a_,J[k][j])
+                    c2 = 0.5*rates[k][i,j]*commutator(Jdagger[k][i],a_)*J[k][j]
+                    push_or_append_nz_args!(args, c1)
+                    push_or_append_nz_args!(args, c2)
+                end
+            else 
+                error("Unknown rates type!")
             end
-        else 
-            error("Unknown rates type!")
         end
     end
     isempty(args) && return 0
@@ -234,7 +240,17 @@ function findMissingSumTerms(missed,de::MeanfieldEquations;extraIndices::Vector=
     if de.order > 1 &&  de.order - 1 != length(extraIndices)
         error("Please make sure that for higher orders of cumulant expansion, you also use the indices argument to provide additional indices for calculation.")
     end
-    extraIndex = Index(indices[1].hilb,extraIndices[1],indices[1].rangeN) #for 2nd order only, this is sufficient
+    extraIndex = nothing
+    if isempty(indices)
+        for op in de.jumps
+            if typeof(op) == IndexedOperator
+                extraIndex = op.ind
+                break
+            end
+        end
+    else
+        extraIndex = Index(indices[1].hilb,extraIndices[1],indices[1].rangeN) #for 2nd order only, this is sufficient
+    end
     sums = Any[]
     for eq in de.equations
         sums = checkIfSum(eq.rhs)

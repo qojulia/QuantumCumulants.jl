@@ -9,7 +9,8 @@ function scaleME(me::MeanfieldEquations)
     filter!(x -> !isequal(x,missing), newEqs)
     vs = getLHS.(newEqs)
     varmap = make_varmap(vs, me.iv)
-    return MeanfieldEquations(newEqs,me.operator_equations,vs,me.operators,me.hamiltonian,me.jumps,me.jumps_dagger,me.rates,me.iv,varmap,me.order)
+    ops = scaleTerm.(me.operators)
+    return MeanfieldEquations(newEqs,me.operator_equations,vs,ops,me.hamiltonian,me.jumps,me.jumps_dagger,me.rates,me.iv,varmap,me.order)
 end
 scaleTerm(sym::SymbolicUtils.Sym{Parameter,IndexedAverageSum}) = scaleTerm(sym.metadata)
 function scaleTerm(sum::IndexedAverageSum)
@@ -46,6 +47,15 @@ function scaleTerm(x::Average)
         newterm = insertIndex(newterm,indices[i],i)
     end
     return newterm
+end
+scaleTerm(x::IndexedOperator) = NumberedOperator(x.op,1)
+function scaleTerm(x::QMul)
+    indices = getIndices(x)
+    term = x
+    for i = 1:length(indices)
+        term = insertIndex(term,indices[i],i)
+    end
+    return term
 end
 scaleTerm(x::SymbolicUtils.Sym{Parameter,SpecialIndexedAverage}) = scaleTerm(x.metadata.term) #this is fine, since the intrinsic conditions on the indices go away automatically from the scaling 
 scaleEq(eq::Symbolics.Equation) = Symbolics.Equation(scaleTerm(eq.lhs),scaleTerm(eq.rhs))

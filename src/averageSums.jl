@@ -237,7 +237,7 @@ average(x::NumberedOperator) = _average(x)
 hilbert(x::NumberedOperator) = hilbert(x.op)
 Base.adjoint(x::NumberedOperator) = NumberedOperator(Base.adjoint(x.op),x.numb)
 has_cluster(x::NumberedOperator) = has_cluster(x.op)
-acts_on(x::NumberedOperator) = acts_on(x.op) + x.numb
+acts_on(x::NumberedOperator) = acts_on(x.op)
 get_order(x::NumberedOperator) = get_order(x.op)
 
 #Functions for easier symbol creation in Constructor
@@ -422,6 +422,14 @@ function insertIndex(term::SymbolicUtils.Sym{Parameter,SpecialIndexedAverage},in
     end
     filter!(x -> !(typeof(first(x)) == Int64 && typeof(last(x)) == Int64),newMapping)
     return SpecialIndexedAverage(newterm,newMapping)
+end
+function insertIndex(qmul::QMul,ind::Index,to::Int64)
+    args_after = []
+    for arg in qmul.args_nc
+        push!(args_after,insertIndex(arg,ind,to))
+    end
+    sort!(args_after, by=getNumber)
+    return QMul(qmul.arg_c,args_after)
 end
 insertIndex(eq::Symbolics.Equation,ind::Index,value::Int64) = Symbolics.Equation(insertIndex(eq.lhs,ind,value),insertIndex(eq.rhs,ind,value))
 insertIndex(term::IndexedOperator,ind::Index,value::Int64) = term.ind == ind ? NumberedOperator(term.op,value) : term
@@ -851,3 +859,5 @@ function Base.show(io::IO, numbOp::NumberedOperator)
     Base.show(io,numbOp.op)
     Base.show(io,numbOp.numb)
 end
+getNumber(x::NumberedOperator) = acts_on(x) + x.numb
+getNumber(x) = acts_on(x) # this is so that, any other operator still behaves the same as before

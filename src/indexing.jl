@@ -225,6 +225,7 @@ IndexedSingleSum(ops::QMul,ind::Index) = IndexedSingleSum(ops,ind,Index[])
 IndexedSingleSum(ops::QAdd,ind::Index) = IndexedSingleSum(ops,ind,Index[])
 IndexedSingleSum(op::QNumber,ind::Index) = IndexedSingleSum(op,ind,Index[])
 IndexedSingleSum(ops::Number,ind::Index,NEI::Vector{Index}) = (ind.rangeN - length(NEI))*ops
+IndexedSingleSum(ops::SymbolicUtils.Mul,ind::Index,NEI::Vector{Index}) = (ind.rangeN - length(NEI))*ops
 IndexedSingleSum(term::QSym,ind::Index,NEI::Vector{Index}) = (ind.rangeN - length(NEI))*term
 function IndexedSingleSum(term::SpecialIndexedTerm,ind::Index,NEI::Vector{Index})
     if length(term.indexMapping) == 0
@@ -241,6 +242,7 @@ function IndexedSingleSum(term::SpecialIndexedTerm,ind::Index,NEI::Vector{Index}
         return IndexedSingleSum(term.term,ind,NEI_)
     end
 end
+
 
 #hilberts
 hilbert(ind::Index) = ind.hilb

@@ -113,7 +113,7 @@ SymbolicUtils.metadata(a::QMul) = a.metadata
 function Base.adjoint(q::QMul)
     args_nc = map(adjoint, q.args_nc)
     reverse!(args_nc)
-    sort!(args_nc, by=acts_on)
+    sort!(args_nc, by=getNumber) #before: "by=acts_on"; had to change this for numbered operators still being in order, this however does not affect any of the other implemented operator types
     return QMul(conj(q.arg_c), args_nc; q.metadata)
 end
 
