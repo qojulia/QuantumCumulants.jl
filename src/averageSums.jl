@@ -458,7 +458,7 @@ function evalEquation(eq::Symbolics.Equation,arr,indices;mapping::Dict{SymbolicU
         return [evalEq(eq;mapping)]
     end
 end
-function evalME(me::MeanfieldEquations;mapping::Dict{SymbolicUtils.Sym,Int64}=Dict{Symbol,Int64}())#this is still pretty slow
+function evalME(me::MeanfieldEquations;mapping::Dict{SymbolicUtils.Sym,Int64}=Dict{SymbolicUtils.Sym,Int64}())#this is still pretty slow
     indices = nothing
     for eq in me.equations
         if containsIndexedOps(eq.lhs) && length(getIndices(eq.lhs)) == me.order
@@ -544,7 +544,7 @@ end
 function evalTerm(sum::SymbolicUtils.Sym{Parameter,IndexedAverageDoubleSum};mapping::Dict{SymbolicUtils.Sym,Int64})
     return evalTerm(IndexedAverageDoubleSum(evalTerm(sum.metadata.innerSum;mapping),sum.metadata.sumIndex,sum.metadata.nonEqualIndices);mapping)
 end
-function evalTerm(term::SymbolicUtils.Mul;mapping::Dict{SymbolicUtils.Sym,Int64}=Dict{Symbol,Int64}()) 
+function evalTerm(term::SymbolicUtils.Mul;mapping::Dict{SymbolicUtils.Sym,Int64}=Dict{SymbolicUtils.Sym,Int64}()) 
     mults = []
     for arg in arguments(term)
         push!(mults,evalTerm(arg;mapping))
@@ -556,7 +556,7 @@ function evalTerm(term::SymbolicUtils.Mul;mapping::Dict{SymbolicUtils.Sym,Int64}
     end
     return *(mults...)
 end
-function evalTerm(term::SymbolicUtils.Add;mapping::Dict{SymbolicUtils.Sym,Int64}=Dict{Symbol,Int64}()) 
+function evalTerm(term::SymbolicUtils.Add;mapping::Dict{SymbolicUtils.Sym,Int64}=Dict{SymbolicUtils.Sym,Int64}()) 
     adds = []
     for arg in arguments(term)
         push!(adds,evalTerm(arg;mapping))
