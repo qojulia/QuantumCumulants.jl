@@ -1,5 +1,5 @@
 #file for functions regarding scaling
-include("indexedMeanfield.jl")
+#include("indexedMeanfield.jl")
 
 function scaleME(me::MeanfieldEquations)
     newEqs = Vector{Union{Missing,Symbolics.Equation}}(missing,length(me.equations))
@@ -73,6 +73,9 @@ end
 #assume: all the indices that are not equal to the summation index are in the same Sum
 #for anything else than the assumption, there needs an extra argument, to specify where or how the extra indices are handled
 function splitSums(term::SymbolicUtils.Symbolic,amount::Union{<:SymbolicUtils.Sym,<:Int64})
+    if term isa Average
+        return term
+    end
     if SymbolicUtils.istree(term)
         args = []
         op = SymbolicUtils.operation(term)
@@ -97,7 +100,7 @@ end
 splitSums(x::Symbolics.Equation,amount) = Symbolics.Equation(x.lhs,splitSums(x.rhs,amount))
 function splitSums(me::MeanfieldEquations,amount)
     newEqs = Vector{Union{Missing,Symbolics.Equation}}(missing,length(me.equations))
-    for i=1:length(eqs)
+    for i=1:length(me.equations)
         newEqs[i] = splitSums(me.equations[i],amount)
     end
     newEqs = filter(x -> !isequal(x,missing), newEqs)

@@ -1,6 +1,6 @@
 #Base file for defining DoubleIndexedSums
 
-include("indexing.jl")
+#include("indexing.jl")
 
 struct IndexedDoubleSum <:QTerm
     innerSum::IndexedSingleSum
@@ -131,3 +131,4 @@ function Base.show(io::IO,elem::IndexedDoubleSum)
     show(io,elem.innerSum)
 end
 Base.isequal(a::IndexedDoubleSum,b::IndexedDoubleSum) = isequal(a.innerSum,b.innerSum) && isequal(a.sumIndex,b.sumIndex) && isequal(a.NEI,b.NEI)
+_to_expression(x::IndexedDoubleSum) = :( IndexedDoubleSum($(_to_expression(x.innerSum)),$(x.sumIndex.name),$(x.sumIndex.rangeN),$(writeNEIs(x.NEI))))

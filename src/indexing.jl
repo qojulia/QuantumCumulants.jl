@@ -7,7 +7,7 @@
 #=
     ToDo:
 
-    - correct display of averages of sums -> rewrite latexify
+    - add possibility to also create destroy/create operators as indiced ones
     - Implement some sort of function, that compares indexed-evaluated meanfield equations with the ones got from non-indexed procedure (maybe compare via ODESystem?)
 =#
 
@@ -49,7 +49,8 @@ include("printing.jl")
 include("QuantumCumulants.jl")
 
 const Summable = Union{<:QNumber,<:CNumber}
-const ranges = Union{<:SymbolicUtils.Sym,<:Number,<:SymbolicUtils.Mul}
+const ranges = Union{<:SymbolicUtils.Sym,<:Number,<:SymbolicUtils.Mul,<:SymbolicUtils.Div}
+
 
 struct AvgSym <: CNumber end
 
@@ -58,6 +59,7 @@ struct Index #main tool
     name::Symbol
     rangeN::ranges
 end
+const indornum = Union{<:Index,<:Int64}
 struct IndexedVariable <: CNumber #just a symbel, that can be manipulated via the metadata field
     name::Symbol
     ind::Index
@@ -338,7 +340,12 @@ function +(elem::SpecialIndexedTerm,x::QNumber)
     return QAdd([elem,x])
 end
 +(x::QNumber,elem::SpecialIndexedTerm) = +(elem,x)
-+(a::SpecialIndexedTerm,b::SpecialIndexedTerm) = QAdd([a,b])
+function +(a::SpecialIndexedTerm,b::SpecialIndexedTerm)
+    if isequal((-1)*a,b)
+        return 0
+    end
+    return QAdd([a,b])
+end
 +(a::SpecialIndexedTerm,b::IndexedOperator) = QAdd([a,b])
 +(a::IndexedOperator,b::SpecialIndexedTerm) = QAdd([a,b])
 +(a::SpecialIndexedTerm,b::IndexedSingleSum) = QAdd([a,b])
@@ -391,6 +398,7 @@ function *(sum::IndexedSingleSum,elem::QNumber)
         if (typeof(qmul) == QMul && (qmul.arg_c == 0 || qmul.args_nc == 0))
             return 0
         end
+        sort!(NEIds,by=getIndName)
         newsum = IndexedSingleSum(qmul,sum.sumIndex,NEIds)
     
         if newsum == 0
@@ -426,6 +434,7 @@ function *(elem::QNumber,sum::IndexedSingleSum)
         if (typeof(qmul) == QMul && (qmul.arg_c == 0 || qmul.args_nc == 0))
             return 0
         end
+        sort!(NEIds,by=getIndName)
         newsum = IndexedSingleSum(qmul,sum.sumIndex,NEIds)
 
         if newsum == 0
@@ -504,6 +513,9 @@ function *(a::QMul, b::IndexedVariable)
     return merge_commutators(a.arg_c,args_nc)
 end
 # Special terms
+*(a::SNuN,b::SpecialIndexedTerm) = SpecialIndexedTerm(a*b.term,b.indexMapping)
+*(b::SpecialIndexedTerm,a::SNuN) = a*b
+
 function *(x, term::SpecialIndexedTerm)
     return reorder(x*term.term,term.indexMapping)
 end
@@ -615,7 +627,16 @@ Base.isless(a::IndexedSingleSum,b::IndexedSingleSum) = Base.isless(a.sumIndex,b.
 
 Base.isequal(ind1::Index,ind2::Index) = (ind1.name == ind2.name) && isequal(ind1.rangeN,ind2.rangeN) && (ind1.hilb == ind2.hilb)
 Base.:(==)(ind1::Index,ind2::Index) = (ind1.name == ind2.name) && (ind1.hilb == ind2.hilb) && isequal(ind1.rangeN,ind2.rangeN)
-Base.isequal(a::SpecialIndexedTerm,b::SpecialIndexedTerm) = isequal(a.term, b.term) && isequal(a.indexMapping, b.indexMapping)
+function Base.isequal(a::SpecialIndexedTerm,b::SpecialIndexedTerm)
+    isequal(a.term, b.term) || return false
+    isequal(length(a.indexMapping),length(b.indexMapping)) || return false
+    for tuple in a.indexMapping
+        if tuple ∉ b.indexMapping && (last(tuple),first(tuple)) ∉ b.indexMapping
+            return false
+        end
+    end
+    return true
+end
 
 #checks if two sums have opposite numeric values
 check_sign(a::IndexedSingleSum,b::IndexedSingleSum) = isequal(a.term.arg_c, -1*b.term.arg_c)
@@ -796,7 +817,8 @@ function reorder(param::QMul,indexMapping::Vector{Tuple{Index,Index}})
         end
     end
     qmul = merge_commutators(carg,vcat(others,indOps))
-    return SpecialIndexedTerm(qmul,indexMapping)
+    mapping_ = orderMapping(indexMapping)
+    return SpecialIndexedTerm(qmul,mapping_)
 end
 reorder(sum::IndexedSingleSum,indexMapping::Vector{Tuple{Index,Index}}) = IndexedSingleSum(reorder(sum.term,indexMapping),sum.sumIndex,sum.nonEqualIndices)
 reorder(op::SpecialIndexedTerm) = reorder(op.term,op.indexMapping)
@@ -841,15 +863,24 @@ function reorder(term::QAdd,indexMapping::Vector{Tuple{Index,Index}})
 end
 reorder(x,indMap) = x
 
+function orderMapping(mapping::Vector{Tuple{Index,Index}})
+    mapping_ = Vector{Union{Missing,Tuple{Index,Index}}}(missing,length(mapping))
+    for i = 1:length(mapping)
+        sort_ = sort([first(mapping[i]),last(mapping[i])],by=getIndName)
+        mapping_[i] = (sort_[1],sort_[2])
+    end
+    return mapping_
+end
+
 #Show functions
 function Base.show(io::IO,op::IndexedOperator)
     op_ = op.op
     if typeof(op_) <:Transition
-        write(io,Symbol(op_.name,op_.i,op_.j))
+        write(io,Symbol(op_.name,op_.i,op_.j,op.ind.name))
     else
         write(io,op_.name)
     end
-    write(io,op.ind.name)
+   # write(io,op.ind.name)
 end
 function Base.show(io::IO,elem::IndexedVariable)
     write(io,elem.name,elem.ind.name)
@@ -884,4 +915,44 @@ function Base.show(io::IO,op::SpecialIndexedTerm)
         end
     end
     Base.show(io,op.term)
+end
+#Functions for easier symbol creation in Constructor
+function writeNEIs(neis::Vector{indornum})
+    syms = ""
+    for i = 1:length(neis)
+        syms = typeof(neis[i]) == Index ? join([syms,neis[i].name]) : join([syms,neis[i]])
+        if i != length(neis)
+            syms = join([syms,","])
+        end
+    end
+    return syms
+end
+function writeNEIs(neis::Vector{Index})
+    syms = ""
+    for i = 1:length(neis)
+        syms = join([syms,neis[i].name])
+        if i != length(neis)
+            syms = join([syms,","])
+        end
+    end
+    return syms
+end
+
+_to_expression(ind::Index) = ind.name
+_to_expression(x::IndexedOperator) = :( IndexedOperator($(x.op.name),$(x.ind.name),$(x.op.i),$(x.op.j)) )
+_to_expression(s::IndexedSingleSum) = :( IndexedSingleSum($(_to_expression(s.term)),$(s.sumIndex.name),$(s.sumIndex.rangeN),$(writeNEIs(s.nonEqualIndices))))
+#_to_expression(x::SpecialIndexedTerm) = :($(x.term))
+#:( IndexedSingleSum($(_to_expression(s.term)),$(s.sumIndex.name),$(s.sumIndex.rangeN),$(writeNEIs(s.nonEqualIndices))))
+
+@latexrecipe function f(s::IndexedSingleSum)
+    neis = writeNEIs(s.nonEqualIndices)
+
+    ex = latexify(s.term)
+    sumString = nothing
+    if neis != ""
+        sumString = L"$\underset{%$(s.sumIndex.name) ≠%$(neis) }{\overset{%$(s.sumIndex.rangeN)}{\sum}}$ %$(ex)"
+    else
+        sumString = L"$\underset{%$(s.sumIndex.name)}{\overset{%$(s.sumIndex.rangeN)}{\sum}}$ %$(ex)"
+    end
+    return sumString
 end
