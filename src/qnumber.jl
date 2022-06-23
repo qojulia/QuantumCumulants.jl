@@ -89,8 +89,28 @@ struct QMul{M} <: QTerm
     function QMul{M}(arg_c, args_nc, metadata) where {M}
         if SymbolicUtils._isone(arg_c) && length(args_nc)==1
             return args_nc[1]
-        else
-            return new(arg_c, args_nc, metadata)
+        elseif (0 in args_nc) || isequal(arg_c,0)
+            return 0
+        else#=
+            found = 0
+            for i=1:length(args_nc)
+                if typeof(args_nc[i]) <: QAdd
+                    found = i
+                    break
+                end
+            end
+            if !isequal(found,0)
+                front = args_nc[1:(found-1)]
+                back = args_nc[(found+1):length(args_nc)]
+                qmuls = []
+                for arg in args_nc[found].arguments
+                    push!(qmuls,QMul(arg_c,vcat(front,arg,back);metadata=metadata))
+                end
+                return QAdd(qmuls)
+            else
+                =#
+                return new(arg_c, args_nc, metadata)
+            #end
         end
     end
 end
@@ -172,6 +192,10 @@ end
 Base.:/(a::QNumber, b::SNuN) = (1/b) * a
 
 function merge_commutators(arg_c,args_nc)
+    #Added extra checks for 0 here
+    if isequal(arg_c,0) || 0 in args_nc
+        return 0
+    end
     i = 1
     was_merged = false
     while i<length(args_nc)
@@ -208,6 +232,14 @@ Represent an addition involving [`QNumber`](@ref) and other types.
 """
 struct QAdd <: QTerm
     arguments::Vector{Any}
+    #Added 0 checks for new QAdd entities
+    #=
+    function QAdd(arguments)
+        filter!(x -> !isequal(x,0),arguments)
+        isempty(arguments) && return 0
+        return new(arguments)
+    end
+    =#
 end
 
 Base.hash(q::T, h::UInt) where T<:QAdd = hash(T, SymbolicUtils.hashvec(q.arguments, h))

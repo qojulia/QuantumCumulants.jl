@@ -11,6 +11,7 @@ function indexedMeanfield(a::Vector,H,J;Jdagger::Vector=adjoint.(J),rates=ones(I
     order=nothing,
     mix_choice=maximum,
     iv=SymbolicUtils.Sym{Real}(:t))
+    #print(a)
 
     # Derive operator equations
     rhs = Vector{Any}(undef, length(a))
@@ -62,9 +63,20 @@ function indexed_master_lindblad(a_,J,Jdagger,rates)
     args = Any[]
     for k=1:length(J)
         if typeof(J[k]) == IndexedOperator
-            c1 = 0.5*rates[k]*Jdagger[k]*commutator(a_,J[k])
-            c2 = 0.5*rates[k]*commutator(Jdagger[k],a_)*J[k]
-            push!(args, IndexedSingleSum(c1+c2,J[k].ind,Index[]))
+            c1 = orderByIndex(0.5*rates[k]*Jdagger[k]*commutator(a_,J[k]))
+            c2 = orderByIndex(0.5*rates[k]*commutator(Jdagger[k],a_)*J[k])
+            c = nothing
+            args_ = []
+            push_or_append_nz_args!(args_,c1)
+            push_or_append_nz_args!(args_,c2)
+            if isempty(args_)
+                c = 0
+            else
+                c = sum(args_)
+            end
+            if !SymbolicUtils._iszero(c)
+                push!(args, IndexedSingleSum(c,J[k].ind,Index[]))
+            end
         else
             if typeof(rates[k]) == SymbolicUtils.Sym{Parameter,DoubleIndexedVariable}
                 if J[k][1].ind != rates[k].metadata.ind1
@@ -111,7 +123,9 @@ function indexedComplete!(de::AbstractMeanfieldEquations;
     mix_choice=maximum,
     simplify=true,
     extraIndices::Vector=[],
+    scaling::Bool=false,
     kwargs...)
+    sort!(extraIndices)
     vs = de.states
     order_lhs = maximum(get_order.(vs))
     order_rhs = 0
@@ -143,13 +157,15 @@ function indexedComplete!(de::AbstractMeanfieldEquations;
     missed = find_missing(de.equations, vhash, vs′hash; get_adjoints=false)
 
     if order != 1
-        missed = findMissingSumTerms(missed,de;extraIndices=extraIndices)
-        missed = findMissingSpecialTerms(missed,de)
+        missed = findMissingSumTerms(missed,de;extraIndices=extraIndices,scaling=scaling)
+        missed = findMissingSpecialTerms(missed,de;scaling=scaling)
     end
     missed = sortByIndex.(missed)
-    isnothing(filter_func) || filter!(filter_func, missed) # User-defined filter
+    filter!(x -> (x isa Average),missed)
 
-    filter!(x -> (isNotIn(getOps(x),getOps.(de.states)) && isNotIn(getOps(sortByIndex(_conj(x))),getOps.(de.states))), missed)
+    isnothing(filter_func) || filter!(filter_func, missed) # User-defined filter
+    
+    filter!(x -> (isNotIn(getOps(x),getOps.(de.states),scaling) && isNotIn(getOps(sortByIndex(_conj(x))),getOps.(de.states),scaling)), missed)
     indices_ = nothing
     for i = 1:length(de.states)
         indices_ = getIndices(de.states[i])
@@ -190,13 +206,14 @@ function indexedComplete!(de::AbstractMeanfieldEquations;
         missed = find_missing(me.equations, vhash, vs′hash; get_adjoints=false)
 
         if order != 1
-            missed = findMissingSumTerms(missed,de;extraIndices=extraIndices)
-            missed = findMissingSpecialTerms(missed,de)
+            missed = findMissingSumTerms(missed,de;extraIndices=extraIndices,scaling=scaling)
+            missed = findMissingSpecialTerms(missed,de;scaling=scaling)
         end
         missed = sortByIndex.(missed)
+        filter!(x -> (x isa Average),missed)
         isnothing(filter_func) || filter!(filter_func, missed) # User-defined filter
-
-        filter!(x -> (isNotIn(getOps(x),getOps.(de.states)) && isNotIn(getOps(sortByIndex(_conj(x))),getOps.(de.states))), missed)
+    
+        filter!(x -> (isNotIn(getOps(x),getOps.(de.states),scaling) && isNotIn(getOps(sortByIndex(_conj(x))),getOps.(de.states),scaling)), missed)
         for i = 1:length(missed)
             mInd_ = getIndices(missed[i])
             isempty(mInd_) && continue
@@ -204,8 +221,9 @@ function indexedComplete!(de::AbstractMeanfieldEquations;
                 missed[i] = changeIndex(missed[i],mInd_[1],indices_[1]) #replace missed ops with changed indexed ones
             end
         end
+        filter!(x -> (isNotIn(getOps(x),getOps.(de.states),scaling) && isNotIn(getOps(sortByIndex(_conj(x))),getOps.(de.states),scaling)), missed)
         missed = unique(missed)
-        #missed = elimRed(missed)
+        missed = elimRed(missed)
     end
 
     if !isnothing(filter_func)
@@ -213,11 +231,14 @@ function indexedComplete!(de::AbstractMeanfieldEquations;
         # but still occur on the RHS; set those to 0
         missed = find_missing(de.equations, vhash, vs′hash; get_adjoints=false)
         if order != 1
-            missed = findMissingSumTerms(missed,de;extraIndices=extraIndices,checking=false)
+            missed = findMissingSumTerms(missed,de;extraIndices=extraIndices,checking=false) #checkin dissabled, since there might be some terms, that are redundant, but also zero -> set them to zero aswell forsa fety
             missed = findMissingSpecialTerms(missed,de)
         end
-        missed = sortByIndex.(missed)
+        missed = sortByIndex.(missed) #this one might not be right (?)
+        filter!(x -> (x isa Average),missed)
+
         filter!(!filter_func, missed)
+    
         missed_adj = map(_adjoint, missed)
         subs = Dict(vcat(missed, missed_adj) .=> 0)
         for i=1:length(de.equations)
@@ -231,7 +252,7 @@ end
 
 #TODO: Clean up code, the functions below look and are very (!!!!) messy
 # Function for extending find_missing function onto summation terms
-function findMissingSumTerms(missed,de::MeanfieldEquations;extraIndices::Vector=[],checking=true)
+function findMissingSumTerms(missed,de::MeanfieldEquations;extraIndices::Vector=[],checking=true,scaling=false)
     #TODO: simplify 3rd order to a loop over 2nd order algorithm (somehow)
     missed_ = copy(missed)
     indices = nothing #gets initial indices, that are on the lhs
@@ -254,9 +275,10 @@ function findMissingSumTerms(missed,de::MeanfieldEquations;extraIndices::Vector=
         end
     else
         for name in extraIndices
-            push!(extras,Index(indices[1].hilb,name,indices[1].rangeN))
+            push!(extras,Index(indices[1].hilb,name,indices[1].rangeN,indices[1].transition))
         end
     end
+    #=
     if de.order == 1 #2nd order
         if !isempty(extras)
             extraIndex = extras[1]
@@ -283,35 +305,49 @@ function findMissingSumTerms(missed,de::MeanfieldEquations;extraIndices::Vector=
             end
         end
     elseif de.order == 2 #third order
-        sums = Any[]
-        for eq in de.equations
-            sums = checkIfSum(eq.rhs)
-            for sum in sums
-                avrgs = getAvrgs(sum) #get vector of all avrgs in the sum
-                for avr in avrgs
-                    if extras[1] in getIndices(avr) #this is probably where the for loop should come in play
-                        changed_ = changeIndex(avr,sum.metadata.sumIndex,extras[2])
-                    else
-                        changed_ = changeIndex(avr,sum.metadata.sumIndex,extras[1])
+        =#
+        
+    sums = Any[]
+    for eq in de.equations
+        sums = checkIfSum(eq.rhs)
+        for sum in sums
+            avrgs = getAvrgs(sum) #get vector of all avrgs in the sum
+            for avr in avrgs
+                changed_ = nothing
+                for ind in indices
+                    if ind ∉ getIndices(avr)
+                        changed_ = changeIndex(avr,sum.metadata.sumIndex,ind)
+                        break
                     end
-                    if typeof(changed_) == Term{AvgSym, Nothing}
-                        changed = sortByIndex(changed_)    # this can be done, since terms inside the sum commute anyway
-                        if checking
-                            if ((isNotIn(getOps(changed),getOps.(de.states)) && isNotIn(getOps(sortByIndex(_conj(changed))),getOps.(de.states))) && 
-                                    isNotIn(getOps(changed),getOps.(missed_)) && isNotIn(getOps(sortByIndex(_conj(changed))),getOps.(missed_)))
-                                push!(missed_,changed)
-                            end
-                        else
+                end
+                if isequal(changed_,nothing)
+                    for i = 1:length(extras)
+                        if extras[i] ∉ getIndices(avr)
+                            changed_ = changeIndex(avr,sum.metadata.sumIndex,extras[i])
+                            break
+                        end
+                    end
+                end
+                if typeof(changed_) == Term{AvgSym, Nothing}
+                    changed = sortByIndex(changed_)    # this can be done, since terms inside the sum commute anyway
+                    if !(changed isa Average)
+                        continue
+                    end
+                    if checking
+                        if ((isNotIn(getOps(changed),getOps.(de.states),scaling) && isNotIn(getOps(sortByIndex(_conj(changed))),getOps.(de.states),scaling)) && 
+                                isNotIn(getOps(changed),getOps.(missed_),scaling) && isNotIn(getOps(sortByIndex(_conj(changed))),getOps.(missed_),scaling))
                             push!(missed_,changed)
                         end
+                    else
+                        push!(missed_,changed)
                     end
                 end
             end
         end
-    end
+    end   
     return missed_
 end
-function findMissingSpecialTerms(missed,me::MeanfieldEquations)
+function findMissingSpecialTerms(missed,me::MeanfieldEquations;scaling=false)
     
     #does not work (?)
     #=
@@ -392,7 +428,14 @@ function sortByIndex(term::Term{AvgSym, Nothing})
     if typeof(arg) <: QMul
         args_nc = arg.args_nc
         sort!(args_nc,by=getIndName)
-        return average(QMul(1,args_nc))
+        if isempty(args_nc)
+            return 0
+        elseif length(args_nc) == 1
+            return average(args_nc[1])
+        end
+        mult = *(args_nc...)
+        return average(mult)
+
     end
     return term
 end
@@ -421,19 +464,29 @@ function checkIfDSum(term)
     end
     return sums
 end
+function getOps(term::SymbolicUtils.Mul)
+    for arg in arguments(term)
+        if arg isa Average
+            return getOps(arg)
+        end
+    end
+    return []
+end
 function getOps(ops::Term{AvgSym, Nothing})
     args = arguments(ops)[1]
     if typeof(args) <: QMul 
         return getOps(args)
     else #single op in term
-        return typeof(args) == IndexedOperator ? Any[args.op] : Any[args]
+        return typeof(args) == IndexedOperator ? Any[args] : Any[args]
     end
 end
 function getOps(ops::QMul)
     arr = Any[]
     for arg in ops.args_nc
         if typeof(arg) == IndexedOperator
-            push!(arr,arg.op)
+            push!(arr,arg)
+        elseif typeof(arg) == NumberedOperator
+            push!(arr,arg)
         else
             push!(arr,arg)
         end
@@ -441,25 +494,132 @@ function getOps(ops::QMul)
     return arr
 end
 getOps(x) = Vector{Vector{Any}}()
-function isNotIn(terms::Vector{Any},vects::Vector{Vector{Any}})
+function isNotIn(terms::Vector{Any},vects::Vector{Vector{Any}},scaling::Bool)
     for vect in vects
-        if isequal(terms,vect)
+        if scaling
+            if hasSameOps(vect,terms)
+                return false
+            end
+        else
+            if isequal(vect,terms)
+                return false
+            end
+        end
+    end
+    return true
+end
+isNotIn(terms::Vector{Any},vects::Vector{Any},scaling) = isNotIn(terms,[vects],scaling)
+
+function hasSameOps(vec1::Vector,vec2::Vector)
+    length(vec1) != length(vec2) && return false
+    for elem in vec1
+        if elem ∉ vec2
+            return false
+        end
+    end
+    for elem in vec2
+        if elem ∉ vec1
+            return false
+        end
+    end
+    for elem in vec1
+        if elem ∉ vec2
             return false
         end
     end
     return true
 end
-isNotIn(terms::Vector{Any},vects::Vector{Any}) = isNotIn(terms,[vects])
 
-
-#=
+# this is most likely not the best method, works fine however
 function elimRed(missed::Vector)
-    missed_ = copy(missed)
-    for i=1:length(missed_)
-        getOps(missed[i]),getOps(x)
-        filter!(x->hasSameOps(),missed_)
+    all = getOps.(missed)
+    for i=1:length(missed)
+        if i > length(missed)
+            break
+        end
+        for j=1:length(missed)
+            if j > length(missed)
+                break
+            end
+            if hasSameOps(getOps(_conj(missed[i])),getOps(missed[j])) && !hasSameOps(getOps(missed[i]),getOps(missed[j]))
+                deleteat!(missed,j)
+            end
+        end
     end
-
     return missed
 end
-=#
+
+function substReds(me::MeanfieldEquations)
+    eqs = []
+    for eq in me.equations
+        push!(eqs,Symbolics.Equation(eq.lhs,substReds(eq.rhs,me.states)))
+    end
+    return MeanfieldEquations(eqs,me.operator_equations,me.states,me.operators,me.hamiltonian,me.jumps,me.jumps_dagger,me.rates,me.iv,me.varmap,me.order)
+end
+
+function substReds(term,vect::Vector)
+    if term isa Average
+        for i = 1:length(vect)
+            temp = getOps(_conj(vect[i]))
+            if hasSameOps(getOps(term),temp) && !(hasSameOps(getOps(term),getOps(vect[i])))
+                return conj(vect[i])
+            end
+            if hasSameOps(getOps(term),getOps(vect[i]))
+                return vect[i]
+            end
+        end
+    elseif istree(term)
+        op = operation(term)
+        args = map(x->substReds(x,vect),arguments(term))
+        return SymbolicUtils.similarterm(term, op, args)
+    elseif typeof(term) == SymbolicUtils.Sym{Parameter,IndexedAverageSum}
+        return IndexedAverageSum(substReds(term.metadata.term,vect),term.metadata.sumIndex,term.metadata.nonEqualIndices)
+    elseif typeof(term) == SymbolicUtils.Sym{Parameter,IndexedAverageDoubleSum}
+        return IndexedAverageDoubleSum(substReds(term.metadata.innerSum,vect),term.metadata.sumIndex,term.metadata.NEI)
+    elseif typeof(term) == SymbolicUtils.Sym{Parameter,SpecialIndexedAverage}
+        return SpecialIndexedAverage(substReds(term.metadata.term,vect),term.metadata.indexMapping)
+    end
+    return term
+end
+
+#=
+if term isa Average
+        for i = 1:length(vect)
+            temp = getOps(_conj(vect[i]))
+            if hasSameOps(getOps(term),temp)
+                return vect[i]
+            end
+            if hasSameOps(getOps(term),getOps(vect[i]))
+                return vect[i]
+            end
+        end
+    elseif typeof(term) <: SymbolicUtils.Mul
+        mults = []
+        avrg = 1
+        conj_ = false
+        for arg in arguments(term)
+            if arg isa Average
+                for i = 1:length(vect)
+                    temp = getOps(_conj(vect[i]))
+                    if hasSameOps(getOps(term),temp) #is complex-conjugated of original
+                        avrg = vect[i]
+                        conj_ = true
+                    end
+                    if hasSameOps(getOps(term),getOps(vect[i])) #is same as original
+                        avrg = vect[i]
+                    end
+                end
+            else
+                push!(mults,arg)
+            end
+        end
+        if conj_
+            for i=1:length(mults)
+                if mults[i] isa Complex
+                    mults[i] = conj(mults[i])
+                end
+            end
+            return *(mults...)*avrg
+        end
+        return *(mults...)*avrg
+        =#

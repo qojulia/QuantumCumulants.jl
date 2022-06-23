@@ -2,7 +2,7 @@
 
 function _new_operator(op::IndexedOperator,h,aon=acts_on(op)) 
     if op.ind.hilb != h
-        return IndexedOperator(Transition(h,op.op.name,op.op.i,op.op.j,aon;op.op.metadata),Index(h,op.ind.name,op.ind.rangeN))
+        return IndexedOperator(Transition(h,op.op.name,op.op.i,op.op.j,aon;op.op.metadata),Index(h,op.ind.name,op.ind.rangeN,op.ind.transition))
     end
     return IndexedOperator(Transition(h,op.op.name,op.op.i,op.op.j,aon;op.op.metadata),op.ind)
 end
@@ -10,12 +10,12 @@ _new_operator(nOp::NumberedOperator,h,aon=acts_on(nOp)) = NumberedOperator(Trans
 function _new_operator(sum::IndexedSingleSum,h,aon) 
     newSumIndex = sum.sumIndex
     if sum.sumIndex.hilb != h
-        newSumIndex = Index(h,sum.sumIndex.name,sum.sumIndex.rangeN)
+        newSumIndex = Index(h,sum.sumIndex.name,sum.sumIndex.rangeN,ind.transition)
     end
     newSumNonEquals = Index[]
     for ind in sum.nonEqualIndices
         if ind.hilb != h
-            push!(newSumNonEquals,Index(h,ind.name,ind.rangeN))
+            push!(newSumNonEquals,Index(h,ind.name,ind.rangeN,ind.transition))
         end
     end
     return IndexedSingleSum(_new_operator(sum.term,h),newSumIndex,newSumNonEquals)
@@ -24,12 +24,12 @@ end
 function _new_operator(sum::IndexedSingleSum,h) 
     newSumIndex = sum.sumIndex
     if sum.sumIndex.hilb != h
-        newSumIndex = Index(h,sum.sumIndex.name,sum.sumIndex.rangeN)
+        newSumIndex = Index(h,sum.sumIndex.name,sum.sumIndex.rangeN,sum.sumIndex.transition)
     end
     newSumNonEquals = Index[]
     for ind in sum.nonEqualIndices
         if ind.hilb != h
-            push!(newSumNonEquals,Index(h,ind.name,ind.rangeN))
+            push!(newSumNonEquals,Index(h,ind.name,ind.rangeN,ind.transition))
         end
     end
     return IndexedSingleSum(_new_operator(sum.term,h),newSumIndex,newSumNonEquals)
@@ -42,6 +42,7 @@ function indexedCorrelationFunction(op1,op2,de0::AbstractMeanfieldEquations;
     iv=SymbolicUtils.Sym{Real}(:τ),
     order=nothing,
     extraIndices::Vector=[],
+    scaling::Bool=false,
     simplify=true, kwargs...)
     h1 = hilbert(op1)
     h2 = _new_hilbert(hilbert(op2), acts_on(op2))
@@ -95,10 +96,15 @@ function indexedCorrelationFunction(op1,op2,de0::AbstractMeanfieldEquations;
             mix_choice=mix_choice,
             simplify=simplify,
             extraIndices=extraIndices,
+            scaling=scaling,
             kwargs...)
-    de = scaleME(de)
-    de0_ = scaleME(de0_)
-    
+    if scaling
+        de = scaleME(de)
+        de0_ = scaleME(de0_)
+        de = substReds(de)
+        de0_ = substReds(de0_)
+    end
+
     return CorrelationFunction(op1_, op2_, op2_0, de0_, de, steady_state)
 end
 
@@ -107,6 +113,7 @@ function indexed_complete_corr!(de,aon0,lhs_new,order,steady_state,de0;
         simplify=true,
         filter_func=nothing,
         extraIndices::Vector=[],
+        scaling::Bool=false,
         kwargs...)
     vs = de.states
     H = de.hamiltonian
@@ -120,14 +127,14 @@ function indexed_complete_corr!(de,aon0,lhs_new,order,steady_state,de0;
     filter!(!in(vhash), vs′hash)
     missed = find_missing(de.equations, vhash, vs′hash; get_adjoints=false)
     if order != 1
-        missed = findMissingSumTerms(missed,de;extraIndices=extraIndices)
-        missed = findMissingSpecialTerms(missed,de)
+        missed = findMissingSumTerms(missed,de;extraIndices=extraIndices,scaling = scaling)
+        missed = findMissingSpecialTerms(missed,de;scaling=scaling)
     end
     missed = sortByIndex.(missed)
     isnothing(filter_func) || filter!(filter_func, missed) # User-defined filter
 
-    filter!(x -> (isNotIn(getOps(x),getOps.(de.states)) && isNotIn(getOps(sortByIndex(_conj(x))),getOps.(de.states)) 
-                && isNotIn(getOps(x),getOps.(de0.states))&& isNotIn(getOps(sortByIndex(_conj(x))),getOps.(de0.states)))
+    filter!(x -> (isNotIn(getOps(x),getOps.(de.states),scaling) && isNotIn(getOps(sortByIndex(_conj(x))),getOps.(de.states),scaling) 
+                && isNotIn(getOps(x),getOps.(de0.states),scaling)&& isNotIn(getOps(sortByIndex(_conj(x))),getOps.(de0.states),scaling))
                 , missed)
     indices_ = nothing
     for i = 1:length(de.states)
@@ -170,7 +177,7 @@ function indexed_complete_corr!(de,aon0,lhs_new,order,steady_state,de0;
     missed = unique(missed)
     while !isempty(missed)
         ops_ = [SymbolicUtils.arguments(m)[1] for m in missed]
-        me = meanfield(ops_,H,J;
+        me = indexedMeanfield(ops_,H,J;
             Jdagger=Jd,
             rates=rates,
             simplify=simplify,
@@ -189,14 +196,14 @@ function indexed_complete_corr!(de,aon0,lhs_new,order,steady_state,de0;
 
         missed = find_missing(me.equations, vhash, vs′hash; get_adjoints=false)
         if order != 1
-            missed = findMissingSumTerms(missed,de;extraIndices=extraIndices)
-            missed = findMissingSpecialTerms(missed,de)
+            missed = findMissingSumTerms(missed,de;extraIndices=extraIndices,scaling=scaling)
+            missed = findMissingSpecialTerms(missed,de;scaling=scaling)
         end
         missed = sortByIndex.(missed)
         isnothing(filter_func) || filter!(filter_func, missed) # User-defined filter
     
-        filter!(x -> (isNotIn(getOps(x),getOps.(de.states)) && isNotIn(getOps(sortByIndex(_conj(x))),getOps.(de.states)) 
-                && isNotIn(getOps(x),getOps.(de0.states))&& isNotIn(getOps(sortByIndex(_conj(x))),getOps.(de0.states)))
+        filter!(x -> (isNotIn(getOps(x),getOps.(de.states),scaling) && isNotIn(getOps(sortByIndex(_conj(x))),getOps.(de.states),scaling) 
+                && isNotIn(getOps(x),getOps.(de0.states),scaling)&& isNotIn(getOps(sortByIndex(_conj(x))),getOps.(de0.states),scaling))
                 , missed)
         indices_ = nothing
         for i = 1:length(de.states)
@@ -223,15 +230,16 @@ function indexed_complete_corr!(de,aon0,lhs_new,order,steady_state,de0;
         # but still occur on the RHS; set those to 0
         missed = find_missing(de.equations, vhash, vs′hash; get_adjoints=false)
         if order != 1
-            missed = findMissingSumTerms(missed,de;extraIndices=extraIndices,checking=false)
-            missed = findMissingSpecialTerms(missed,de)
+            missed = findMissingSumTerms(missed,de;extraIndices=extraIndices,checking=false,scaling=false)
+            missed = findMissingSpecialTerms(missed,de;scaling=false)
         end
-        missed = sortByIndex.(missed)
+        missed_ = sortByIndex.(missed)
+        missed = vcat(missed,missed_)
         filter!(!filter_func, missed)
         missed_adj = map(_adjoint, missed)
         subs = Dict(vcat(missed, missed_adj) .=> 0)
         for i=1:length(de.equations)
-            de.equations[i] = substitute(de.equations[i], subs)
+            de.equations[i] = substitute(de.equations[i], subs; fold=true)
             de.states[i] = de.equations[i].lhs
         end
     end

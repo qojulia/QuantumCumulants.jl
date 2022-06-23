@@ -1,3 +1,5 @@
 docs/build
 /examples/testing.ipynb
+/examples/queens_test.ipynb
 .vscode/
+/examples/Superradiant_Laser/Superradiant-Laser_using_indices.ipynb

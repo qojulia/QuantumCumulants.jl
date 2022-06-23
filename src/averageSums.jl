@@ -112,7 +112,7 @@ end
 
 #For representing in average terms
 struct NumberedOperator <:QNumber
-    op::Transition
+    op::indexable
     numb::Int64
     function NumberedOperator(op,numb)
         if numb <= 0
@@ -121,6 +121,19 @@ struct NumberedOperator <:QNumber
         end
         if typeof(op) <: SNuN
             return op
+        end
+        if SymbolicUtils.istree(op)
+            f = SymbolicUtils.operation(op)
+            args = []
+            for arg in SymbolicUtils.arguments(op)
+                push!(args,NumberedOperator(arg,numb))
+            end
+            if isempty(args)
+                return 0
+            elseif length(args) == 1
+                return args[1]
+            end
+            return f(args...)
         end
         return new(op,numb)
     end
@@ -179,6 +192,9 @@ struct SpecialIndexedAverage <: CNumber #An average-Term with special condition,
             return sum(adds)
         end
         if typeof(term) == SymbolicUtils.Term{AvgSym,Nothing}
+            if SymbolicUtils._iszero(arguments(term)[1])
+                return 0
+            end
             metadata = new(term,indexMapping)
             neis = writeIndexNEIs(indexMapping)
             return SymbolicUtils.Sym{Parameter, SpecialIndexedAverage}(Symbol("$(neis)$(term)"), metadata)
@@ -213,10 +229,12 @@ struct SpecialIndexedAverage <: CNumber #An average-Term with special condition,
 
 
             term = length(term_) == 1 ? term_[1] : *(term_...)
-            if typeof(term) <: SymbolicUtils.Mul
-                term = simplifyMultiplication(term)
-            end
             if typeof(term) <: symbolics_terms
+                if typeof(term) == SymbolicUtils.Term{AvgSym,Nothing}
+                    if SymbolicUtils._iszero(arguments(term)[1])
+                        return 0
+                    end
+                end
                 metadata = new(term,indexMapping)
                 neis = writeIndexNEIs(indexMapping)
                 return prefac * SymbolicUtils.Sym{Parameter, SpecialIndexedAverage}(Symbol("$(neis)$(term)"), metadata)
@@ -227,7 +245,12 @@ struct SpecialIndexedAverage <: CNumber #An average-Term with special condition,
         return term
     end
 end
-average(indOp::IndexedOperator) = _average(indOp)
+function average(indOp::IndexedOperator) 
+    if SymbolicUtils._iszero(indOp)
+        return 0
+    end
+    return _average(indOp)
+end
 average(x::SpecialIndexedTerm) = SpecialIndexedAverage(average(x.term),x.indexMapping)
 
 function average(indSum::IndexedSingleSum; kwargs...)
@@ -251,11 +274,16 @@ end
 undo_average(a::SymbolicUtils.Sym{Parameter,SpecialIndexedAverage}) = reorder(undo_average(a.metadata.term),a.metadata.indexMapping)
 
 #define calculus for numbered operators -> break it down into QNuber multiplication
-*(numOp::NumberedOperator, qmul::QMul) = QMul(qmul.arg_c,vcat(numOp,qmul.args_nc))
-*(qmul::QMul, numOp::NumberedOperator) = QMul(qmul.arg_c,vcat(qmul.args_nc,numOp))
-*(numOp1::NumberedOperator,numOp2::NumberedOperator) = numOp1.numb == numOp2.numb ? NumberedOperator(numOp1.op*numOp2.op,numOp1.numb) : QMul(1,[numOp1,numOp2])
-*(elem::SNuN, numOp::NumberedOperator) = QMul(elem,[numOp])
-*(numOp::NumberedOperator,elem::SNuN) = QMul(elem,[numOp])
+*(numOp::NumberedOperator, qmul::QMul) = merge_commutators(qmul.arg_c,vcat(numOp,qmul.args_nc))
+*(qmul::QMul, numOp::NumberedOperator) = merge_commutators(qmul.arg_c,vcat(qmul.args_nc,numOp))
+function *(numOp1::NumberedOperator,numOp2::NumberedOperator) 
+    if numOp1.op isa Create || numOp1.op isa Destroy || numOp2.op isa Create || numOp2.op isa Destroy
+        return merge_commutators(1,[numOp1,numOp2])
+    end
+    return numOp1.numb == numOp2.numb ? NumberedOperator(numOp1.op*numOp2.op,numOp1.numb) : QMul(1,[numOp1,numOp2])
+end
+*(elem::SNuN, numOp::NumberedOperator) = merge_commutators(elem,[numOp])
+*(numOp::NumberedOperator,elem::SNuN) = merge_commutators(elem,[numOp])
 *(a::Create,b::NumberedOperator) = merge_commutators(1,[a,b])
 *(b::NumberedOperator,a::Create) = merge_commutators(1,[b,a])
 *(a::Destroy,b::NumberedOperator) = merge_commutators(1,[a,b])
@@ -328,15 +356,18 @@ function Base.hash(a::IndexedAverageSum, h::UInt)
     return hash(IndexedAverageSum, hash(a.term, hash(a.sumIndex, hash(a.nonEqualIndices,h))))
 end 
 Base.isless(a::IndexedAverageSum,b::IndexedAverageSum) = a.sumIndex < b.sumIndex
+Base.isequal(a::SymbolicUtils.Sym{Parameter,IndexedAverageSum},b::SymbolicUtils.Sym{Parameter,IndexedAverageSum}) = isequal(a.metadata,b.metadata)
 function Base.isequal(a::IndexedAverageSum, b::IndexedAverageSum)
     isequal(a.sumIndex,b.sumIndex) || return false
     isequal(a.term, b.term) || return false
     isequal(a.nonEqualIndices,b.nonEqualIndices) || return false
     return true
 end
+Base.isequal(a::SymbolicUtils.Sym{Parameter,IndexedAverageSum},x) = false
 Base.isequal(a::IndexedAverageSum,b) = false
+Base.isequal(::Sym{Parameter, IndexedAverageSum}, ::Sym) = false
 Base.isequal(::IndexedAverageSum, ::SymbolicUtils.Symbolic) = false
-Base.isequal(a::SymbolicUtils.Sym{Parameter,SpecialIndexedAverage},b::SymbolicUtils.Sym{Parameter,SpecialIndexedAverage}) = isequal(undo_average(a),undo_average(b))
+Base.isequal(a::SymbolicUtils.Sym{Parameter,SpecialIndexedAverage},b::SymbolicUtils.Sym{Parameter,SpecialIndexedAverage}) = isequal(a.metadata.term,b.metadata.term) && isequal(a.metadata.indexMapping,b.metadata.indexMapping)
 function Base.isequal(nVal1::Sym{Parameter,numberedVariable},nVal2::Sym{Parameter,numberedVariable}) 
     if typeof(nVal1) == typeof(nVal2) && typeof(nVal1) == SingleNumberedVariable
         return (nVal1.name == nVal2.name) && (nVal1.numb == nVal2.numb)
@@ -345,6 +376,8 @@ function Base.isequal(nVal1::Sym{Parameter,numberedVariable},nVal2::Sym{Paramete
     end
     return false
 end
+Base.isequal(::SymbolicUtils.Sym{Parameter,IndexedAverageSum},::SymbolicUtils.Sym{Parameter,IndexedAverageDoubleSum}) = false
+Base.isequal(::Sym{Parameter, IndexedAverageSum}, ::SymbolicUtils.Symbolic) = false
 Base.:(==)(nVal1::Sym{Parameter,numberedVariable},nVal2::Sym{Parameter,numberedVariable}) = (nVal1.name == nVal2.name) && (nVal1.numb == nVal2.numb)
 function cumulant_expansion(x::SymbolicUtils.Sym{Parameter,IndexedAverageSum},order::Integer;simplify=true,kwargs...)
     sum = x.metadata
@@ -401,7 +434,15 @@ function insertIndex(term::SymbolicUtils.Term{AvgSym,Nothing},ind::Index,value::
         for arg in arguments(term)[1].args_nc
             push!(newargs,insertIndex(arg,ind,value))
         end
-        return average(QMul(1,newargs))
+        if isempty(newargs)
+            return 0
+        end
+        if length(newargs) == 1
+            qmul = newargs[1]
+        else
+            qmul = *(newargs...)
+        end
+        return average(qmul)
     else
         return average(insertIndex(arguments(term)[1],ind,value))
     end
@@ -457,7 +498,7 @@ function insertIndex(qmul::QMul,ind::Index,to::Int64)
         push!(args_after,insertIndex(arg,ind,to))
     end
     sort!(args_after, by=getNumber)
-    return QMul(qmul.arg_c,args_after)
+    return *(qmul.arg_c,args_after...)
 end
 insertIndex(eq::Symbolics.Equation,ind::Index,value::Int64) = Symbolics.Equation(insertIndex(eq.lhs,ind,value),insertIndex(eq.rhs,ind,value))
 insertIndex(term::IndexedOperator,ind::Index,value::Int64) = term.ind == ind ? NumberedOperator(term.op,value) : term
@@ -556,21 +597,22 @@ function evalTerm(sum_::SymbolicUtils.Sym{Parameter,IndexedAverageSum};mapping::
             rangeEval = sum_.metadata.sumIndex.rangeN
         end
     end
-    adds = Vector{Any}(nothing,rangeEval)
-    #adds = []
+    #TODO: Fix this somehow -> make it so that the adds are pre-allocated
+    #adds = Vector{Any}(nothing,rangeEval)
+    adds = []
     for i = 1:rangeEval
         if i in sum_.metadata.nonEqualIndices
             continue
         end
-        adds[i] = orderTermsByNumber(insertIndex(sum_.metadata.term,sum_.metadata.sumIndex,i))
-        #push!(adds,orderTermsByNumber(insertIndex(sum_.metadata.term,sum_.metadata.sumIndex,i)))
+        #adds[i] = orderTermsByNumber(insertIndex(sum_.metadata.term,sum_.metadata.sumIndex,i))
+        push!(adds,orderTermsByNumber(insertIndex(sum_.metadata.term,sum_.metadata.sumIndex,i)))
     end
     if isempty(adds)
         return 0
     elseif length(adds) == 1
         return adds[1]
     end
-    filter!(x -> !=(x,nothing),adds)
+    #filter!(x -> !=(x,nothing),adds)
     return sum(adds)
 end
 function evalTerm(sum::SymbolicUtils.Sym{Parameter,IndexedAverageDoubleSum};mapping::Dict{SymbolicUtils.Sym,Int64})
@@ -612,7 +654,10 @@ getLHS(x) = []
 function orderTermsByNumber(qmul::QMul)
     args_nc = qmul.args_nc
     newargs = sort(args_nc,by=getNumber)
-    return QMul(1,newargs)
+    if isempty(newargs)
+        return qmul.arg_c
+    end
+    return *(qmul.arg_c,newargs...)
 end
 function orderTermsByNumber(term1::Term{AvgSym, Nothing})
     if typeof(arguments(term1)[1]) <: QMul
@@ -638,8 +683,8 @@ function orderTermsByNumber(add::SymbolicUtils.Add)
 end
 orderTermsByNumber(eq::Symbolics.Equation) = Symbolics.Equation(eq.lhs,orderTermsByNumber(eq.rhs))
 orderTermsByNumber(x) = x
-getNumber(op::NumberedOperator) = op.numb
-getNumber(x) = 0
+#getNumber(op::NumberedOperator) = op.numb
+#getNumber(x) = 0
 
 Base.:(==)(term1::Term{AvgSym, Nothing},term2::Term{AvgSym, Nothing}) = isequal(arguments(term1), arguments(term2))
 
@@ -692,13 +737,22 @@ end
 insertValues(x,valMapping) = x
 
 #Value map creation, for easier inserting into the ODEProblem
-function createValueMap(sym::Sym{Parameter, IndexedVariable}, values::Vector)
+function createValueMap(sym::Sym{Parameter, IndexedVariable}, values::Vector;mapping::Dict{SymbolicUtils.Sym,Int64})
     iVar = sym.metadata
-    if iVar.ind.rangeN != length(values)
+    if iVar.ind.rangeN isa SymbolicUtils.Sym
+        if iVar.ind.rangeN in keys(mapping)
+            range1 = mapping[iVar.ind.rangeN]
+        else
+            error("Can not evaluate without a mapping")
+        end
+    else
+        range1 = iVar.ind.rangeN
+    end
+    if range1 != length(values)
         error("different length of index-range and given values!")
     end
     dict = Dict{Sym{Parameter, Base.ImmutableDict{DataType, Any}},Float64}()
-    for i = 1:iVar.ind.rangeN
+    for i = 1:range1
         push!(dict,(SingleNumberedVariable(iVar.name,i) => values[i]))
     end
     return dict
@@ -709,11 +763,29 @@ function createValueMap(sym::Sym{Parameter, IndexedVariable}, value::Number)
     push!(dict,(SingleNumberedVariable(iVar.name,1) => value))
     return dict
 end
-function createValueMap(sym::Sym{Parameter,DoubleIndexedVariable},values::Matrix)
+function createValueMap(sym::Sym{Parameter,DoubleIndexedVariable},values::Matrix;mapping::Dict{SymbolicUtils.Sym,Int64})
     dict = Dict{Sym{Parameter, Base.ImmutableDict{DataType, Any}},Float64}()
     var = sym.metadata
-    for i = 1:var.ind1.rangeN
-        for j = 1:var.ind2.rangeN
+    if var.ind1.rangeN isa SymbolicUtils.Sym
+        if var.ind1.rangeN in keys(mapping)
+            range1 = mapping[var.ind1.rangeN]
+        else
+            error("Can not evaluate without a mapping")
+        end
+    else
+        range1 = var.ind1.rangeN
+    end
+    if var.ind2.rangeN isa SymbolicUtils.Sym
+        if var.ind2.rangeN in keys(mapping)
+            range2 = mapping[var.ind2.rangeN]
+        else
+            error("Can not evaluate without a mapping")
+        end
+    else
+        range2 = var.ind2.rangeN
+    end
+    for i = 1:range1
+        for j = 1:range2
             push!(dict,(DoubleNumberedVariable(var.name,i,j) => values[i,j]))
         end
     end
@@ -744,10 +816,8 @@ function getIndices(term::SymbolicUtils.Term{AvgSym, Nothing})
                 push!(indices, arg.ind)
             end
         end
-    else
-        if typeof(arg_[1]) == IndexedOperator 
-            return [arg_[1].ind]
-        end
+    elseif typeof(arg_[1]) == IndexedOperator
+        return [arg_[1].ind]
     end
     return indices
 end
@@ -794,6 +864,7 @@ function simplifyMultiplication(term::SymbolicUtils.Mul)
     end
     return sum(adds)
 end
+simplifyMultiplication(x) = x
 function simplifyAdd(term::SymbolicUtils.Add)
     adds = []
     for arg in arguments(term)
@@ -906,10 +977,15 @@ function Base.show(io::IO, numbOp::NumberedOperator)
     Base.show(io,numbOp.op)
     Base.show(io,numbOp.numb)
 end
-getNumber(x::NumberedOperator) = acts_on(x) + x.numb
-getNumber(x) = acts_on(x) # this is so that, any other operator still behaves the same as before
+getNumber(x::NumberedOperator) = [acts_on(x) + x.numb]
+getNumber(x::QMul) = acts_on(x)
+getNumber(x) = [acts_on(x)] # this is so that, any other operator still behaves the same as before
 
-_to_expression(x::NumberedOperator) = :( NumberedOperator($(x.op.name),$(x.numb),$(x.op.i),$(x.op.j)) )
+function _to_expression(x::NumberedOperator) 
+    x.op isa Transition && return :( NumberedOperator($(x.op.name),$(x.numb),$(x.op.i),$(x.op.j)) )
+    x.op isa Destroy && return :(NumberedDestroy($(x.op.name),$(x.numb)))
+    x.op isa Create && return :(dagger(NumberedDestroy($(x.op.name),$(x.numb))))
+end
 _to_expression(x::SymbolicUtils.Sym{Parameter,IndexedAverageSum}) = :( IndexedAverageSum($(_to_expression(x.metadata.term)),$(x.metadata.sumIndex.name),$(x.metadata.sumIndex.rangeN),$(writeNEIs(x.metadata.nonEqualIndices))) )
 _to_expression(x::SymbolicUtils.Sym{Parameter,SpecialIndexedAverage}) = :($(x.metadata.term))
 
@@ -927,3 +1003,5 @@ _to_expression(x::SymbolicUtils.Sym{Parameter,SpecialIndexedAverage}) = :($(x.me
     return sumString
 end
 Base.isequal(x::Missing,y::SymbolicUtils.Symbolic) = false
+
+SymbolicUtils.simplify(sym::SymbolicUtils.Sym{Parameter,SpecialIndexedAverage}) = SpecialIndexedAverage(SymbolicUtils.simplify(sym.metadata.term),sym.metadata.indexMapping)

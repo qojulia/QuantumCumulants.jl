@@ -31,7 +31,7 @@ source_metadata(source, name) =
     Base.ImmutableDict{DataType, Any}(Symbolics.VariableSource, (source, name))
 
 include("hilbertspace.jl")
-include("qnumber.jl")
+#include("qnumber.jl")
 include("cnumber.jl")
 include("fock.jl")
 include("nlevel.jl")
@@ -50,6 +50,7 @@ include("QuantumCumulants.jl")
 
 const Summable = Union{<:QNumber,<:CNumber}
 const ranges = Union{<:SymbolicUtils.Sym,<:Number,<:SymbolicUtils.Mul,<:SymbolicUtils.Div}
+const indexable = Union{<:Transition,<:Create,<:Destroy}
 
 
 struct AvgSym <: CNumber end
@@ -58,6 +59,7 @@ struct Index #main tool
     hilb::HilbertSpace
     name::Symbol
     rangeN::ranges
+    transition::Bool
 end
 const indornum = Union{<:Index,<:Int64}
 struct IndexedVariable <: CNumber #just a symbel, that can be manipulated via the metadata field
@@ -82,8 +84,16 @@ struct DoubleIndexedVariable <: CNumber #just a symbol, that can be manipulated 
     end
 end
 struct IndexedOperator <: QNumber #An operator with an index, for now only transition operators are possible to be declared like this
-    op::Transition
+    op::indexable
     ind::Index
+    function IndexedOperator(op,ind)
+        if op isa Transition && !(ind.transition) 
+            error("Cannot create a Transition operator with a non-transition Index!")
+        elseif (op isa Destroy || op isa Create) && (ind.transition)
+            error("Cannot create a Destroy/Create operator with a transition Index!")
+        end
+        return new(op,ind)
+    end
 end
 struct IndexedSingleSum <:QTerm #Sum with an index, the term inside the sum must be a multiplication, either a QMul or a Symbolic one
     term::Summable
@@ -118,7 +128,7 @@ struct IndexedSingleSum <:QTerm #Sum with an index, the term inside the sum must
             NEI_ = copy(nonEqualIndices)
             for arg in term.args_nc
                 if typeof(arg) == IndexedOperator || typeof(arg) == IndexedVariable
-                    if arg.ind == sumIndex || arg.ind in NEI_
+                    if arg.ind == sumIndex || arg.ind in NEI_ || sumIndex.transition != arg.ind.transition
                         continue
                     else
                     push!(NEI,arg.ind)
@@ -222,7 +232,7 @@ end
 IndexedOperator(op::SNuN,ind::Index) = op     #This is just declared, so one can ignore type-checking on numbers
 
 #Sums
-IndexedSingleSum(ops::Vector{Any},ind::Index,NEI::Vector{Index}) = IndexedSingleSum(QMul(1,ops),ind,NEI)
+IndexedSingleSum(ops::Vector{Any},ind::Index,NEI::Vector{Index}) = IndexedSingleSum(merge_commutators(1,ops),ind,NEI)
 IndexedSingleSum(ops::QMul,ind::Index) = IndexedSingleSum(ops,ind,Index[])
 IndexedSingleSum(ops::QAdd,ind::Index) = IndexedSingleSum(ops,ind,Index[])
 IndexedSingleSum(op::QNumber,ind::Index) = IndexedSingleSum(op,ind,Index[])
@@ -357,7 +367,13 @@ function *(sum::IndexedSingleSum,qmul::QMul)
     args_nc = qmul.args_nc
     arg_c = qmul.arg_c
     newSum = sum
+    if iszero(newSum)
+        return 0
+    end
     for i = 1:length(args_nc)
+        if iszero(args_nc[i])
+            return 0
+        end
         newSum = newSum*args_nc[i]
     end
     return arg_c * newSum
@@ -368,13 +384,13 @@ function *(qmul::QMul,sum::IndexedSingleSum)
     newSum = sum
     len = length(args_nc)
     for i = 1:len
-        newSum = args_nc[len+1-i]*newSum
+        newSum = args_nc[len+1-i]*newSum    #multiply each element into the summation term -> recreate a new Sum after that
     end
     return arg_c * newSum
 end
 function *(sum::IndexedSingleSum,elem::QNumber)
     NEIds = copy(sum.nonEqualIndices)
-    if (typeof(elem) == IndexedOperator || typeof(elem) == IndexedVariable) && !(elem.ind == sum.sumIndex) && (elem.ind ∉ NEIds)
+    if (typeof(elem) == IndexedOperator || typeof(elem) == IndexedVariable) && !(elem.ind == sum.sumIndex) && (elem.ind ∉ NEIds) && (sum.sumIndex.transition == elem.ind.transition)
         qaddterm = nothing
         term = sum.term
         if length(NEIds) == 0
@@ -417,7 +433,7 @@ function *(sum::IndexedSingleSum,elem::QNumber)
 end
 function *(elem::QNumber,sum::IndexedSingleSum)
     NEIds = copy(sum.nonEqualIndices)
-    if ((typeof(elem) == IndexedOperator) || (typeof(elem) == IndexedVariable)) && !(elem.ind == sum.sumIndex) && (elem.ind ∉ NEIds)
+    if ((typeof(elem) == IndexedOperator) || (typeof(elem) == IndexedVariable)) && !(elem.ind == sum.sumIndex) && (elem.ind ∉ NEIds) && (sum.sumIndex.transition == elem.ind.transition)
         push!(NEIds,elem.ind)
         term = sum.term
         extraterm = changeIndex(term,sum.sumIndex,elem.ind)
@@ -551,7 +567,8 @@ function commutator(a::IndexedOperator,b::QAdd)
         push_or_append_nz_args!(args, c)
     end
     isempty(args) && return 0
-    return QAdd(args)
+    length(args) == 1 && return args[1]
+    return +(args...)
 end
 
 #adjoint
@@ -625,8 +642,8 @@ Base.isless(b::QSym,a::IndexedVariable) = false
 Base.isless(a::Index,b::Index) = a.name < b.name
 Base.isless(a::IndexedSingleSum,b::IndexedSingleSum) = Base.isless(a.sumIndex,b.sumIndex)
 
-Base.isequal(ind1::Index,ind2::Index) = (ind1.name == ind2.name) && isequal(ind1.rangeN,ind2.rangeN) && (ind1.hilb == ind2.hilb)
-Base.:(==)(ind1::Index,ind2::Index) = (ind1.name == ind2.name) && (ind1.hilb == ind2.hilb) && isequal(ind1.rangeN,ind2.rangeN)
+Base.isequal(ind1::Index,ind2::Index) = (ind1.name == ind2.name) && isequal(ind1.rangeN,ind2.rangeN) && (ind1.hilb == ind2.hilb) && isequal(ind1.transition,ind2.transition)
+Base.:(==)(ind1::Index,ind2::Index) = (ind1.name == ind2.name) && (ind1.hilb == ind2.hilb) && isequal(ind1.rangeN,ind2.rangeN) && isequal(ind1.transition,ind2.transition)
 function Base.isequal(a::SpecialIndexedTerm,b::SpecialIndexedTerm)
     isequal(a.term, b.term) || return false
     isequal(length(a.indexMapping),length(b.indexMapping)) || return false
@@ -719,10 +736,15 @@ function changeIndex(term::QMul, from::Index, to::Index)
             arg_c = DoubleIndexedVariable(DIndV.name,DIndV.ind1,to,DIndV.canHaveSame)
         end
     end
-    if isempty(args_nc) || isequal(arg_c,0) || SymbolicUtils._iszero(args_nc)
+    if isempty(args_nc) || isequal(arg_c,0) || SymbolicUtils._iszero(args_nc) || 0 in args_nc
         return 0
     end
-    return merge_commutators(arg_c,args_nc)
+    mult = *(arg_c,args_nc...)
+    if typeof(mult) <: QMul
+        return merge_commutators(mult.arg_c,mult.args_nc)
+    else
+        return mult
+    end
 end
 function changeIndex(term::SymbolicUtils.Term{AvgSym, Nothing}, from::Index,to::Index)
     qmul = arguments(term)[1]
@@ -802,6 +824,9 @@ function reorder(param::QMul,indexMapping::Vector{Tuple{Index,Index}})
             push!(others,term[i])
         end
     end 
+    if isequal(carg,0) || (0 in term)
+        return 0
+    end
     while true #go over all ops ind indexed ops -> order by 
         finish = true
         for i = 1:(length(indOps)-1)
@@ -816,7 +841,10 @@ function reorder(param::QMul,indexMapping::Vector{Tuple{Index,Index}})
             break
         end
     end
-    qmul = merge_commutators(carg,vcat(others,indOps))
+    qmul = *(carg,vcat(others,indOps)...)
+    if typeof(qmul) <: QMul
+        qmul = merge_commutators(qmul.arg_c,qmul.args_nc)
+    end
     mapping_ = orderMapping(indexMapping)
     return SpecialIndexedTerm(qmul,mapping_)
 end
@@ -877,6 +905,8 @@ function Base.show(io::IO,op::IndexedOperator)
     op_ = op.op
     if typeof(op_) <:Transition
         write(io,Symbol(op_.name,op_.i,op_.j,op.ind.name))
+    elseif op_ isa Create || op_ isa Destroy
+        write(io,Symbol(op_.name,op.ind.name))
     else
         write(io,op_.name)
     end
@@ -939,8 +969,14 @@ function writeNEIs(neis::Vector{Index})
 end
 
 _to_expression(ind::Index) = ind.name
-_to_expression(x::IndexedOperator) = :( IndexedOperator($(x.op.name),$(x.ind.name),$(x.op.i),$(x.op.j)) )
+function _to_expression(x::IndexedOperator) 
+    x.op isa Transition && return :( IndexedOperator($(x.op.name),$(x.ind.name),$(x.op.i),$(x.op.j)) )
+    x.op isa Destroy && return :(IndexedDestroy($(x.op.name),$(x.ind.name)))
+    x.op isa Create && return :(dagger(IndexedDestroy($(x.op.name),$(x.ind.name))))
+end
 _to_expression(s::IndexedSingleSum) = :( IndexedSingleSum($(_to_expression(s.term)),$(s.sumIndex.name),$(s.sumIndex.rangeN),$(writeNEIs(s.nonEqualIndices))))
+_to_expression(a::SymbolicUtils.Sym{Parameter,IndexedVariable}) = :(IndexedVariable($(a.metadata.name),$(a.metadata.ind.name)))
+_to_expression(a::SymbolicUtils.Sym{Parameter,DoubleIndexedVariable}) = :(DoubleIndexedVariable($(a.metadata.name),$(a.metadata.ind1.name),$(a.metadata.ind2.name)))
 #_to_expression(x::SpecialIndexedTerm) = :($(x.term))
 #:( IndexedSingleSum($(_to_expression(s.term)),$(s.sumIndex.name),$(s.sumIndex.rangeN),$(writeNEIs(s.nonEqualIndices))))
 

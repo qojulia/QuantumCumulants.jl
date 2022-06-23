@@ -31,8 +31,20 @@ function _postwalk_func(x)
     elseif MacroTools.@capture(x, Transition(arg_,i_,j_))
         s = "{$(arg)}$(transition_idx_script[]){{$(i)$(j)}}"
         return s
+    elseif MacroTools.@capture(x,IndexedVariable(name_,ind_))
+        s = "{$name}$(:_){$(ind)}"
+        return s
+    elseif MacroTools.@capture(x,DoubleIndexedVariable(name_, ind1_, ind2_))
+        s = "{$name}$(:_){$(ind1)$(ind2)}"
+        return s
     elseif MacroTools.@capture(x, IndexedOperator(op_,in_,i_,j_))
         s = "{$(op)}$(:_){$(in)}$(transition_idx_script[]){{$(i)$(j)}}"
+        return s
+    elseif MacroTools.@capture(x, IndexedDestroy(op_,in_))
+        s = "{$(op)}$(:_){$(in)}"
+        return s
+    elseif MacroTools.@capture(x, NumberedDestroy(op_,in_))
+        s = "{$(op)}$(:_){$(in)}"
         return s
     elseif MacroTools.@capture(x, NumberedOperator(op_,num_,i_,j_))
         s = "{$(op)}$(:_){$(num)}$(transition_idx_script[]){{$(i)$(j)}}"
@@ -63,6 +75,7 @@ function _postwalk_func(x)
         s = replace(s, "\"" => "")
         s = replace(s, "*" => "")
         return s
+    
         #=
         
     

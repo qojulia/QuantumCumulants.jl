@@ -50,6 +50,7 @@ Compute the average of an operator. If `order` is given, the [`cumulant_expansio
 up to that order is computed immediately.
 """
 average(op::QSym) = _average(op)
+# I rewrite this function for more consistancy (i hope so atleast)
 function average(op::QTerm)
     f = SymbolicUtils.operation(op)
     if f===(+) || f===(-) # linearity
@@ -64,6 +65,24 @@ function average(op::QTerm)
         error("Unknown function $f")
     end
 end
+#=
+function average(add::QAdd)
+    averages = map(average,add.arguments)
+    isempty(averages) && return 0
+    length(averages) == 1 && return averages[1] 
+    return sum(averages)
+end
+function average(mul::QMul)
+    checker = false
+    for arg in mul.args_nc
+        if 
+
+        end
+    end
+
+    return 
+end
+=#
 average(x::SNuN) = x
 average(x,order;kwargs...) = cumulant_expansion(average(x),order;kwargs...)
 

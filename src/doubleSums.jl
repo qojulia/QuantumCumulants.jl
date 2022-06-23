@@ -12,6 +12,8 @@ struct IndexedDoubleSum <:QTerm
             for arg in innerSum.arguments
                 push!(sums, IndexedDoubleSum(arg,sumIndex,NEI))
             end
+            isempty(sums) && return 0
+            length(sums) == 1 && return sums[1]
             return +(sums...)
         end
         if typeof(innerSum) <: SymbolicUtils.Add
@@ -93,13 +95,13 @@ function +(op::QAdd,sum::IndexedDoubleSum)
 end
 #multiplications
 function *(elem::SNuN, sum::IndexedDoubleSum)
-    if elem == 0
+    if isequal(elem,0)
         return 0
     end
     return IndexedDoubleSum(elem*sum.innerSum,sum.sumIndex,sum.NEI)
 end
 function *(sum::IndexedDoubleSum,elem::SNuN)
-    if elem == 0
+    if isequal(elem,0)
         return 0
     end
     return IndexedDoubleSum(sum.innerSum*elem,sum.sumIndex,sum.NEI)

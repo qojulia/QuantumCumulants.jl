@@ -18,6 +18,10 @@ function scaleTerm(sum::IndexedAverageSum)
     term_ = scaleTerm(sum.term)
     return prefact*term_
 end
+function scaleTerm(pow::SymbolicUtils.Pow)
+    args = arguments(pow)
+    return scaleTerm(args[1])^(args[2])
+end
 function scaleTerm(add::SymbolicUtils.Add)
     args = arguments(add)
     adds = Vector{Any}(nothing,length(args))
@@ -61,7 +65,7 @@ scaleTerm(x::SymbolicUtils.Sym{Parameter,SpecialIndexedAverage}) = scaleTerm(x.m
 scaleEq(eq::Symbolics.Equation) = Symbolics.Equation(scaleTerm(eq.lhs),scaleTerm(eq.rhs))
 scaleTerm(x) = x
 
-substitute(term::SymbolicUtils.Sym{Parameter,SpecialIndexedAverage},subs;fold=false) = SpecialIndexedAverage(substitute(term.metadata.term,subs;fold=fold),term.metadata.indexMapping)
+substitute(term::SymbolicUtils.Sym{Parameter,SpecialIndexedAverage},subs;fold=false) = SpecialIndexedAverage(SymbolicUtils.substitute(term.metadata.term,subs;fold=fold),term.metadata.indexMapping)
 function substitute(sum::SymbolicUtils.Sym{Parameter,IndexedAverageSum},subs;fold=false)
     mults = []
     for arg in arguments(sum.metadata.term)
