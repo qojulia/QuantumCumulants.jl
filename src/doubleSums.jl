@@ -1,13 +1,26 @@
 #Base file for defining DoubleIndexedSums
 
 #include("indexing.jl")
+"""
 
+    IndexedDoubleSum <: QTerm
+
+Defines a symbolic summation over another [`IndexedSingleSum`](@ref), using one [`Index`](@ref) entity. This corresponds to a double-summation over a multiplication of terms.
+
+Fields:
+======
+
+* innerSum: A [`IndexedSingleSum`](@ref) entity.
+* sumIndex: The index, for which the (outer) summation will go over.
+* NEI: (optional) A vector of indices, for which the (outer) summation-index can not be equal with.
+
+"""
 struct IndexedDoubleSum <:QTerm
     innerSum::IndexedSingleSum
     sumIndex::Index
     NEI::Vector{Index}
     function IndexedDoubleSum(innerSum,sumIndex,NEI)
-        if typeof(innerSum) == QAdd
+        if innerSum isa QAdd
             sums = []
             for arg in innerSum.arguments
                 push!(sums, IndexedDoubleSum(arg,sumIndex,NEI))
@@ -36,17 +49,26 @@ struct IndexedDoubleSum <:QTerm
                         push!(NEI_,index)
                     end 
                 end
-                indicesToOrder = sort([innerSum.sumIndex,sumIndex],by=getIndName)
-                newargs = orderByIndex(innerSum.term.args_nc,indicesToOrder)
-                qmul = merge_commutators(innerSum.term.arg_c,newargs)
-                innerSum_ = IndexedSingleSum(qmul,innerSum.sumIndex,innerSum.nonEqualIndices)
-                if typeof(innerSum_) == IndexedSingleSum
-                    if extraterm == 0
-                        return new(innerSum_,sumIndex,NEI_)
+                if innerSum.term isa QMul
+                    indicesToOrder = sort([innerSum.sumIndex,sumIndex],by=getIndName)
+                    newargs = orderByIndex(innerSum.term.args_nc,indicesToOrder)
+                    qmul = 0
+                    if length(newargs) == 1
+                        qmul = *(innerSum.term.arg_c,newargs[1])
+                    else
+                        qmul = *(innerSum.term.arg_c,newargs...)
                     end
-                    return new(innerSum_,sumIndex,NEI_) + extraterm
+                    innerSum_ = IndexedSingleSum(qmul,innerSum.sumIndex,innerSum.nonEqualIndices)
+                    if typeof(innerSum_) == IndexedSingleSum
+                        if extraterm == 0
+                            return new(innerSum_,sumIndex,NEI_)
+                        end
+                        return new(innerSum_,sumIndex,NEI_) + extraterm
+                    else
+                        return IndexedDoubleSum(innerSum_,sumIndex,NEI_)
+                    end
                 else
-                    return IndexedDoubleSum(innerSum_,sumIndex,NEI_)
+                    return new(innerSum,sumIndex,NEI)
                 end
             end
         else

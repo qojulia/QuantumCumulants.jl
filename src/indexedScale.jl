@@ -1,17 +1,33 @@
 #file for functions regarding scaling
 #include("indexedMeanfield.jl")
+"""
+    scaleME(me::MeanfieldEquations)
 
+Function, that evaluates a given [`MeanfieldEquations`](@ref) entity and returns again equations,
+where indices have been inserted and sums evaluated, regarding the same relations, as done when calculating
+with oparators using a [`ClusterSpace`](@ref).
+
+# Arguments
+*`me::MeanfieldEquations`: A [`MeanfieldEquations`](@ref) entity, which shall be evaluated.
+
+"""
 function scaleME(me::MeanfieldEquations)
-    newEqs = Vector{Union{Missing,Symbolics.Equation}}(missing,length(me.equations))
-    for i = 1:length(me.equations)
-        newEqs[i] = scaleEq(me.equations[i])
+    newEqs = []
+    for eq in me.equations
+        tempEq = scaleEq(eq)
+        if tempEq.lhs in getLHS.(newEqs)
+            continue
+        elseif isNotIn(getOps(tempEq.lhs;scaling=true),getOps.(getLHS.(newEqs);scaling=true),true) && isNotIn(getOps(_conj(tempEq.lhs);scaling=true),getOps.(getLHS.(newEqs);scaling=true),true)
+            push!(newEqs,tempEq)
+        end
     end
     filter!(x -> !isequal(x,missing), newEqs)
     vs = getLHS.(newEqs)
     varmap = make_varmap(vs, me.iv)
-    ops = scaleTerm.(me.operators)
+    ops = undo_average.(vs)
     return MeanfieldEquations(newEqs,me.operator_equations,vs,ops,me.hamiltonian,me.jumps,me.jumps_dagger,me.rates,me.iv,varmap,me.order)
 end
+getLHS(eq::Symbolics.Equation) = eq.lhs
 scaleTerm(sym::SymbolicUtils.Sym{Parameter,IndexedAverageSum}) = scaleTerm(sym.metadata)
 function scaleTerm(sum::IndexedAverageSum)
     prefact = sum.sumIndex.rangeN - length(sum.nonEqualIndices)
@@ -65,17 +81,23 @@ scaleTerm(x::SymbolicUtils.Sym{Parameter,SpecialIndexedAverage}) = scaleTerm(x.m
 scaleEq(eq::Symbolics.Equation) = Symbolics.Equation(scaleTerm(eq.lhs),scaleTerm(eq.rhs))
 scaleTerm(x) = x
 
-substitute(term::SymbolicUtils.Sym{Parameter,SpecialIndexedAverage},subs;fold=false) = SpecialIndexedAverage(SymbolicUtils.substitute(term.metadata.term,subs;fold=fold),term.metadata.indexMapping)
-function substitute(sum::SymbolicUtils.Sym{Parameter,IndexedAverageSum},subs;fold=false)
-    mults = []
-    for arg in arguments(sum.metadata.term)
-        push!(mults,substitute(arg,subs;fold))
-    end
-    return IndexedAverageSum(*(mults...),sum.metadata.sumIndex,sum.metadata.nonEqualIndices)
-end
+SymbolicUtils.substitute(avrg::SymbolicUtils.Sym{Parameter,SpecialIndexedAverage},subs;fold=false) = SymbolicUtils.substitute(avrg.metadata.term,subs;fold=fold)#SpecialIndexedAverage(SymbolicUtils.substitute(term.metadata.term,subs;fold=fold),term.metadata.indexMapping)
+SymbolicUtils.substitute(sum::SymbolicUtils.Sym{Parameter,IndexedAverageSum},subs;fold=false) = IndexedAverageSum(SymbolicUtils.substitute(sum.metadata.term,subs;fold=fold),sum.metadata.sumIndex,sum.metadata.nonEqualIndices)
 #function to split sums into different clusters, keeping 
 #assume: all the indices that are not equal to the summation index are in the same Sum
 #for anything else than the assumption, there needs an extra argument, to specify where or how the extra indices are handled
+"""
+    splitSums(term::SymbolicUtils.Symbolic,amount::Union{<:SymbolicUtils.Sym,<:Int64})
+    splitSums(me::MeanfieldEquations,amount)
+
+Function, that splits sums inside a given term. The sums are split into a number of equal sums, specified in the `amount` argument,
+where in only one of the sums the dependencies for the indices (non equal indices) is considered.
+
+# Arguments
+*`me::MeanfieldEquations`: A [`MeanfieldEquations`](@ref) entity, which shall be evaluated, can also be any symbolic expression.
+*`amount::Union{<:SymbolicUtils.Sym,<:Int64}`: A Number or Symbolic determining, in how many terms a sum is split
+
+"""
 function splitSums(term::SymbolicUtils.Symbolic,amount::Union{<:SymbolicUtils.Sym,<:Int64})
     if term isa Average
         return term

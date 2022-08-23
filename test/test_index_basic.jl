@@ -19,18 +19,23 @@ ha = NLevelSpace(Symbol(:atom),2)
 hf = FockSpace(:cavity)
 h = hf⊗ha
 
-i_ind = Index(h,:i,N)
-j_ind = Index(h,:j,N)
+indT(i) = Index(h,i,N,true)
+indF(i) = Index(h,i,N,false)
+i_ind = indT(:i)
+j_ind = indT(:j)
 
-@test(!isequal(i_ind,j_ind))
-@test(isequal(i_ind,Index(h,:i,10)))
+@test(!isequal(indT(:i),indT(:j)))
+@test(!isequal(indT(:i),indF(:j)))
+@test(!isequal(indT(:i),indF(:i)))
+
+@test(isequal(indT(i),Index(h,:i,10,true)))
 
 g(k) = IndexedVariable(:g,k)
-@test(!isequal(g(i_ind),g(j_ind)))
-@test(isequal(g(i_ind),g(Index(h,:i,10))))
+@test(!isequal(g(indT(:i)),g(indT(:j))))
+@test(isequal(g(indT(:i)),g(Index(h,:i,10,true))))
 
 σ(i,j,k) = IndexedOperator(Transition(h,:σ,i,j),k)
-σ12i = σ(1,2,i_ind)
+σ12i = σ(1,2,indT(:i))
 @test(isequal(σ12i,σ(1,2,i_ind)))
 @test(!isequal(σ12i,σ(2,2,i_ind)))
 @test(!isequal(σ12i,σ(1,2,j_ind)))
@@ -79,6 +84,8 @@ innerSum = IndexedSingleSum(σ(2,1,i_ind)*σ(1,2,j_ind),i_ind)
 @test(isequal(
     IndexedDoubleSum(innerSum,j_ind), IndexedDoubleSum(IndexedSingleSum(σ(2,1,i_ind)*σ(1,2,j_ind),i_ind,[j_ind]),j_ind) + IndexedSingleSum(σ(2,2,j_ind),j_ind)
 ))
+@test(isequal([σ(1,2,ind(:k))],SymbolicUtils.arguments(sum1)))
+
 
 end
 

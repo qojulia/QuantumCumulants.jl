@@ -19,20 +19,34 @@ ha = NLevelSpace(Symbol(:atom),2)
 hf = FockSpace(:cavity)
 h = hf⊗ha
 
-i_ind = Index(h,:i,N)
-j_ind = Index(h,:j,N)
-k_ind = Index(h,:k,N)
+ind(i) = Index(h,i,N,true)
 
 g(k) = IndexedVariable(:g,k)
 σ(i,j,k) = IndexedOperator(Transition(h,:σ,i,j),k)
 
-@test(isequal(average(2*σ(1,2,k_ind)),2*average(σ(1,2,k_ind))))
-@test(isequal(average(g(k_ind)*σ(2,2,k_ind)),g(k_ind)*average(σ(2,2,k_ind))))
-@test(isequal(average(g(k_ind)),g(k_ind)))
+@test(isequal(average(2*σ(1,2,ind(:k))),2*average(σ(1,2,ind(:k)))))
+@test(isequal(average(g(ind(:k))*σ(2,2,ind(:k))),g(ind(:k))*average(σ(2,2,ind(:k)))))
+@test(isequal(average(g(ind(:k))),g(ind(:k))))
 
-sum1 = IndexedSingleSum(σ(1,2,k_ind),k_ind)
+sum1 = IndexedSingleSum(σ(1,2,ind(:k)),ind(:k))
 σn(i,j,k) = NumberedOperator(Transition(h,:σ,i,j),k)
 @test(isequal(evalTerm(average(sum1)),average(σn(1,2,1)) + average(σn(1,2,2))))
+@test(isequal(σn(1,2,1)+σn(2,1,1),NumberedOperator(Transition(h,:σ,1,2)+Transition(h,:σ,2,1),1)))
+
+@test(isequal(sum1,undo_average(average(sum1))))
+
+#test insertIndex
+@test(isequal(σn(2,2,1),insertIndex(σ(2,2,ind(:j)),ind(:j),1)))
+@test(isequal(σ(1,2,ind(:j)),insertIndex(σ(1,2,ind(:j)),ind(:k),2)))
+@test(isequal(1,insertIndex(1,ind(:k),1)))
+
+sum2 = average(sum1*σ(1,2,ind(:l)))
+
+@test(!isequal(σn(2,2,1),insertIndex(sum2,ind(:j),1)))
+@test(isequal(
+    indexedAverageSum(average(σ(1,2,ind(:k))),ind(:k)
+)))
+
 
 end
 

@@ -30,9 +30,26 @@ const sum_average = begin # Symbolic function for averages
 end
 
 const symbolics_terms = Union{<:SymbolicUtils.Term{AvgSym,Nothing},<:SymbolicUtils.Mul}
+"""
+    numberedVariable <: CNumber
 
+abstract type for numbered Variables.
+"""
 abstract type numberedVariable <: CNumber end
+"""
 
+    IndexedAverageSum <: CNumber
+
+Defines a symbolic summation over an average, or a multiplication of several averages, using one [`Index`](@ref) entity.
+
+Fields:
+======
+
+* term: A multiplication of average terms.
+* sumIndex: The index, for which the summation will go over.
+* nonEqualIndices: (optional) A vector of indices, for which the summation-index can not be equal with.
+
+"""
 struct IndexedAverageSum <: CNumber
     term::symbolics_terms
     sumIndex::Index
@@ -49,7 +66,6 @@ struct IndexedAverageSum <: CNumber
             return (sumIndex.rangeN - length(nonEqualIndices)) * term
         end
         prefact = 1.0    #assume term is of type SymbolicUtils.Mul
-        metadata = new(term,sumIndex,nonEqualIndices)
         neis_sym = ""
         if !(isempty(nonEqualIndices))
             neis_sym = string("(",neis_sym)
@@ -59,12 +75,34 @@ struct IndexedAverageSum <: CNumber
         end
         if typeof(arguments(term)[1]) <: Number # put numbers outside of sum (for easier evaluation)
             prefact = arguments(term)[1]
-            deleteat!(arguments(term),1)
+            args_nc = arguments(term)[2:end]
+            if isempty(args_nc)
+                return 0
+            elseif length(args_nc) == 1
+                term = args_nc[1]
+            else
+                term = *(args_nc...)
+            end
         end
+        metadata = new(term,sumIndex,nonEqualIndices)
         return prefact*SymbolicUtils.Sym{Parameter, IndexedAverageSum}(Symbol("∑($(sumIndex.name)=1:$(sumIndex.rangeN))$(neis_sym)$(term)"), metadata) #Symbol("∑($(sumIndex.name)=1:$(sumIndex.rangeN))$(neis_sym)$(term)")
     end
 end
 
+"""
+
+    IndexedAverageDoubleSum <: CNumber
+
+Defines a symbolic summation over an [`IndexedAverageSum`](@ref), using a [`Index`](@ref) entity. This schematically represent a double-sum over a multiplication of averages.
+
+Fields:
+======
+
+* innerSum: An [`IndexedAverageSum`](@ref) entity.
+* sumIndex: The index, for which the (outer) summation will go over.
+* nonEqualIndices: (optional) A vector of indices, for which the (outer) summation-index can not be equal with.
+
+"""
 struct IndexedAverageDoubleSum <: CNumber
     innerSum::Sym{Parameter, IndexedAverageSum}
     sumIndex::Index
@@ -111,6 +149,19 @@ struct IndexedAverageDoubleSum <: CNumber
 end
 
 #For representing in average terms
+"""
+
+    NumberedOperator <: QNumber
+
+Defines an operator, associated with a Number. Commutator-relations are calculated using these numbers, as a sort of an index.
+
+Fields:
+======
+
+* op: An Operator, either a [`Transition`](@ref), a [`Destroy`](@ref) or a [`Create`](@ref) can be defined.
+* numb: An Integer Number.
+
+"""
 struct NumberedOperator <:QNumber
     op::indexable
     numb::Int64
@@ -139,6 +190,19 @@ struct NumberedOperator <:QNumber
     end
 end
 #Variables
+"""
+
+    SingleNumberedVariable <: numberedVariable
+
+Defines an variable, associated with a Number. Used by [`createValueMap`](@ref)
+
+Fields:
+======
+
+* name: The name of the variable.
+* numb: An Integer Number.
+
+"""
 struct SingleNumberedVariable <: numberedVariable
     name::Symbol
     numb::Int64
@@ -148,6 +212,20 @@ struct SingleNumberedVariable <: numberedVariable
         return SymbolicUtils.setmetadata(s, MTK.MTKParameterCtx, true)
     end
 end
+"""
+
+    DoubleNumberedVariable <: numberedVariable
+
+Defines an variable, associated with two Numbers. Used by [`createValueMap`](@ref)
+
+Fields:
+======
+
+* name: The name of the variable.
+* numb1: An Integer Number.
+* numb2: Another Integer Number.
+
+"""
 struct DoubleNumberedVariable <: numberedVariable
     name::Symbol
     numb1::indornum
@@ -165,7 +243,7 @@ end
 #Special averages
 struct NumberedIndexedAverage <: CNumber
     term::symbolics_terms
-    indexMapping::Vector{Tuple{Index,Int64}} #not to be confused with later definition of index mapping here if l => 2 means l ≠ 2
+    indexMapping::Vector{Tuple{Index,Int64}} #not to be confused with later definition of index mapping here if (l,2) means l ≠ 2
     function NumberedIndexedAverage(term,indexMapping)
         if length(indexMapping) == 0
             return term
@@ -290,11 +368,8 @@ end
 *(b::NumberedOperator,a::Destroy) = merge_commutators(1,[b,a])
 *(a::IndexedOperator,b::NumberedOperator) = merge_commutators(1,[a,b])
 *(b::NumberedOperator,a::IndexedOperator) = merge_commutators(1,[b,a])
-#*(a::SNuN, b::SymbolicUtils.Sym{Parameter,SpecialIndexedAverage}) = SpecialIndexedAverage(a*b.metadata.term,b.metadata.indexMapping)
-#*(b::SymbolicUtils.Sym{Parameter,SpecialIndexedAverage}, a::SNuN) = SpecialIndexedAverage(a*b.metadata.term,b.metadata.indexMapping)
-#*(a::Number, b::SymbolicUtils.Sym{Parameter,SpecialIndexedAverage}) = SpecialIndexedAverage(a*b.metadata.term,b.metadata.indexMapping)
-#*(b::SymbolicUtils.Sym{Parameter,SpecialIndexedAverage}, a::Number) = SpecialIndexedAverage(a*b.metadata.term,b.metadata.indexMapping)
 
+#Symbolics functions
 get_order(a::Sym{Parameter,IndexedAverageSum}) = get_order(a.metadata.term)
 cumulant_expansion(a::IndexedAverageSum,order::Int) = IndexedAverageSum(simplifyMultiplifcation(cumulant_expansion(a.term,order)),a.sumIndex,a.nonEqualIndices) #not used (?)
 SymbolicUtils.istree(a::IndexedAverageSum) = false
@@ -389,12 +464,24 @@ function cumulant_expansion(x::SymbolicUtils.Sym{Parameter,IndexedAverageDoubleS
 end
 cumulant_expansion(a::SymbolicUtils.Sym{Parameter,SpecialIndexedAverage},order::Int;simplify=true,kwargs...) = SpecialIndexedAverage(cumulant_expansion(a.metadata.term,order;simplify=true,kwargs...),a.metadata.indexMapping)
 SymbolicUtils.arguments(op::Sym{Parameter,IndexedAverageSum}) = arguments(op.metadata)
-SymbolicUtils.arguments(op::IndexedAverageSum) = op.term
+SymbolicUtils.arguments(op::IndexedAverageSum) = arguments(op.term)
 SymbolicUtils.arguments(op::Sym{Parameter, IndexedAverageDoubleSum}) = arguments(op.metadata)
 SymbolicUtils.arguments(op::IndexedAverageDoubleSum) = op.innerSum
 
 #this is the new method, insert values directly into the average before calculating anything, simplifies evaluation afterwards extremely
 #function for inserting index, k -> 1,2,...,N
+"""
+    inserIndex(term,ind,value)
+
+Function, that inserts an integer value for a index in a specified term. 
+This function creates Numbered- Variables/Operators/Sums upon calls.
+
+Examples
+========
+
+    insertIndex(σⱼ²¹,j,1) = σ₁²² 
+
+"""
 function insertIndex(sum::SymbolicUtils.Sym{Parameter,IndexedAverageSum}, ind::Index, value::Int64)
     if ind == sum.metadata.sumIndex
         error("cannot exchange summation index with number!")
@@ -504,6 +591,24 @@ insertIndex(eq::Symbolics.Equation,ind::Index,value::Int64) = Symbolics.Equation
 insertIndex(term::IndexedOperator,ind::Index,value::Int64) = term.ind == ind ? NumberedOperator(term.op,value) : term
 insertIndex(term::SymbolicUtils.Sym{Parameter,IndexedVariable},ind::Index,value::Int64) = term.metadata.ind == ind ? SingleNumberedVariable(term.metadata.name,value) : term
 insertIndex(x,ind::Index,value::Int64) = x
+"""
+    insertIndices(eq::Symbolics.Equation,map::Dict{Index,Int64};mapping::Dict{SymbolicUtils.Sym,Int64}=Dict{Symbol,Int64}())
+
+Function, that inserts an integer value for a index in a specified Equation. This function creates Numbered- Variables/Operators/Sums upon calls.
+Mainly used by [`evalEquation`](@ref).
+
+# Arguments
+*`eq::Symbolics.Equation`: The equation for which the indices will be inserted.
+*`map::Dict{Index,Int64}`: A dictionary, which contains specifications for the insertions
+    the entry (i => 5) would result in all `i` indices being replaced with the number 5.
+
+# Optional argumentes
+*`mapping::Dict{SymbolicUtils.Sym,Int64}=Dict{Symbol,Int64}()`: A seperate dictionary, to
+    specify any symbolic limits used when [`Index`](@ref) entities were defined. This needs
+    to be specified, when the equation contains summations, for which the upper bound is given
+    by a Symbolic.
+
+"""
 function insertIndices(eq::Symbolics.Equation,map::Dict{Index,Int64};mapping::Dict{SymbolicUtils.Sym,Int64}=Dict{Symbol,Int64}())
     eq_ = eq
     while !isempty(map)
@@ -527,6 +632,22 @@ function evalEquation(eq::Symbolics.Equation,arr,indices;mapping::Dict{SymbolicU
         return [evalEq(eq;mapping)]
     end
 end
+"""
+    evalME(me::MeanfieldEquations;mapping::Dict{SymbolicUtils.Sym,Int64}=Dict{SymbolicUtils.Sym,Int64}())
+
+Function, that evaluates a given [`MeanfieldEquations`](@ref) entity and returns again equations,
+where indices have been inserted and sums evaluated.
+
+# Arguments
+*`me::MeanfieldEquations`: A [`MeanfieldEquations`](@ref) entity, which shall be evaluated.
+
+# Optional argumentes
+*`mapping::Dict{SymbolicUtils.Sym,Int64}=Dict{Symbol,Int64}()`: A seperate dictionary, to
+    specify any symbolic limits used when [`Index`](@ref) entities were defined. This needs
+    to be specified, when the equations contain summations, for which the upper bound is given
+    by a Symbolic.
+
+"""
 function evalME(me::MeanfieldEquations;mapping::Dict{SymbolicUtils.Sym,Int64}=Dict{SymbolicUtils.Sym,Int64}())#this is still pretty slow
     indices = nothing
     for eq in me.equations
@@ -683,61 +804,31 @@ function orderTermsByNumber(add::SymbolicUtils.Add)
 end
 orderTermsByNumber(eq::Symbolics.Equation) = Symbolics.Equation(eq.lhs,orderTermsByNumber(eq.rhs))
 orderTermsByNumber(x) = x
-#getNumber(op::NumberedOperator) = op.numb
-#getNumber(x) = 0
-
 Base.:(==)(term1::Term{AvgSym, Nothing},term2::Term{AvgSym, Nothing}) = isequal(arguments(term1), arguments(term2))
 
-#Insert values no longer needed to do explicitly, now integrated, when defining an ODEProblem
-function insertValuesIntoMeanfieldEquation(me::MeanfieldEquations,valMapping::Dict{Sym{Parameter, numberedVariable},SNuN})
-    newME = deepcopy(me)
-    newEqs = Vector{Union{Missing,Symbolics.Equation}}(missing,length(me.equations))
-    newOpEqs = []
-    Threads.@threads for i=1:length(me.equations)
-        newEqs[i] = insertValuesIntoEquation(me.equations[i],valMapping)
-    end
-    newME = MeanfieldEquations(newEqs,me.operator_equations,me.states,me.operators,me.hamiltonian,me.jumps,me.jumps_dagger,me.rates,me.iv,me.varmap,me.order)
-    return newME
-end
-function insertValuesIntoEquation(eq::Symbolics.Equation,valMapping::Dict{Sym{Parameter, numberedVariable},SNuN})
-    return Symbolics.Equation(eq.lhs,insertValues(eq.rhs,valMapping))
-end
-function insertValues(term::SymbolicUtils.Mul,valMapping::Dict{Sym{Parameter, numberedVariable},SNuN})
-    mults = []
-    for arg in arguments(term)
-        push!(mults,insertValues(arg,valMapping))
-    end
-    if length(mults) == 1
-        return mults[1]
-    end
-    return *(mults...)
-end
-function insertValues(term::SymbolicUtils.Add,valMapping::Dict{Sym{Parameter, numberedVariable},SNuN})
-    adds = Vector{Any}(nothing,length(arguments(term)))
-    for arg in arguments(term)
-        push!(adds, insertValues(arg,valMapping))
-    end
-    if length(adds) == 1
-        return adds[1]
-    end
-    filter!(x -> !=(x,nothing),adds)
-    return sum(adds)
-end
-function insertValues(val::SymbolicUtils.Sym{Parameter,numberedVariable},valMapping::Dict{Sym{Parameter, numberedVariable},SNuN})
-    if length(valMapping) == 1
-        if val.metadata.name == first(keys(valMapping)).metadata.name
-            return first(values(valMapping))
-        end
-    end
-    if val in keys(valMapping)
-        return valMapping[val]
-    end
-    return val
-end
-insertValues(x,valMapping) = x
-
 #Value map creation, for easier inserting into the ODEProblem
-function createValueMap(sym::Sym{Parameter, IndexedVariable}, values::Vector;mapping::Dict{SymbolicUtils.Sym,Int64})
+"""
+    createValueMap(sym::Sym{Parameter, IndexedVariable}, values::Vector;mapping::Dict{SymbolicUtils.Sym,Int64}=Dict{SymbolicUtils.Sym,Int64}())
+    createValueMap(sym::Sym{Parameter, IndexedVariable}, value::Number)
+    createValueMap(sym::Sym{Parameter,DoubleIndexedVariable},values::Matrix;mapping::Dict{SymbolicUtils.Sym,Int64}=Dict{SymbolicUtils.Sym,Int64}())
+
+Function, that creates a Dictionary, for which a indexedVariable is associated with a series of (number) values. The dictionary contains Symbols of either [`SingleNumberedVariable`](@ref)
+or [`DoubleNumberedVariables`](@ref) as keys and the values as values. For a Single-indexed variable, one can
+create such a mapping by giving a Vector of values, and for double-indexed variables by giving a Matrix. One can also create such a mapping, by using
+only a single value, then all possible numbered-Variables are set to the same values.
+
+# Arguments
+*`sym`: Either a [`IndexedVariable`](@ref) or a [`DoubleIndexedVariable`](@ref)
+*`values`: For a [`IndexedVariable`](@ref) either a vector or a single number, and for [`DoubleIndexedVariable`](@ref) a matrix.
+
+# Optional argumentes
+*`mapping::Dict{SymbolicUtils.Sym,Int64}=Dict{Symbol,Int64}()`: A seperate dictionary, to
+    specify any symbolic limits used when [`Index`](@ref) entities were defined. This needs
+    to be specified, when the equations contain summations, for which the upper bound is given
+    by a Symbolic.
+
+"""
+function createValueMap(sym::Sym{Parameter, IndexedVariable}, values::Vector;mapping::Dict{SymbolicUtils.Sym,Int64}=Dict{SymbolicUtils.Sym,Int64}())
     iVar = sym.metadata
     if iVar.ind.rangeN isa SymbolicUtils.Sym
         if iVar.ind.rangeN in keys(mapping)
@@ -763,7 +854,7 @@ function createValueMap(sym::Sym{Parameter, IndexedVariable}, value::Number)
     push!(dict,(SingleNumberedVariable(iVar.name,1) => value))
     return dict
 end
-function createValueMap(sym::Sym{Parameter,DoubleIndexedVariable},values::Matrix;mapping::Dict{SymbolicUtils.Sym,Int64})
+function createValueMap(sym::Sym{Parameter,DoubleIndexedVariable},values::Matrix;mapping::Dict{SymbolicUtils.Sym,Int64}=Dict{SymbolicUtils.Sym,Int64}())
     dict = Dict{Sym{Parameter, Base.ImmutableDict{DataType, Any}},Float64}()
     var = sym.metadata
     if var.ind1.rangeN isa SymbolicUtils.Sym
@@ -821,16 +912,6 @@ function getIndices(term::SymbolicUtils.Term{AvgSym, Nothing})
     end
     return indices
 end
-function getIndices(term::QMul)
-    indices = []
-    for arg in term.args_nc
-        if typeof(arg) == IndexedOperator && arg.ind ∉ indices
-            push!(indices,arg.ind)
-        end
-    end
-    return indices
-end
-getIndices(a::QNumber) = typeof(a) == IndexedOperator ? [a.ind] : []
 containsIndex(term::SymbolicUtils.Term{AvgSym,Nothing},ind::Index) = ind ∈ getIndices(term)
 
 #simplify functions not "really" needed, they are nice to have, since equation creation of Symbolics sometimes does not simplify certain terms
@@ -1005,3 +1086,12 @@ end
 Base.isequal(x::Missing,y::SymbolicUtils.Symbolic) = false
 
 SymbolicUtils.simplify(sym::SymbolicUtils.Sym{Parameter,SpecialIndexedAverage}) = SpecialIndexedAverage(SymbolicUtils.simplify(sym.metadata.term),sym.metadata.indexMapping)
+
+#Numeric Conversion of NumberedOperators
+to_numeric(op::NumberedOperator,b::QuantumOpticsBase.Basis; kwargs...) = to_numeric(op.op,b;kwargs...)# this does not make sense, since a numbered operator always needs to act on a composite basis (except the basis has trivial order)
+function to_numeric(op::NumberedOperator,b::QuantumOpticsBase.CompositeBasis; kwargs...) 
+    #keep in mind: this function does not have a check for hilbert-spaces, meaning it can produce wrong output
+    aon = getNumber(op)[1] - 1
+    op_ = _to_numeric(op.op,b.bases[aon];kwargs...)
+    return QuantumOpticsBase.embed(b,aon,op_)
+end

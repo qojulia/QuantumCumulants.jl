@@ -232,14 +232,6 @@ Represent an addition involving [`QNumber`](@ref) and other types.
 """
 struct QAdd <: QTerm
     arguments::Vector{Any}
-    #Added 0 checks for new QAdd entities
-    #=
-    function QAdd(arguments)
-        filter!(x -> !isequal(x,0),arguments)
-        isempty(arguments) && return 0
-        return new(arguments)
-    end
-    =#
 end
 
 Base.hash(q::T, h::UInt) where T<:QAdd = hash(T, SymbolicUtils.hashvec(q.arguments, h))
@@ -264,7 +256,10 @@ Base.adjoint(q::QAdd) = QAdd(map(adjoint, q.arguments))
 -(a::QNumber,b) = a + (-b)
 -(a::QNumber,b::QNumber) = a + (-b)
 
-+(a::QNumber, b::SNuN) = QAdd([a,b])
+function +(a::QNumber, b::SNuN) 
+    SymbolicUtils._iszero(b) && return a
+    return QAdd([a,b])
+end
 +(a::SNuN,b::QNumber) = +(b,a)
 function +(a::QAdd,b::SNuN)
     SymbolicUtils._iszero(b) && return a
