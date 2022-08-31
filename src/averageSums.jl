@@ -842,7 +842,7 @@ function createValueMap(sym::Sym{Parameter, IndexedVariable}, values::Vector;map
     if range1 != length(values)
         error("different length of index-range and given values!")
     end
-    dict = Dict{Sym{Parameter, Base.ImmutableDict{DataType, Any}},Float64}()
+    dict = Dict{Sym{Parameter, Base.ImmutableDict{DataType, Any}},ComplexF64}()
     for i = 1:range1
         push!(dict,(SingleNumberedVariable(iVar.name,i) => values[i]))
     end
@@ -850,12 +850,12 @@ function createValueMap(sym::Sym{Parameter, IndexedVariable}, values::Vector;map
 end
 function createValueMap(sym::Sym{Parameter, IndexedVariable}, value::Number)
     iVar = sym.metadata
-    dict = Dict{Sym{Parameter, Base.ImmutableDict{DataType, Any}},Float64}()
+    dict = Dict{Sym{Parameter, Base.ImmutableDict{DataType, Any}},ComplexF64}()
     push!(dict,(SingleNumberedVariable(iVar.name,1) => value))
     return dict
 end
 function createValueMap(sym::Sym{Parameter,DoubleIndexedVariable},values::Matrix;mapping::Dict{SymbolicUtils.Sym,Int64}=Dict{SymbolicUtils.Sym,Int64}())
-    dict = Dict{Sym{Parameter, Base.ImmutableDict{DataType, Any}},Float64}()
+    dict = Dict{Sym{Parameter, Base.ImmutableDict{DataType, Any}},ComplexF64}()
     var = sym.metadata
     if var.ind1.rangeN isa SymbolicUtils.Sym
         if var.ind1.rangeN in keys(mapping)
