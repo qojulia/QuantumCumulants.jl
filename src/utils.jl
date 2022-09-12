@@ -358,8 +358,6 @@ function check_basis_match(h::ProductSpace, b::QuantumOpticsBase.CompositeBasis)
     end
 end
 
-# function check_basis_match
-
 # Composite bases
 function to_numeric(op::QSym, b::QuantumOpticsBase.CompositeBasis; kwargs...)
     check_basis_match(op.hilbert, b)
@@ -372,23 +370,7 @@ end
 function to_numeric(op::QTerm, b::QuantumOpticsBase.Basis; kwargs...)
     f = SymbolicUtils.operation(op)
     args = SymbolicUtils.arguments(op)
-    if f === (*)
-        if isone(args[1])
-            deleteat!(args, 1)
-        end
-        op_num = one(b)
-        tmp = QuantumOpticsBase.SparseOperator(b)
-        for arg ∈ args
-            mul!(tmp, op_num, to_numeric(arg, b; kwargs...))
-            op_num = tmp
-        end
-    else
-        op_num = to_numeric(args[1], b; kwargs...)
-        for arg ∈ args[2:end]
-            op_num = f(op_num, to_numeric(arg, b; kwargs...))
-        end
-    end
-    return op_num
+    return f((to_numeric(arg, b; kwargs...) for arg in args)...)
 end
 
 function to_numeric(x::Number, b::QuantumOpticsBase.Basis; kwargs...)
