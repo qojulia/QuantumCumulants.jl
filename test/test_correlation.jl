@@ -27,7 +27,7 @@ ps = (Δ, g, γ, κ, ν)
 
 # Numerical solution
 # p0 = [0.0,0.5,1.0,0.1,0.9]
-p0 = ps .=> [1, 1.5, 0.25, 1, 4]
+p0 = ps .=> ComplexF64[1, 1.5, 0.25, 1, 4]
 u0 = states(sys) .=> zeros(ComplexF64,length(he_comp))
 tmax = 10.0
 
@@ -107,7 +107,9 @@ J = [σ(:g,:e)]
 eqs = meanfield([σ(:e,:g),σ(:e,:e)], H, J; rates=[γ])
 
 ps = (Δ,Ω,γ)
-p0 = (20.0,5.0,1.0)
+p0 = ComplexF64[20.0,5.0,1.0] #p0 needs to be imaginary -> otherwise InexactError
+# p0 = (20.0,5.0,1.0)
+
 u0 = zeros(ComplexF64, 2)
 @named sys = ODESystem(eqs)
 prob = ODEProblem(sys,u0,(0.0,20.0),ps .=> p0)
@@ -119,6 +121,7 @@ c = CorrelationFunction(σ(:e,:g), σ(:g,:e), eqs; steady_state=true)
 @named csys = ODESystem(c)
 cu0 = correlation_u0(c, sol.u[end])
 @test length(cu0) == 3
+
 cp0 = correlation_p0(c, sol.u[end], ps .=> p0)
 @test length(cp0) == 5
 
