@@ -105,5 +105,14 @@ u0 = initial_values(eqs, ψ0; level_map=level_map)
 @test u0[4] ≈ expect(one(bcav) ⊗ transition(batom, 2, 2), ψ0)
 @test u0[5] ≈ expect(create(bcav) ⊗ transition(batom, 1, 2), ψ0)
 
+# Test sufficiently large hilbert space; from issue #109
+hfock = FockSpace(:fock)
+@qnumbers a::Destroy(hfock)
+bfock = FockBasis(100)
+
+diff = (2*create(bfock)+2*destroy(bfock)) - to_numeric((2*(a)+2*(a')), bfock)
+@assert iszero(diff)
+
+@assert iszero(to_numeric(2*a, bfock) - 2*to_numeric(a, bfock))
 
 end # testset
