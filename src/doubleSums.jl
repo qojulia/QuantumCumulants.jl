@@ -1,6 +1,5 @@
 #Base file for defining DoubleIndexedSums
 
-#include("indexing.jl")
 """
 
     IndexedDoubleSum <: QTerm

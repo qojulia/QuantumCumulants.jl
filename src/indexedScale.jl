@@ -1,5 +1,4 @@
 #file for functions regarding scaling
-#include("indexedMeanfield.jl")
 """
     scaleME(me::MeanfieldEquations)
 
@@ -27,7 +26,6 @@ function scaleME(me::MeanfieldEquations)
     ops = undo_average.(vs)
     return MeanfieldEquations(newEqs,me.operator_equations,vs,ops,me.hamiltonian,me.jumps,me.jumps_dagger,me.rates,me.iv,varmap,me.order)
 end
-getLHS(eq::Symbolics.Equation) = eq.lhs
 scaleTerm(sym::SymbolicUtils.Sym{Parameter,IndexedAverageSum}) = scaleTerm(sym.metadata)
 function scaleTerm(sum::IndexedAverageSum)
     prefact = sum.sumIndex.rangeN - length(sum.nonEqualIndices)

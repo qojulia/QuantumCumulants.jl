@@ -1,5 +1,3 @@
-#include("indexedScale.jl")
-
 function _new_operator(op::IndexedOperator,h,aon=acts_on(op)) 
     if op.ind.hilb != h
         return IndexedOperator(Transition(h,op.op.name,op.op.i,op.op.j,aon;op.op.metadata),Index(h,op.ind.name,op.ind.rangeN,op.ind.specHilb))

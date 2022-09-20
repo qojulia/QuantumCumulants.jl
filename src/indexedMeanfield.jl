@@ -1,7 +1,6 @@
 #File for adapting the meanfield, complete,... algorithms to indices. could be included in the already existing meanfield file.
 #I did not want to change anything on the files in the already existing package, so I just copied and renamed a bunch of stuff here.
 
-#include("doubleSums.jl")
 
 #function that takes indexed operators and double indexed varaibles to calculate the meanfield equations
 #the jump operators have to have same indices as the indices specified by the double indexed variable
@@ -280,10 +279,9 @@ function indexedComplete!(de::AbstractMeanfieldEquations;
 
         missed = find_missing(me.equations, vhash, vs′hash; get_adjoints=false)
 
-        #if order != 1
-            missed = findMissingSumTerms(missed,de;extraIndices=extraIndices,scaling=scaling,indices=indices_)
-            missed = findMissingSpecialTerms(missed,de;scaling=scaling)
-        #end
+        missed = findMissingSumTerms(missed,de;extraIndices=extraIndices,scaling=scaling,indices=indices_)
+        missed = findMissingSpecialTerms(missed,de;scaling=scaling)
+
         missed = sortByIndex.(missed)
         filter!(x -> (x isa Average),missed)
         isnothing(filter_func) || filter!(filter_func, missed) # User-defined filter
@@ -324,7 +322,7 @@ function indexedComplete!(de::AbstractMeanfieldEquations;
     return de
 end
 filterComplete(x,states,scaling) = (isNotIn(getOps(x;scaling=scaling),getOps.(states;scaling=scaling),scaling) && isNotIn(getOps(sortByIndex(_conj(x));scaling=scaling),getOps.(states;scaling=scaling),scaling))
-#TODO: Clean up code, the functions below look and are very (!!!!) messy
+
 """
     findMissingSumTerms(missed,de::MeanfieldEquations)
 
@@ -350,52 +348,40 @@ the equations, the [`Index`](@ref) will be exchanged according to the keyword ar
 see also: [`find_missing`](@ref), [`indexedMeanfield`](@ref), [`meanfield`](@ref), [`findMissingSumTerms`](@ref)
 """
 function findMissingSumTerms(missed,de::MeanfieldEquations;extraIndices::Vector=[],checking=true,scaling=false,indices::Vector=[])
-    #TODO: simplify 3rd order to a loop over 2nd order algorithm (somehow)
+
+    # This might not work if there are only double sums inside the meanfield equations
+    # also: this might not work if double sums combine transition and bosonic operators -> NEEDS SOME CHECKING
+
     missed_ = copy(missed)
-    #=
-    indices = nothing #gets initial indices, that are on the lhs
-    for i = 1:length(de.states)
-        indices = getIndices(de.states[i])
-        isempty(indices) || break
+
+    if de.order > 1 &&  de.order - 1 > length(extraIndices)
+        error("Wrong number of extraIndices! Please make sure that for higher orders of cumulant expansion, 
+            you also use the extraIndices argument to provide additional indices for calculation. The Number of
+            extraIndices provided should be at least (expansion order - 1).
+        ")
+        #TODO: change above notifcation and checks
     end
-    =#
-    if de.order > 1 &&  de.order - 1 != length(extraIndices)
-        error("Please make sure that for higher orders of cumulant expansion, you also use the indices argument to provide additional indices for calculation.")
-    end
-    #=
-    extraIndex = nothing
+
     extras = []
-    if isempty(indices)
-        for op in de.jumps
-            if typeof(op) == IndexedOperator
-                extraIndex = op.ind
-                push!(extras,extraIndex)
-                break
-            end
-        end
-    else
-        
-    end
-    =#
-    extras = []
-    for name in extraIndices
+
+    for name in extraIndices    # create actual indices out of the extras provided
         push!(extras,Index(indices[1].hilb,name,indices[1].rangeN,indices[1].specHilb))
     end
     sums = Any[]
     for eq in de.equations
-        sums = checkIfSum(eq.rhs)
+        sums = checkIfSum(eq.rhs)   #get all sums of the rhs
         for sum in sums
             avrgs = getAvrgs(sum) #get vector of all avrgs in the sum
             for avr in avrgs
                 changed_ = nothing
-                for ind in indices
-                    if ind ∉ getIndices(avr)
+                for ind in indices  #indices is a vector of indices already given freely by the system (e.g. by the operators on the lhs or the operators, used for creating the meanfieldEq)
+                    if ind ∉ getIndices(avr)    # if one of these indices is free -> change the summation index into that one
                         changed_ = changeIndex(avr,sum.metadata.sumIndex,ind)
                         break
                     end
                 end
                 if isequal(changed_,nothing)
-                    for i = 1:length(extras)
+                    for i = 1:length(extras)    # check if the extraindex is already in use for the term -> if so use the next in line
                         if extras[i] ∉ getIndices(avr)
                             changed_ = changeIndex(avr,sum.metadata.sumIndex,extras[i])
                             break
@@ -410,7 +396,7 @@ function findMissingSumTerms(missed,de::MeanfieldEquations;extraIndices::Vector=
                     if !(changed isa Average)
                         continue
                     end
-                    if checking
+                    if checking     # checks if the missed term found by this function is already in the list of missed averages (checking = false is needed for substituting and filtering of adjoint summation terms since the same function is called when substituting inside sums)
                         if filterComplete(changed,de.states,scaling) && filterComplete(changed,missed_,scaling)
                             push!(missed_,changed)
                         end
@@ -425,6 +411,8 @@ function findMissingSumTerms(missed,de::MeanfieldEquations;extraIndices::Vector=
 end
 #TODO: write also function for double sums and findMissingDoubleSumTerms
 
+
+#This is basically just the find_missing function but for the extra defined SpecialTerms, which have extra index constraints and for that also some extra checks
 function findMissingSpecialTerms(missed,me::MeanfieldEquations;scaling=false)
     missed_ = copy(missed)
     vs = me.states

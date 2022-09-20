@@ -1,24 +1,5 @@
 #Main file for manipulating indexed averages and sums over averages.
-#include("doubleSums.jl")
-
-#some of these imports and usings can probably be removed (I just copied all of them)
-import SymbolicUtils
-import SymbolicUtils: substitute
-
-import Symbolics
-import TermInterface
-
-import SciMLBase
-
-import ModelingToolkit
-const MTK = ModelingToolkit
-
-using Combinatorics: partitions, combinations
-
-using LaTeXStrings
-using Latexify
-
-const NO_METADATA = SymbolicUtils.NO_METADATA
+using ModelingToolkit
 
 struct AvgSum <: CNumber end
 
@@ -734,6 +715,7 @@ function evalTerm(sum_::SymbolicUtils.Sym{Parameter,IndexedAverageSum};mapping::
         return adds[1]
     end
     #filter!(x -> !=(x,nothing),adds)
+    #filter!(x -> !(isequal(x,nothing)),adds)
     return sum(adds)
 end
 function evalTerm(sum::SymbolicUtils.Sym{Parameter,IndexedAverageDoubleSum};mapping::Dict{SymbolicUtils.Sym,Int64})
@@ -766,9 +748,7 @@ end
 evalTerm(x;mapping::Dict{SymbolicUtils.Sym,Int64}) = x
 evalEq(eq::Symbolics.Equation;mapping::Dict{SymbolicUtils.Sym,Int64}=Dict{SymbolicUtils.Sym,Int64}()) = Symbolics.Equation(eq.lhs,evalTerm(eq.rhs;mapping))
 
-function getLHS(eq::Symbolics.Equation)
-    return eq.lhs
-end
+getLHS(eq::Symbolics.Equation) = eq.lhs
 getLHS(x) = []
 
 #functions to order terms inside the sumy by their index-number, used for checking if averages already exist in LHS of the equations

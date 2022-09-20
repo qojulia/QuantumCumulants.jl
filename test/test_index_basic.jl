@@ -19,8 +19,8 @@ ha = NLevelSpace(Symbol(:atom),2)
 hf = FockSpace(:cavity)
 h = hf⊗ha
 
-indT(i) = Index(h,i,N,true)
-indF(i) = Index(h,i,N,false)
+indT(i) = Index(h,i,N,ha) #transition index
+indF(i) = Index(h,i,N,hf) #fock index
 i_ind = indT(:i)
 j_ind = indT(:j)
 
@@ -28,11 +28,11 @@ j_ind = indT(:j)
 @test(!isequal(indT(:i),indF(:j)))
 @test(!isequal(indT(:i),indF(:i)))
 
-@test(isequal(indT(i),Index(h,:i,10,true)))
+@test(isequal(indT(:i),Index(h,:i,10,ha)))
 
 g(k) = IndexedVariable(:g,k)
 @test(!isequal(g(indT(:i)),g(indT(:j))))
-@test(isequal(g(indT(:i)),g(Index(h,:i,10,true))))
+@test(isequal(g(indT(:i)),g(Index(h,:i,10,ha))))
 
 σ(i,j,k) = IndexedOperator(Transition(h,:σ,i,j),k)
 σ12i = σ(1,2,indT(:i))
@@ -59,7 +59,7 @@ sum3 = IndexedSingleSum(a'*σ(1,2,i_ind) + a*σ(2,1,i_ind),i_ind)
 @test(isequal(acts_on(σ12i),2))
 @test(i_ind < j_ind)
 
-k_ind = Index(h,:k,N)
+k_ind = indT(:k)
 Γij = DoubleIndexedVariable(:Γ,i_ind,j_ind,true)
 
 @test(isequal(changeIndex(Γij,j_ind,k_ind), DoubleIndexedVariable(:Γ,i_ind,k_ind,true)))
@@ -84,7 +84,7 @@ innerSum = IndexedSingleSum(σ(2,1,i_ind)*σ(1,2,j_ind),i_ind)
 @test(isequal(
     IndexedDoubleSum(innerSum,j_ind), IndexedDoubleSum(IndexedSingleSum(σ(2,1,i_ind)*σ(1,2,j_ind),i_ind,[j_ind]),j_ind) + IndexedSingleSum(σ(2,2,j_ind),j_ind)
 ))
-@test(isequal([σ(1,2,ind(:k))],SymbolicUtils.arguments(sum1)))
+@test(isequal(SymbolicUtils.arguments(σ(1,2,indT(:i))*a'),SymbolicUtils.arguments(sum1)))
 
 
 end
