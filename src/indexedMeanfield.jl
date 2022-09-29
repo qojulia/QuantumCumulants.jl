@@ -4,6 +4,19 @@
 
 #function that takes indexed operators and double indexed varaibles to calculate the meanfield equations
 #the jump operators have to have same indices as the indices specified by the double indexed variable
+struct IndexedMeanfieldEquations <: AbstractMeanfieldEquations
+    equations::Vector{Symbolics.Equation}
+    operator_equations::Vector{Symbolics.Equation}
+    states::Vector
+    operators::Vector{QNumber}
+    hamiltonian::QNumber
+    jumps::Vector
+    jumps_dagger
+    rates::Vector
+    iv::SymbolicUtils.Sym
+    varmap::Vector{Pair}
+    order::Union{Int,Vector{<:Int},Nothing}
+end
 """
     indexedMeanfield(ops::Vector,H::QNumber,J::Vector;
         Jdagger::Vector=adjoint.(J),rates=ones(length(J)))
@@ -83,7 +96,7 @@ function indexedMeanfield(a::Vector,H,J;Jdagger::Vector=adjoint.(J),rates=ones(I
     eqs = [Symbolics.Equation(l,r) for (l,r)=zip(a,rhs)]
     varmap = make_varmap(vs, iv)
 
-    me = MeanfieldEquations(eqs_avg,eqs,vs,a,H,J,Jdagger,rates,iv,varmap,order)
+    me = IndexedMeanfieldEquations(eqs_avg,eqs,vs,a,H,J,Jdagger,rates,iv,varmap,order)
     if has_cluster(H)
         return scale(me;simplify=simplify,order=order,mix_choice=mix_choice)
     else
@@ -186,7 +199,32 @@ function indexedComplete!(de::AbstractMeanfieldEquations;
     extraIndices::Vector=[],
     scaling::Bool=false,
     kwargs...)
+
+    maxNumb = maximum(length.(getIndices.(de.operators)))
+
     sort!(extraIndices)
+
+    for ind in extraIndices
+        if typeof(ind) != typeof(extraIndices[1])
+            error("Cannot use extraIndices of different types. Use either only Symbols or Index-Objects!")
+        end
+    end
+
+    if containsMultiple(getAllIndices(de.states))
+        if extraIndices[1] isa Symbol
+            error("It is not possible to complete equations, containing indices, that act on different hilbertspaces using Symbols as
+            extraIndices. For this case use specific Indices.")
+        end
+        #maybe write also a check that checks for the indices being correct/enough
+    end
+
+    if de.order > maxNumb && de.order - maxNumb > length(extraIndices)
+        error("Too few extraIndices provided! Please make sure that for higher orders of cumulant expansion, 
+            you also use the extraIndices argument to provide additional indices for calculation. The Number of
+            extraIndices provided should be at least $(de.order - maxNumb).
+        ")
+    end
+
     vs = de.states
     order_lhs = maximum(get_order.(vs))
     order_rhs = 0
@@ -211,13 +249,9 @@ function indexedComplete!(de::AbstractMeanfieldEquations;
         end
     end
 
-    indices_ = nothing
-    for i = 1:length(de.states)
-        indices_ = getIndices(de.states[i])
-        isempty(indices_) || break
-    end
-    #08.08.22
-    if isempty(indices_)
+    indices_ = getAllIndices(vs)
+
+    if isempty(indices_) && extraIndices[1] isa Symbol
         for op in de.jumps
             if op isa IndexedOperator
                 indices_ = [Index(op.ind.hilb,extraIndices[1],op.ind.rangeN,op.ind.specHilb)]
@@ -225,7 +259,11 @@ function indexedComplete!(de::AbstractMeanfieldEquations;
                 break
             end
         end
+    elseif isempty(indices_) && extraIndices[1] isa Index
+        indices_ = [extraIndices[1]]
+        deleteat!(extraIndices,1)
     end
+
 
     vhash = map(hash, vs)
     vs′ = map(_conj, vs)
@@ -233,7 +271,6 @@ function indexedComplete!(de::AbstractMeanfieldEquations;
     filter!(!in(vhash), vs′hash)
     missed = find_missing(de.equations, vhash, vs′hash; get_adjoints=false)
 
-    
     missed = findMissingSumTerms(missed,de;extraIndices=extraIndices,scaling=scaling,indices=indices_)
     missed = findMissingSpecialTerms(missed,de;scaling=scaling)
     
@@ -243,7 +280,6 @@ function indexedComplete!(de::AbstractMeanfieldEquations;
     isnothing(filter_func) || filter!(filter_func, missed) # User-defined filter
     
     filter!(x -> filterComplete(x,de.states,scaling), missed)
-    
 
     sort!(indices_,by=getIndName)
 
@@ -287,26 +323,60 @@ function indexedComplete!(de::AbstractMeanfieldEquations;
         isnothing(filter_func) || filter!(filter_func, missed) # User-defined filter
     
         filter!(x -> filterComplete(x,de.states,scaling), missed)
+        
         for i = 1:length(missed)
-            mInd_ = getIndices(missed[i])
-            isempty(mInd_) && continue
-            if indices_[1] ∉ mInd_ #term on lhs does not have the initial index -> change first occuring index into that one
-                missed[i] = changeIndex(missed[i],mInd_[1],indices_[1]) #replace missed ops with changed indexed ones
+            minds = getIndices(missed[i])
+            newMinds = copy(minds)
+            for ind1 in minds
+                extras=filterExtras(ind1,indices_)
+                sort!(extras)
+                for ind2 in extras
+                    if ind2 < ind1 && ind2 ∉ newMinds #this might go somewhat easier, maybe delete ind2 out of extras after each replacement somehow
+                        missed[i] = changeIndex(missed[i],ind1,ind2)
+                        newMinds = getIndices(missed[i])
+                        break
+                    elseif ind2 >= ind1
+                        break
+                    end
+                end
             end
         end
+        #=
+            mInd_ = getIndices(missed[i])
+            isempty(mInd_) && continue
+            for ind1 in mInd_
+                extras=filterExtras(ind1,indices_)
+                for ind2 in extras
+                    if ind2 ∉ getIndices(missed[i])
+                        missed[i] = changeIndex(missed[i],ind1,ind2)
+                    end
+                end
+            end
+            #=
+            if indices_[1] ∉ mInd_ #term on lhs does not have the initial index -> change first occuring index into that one
+                filterExtras(mInd_[1])
+                missed[i] = changeIndex(missed[i],mInd_[1],indices_[1]) #replace missed ops with changed indexed ones
+            end
+            =#
+        end
+        =#
+        missed = sortByIndex.(missed)
+
         filter!(x -> filterComplete(x,de.states,scaling), missed)
+
         missed = unique(missed)
         missed = elimRed(missed;scaling=scaling)
+        
     end
 
     if !isnothing(filter_func)
         # Find missing values that are filtered by the custom filter function,
         # but still occur on the RHS; set those to 0
         missed = find_missing(de.equations, vhash, vs′hash; get_adjoints=false)
-        #if order != 1
-            missed = findMissingSumTerms(missed,de;extraIndices=extraIndices,checking=false,indices=indices_) #checkin dissabled, since there might be some terms, that are redundant, but also zero -> set them to zero aswell forsa fety
-            missed = findMissingSpecialTerms(missed,de)
-        #end
+        
+        missed = findMissingSumTerms(missed,de;extraIndices=extraIndices,checking=false,indices=indices_) #checkin dissabled, since there might be some terms, that are redundant, but also zero -> set them to zero aswell forsa fety
+        missed = findMissingSpecialTerms(missed,de)
+    
         missed = sortByIndex.(missed) #this one might not be right (?)
         filter!(x -> (x isa Average),missed)
 
@@ -322,6 +392,31 @@ function indexedComplete!(de::AbstractMeanfieldEquations;
     return de
 end
 filterComplete(x,states,scaling) = (isNotIn(getOps(x;scaling=scaling),getOps.(states;scaling=scaling),scaling) && isNotIn(getOps(sortByIndex(_conj(x));scaling=scaling),getOps.(states;scaling=scaling),scaling))
+
+#gets all indices that are used in the states of the meanfieldequations
+function getAllIndices(vec::Vector)
+    inds = []
+    for i = 1:length(vec)
+        indices_ = getIndices(vec[i])
+        isempty(indices_) && continue
+        for ind in indices_
+            if ind ∉ inds
+                push!(inds,ind)
+            end
+        end
+    end
+    return inds
+end
+function containsMultiple(inds::Vector)
+    isempty(inds) && return false
+    length(inds) == 1 && return false
+    for i=2:length(inds)
+        if inds[1].specHilb != inds[i].specHilb
+            return true
+        end
+    end
+    return false
+end
 
 """
     findMissingSumTerms(missed,de::MeanfieldEquations)
@@ -347,73 +442,81 @@ the equations, the [`Index`](@ref) will be exchanged according to the keyword ar
 
 see also: [`find_missing`](@ref), [`indexedMeanfield`](@ref), [`meanfield`](@ref), [`findMissingSumTerms`](@ref)
 """
-function findMissingSumTerms(missed,de::MeanfieldEquations;extraIndices::Vector=[],checking=true,scaling=false,indices::Vector=[])
+function findMissingSumTerms(missed,de::AbstractMeanfieldEquations;extraIndices::Vector=[],checking=true,scaling=false,indices::Vector=[],hasDifferentIndices::Bool=false)
 
-    # This might not work if there are only double sums inside the meanfield equations
-    # also: this might not work if double sums combine transition and bosonic operators -> NEEDS SOME CHECKING
+    # TODO: This might not work if there are only double sums inside the meanfield equations (pretty sure this can never even happen)
+    # TODO: this might not work if double sums combine transition and bosonic operators -> NEEDS SOME CHECKING
 
     missed_ = copy(missed)
+    
+    extras = copy(indices)
 
-    if de.order > 1 &&  de.order - 1 > length(extraIndices)
-        error("Wrong number of extraIndices! Please make sure that for higher orders of cumulant expansion, 
-            you also use the extraIndices argument to provide additional indices for calculation. The Number of
-            extraIndices provided should be at least (expansion order - 1).
-        ")
-        #TODO: change above notifcation and checks
+    if !isempty(extraIndices)
+        if extraIndices[1] isa Symbol    
+            for name in extraIndices    # create actual indices out of the extras provided    
+                push!(extras,Index(indices[1].hilb,name,indices[1].rangeN,indices[1].specHilb))
+            end
+        else
+            for ind in extraIndices
+                push!(extras,ind)
+            end
+        end
     end
 
-    extras = []
-
-    for name in extraIndices    # create actual indices out of the extras provided
-        push!(extras,Index(indices[1].hilb,name,indices[1].rangeN,indices[1].specHilb))
-    end
     sums = Any[]
     for eq in de.equations
         sums = checkIfSum(eq.rhs)   #get all sums of the rhs
         for sum in sums
-            avrgs = getAvrgs(sum) #get vector of all avrgs in the sum
-            for avr in avrgs
-                changed_ = nothing
-                for ind in indices  #indices is a vector of indices already given freely by the system (e.g. by the operators on the lhs or the operators, used for creating the meanfieldEq)
-                    if ind ∉ getIndices(avr)    # if one of these indices is free -> change the summation index into that one
-                        changed_ = changeIndex(avr,sum.metadata.sumIndex,ind)
-                        break
-                    end
-                end
-                if isequal(changed_,nothing)
-                    for i = 1:length(extras)    # check if the extraindex is already in use for the term -> if so use the next in line
-                        if extras[i] ∉ getIndices(avr)
-                            changed_ = changeIndex(avr,sum.metadata.sumIndex,extras[i])
-                            break
-                        end
-                    end
-                    if isequal(changed_,nothing) #if avrg consists of none indexed operators, or only of operators that already have the desired indices -> push along the whole average
-                        changed_ = avr
-                    end
-                end
-                if typeof(changed_) == Term{AvgSym, Nothing}
-                    changed = sortByIndex(changed_)    # this can be done, since terms inside the sum commute anyway
-                    if !(changed isa Average)
-                        continue
-                    end
-                    if checking     # checks if the missed term found by this function is already in the list of missed averages (checking = false is needed for substituting and filtering of adjoint summation terms since the same function is called when substituting inside sums)
-                        if filterComplete(changed,de.states,scaling) && filterComplete(changed,missed_,scaling)
-                            push!(missed_,changed)
-                        end
-                    else
-                        push!(missed_,changed)
-                    end
-                end
-            end
+            extras_filtered = filterExtras(sum.metadata.sumIndex,extras)
+            checkAndChange(missed_,sum,extras_filtered,de.states,checking,scaling)
         end
     end   
     return missed_
 end
 #TODO: write also function for double sums and findMissingDoubleSumTerms
-
+function checkAndChange(missed_,sum,extras,states,checking,scaling)
+    avrgs = getAvrgs(sum) #get vector of all avrgs in the sum
+    for avr in avrgs
+        changed_ = nothing
+        avrg_inds = getIndices(avr)
+        for i = 1:length(extras)    # check if the extraindex is already in use for the term -> if so use the next in line
+            if extras[i] ∉ avrg_inds
+                changed_ = changeIndex(avr,sum.metadata.sumIndex,extras[i])
+                break
+            end
+        end
+        if isequal(changed_,nothing) #if avrg consists of none indexed operators, or only of operators that already have the desired indices -> push along the whole average
+            changed_ = avr
+        end
+        
+        if typeof(changed_) == Term{AvgSym, Nothing}
+            changed = sortByIndex(changed_)    # this can be done, since terms inside the sum commute anyway
+            if !(changed isa Average)
+                continue
+            end
+            if checking     # checks if the missed term found by this function is already in the list of missed averages (checking = false is needed for substituting and filtering of adjoint summation terms since the same function is called when substituting inside sums)
+                if filterComplete(changed,states,scaling) && filterComplete(changed,missed_,scaling)
+                    push!(missed_,changed)
+                end
+            else
+                push!(missed_,changed)
+            end
+        end
+    end
+end
+# function that filters indices so that only indices get replaces that "live" in the same sub-hilbertspace
+function filterExtras(wanted,extras)
+    filtered = []
+    for ind in extras
+        if isequal(ind.specHilb,wanted.specHilb)
+            push!(filtered,ind)
+        end
+    end
+    return filtered
+end
 
 #This is basically just the find_missing function but for the extra defined SpecialTerms, which have extra index constraints and for that also some extra checks
-function findMissingSpecialTerms(missed,me::MeanfieldEquations;scaling=false)
+function findMissingSpecialTerms(missed,me::AbstractMeanfieldEquations;scaling=false)
     missed_ = copy(missed)
     vs = me.states
     vhash = map(hash, vs)
@@ -422,24 +525,29 @@ function findMissingSpecialTerms(missed,me::MeanfieldEquations;scaling=false)
     filter!(!in(vhash), vs′hash)
     missed_hashes = map(hash,missed_)
     for eq in me.equations
-        for arg in arguments(eq.rhs)
-            if typeof(arg) == Int64
-                continue
-            end
-            if typeof(arg) == SymbolicUtils.Sym{Parameter,SpecialIndexedAverage}
-                missed_ = find_missing!(missed_, missed_hashes, arg.metadata.term, vhash, vs′hash)
-            end
-            if typeof(arg) <: SymbolicUtils.Mul
-                for arg_ in arguments(arg)
-                    if typeof(arg_) == Int64
-                        continue
-                    end
-                    if typeof(arg_) == SymbolicUtils.Sym{Parameter,SpecialIndexedAverage}
-                        missed_ = find_missing!(missed_, missed_hashes, arg_.metadata.term, vhash, vs′hash)
+        if eq.rhs isa Number
+            continue
+        else
+            for arg in arguments(eq.rhs)
+                if typeof(arg) == Int64
+                    continue
+                end
+                if typeof(arg) == SymbolicUtils.Sym{Parameter,SpecialIndexedAverage}
+                    missed_ = find_missing!(missed_, missed_hashes, arg.metadata.term, vhash, vs′hash)
+                end
+                if typeof(arg) <: SymbolicUtils.Mul
+                    for arg_ in arguments(arg)
+                        if typeof(arg_) == Int64
+                            continue
+                        end
+                        if typeof(arg_) == SymbolicUtils.Sym{Parameter,SpecialIndexedAverage}
+                            missed_ = find_missing!(missed_, missed_hashes, arg_.metadata.term, vhash, vs′hash)
+                        end
                     end
                 end
             end
         end
+        
     end
     return missed_
 end
@@ -575,12 +683,12 @@ average given as the conjugate of one of the left-hand-side (of the equations) a
 *`scaling`: A Bool defining the way how averages are added to the `missed` vector. If true only averages, whose
     operators (without indices) are not already inside the `missed` vector will be added.
 """
-function substReds(me::MeanfieldEquations;scaling::Bool=false)
+function substReds(me::AbstractMeanfieldEquations;scaling::Bool=false)
     eqs = []
     for eq in me.equations
         push!(eqs,Symbolics.Equation(eq.lhs,substReds(eq.rhs,me.states;scaling=scaling)))
     end
-    return MeanfieldEquations(eqs,me.operator_equations,me.states,me.operators,me.hamiltonian,me.jumps,me.jumps_dagger,me.rates,me.iv,me.varmap,me.order)
+    return IndexedMeanfieldEquations(eqs,me.operator_equations,me.states,me.operators,me.hamiltonian,me.jumps,me.jumps_dagger,me.rates,me.iv,me.varmap,me.order)
 end
 function substReds(term,vect::Vector;scaling::Bool=false)
     if term isa Average
@@ -606,3 +714,26 @@ function substReds(term,vect::Vector;scaling::Bool=false)
     end
     return term
 end
+
+complete(eqs::IndexedMeanfieldEquations;kwargs...) = indexedComplete(eqs;kwargs...)
+complete!(eqs::IndexedMeanfieldEquations;kwargs...) = indexedComplete!(eqs;kwargs...) 
+
+"""
+    evaluate(eqs::IndexedMeanfieldEquations)
+
+Function, that evaluates a given [`MeanfieldEquations`](@ref) entity and returns again equations,
+where indices have been inserted and sums evaluated.
+
+# Arguments
+*`me::MeanfieldEquations`: A [`MeanfieldEquations`](@ref) entity, which shall be evaluated.
+
+# Optional argumentes
+*`mapping::Dict{SymbolicUtils.Sym,Int64}=Dict{Symbol,Int64}()`: A seperate dictionary, to
+    specify any symbolic limits used when [`Index`](@ref) entities were defined. This needs
+    to be specified, when the equations contain summations, for which the upper bound is given
+    by a Symbolic.
+
+see also: [`evalME`](@ref)
+"""
+evaluate(eqs::IndexedMeanfieldEquations;kwargs...) = evalME(eqs;kwargs...)
+

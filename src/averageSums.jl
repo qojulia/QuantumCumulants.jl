@@ -1,6 +1,28 @@
 #Main file for manipulating indexed averages and sums over averages.
 using ModelingToolkit
 
+struct EvaledMeanfieldEquations <: AbstractMeanfieldEquations
+    equations::Vector{Symbolics.Equation}
+    operator_equations::Vector{Symbolics.Equation}
+    states::Vector
+    operators::Vector{QNumber}
+    hamiltonian::QNumber
+    jumps::Vector
+    jumps_dagger
+    rates::Vector
+    iv::SymbolicUtils.Sym
+    varmap::Vector{Pair}
+    order::Union{Int,Vector{<:Int},Nothing}
+end
+function Base.show(io::IO,de::EvaledMeanfieldEquations)
+    write(io,"Evaluated Meanfield equations with: ")
+    write(io, "$(length(de.equations))")
+    write(io, " number of equations")
+end
+@latexrecipe function f(de::EvaledMeanfieldEquations)
+    return de
+end
+
 struct AvgSum <: CNumber end
 
 const Average_Sum = SymbolicUtils.Term{<:AvgSum}
@@ -189,7 +211,7 @@ struct SingleNumberedVariable <: numberedVariable
     numb::Int64
     function SingleNumberedVariable(name,numb)
         metadata=source_metadata(:Parameter, name)
-        s = SymbolicUtils.Sym{Parameter, typeof(metadata)}(Symbol("$(name)$(numb)"), metadata)
+        s = SymbolicUtils.Sym{Parameter, typeof(metadata)}(Symbol("$(name)_$(numb)"), metadata)
         return SymbolicUtils.setmetadata(s, MTK.MTKParameterCtx, true)
     end
 end
@@ -214,10 +236,10 @@ struct DoubleNumberedVariable <: numberedVariable
     function DoubleNumberedVariable(name,numb1,numb2)
         if typeof(numb1) == typeof(numb2) && typeof(numb1) == Int64
             metadata = source_metadata(:Parameter, name)
-            s = SymbolicUtils.Sym{Parameter, typeof(metadata)}(Symbol("$(name)$(numb1)$(numb2)"), metadata)
+            s = SymbolicUtils.Sym{Parameter, typeof(metadata)}(Symbol("$(name)_{$(numb1)$(numb2)}"), metadata)
             return SymbolicUtils.setmetadata(s, MTK.MTKParameterCtx, true)
         else
-            return SymbolicUtils.Sym{Parameter, numberedVariable}(Symbol("$(name)$(numb1)$(numb2)"), new(name,numb1,numb2))
+            return SymbolicUtils.Sym{Parameter, numberedVariable}(Symbol("$(name)_{$(numb1)$(numb2)}"), new(name,numb1,numb2))
         end
     end
 end
@@ -629,7 +651,7 @@ where indices have been inserted and sums evaluated.
     by a Symbolic.
 
 """
-function evalME(me::MeanfieldEquations;mapping::Dict{SymbolicUtils.Sym,Int64}=Dict{SymbolicUtils.Sym,Int64}())#this is still pretty slow
+function evalME(me::AbstractMeanfieldEquations;mapping::Dict{SymbolicUtils.Sym,Int64}=Dict{SymbolicUtils.Sym,Int64}())#this is still pretty slow
     indices = nothing
     for eq in me.equations
         if containsIndexedOps(eq.lhs) && length(getIndices(eq.lhs)) == me.order
@@ -637,19 +659,27 @@ function evalME(me::MeanfieldEquations;mapping::Dict{SymbolicUtils.Sym,Int64}=Di
             break
         end
     end
-    #the maximum nummber of equations should be something like: order*(numberOfAtoms)^(order)
-    #in case for 2nd order and 30 atoms there were 1663 equations
-    #for the allocation it is assumed, that the first index given has the highest range
+    if indices == nothing
+        indices = []
+        indVecs = getIndices.(me.states)
+        for indvec in indVecs
+            for ind in indvec
+                if ind ∉ indices
+                    push!(indices,ind)
+                end
+            end
+        end
+    end
+
     range = 0
-    if indices[1].rangeN in keys(mapping)
-        range = mapping[indices[1].rangeN]
-    else
-        range = indices[1].rangeN
+    for ind in indices
+        if typeof(ind.rangeN) != Int64 && ind ∉ keys(mapping)
+            error("Please provide numbers for the upper-limits used: $(ind.range); you can do this by calling: evaluate(me;mapping=[Dictionary with corresponding numbers for limits])")
+        end
     end
-    if typeof(range) != Int64
-        error("Please provide numbers for the upper-limits used: $(range); you can do this by calling: evalME(me;mapping=[Dictionary with corresponding numbers for limits])")
-    end
-    newEqs = Vector{Union{Missing,Symbolics.Equation}}(missing,length(indices)*(range+5)^(length(indices))) #preallocation for newEqs
+    
+    sort!(indices)
+
     ranges = []
     arrays = []
     for ind in indices
@@ -658,30 +688,75 @@ function evalME(me::MeanfieldEquations;mapping::Dict{SymbolicUtils.Sym,Int64}=Di
         else
             push!(ranges,1:ind.rangeN)
         end
-        push!(arrays,unique(sort.(collect.(filter(x -> length(x) == length(unique(x)),collect(Iterators.product(ranges...)))))))
     end
-    # Threads.@threads
-    for i=1:length(me.equations)
-        ord = length(getIndices(me.equations[i].lhs))
-        if ord == 0
+    maxRange = maximum(ranges)[end]
+    newEqs = Vector{Union{Missing,Symbolics.Equation}}(missing,length(indices)*(maxRange*5)^length(indices))
+    
+    counter = 1
+    for i = 1:length(me.equations)
+        inds = getIndices(me.equations[i].lhs)
+        if isempty(inds)
             evals = evalEquation(me.equations[i],[],[];mapping)
-        else
-            evals = evalEquation(me.equations[i],arrays[ord],indices[1:ord];mapping)
+            for eq_ in evals
+                if (eq_.lhs ∉ getLHS.(newEqs)) && (_conj(eq_.lhs) ∉ getLHS.(newEqs))
+                    newEqs[counter] = eq_
+                    counter = counter+1
+                end
+            end
+            continue
         end
-        for eq_ in evals #might be able to reduce this loop into one of the other loops
-            if (eq_.lhs ∉ getLHS.(newEqs)) && (_conj(eq_.lhs) ∉ getLHS.(newEqs))
-                push!(newEqs, eq_)
+
+        nLvls=[]
+        others=[]
+        for ind in inds
+            if ind.specHilb isa NLevelSpace
+                push!(nLvls,ind)
+            else
+                push!(others,ind)
             end
         end
-        #newEqs = vcat(newEqs,evals)
-        #vs = vcat(vs, getLHS.(evals))
+        ranges_nLvl = []
+        for ind in nLvls
+            push!(ranges_nLvl,1:ind.rangeN)
+        end
+        ranges_other = []
+        for ind in others
+            push!(ranges_other,1:ind.rangeN)
+        end
+
+        arr1 = unique(sort.(collect.(filter(x -> length(x) == length(unique(x)),collect(Iterators.product(ranges_nLvl...))))))
+        arr2 = unique(sort.(collect.(collect(Iterators.product(ranges_other...)))))
+
+        arrf = appendEach(arr1,arr2)
+
+        evals = evalEquation(me.equations[i],arrf,[nLvls;others];mapping)
+        for eq_ in evals
+            if (eq_.lhs ∉ getLHS.(newEqs)) && (_conj(eq_.lhs) ∉ getLHS.(newEqs))
+                newEqs[counter] = eq_
+                counter = counter+1
+            end
+        end
+                    
     end
+    
     newEqs = filter(x -> !isequal(x,missing), newEqs)
     vs = getLHS.(newEqs)
     varmap = make_varmap(vs, me.iv)
-    return MeanfieldEquations(newEqs,me.operator_equations,vs,me.operators,me.hamiltonian,me.jumps,me.jumps_dagger,me.rates,me.iv,varmap,me.order)
+    return EvaledMeanfieldEquations(newEqs,me.operator_equations,vs,me.operators,me.hamiltonian,me.jumps,me.jumps_dagger,me.rates,me.iv,varmap,me.order)
+ end
+function appendEach(vec1,vec2)
+    isempty(vec1) && return vec2
+    isempty(vec2) && return vec1
+    vecf = Vector{Vector{Int64}}(undef,length(vec1)*length(vec2))
+    counter = 1
+    for v1 in vec1
+        for v2 in vec2
+            vecf[counter] = [v1;v2]
+            counter=counter+1
+        end
+    end
+    return vecf
 end
-
 function evalTerm(sum_::SymbolicUtils.Sym{Parameter,IndexedAverageSum};mapping::Dict{SymbolicUtils.Sym,Int64}=Dict{SymbolicUtils.Sym,Int64}())
     rangeEval = 0
     if sum_.metadata.sumIndex.rangeN in keys(mapping)
@@ -946,7 +1021,7 @@ function simplifyEquation(eq::Symbolics.Equation)
         return eq
     end
 end
-function simplifyMeanfieldEquations(me::MeanfieldEquations)
+function simplifyMeanfieldEquations(me::AbstractMeanfieldEquations)
     eq_after = []
     op_after = []
     for eq in me.equations
@@ -955,7 +1030,11 @@ function simplifyMeanfieldEquations(me::MeanfieldEquations)
     for eq in eq_after
         push!(op_after,undo_average(eq))
     end
-    return MeanfieldEquations(eq_after,op_after,me.states,me.operators,me.hamiltonian,me.jumps,me.jumps_dagger,me.rates,me.iv,me.varmap,me.order)
+    if me isa MeanfieldEquations
+        return MeanfieldEquations(eq_after,op_after,me.states,me.operators,me.hamiltonian,me.jumps,me.jumps_dagger,me.rates,me.iv,me.varmap,me.order)
+    elseif me isa IndexedMeanfieldEquations
+        return IndexedMeanfieldEquations(eq_after,op_after,me.states,me.operators,me.hamiltonian,me.jumps,me.jumps_dagger,me.rates,me.iv,me.varmap,me.order)
+    end
 end 
 
 #functions for simplifying the indexedComplete function
@@ -1049,6 +1128,9 @@ function _to_expression(x::NumberedOperator)
 end
 _to_expression(x::SymbolicUtils.Sym{Parameter,IndexedAverageSum}) = :( IndexedAverageSum($(_to_expression(x.metadata.term)),$(x.metadata.sumIndex.name),$(x.metadata.sumIndex.rangeN),$(writeNEIs(x.metadata.nonEqualIndices))) )
 _to_expression(x::SymbolicUtils.Sym{Parameter,SpecialIndexedAverage}) = :($(x.metadata.term))
+_to_expression(x::SymbolicUtils.Sym{Parameter,IndexedAverageDoubleSum}) = :( IndexedAverageDoubleSum($(_to_expression(x.metadata.innerSum)),$(x.metadata.sumIndex.name),$(x.metadata.sumIndex.rangeN),$(writeNEIs(x.metadata.nonEqualIndices))) )
+#_to_expression(x::SymbolicUtils.Sym{Parameter,numberedVariable}) = :( )
+
 
 @latexrecipe function f(s_::SymbolicUtils.Sym{Parameter,IndexedAverageSum})
     s = s_.metadata

@@ -442,6 +442,7 @@ function *(qmul::QMul,sum::IndexedSingleSum)
     end
     return arg_c * newSum
 end
+
 function *(sum::IndexedSingleSum,elem::QNumber)
     NEIds = copy(sum.nonEqualIndices)
     if (elem isa IndexedOperator || elem isa IndexedVariable) && !(elem.ind == sum.sumIndex) && (elem.ind ∉ NEIds) && (sum.sumIndex.specHilb == elem.ind.specHilb)
@@ -562,7 +563,14 @@ end
 
 function *(op1::IndexedOperator,op2::IndexedOperator)
     if op1.ind == op2.ind
-        return IndexedOperator(op1.op*op2.op,op1.ind)
+        if op1.op isa Transition
+            return IndexedOperator(op1.op*op2.op,op1.ind)
+        end
+        if op1.op isa Destroy && op2.op isa Create
+            return op2*op1 + 1
+        else
+            return QMul(1,[op1,op2])
+        end
     else
         return QMul(1,[op1,op2])
     end
@@ -596,6 +604,27 @@ function *(a::QMul, b::IndexedVariable)
     sort!(args_nc,by=acts_on)
     return merge_commutators(a.arg_c,args_nc)
 end
+function *(a::QAdd,b::IndexedOperator)
+    check_hilbert(a, b)
+    args = Any[a_ * b for a_ ∈ a.arguments]
+    flatten_adds!(args)
+    q = elimZeros(QAdd(args))
+    return q
+end
+function *(a::IndexedOperator,b::QAdd)
+    check_hilbert(a, b)
+    args = Any[a * b_ for b_ ∈ b.arguments]
+    flatten_adds!(args)
+    q = elimZeros(QAdd(args))
+    return q
+end
+
+function elimZeros(qadd::QAdd)
+    filter!(x-> !iszero(x),qadd.arguments)
+    isempty(qadd.arguments) && return 0
+    return qadd
+end
+
 # Special terms
 *(a::SNuN,b::SpecialIndexedTerm) = reorder(a*b.term,b.indexMapping)
 *(b::SpecialIndexedTerm,a::SNuN) = a*b
@@ -1000,7 +1029,9 @@ function reorder(param::QMul,indexMapping::Vector{Tuple{Index,Index}})
             break
         end
     end
-    qmul = *(carg,vcat(others,indOps)...)
+    args = vcat(others,indOps)
+    #print(args)
+    qmul = *(carg,args...)
 
     mapping_ = orderMapping(indexMapping)
     return SpecialIndexedTerm(qmul,mapping_)
@@ -1064,8 +1095,10 @@ function Base.show(io::IO,op::IndexedOperator)
     op_ = op.op
     if typeof(op_) <:Transition
         write(io,Symbol(op_.name,op_.i,op_.j,op.ind.name))
-    elseif op_ isa Create || op_ isa Destroy
+    elseif op_ isa Destroy
         write(io,Symbol(op_.name,op.ind.name))
+    elseif op_ isa Create
+        write(io,Symbol(op_.name,op.ind.name,"'"))
     else
         write(io,op_.name)
     end
@@ -1160,7 +1193,7 @@ function getIndices(term::QMul)
             push!(indices,arg.ind)
         end
     end
-    return indices
+    return unique(indices)
 end
 getIndices(a::QNumber) = typeof(a) == IndexedOperator ? [a.ind] : []
 

@@ -1,6 +1,6 @@
 #file for functions regarding scaling
 """
-    scaleME(me::MeanfieldEquations)
+    scaleME(me::IndexedMeanfieldEquations)
 
 Function, that evaluates a given [`MeanfieldEquations`](@ref) entity and returns again equations,
 where indices have been inserted and sums evaluated, regarding the same relations, as done when calculating
@@ -10,7 +10,7 @@ with oparators using a [`ClusterSpace`](@ref).
 *`me::MeanfieldEquations`: A [`MeanfieldEquations`](@ref) entity, which shall be evaluated.
 
 """
-function scaleME(me::MeanfieldEquations)
+function scaleME(me::IndexedMeanfieldEquations)
     newEqs = []
     for eq in me.equations
         tempEq = scaleEq(eq)
@@ -24,7 +24,7 @@ function scaleME(me::MeanfieldEquations)
     vs = getLHS.(newEqs)
     varmap = make_varmap(vs, me.iv)
     ops = undo_average.(vs)
-    return MeanfieldEquations(newEqs,me.operator_equations,vs,ops,me.hamiltonian,me.jumps,me.jumps_dagger,me.rates,me.iv,varmap,me.order)
+    return IndexedMeanfieldEquations(newEqs,me.operator_equations,vs,ops,me.hamiltonian,me.jumps,me.jumps_dagger,me.rates,me.iv,varmap,me.order)
 end
 scaleTerm(sym::SymbolicUtils.Sym{Parameter,IndexedAverageSum}) = scaleTerm(sym.metadata)
 function scaleTerm(sum::IndexedAverageSum)
@@ -96,7 +96,7 @@ where in only one of the sums the dependencies for the indices (non equal indice
 *`amount::Union{<:SymbolicUtils.Sym,<:Int64}`: A Number or Symbolic determining, in how many terms a sum is split
 
 """
-function splitSums(term::SymbolicUtils.Symbolic,amount::Union{<:SymbolicUtils.Sym,<:Int64})
+function splitSums(term::SymbolicUtils.Symbolic,ind::Index,amount::Union{<:SymbolicUtils.Sym,<:Int64})
     if term isa Average
         return term
     end
@@ -104,7 +104,7 @@ function splitSums(term::SymbolicUtils.Symbolic,amount::Union{<:SymbolicUtils.Sy
         args = []
         op = SymbolicUtils.operation(term)
         for i = 1:length(arguments(term))
-            push!(args,splitSums(arguments(term)[i],amount))
+            push!(args,splitSums(arguments(term)[i],ind,amount))
         end
         if isempty(args)
             return 0
@@ -115,21 +115,68 @@ function splitSums(term::SymbolicUtils.Symbolic,amount::Union{<:SymbolicUtils.Sy
     end
     if typeof(term) == SymbolicUtils.Sym{Parameter,IndexedAverageSum}
         term_ = term.metadata.term
-        ind = Index(term.metadata.sumIndex.hilb,term.metadata.sumIndex.name,(term.metadata.sumIndex.rangeN/amount))
-        extrasum = IndexedAverageSum(term_,ind,term.metadata.nonEqualIndices)
-        return extrasum + (amount-1)*IndexedAverageSum(term_,ind,Index[])
+        sumInd = term.metadata.sumIndex
+        if isequal(ind,sumInd)
+            ind2 = Index(sumInd.hilb,sumInd.name,(term.metadata.sumIndex.rangeN/amount),sumInd.specHilb)
+            extrasum = IndexedAverageSum(term_,ind,term.metadata.nonEqualIndices)
+            return extrasum + (amount-1)*IndexedAverageSum(term_,ind,Index[])
+        end
     end
     return term
 end
-splitSums(x::Symbolics.Equation,amount) = Symbolics.Equation(x.lhs,splitSums(x.rhs,amount))
-function splitSums(me::MeanfieldEquations,amount)
+splitSums(x::Symbolics.Equation,ind::Index,amount) = Symbolics.Equation(x.lhs,splitSums(x.rhs,ind,amount))
+function splitSums(me::AbstractMeanfieldEquations,ind::Index,amount)
     newEqs = Vector{Union{Missing,Symbolics.Equation}}(missing,length(me.equations))
     for i=1:length(me.equations)
-        newEqs[i] = splitSums(me.equations[i],amount)
+        newEqs[i] = splitSums(me.equations[i],ind,amount)
     end
     newEqs = filter(x -> !isequal(x,missing), newEqs)
     vs = getLHS.(newEqs)
     varmap = make_varmap(vs, me.iv)
-    return MeanfieldEquations(newEqs,me.operator_equations,vs,me.operators,me.hamiltonian,me.jumps,me.jumps_dagger,me.rates,me.iv,varmap,me.order)
+    return IndexedMeanfieldEquations(newEqs,me.operator_equations,vs,me.operators,me.hamiltonian,me.jumps,me.jumps_dagger,me.rates,me.iv,varmap,me.order)
 end
-splitSums(x,amount) = x
+splitSums(x,ind,amount) = x
+#TODO: specify also for double sums (maybe ?)
+
+scale(eqs::IndexedMeanfieldEquations;kwargs...) = scaleME(eqs;kwargs...)
+
+#Some utility functions -> implemented here, since this file is the last to get imported
+"""
+    createMap(ps::Vector,p0::Vector)
+
+A Function to create parameter values for indexed Variables more convenient.
+
+# Arguments
+*`ps::Vector`: A vector of parameters, that have no value assigned to them.
+*`p0::Vector`: A vector for numeric values, that should get assigned to the corresponding
+    entry in the `ps` vector. For Single-Indexed Variables the entry in the vector can also be again
+    a Vector, that has an amount of entries as the index of the variables has range. For Double-Indexed
+    Variables, this can also be a Matrix of a dimension, that corresponds to the ranges of the indices
+    of the given variable.
+
+"""
+function createMap(ps::Vector,p0::Vector)
+    length(ps) != length(p0) && error("Vectors given have non-equal length!")
+
+    dict = Dict{Sym{Parameter, Base.ImmutableDict{DataType, Any}},ComplexF64}()
+    for i=1:length(ps)
+        dicVal = nothing
+        if ps[i] isa SymbolicUtils.Sym{Parameter, IndexedVariable}
+            if p0[i] isa Vector || p0[i] isa Number
+                dicVal = createValueMap(ps[i],p0[i])
+            else
+                error("cannot resolve entry at $i-th position in values-vector")
+            end
+        elseif ps[i] isa SymbolicUtils.Sym{Parameter, DoubleIndexedVariable}
+            if p0[i] isa Matrix || p0[i] isa Number
+                dicVal = createValueMap(ps[i],p0[i])
+            end
+        else
+            push!(dict,ps[i]=>p0[i])
+            continue
+        end
+        dict = merge(dict,dicVal)
+    end
+    return collect(dict)
+end
+

@@ -102,7 +102,7 @@ function indexedCorrelationFunction(op1,op2,de0::AbstractMeanfieldEquations;
             push!(eqs, Symbolics.Equation(lhs_new[i], rhs))
             push!(eqs_op, Symbolics.Equation(ops[i], rhs_op))
         end
-        MeanfieldEquations(eqs,eqs_op,lhs_new,ops,H,J,Jd,de0.rates,de0.iv,varmap,order_)
+        IndexedMeanfieldEquations(eqs,eqs_op,lhs_new,ops,H,J,Jd,de0.rates,de0.iv,varmap,order_)
     end
 
     de = indexedMeanfield([op_],H,J;Jdagger=Jd,rates=de0.rates,iv=iv,order=order_)
@@ -129,9 +129,10 @@ function substituteIntoCorrelation(me,de0;scaling::Bool=false)
     for eq in me.equations
         push!(neweqs,Symbolics.Equation(eq.lhs,substReds(eq.rhs,de0.states;scaling=scaling)))
     end
-    return MeanfieldEquations(neweqs,me.operator_equations,me.states,me.operators,me.hamiltonian,me.jumps,me.jumps_dagger,me.rates,me.iv,me.varmap,me.order)
+    return IndexedMeanfieldEquations(neweqs,me.operator_equations,me.states,me.operators,me.hamiltonian,me.jumps,me.jumps_dagger,me.rates,me.iv,me.varmap,me.order)
 end
 
+#the function below is quite similar to the indexedComplete function
 function indexed_complete_corr!(de,aon0,lhs_new,order,steady_state,de0;
         mix_choice=maximum,
         simplify::Bool=true,
@@ -174,24 +175,7 @@ function indexed_complete_corr!(de,aon0,lhs_new,order,steady_state,de0;
     isnothing(filter_func) || filter!(filter_func, missed) # User-defined filter
 
     filter!(x -> filterComplete_corr(x,de.states,de0.states,scaling), missed)
-    #=
-    indices_ = nothing
-    for i = 1:length(de.states)
-        indices_ = getIndices(de.states[i])
-        isempty(indices_) || break
-    end
-    sort!(indices_,by=getIndName)
 
-    if !isempty(indices_)
-        for i = 1:length(missed)
-            mInd_ = getIndices(missed[i])
-            isempty(mInd_) && continue
-            if indices_[1] ∉ mInd_ #term on lhs does not have the initial index -> change first occuring index into that one
-                missed[i] = changeIndex(missed[i],mInd_[1],indices_[1]) #replace missed ops with changed indexed ones
-            end
-        end
-    end
-    =#
     missed = unique(missed) #no duplicates
 
     vhash_new = map(hash, lhs_new)
@@ -249,7 +233,25 @@ function indexed_complete_corr!(de,aon0,lhs_new,order,steady_state,de0;
             isempty(indices_) || break
         end
         sort!(indices_,by=getIndName)
+        
+        
         if !isempty(indices_)
+            for i = 1:length(missed)
+            mInd_ = getIndices(missed[i])
+            isempty(mInd_) && continue
+                for ind1 in mInd_
+                    indsInnew = getIndices(missed[i])
+                    extras_ = filterExtras(ind1,indices_)
+                    for ind2 in extras_
+                        if ind2 ∉ indsInnew
+                            missed[i] = changeIndex(missed[i],ind1,ind2)
+                            mInd_ = getIndices(missed[i])
+                        end
+                    end
+                end
+            end
+        end
+        #=
             for i = 1:length(missed)
                 mInd_ = getIndices(missed[i])
                 isempty(mInd_) && continue
@@ -258,6 +260,7 @@ function indexed_complete_corr!(de,aon0,lhs_new,order,steady_state,de0;
                 end
             end
         end
+        =#
         filter!(_filter_aon, missed)
         isnothing(filter_func) || filter!(filter_func, missed) # User-defined Filter
         filter!(x -> filterComplete_corr(x,de.states,de0.states,scaling), missed)

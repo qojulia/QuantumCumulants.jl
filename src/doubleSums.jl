@@ -43,12 +43,13 @@ struct IndexedDoubleSum <:QTerm
                 extraterm = 0
                 NEI_ = copy(NEI)
                 for index in innerSum.nonEqualIndices
-                    if index != sumIndex && index ∉ NEI 
+                    if index != sumIndex && index ∉ NEI && isequal(index.specHilb,sumIndex.specHilb)
                         extraterm = IndexedSingleSum(changeIndex(innerSum.term,sumIndex,index),innerSum.sumIndex,innerSum.nonEqualIndices)
                         push!(NEI_,index)
                     end 
                 end
                 if innerSum.term isa QMul
+                    # put terms of the outer index in front
                     indicesToOrder = sort([innerSum.sumIndex,sumIndex],by=getIndName)
                     newargs = orderByIndex(innerSum.term.args_nc,indicesToOrder)
                     qmul = 0
@@ -57,6 +58,7 @@ struct IndexedDoubleSum <:QTerm
                     else
                         qmul = *(innerSum.term.arg_c,newargs...)
                     end
+                    sort!(NEI_)
                     innerSum_ = IndexedSingleSum(qmul,innerSum.sumIndex,innerSum.nonEqualIndices)
                     if typeof(innerSum_) == IndexedSingleSum
                         if extraterm == 0
@@ -67,10 +69,12 @@ struct IndexedDoubleSum <:QTerm
                         return IndexedDoubleSum(innerSum_,sumIndex,NEI_)
                     end
                 else
+                    sort!(NEI)
                     return new(innerSum,sumIndex,NEI)
                 end
             end
         else
+            sort!(NEI)
             return IndexedSingleSum(innerSum,sumIndex,NEI)
         end
     end
@@ -79,7 +83,7 @@ end
 function IndexedDoubleSum(term::QAdd, sumIndex::Index,NEI::Vector{Index})
     sums = []
     for arg in term.arguments
-        push!(sums,IndexedDoubleSum(arg,sumIndex,Index[]))
+        push!(sums,IndexedDoubleSum(arg,sumIndex,NEI))
     end
     return +(sums...)
 end
@@ -127,17 +131,51 @@ function *(sum::IndexedDoubleSum,elem::SNuN)
     end
     return IndexedDoubleSum(sum.innerSum*elem,sum.sumIndex,sum.NEI)
 end
+function *(qmul::QMul,sum::IndexedDoubleSum)
+    newsum = sum
+    for i = length(qmul.args_nc):-1:1 #elemt wise multiplication
+        newsum = qmul.args_nc[i]*newsum
+    end
+    return qmul.arg_c*newsum
+end
+function *(sum::IndexedDoubleSum,qmul::QMul)
+    newsum = sum
+    for arg in qmul.args_nc #element wise multiplication
+        newsum = newsum*arg
+    end
+    return newsum*qmul.arg_c
+end
 function *(elem,sum::IndexedDoubleSum)
     NEI = copy(sum.NEI)
     if typeof(elem) == IndexedOperator || typeof(elem) == IndexedVariable
         if elem.ind != sum.sumIndex && elem.ind ∉ NEI
-            push!(NEI,elem.ind)
+            if ((sum.sumIndex.specHilb != sum.innerSum.sumIndex.specHilb) && isequal(elem.ind.specHilb,sum.sumIndex.specHilb))
+                push!(NEI,elem.ind) 
+                addterm = IndexedSingleSum(elem*changeIndex(sum.innerSum.term,sum.sumIndex,elem.ind),sum.innerSum.sumIndex,sum.innerSum.nonEqualIndices)
+                return IndexedDoubleSum(elem*sum.innerSum,sum.sumIndex,NEI) + addterm
+            #elseif (isequal(sum.sumIndex.specHilb,sum.innerSum.sumIndex.specHilb) && isequal(elem.ind.specHilb,sum.sumIndex.specHilb))
+            #    push!(NEI,elem.ind)
+            end
         end
     end
     return IndexedDoubleSum(elem*sum.innerSum,sum.sumIndex,NEI)
 end
-*(elem::QNumber,sum::IndexedDoubleSum) = IndexedDoubleSum(elem*sum.innerSum,sum.sumIndex,sum.NEI)
-*(sum::IndexedDoubleSum,elem::QNumber) = IndexedDoubleSum(sum.innerSum*elem,sum.sumIndex,sum.NEI)
+function *(sum::IndexedDoubleSum,elem)
+    NEI = copy(sum.NEI)
+    if typeof(elem) == IndexedOperator || typeof(elem) == IndexedVariable
+        if elem.ind != sum.sumIndex && elem.ind ∉ NEI
+            if ((sum.sumIndex.specHilb != sum.innerSum.sumIndex.specHilb) && isequal(elem.ind.specHilb,sum.sumIndex.specHilb))
+                push!(NEI,elem.ind)
+                addterm = IndexedSingleSum(changeIndex(sum.innerSum.term,sum.sumIndex,elem.ind)*elem,sum.innerSum.sumIndex,sum.innerSum.nonEqualIndices)
+                return IndexedDoubleSum(sum.innerSum*elem,sum.sumIndex,NEI) + addterm
+            #elseif (isequal(sum.sumIndex.specHilb,sum.innerSum.sumIndex.specHilb) && isequal(elem.ind.specHilb,sum.sumIndex.specHilb))
+            #    push!(NEI,elem.ind)
+            end
+        end
+    end
+    return IndexedDoubleSum(sum.innerSum*elem,sum.sumIndex,NEI)
+end
+#TODO: fix the above multiplication
     
 SymbolicUtils.istree(a::IndexedDoubleSum) = false
 checkInnerSums(sum1::IndexedDoubleSum, sum2::IndexedDoubleSum) = ((sum1.innerSum + sum2.innerSum) == 0)
@@ -155,3 +193,17 @@ function Base.show(io::IO,elem::IndexedDoubleSum)
 end
 Base.isequal(a::IndexedDoubleSum,b::IndexedDoubleSum) = isequal(a.innerSum,b.innerSum) && isequal(a.sumIndex,b.sumIndex) && isequal(a.NEI,b.NEI)
 _to_expression(x::IndexedDoubleSum) = :( IndexedDoubleSum($(_to_expression(x.innerSum)),$(x.sumIndex.name),$(x.sumIndex.rangeN),$(writeNEIs(x.NEI))))
+
+function *(sum1::IndexedSingleSum,sum2::IndexedSingleSum; ind=nothing)
+    if sum1.sumIndex != sum2.sumIndex
+        term = sum1.term*sum2.term
+        return IndexedDoubleSum(IndexedSingleSum(term,sum2.sumIndex,sum2.nonEqualIndices),sum1.sumIndex,sum1.nonEqualIndices)
+    else
+        if !(ind isa Index)
+            error("Specification of an extra Index is needed!")
+        end
+        term2 = changeIndex(sum2.term,sum2.sumIndex,ind)
+        return IndexedDoubleSum(IndexedSingleSum(sum1.term*term2,sum1.sumIndex,sum1.nonEqualIndices),ind,sum1.nonEqualIndices)
+
+    end
+end

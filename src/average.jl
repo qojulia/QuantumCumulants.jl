@@ -174,7 +174,7 @@ function cumulant_expansion(x::SymbolicUtils.Symbolic,order;mix_choice=maximum,s
         return x
     end
 end
-function cumulant_expansion(de::MeanfieldEquations,order;multithread=false,mix_choice=maximum,kwargs...)
+function cumulant_expansion(de::AbstractMeanfieldEquations,order;multithread=false,mix_choice=maximum,kwargs...)
     order==de.order && return de
     eqs = de.equations
     eqs_out = Vector{Symbolics.Equation}(undef, length(eqs))
