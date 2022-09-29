@@ -1,16 +1,49 @@
-using QuantumOptics
-using OrdinaryDiffEq
-using ModelingToolkit
+using Test
+
+import SymbolicUtils
+import SymbolicUtils: substitute
+
+import Symbolics
+import TermInterface
+
+import SciMLBase
+
+import ModelingToolkit
+const MTK = ModelingToolkit
+
+using Combinatorics: partitions, combinations
 using LinearAlgebra
-using Symbolics
-using SymbolicUtils
-using DifferentialEquations
-using Plots
+
+using QuantumOpticsBase
+import QuantumOpticsBase: ⊗, tensor
+
+const NO_METADATA = SymbolicUtils.NO_METADATA
+
+source_metadata(source, name) = 
+    Base.ImmutableDict{DataType, Any}(Symbolics.VariableSource, (source, name))
+
+include("../src/hilbertspace.jl")
+include("../src/qnumber.jl")
+include("../src/cnumber.jl")
+include("../src/fock.jl")
+include("../src/nlevel.jl")
+include("../src/equations.jl")
+include("../src/meanfield.jl")
+include("../src/average.jl")
+include("../src/utils.jl")
+include("../src/diffeq.jl")
+include("../src/correlation.jl")
+include("../src/cluster.jl")
+include("../src/scale.jl")
+include("../src/latexify_recipes.jl")
+include("../src/printing.jl")
 include("../src/indexing.jl")
 include("../src/doubleSums.jl")
 include("../src/averageSums.jl")
 include("../src/indexedMeanfield.jl")
-using Test
+include("../src/indexedScale.jl")
+include("../src/indexedCorrelation.jl")
+
 
 @testset "index_basic" begin
 

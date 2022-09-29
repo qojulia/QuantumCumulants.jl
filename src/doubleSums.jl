@@ -42,12 +42,24 @@ struct IndexedDoubleSum <:QTerm
             else
                 extraterm = 0
                 NEI_ = copy(NEI)
+                for index in getIndices(innerSum.term)
+                    if sumIndex in innerSum.nonEqualIndices && isequal(index,innerSum.sumIndex)
+                        (innerSum.sumIndex ∉ NEI_) && push!(NEI_,index)
+                        continue
+                    end
+                    if index != sumIndex && index ∉ NEI && isequal(index.specHilb,sumIndex.specHilb)
+                        extraterm = IndexedSingleSum(changeIndex(innerSum.term,sumIndex,index),innerSum.sumIndex,innerSum.nonEqualIndices)
+                        push!(NEI_,index)
+                    end 
+                end
+                #=
                 for index in innerSum.nonEqualIndices
                     if index != sumIndex && index ∉ NEI && isequal(index.specHilb,sumIndex.specHilb)
                         extraterm = IndexedSingleSum(changeIndex(innerSum.term,sumIndex,index),innerSum.sumIndex,innerSum.nonEqualIndices)
                         push!(NEI_,index)
                     end 
                 end
+                =#
                 if innerSum.term isa QMul
                     # put terms of the outer index in front
                     indicesToOrder = sort([innerSum.sumIndex,sumIndex],by=getIndName)

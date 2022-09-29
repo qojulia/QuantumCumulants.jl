@@ -111,8 +111,10 @@ hfock = FockSpace(:fock)
 bfock = FockBasis(100)
 
 diff = (2*create(bfock)+2*destroy(bfock)) - to_numeric((2*(a)+2*(a')), bfock)
-@assert iszero(diff)
+@test isequal(2*create(bfock)+2*destroy(bfock),to_numeric((2*(a)+2*(a')), bfock))
+@test iszero(diff)
 
-@assert iszero(to_numeric(2*a, bfock) - 2*to_numeric(a, bfock))
+@test isequal(to_numeric(2*a, bfock),2*to_numeric(a, bfock))
+@test iszero(to_numeric(2*a, bfock) - 2*to_numeric(a, bfock))
 
 end # testset

@@ -1200,3 +1200,4 @@ getIndices(a::QNumber) = typeof(a) == IndexedOperator ? [a.ind] : []
 #Usability functions:
 Σ(a,b) = IndexedDoubleSum(a,b)  #Double Sum because, if a is not a single sum it will create a single sum anyway
 Σ(a,b,c) = IndexedDoubleSum(a,b,c)
+Σ(a,b,c,d) = IndexedDoubleSum(a,b,c,d)

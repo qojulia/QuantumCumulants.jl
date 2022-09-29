@@ -44,38 +44,42 @@ include("../src/indexedMeanfield.jl")
 include("../src/indexedScale.jl")
 include("../src/indexedCorrelation.jl")
 
-@testset "average_sums" begin
+@testset "indexed_meanfield" begin
 
-N = 2
+order = 2
+@cnumbers Δc η Δa κ
+
+N = 2 #number of atoms
+hc = FockSpace(:cavity)
 ha = NLevelSpace(Symbol(:atom),2)
-hf = FockSpace(:cavity)
-h = hf⊗ha
+h = hc ⊗ ha
 
-ind(i) = Index(h,i,N,ha)
+#define indices
+i_ind = Index(h,:i,N,ha)
+j_ind = Index(h,:j,N,ha)
+k_ind = Index(h,:k,N,ha)
 
+#define indexed variables
 g(k) = IndexedVariable(:g,k)
+Γ_ij = DoubleIndexedVariable(:Γ,i_ind,j_ind,true)
+Ω_ij = DoubleIndexedVariable(:Ω,i_ind,j_ind,false)
+
+@qnumbers a::Destroy(h)
 σ(i,j,k) = IndexedOperator(Transition(h,:σ,i,j),k)
 
-@test(isequal(average(2*σ(1,2,ind(:k))),2*average(σ(1,2,ind(:k)))))
-@test(isequal(average(g(ind(:k))*σ(2,2,ind(:k))),g(ind(:k))*average(σ(2,2,ind(:k)))))
-@test(isequal(average(g(ind(:k))),g(ind(:k))))
+# Hamiltonian
 
-sum1 = IndexedSingleSum(σ(1,2,ind(:k)),ind(:k))
-σn(i,j,k) = NumberedOperator(Transition(h,:σ,i,j),k)
-@test(isequal(evalTerm(average(sum1)),average(σn(1,2,1)) + average(σn(1,2,2))))
-@test(isequal(σn(1,2,1)+σn(2,1,1),NumberedOperator(Transition(h,:σ,1,2)+Transition(h,:σ,2,1),1)))
+DSum = Σ(Ω_ij*σ(2,1,i_ind)*σ(1,2,j_ind),j_ind,i_ind,true)
 
-@test(isequal(sum1,undo_average(average(sum1))))
+@test DSum isa IndexedDoubleSum
+@test isequal(Σ(Σ(Ω_ij*σ(2,1,i_ind)*σ(1,2,j_ind),i_ind,[j_ind]),j_ind),DSum)
 
-#test insertIndex
-@test(isequal(σn(2,2,1),insertIndex(σ(2,2,ind(:j)),ind(:j),1)))
-@test(isequal(σ(1,2,ind(:j)),insertIndex(σ(1,2,ind(:j)),ind(:k),2)))
-@test(isequal(1,insertIndex(1,ind(:k),1)))
+Hc = Δc*a'a + η*(a' + a)
+Ha = Δa*Σ(σ(2,2,i_ind),i_ind) + DSum
+Hi = Σ(g(i_ind)*(a'*σ(1,2,i_ind) + a*σ(2,1,i_ind)),i_ind)
+H = Hc + Ha + Hi
 
-sum2 = average(sum1*σ(1,2,ind(:l)))
-
-@test(!isequal(σn(2,2,1),insertIndex(sum2,ind(:j),1)))
+@test H isa QNumber
 
 
 end
-
