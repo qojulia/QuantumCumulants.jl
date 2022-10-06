@@ -1,48 +1,7 @@
 using Test
-
-import SymbolicUtils
-import SymbolicUtils: substitute
-
-import Symbolics
-import TermInterface
-
-import SciMLBase
-
-import ModelingToolkit
-const MTK = ModelingToolkit
-
-using Combinatorics: partitions, combinations
-using LinearAlgebra
-
-using QuantumOpticsBase
-import QuantumOpticsBase: ⊗, tensor
-
-const NO_METADATA = SymbolicUtils.NO_METADATA
-
-source_metadata(source, name) = 
-    Base.ImmutableDict{DataType, Any}(Symbolics.VariableSource, (source, name))
-
-include("../src/hilbertspace.jl")
-include("../src/qnumber.jl")
-include("../src/cnumber.jl")
-include("../src/fock.jl")
-include("../src/nlevel.jl")
-include("../src/equations.jl")
-include("../src/meanfield.jl")
-include("../src/average.jl")
-include("../src/utils.jl")
-include("../src/diffeq.jl")
-include("../src/correlation.jl")
-include("../src/cluster.jl")
-include("../src/scale.jl")
-include("../src/latexify_recipes.jl")
-include("../src/printing.jl")
-include("../src/indexing.jl")
-include("../src/doubleSums.jl")
-include("../src/averageSums.jl")
-include("../src/indexedMeanfield.jl")
-include("../src/indexedScale.jl")
-include("../src/indexedCorrelation.jl")
+using QuantumCumulants
+using SymbolicUtils
+using Symbolics
 
 @testset "indexed_meanfield" begin
 
@@ -79,7 +38,26 @@ Ha = Δa*Σ(σ(2,2,i_ind),i_ind) + DSum
 Hi = Σ(g(i_ind)*(a'*σ(1,2,i_ind) + a*σ(2,1,i_ind)),i_ind)
 H = Hc + Ha + Hi
 
-@test H isa QNumber
+J = [a, [σ(1,2,i_ind),σ(1,2,j_ind)] ] 
+rates = [κ,Γ_ij]
 
+ops = [a, σ(2,2,k_ind), σ(1,2,k_ind)]
+eqs = indexedMeanfield(ops,H,J;rates=rates,order=order)
+
+@test length(eqs) == 3
+
+ind1 = Index(h,:q,N,ha)
+ind2 = Index(h,:r,N,ha)
+ind3 = Index(h,:s,N,ha)
+
+eqs_comp = complete(eqs;extraIndices=[ind1,ind2,ind3])
+eqs_comp2 = complete(eqs;extraIndices=[:q,:r,:s])
+
+for i=1:length(eqs_comp)
+    @test isequal(length(arguments(eqs_comp[i].rhs)),length(arguments(eqs_comp2[i].rhs)))
+end
+eqs_ = evaluate(eqs_comp)
+
+@test length(eqs_) == 18
 
 end

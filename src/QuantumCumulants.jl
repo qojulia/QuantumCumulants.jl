@@ -35,7 +35,7 @@ export HilbertSpace, ProductSpace, ⊗, tensor,
         IndexedDoubleSum, createValueMap, indexedComplete, indexedCorrelationFunction,
         scaleME, evalME, indexedComplete!, indexedMeanfield, substReds,
         IndexedAverageSum, SpecialIndexedTerm, SpecialIndexedAverage, findMissingSumTerms, Σ,
-        evaluate, createMap, NumberedOperator
+        evaluate, createMap, NumberedOperator, changeIndex, orderByIndex, splitSums, insertIndex, evalTerm
 
 const NO_METADATA = SymbolicUtils.NO_METADATA
 

@@ -1,48 +1,9 @@
 using Test
+using QuantumCumulants
+using SymbolicUtils
+using Symbolics
 
-import SymbolicUtils
-import SymbolicUtils: substitute
-
-import Symbolics
-import TermInterface
-
-import SciMLBase
-
-import ModelingToolkit
-const MTK = ModelingToolkit
-
-using Combinatorics: partitions, combinations
-using LinearAlgebra
-
-using QuantumOpticsBase
-import QuantumOpticsBase: ⊗, tensor
-
-const NO_METADATA = SymbolicUtils.NO_METADATA
-
-source_metadata(source, name) = 
-    Base.ImmutableDict{DataType, Any}(Symbolics.VariableSource, (source, name))
-
-include("../src/hilbertspace.jl")
-include("../src/qnumber.jl")
-include("../src/cnumber.jl")
-include("../src/fock.jl")
-include("../src/nlevel.jl")
-include("../src/equations.jl")
-include("../src/meanfield.jl")
-include("../src/average.jl")
-include("../src/utils.jl")
-include("../src/diffeq.jl")
-include("../src/correlation.jl")
-include("../src/cluster.jl")
-include("../src/scale.jl")
-include("../src/latexify_recipes.jl")
-include("../src/printing.jl")
-include("../src/indexing.jl")
-include("../src/doubleSums.jl")
-include("../src/averageSums.jl")
-include("../src/indexedMeanfield.jl")
-include("../src/indexedScale.jl")
-include("../src/indexedCorrelation.jl")
+const qc = QuantumCumulants
 
 @testset "average_sums" begin
 
@@ -54,6 +15,7 @@ h = hf⊗ha
 ind(i) = Index(h,i,N,ha)
 
 g(k) = IndexedVariable(:g,k)
+Γij = DoubleIndexedVariable(:Γ,ind(:i),ind(:j),true)
 σ(i,j,k) = IndexedOperator(Transition(h,:σ,i,j),k)
 
 @test(isequal(average(2*σ(1,2,ind(:k))),2*average(σ(1,2,ind(:k)))))
@@ -65,8 +27,6 @@ sum1 = IndexedSingleSum(σ(1,2,ind(:k)),ind(:k))
 @test(isequal(evalTerm(average(sum1)),average(σn(1,2,1)) + average(σn(1,2,2))))
 @test(isequal(σn(1,2,1)+σn(2,1,1),NumberedOperator(Transition(h,:σ,1,2)+Transition(h,:σ,2,1),1)))
 
-@test(isequal(sum1,undo_average(average(sum1))))
-
 #test insertIndex
 @test(isequal(σn(2,2,1),insertIndex(σ(2,2,ind(:j)),ind(:j),1)))
 @test(isequal(σ(1,2,ind(:j)),insertIndex(σ(1,2,ind(:j)),ind(:k),2)))
@@ -75,6 +35,23 @@ sum1 = IndexedSingleSum(σ(1,2,ind(:k)),ind(:k))
 sum2 = average(sum1*σ(1,2,ind(:l)))
 
 @test(!isequal(σn(2,2,1),insertIndex(sum2,ind(:j),1)))
+
+
+gamma = insertIndex(Γij,ind(:i),1)
+@test insertIndex(g(ind(:j)),ind(:j),1) isa SymbolicUtils.Sym
+@test gamma isa SymbolicUtils.Sym{Parameter,qc.numberedVariable}
+
+@test insertIndex(gamma,ind(:j),2) isa SymbolicUtils.Sym
+
+sumterm = σ(1,2,ind(:i))*σ(2,1,ind(:j))*σ(2,2,ind(:k))
+sum_ = Σ(sumterm,ind(:i),[ind(:j),ind(:k)])
+sum_A = average(sum_)
+
+@test isequal(cumulant_expansion(sum_A,2),IndexedAverageSum(cumulant_expansion(average(sumterm),2),ind(:i),[ind(:j),ind(:k)]))
+
+inds = qc.getIndices(sumterm)
+@test isequal([ind(:i),ind(:j),ind(:k)],inds)
+
 
 
 end

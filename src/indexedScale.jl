@@ -118,8 +118,27 @@ function splitSums(term::SymbolicUtils.Symbolic,ind::Index,amount::Union{<:Symbo
         sumInd = term.metadata.sumIndex
         if isequal(ind,sumInd)
             ind2 = Index(sumInd.hilb,sumInd.name,(term.metadata.sumIndex.rangeN/amount),sumInd.specHilb)
-            extrasum = IndexedAverageSum(term_,ind,term.metadata.nonEqualIndices)
-            return extrasum + (amount-1)*IndexedAverageSum(term_,ind,Index[])
+            if isempty(term.metadata.nonEqualIndices)
+                return (amount)*IndexedAverageSum(term_,ind2,Index[])
+            end
+            extrasum = IndexedAverageSum(term_,ind2,term.metadata.nonEqualIndices)
+            return extrasum + (amount-1)*IndexedAverageSum(term_,ind2,Index[])
+        end
+    end
+    if typeof(term) == SymbolicUtils.Sym{Parameter,IndexedAverageDoubleSum}
+        Dsum = term.metadata
+        if isequal(ind,Dsum.sumIndex)
+            #create multiple doubleSums with the same innerSum
+            ind2 = Index(Dsum.sumIndex.hilb,Dsum.sumIndex.name,(Dsum.sumIndex.rangeN/amount),Dsum.sumIndex.specHilb)
+            if isempty(Dsum.nonEqualIndices)
+                return amount*IndexedAverageDoubleSum(Dsum.innerSum,ind2,Index[])
+            end
+            extraSum = IndexedAverageDoubleSum(Dsum.innerSum,ind2,Dsum.nonEqualIndices)
+            return extraSum + (amount-1)*Σ(Dsum.innerSum,ind2,Index[])
+        elseif isequal(ind,Dsum.innerSum.metadata.sumIndex)
+            #create doublesum of split innersums
+            innerSums = splitSums(Dsum.innerSum,ind,amount)
+            return IndexedAverageDoubleSum(innerSums,Dsum.sumIndex,Dsum.nonEqualIndices)
         end
     end
     return term
@@ -136,7 +155,7 @@ function splitSums(me::AbstractMeanfieldEquations,ind::Index,amount)
     return IndexedMeanfieldEquations(newEqs,me.operator_equations,vs,me.operators,me.hamiltonian,me.jumps,me.jumps_dagger,me.rates,me.iv,varmap,me.order)
 end
 splitSums(x,ind,amount) = x
-#TODO: specify also for double sums (maybe ?)
+
 
 scale(eqs::IndexedMeanfieldEquations;kwargs...) = scaleME(eqs;kwargs...)
 
@@ -155,7 +174,7 @@ A Function to create parameter values for indexed Variables more convenient.
     of the given variable.
 
 """
-function createMap(ps::Vector,p0::Vector)
+function createMap(ps::Vector,p0::Vector;mapping)
     length(ps) != length(p0) && error("Vectors given have non-equal length!")
 
     dict = Dict{Sym{Parameter, Base.ImmutableDict{DataType, Any}},ComplexF64}()
@@ -163,13 +182,13 @@ function createMap(ps::Vector,p0::Vector)
         dicVal = nothing
         if ps[i] isa SymbolicUtils.Sym{Parameter, IndexedVariable}
             if p0[i] isa Vector || p0[i] isa Number
-                dicVal = createValueMap(ps[i],p0[i])
+                dicVal = createValueMap(ps[i],p0[i];mapping)
             else
                 error("cannot resolve entry at $i-th position in values-vector")
             end
         elseif ps[i] isa SymbolicUtils.Sym{Parameter, DoubleIndexedVariable}
             if p0[i] isa Matrix || p0[i] isa Number
-                dicVal = createValueMap(ps[i],p0[i])
+                dicVal = createValueMap(ps[i],p0[i];mapping)
             end
         else
             push!(dict,ps[i]=>p0[i])

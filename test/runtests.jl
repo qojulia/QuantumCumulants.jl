@@ -17,6 +17,7 @@ names = [
     "test_average_sums.jl"
     "test_double_sums.jl"
     "test_indexed_meanfield.jl"
+    "test_indexed_correlation.jl"
 ]
 
 detected_tests = filter(

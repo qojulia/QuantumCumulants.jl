@@ -17,7 +17,6 @@ function _new_operator(sum::IndexedSingleSum,h,aon)
         end
     end
     return IndexedSingleSum(_new_operator(sum.term,h),newSumIndex,newSumNonEquals)
-    
 end
 function _new_operator(sum::IndexedSingleSum,h) 
     newSumIndex = sum.sumIndex
@@ -32,6 +31,13 @@ function _new_operator(sum::IndexedSingleSum,h)
     end
     return IndexedSingleSum(_new_operator(sum.term,h),newSumIndex,newSumNonEquals)
     
+end
+function _new_indices(Inds::Vector,h)
+    Inds_ = copy(Inds)
+    for i=1:length(Inds)
+        Inds_[i] = Index(h,Inds[i].name,Inds[i].rangeN,Inds[i].specHilb)
+    end
+    return Inds_
 end
 
 """
@@ -63,6 +69,11 @@ function indexedCorrelationFunction(op1,op2,de0::AbstractMeanfieldEquations;
     h1 = hilbert(op1)
     h2 = _new_hilbert(hilbert(op2), acts_on(op2))
     h = h1⊗h2
+
+    #exchange hilberts for indices (if extraindices given are indices and not symbols)
+    if !isempty(extraIndices) && extraIndices[1] isa Index
+        extraIndices = _new_indices(extraIndices,h)
+    end
 
     H0 = de0.hamiltonian
     J0 = de0.jumps
@@ -146,6 +157,22 @@ function indexed_complete_corr!(de,aon0,lhs_new,order,steady_state,de0;
     Jd = de.jumps_dagger
     rates = de.rates
 
+
+    indices_ = getAllIndices(vs)
+
+    if isempty(indices_) && extraIndices[1] isa Symbol
+        for op in de.jumps
+            if op isa IndexedOperator
+                indices_ = [Index(op.ind.hilb,extraIndices[1],op.ind.rangeN,op.ind.specHilb)]
+                deleteat!(extraIndices,1)
+                break
+            end
+        end
+    elseif isempty(indices_) && extraIndices[1] isa Index
+        indices_ = [extraIndices[1]]
+        deleteat!(extraIndices,1)
+    end
+    #=
     indices_ = nothing
     for i = 1:length(de.states)
         indices_ = getIndices(de.states[i])
@@ -161,6 +188,7 @@ function indexed_complete_corr!(de,aon0,lhs_new,order,steady_state,de0;
             end
         end
     end
+    =#
 
     vhash = map(hash, vs)
     vs′ = map(_conj, vs)
@@ -227,14 +255,15 @@ function indexed_complete_corr!(de,aon0,lhs_new,order,steady_state,de0;
         isnothing(filter_func) || filter!(filter_func, missed) # User-defined filter
     
         filter!(x -> filterComplete_corr(x,de.states,de0.states,scaling), missed)
+        #=
         indices_ = nothing
         for i = 1:length(de.states)
             indices_ = getIndices(de.states[i])
             isempty(indices_) || break
         end
         sort!(indices_,by=getIndName)
-        
-        
+        =#
+        #=
         if !isempty(indices_)
             for i = 1:length(missed)
             mInd_ = getIndices(missed[i])
@@ -247,6 +276,24 @@ function indexed_complete_corr!(de,aon0,lhs_new,order,steady_state,de0;
                             missed[i] = changeIndex(missed[i],ind1,ind2)
                             mInd_ = getIndices(missed[i])
                         end
+                    end
+                end
+            end
+        end
+        =#
+        for i = 1:length(missed)
+            minds = getIndices(missed[i])
+            newMinds = copy(minds)
+            for ind1 in minds
+                extras=filterExtras(ind1,indices_)
+                sort!(extras)
+                for ind2 in extras
+                    if ind2 < ind1 && ind2 ∉ newMinds #this might go somewhat easier, maybe delete ind2 out of extras after each replacement somehow
+                        missed[i] = changeIndex(missed[i],ind1,ind2)
+                        newMinds = getIndices(missed[i])
+                        break
+                    elseif ind2 >= ind1
+                        break
                     end
                 end
             end

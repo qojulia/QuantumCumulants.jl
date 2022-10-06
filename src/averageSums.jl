@@ -482,7 +482,7 @@ This function creates Numbered- Variables/Operators/Sums upon calls.
 Examples
 ========
 
-    insertIndex(σⱼ²¹,j,1) = σ₁²² 
+    insertIndex(σⱼ²¹,j,1) = σ₁²¹ 
 
 """
 function insertIndex(sum::SymbolicUtils.Sym{Parameter,IndexedAverageSum}, ind::Index, value::Int64)
@@ -659,7 +659,7 @@ function evalME(me::AbstractMeanfieldEquations;mapping::Dict{SymbolicUtils.Sym,I
             break
         end
     end
-    if indices == nothing
+    if indices === nothing
         indices = []
         indVecs = getIndices.(me.states)
         for indvec in indVecs
@@ -673,8 +673,8 @@ function evalME(me::AbstractMeanfieldEquations;mapping::Dict{SymbolicUtils.Sym,I
 
     range = 0
     for ind in indices
-        if typeof(ind.rangeN) != Int64 && ind ∉ keys(mapping)
-            error("Please provide numbers for the upper-limits used: $(ind.range); you can do this by calling: evaluate(me;mapping=[Dictionary with corresponding numbers for limits])")
+        if typeof(ind.rangeN) != Int64 && ind.rangeN ∉ keys(mapping)
+            error("Please provide numbers for the upper-limits used: $(ind.rangeN); you can do this by calling: evaluate(me;mapping=[Dictionary with corresponding numbers for limits])")
         end
     end
     
@@ -717,11 +717,19 @@ function evalME(me::AbstractMeanfieldEquations;mapping::Dict{SymbolicUtils.Sym,I
         end
         ranges_nLvl = []
         for ind in nLvls
-            push!(ranges_nLvl,1:ind.rangeN)
+            if ind.rangeN in keys(mapping)
+                push!(ranges_nLvl,1:mapping[ind.rangeN])
+            else
+                push!(ranges_nLvl,1:ind.rangeN)
+            end
         end
         ranges_other = []
         for ind in others
-            push!(ranges_other,1:ind.rangeN)
+            if ind.rangeN in keys(mapping)
+                push!(ranges_other,1:mapping[ind.rangeN])
+            else
+                push!(ranges_other,1:ind.rangeN)
+            end
         end
 
         arr1 = unique(sort.(collect.(filter(x -> length(x) == length(unique(x)),collect(Iterators.product(ranges_nLvl...))))))

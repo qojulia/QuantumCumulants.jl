@@ -1,48 +1,8 @@
 using Test
+using QuantumCumulants
+using SymbolicUtils
+using Symbolics
 
-import SymbolicUtils
-import SymbolicUtils: substitute
-
-import Symbolics
-import TermInterface
-
-import SciMLBase
-
-import ModelingToolkit
-const MTK = ModelingToolkit
-
-using Combinatorics: partitions, combinations
-using LinearAlgebra
-
-using QuantumOpticsBase
-import QuantumOpticsBase: ⊗, tensor
-
-const NO_METADATA = SymbolicUtils.NO_METADATA
-
-source_metadata(source, name) = 
-    Base.ImmutableDict{DataType, Any}(Symbolics.VariableSource, (source, name))
-
-include("../src/hilbertspace.jl")
-include("../src/qnumber.jl")
-include("../src/cnumber.jl")
-include("../src/fock.jl")
-include("../src/nlevel.jl")
-include("../src/equations.jl")
-include("../src/meanfield.jl")
-include("../src/average.jl")
-include("../src/utils.jl")
-include("../src/diffeq.jl")
-include("../src/correlation.jl")
-include("../src/cluster.jl")
-include("../src/scale.jl")
-include("../src/latexify_recipes.jl")
-include("../src/printing.jl")
-include("../src/indexing.jl")
-include("../src/doubleSums.jl")
-include("../src/averageSums.jl")
-include("../src/indexedMeanfield.jl")
-include("../src/indexedScale.jl")
-include("../src/indexedCorrelation.jl")
 
 @testset "double_sums" begin
 
@@ -66,11 +26,6 @@ Dsum = IndexedDoubleSum(innerSum,ind(:j),[ind(:i)])
 @test(isequal(
     IndexedDoubleSum(innerSum,ind(:j)), IndexedDoubleSum(IndexedSingleSum(σ(2,1,ind(:i)),ind(:i))*σ(1,2,ind(:j)),ind(:j))
 ))
-
-@test(isequal(hilbert(Dsum),hilbert(innerSum)))
-@test(isequal(hilbert(Dsum),hilbert(ind(:j))))
-@test(isequal(hilbert(Dsum),h))
-
 
 N_atoms = 4 
 N_modes = 2
@@ -103,8 +58,6 @@ Ssum2 = Σ(g_ik*a(k_ind)'*σ(1,2,i_ind),i_ind)
 
 H = Σ(Σ(g_ik*(a(k_ind)*σ(2,1,i_ind) + a(k_ind)'*σ(1,2,i_ind)),i_ind),k_ind)
 
-@test H isa QAdd
-
 for arg in H.arguments
     @test arg isa IndexedDoubleSum
 end
@@ -117,10 +70,28 @@ DSum1 = H.arguments[1]
 Dsum2 = H.arguments[2]
 
 @test isequal(DSum1*a(l_ind),Σ(Ssum1*a(l_ind),k_ind))
-@test DSum1*a(l_ind) isa QAdd
 
 @test isequal(Σ(Σ(σ(2,1,i_ind)*σ(1,2,j_ind),i_ind,[j_ind]),j_ind,[i_ind]),Σ(Σ(σ(2,1,i_ind)*σ(1,2,j_ind),i_ind,[j_ind]),j_ind))
 @test isequal(Σ(Σ(σ(2,1,i_ind)*σ(1,2,j_ind),i_ind,[j_ind]),j_ind,[i_ind]),Σ(Σ(σ(2,1,i_ind),i_ind,[j_ind])*σ(1,2,j_ind),j_ind))
+ 
+ADsum1 = average(DSum1)
+ADsum2 = average(Dsum2)
+
+split0 = splitSums(ADsum1,j_ind,15)
+@test isequal(split0,ADsum1)
+
+split1 = splitSums(ADsum1,k_ind,5)
+@test split1 isa SymbolicUtils.Mul
+@test isequal(5,arguments(split1)[1])
+@test isequal(N_modes/5,arguments(split1)[2].metadata.sumIndex.rangeN)
+
+split2 = splitSums(ADsum1,i_ind,5)
+@test split2 isa SymbolicUtils.Mul
+@test isequal(5,arguments(split2)[1])
+@test isequal(N_atoms/5,arguments(split2)[2].metadata.innerSum.metadata.sumIndex.rangeN)
+
+@test isequal(N_modes,arguments(split2)[2].metadata.sumIndex.rangeN)
+
 
 #for arg in H.arguments
 #    @test arg isa IndexedDoubleSum
