@@ -182,7 +182,7 @@ asdf2 = σ(1,2,k_ind)*specTerm
 
 @test reorder(average(qc.QAdd([0])),[(i_ind,j_ind)]) == 0
 
-
+@test isequal(NumberedOperator(Transition(h,:σ,1,2),1),σ(1,2,1))
 
 end
 

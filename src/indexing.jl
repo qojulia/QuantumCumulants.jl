@@ -1097,3 +1097,5 @@ getIndices(a::QNumber) = typeof(a) == IndexedOperator ? [a.ind] : []
 Σ(a,b) = IndexedDoubleSum(a,b)  #Double-Sum here, because if variable a is not a single sum it will create a single sum anyway
 Σ(a,b,c) = IndexedDoubleSum(a,b,c)
 Σ(a,b,c,d) = IndexedDoubleSum(a,b,c,d)
+
+IndexedOperator(x::indexable,numb::Int64) = NumberedOperator(x,numb)
