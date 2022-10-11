@@ -172,7 +172,7 @@ function indexed_complete_corr!(de,aon0,lhs_new,order,steady_state,de0;
         indices_ = [extraIndices[1]]
         deleteat!(extraIndices,1)
     end
-    
+
     vhash = map(hash, vs)
     vs′ = map(_conj, vs)
     vs′hash = map(hash, vs′)
@@ -287,3 +287,5 @@ end
 
 filterComplete_corr(x,states1,states2,scaling) = (isNotIn(getOps(x;scaling=scaling),getOps.(states1;scaling=scaling),scaling) && isNotIn(getOps(sortByIndex(_conj(x));scaling=scaling),getOps.(states1;scaling=scaling),scaling) 
     && isNotIn(getOps(x;scaling=scaling),getOps.(states2;scaling=scaling),scaling)&& isNotIn(getOps(sortByIndex(_conj(x));scaling=scaling),getOps.(states2;scaling=scaling),scaling))
+
+CorrelationFunction(op1,op2,de0::IndexedMeanfieldEquations; kwargs...) = indexedCorrelationFunction(op1,op2,de0;kwargs...)

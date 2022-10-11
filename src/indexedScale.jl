@@ -156,10 +156,8 @@ function splitSums(me::AbstractMeanfieldEquations,ind::Index,amount)
 end
 splitSums(x,ind,amount) = x
 
+scale(eqs::IndexedMeanfieldEquations;kwargs...) = substReds(scaleME(eqs;kwargs...);scaling=true)
 
-scale(eqs::IndexedMeanfieldEquations;kwargs...) = scaleME(eqs;kwargs...)
-
-#Some utility functions -> implemented here, since this file is the last to get imported
 """
     createMap(ps::Vector,p0::Vector)
 

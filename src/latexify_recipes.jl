@@ -75,6 +75,10 @@ function _postwalk_func(x)
         s = replace(s, "\"" => "")
         s = replace(s, "*" => "")
         return s
+    elseif MacroTools.@capture(x,CONJ(arg_))
+        arg = MacroTools.postwalk(_postwalk_average,arg)
+        s = "$(arg)^*"
+        return s
     else
         return x
     end
@@ -186,6 +190,8 @@ function _to_expression(s::SymbolicUtils.Symbolic)
         f = SymbolicUtils.operation(s)
         fsym = if f === sym_average
             :AVG
+        elseif f === conj
+            :CONJ
         else
             Symbol(f)
         end

@@ -713,4 +713,4 @@ where indices have been inserted and sums evaluated.
 
 see also: [`evalME`](@ref)
 """
-evaluate(eqs::IndexedMeanfieldEquations;kwargs...) = evalME(eqs;kwargs...)
+evaluate(eqs::IndexedMeanfieldEquations;kwargs...) = substReds(evalME(eqs;kwargs...);scaling=false)
