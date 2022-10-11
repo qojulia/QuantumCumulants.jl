@@ -19,6 +19,7 @@ pages = [
             "examples/excitation-transport-chain.md"
             "examples/cavity_antiresonance.md"
             "examples/ramsey_spectroscopy.md"
+            "examples/superradiant_laser_indexed.md"
             ]
     ]
 
