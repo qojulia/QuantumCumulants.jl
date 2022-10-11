@@ -60,4 +60,9 @@ eqs_ = evaluate(eqs_comp)
 
 @test length(eqs_) == 18
 
+eqs_4 = indexedMeanfield(ops,H,J;rates=rates,order=4)
+
+@test length(eqs_4) == length(eqs)
+
+
 end

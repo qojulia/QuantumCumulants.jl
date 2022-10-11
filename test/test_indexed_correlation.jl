@@ -28,6 +28,7 @@ extraIndices = [n]
 @qnumbers a::Destroy(h)
 
 σ(i,j,k) = IndexedOperator(Transition(h,:σ,i,j),k)
+σn(i,j,k) = NumberedOperator(Transition(h,:σ,i,j),k)
 
 # Define the Hamiltonian
 H = -Δ*a'a + g*(Σ(a'*σ(1,2,k),k) + Σ(a*σ(2,1,k),k))
@@ -46,9 +47,7 @@ eqs = indexedMeanfield(ops,H,J;rates=rates,order=order)
 φ(x::Transition) = x.i - x.j
 φ(x::IndexedOperator) = x.op.i - x.op.j
 φ(x::IndexedSingleSum) = φ(x.term)
-φ(x::SymbolicUtils.Sym{Parameter, IndexedAverageSum}) = φ(x.metadata.term)
-φ(x::SymbolicUtils.Sym{Parameter, SpecialIndexedAverage}) = φ(x.metadata.term)
-φ(x::SpecialIndexedAverage) = φ(x.term)
+φ(x::AvgSums) = φ(arguments(x))
 phase_invariant(x) = iszero(φ(x))
 
 eqs_c = complete(eqs;filter_func=phase_invariant,scaling=false,extraIndices=extraIndices);
@@ -158,6 +157,16 @@ push!(map_,κ=>3.0)
 for arg in valmap
     @test arg in map_
 end
+
+@test isequal(qc.scaleTerm(σ(1,2,k)), σn(1,2,1))
+@test isequal(qc.scaleTerm(σ(2,1,k)*σ(1,2,j)), σn(2,1,1)*σn(1,2,2))
+
+sum_ = average(Σ(σ(2,1,i)*σ(1,2,j),i))
+
+split = splitSums(sum_,i,3)
+
+@test split isa SymbolicUtils.Add
+@test length(arguments(split)) == 3
 
 
 end

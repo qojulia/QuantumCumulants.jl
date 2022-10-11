@@ -3,6 +3,7 @@ using QuantumCumulants
 using SymbolicUtils
 using Symbolics
 
+const qc = QuantumCumulants
 
 @testset "double_sums" begin
 
@@ -92,13 +93,27 @@ split2 = splitSums(ADsum1,i_ind,5)
 
 @test isequal(N_modes,arguments(split2)[2].metadata.sumIndex.rangeN)
 
+innerSum = Σ(σ(1,2,i_ind)*σ(2,1,j_ind),i_ind)
+DSum = Σ(innerSum,j_ind)
+@test innerSum isa qc.QAdd
+@test Dsum isa qc.QAdd
 
-#for arg in H.arguments
-#    @test arg isa IndexedDoubleSum
-#end
+@test Dsum.arguments[1] isa qc.IndexedDoubleSum
+@test Dsum.arguments[2] isa qc.IndexedSingleSum
 
+@test isequal(Σ(Σ(σ(1,2,i_ind)*σ(2,1,j_ind),i_ind,[j_ind]),j_ind) + Σ(σ(1,2,j_ind)*σ(2,1,j_ind),j_ind),DSum)
 
+sum1 = Σ(σ(1,2,i_ind),i_ind)
+sum2 = Σ(σ(2,1,i_ind),i_ind)
 
+mul1 = *(sum1,sum2;ind=j_ind)
 
+sum2_ = Σ(σ(2,1,j_ind),j_ind)
+mul2 = sum1*sum2_
+
+@test mul2 isa qc.QAdd
+@test mul1 isa qc.QAdd
+
+@test isequal(mul1,mul2)
 
 end

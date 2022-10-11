@@ -33,8 +33,8 @@ export HilbertSpace, ProductSpace, ⊗, tensor,
         transition_superscript, 
         Index, reorder, IndexedOperator, IndexedSingleSum, IndexedVariable, DoubleIndexedVariable,
         IndexedDoubleSum, createValueMap, indexedComplete, indexedCorrelationFunction,
-        scaleME, evalME, indexedComplete!, indexedMeanfield, substReds,
-        IndexedAverageSum, SpecialIndexedTerm, SpecialIndexedAverage, findMissingSumTerms, Σ,
+        scaleME, evalME, indexedComplete!, indexedMeanfield, substReds, AvgSums, plotME,
+        IndexedAverageSum, IndexedAverageDoubleSum, SpecialIndexedTerm, findMissingSumTerms, Σ,
         evaluate, createMap, NumberedOperator, changeIndex, orderByIndex, splitSums, insertIndex, evalTerm
 
 const NO_METADATA = SymbolicUtils.NO_METADATA

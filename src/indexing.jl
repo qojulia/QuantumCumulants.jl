@@ -327,23 +327,12 @@ end
 function +(sum1::IndexedSingleSum,sum2::IndexedOperator)
     QAdd([sum1,sum2])
 end
-function +(sum1::IndexedSingleSum,sum2::IndexedVariable)
-    QAdd([sum1,sum2])
-end
 function +(op1::IndexedOperator,op2::IndexedOperator)
-    check_hilbert(op1,op2)
-    return QAdd([op1,op2])
-end
-function +(op1::IndexedVariable,op2::IndexedOperator)
     check_hilbert(op1,op2)
     return QAdd([op1,op2])
 end
 #Number
 function +(a::QNumber,op::IndexedOperator)
-    check_hilbert(a,op)
-    return QAdd([a,op])
-end
-function +(a::QNumber,op::IndexedVariable)
     check_hilbert(a,op)
     return QAdd([a,op])
 end
@@ -354,11 +343,6 @@ end
 function +(qadd::QAdd, indO::IndexedOperator)
     args = copy(qadd.arguments)
     push!(args,indO)
-    return QAdd(args)
-end
-function +(qadd::QAdd, indV::IndexedVariable)
-    args = copy(qadd.arguments)
-    push!(args,indV)
     return QAdd(args)
 end
 function +(qadd::QAdd, sum::IndexedSingleSum)
@@ -378,14 +362,12 @@ function +(qmul::QMul,sum::IndexedSingleSum)
     args = [qmul,sum]
     return QAdd(args)
 end
++(sum::IndexedSingleSum,qmul::QMul)=+(qmul,sum)
 function +(qmul::QMul,indO::IndexedOperator)
     args = [qmul,indO]
     return QAdd(args)
 end
-function +(qmul::QMul,indV::IndexedVariable)
-    args = [qmul,indV]
-    return QAdd(args)
-end
++(indO::IndexedOperator,qmul::QMul)=+(qmul,indO)
 # Special terms
 function +(elem::SpecialIndexedTerm,x::QAdd)
     args = copy(x.arguments)
@@ -411,9 +393,9 @@ function +(a::SpecialIndexedTerm,b::SpecialIndexedTerm)
     return QAdd([a,b])
 end
 +(a::SpecialIndexedTerm,b::IndexedOperator) = QAdd([a,b])
-+(a::IndexedOperator,b::SpecialIndexedTerm) = QAdd([a,b])
++(a::IndexedOperator,b::SpecialIndexedTerm) = +(b,a)
 +(a::SpecialIndexedTerm,b::IndexedSingleSum) = QAdd([a,b])
-+(a::IndexedSingleSum,b::SpecialIndexedTerm) = QAdd([a,b])
++(a::IndexedSingleSum,b::SpecialIndexedTerm) = +(b,a)
 
 #Multiplications
 #Sums
@@ -445,7 +427,7 @@ end
 
 function *(sum::IndexedSingleSum,elem::QNumber)
     NEIds = copy(sum.nonEqualIndices)
-    if (elem isa IndexedOperator || elem isa IndexedVariable) && !(elem.ind == sum.sumIndex) && (elem.ind ∉ NEIds) && (sum.sumIndex.specHilb == elem.ind.specHilb)
+    if (elem isa IndexedOperator || elem isa SymbolicUtils.Sym{Parameter,IndexedVariable}) && !(elem.ind == sum.sumIndex) && (elem.ind ∉ NEIds) && (sum.sumIndex.specHilb == elem.ind.specHilb)
         qaddterm = nothing
         term = sum.term
         if length(NEIds) == 0
@@ -492,7 +474,7 @@ end
 
 function *(elem::QNumber,sum::IndexedSingleSum)
     NEIds = copy(sum.nonEqualIndices)
-    if (elem isa IndexedOperator || elem isa IndexedVariable) && !(elem.ind == sum.sumIndex) && (elem.ind ∉ NEIds) && (sum.sumIndex.specHilb == elem.ind.specHilb)
+    if (elem isa IndexedOperator || elem isa SymbolicUtils.Sym{Parameter,IndexedVariable}) && !(elem.ind == sum.sumIndex) && (elem.ind ∉ NEIds) && (sum.sumIndex.specHilb == elem.ind.specHilb)
         qaddterm = nothing
         term = sum.term
         if length(NEIds) == 0
@@ -546,20 +528,20 @@ end
 -(sum::IndexedSingleSum, op::Any) = -1*op + sum
 
 -(op::IndexedOperator) = -1*op
--(op::IndexedVariable) = -1*op
+#-(op::IndexedVariable) = -1*op
 
 *(a::Create,b::IndexedOperator) = QMul(1,[a,b])
 *(b::IndexedOperator,a::Create) = QMul(1,[a,b])
 *(a::Destroy,b::IndexedOperator) = QMul(1,[a,b])
 *(b::IndexedOperator,a::Destroy) = QMul(1,[a,b])
 
-*(a::Create,b::IndexedVariable) = QMul(1,[b,a])
-*(b::IndexedVariable,a::Create) = QMul(1,[b,a])
-*(a::Destroy,b::IndexedVariable) = QMul(1,[b,a])
-*(b::IndexedVariable,a::Destroy) = QMul(1,[b,a])
+#*(a::Create,b::IndexedVariable) = QMul(1,[b,a])
+#*(b::IndexedVariable,a::Create) = QMul(1,[b,a])
+#*(a::Destroy,b::IndexedVariable) = QMul(1,[b,a])
+#*(b::IndexedVariable,a::Destroy) = QMul(1,[b,a])
 
-*(a::IndexedOperator,b::IndexedVariable) = QMul(1,[b,a])
-*(b::IndexedVariable,a::IndexedOperator) = QMul(1,[b,a])
+#*(a::IndexedOperator,b::IndexedVariable) = QMul(1,[b,a])
+#*(b::IndexedVariable,a::IndexedOperator) = QMul(1,[b,a])
 
 function *(op1::IndexedOperator,op2::IndexedOperator)
     if op1.ind == op2.ind
@@ -592,6 +574,7 @@ function *(a::QMul, b::IndexedOperator)
     sort!(args_nc, by=acts_on)
     return merge_commutators(a.arg_c,args_nc)
 end
+#=
 function *(a::IndexedVariable, b::QMul)
     check_hilbert(a, b)
     args_nc = vcat(a,b.args_nc)
@@ -604,6 +587,7 @@ function *(a::QMul, b::IndexedVariable)
     sort!(args_nc,by=acts_on)
     return merge_commutators(a.arg_c,args_nc)
 end
+=#
 function *(a::QAdd,b::IndexedOperator)
     check_hilbert(a, b)
     args = Any[a_ * b for a_ ∈ a.arguments]
@@ -658,17 +642,17 @@ function *(term::SpecialIndexedTerm,x::QNumber)
 end
 function *(term::SpecialIndexedTerm,x::QMul)
     temp = term
-    for arg in arguments(x)
-        temp = temp*x
+    for arg in x.args_nc
+        temp = temp*arg
     end
-    return temp
+    return x.arg_c*temp
 end
 function *(x::QMul,term::SpecialIndexedTerm)
     temp = term
-    for arg in arguments(x)
-        temp = x*temp
+    for i=length(x.args_nc):-1:1
+        temp = x.args_nc[i]*temp
     end
-    return temp
+    return x.arg_c*temp
 end
 function *(x::QAdd,term::SpecialIndexedTerm)
     sums = []
@@ -694,7 +678,7 @@ end
 
 #acts on
 acts_on(op::IndexedOperator) = acts_on(op.op)
-acts_on(var::IndexedVariable) = 0
+#acts_on(var::IndexedVariable) = 0
 acts_on(var::SpecialIndexedTerm) = acts_on(var.term)
 
 get_order(x::IndexedSingleSum) = get_order(x.term)
@@ -726,7 +710,7 @@ end
 
 #adjoint
 Base.adjoint(op::IndexedOperator) = IndexedOperator(Base.adjoint(op.op),op.ind)
-Base.adjoint(op::IndexedVariable) = IndexedVariable(op.name,Base.adjoint.(op.values),op.ind)
+#Base.adjoint(op::IndexedVariable) = IndexedVariable(op.name,Base.adjoint.(op.values),op.ind)
 Base.adjoint(op::IndexedSingleSum) = IndexedSingleSum(Base.adjoint(op.term),op.sumIndex,op.nonEqualIndices)
 
 #Base Functionalities
@@ -747,6 +731,7 @@ function Base.hash(op::IndexedOperator, h::UInt)
         return hash(IndexedOperator, hash(op.ind, hash(op.op, h_)))
     end
 end
+#=
 function Base.hash(var::IndexedVariable, h::UInt)
     n = fieldcount(IndexedVariable)
     if n == 2
@@ -763,6 +748,7 @@ function Base.hash(var::IndexedVariable, h::UInt)
         return hash(IndexedVariable, hash(var.ind, hash(var.name, h_)))
     end
 end
+=#
 function Base.hash(ind::Index, h::UInt)
     n = fieldcount(Index)
     if n == 3
@@ -785,12 +771,12 @@ Base.isless(a::IndexedOperator, b::IndexedOperator) = a.op.name < b.op.name
 Base.isless(a::QMul, b::QMul) = isless(a.args_nc, b.args_nc)
 Base.isless(a::IndexedOperator,b::QSym) = a.op.name < b.name
 Base.isless(a::QSym,b::IndexedOperator) = a.name < b.op.name
-Base.isless(a::IndexedVariable,b::IndexedVariable) = a.name < b.name
+#Base.isless(a::SymbolicUtils.Sym{Parameter,IndexedVariable},b::SymbolicUtils.Sym{Parameter,IndexedVariable}) = a.name < b.name
 Base.isless(nothing,b::Symbol) = true
 Base.isless(b::Symbol,nothing) = false
 
-Base.isless(a::IndexedVariable,b::QSym) = true
-Base.isless(b::QSym,a::IndexedVariable) = false 
+#Base.isless(a::IndexedVariable,b::QSym) = true
+#Base.isless(b::QSym,a::IndexedVariable) = false 
 
 Base.isless(a::Index,b::Index) = a.name < b.name
 Base.isless(a::IndexedSingleSum,b::IndexedSingleSum) = Base.isless(a.sumIndex,b.sumIndex)
@@ -873,9 +859,9 @@ function changeIndex(term::QMul, from::Index, to::Index)
         end
         args_nc[i] = elem #inplace exchange of element
     end
-    if typeof(arg_c_) == IndexedVariable && arg_c_.ind == from
-        arg_c = IndexedVariable(arg_c_.name,to)
-    elseif typeof(arg_c_) <: SymbolicUtils.Mul
+    #if typeof(arg_c_) == SymbolicUtils.Sym{Parameter,IndexedVariable} && arg_c_.ind == from
+    #    arg_c = IndexedVariable(arg_c_.name,to)
+    if typeof(arg_c_) <: SymbolicUtils.Mul
         args = copy(arguments(arg_c_))
         for i = 1:length(args)
             if typeof(args[i]) == SymbolicUtils.Sym{Parameter,IndexedVariable}
@@ -964,7 +950,7 @@ SymbolicUtils.arguments(a::IndexedSingleSum) = SymbolicUtils.arguments(a.term)
 SymbolicUtils.arguments(a::IndexedOperator) = [a]
 
 get_order(::IndexedOperator) = 1
-get_order(::IndexedVariable) = 0
+#get_order(::IndexedVariable) = 0
 
 #It is assumed that the term for which this operation is done already commutes with indices inside the indices-Vector
 function orderByIndex(vec::Vector,indices::Vector{Index})
@@ -1038,6 +1024,7 @@ function reorder(param::QMul,indexMapping::Vector{Tuple{Index,Index}})
 end
 reorder(sum::IndexedSingleSum,indexMapping::Vector{Tuple{Index,Index}}) = IndexedSingleSum(reorder(sum.term,indexMapping),sum.sumIndex,sum.nonEqualIndices)
 reorder(op::SpecialIndexedTerm) = reorder(op.term,op.indexMapping)
+#=
 function reorder(term::SymbolicUtils.Add,indexMapping::Vector{Tuple{Index,Index}})
     args = []
     for arg in arguments(term)
@@ -1064,6 +1051,7 @@ function reorder(term::SymbolicUtils.Mul,indexMapping::Vector{Tuple{Index,Index}
     end
     return *(args...)
 end
+=#
 function reorder(term::QAdd,indexMapping::Vector{Tuple{Index,Index}})
     args = []
     for arg in arguments(term)
@@ -1104,9 +1092,9 @@ function Base.show(io::IO,op::IndexedOperator)
     end
    # write(io,op.ind.name)
 end
-function Base.show(io::IO,elem::IndexedVariable)
-    write(io,elem.name,elem.ind.name)
-end
+#function Base.show(io::IO,elem::IndexedVariable)
+#    write(io,elem.name,elem.ind.name)
+#end
 function Base.show(io::IO,indSum::IndexedSingleSum) 
     write(io, "Σ", "($(indSum.sumIndex.name)", "=1:$(indSum.sumIndex.rangeN))",)
     if !(isempty(indSum.nonEqualIndices))

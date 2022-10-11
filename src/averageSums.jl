@@ -22,17 +22,12 @@ end
 @latexrecipe function f(de::EvaledMeanfieldEquations)
     return de
 end
-
-struct AvgSum <: CNumber end
-
-const Average_Sum = SymbolicUtils.Term{<:AvgSum}
-
-const sum_average = begin # Symbolic function for averages
-    T = SymbolicUtils.FnType{Tuple{CNumber}, AvgSum}
-    SymbolicUtils.Sym{T}(:avg)
+function plotME(me::EvaledMeanfieldEquations)
+    return MeanfieldEquations(me.equations,me.operator_equations,me.states,me.operators,me.hamiltonian,me.jumps,me.jumps_dagger,me.rates,me.iv,me.varmap,me.order)
 end
 
-const symbolics_terms = Union{<:SymbolicUtils.Term{AvgSym,Nothing},<:SymbolicUtils.Mul}
+
+const symbolics_terms = Union{<:Average,<:SymbolicUtils.Mul}
 """
     numberedVariable <: CNumber
 
@@ -326,6 +321,9 @@ struct SpecialIndexedAverage <: CNumber #An average-Term with special condition,
         return term
     end
 end
+
+const AvgSums = Union{SymbolicUtils.Sym{Parameter,IndexedAverageSum},SymbolicUtils.Sym{Parameter,IndexedAverageDoubleSum},SymbolicUtils.Sym{Parameter,SpecialIndexedAverage},IndexedAverageSum,IndexedAverageDoubleSum,SpecialIndexedTerm}
+
 function average(indOp::IndexedOperator) 
     if SymbolicUtils._iszero(indOp)
         return 0
@@ -376,8 +374,8 @@ end
 get_order(a::Sym{Parameter,IndexedAverageSum}) = get_order(a.metadata.term)
 cumulant_expansion(a::IndexedAverageSum,order::Int) = IndexedAverageSum(simplifyMultiplifcation(cumulant_expansion(a.term,order)),a.sumIndex,a.nonEqualIndices) #not used (?)
 SymbolicUtils.istree(a::IndexedAverageSum) = false
-SymbolicUtils.promote_symtype(::typeof(sum_average), ::Type{IndexedAverageSum}) = AvgSym
-SymbolicUtils.promote_symtype(::typeof(+), ::Type{IndexedAverageSum}) = AvgSym
+#SymbolicUtils.promote_symtype(::typeof(sum_average), ::Type{IndexedAverageSum}) = AvgSym
+#SymbolicUtils.promote_symtype(::typeof(+), ::Type{IndexedAverageSum}) = AvgSym
 SymbolicUtils._iszero(a::IndexedAverageSum) = SymbolicUtils._iszero(a.term)
 SymbolicUtils._isone(a::IndexedAverageSum) = SymbolicUtils._isone(a.term)
 IndexedAverageSum(x::Number) = x
@@ -447,10 +445,10 @@ Base.isequal(::Sym{Parameter, IndexedAverageSum}, ::Sym) = false
 Base.isequal(::IndexedAverageSum, ::SymbolicUtils.Symbolic) = false
 Base.isequal(a::SymbolicUtils.Sym{Parameter,SpecialIndexedAverage},b::SymbolicUtils.Sym{Parameter,SpecialIndexedAverage}) = isequal(a.metadata.term,b.metadata.term) && isequal(a.metadata.indexMapping,b.metadata.indexMapping)
 function Base.isequal(nVal1::Sym{Parameter,numberedVariable},nVal2::Sym{Parameter,numberedVariable}) 
-    if typeof(nVal1) == typeof(nVal2) && typeof(nVal1) == SingleNumberedVariable
-        return (nVal1.name == nVal2.name) && (nVal1.numb == nVal2.numb)
-    elseif typeof(nVal1) == typeof(nVal2) && typeof(nVal1) == DoubleNumberedVariable
-        return (nVal1.name == nVal2.name) && (nVal1.numb1 == nVal2.numb1) && (nVal1.numb2 == nVal2.numb2)
+    if typeof(nVal1) == typeof(nVal2) && typeof(nVal1.metadata) == SingleNumberedVariable
+        return (nVal1.metadata.name == nVal2.metadata.name) && (nVal1.metadata.numb == nVal2.metadata.numb)
+    elseif typeof(nVal1) == typeof(nVal2) && typeof(nVal1.metadata) == DoubleNumberedVariable
+        return (nVal1.metadata.name == nVal2.metadata.name) && (nVal1.metadata.numb1 == nVal2.metadata.numb1) && (nVal1.metadata.numb2 == nVal2.metadata.numb2)
     end
     return false
 end
@@ -470,6 +468,8 @@ SymbolicUtils.arguments(op::Sym{Parameter,IndexedAverageSum}) = arguments(op.met
 SymbolicUtils.arguments(op::IndexedAverageSum) = arguments(op.term)
 SymbolicUtils.arguments(op::Sym{Parameter, IndexedAverageDoubleSum}) = arguments(op.metadata)
 SymbolicUtils.arguments(op::IndexedAverageDoubleSum) = op.innerSum
+SymbolicUtils.arguments(op::Sym{Parameter,SpecialIndexedAverage}) = arguments(op.metadata)
+SymbolicUtils.arguments(op::SpecialIndexedAverage) = arguments(op.term)
 
 #this is the new method, insert values directly into the average before calculating anything, simplifies evaluation afterwards extremely
 #function for inserting index, k -> 1,2,...,N
@@ -914,7 +914,18 @@ end
 function createValueMap(sym::Sym{Parameter, IndexedVariable}, value::Number)
     iVar = sym.metadata
     dict = Dict{Sym{Parameter, Base.ImmutableDict{DataType, Any}},ComplexF64}()
-    push!(dict,(SingleNumberedVariable(iVar.name,1) => value))
+    if iVar.ind.rangeN isa SymbolicUtils.Sym
+        if iVar.ind.rangeN in keys(mapping)
+            range1 = mapping[iVar.ind.rangeN]
+        else
+            error("Can not evaluate without a mapping")
+        end
+    else
+        range1 = iVar.ind.rangeN
+    end
+    for i = 1:range1
+        push!(dict,(SingleNumberedVariable(iVar.name,i) => value))
+    end
     return dict
 end
 function createValueMap(sym::Sym{Parameter,DoubleIndexedVariable},values::Matrix;mapping::Dict{SymbolicUtils.Sym,Int64}=Dict{SymbolicUtils.Sym,Int64}())

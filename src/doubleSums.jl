@@ -28,6 +28,7 @@ struct IndexedDoubleSum <:QTerm
             length(sums) == 1 && return sums[1]
             return +(sums...)
         end
+        #=
         if typeof(innerSum) <: SymbolicUtils.Add
             args = arguments(innerSum)
             sums = []
@@ -36,7 +37,8 @@ struct IndexedDoubleSum <:QTerm
             end
             return +(sums...)
         end
-        if typeof(innerSum) == IndexedSingleSum
+        =#
+        if innerSum isa IndexedSingleSum
             if innerSum.sumIndex == sumIndex
                 error("summation index is the same as the index of the inner sum")
             else
@@ -92,6 +94,7 @@ struct IndexedDoubleSum <:QTerm
     end
 end
 #TODO: apperantly in Julia this is not the best way of instantiating objects... rather include these constructor inside the struct definition
+#=
 function IndexedDoubleSum(term::QAdd, sumIndex::Index,NEI::Vector{Index})
     sums = []
     for arg in term.arguments
@@ -101,6 +104,7 @@ function IndexedDoubleSum(term::QAdd, sumIndex::Index,NEI::Vector{Index})
 end
 IndexedDoubleSum(term::QSym,ind::Index,NEI::Vector{Index}) = IndexedSingleSum(term,ind,NEI)
 IndexedDoubleSum(term::SNuN,ind::Index,NEI::Vector{Index}) = IndexedSingleSum(term,ind,NEI)
+=#
 IndexedDoubleSum(x,ind::Index) = IndexedDoubleSum(x,ind,Index[])
 
 #In this constructor the NEI is considered so, that all indices given in ind are unequal to any of the NEI
@@ -209,7 +213,7 @@ _to_expression(x::IndexedDoubleSum) = :( IndexedDoubleSum($(_to_expression(x.inn
 function *(sum1::IndexedSingleSum,sum2::IndexedSingleSum; ind=nothing)
     if sum1.sumIndex != sum2.sumIndex
         term = sum1.term*sum2.term
-        return IndexedDoubleSum(IndexedSingleSum(term,sum2.sumIndex,sum2.nonEqualIndices),sum1.sumIndex,sum1.nonEqualIndices)
+        return IndexedDoubleSum(IndexedSingleSum(term,sum1.sumIndex,sum1.nonEqualIndices),sum2.sumIndex,sum2.nonEqualIndices)
     else
         if !(ind isa Index)
             error("Specification of an extra Index is needed!")
