@@ -172,24 +172,7 @@ function indexed_complete_corr!(de,aon0,lhs_new,order,steady_state,de0;
         indices_ = [extraIndices[1]]
         deleteat!(extraIndices,1)
     end
-    #=
-    indices_ = nothing
-    for i = 1:length(de.states)
-        indices_ = getIndices(de.states[i])
-        isempty(indices_) || break
-    end
-    #08.08.22
-    if isempty(indices_)
-        for op in de.jumps
-            if op isa IndexedOperator
-                indices_ = [Index(op.ind.hilb,extraIndices[1],op.ind.rangeN,op.ind.specHilb)]
-                deleteat!(extraIndices,1)
-                break
-            end
-        end
-    end
-    =#
-
+    
     vhash = map(hash, vs)
     vs′ = map(_conj, vs)
     vs′hash = map(hash, vs′)
@@ -255,32 +238,7 @@ function indexed_complete_corr!(de,aon0,lhs_new,order,steady_state,de0;
         isnothing(filter_func) || filter!(filter_func, missed) # User-defined filter
     
         filter!(x -> filterComplete_corr(x,de.states,de0.states,scaling), missed)
-        #=
-        indices_ = nothing
-        for i = 1:length(de.states)
-            indices_ = getIndices(de.states[i])
-            isempty(indices_) || break
-        end
-        sort!(indices_,by=getIndName)
-        =#
-        #=
-        if !isempty(indices_)
-            for i = 1:length(missed)
-            mInd_ = getIndices(missed[i])
-            isempty(mInd_) && continue
-                for ind1 in mInd_
-                    indsInnew = getIndices(missed[i])
-                    extras_ = filterExtras(ind1,indices_)
-                    for ind2 in extras_
-                        if ind2 ∉ indsInnew
-                            missed[i] = changeIndex(missed[i],ind1,ind2)
-                            mInd_ = getIndices(missed[i])
-                        end
-                    end
-                end
-            end
-        end
-        =#
+       
         for i = 1:length(missed)
             minds = getIndices(missed[i])
             newMinds = copy(minds)
@@ -298,16 +256,6 @@ function indexed_complete_corr!(de,aon0,lhs_new,order,steady_state,de0;
                 end
             end
         end
-        #=
-            for i = 1:length(missed)
-                mInd_ = getIndices(missed[i])
-                isempty(mInd_) && continue
-                if indices_[1] ∉ mInd_ #term on lhs does not have the initial index -> change first occuring index into that one
-                    missed[i] = changeIndex(missed[i],mInd_[1],indices_[1]) #replace missed ops with changed indexed ones
-                end
-            end
-        end
-        =#
         filter!(_filter_aon, missed)
         isnothing(filter_func) || filter!(filter_func, missed) # User-defined Filter
         filter!(x -> filterComplete_corr(x,de.states,de0.states,scaling), missed)

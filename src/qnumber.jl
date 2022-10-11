@@ -91,32 +91,13 @@ struct QMul{M} <: QTerm
             return args_nc[1]
         elseif (0 in args_nc) || isequal(arg_c,0)
             return 0
-        else#=
-            found = 0
-            for i=1:length(args_nc)
-                if typeof(args_nc[i]) <: QAdd
-                    found = i
-                    break
-                end
-            end
-            if !isequal(found,0)
-                front = args_nc[1:(found-1)]
-                back = args_nc[(found+1):length(args_nc)]
-                qmuls = []
-                for arg in args_nc[found].arguments
-                    push!(qmuls,QMul(arg_c,vcat(front,arg,back);metadata=metadata))
-                end
-                return QAdd(qmuls)
-            else
-                =#
-                return new(arg_c, args_nc, metadata)
-            #end
+        else
+            return new(arg_c, args_nc, metadata)
         end
     end
 end
 QMul(arg_c, args_nc; metadata::M=NO_METADATA) where {M} = QMul{M}(arg_c, args_nc, metadata)
 Base.hash(q::QMul, h::UInt) = hash(QMul, hash(q.arg_c, SymbolicUtils.hashvec(q.args_nc, h)))
-#Base.isless(a::QMul, b::QMul) = isless(a.h, b.h)
 
 SymbolicUtils.operation(::QMul) = (*)
 SymbolicUtils.arguments(a::QMul) = vcat(a.arg_c, a.args_nc)

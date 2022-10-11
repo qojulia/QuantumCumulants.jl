@@ -341,25 +341,7 @@ function indexedComplete!(de::AbstractMeanfieldEquations;
                 end
             end
         end
-        #=
-            mInd_ = getIndices(missed[i])
-            isempty(mInd_) && continue
-            for ind1 in mInd_
-                extras=filterExtras(ind1,indices_)
-                for ind2 in extras
-                    if ind2 ∉ getIndices(missed[i])
-                        missed[i] = changeIndex(missed[i],ind1,ind2)
-                    end
-                end
-            end
-            #=
-            if indices_[1] ∉ mInd_ #term on lhs does not have the initial index -> change first occuring index into that one
-                filterExtras(mInd_[1])
-                missed[i] = changeIndex(missed[i],mInd_[1],indices_[1]) #replace missed ops with changed indexed ones
-            end
-            =#
-        end
-        =#
+
         missed = sortByIndex.(missed)
 
         filter!(x -> filterComplete(x,de.states,scaling), missed)
@@ -444,9 +426,6 @@ see also: [`find_missing`](@ref), [`indexedMeanfield`](@ref), [`meanfield`](@ref
 """
 function findMissingSumTerms(missed,de::AbstractMeanfieldEquations;extraIndices::Vector=[],checking=true,scaling=false,indices::Vector=[],hasDifferentIndices::Bool=false)
 
-    # TODO: This might not work if there are only double sums inside the meanfield equations (pretty sure this can never even happen)
-    # TODO: this might not work if double sums combine transition and bosonic operators -> NEEDS SOME CHECKING
-
     missed_ = copy(missed)
     
     extras = copy(indices)
@@ -473,7 +452,6 @@ function findMissingSumTerms(missed,de::AbstractMeanfieldEquations;extraIndices:
     end   
     return missed_
 end
-#TODO: write also function for double sums and findMissingDoubleSumTerms
 function checkAndChange(missed_,sum,extras,states,checking,scaling)
     avrgs = getAvrgs(sum) #get vector of all avrgs in the sum
     for avr in avrgs
@@ -736,4 +714,3 @@ where indices have been inserted and sums evaluated.
 see also: [`evalME`](@ref)
 """
 evaluate(eqs::IndexedMeanfieldEquations;kwargs...) = evalME(eqs;kwargs...)
-

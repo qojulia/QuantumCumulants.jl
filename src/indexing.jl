@@ -4,14 +4,8 @@
 #Keep in mind: I used alot of pattern-matching and object oriented methods, since this is how I like (learned) to code, 
 #however this might lead to way more lines of code, than actually needed
 
-#=
-    ToDo:
-
-    - Implement some sort of function, that compares indexed-evaluated meanfield equations with the ones got from non-indexed procedure (maybe compare via ODESystem?)
-=#
-
-const ranges = Union{<:SymbolicUtils.Sym,<:Number,<:SymbolicUtils.Mul,<:SymbolicUtils.Div}
-const indexable = Union{<:Transition,<:Create,<:Destroy}
+const ranges = Union{<:SymbolicUtils.Sym,<:Number,<:SymbolicUtils.Mul,<:SymbolicUtils.Div} #possible Types for the range of an index
+const indexable = Union{<:Transition,<:Create,<:Destroy}    #everything that can have an index
 
 """
 
@@ -312,7 +306,6 @@ hilbert(ind::Index) = ind.hilb
 hilbert(op::IndexedOperator) = op.ind.hilb
 hilbert(var::IndexedVariable) = var.ind.hilb
 hilbert(indSum::IndexedSingleSum) = indSum.sumIndex.hilb
-#hilbert(qmul::QMul) = hilbert(qmul.args_nc[1])
 hilbert(x::SpecialIndexedTerm) = hilbert(x.term)
 
 #Basic functions for indexed Operators
@@ -528,20 +521,11 @@ end
 -(sum::IndexedSingleSum, op::Any) = -1*op + sum
 
 -(op::IndexedOperator) = -1*op
-#-(op::IndexedVariable) = -1*op
 
 *(a::Create,b::IndexedOperator) = QMul(1,[a,b])
 *(b::IndexedOperator,a::Create) = QMul(1,[a,b])
 *(a::Destroy,b::IndexedOperator) = QMul(1,[a,b])
 *(b::IndexedOperator,a::Destroy) = QMul(1,[a,b])
-
-#*(a::Create,b::IndexedVariable) = QMul(1,[b,a])
-#*(b::IndexedVariable,a::Create) = QMul(1,[b,a])
-#*(a::Destroy,b::IndexedVariable) = QMul(1,[b,a])
-#*(b::IndexedVariable,a::Destroy) = QMul(1,[b,a])
-
-#*(a::IndexedOperator,b::IndexedVariable) = QMul(1,[b,a])
-#*(b::IndexedVariable,a::IndexedOperator) = QMul(1,[b,a])
 
 function *(op1::IndexedOperator,op2::IndexedOperator)
     if op1.ind == op2.ind
@@ -574,20 +558,6 @@ function *(a::QMul, b::IndexedOperator)
     sort!(args_nc, by=acts_on)
     return merge_commutators(a.arg_c,args_nc)
 end
-#=
-function *(a::IndexedVariable, b::QMul)
-    check_hilbert(a, b)
-    args_nc = vcat(a,b.args_nc)
-    sort!(args_nc,by=acts_on)
-    return merge_commutators(b.arg_c,args_nc)
-end
-function *(a::QMul, b::IndexedVariable)
-    check_hilbert(a, b)
-    args_nc = vcat(a.args_nc, b)
-    sort!(args_nc,by=acts_on)
-    return merge_commutators(a.arg_c,args_nc)
-end
-=#
 function *(a::QAdd,b::IndexedOperator)
     check_hilbert(a, b)
     args = Any[a_ * b for a_ ∈ a.arguments]
@@ -615,7 +585,6 @@ end
 
 #HERE: There are still multiplication rules missing for special indexed Terms: These are needed since the sums multiplication with a qmul is defined as single multiplication acting on the sum of additional terms and the Sum
 #since any multiplication with a sum 
-
 function *(x::QNumber, term::SpecialIndexedTerm)
     map = term.indexMapping
     if x isa IndexedOperator
@@ -678,7 +647,6 @@ end
 
 #acts on
 acts_on(op::IndexedOperator) = acts_on(op.op)
-#acts_on(var::IndexedVariable) = 0
 acts_on(var::SpecialIndexedTerm) = acts_on(var.term)
 
 get_order(x::IndexedSingleSum) = get_order(x.term)
@@ -710,7 +678,6 @@ end
 
 #adjoint
 Base.adjoint(op::IndexedOperator) = IndexedOperator(Base.adjoint(op.op),op.ind)
-#Base.adjoint(op::IndexedVariable) = IndexedVariable(op.name,Base.adjoint.(op.values),op.ind)
 Base.adjoint(op::IndexedSingleSum) = IndexedSingleSum(Base.adjoint(op.term),op.sumIndex,op.nonEqualIndices)
 
 #Base Functionalities
@@ -731,24 +698,6 @@ function Base.hash(op::IndexedOperator, h::UInt)
         return hash(IndexedOperator, hash(op.ind, hash(op.op, h_)))
     end
 end
-#=
-function Base.hash(var::IndexedVariable, h::UInt)
-    n = fieldcount(IndexedVariable)
-    if n == 2
-        # These three fields need to be defined for any QSym
-        return hash(IndexedVariable, hash(var.ind, hash(var.name, h)))
-    else
-        # If there are more we'll need to iterate through
-        h_ = copy(h)
-        for k = n:-1:4
-            if fieldname(typeof(var), k) !== :metadata
-                h_ = hash(getfield(IndexedVariable, k), h_)
-            end
-        end
-        return hash(IndexedVariable, hash(var.ind, hash(var.name, h_)))
-    end
-end
-=#
 function Base.hash(ind::Index, h::UInt)
     n = fieldcount(Index)
     if n == 3
@@ -771,12 +720,9 @@ Base.isless(a::IndexedOperator, b::IndexedOperator) = a.op.name < b.op.name
 Base.isless(a::QMul, b::QMul) = isless(a.args_nc, b.args_nc)
 Base.isless(a::IndexedOperator,b::QSym) = a.op.name < b.name
 Base.isless(a::QSym,b::IndexedOperator) = a.name < b.op.name
-#Base.isless(a::SymbolicUtils.Sym{Parameter,IndexedVariable},b::SymbolicUtils.Sym{Parameter,IndexedVariable}) = a.name < b.name
 Base.isless(nothing,b::Symbol) = true
 Base.isless(b::Symbol,nothing) = false
 
-#Base.isless(a::IndexedVariable,b::QSym) = true
-#Base.isless(b::QSym,a::IndexedVariable) = false 
 
 Base.isless(a::Index,b::Index) = a.name < b.name
 Base.isless(a::IndexedSingleSum,b::IndexedSingleSum) = Base.isless(a.sumIndex,b.sumIndex)
@@ -859,8 +805,6 @@ function changeIndex(term::QMul, from::Index, to::Index)
         end
         args_nc[i] = elem #inplace exchange of element
     end
-    #if typeof(arg_c_) == SymbolicUtils.Sym{Parameter,IndexedVariable} && arg_c_.ind == from
-    #    arg_c = IndexedVariable(arg_c_.name,to)
     if typeof(arg_c_) <: SymbolicUtils.Mul
         args = copy(arguments(arg_c_))
         for i = 1:length(args)
@@ -950,8 +894,6 @@ SymbolicUtils.arguments(a::IndexedSingleSum) = SymbolicUtils.arguments(a.term)
 SymbolicUtils.arguments(a::IndexedOperator) = [a]
 
 get_order(::IndexedOperator) = 1
-#get_order(::IndexedVariable) = 0
-
 #It is assumed that the term for which this operation is done already commutes with indices inside the indices-Vector
 function orderByIndex(vec::Vector,indices::Vector{Index})
     vec_ = copy(vec)
@@ -1024,34 +966,6 @@ function reorder(param::QMul,indexMapping::Vector{Tuple{Index,Index}})
 end
 reorder(sum::IndexedSingleSum,indexMapping::Vector{Tuple{Index,Index}}) = IndexedSingleSum(reorder(sum.term,indexMapping),sum.sumIndex,sum.nonEqualIndices)
 reorder(op::SpecialIndexedTerm) = reorder(op.term,op.indexMapping)
-#=
-function reorder(term::SymbolicUtils.Add,indexMapping::Vector{Tuple{Index,Index}})
-    args = []
-    for arg in arguments(term)
-        push!(args,reorder(arg,indexMapping))
-    end
-    if length(args) == 0
-        return 0
-    end
-    if length(args) == 1
-        return args[1]
-    end
-    return +(args...)
-end
-function reorder(term::SymbolicUtils.Mul,indexMapping::Vector{Tuple{Index,Index}})
-    args = []
-    for arg in arguments(term)
-        push!(args,reorder(arg,indexMapping))
-    end
-    if length(args) == 0
-        return 0
-    end
-    if length(args) == 1
-        return args[1]
-    end
-    return *(args...)
-end
-=#
 function reorder(term::QAdd,indexMapping::Vector{Tuple{Index,Index}})
     args = []
     for arg in arguments(term)
@@ -1090,11 +1004,7 @@ function Base.show(io::IO,op::IndexedOperator)
     else
         write(io,op_.name)
     end
-   # write(io,op.ind.name)
 end
-#function Base.show(io::IO,elem::IndexedVariable)
-#    write(io,elem.name,elem.ind.name)
-#end
 function Base.show(io::IO,indSum::IndexedSingleSum) 
     write(io, "Σ", "($(indSum.sumIndex.name)", "=1:$(indSum.sumIndex.rangeN))",)
     if !(isempty(indSum.nonEqualIndices))
@@ -1157,8 +1067,6 @@ end
 _to_expression(s::IndexedSingleSum) = :( IndexedSingleSum($(_to_expression(s.term)),$(s.sumIndex.name),$(s.sumIndex.rangeN),$(writeNEIs(s.nonEqualIndices))))
 _to_expression(a::SymbolicUtils.Sym{Parameter,IndexedVariable}) = :(IndexedVariable($(a.metadata.name),$(a.metadata.ind.name)))
 _to_expression(a::SymbolicUtils.Sym{Parameter,DoubleIndexedVariable}) = :(DoubleIndexedVariable($(a.metadata.name),$(a.metadata.ind1.name),$(a.metadata.ind2.name)))
-#_to_expression(x::SpecialIndexedTerm) = :($(x.term))
-#:( IndexedSingleSum($(_to_expression(s.term)),$(s.sumIndex.name),$(s.sumIndex.rangeN),$(writeNEIs(s.nonEqualIndices))))
 
 @latexrecipe function f(s::IndexedSingleSum)
     neis = writeNEIs(s.nonEqualIndices)
@@ -1186,6 +1094,6 @@ end
 getIndices(a::QNumber) = typeof(a) == IndexedOperator ? [a.ind] : []
 
 #Usability functions:
-Σ(a,b) = IndexedDoubleSum(a,b)  #Double Sum because, if a is not a single sum it will create a single sum anyway
+Σ(a,b) = IndexedDoubleSum(a,b)  #Double-Sum here, because if variable a is not a single sum it will create a single sum anyway
 Σ(a,b,c) = IndexedDoubleSum(a,b,c)
 Σ(a,b,c,d) = IndexedDoubleSum(a,b,c,d)

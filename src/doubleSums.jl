@@ -28,16 +28,6 @@ struct IndexedDoubleSum <:QTerm
             length(sums) == 1 && return sums[1]
             return +(sums...)
         end
-        #=
-        if typeof(innerSum) <: SymbolicUtils.Add
-            args = arguments(innerSum)
-            sums = []
-            for arg in args
-                push!(sums, IndexedDoubleSum(arg,sumIndex,NEI))
-            end
-            return +(sums...)
-        end
-        =#
         if innerSum isa IndexedSingleSum
             if innerSum.sumIndex == sumIndex
                 error("summation index is the same as the index of the inner sum")
@@ -54,14 +44,6 @@ struct IndexedDoubleSum <:QTerm
                         push!(NEI_,index)
                     end 
                 end
-                #=
-                for index in innerSum.nonEqualIndices
-                    if index != sumIndex && index ∉ NEI && isequal(index.specHilb,sumIndex.specHilb)
-                        extraterm = IndexedSingleSum(changeIndex(innerSum.term,sumIndex,index),innerSum.sumIndex,innerSum.nonEqualIndices)
-                        push!(NEI_,index)
-                    end 
-                end
-                =#
                 if innerSum.term isa QMul
                     # put terms of the outer index in front
                     indicesToOrder = sort([innerSum.sumIndex,sumIndex],by=getIndName)
@@ -93,18 +75,6 @@ struct IndexedDoubleSum <:QTerm
         end
     end
 end
-#TODO: apperantly in Julia this is not the best way of instantiating objects... rather include these constructor inside the struct definition
-#=
-function IndexedDoubleSum(term::QAdd, sumIndex::Index,NEI::Vector{Index})
-    sums = []
-    for arg in term.arguments
-        push!(sums,IndexedDoubleSum(arg,sumIndex,NEI))
-    end
-    return +(sums...)
-end
-IndexedDoubleSum(term::QSym,ind::Index,NEI::Vector{Index}) = IndexedSingleSum(term,ind,NEI)
-IndexedDoubleSum(term::SNuN,ind::Index,NEI::Vector{Index}) = IndexedSingleSum(term,ind,NEI)
-=#
 IndexedDoubleSum(x,ind::Index) = IndexedDoubleSum(x,ind,Index[])
 
 #In this constructor the NEI is considered so, that all indices given in ind are unequal to any of the NEI
@@ -169,8 +139,6 @@ function *(elem,sum::IndexedDoubleSum)
                 push!(NEI,elem.ind) 
                 addterm = IndexedSingleSum(elem*changeIndex(sum.innerSum.term,sum.sumIndex,elem.ind),sum.innerSum.sumIndex,sum.innerSum.nonEqualIndices)
                 return IndexedDoubleSum(elem*sum.innerSum,sum.sumIndex,NEI) + addterm
-            #elseif (isequal(sum.sumIndex.specHilb,sum.innerSum.sumIndex.specHilb) && isequal(elem.ind.specHilb,sum.sumIndex.specHilb))
-            #    push!(NEI,elem.ind)
             end
         end
     end
@@ -184,14 +152,11 @@ function *(sum::IndexedDoubleSum,elem)
                 push!(NEI,elem.ind)
                 addterm = IndexedSingleSum(changeIndex(sum.innerSum.term,sum.sumIndex,elem.ind)*elem,sum.innerSum.sumIndex,sum.innerSum.nonEqualIndices)
                 return IndexedDoubleSum(sum.innerSum*elem,sum.sumIndex,NEI) + addterm
-            #elseif (isequal(sum.sumIndex.specHilb,sum.innerSum.sumIndex.specHilb) && isequal(elem.ind.specHilb,sum.sumIndex.specHilb))
-            #    push!(NEI,elem.ind)
             end
         end
     end
     return IndexedDoubleSum(sum.innerSum*elem,sum.sumIndex,NEI)
 end
-#TODO: fix the above multiplication
     
 SymbolicUtils.istree(a::IndexedDoubleSum) = false
 checkInnerSums(sum1::IndexedDoubleSum, sum2::IndexedDoubleSum) = ((sum1.innerSum + sum2.innerSum) == 0)

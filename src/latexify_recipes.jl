@@ -75,17 +75,6 @@ function _postwalk_func(x)
         s = replace(s, "\"" => "")
         s = replace(s, "*" => "")
         return s
-    
-        #=
-        
-    
-        
-        #\[ \sum_{n=1}^{\infty} 2^{-n} = 1 \]
-    
-    elseif MacroTools.@capture(x,NumberedOperator(op_,num_,i_,j_))
-        s = "{$(op)}$(:_){$(num)}$(transition_idx_script[]){{$(i)$(j)}}"
-        return s
-        =#
     else
         return x
     end

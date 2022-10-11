@@ -65,24 +65,7 @@ function average(op::QTerm)
         error("Unknown function $f")
     end
 end
-#=
-function average(add::QAdd)
-    averages = map(average,add.arguments)
-    isempty(averages) && return 0
-    length(averages) == 1 && return averages[1] 
-    return sum(averages)
-end
-function average(mul::QMul)
-    checker = false
-    for arg in mul.args_nc
-        if 
 
-        end
-    end
-
-    return 
-end
-=#
 average(x::SNuN) = x
 average(x,order;kwargs...) = cumulant_expansion(average(x),order;kwargs...)
 

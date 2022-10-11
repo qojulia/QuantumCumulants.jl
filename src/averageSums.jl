@@ -288,22 +288,6 @@ struct SpecialIndexedAverage <: CNumber #An average-Term with special condition,
             end
             isempty(term_) && return prefac
 
-            #=
-            nonAdd_ = []
-            adds_ = []
-            for arg in term_
-                if typeof(arg) <: SymbolicUtils.Add
-                    for arg_ in arguments(arg)
-                        push!(adds_,arg)
-                    end
-                else
-                    push!(nonAdd_,arg)
-                end
-            end
-            nonAdd = *(nonAdd_...)
-            =#
-
-
             term = length(term_) == 1 ? term_[1] : *(term_...)
             if typeof(term) <: symbolics_terms
                 if typeof(term) == SymbolicUtils.Term{AvgSym,Nothing}
@@ -374,8 +358,6 @@ end
 get_order(a::Sym{Parameter,IndexedAverageSum}) = get_order(a.metadata.term)
 cumulant_expansion(a::IndexedAverageSum,order::Int) = IndexedAverageSum(simplifyMultiplifcation(cumulant_expansion(a.term,order)),a.sumIndex,a.nonEqualIndices) #not used (?)
 SymbolicUtils.istree(a::IndexedAverageSum) = false
-#SymbolicUtils.promote_symtype(::typeof(sum_average), ::Type{IndexedAverageSum}) = AvgSym
-#SymbolicUtils.promote_symtype(::typeof(+), ::Type{IndexedAverageSum}) = AvgSym
 SymbolicUtils._iszero(a::IndexedAverageSum) = SymbolicUtils._iszero(a.term)
 SymbolicUtils._isone(a::IndexedAverageSum) = SymbolicUtils._isone(a.term)
 IndexedAverageSum(x::Number) = x
@@ -782,14 +764,11 @@ function evalTerm(sum_::SymbolicUtils.Sym{Parameter,IndexedAverageSum};mapping::
             rangeEval = sum_.metadata.sumIndex.rangeN
         end
     end
-    #TODO: Fix this somehow -> make it so that the adds are pre-allocated
-    #adds = Vector{Any}(nothing,rangeEval)
     adds = []
     for i = 1:rangeEval
         if i in sum_.metadata.nonEqualIndices
             continue
         end
-        #adds[i] = orderTermsByNumber(insertIndex(sum_.metadata.term,sum_.metadata.sumIndex,i))
         push!(adds,orderTermsByNumber(insertIndex(sum_.metadata.term,sum_.metadata.sumIndex,i)))
     end
     if isempty(adds)
@@ -797,8 +776,6 @@ function evalTerm(sum_::SymbolicUtils.Sym{Parameter,IndexedAverageSum};mapping::
     elseif length(adds) == 1
         return adds[1]
     end
-    #filter!(x -> !=(x,nothing),adds)
-    #filter!(x -> !(isequal(x,nothing)),adds)
     return sum(adds)
 end
 function evalTerm(sum::SymbolicUtils.Sym{Parameter,IndexedAverageDoubleSum};mapping::Dict{SymbolicUtils.Sym,Int64})
@@ -1148,8 +1125,6 @@ end
 _to_expression(x::SymbolicUtils.Sym{Parameter,IndexedAverageSum}) = :( IndexedAverageSum($(_to_expression(x.metadata.term)),$(x.metadata.sumIndex.name),$(x.metadata.sumIndex.rangeN),$(writeNEIs(x.metadata.nonEqualIndices))) )
 _to_expression(x::SymbolicUtils.Sym{Parameter,SpecialIndexedAverage}) = :($(x.metadata.term))
 _to_expression(x::SymbolicUtils.Sym{Parameter,IndexedAverageDoubleSum}) = :( IndexedAverageDoubleSum($(_to_expression(x.metadata.innerSum)),$(x.metadata.sumIndex.name),$(x.metadata.sumIndex.rangeN),$(writeNEIs(x.metadata.nonEqualIndices))) )
-#_to_expression(x::SymbolicUtils.Sym{Parameter,numberedVariable}) = :( )
-
 
 @latexrecipe function f(s_::SymbolicUtils.Sym{Parameter,IndexedAverageSum})
     s = s_.metadata
