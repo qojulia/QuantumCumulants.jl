@@ -764,13 +764,14 @@ function evalTerm(sum_::SymbolicUtils.Sym{Parameter,IndexedAverageSum};mapping::
             rangeEval = sum_.metadata.sumIndex.rangeN
         end
     end
-    adds = []
+    adds = Vector{Any}(nothing,rangeEval)
     for i = 1:rangeEval
         if i in sum_.metadata.nonEqualIndices
             continue
         end
-        push!(adds,orderTermsByNumber(insertIndex(sum_.metadata.term,sum_.metadata.sumIndex,i)))
+        adds[i]=orderTermsByNumber(insertIndex(sum_.metadata.term,sum_.metadata.sumIndex,i))
     end
+    filter!(x->x!=nothing,adds)
     if isempty(adds)
         return 0
     elseif length(adds) == 1
@@ -942,6 +943,7 @@ function containsIndexedOps(term::SymbolicUtils.Term{AvgSym, Nothing})
         for arg in arg_[1].args_nc
             if typeof(arg) == IndexedOperator
                 found = true
+                break
             end
         end
     else
@@ -960,6 +962,17 @@ function getIndices(term::SymbolicUtils.Term{AvgSym, Nothing})
         end
     elseif typeof(arg_[1]) == IndexedOperator
         return [arg_[1].ind]
+    end
+    return indices
+end
+function getIndices(term::SymbolicUtils.Mul)
+    indices = []
+    for arg in arguments(term)
+        for ind in getIndices(arg)
+            if ind ∉ indices
+                push!(indices,ind)
+            end
+        end
     end
     return indices
 end

@@ -20,6 +20,7 @@ pages = [
             "examples/cavity_antiresonance.md"
             "examples/ramsey_spectroscopy.md"
             "examples/superradiant_laser_indexed.md"
+            "examples/cavity_antiresonance_indexed.md"
             ]
     ]
 

@@ -77,6 +77,9 @@ struct DoubleIndexedVariable <: CNumber #just a symbol, that can be manipulated 
         return SymbolicUtils.Sym{Parameter, DoubleIndexedVariable}(Symbol("$(name)$(ind1.name)$(ind2.name)"), metadata)
     end
 end
+DoubleIndexedVariable(name,ind1,ind2) = DoubleIndexedVariable(name,ind1,ind2,true)
+IndexedVariable(name,ind1,ind2,bool) = DoubleIndexedVariable(name,ind1,ind2,bool)
+IndexedVariable(name::Symbol,ind1::Index,ind2::Index) = DoubleIndexedVariable(name,ind1,ind2,true)
 """
 
     IndexedOperator <: QNumber
@@ -1089,9 +1092,17 @@ function getIndices(term::QMul)
             push!(indices,arg.ind)
         end
     end
+    for ind in getIndices(term.arg_c)
+        if ind ∉ indices
+            push!(indices,ind)
+        end
+    end
     return unique(indices)
 end
 getIndices(a::QNumber) = typeof(a) == IndexedOperator ? [a.ind] : []
+getIndices(a::SymbolicUtils.Sym{Parameter,DoubleIndexedVariable}) = a.metadata.ind1 == a.metadata.ind2 ? [a.metadata.ind1] : [a.metadata.ind1,a.metadata.ind2]
+getIndices(a::SymbolicUtils.Sym{Parameter,IndexedVariable}) = [a.metadata.ind]
+getIndices(x) = []
 
 #Usability functions:
 Σ(a,b) = IndexedDoubleSum(a,b)  #Double-Sum here, because if variable a is not a single sum it will create a single sum anyway

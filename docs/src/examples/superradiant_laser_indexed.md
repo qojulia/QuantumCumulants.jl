@@ -10,7 +10,8 @@ First of all we need to load the needed packages:
 
 
 ```@example superradiant_laser_indexed
-using OrdinaryDiffEq, SteadyStateDiffEq, ModelingToolkit, DifferentialEquations, QuantumCumulants
+using QuantumCumulants
+using ModelingToolkit, DifferentialEquations, OrdinaryDiffEq, SteadyStateDiffEq
 using Plots
 ```
 

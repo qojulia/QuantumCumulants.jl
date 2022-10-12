@@ -28,7 +28,8 @@ function scaleME(me::IndexedMeanfieldEquations)
 end
 scaleTerm(sym::SymbolicUtils.Sym{Parameter,IndexedAverageSum}) = scaleTerm(sym.metadata)
 function scaleTerm(sum::IndexedAverageSum)
-    prefact = sum.sumIndex.rangeN - length(sum.nonEqualIndices)
+    NEI = filter(x->x in getIndices(sum.term),sum.nonEqualIndices)
+    prefact = sum.sumIndex.rangeN - length(NEI)
     term_ = scaleTerm(sum.term)
     return prefact*term_
 end
@@ -48,7 +49,24 @@ end
 function scaleTerm(mul::SymbolicUtils.Mul)
     mults = []
     for arg in arguments(mul)
-        push!(mults,scaleTerm(arg))
+        if arg isa SymbolicUtils.Sym{Parameter,DoubleIndexedVariable}
+            # Double numbered variables need extra computation, since they depend on the number of indices within an average
+            # for example Γij * <σi> * <σj> -> Γ11, since both averages only have 1 index
+            # however Γij <σi * σj> -> Γ12 = Γ21 for scaled terms
+            meta = arg.metadata
+            inds = []
+            for arg in arguments(mul)
+                push!(inds,getIndices(arg))
+            end
+            order = maximum(length.(inds))
+            if order <= 1
+                push!(mults,DoubleNumberedVariable(meta.name,1,1))
+            else
+                push!(mults,DoubleNumberedVariable(meta.name,1,2))
+            end
+        else
+            push!(mults,scaleTerm(arg))
+        end
     end
     if length(mults) == 1
         return mults[1]
@@ -77,6 +95,7 @@ function scaleTerm(x::QMul)
 end
 scaleTerm(x::SymbolicUtils.Sym{Parameter,SpecialIndexedAverage}) = scaleTerm(x.metadata.term) #this is fine, since the intrinsic conditions on the indices go away automatically from the scaling 
 scaleEq(eq::Symbolics.Equation) = Symbolics.Equation(scaleTerm(eq.lhs),scaleTerm(eq.rhs))
+scaleTerm(sym::SymbolicUtils.Sym{Parameter,IndexedVariable}) = SingleNumberedVariable(sym.metadata.name,1)
 scaleTerm(x) = x
 
 SymbolicUtils.substitute(avrg::SymbolicUtils.Sym{Parameter,SpecialIndexedAverage},subs;fold=false) = SymbolicUtils.substitute(avrg.metadata.term,subs;fold=fold)#SpecialIndexedAverage(SymbolicUtils.substitute(term.metadata.term,subs;fold=fold),term.metadata.indexMapping)
@@ -172,8 +191,16 @@ A Function to create parameter values for indexed Variables more convenient.
     of the given variable.
 
 """
-function createMap(ps::Vector,p0::Vector;mapping)
+function createMap(ps::Vector,p0::Vector;mapping=nothing)
     length(ps) != length(p0) && error("Vectors given have non-equal length!")
+
+    if !=(mapping,nothing) && mapping isa Pair
+        mapping_ = Dict{SymbolicUtils.Sym,Int64}(first(mapping)=>last(mapping))
+        mapping = mapping_
+    end
+    if mapping === nothing
+        mapping = Dict{SymbolicUtils.Sym,Int64}()
+    end
 
     dict = Dict{Sym{Parameter, Base.ImmutableDict{DataType, Any}},ComplexF64}()
     for i=1:length(ps)

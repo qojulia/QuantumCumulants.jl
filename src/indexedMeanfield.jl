@@ -713,4 +713,13 @@ where indices have been inserted and sums evaluated.
 
 see also: [`evalME`](@ref)
 """
-evaluate(eqs::IndexedMeanfieldEquations;kwargs...) = substReds(evalME(eqs;kwargs...);scaling=false)
+function evaluate(eqs::IndexedMeanfieldEquations;mapping=nothing)
+    if !=(mapping,nothing) && mapping isa Pair
+        mapping_ = Dict{SymbolicUtils.Sym,Int64}(first(mapping) => last(mapping));
+        mapping = mapping_
+    end
+    if mapping === nothing
+        mapping =  Dict{SymbolicUtils.Sym,Int64}();
+    end
+    return substReds(evalME(eqs;mapping=mapping);scaling=false)
+end
