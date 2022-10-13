@@ -80,7 +80,7 @@ function scaleTerm(x::Average)
     indices = getIndices(x)
     newterm = x
     for i=1:length(indices)
-        newterm = insertIndex(newterm,indices[i],i)
+        newterm = insert_index(newterm,indices[i],i)
     end
     return newterm
 end
@@ -89,7 +89,7 @@ function scaleTerm(x::QMul)
     indices = getIndices(x)
     term = x
     for i = 1:length(indices)
-        term = insertIndex(term,indices[i],i)
+        term = insert_index(term,indices[i],i)
     end
     return term
 end
@@ -104,8 +104,8 @@ SymbolicUtils.substitute(sum::SymbolicUtils.Sym{Parameter,IndexedAverageSum},sub
 #assume: all the indices that are not equal to the summation index are in the same Sum
 #for anything else than the assumption, there needs an extra argument, to specify where or how the extra indices are handled
 """
-    splitSums(term::SymbolicUtils.Symbolic,amount::Union{<:SymbolicUtils.Sym,<:Int64})
-    splitSums(me::MeanfieldEquations,amount)
+    split_sums(term::SymbolicUtils.Symbolic,amount::Union{<:SymbolicUtils.Sym,<:Int64})
+    split_sums(me::MeanfieldEquations,amount)
 
 Function, that splits sums inside a given term. The sums are split into a number of equal sums, specified in the `amount` argument,
 where in only one of the sums the dependencies for the indices (non equal indices) is considered.
@@ -115,7 +115,7 @@ where in only one of the sums the dependencies for the indices (non equal indice
 *`amount::Union{<:SymbolicUtils.Sym,<:Int64}`: A Number or Symbolic determining, in how many terms a sum is split
 
 """
-function splitSums(term::SymbolicUtils.Symbolic,ind::Index,amount::Union{<:SymbolicUtils.Sym,<:Int64})
+function split_sums(term::SymbolicUtils.Symbolic,ind::Index,amount::Union{<:SymbolicUtils.Sym,<:Int64})
     if term isa Average
         return term
     end
@@ -123,7 +123,7 @@ function splitSums(term::SymbolicUtils.Symbolic,ind::Index,amount::Union{<:Symbo
         args = []
         op = SymbolicUtils.operation(term)
         for i = 1:length(arguments(term))
-            push!(args,splitSums(arguments(term)[i],ind,amount))
+            push!(args,split_sums(arguments(term)[i],ind,amount))
         end
         if isempty(args)
             return 0
@@ -156,29 +156,29 @@ function splitSums(term::SymbolicUtils.Symbolic,ind::Index,amount::Union{<:Symbo
             return extraSum + (amount-1)*Σ(Dsum.innerSum,ind2,Index[])
         elseif isequal(ind,Dsum.innerSum.metadata.sumIndex)
             #create doublesum of split innersums
-            innerSums = splitSums(Dsum.innerSum,ind,amount)
+            innerSums = split_sums(Dsum.innerSum,ind,amount)
             return IndexedAverageDoubleSum(innerSums,Dsum.sumIndex,Dsum.nonEqualIndices)
         end
     end
     return term
 end
-splitSums(x::Symbolics.Equation,ind::Index,amount) = Symbolics.Equation(x.lhs,splitSums(x.rhs,ind,amount))
-function splitSums(me::AbstractMeanfieldEquations,ind::Index,amount)
+split_sums(x::Symbolics.Equation,ind::Index,amount) = Symbolics.Equation(x.lhs,split_sums(x.rhs,ind,amount))
+function split_sums(me::AbstractMeanfieldEquations,ind::Index,amount)
     newEqs = Vector{Union{Missing,Symbolics.Equation}}(missing,length(me.equations))
     for i=1:length(me.equations)
-        newEqs[i] = splitSums(me.equations[i],ind,amount)
+        newEqs[i] = split_sums(me.equations[i],ind,amount)
     end
     newEqs = filter(x -> !isequal(x,missing), newEqs)
     vs = getLHS.(newEqs)
     varmap = make_varmap(vs, me.iv)
     return IndexedMeanfieldEquations(newEqs,me.operator_equations,vs,me.operators,me.hamiltonian,me.jumps,me.jumps_dagger,me.rates,me.iv,varmap,me.order)
 end
-splitSums(x,ind,amount) = x
+split_sums(x,ind,amount) = x
 
-scale(eqs::IndexedMeanfieldEquations;kwargs...) = substReds(scaleME(eqs;kwargs...);scaling=true)
+scale(eqs::IndexedMeanfieldEquations;kwargs...) = subst_reds(scaleME(eqs;kwargs...);scaling=true)
 
 """
-    createMap(ps::Vector,p0::Vector)
+    value_map(ps::Vector,p0::Vector)
 
 A Function to create parameter values for indexed Variables more convenient.
 
@@ -191,7 +191,7 @@ A Function to create parameter values for indexed Variables more convenient.
     of the given variable.
 
 """
-function createMap(ps::Vector,p0::Vector;mapping=nothing)
+function value_map(ps::Vector,p0::Vector;mapping=nothing)
     length(ps) != length(p0) && error("Vectors given have non-equal length!")
 
     if !=(mapping,nothing) && mapping isa Pair
@@ -207,13 +207,13 @@ function createMap(ps::Vector,p0::Vector;mapping=nothing)
         dicVal = nothing
         if ps[i] isa SymbolicUtils.Sym{Parameter, IndexedVariable}
             if p0[i] isa Vector || p0[i] isa Number
-                dicVal = createValueMap(ps[i],p0[i];mapping)
+                dicVal = create_value_map(ps[i],p0[i];mapping)
             else
                 error("cannot resolve entry at $i-th position in values-vector")
             end
         elseif ps[i] isa SymbolicUtils.Sym{Parameter, DoubleIndexedVariable}
             if p0[i] isa Matrix || p0[i] isa Number
-                dicVal = createValueMap(ps[i],p0[i];mapping)
+                dicVal = create_value_map(ps[i],p0[i];mapping)
             end
         else
             push!(dict,ps[i]=>p0[i])

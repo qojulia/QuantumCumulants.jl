@@ -37,7 +37,7 @@ const indornum = Union{<:Index,<:Int64}
     IndexedVariable(name::Symbol,ind::Index)
 
 A indexed symbolic variable. The variable can (once equations are calculated) be easily exchanged for numerical values.
-See also: [`createValueMap`](@ref) 
+See also: [`value_map`](@ref) 
 """
 struct IndexedVariable <: CNumber #just a symbel, that can be manipulated via the metadata field
     name::Symbol
@@ -50,10 +50,10 @@ end
 """
 
     DoubleIndexedVariable <: CNumber
-    DoubleIndexedVariable(name::Symbol,ind1::Index,ind2::Index,canHaveSame::Bool)
+    DoubleIndexedVariable(name::Symbol,ind1::Index,ind2::Index,can_have_same::Bool)
 
 A double-indexed symbolic variable. The variable can (once equations are calculated) be easily exchanged for numerical values.
-See also: [`createValueMap`](@ref) 
+See also: [`value_map`](@ref) 
 
 Fields:
 ======
@@ -61,25 +61,24 @@ Fields:
 * name: A Symbol, defining the name of the variable
 * ind1: The first Index of the variable
 * ind2: The second Index of the variable
-* canHaveSame: A Bool, defining if the variable can have non-zero main-diagonal terms, e.g: Γᵢᵢ ≠ 0 would be specified with true.  
+* can_have_same: A Bool, defining if the variable can have non-zero main-diagonal terms, e.g: Γᵢᵢ ≠ 0 would be specified with true.  
 
 """
 struct DoubleIndexedVariable <: CNumber #just a symbol, that can be manipulated via the metadata field
     name::Symbol
     ind1::Index
     ind2::Index
-    canHaveSame::Bool
-    function DoubleIndexedVariable(name,ind1,ind2,canHaveSame)
-        if !(canHaveSame) && (ind1 == ind2)
+    can_have_same::Bool
+    function DoubleIndexedVariable(name,ind1,ind2;can_have_same::Bool=true)
+        if !(can_have_same) && (ind1 == ind2)
             return 0
         end
-        metadata = new(name,ind1,ind2,canHaveSame)
+        metadata = new(name,ind1,ind2,can_have_same)
         return SymbolicUtils.Sym{Parameter, DoubleIndexedVariable}(Symbol("$(name)$(ind1.name)$(ind2.name)"), metadata)
     end
 end
-DoubleIndexedVariable(name,ind1,ind2) = DoubleIndexedVariable(name,ind1,ind2,true)
-IndexedVariable(name,ind1,ind2,bool) = DoubleIndexedVariable(name,ind1,ind2,bool)
-IndexedVariable(name::Symbol,ind1::Index,ind2::Index) = DoubleIndexedVariable(name,ind1,ind2,true)
+IndexedVariable(name,ind1,ind2;kwargs...) = DoubleIndexedVariable(name,ind1,ind2;kwargs...)
+IndexedVariable(name::Symbol,ind1::Index,ind2::Index) = DoubleIndexedVariable(name,ind1,ind2)
 """
 
     IndexedOperator <: QNumber
@@ -173,7 +172,7 @@ struct IndexedSingleSum <:QTerm #Sum with an index, the term inside the sum must
             if length(NEI) == 0 #NEI are newly found indices of all operators that do not have the summation index, or are not already in the non equals list
                 #in this if-condition all operators always commute with the summation index (since there are no other indices left)
                 args = copy(term.args_nc)
-                args_ = orderByIndex(args,[sumIndex]) #here all operators in the sum comute with operators indexed with the summation index -> push them in front
+                args_ = order_by_index(args,[sumIndex]) #here all operators in the sum comute with operators indexed with the summation index -> push them in front
                 term_ = 0
                 if length(args_) == 1
                     term_ = *(term.arg_c,args_[1])
@@ -199,13 +198,13 @@ struct IndexedSingleSum <:QTerm #Sum with an index, the term inside the sum must
                             push!(indexMapping,(NEI[j],NEI[i]))
                         end
                     end
-                    push!(addTerms, reorder(changeIndex(term,sumIndex,ind),indexMapping))
+                    push!(addTerms, reorder(change_index(term,sumIndex,ind),indexMapping))
                 else
-                    push!(addTerms,changeIndex(term,sumIndex,ind))
+                    push!(addTerms,change_index(term,sumIndex,ind))
                 end
             end
             args = copy(term.args_nc)
-            args_ = orderByIndex(args,[sumIndex]) #here all operators in the sum comute with operators indexed with the summation index -> push them in front
+            args_ = order_by_index(args,[sumIndex]) #here all operators in the sum comute with operators indexed with the summation index -> push them in front
             if length(args_) == 1
                 term_ = *(term.arg_c,args_[1])
             else
@@ -427,7 +426,7 @@ function *(sum::IndexedSingleSum,elem::QNumber)
         qaddterm = nothing
         term = sum.term
         if length(NEIds) == 0
-            extraterm = changeIndex(term,sum.sumIndex,elem.ind)
+            extraterm = change_index(term,sum.sumIndex,elem.ind)
             qaddterm = extraterm*elem
         else
             specNEIs = Tuple{Index,Index}[]
@@ -435,13 +434,13 @@ function *(sum::IndexedSingleSum,elem::QNumber)
                 tuple = (elem.ind,ind) 
                 push!(specNEIs,tuple)
             end
-            extraterm_ = changeIndex(term,sum.sumIndex,elem.ind)
+            extraterm_ = change_index(term,sum.sumIndex,elem.ind)
             qaddterm = reorder(extraterm_*elem,specNEIs)
         end
         push!(NEIds,elem.ind)
         qmul = sum.term*elem
         if qmul isa QMul
-            qmul = orderByIndex(qmul,[sum.sumIndex])
+            qmul = order_by_index(qmul,[sum.sumIndex])
             #qmul = *(qmul.arg_c,sort(qmul.args_nc, by=getIndName)...) #inside the sum everything always commutes
         end
         if (qmul isa QMul && (isequal(qmul.arg_c,0) || SymbolicUtils._iszero(qmul.args_nc)))
@@ -460,7 +459,7 @@ function *(sum::IndexedSingleSum,elem::QNumber)
     end
     qmul = sum.term*elem
     if qmul isa QMul
-        qmul = orderByIndex(qmul,[sum.sumIndex])
+        qmul = order_by_index(qmul,[sum.sumIndex])
     end
     if (qmul isa QMul && (isequal(qmul.arg_c,0) || SymbolicUtils._iszero(qmul.args_nc)))
         return 0
@@ -474,7 +473,7 @@ function *(elem::QNumber,sum::IndexedSingleSum)
         qaddterm = nothing
         term = sum.term
         if length(NEIds) == 0
-            extraterm = changeIndex(term,sum.sumIndex,elem.ind)
+            extraterm = change_index(term,sum.sumIndex,elem.ind)
             qaddterm = elem*extraterm
         else
             specNEIs = Tuple{Index,Index}[]
@@ -482,13 +481,13 @@ function *(elem::QNumber,sum::IndexedSingleSum)
                 tuple = (elem.ind,ind) 
                 push!(specNEIs,tuple)
             end
-            extraterm_ = changeIndex(term,sum.sumIndex,elem.ind)
+            extraterm_ = change_index(term,sum.sumIndex,elem.ind)
             qaddterm = reorder(elem*extraterm_,specNEIs)
         end
         push!(NEIds,elem.ind)
         qmul = elem*sum.term
         if qmul isa QMul
-            qmul = orderByIndex(qmul,[sum.sumIndex])
+            qmul = order_by_index(qmul,[sum.sumIndex])
         end
         if (qmul isa QMul && (isequal(qmul.arg_c,0) || SymbolicUtils._iszero(qmul.args_nc)))
             return 0
@@ -506,7 +505,7 @@ function *(elem::QNumber,sum::IndexedSingleSum)
     end
     qmul = elem*sum.term
     if qmul isa QMul
-        qmul = orderByIndex(qmul,[sum.sumIndex])
+        qmul = order_by_index(qmul,[sum.sumIndex])
         #qmul = *(qmul.arg_c,sort(qmul.args_nc, by=getIndName)...) #inside the sum everything always commutes
     end
     if (qmul isa QMul && (isequal(qmul.arg_c,0) || SymbolicUtils._iszero(qmul.args_nc)))
@@ -773,7 +772,7 @@ function Base.isequal(a::IndexedSingleSum, b::IndexedSingleSum)
     end
     isequal(a.term.arg_c, b.term.arg_c) || return false
     length(a.term.args_nc)==length(b.term.args_nc) || return false
-    for (arg_a, arg_b) ∈ zip(orderByIndex(a.term.args_nc,[a.sumIndex]), orderByIndex(b.term.args_nc,[b.sumIndex]))
+    for (arg_a, arg_b) ∈ zip(order_by_index(a.term.args_nc,[a.sumIndex]), order_by_index(b.term.args_nc,[b.sumIndex]))
         isequal(arg_a,arg_b) || return false
     end
     return true
@@ -784,20 +783,20 @@ hilbert(a::SNuN) = 0
 #used for evaluating the extra terms when multiplying a sum with an operator with different index
 #return a new QMul with indices swapped: from -> to index
 """
-    changeIndex(term,from,to)
+    change_index(term,from,to)
 
 Exchanges all occuring indices inside the given term, that are equal to the `from` to the `to` index.
 
 Examples
 ========
 
-    changeIndex(σⱼ²¹,j,i) = σᵢ²¹
+    change_index(σⱼ²¹,j,i) = σᵢ²¹
 
-    changeIndex(σⱼ²¹ * σᵢ¹²,j,i) = σᵢ²²
+    change_index(σⱼ²¹ * σᵢ¹²,j,i) = σᵢ²²
 
 
 """
-function changeIndex(term::QMul, from::Index, to::Index)
+function change_index(term::QMul, from::Index, to::Index)
     arg_c = term.arg_c
     arg_c_ = term.arg_c
     args_nc = copy(term.args_nc)
@@ -819,13 +818,13 @@ function changeIndex(term::QMul, from::Index, to::Index)
             elseif typeof(args[i]) == SymbolicUtils.Sym{Parameter, DoubleIndexedVariable}
                 if args[i].metadata.ind1 == args[i].metadata.ind2 && args[i].metadata.ind1 == from
                     var = args[i].metadata
-                    args[i] = DoubleIndexedVariable(var.name,to,to,var.canHaveSame)
+                    args[i] = DoubleIndexedVariable(var.name,to,to;can_have_same=var.can_have_same)
                 elseif args[i].metadata.ind1 == from
                     var = args[i].metadata
-                    args[i] = DoubleIndexedVariable(var.name,to,var.ind2,var.canHaveSame)
+                    args[i] = DoubleIndexedVariable(var.name,to,var.ind2;can_have_same=var.can_have_same)
                 elseif args[i].metadata.ind2 == from
                     var = args[i].metadata
-                    args[i] = DoubleIndexedVariable(var.name,var.ind1,to,var.canHaveSame)
+                    args[i] = DoubleIndexedVariable(var.name,var.ind1,to;can_have_same=var.can_have_same)
                 end
             end
         end
@@ -835,11 +834,11 @@ function changeIndex(term::QMul, from::Index, to::Index)
     elseif  typeof(arg_c_) == SymbolicUtils.Sym{Parameter, DoubleIndexedVariable}
         DIndV = arg_c_.metadata
         if DIndV.ind1 == DIndV.ind2 && DIndV.ind1 == from
-            arg_c = DoubleIndexedVariable(DIndV.name,to,to,DIndV.canHaveSame)
+            arg_c = DoubleIndexedVariable(DIndV.name,to,to;can_have_same=DIndV.can_have_same)
         elseif DIndV.ind1 == from
-            arg_c = DoubleIndexedVariable(DIndV.name,to,DIndV.ind2,DIndV.canHaveSame)
+            arg_c = DoubleIndexedVariable(DIndV.name,to,DIndV.ind2;can_have_same=DIndV.can_have_same)
         elseif DIndV.ind2 == from
-            arg_c = DoubleIndexedVariable(DIndV.name,DIndV.ind1,to,DIndV.canHaveSame)
+            arg_c = DoubleIndexedVariable(DIndV.name,DIndV.ind1,to;can_have_same=DIndV.can_have_same)
         end
     end
     if isempty(args_nc) || isequal(arg_c,0) || SymbolicUtils._iszero(args_nc) || 0 in args_nc
@@ -852,39 +851,39 @@ function changeIndex(term::QMul, from::Index, to::Index)
         return mult
     end
 end
-function changeIndex(term::SymbolicUtils.Term{AvgSym, Nothing}, from::Index,to::Index)
+function change_index(term::SymbolicUtils.Term{AvgSym, Nothing}, from::Index,to::Index)
     qmul = arguments(term)[1]
-    return average(changeIndex(qmul,from,to))
+    return average(change_index(qmul,from,to))
 end
-function changeIndex(op::IndexedOperator,from::Index,to::Index)
+function change_index(op::IndexedOperator,from::Index,to::Index)
     if op.ind == from
         return IndexedOperator(op.op,to)
     else
         return op
     end
 end
-function changeIndex(ops::Vector,from::Index,to::Index)
+function change_index(ops::Vector,from::Index,to::Index)
     ops_ = copy(ops)
     for i = 1:length(ops_)
-        ops_[i] = changeIndex(ops_[i],from,to)
+        ops_[i] = change_index(ops_[i],from,to)
     end
     return ops_
 end
-changeIndex(op::SymbolicUtils.Sym{Parameter,IndexedVariable},from::Index,to::Index) = op.metadata.ind == from ? IndexedVariable(op.metadata.name,to) : op
-function changeIndex(op::SymbolicUtils.Sym{Parameter,DoubleIndexedVariable},from::Index,to::Index)
+change_index(op::SymbolicUtils.Sym{Parameter,IndexedVariable},from::Index,to::Index) = op.metadata.ind == from ? IndexedVariable(op.metadata.name,to) : op
+function change_index(op::SymbolicUtils.Sym{Parameter,DoubleIndexedVariable},from::Index,to::Index)
     if op.metadata.ind1 == from
-        if op.metadata.ind1 == op.metadata.ind2 && op.metadata.canHaveSame
-            return DoubleIndexedVariable(op.metadata.name,to,to,op.metadata.canHaveSame)
+        if op.metadata.ind1 == op.metadata.ind2 && op.metadata.can_have_same
+            return DoubleIndexedVariable(op.metadata.name,to,to;can_have_same=op.metadata.can_have_same)
         elseif op.metadata.ind1 == op.metadata.ind2
             return 0
         else
-            return DoubleIndexedVariable(op.metadata.name,to,op.metadata.ind2,op.metadata.canHaveSame)
+            return DoubleIndexedVariable(op.metadata.name,to,op.metadata.ind2;can_have_same=op.metadata.can_have_same)
         end
     elseif op.metadata.ind2 == from
-        return DoubleIndexedVariable(op.metadata.name,op.metadata.ind1,to,op.metadata.canHaveSame)
+        return DoubleIndexedVariable(op.metadata.name,op.metadata.ind1,to;can_have_same=op.metadata.can_have_same)
     end
 end
-changeIndex(x,from::Index,to::Index) = x
+change_index(x,from::Index,to::Index) = x
 
 ismergeable(a::IndexedOperator,b::IndexedOperator) = isequal(a.ind,b.ind) ? ismergeable(a.op,b.op) : false
 
@@ -898,7 +897,7 @@ SymbolicUtils.arguments(a::IndexedOperator) = [a]
 
 get_order(::IndexedOperator) = 1
 #It is assumed that the term for which this operation is done already commutes with indices inside the indices-Vector
-function orderByIndex(vec::Vector,indices::Vector{Index})
+function order_by_index(vec::Vector,indices::Vector{Index})
     vec_ = copy(vec)
     frontfront = []
     front = []
@@ -909,11 +908,11 @@ function orderByIndex(vec::Vector,indices::Vector{Index})
     sort!(front,by=getIndName)
     return vcat(frontfront,front,back)
 end
-function orderByIndex(qmul::QMul,inds::Vector{Index})
-    return *(qmul.arg_c,orderByIndex(qmul.args_nc,inds)...)
+function order_by_index(qmul::QMul,inds::Vector{Index})
+    return *(qmul.arg_c,order_by_index(qmul.args_nc,inds)...)
 end
-orderByIndex(qadd::QAdd) = +(orderByIndex.(qadd.arguments)...)
-orderByIndex(x) = x
+order_by_index(qadd::QAdd) = +(order_by_index.(qadd.arguments)...)
+order_by_index(x) = x
 #Reorder function: given a tuple vector of indices meaning for each tuple: first ≠ second
 #-> go through the term given and exchange 2 ops when the second has "lower" (i.e. its name is first in the alphabet) index than the first one
 #-> results in a term, ordered by its commutating indices
@@ -1106,7 +1105,6 @@ getIndices(x) = []
 
 #Usability functions:
 Σ(a,b) = IndexedDoubleSum(a,b)  #Double-Sum here, because if variable a is not a single sum it will create a single sum anyway
-Σ(a,b,c) = IndexedDoubleSum(a,b,c)
-Σ(a,b,c,d) = IndexedDoubleSum(a,b,c,d)
+Σ(a,b,c;kwargs...) = IndexedDoubleSum(a,b,c;kwargs...)
 
 IndexedOperator(x::indexable,numb::Int64) = NumberedOperator(x,numb)
