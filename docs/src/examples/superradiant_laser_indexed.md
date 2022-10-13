@@ -1,4 +1,4 @@
-## Superradiant Laser using Symbolic Summations
+# Superradiant Laser using Symbolic Summations
 
 We can use the implemented indexing and summation features to calculate the Superradiant Laser example. Here we take advantage of these functionalities to simplify the definition of our Hamiltonian and the completion of the resulting equations of motion. The Hamiltonian of the system is once again given as:
 
@@ -72,7 +72,7 @@ nothing #hide
 ```math
 \begin{align}
 \frac{d}{dt} \langle a^\dagger  a\rangle  =& 1 i \underset{i}{\overset{N}{\sum}} g  \langle a  {\sigma}_{i}^{{21}}\rangle  -1 i \underset{i}{\overset{N}{\sum}} g  \langle a^\dagger  {\sigma}_{i}^{{12}}\rangle  -1.0 \kappa \langle a^\dagger  a\rangle  \\
-\frac{d}{dt} \langle {\sigma}_{k}^{{22}}\rangle  =& R -1.0 R \langle {\sigma}_{k}^{{22}}\rangle  -1.0 \Gamma \langle {\sigma}_{k}^{{22}}\rangle  + 1 i g \langle a^\dagger  {\sigma}_{k}^{{12}}\rangle  -1 i g \langle a  {\sigma}_{k}^{{21}}\rangle 
+\frac{d}{dt} \langle {\sigma}_{k}^{{22}}\rangle  =& R -1.0 R \langle {\sigma}_{k}^{{22}}\rangle  -1.0 \Gamma \langle {\sigma}_{k}^{{22}}\rangle  + 1 i g \langle a^\dagger  {\sigma}_{k}^{{12}}\rangle  -1 i g \langle a  {\sigma}_{k}^{{21}}\rangle
 \end{align}
 ```
 
@@ -105,7 +105,7 @@ nothing #hide
 \frac{d}{dt} \langle a^\dagger  a\rangle  =& 1 i \underset{i}{\overset{N}{\sum}} g  \langle a  {\sigma}_{i}^{{21}}\rangle  -1 i \underset{i}{\overset{N}{\sum}} g  \langle a^\dagger  {\sigma}_{i}^{{12}}\rangle  -1.0 \kappa \langle a^\dagger  a\rangle  \\
 \frac{d}{dt} \langle {\sigma}_{k}^{{22}}\rangle  =& R -1.0 R \langle {\sigma}_{k}^{{22}}\rangle  -1.0 \Gamma \langle {\sigma}_{k}^{{22}}\rangle  + 1 i g \langle a^\dagger  {\sigma}_{k}^{{12}}\rangle  -1 i g \langle a  {\sigma}_{k}^{{21}}\rangle  \\
 \frac{d}{dt} \langle a^\dagger  {\sigma}_{k}^{{12}}\rangle  =& 1 i \underset{i{\ne}k}{\overset{N}{\sum}} g  \langle {\sigma}_{i}^{{21}}  {\sigma}_{k}^{{12}}\rangle  + 1 i g \langle {\sigma}_{k}^{{22}}\rangle  -0.5 R \langle a^\dagger  {\sigma}_{k}^{{12}}\rangle  -0.5 \Gamma \langle a^\dagger  {\sigma}_{k}^{{12}}\rangle  -0.5 \kappa \langle a^\dagger  {\sigma}_{k}^{{12}}\rangle  -1 i g \langle a^\dagger  a\rangle  -1 i \Delta \langle a^\dagger  {\sigma}_{k}^{{12}}\rangle  -0.5 \nu \langle a^\dagger  {\sigma}_{k}^{{12}}\rangle  + 2 i g \langle {\sigma}_{k}^{{22}}\rangle  \langle a^\dagger  a\rangle  \\
-\frac{d}{dt} \langle {\sigma}_{k}^{{12}}  {\sigma}_{q}^{{21}}\rangle  =& 1.0 i g \langle a^\dagger  {\sigma}_{k}^{{12}}\rangle  -1.0 R \langle {\sigma}_{k}^{{12}}  {\sigma}_{q}^{{21}}\rangle  -1.0 \Gamma \langle {\sigma}_{k}^{{12}}  {\sigma}_{q}^{{21}}\rangle  -1.0 \nu \langle {\sigma}_{k}^{{12}}  {\sigma}_{q}^{{21}}\rangle  -1.0 i g \langle a  {\sigma}_{q}^{{21}}\rangle  -2.0 i g \langle {\sigma}_{q}^{{22}}\rangle  \langle a^\dagger  {\sigma}_{k}^{{12}}\rangle  + 2.0 i g \langle {\sigma}_{k}^{{22}}\rangle  \langle a  {\sigma}_{q}^{{21}}\rangle 
+\frac{d}{dt} \langle {\sigma}_{k}^{{12}}  {\sigma}_{q}^{{21}}\rangle  =& 1.0 i g \langle a^\dagger  {\sigma}_{k}^{{12}}\rangle  -1.0 R \langle {\sigma}_{k}^{{12}}  {\sigma}_{q}^{{21}}\rangle  -1.0 \Gamma \langle {\sigma}_{k}^{{12}}  {\sigma}_{q}^{{21}}\rangle  -1.0 \nu \langle {\sigma}_{k}^{{12}}  {\sigma}_{q}^{{21}}\rangle  -1.0 i g \langle a  {\sigma}_{q}^{{21}}\rangle  -2.0 i g \langle {\sigma}_{q}^{{22}}\rangle  \langle a^\dagger  {\sigma}_{k}^{{12}}\rangle  + 2.0 i g \langle {\sigma}_{k}^{{22}}\rangle  \langle a  {\sigma}_{q}^{{21}}\rangle
 \end{align}
 ```
 
@@ -171,19 +171,19 @@ plot(p1, p2, layout=(1,2), size=(700,300))
 savefig("superradiant_laser_indexed_time.svg") # hide
 ```
 
-    
+
 ![svg](superradiant_laser_indexed_time.svg)
-    
 
 
 
-# Spectrum
+
+## Spectrum
 
 We can now calculate the spectrum using the Laplace transform of the two-ime correlation function. This is done here with the **Spectrum** function.
 
 
 ```@example superradiant_laser_indexed
-# For the Spectrum 
+# For the Spectrum
 corr = CorrelationFunction(a', a, eqs_c; steady_state=true, filter_func=phase_invariant,extraIndices=[:q,:r],scaling=true);
 S = Spectrum(corr, ps)
 nothing #hide
@@ -200,7 +200,7 @@ nothing #hide
 ```math
 \begin{align}
 \frac{d}{d\tau} \langle a^\dagger  a_0\rangle  =& -1 i \Delta \langle a^\dagger  a_0\rangle  -0.5 \kappa \langle a^\dagger  a_0\rangle  + 1 i N g \langle a_0  {\sigma}_{1}^{{21}}\rangle  \\
-\frac{d}{d\tau} \langle a_0  {\sigma}_{1}^{{21}}\rangle  =& -0.5 R \langle a_0  {\sigma}_{1}^{{21}}\rangle  + 1 i g \langle a^\dagger  a_0\rangle  -0.5 \Gamma \langle a_0  {\sigma}_{1}^{{21}}\rangle  -0.5 \nu \langle a_0  {\sigma}_{1}^{{21}}\rangle  -2 i g \langle {\sigma}_{1}^{{22}}\rangle  \langle a^\dagger  a_0\rangle 
+\frac{d}{d\tau} \langle a_0  {\sigma}_{1}^{{21}}\rangle  =& -0.5 R \langle a_0  {\sigma}_{1}^{{21}}\rangle  + 1 i g \langle a^\dagger  a_0\rangle  -0.5 \Gamma \langle a_0  {\sigma}_{1}^{{21}}\rangle  -0.5 \nu \langle a_0  {\sigma}_{1}^{{21}}\rangle  -2 i g \langle {\sigma}_{1}^{{22}}\rangle  \langle a^\dagger  a_0\rangle
 \end{align}
 ```
 
@@ -231,7 +231,5 @@ plot(ω, spec_n, xlabel="ω/Γ", legend=false, size=(500,300))
 savefig("superradiant_laser_indexed_spec.svg") # hide
 ```
 
-    
+
 ![svg](superradiant_laser_indexed_spec.svg)
-
-

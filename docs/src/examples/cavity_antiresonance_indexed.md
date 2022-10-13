@@ -1,4 +1,4 @@
-## Cavity Antiresonance using Symbolic Summations
+# Cavity Antiresonance using Symbolic Summations
 
 In this example we investigate a system of $N$ closely spaced quantum emitters inside a coherently driven single mode cavity. The model is descriped in [D. Plankensteiner, et. al., Phys. Rev. Lett. 119, 093601 (2017)](https://journals.aps.org/prl/abstract/10.1103/PhysRevLett.119.093601).
 The Hamiltonian of this system is composed of three parts $H = H_c + H_a + H_{\mathrm{int}}$, the driven cavity $H_c$, the dipole-dipole interacting atoms $H_a$ and the atom-cavity interaction $H_\mathrm{int}$:
@@ -76,7 +76,7 @@ Hi = Σ(g(i)*(a'*σ(1,2,i) + a*σ(2,1,i)),i)
 H = Hc + Ha + Hi
 
 # Jump operators & and rates
-J = [a, [σ(1,2,i),σ(1,2,j)] ] 
+J = [a, [σ(1,2,i),σ(1,2,j)] ]
 rates = [κ,Γ_ij]
 nothing #hide
 ```
@@ -96,7 +96,7 @@ nothing #hide
 \begin{align}
 \frac{d}{dt} \langle a\rangle  =& -1 i \eta -1 i \underset{i}{\overset{N}{\sum}} {g}_{i}  \langle {\sigma}_{i}^{{12}}\rangle  -1 i {\Delta}c \langle a\rangle  -0.5 \kappa \langle a\rangle  \\
 \frac{d}{dt} \langle {\sigma}_{k}^{{22}}\rangle  =& -0.5 \underset{i{\ne}j,k}{\overset{N}{\sum}} {\Gamma}_{ik}  \langle {\sigma}_{k}^{{12}}\rangle   \langle {\sigma}_{i}^{{21}}\rangle  -0.5 \underset{j{\ne}k}{\overset{N}{\sum}} {\Gamma}_{kj}  \langle {\sigma}_{j}^{{12}}\rangle   \langle {\sigma}_{k}^{{21}}\rangle  + 1 i \underset{i{\ne}j,k}{\overset{N}{\sum}} {\Omega}_{ik}  \langle {\sigma}_{k}^{{12}}\rangle   \langle {\sigma}_{i}^{{21}}\rangle  -1 i \underset{j{\ne}i,k}{\overset{N}{\sum}} {\Omega}_{kj}  \langle {\sigma}_{j}^{{12}}\rangle   \langle {\sigma}_{k}^{{21}}\rangle  -1.0 {\Gamma}_{kk} \langle {\sigma}_{k}^{{22}}\rangle  + 1 i {g}_{k} \langle a^\dagger\rangle  \langle {\sigma}_{k}^{{12}}\rangle  -1 i {g}_{k} \langle a\rangle  \langle {\sigma}_{k}^{{21}}\rangle  \\
-\frac{d}{dt} \langle {\sigma}_{k}^{{12}}\rangle  =& \underset{j{\ne}k}{\overset{N}{\sum}} {\Gamma}_{kj}  \langle {\sigma}_{k}^{{22}}\rangle   \langle {\sigma}_{j}^{{12}}\rangle  -0.5 \underset{j}{\overset{N}{\sum}} {\Gamma}_{kj}  \langle {\sigma}_{j}^{{12}}\rangle  -1 i \underset{j{\ne}i,k}{\overset{N}{\sum}} {\Omega}_{kj}  \langle {\sigma}_{j}^{{12}}\rangle  + 2 i \underset{j{\ne}i,k}{\overset{N}{\sum}} {\Omega}_{kj}  \langle {\sigma}_{k}^{{22}}\rangle   \langle {\sigma}_{j}^{{12}}\rangle  -1 i {g}_{k} \langle a\rangle  -1 i {\Delta}a \langle {\sigma}_{k}^{{12}}\rangle  + 2 i {g}_{k} \langle a\rangle  \langle {\sigma}_{k}^{{22}}\rangle 
+\frac{d}{dt} \langle {\sigma}_{k}^{{12}}\rangle  =& \underset{j{\ne}k}{\overset{N}{\sum}} {\Gamma}_{kj}  \langle {\sigma}_{k}^{{22}}\rangle   \langle {\sigma}_{j}^{{12}}\rangle  -0.5 \underset{j}{\overset{N}{\sum}} {\Gamma}_{kj}  \langle {\sigma}_{j}^{{12}}\rangle  -1 i \underset{j{\ne}i,k}{\overset{N}{\sum}} {\Omega}_{kj}  \langle {\sigma}_{j}^{{12}}\rangle  + 2 i \underset{j{\ne}i,k}{\overset{N}{\sum}} {\Omega}_{kj}  \langle {\sigma}_{k}^{{22}}\rangle   \langle {\sigma}_{j}^{{12}}\rangle  -1 i {g}_{k} \langle a\rangle  -1 i {\Delta}a \langle {\sigma}_{k}^{{12}}\rangle  + 2 i {g}_{k} \langle a\rangle  \langle {\sigma}_{k}^{{22}}\rangle
 \end{align}
 ```
 
@@ -173,8 +173,5 @@ T = n_ls ./ maximum(n_ls)
 p = plot(Δ_ls, T, xlabel="Δ/Γ", ylabel="T", legend=false)
 savefig("antiresonance_indexed.svg") # hide
 ```
-    
+
 ![svg](antiresonance_indexed.svg)
-    
-
-
