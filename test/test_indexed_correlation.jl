@@ -23,7 +23,7 @@ l = Index(h,:l,N,ha)
 m = Index(h,:m,N,ha)
 n = Index(h,:n,N,ha)
 
-extraIndices = [n]
+extra_indices = [n]
 
 @qnumbers a::Destroy(h)
 
@@ -36,7 +36,7 @@ H = -Δ*a'a + g*(Σ(a'*σ(1,2,k),k) + Σ(a*σ(2,1,k),k))
 J = [a,σ(1,2,l),σ(2,1,l),σ(2,2,l)]
 rates = [κ, Γ, R, ν]
 ops = [a'*a,σ(2,2,m)]
-eqs = indexedMeanfield(ops,H,J;rates=rates,order=order)
+eqs = indexed_meanfield(ops,H,J;rates=rates,order=order)
 
 @test length(eqs) == 2
 
@@ -50,8 +50,8 @@ eqs = indexedMeanfield(ops,H,J;rates=rates,order=order)
 φ(x::AvgSums) = φ(arguments(x))
 phase_invariant(x) = iszero(φ(x))
 
-eqs_c = complete(eqs;filter_func=phase_invariant,scaling=false,extraIndices=extraIndices);
-eqs_c2 = complete(eqs;filter_func=phase_invariant,scaling=false,extraIndices=[:n]);
+eqs_c = complete(eqs;filter_func=phase_invariant,scaling=false,extra_indices=extra_indices);
+eqs_c2 = complete(eqs;filter_func=phase_invariant,scaling=false,extra_indices=[:n]);
 
 eqs_sc1 = scale(eqs_c)
 eqs_sc2 = scale(eqs_c2)
@@ -66,18 +66,18 @@ end
 
 avrgSum = arguments(arguments(eqs_c[1].rhs)[1])[2]
 
-split0 = splitSums(avrgSum,l,15)
+split0 = split_sums(avrgSum,l,15)
 
 @test isequal(split0,avrgSum)
 
-split1 = splitSums(avrgSum,k,4)
+split1 = split_sums(avrgSum,k,4)
 
 @test split1 isa SymbolicUtils.Mul
 @test !isequal(split1,avrgSum)
 @test isequal(4,arguments(split1)[1])
 @test isequal(N/4,arguments(split1)[2].metadata.sumIndex.rangeN)
 
-split2 = splitSums(avrgSum,k,M)
+split2 = split_sums(avrgSum,k,M)
 
 @test !isequal(split2,split1)
 @test !isequal(split2,avrgSum)
@@ -86,12 +86,12 @@ split2 = splitSums(avrgSum,k,M)
 
 avrgSum2 = arguments(arguments(eqs_c[3].rhs)[1])[2]
 
-_split0 = splitSums(avrgSum2,l,15)
+_split0 = split_sums(avrgSum2,l,15)
 
 @test isequal(avrgSum2,_split0)
-@test isequal(avrgSum2,splitSums(avrgSum2,k,1))
+@test isequal(avrgSum2,split_sums(avrgSum2,k,1))
 
-_split1 = splitSums(avrgSum2,k,3)
+_split1 = split_sums(avrgSum2,k,3)
 
 @test !isequal(_split1,avrgSum2)
 @test _split1 isa SymbolicUtils.Add
@@ -100,7 +100,7 @@ _split1 = splitSums(avrgSum2,k,3)
 op1 = a'
 op2 = a
 
-corr = indexedCorrelationFunction(a', a, eqs_c; steady_state=true, filter_func=phase_invariant,extraIndices=extraIndices,scaling=true);
+corr = IndexedCorrelationFunction(a', a, eqs_c; steady_state=true, filter_func=phase_invariant,extra_indices=extra_indices,scaling=true);
 
 ps = [N, Δ, g, κ, Γ, R, ν]
 
@@ -118,8 +118,8 @@ evals = evaluate(eqs_c;mapping=mapping)
 i = Index(h,:i,N_,ha)
 j = Index(h,:j,N_,ha)
 
-Γ_ij = DoubleIndexedVariable(:Γ,i,j,true)
-Ω_ij = DoubleIndexedVariable(:Ω,i,j,false)
+Γ_ij = DoubleIndexedVariable(:Γ,i,j)
+Ω_ij = DoubleIndexedVariable(:Ω,i,j;can_have_same=false)
 gi = IndexedVariable(:g,i)
 
 ΓMatrix = [1.0 1.0
@@ -135,7 +135,7 @@ ps = [Γ_ij,Ω_ij,gi,κ]
 p0 = [ΓMatrix,ΩMatrix,gn,κn]
 
 mapping = Dict{SymbolicUtils.Sym,Int64}(N_=>2)
-valmap = createMap(ps,p0;mapping=mapping)
+valmap = value_map(ps,p0;mapping=mapping)
 
 map_ = Dict{SymbolicUtils.Sym{Parameter, Base.ImmutableDict{DataType, Any}},ComplexF64}()
 push!(map_,qc.DoubleNumberedVariable(:Γ,1,1)=>1.0)
@@ -163,7 +163,7 @@ end
 
 sum_ = average(Σ(σ(2,1,i)*σ(1,2,j),i))
 
-split = splitSums(sum_,i,3)
+split = split_sums(sum_,i,3)
 
 @test split isa SymbolicUtils.Add
 @test length(arguments(split)) == 3

@@ -41,7 +41,7 @@ k_ind = Index(h,:k,N_modes,hf)
 l_ind = Index(h,:l,N_modes,hf)
 
 
-g_ik = DoubleIndexedVariable(:g,i_ind,k_ind,true)
+g_ik = IndexedVariable(:g,i_ind,k_ind)
 
 a(k) = IndexedOperator(Destroy(h,:a),k)
 σ(i,j,k) = IndexedOperator(Transition(h,Symbol("σ"),i,j),k)
@@ -78,15 +78,15 @@ Dsum2 = H.arguments[2]
 ADsum1 = average(DSum1)
 ADsum2 = average(Dsum2)
 
-split0 = splitSums(ADsum1,j_ind,15)
+split0 = split_sums(ADsum1,j_ind,15)
 @test isequal(split0,ADsum1)
 
-split1 = splitSums(ADsum1,k_ind,5)
+split1 = split_sums(ADsum1,k_ind,5)
 @test split1 isa SymbolicUtils.Mul
 @test isequal(5,arguments(split1)[1])
 @test isequal(N_modes/5,arguments(split1)[2].metadata.sumIndex.rangeN)
 
-split2 = splitSums(ADsum1,i_ind,5)
+split2 = split_sums(ADsum1,i_ind,5)
 @test split2 isa SymbolicUtils.Mul
 @test isequal(5,arguments(split2)[1])
 @test isequal(N_atoms/5,arguments(split2)[2].metadata.innerSum.metadata.sumIndex.rangeN)

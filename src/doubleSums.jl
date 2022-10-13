@@ -40,14 +40,14 @@ struct IndexedDoubleSum <:QTerm
                         continue
                     end
                     if index != sumIndex && index ∉ NEI && isequal(index.specHilb,sumIndex.specHilb)
-                        extraterm = IndexedSingleSum(changeIndex(innerSum.term,sumIndex,index),innerSum.sumIndex,innerSum.nonEqualIndices)
+                        extraterm = IndexedSingleSum(change_index(innerSum.term,sumIndex,index),innerSum.sumIndex,innerSum.nonEqualIndices)
                         push!(NEI_,index)
                     end 
                 end
                 if innerSum.term isa QMul
                     # put terms of the outer index in front
                     indicesToOrder = sort([innerSum.sumIndex,sumIndex],by=getIndName)
-                    newargs = orderByIndex(innerSum.term.args_nc,indicesToOrder)
+                    newargs = order_by_index(innerSum.term.args_nc,indicesToOrder)
                     qmul = 0
                     if length(newargs) == 1
                         qmul = *(innerSum.term.arg_c,newargs[1])
@@ -84,8 +84,8 @@ function IndexedDoubleSum(term::QMul,ind::Vector{Index},NEI::Vector{Index})
     end
     return IndexedDoubleSum(IndexedSingleSum(term,ind[1],NEI),ind[2],NEI)
 end
-function IndexedDoubleSum(term::QMul,outerInd::Index,innerInd::Index,ne::Bool)
-    if ne
+function IndexedDoubleSum(term::QMul,outerInd::Index,innerInd::Index;non_equal::Bool=false)
+    if non_equal
         innerSum = IndexedSingleSum(term,innerInd,[outerInd])
         return IndexedDoubleSum(innerSum,outerInd,[])
     else
@@ -137,7 +137,7 @@ function *(elem,sum::IndexedDoubleSum)
         if elem.ind != sum.sumIndex && elem.ind ∉ NEI
             if ((sum.sumIndex.specHilb != sum.innerSum.sumIndex.specHilb) && isequal(elem.ind.specHilb,sum.sumIndex.specHilb))
                 push!(NEI,elem.ind) 
-                addterm = IndexedSingleSum(elem*changeIndex(sum.innerSum.term,sum.sumIndex,elem.ind),sum.innerSum.sumIndex,sum.innerSum.nonEqualIndices)
+                addterm = IndexedSingleSum(elem*change_index(sum.innerSum.term,sum.sumIndex,elem.ind),sum.innerSum.sumIndex,sum.innerSum.nonEqualIndices)
                 return IndexedDoubleSum(elem*sum.innerSum,sum.sumIndex,NEI) + addterm
             end
         end
@@ -150,7 +150,7 @@ function *(sum::IndexedDoubleSum,elem)
         if elem.ind != sum.sumIndex && elem.ind ∉ NEI
             if ((sum.sumIndex.specHilb != sum.innerSum.sumIndex.specHilb) && isequal(elem.ind.specHilb,sum.sumIndex.specHilb))
                 push!(NEI,elem.ind)
-                addterm = IndexedSingleSum(changeIndex(sum.innerSum.term,sum.sumIndex,elem.ind)*elem,sum.innerSum.sumIndex,sum.innerSum.nonEqualIndices)
+                addterm = IndexedSingleSum(change_index(sum.innerSum.term,sum.sumIndex,elem.ind)*elem,sum.innerSum.sumIndex,sum.innerSum.nonEqualIndices)
                 return IndexedDoubleSum(sum.innerSum*elem,sum.sumIndex,NEI) + addterm
             end
         end
@@ -183,7 +183,7 @@ function *(sum1::IndexedSingleSum,sum2::IndexedSingleSum; ind=nothing)
         if !(ind isa Index)
             error("Specification of an extra Index is needed!")
         end
-        term2 = changeIndex(sum2.term,sum2.sumIndex,ind)
+        term2 = change_index(sum2.term,sum2.sumIndex,ind)
         return IndexedDoubleSum(IndexedSingleSum(sum1.term*term2,sum1.sumIndex,sum1.nonEqualIndices),ind,sum1.nonEqualIndices)
 
     end

@@ -41,7 +41,7 @@ function _new_indices(Inds::Vector,h)
 end
 
 """
-    indexedCorrelationFunction(op1,op2,de0;steady_state=false,add_subscript=0,mix_choice=maximum)
+    IndexedCorrelationFunction(op1,op2,de0;steady_state=false,add_subscript=0,mix_choice=maximum)
 
 The first-order two-time correlation function of two operators.
 
@@ -58,21 +58,21 @@ entities as argument-values.
 
 See also: [`CorrelationFunction`](@ref)
 """
-function indexedCorrelationFunction(op1,op2,de0::AbstractMeanfieldEquations;
+function IndexedCorrelationFunction(op1,op2,de0::AbstractMeanfieldEquations;
     steady_state=false, add_subscript=0,
     filter_func=nothing, mix_choice=maximum,
     iv=SymbolicUtils.Sym{Real}(:τ),
     order=nothing,
-    extraIndices::Vector=[],
+    extra_indices::Vector=[],
     scaling::Bool=false,
     simplify=true, kwargs...)
     h1 = hilbert(op1)
     h2 = _new_hilbert(hilbert(op2), acts_on(op2))
     h = h1⊗h2
 
-    #exchange hilberts for indices (if extraindices given are indices and not symbols)
-    if !isempty(extraIndices) && extraIndices[1] isa Index
-        extraIndices = _new_indices(extraIndices,h)
+    #exchange hilberts for indices (if extra_indices given are indices and not symbols)
+    if !isempty(extra_indices) && extra_indices[1] isa Index
+        extra_indices = _new_indices(extra_indices,h)
     end
 
     H0 = de0.hamiltonian
@@ -116,19 +116,19 @@ function indexedCorrelationFunction(op1,op2,de0::AbstractMeanfieldEquations;
         IndexedMeanfieldEquations(eqs,eqs_op,lhs_new,ops,H,J,Jd,de0.rates,de0.iv,varmap,order_)
     end
 
-    de = indexedMeanfield([op_],H,J;Jdagger=Jd,rates=de0.rates,iv=iv,order=order_)
+    de = indexed_meanfield([op_],H,J;Jdagger=Jd,rates=de0.rates,iv=iv,order=order_)
     indexed_complete_corr!(de, length(h.spaces), lhs_new, order_, steady_state, de0_;
             filter_func=filter_func,
             mix_choice=mix_choice,
             simplify=simplify,
-            extraIndices=extraIndices,
+            extra_indices=extra_indices,
             scaling=scaling,
             kwargs...) 
     if scaling
         de = scaleME(de)
         de0_ = scaleME(de0_)
-        de = substReds(de;scaling=true)
-        de0_ = substReds(de0_;scaling=true)
+        de = subst_reds(de;scaling=true)
+        de0_ = subst_reds(de0_;scaling=true)
     end
     de = substituteIntoCorrelation(de,de0_;scaling=scaling)
     
@@ -138,17 +138,17 @@ end
 function substituteIntoCorrelation(me,de0;scaling::Bool=false)
     neweqs = []
     for eq in me.equations
-        push!(neweqs,Symbolics.Equation(eq.lhs,substReds(eq.rhs,de0.states;scaling=scaling)))
+        push!(neweqs,Symbolics.Equation(eq.lhs,subst_reds(eq.rhs,de0.states;scaling=scaling)))
     end
     return IndexedMeanfieldEquations(neweqs,me.operator_equations,me.states,me.operators,me.hamiltonian,me.jumps,me.jumps_dagger,me.rates,me.iv,me.varmap,me.order)
 end
 
-#the function below is quite similar to the indexedComplete function
+#the function below is quite similar to the indexed_complete function
 function indexed_complete_corr!(de,aon0,lhs_new,order,steady_state,de0;
         mix_choice=maximum,
         simplify::Bool=true,
         filter_func=nothing,
-        extraIndices::Vector=[],
+        extra_indices::Vector=[],
         scaling::Bool=false,
         kwargs...)
     vs = de.states
@@ -160,17 +160,17 @@ function indexed_complete_corr!(de,aon0,lhs_new,order,steady_state,de0;
 
     indices_ = getAllIndices(vs)
 
-    if isempty(indices_) && extraIndices[1] isa Symbol
+    if isempty(indices_) && extra_indices[1] isa Symbol
         for op in de.jumps
             if op isa IndexedOperator
-                indices_ = [Index(op.ind.hilb,extraIndices[1],op.ind.rangeN,op.ind.specHilb)]
-                deleteat!(extraIndices,1)
+                indices_ = [Index(op.ind.hilb,extra_indices[1],op.ind.rangeN,op.ind.specHilb)]
+                deleteat!(extra_indices,1)
                 break
             end
         end
-    elseif isempty(indices_) && extraIndices[1] isa Index
-        indices_ = [extraIndices[1]]
-        deleteat!(extraIndices,1)
+    elseif isempty(indices_) && extra_indices[1] isa Index
+        indices_ = [extra_indices[1]]
+        deleteat!(extra_indices,1)
     end
 
     vhash = map(hash, vs)
@@ -179,7 +179,7 @@ function indexed_complete_corr!(de,aon0,lhs_new,order,steady_state,de0;
     filter!(!in(vhash), vs′hash)
     missed = find_missing(de.equations, vhash, vs′hash; get_adjoints=false)
     
-    missed = findMissingSumTerms(missed,de;extraIndices=extraIndices,scaling=scaling,indices=indices_)
+    missed = find_missing_sums(missed,de;extra_indices=extra_indices,scaling=scaling,indices=indices_)
     missed = findMissingSpecialTerms(missed,de;scaling=scaling)
     
     missed = sortByIndex.(missed)
@@ -212,7 +212,7 @@ function indexed_complete_corr!(de,aon0,lhs_new,order,steady_state,de0;
     missed = unique(missed)
     while !isempty(missed)
         ops_ = [SymbolicUtils.arguments(m)[1] for m in missed]
-        me = indexedMeanfield(ops_,H,J;
+        me = indexed_meanfield(ops_,H,J;
             Jdagger=Jd,
             rates=rates,
             simplify=simplify,
@@ -231,7 +231,7 @@ function indexed_complete_corr!(de,aon0,lhs_new,order,steady_state,de0;
 
         missed = find_missing(me.equations, vhash, vs′hash; get_adjoints=false)
         
-        missed = findMissingSumTerms(missed,de;extraIndices=extraIndices,scaling=scaling,indices=indices_)
+        missed = find_missing_sums(missed,de;extra_indices=extra_indices,scaling=scaling,indices=indices_)
         missed = findMissingSpecialTerms(missed,de;scaling=scaling)
         
         missed = sortByIndex.(missed)
@@ -247,7 +247,7 @@ function indexed_complete_corr!(de,aon0,lhs_new,order,steady_state,de0;
                 sort!(extras)
                 for ind2 in extras
                     if ind2 < ind1 && ind2 ∉ newMinds #this might go somewhat easier, maybe delete ind2 out of extras after each replacement somehow
-                        missed[i] = changeIndex(missed[i],ind1,ind2)
+                        missed[i] = change_index(missed[i],ind1,ind2)
                         newMinds = getIndices(missed[i])
                         break
                     elseif ind2 >= ind1
@@ -268,7 +268,7 @@ function indexed_complete_corr!(de,aon0,lhs_new,order,steady_state,de0;
         # but still occur on the RHS; set those to 0
         missed = find_missing(de.equations, vhash, vs′hash; get_adjoints=false)
         if order != 1
-            missed = findMissingSumTerms(missed,de;extraIndices=extraIndices,checking=false,scaling=false,indices=indices_)
+            missed = find_missing_sums(missed,de;extra_indices=extra_indices,checking=false,scaling=false,indices=indices_)
             missed = findMissingSpecialTerms(missed,de;scaling=false)
         end
         missed_ = sortByIndex.(missed)
@@ -288,4 +288,4 @@ end
 filterComplete_corr(x,states1,states2,scaling) = (isNotIn(getOps(x;scaling=scaling),getOps.(states1;scaling=scaling),scaling) && isNotIn(getOps(sortByIndex(_conj(x));scaling=scaling),getOps.(states1;scaling=scaling),scaling) 
     && isNotIn(getOps(x;scaling=scaling),getOps.(states2;scaling=scaling),scaling)&& isNotIn(getOps(sortByIndex(_conj(x));scaling=scaling),getOps.(states2;scaling=scaling),scaling))
 
-CorrelationFunction(op1,op2,de0::IndexedMeanfieldEquations; kwargs...) = indexedCorrelationFunction(op1,op2,de0;kwargs...)
+CorrelationFunction(op1,op2,de0::IndexedMeanfieldEquations; kwargs...) = IndexedCorrelationFunction(op1,op2,de0;kwargs...)

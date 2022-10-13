@@ -58,14 +58,14 @@ sum3 = IndexedSingleSum(a'*σ(1,2,i_ind) + a*σ(2,1,i_ind),i_ind)
 @test isequal(0,Σ(σ(2,1,i_ind)*σ(2,1,i_ind),i_ind))
 
 k_ind = indT(:k)
-Γij = DoubleIndexedVariable(:Γ,i_ind,j_ind,true)
+Γij = DoubleIndexedVariable(:Γ,i_ind,j_ind)
 
-@test(isequal(changeIndex(Γij,j_ind,k_ind), DoubleIndexedVariable(:Γ,i_ind,k_ind,true)))
-@test(isequal(changeIndex(σ(1,2,j_ind)*σ(1,2,i_ind),j_ind,i_ind),0))
-@test(isequal(changeIndex(g(k_ind),k_ind,j_ind),g(j_ind)))
+@test(isequal(change_index(Γij,j_ind,k_ind), DoubleIndexedVariable(:Γ,i_ind,k_ind)))
+@test(isequal(change_index(σ(1,2,j_ind)*σ(1,2,i_ind),j_ind,i_ind),0))
+@test(isequal(change_index(g(k_ind),k_ind,j_ind),g(j_ind)))
 
 @test(isequal(
-    orderByIndex(σ(1,2,k_ind)*σ(1,2,j_ind)*σ(1,2,i_ind),[i_ind]), σ(1,2,i_ind)*σ(1,2,k_ind)*σ(1,2,j_ind)
+    order_by_index(σ(1,2,k_ind)*σ(1,2,j_ind)*σ(1,2,i_ind),[i_ind]), σ(1,2,i_ind)*σ(1,2,k_ind)*σ(1,2,j_ind)
     ))
 
 @test(isequal(
@@ -173,9 +173,9 @@ asdf2 = σ(1,2,k_ind)*specTerm
 @test isequal(simplify(commutator(σ(1,2,i_ind),qadd)),0)
 @test isequal(simplify(commutator(σ(1,2,i_ind),qmul)),0)
 
-Ωij = DoubleIndexedVariable(:Ω,i_ind,j_ind,false)
+Ωij = DoubleIndexedVariable(:Ω,i_ind,j_ind;can_have_same=false)
 
-@test changeIndex(Ωij,i_ind,j_ind) == 0
+@test change_index(Ωij,i_ind,j_ind) == 0
 @test reorder(qc.QAdd([]),[(i_ind,j_ind)]) == 0
 @test reorder(qc.QAdd([0]),[(i_ind,j_ind)]) == 0
 @test reorder(qc.QAdd([σ(1,2,i_ind),σ(2,1,j_ind)]),[(i_ind,j_ind)]) isa qc.QAdd
