@@ -30,7 +30,12 @@ export HilbertSpace, ProductSpace, ⊗, tensor,
         CorrelationFunction, Spectrum, correlation_u0, correlation_p0,
         ClusterSpace,
         scale,
-        transition_superscript
+        transition_superscript, 
+        Index, reorder, IndexedOperator, IndexedSingleSum, IndexedVariable, DoubleIndexedVariable,
+        IndexedDoubleSum, createValueMap, indexedComplete, indexedCorrelationFunction,
+        scaleME, evalME, indexedComplete!, indexedMeanfield, substReds, AvgSums, plotME,
+        IndexedAverageSum, IndexedAverageDoubleSum, SpecialIndexedTerm, findMissingSumTerms, Σ,
+        evaluate, createMap, NumberedOperator, changeIndex, orderByIndex, splitSums, insertIndex, evalTerm
 
 const NO_METADATA = SymbolicUtils.NO_METADATA
 
@@ -52,6 +57,12 @@ include("cluster.jl")
 include("scale.jl")
 include("latexify_recipes.jl")
 include("printing.jl")
+include("indexing.jl")
+include("doubleSums.jl")
+include("averageSums.jl")
+include("indexedMeanfield.jl")
+include("indexedScale.jl")
+include("indexedCorrelation.jl")
 
 @deprecate heisenberg(args...; kwargs...) meanfield(args...; kwargs...)
 

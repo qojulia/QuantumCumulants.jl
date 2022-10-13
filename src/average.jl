@@ -50,6 +50,7 @@ Compute the average of an operator. If `order` is given, the [`cumulant_expansio
 up to that order is computed immediately.
 """
 average(op::QSym) = _average(op)
+# I rewrite this function for more consistancy (i hope so atleast)
 function average(op::QTerm)
     f = SymbolicUtils.operation(op)
     if f===(+) || f===(-) # linearity
@@ -64,6 +65,7 @@ function average(op::QTerm)
         error("Unknown function $f")
     end
 end
+
 average(x::SNuN) = x
 average(x,order;kwargs...) = cumulant_expansion(average(x),order;kwargs...)
 
@@ -155,7 +157,7 @@ function cumulant_expansion(x::SymbolicUtils.Symbolic,order;mix_choice=maximum,s
         return x
     end
 end
-function cumulant_expansion(de::MeanfieldEquations,order;multithread=false,mix_choice=maximum,kwargs...)
+function cumulant_expansion(de::AbstractMeanfieldEquations,order;multithread=false,mix_choice=maximum,kwargs...)
     order==de.order && return de
     eqs = de.equations
     eqs_out = Vector{Symbolics.Equation}(undef, length(eqs))
@@ -212,7 +214,7 @@ function _cumulant_expansion(args::Vector,order::Int)
                 if length(p_) > order # If the encountered moment is larger than order, apply expansion
                     push!(args_prod, _cumulant_expansion(p_, order))
                 else # Else, average and add its product
-                    op_ = QMul(1, p_)
+                    op_ = QMul(1, p_) 
                     push!(args_prod, _average(op_))
                 end
             end
@@ -271,7 +273,7 @@ function _cumulant(args::Vector,m::Int=length(args))
             n = length(p[j])
             args_prod = Any[factorial(n-1)*(-1)^(n-1)]
             for p_=p[j] # Product over partition blocks
-                push!(args_prod, _average(QMul(1, p_)))
+                push!(args_prod, average(QMul(1, p_))) #_average before
             end
             # Add terms in sum
             push!(args_sum, *(args_prod...))

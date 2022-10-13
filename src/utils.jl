@@ -447,7 +447,7 @@ function _conj(v::SymbolicUtils.Term{<:AvgSym})
         names = get_names(arg)
         return substitute_redundants(_average(adj_arg), aons, names)
     else
-        return _average(adj_arg)
+        return _average(adj_arg) #was _average before (why?)
     end
 end
 function _conj(v::SymbolicUtils.Symbolic)

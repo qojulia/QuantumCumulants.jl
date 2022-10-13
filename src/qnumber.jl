@@ -89,6 +89,8 @@ struct QMul{M} <: QTerm
     function QMul{M}(arg_c, args_nc, metadata) where {M}
         if SymbolicUtils._isone(arg_c) && length(args_nc)==1
             return args_nc[1]
+        elseif (0 in args_nc) || isequal(arg_c,0)
+            return 0
         else
             return new(arg_c, args_nc, metadata)
         end
@@ -96,7 +98,6 @@ struct QMul{M} <: QTerm
 end
 QMul(arg_c, args_nc; metadata::M=NO_METADATA) where {M} = QMul{M}(arg_c, args_nc, metadata)
 Base.hash(q::QMul, h::UInt) = hash(QMul, hash(q.arg_c, SymbolicUtils.hashvec(q.args_nc, h)))
-Base.isless(a::QMul, b::QMul) = isless(a.h, b.h)
 
 SymbolicUtils.operation(::QMul) = (*)
 SymbolicUtils.arguments(a::QMul) = vcat(a.arg_c, a.args_nc)
@@ -113,7 +114,7 @@ SymbolicUtils.metadata(a::QMul) = a.metadata
 function Base.adjoint(q::QMul)
     args_nc = map(adjoint, q.args_nc)
     reverse!(args_nc)
-    sort!(args_nc, by=acts_on)
+    sort!(args_nc, by=getNumber) #before: "by=acts_on"; had to change this for numbered operators still being in order, this however does not affect any of the other implemented operator types
     return QMul(conj(q.arg_c), args_nc; q.metadata)
 end
 
@@ -172,6 +173,10 @@ end
 Base.:/(a::QNumber, b::SNuN) = (1/b) * a
 
 function merge_commutators(arg_c,args_nc)
+    #Added extra checks for 0 here
+    if isequal(arg_c,0) || 0 in args_nc
+        return 0
+    end
     i = 1
     was_merged = false
     while i<length(args_nc)
@@ -232,7 +237,10 @@ Base.adjoint(q::QAdd) = QAdd(map(adjoint, q.arguments))
 -(a::QNumber,b) = a + (-b)
 -(a::QNumber,b::QNumber) = a + (-b)
 
-+(a::QNumber, b::SNuN) = QAdd([a,b])
+function +(a::QNumber, b::SNuN) 
+    SymbolicUtils._iszero(b) && return a
+    return QAdd([a,b])
+end
 +(a::SNuN,b::QNumber) = +(b,a)
 function +(a::QAdd,b::SNuN)
     SymbolicUtils._iszero(b) && return a
@@ -262,7 +270,8 @@ function +(a::QAdd,b::QAdd)
     return QAdd(args)
 end
 
-function *(a::QAdd, b)
+function *(a::QAdd, b) #this and the function below are quite unstable, since it is possible that they return QAdd([0,0]), which results in a QAdd object rather than being 0. this is a problem when someone wants to use the result of this again in a product
+    #i added a version with a zero-chack in "indexing.jl" specialized for indexedOperators
     check_hilbert(a, b)
     args = Any[a_ * b for a_ ∈ a.arguments]
     flatten_adds!(args)
