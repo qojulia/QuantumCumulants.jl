@@ -15,10 +15,13 @@ h = hf⊗ha
 ind(i) = Index(h,i,N,ha)
 
 g(k) = IndexedVariable(:g,k)
-Γij = DoubleIndexedVariable(:Γ,ind(:i),ind(:j),true)
+Γij = DoubleIndexedVariable(:Γ,ind(:i),ind(:j))
 σ(i,j,k) = IndexedOperator(Transition(h,:σ,i,j),k)
 
 σn(i,j,k) = NumberedOperator(Transition(h,:σ,i,j),k)
+Ω(i,j) = IndexedVariable(:Ω,i,j;can_have_same=false)
+
+@test Ω(ind(:i),ind(:i)) == 0
 
 a = Destroy(h,:a)
 
@@ -28,27 +31,27 @@ a = Destroy(h,:a)
 
 sum1 = IndexedSingleSum(σ(1,2,ind(:k)),ind(:k))
 σn(i,j,k) = NumberedOperator(Transition(h,:σ,i,j),k)
-@test(isequal(evalTerm(average(sum1)),average(σn(1,2,1)) + average(σn(1,2,2))))
+@test(isequal(eval_term(average(sum1)),average(σn(1,2,1)) + average(σn(1,2,2))))
 @test(isequal(σn(1,2,1)+σn(2,1,1),NumberedOperator(Transition(h,:σ,1,2)+Transition(h,:σ,2,1),1)))
 
-#test insertIndex
-@test(isequal(σn(2,2,1),insertIndex(σ(2,2,ind(:j)),ind(:j),1)))
-@test(isequal(σ(1,2,ind(:j)),insertIndex(σ(1,2,ind(:j)),ind(:k),2)))
-@test(isequal(1,insertIndex(1,ind(:k),1)))
+#test insert_index
+@test(isequal(σn(2,2,1),insert_index(σ(2,2,ind(:j)),ind(:j),1)))
+@test(isequal(σ(1,2,ind(:j)),insert_index(σ(1,2,ind(:j)),ind(:k),2)))
+@test(isequal(1,insert_index(1,ind(:k),1)))
 
 sum2 = average(sum1*σ(1,2,ind(:l)))
 
-@test(!isequal(σn(2,2,1),insertIndex(sum2,ind(:j),1)))
+@test(!isequal(σn(2,2,1),insert_index(sum2,ind(:j),1)))
 
 
-gamma = insertIndex(Γij,ind(:i),1)
-gamma2 = insertIndex(Γij,ind(:j),2)
-gamma2_ = insertIndex(Γij,ind(:i),1)
-g_ = insertIndex(g(ind(:j)),ind(:j),1)
+gamma = insert_index(Γij,ind(:i),1)
+gamma2 = insert_index(Γij,ind(:j),2)
+gamma2_ = insert_index(Γij,ind(:i),1)
+g_ = insert_index(g(ind(:j)),ind(:j),1)
 @test g_ isa SymbolicUtils.Sym
 @test gamma isa SymbolicUtils.Sym{Parameter,qc.numberedVariable}
 
-gamma_ = insertIndex(gamma,ind(:j),2)
+gamma_ = insert_index(gamma,ind(:j),2)
 @test gamma_ isa SymbolicUtils.Sym
 
 @test !isequal(gamma,gamma_)
@@ -104,13 +107,13 @@ specAvrg = qc.SpecialIndexedAverage(average(σ(2,1,ind(:i))*σ(1,2,ind(:j))),[(i
 @test isequal(SymbolicUtils.arguments(SymbolicUtils.arguments(SymbolicUtils.arguments(ADsum1)[1])),SymbolicUtils.arguments(average(σ(2,1,ind(:i))*σ(1,2,ind(:j)))))
 @test isequal(SymbolicUtils.arguments(specAvrg),SymbolicUtils.arguments(average(σ(2,1,ind(:i))*σ(1,2,ind(:j)))))
 
-@test isequal(σ(1,2,ind(:j))*σn(1,2,2),qc.insertIndex(σ(1,2,ind(:i))*σ(1,2,ind(:j)),ind(:i),2))
+@test isequal(σ(1,2,ind(:j))*σn(1,2,2),qc.insert_index(σ(1,2,ind(:i))*σ(1,2,ind(:j)),ind(:i),2))
 
 vec1 = qc.appendEach([1,2,3],[3,4,5])
 vec2 = [[1, 3], [1, 4], [1, 5], [2, 3], [2, 4], [2, 5], [3, 3], [3, 4], [3, 5]]
 @test isequal(vec1,vec2)
 
-dict_ = qc.createValueMap(g(ind(:i)),2)
+dict_ = qc.create_value_map(g(ind(:i)),2)
 dict = Dict{SymbolicUtils.Sym{Parameter, Base.ImmutableDict{DataType, Any}},ComplexF64}()
 push!(dict,(qc.SingleNumberedVariable(:g,1) => 2))
 push!(dict,(qc.SingleNumberedVariable(:g,2) => 2))

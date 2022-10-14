@@ -192,7 +192,7 @@ end
 
     SingleNumberedVariable <: numberedVariable
 
-Defines an variable, associated with a Number. Used by [`createValueMap`](@ref)
+Defines an variable, associated with a Number. Used by [`value_map`](@ref)
 
 Fields:
 ======
@@ -214,7 +214,7 @@ end
 
     DoubleNumberedVariable <: numberedVariable
 
-Defines an variable, associated with two Numbers. Used by [`createValueMap`](@ref)
+Defines an variable, associated with two Numbers. Used by [`value_map`](@ref)
 
 Fields:
 ======
@@ -464,47 +464,47 @@ This function creates Numbered- Variables/Operators/Sums upon calls.
 Examples
 ========
 
-    insertIndex(σⱼ²¹,j,1) = σ₁²¹ 
+    insert_index(σⱼ²¹,j,1) = σ₁²¹ 
 
 """
-function insertIndex(sum::SymbolicUtils.Sym{Parameter,IndexedAverageSum}, ind::Index, value::Int64)
+function insert_index(sum::SymbolicUtils.Sym{Parameter,IndexedAverageSum}, ind::Index, value::Int64)
     if ind == sum.metadata.sumIndex
         error("cannot exchange summation index with number!")
     end
     if ind in sum.metadata.nonEqualIndices
         newNEI = filter(x-> x != ind,sum.metadata.nonEqualIndices)
         push!(newNEI,value)
-        return IndexedAverageSum(insertIndex(sum.metadata.term,ind,value),sum.metadata.sumIndex,newNEI)
+        return IndexedAverageSum(insert_index(sum.metadata.term,ind,value),sum.metadata.sumIndex,newNEI)
     else
-        return IndexedAverageSum(insertIndex(sum.metadata.term,ind,value),sum.metadata.sumIndex,sum.metadata.nonEqualIndices)
+        return IndexedAverageSum(insert_index(sum.metadata.term,ind,value),sum.metadata.sumIndex,sum.metadata.nonEqualIndices)
     end
 end
-function insertIndex(sum::SymbolicUtils.Sym{Parameter,IndexedAverageDoubleSum}, ind::Index,value::Int64)
-    inner = insertIndex(sum.metadata.innerSum,ind,value)
+function insert_index(sum::SymbolicUtils.Sym{Parameter,IndexedAverageDoubleSum}, ind::Index,value::Int64)
+    inner = insert_index(sum.metadata.innerSum,ind,value)
     return IndexedAverageDoubleSum(inner,sum.metadata.sumIndex,sum.metadata.nonEqualIndices)
 end
-function insertIndex(term::SymbolicUtils.Mul, ind::Index, value::Int64)
+function insert_index(term::SymbolicUtils.Mul, ind::Index, value::Int64)
     args = []
     for arg in arguments(term)
-        push!(args,insertIndex(arg,ind,value))
+        push!(args,insert_index(arg,ind,value))
     end
     return *(args...)
 end
-function insertIndex(term::SymbolicUtils.Add,ind::Index,value::Int64)
+function insert_index(term::SymbolicUtils.Add,ind::Index,value::Int64)
     args = []
     for arg in arguments(term)
-        push!(args,insertIndex(arg,ind,value))
+        push!(args,insert_index(arg,ind,value))
     end
     return sum(args)
 end
-function insertIndex(term::SymbolicUtils.Pow,ind::Index,value::Int64)
-    return insertIndex(arguments(term)[1],ind,value)^(arguments(term)[2])
+function insert_index(term::SymbolicUtils.Pow,ind::Index,value::Int64)
+    return insert_index(arguments(term)[1],ind,value)^(arguments(term)[2])
 end
-function insertIndex(term::SymbolicUtils.Term{AvgSym,Nothing},ind::Index,value::Int64)
+function insert_index(term::SymbolicUtils.Term{AvgSym,Nothing},ind::Index,value::Int64)
     newargs = []
     if typeof(arguments(term)[1]) <: QMul
         for arg in arguments(term)[1].args_nc
-            push!(newargs,insertIndex(arg,ind,value))
+            push!(newargs,insert_index(arg,ind,value))
         end
         if isempty(newargs)
             return 0
@@ -516,10 +516,10 @@ function insertIndex(term::SymbolicUtils.Term{AvgSym,Nothing},ind::Index,value::
         end
         return average(qmul)
     else
-        return average(insertIndex(arguments(term)[1],ind,value))
+        return average(insert_index(arguments(term)[1],ind,value))
     end
 end
-function insertIndex(term_::Sym{Parameter, DoubleIndexedVariable},ind::Index,value::Int64)
+function insert_index(term_::Sym{Parameter, DoubleIndexedVariable},ind::Index,value::Int64)
     term = term_.metadata
     if term.ind1 == ind && term.ind2 == ind
         return DoubleNumberedVariable(term.name,value,value)
@@ -530,7 +530,7 @@ function insertIndex(term_::Sym{Parameter, DoubleIndexedVariable},ind::Index,val
     end
     return term_
 end
-function insertIndex(term::SymbolicUtils.Sym{Parameter,numberedVariable},ind::Index,value::Int64)
+function insert_index(term::SymbolicUtils.Sym{Parameter,numberedVariable},ind::Index,value::Int64)
     if typeof(term.metadata) == SingleNumberedVariable
         return term
     end
@@ -542,9 +542,9 @@ function insertIndex(term::SymbolicUtils.Sym{Parameter,numberedVariable},ind::In
     end
     return term
 end
-function insertIndex(term::SymbolicUtils.Sym{Parameter,SpecialIndexedAverage},ind::Index,value::Int64)
+function insert_index(term::SymbolicUtils.Sym{Parameter,SpecialIndexedAverage},ind::Index,value::Int64)
     meta = term.metadata
-    newterm = insertIndex(meta.term,ind,value)
+    newterm = insert_index(meta.term,ind,value)
     newMapping = Tuple{indornum,indornum}[]
     for tuple in meta.indexMapping
         if first(tuple) == ind
@@ -564,18 +564,18 @@ function insertIndex(term::SymbolicUtils.Sym{Parameter,SpecialIndexedAverage},in
     filter!(x -> !(typeof(first(x)) == Int64 && typeof(last(x)) == Int64),newMapping)
     return SpecialIndexedAverage(newterm,newMapping)
 end
-function insertIndex(qmul::QMul,ind::Index,to::Int64)
+function insert_index(qmul::QMul,ind::Index,to::Int64)
     args_after = []
     for arg in qmul.args_nc
-        push!(args_after,insertIndex(arg,ind,to))
+        push!(args_after,insert_index(arg,ind,to))
     end
     sort!(args_after, by=getNumber)
     return *(qmul.arg_c,args_after...)
 end
-insertIndex(eq::Symbolics.Equation,ind::Index,value::Int64) = Symbolics.Equation(insertIndex(eq.lhs,ind,value),insertIndex(eq.rhs,ind,value))
-insertIndex(term::IndexedOperator,ind::Index,value::Int64) = term.ind == ind ? NumberedOperator(term.op,value) : term
-insertIndex(term::SymbolicUtils.Sym{Parameter,IndexedVariable},ind::Index,value::Int64) = term.metadata.ind == ind ? SingleNumberedVariable(term.metadata.name,value) : term
-insertIndex(x,ind::Index,value::Int64) = x
+insert_index(eq::Symbolics.Equation,ind::Index,value::Int64) = Symbolics.Equation(insert_index(eq.lhs,ind,value),insert_index(eq.rhs,ind,value))
+insert_index(term::IndexedOperator,ind::Index,value::Int64) = term.ind == ind ? NumberedOperator(term.op,value) : term
+insert_index(term::SymbolicUtils.Sym{Parameter,IndexedVariable},ind::Index,value::Int64) = term.metadata.ind == ind ? SingleNumberedVariable(term.metadata.name,value) : term
+insert_index(x,ind::Index,value::Int64) = x
 """
     insertIndices(eq::Symbolics.Equation,map::Dict{Index,Int64};mapping::Dict{SymbolicUtils.Sym,Int64}=Dict{Symbol,Int64}())
 
@@ -598,7 +598,7 @@ function insertIndices(eq::Symbolics.Equation,map::Dict{Index,Int64};mapping::Di
     eq_ = eq
     while !isempty(map)
         pair = first(map)
-        eq_ = insertIndex(eq_,first(pair),last(pair))
+        eq_ = insert_index(eq_,first(pair),last(pair))
         delete!(map,first(pair))
     end
     return evalEq(eq_;mapping) #return finished equation
@@ -747,7 +747,7 @@ function appendEach(vec1,vec2)
     end
     return vecf
 end
-function evalTerm(sum_::SymbolicUtils.Sym{Parameter,IndexedAverageSum};mapping::Dict{SymbolicUtils.Sym,Int64}=Dict{SymbolicUtils.Sym,Int64}())
+function eval_term(sum_::SymbolicUtils.Sym{Parameter,IndexedAverageSum};mapping::Dict{SymbolicUtils.Sym,Int64}=Dict{SymbolicUtils.Sym,Int64}())
     rangeEval = 0
     if sum_.metadata.sumIndex.rangeN in keys(mapping)
         rangeEval = mapping[sum_.metadata.sumIndex.rangeN]
@@ -769,7 +769,7 @@ function evalTerm(sum_::SymbolicUtils.Sym{Parameter,IndexedAverageSum};mapping::
         if i in sum_.metadata.nonEqualIndices
             continue
         end
-        adds[i]=orderTermsByNumber(insertIndex(sum_.metadata.term,sum_.metadata.sumIndex,i))
+        adds[i]=orderTermsByNumber(insert_index(sum_.metadata.term,sum_.metadata.sumIndex,i))
     end
     filter!(x->x!=nothing,adds)
     if isempty(adds)
@@ -779,13 +779,13 @@ function evalTerm(sum_::SymbolicUtils.Sym{Parameter,IndexedAverageSum};mapping::
     end
     return sum(adds)
 end
-function evalTerm(sum::SymbolicUtils.Sym{Parameter,IndexedAverageDoubleSum};mapping::Dict{SymbolicUtils.Sym,Int64})
-    return evalTerm(IndexedAverageDoubleSum(evalTerm(sum.metadata.innerSum;mapping),sum.metadata.sumIndex,sum.metadata.nonEqualIndices);mapping)
+function eval_term(sum::SymbolicUtils.Sym{Parameter,IndexedAverageDoubleSum};mapping::Dict{SymbolicUtils.Sym,Int64})
+    return eval_term(IndexedAverageDoubleSum(eval_term(sum.metadata.innerSum;mapping),sum.metadata.sumIndex,sum.metadata.nonEqualIndices);mapping)
 end
-function evalTerm(term::SymbolicUtils.Mul;mapping::Dict{SymbolicUtils.Sym,Int64}=Dict{SymbolicUtils.Sym,Int64}()) 
+function eval_term(term::SymbolicUtils.Mul;mapping::Dict{SymbolicUtils.Sym,Int64}=Dict{SymbolicUtils.Sym,Int64}()) 
     mults = []
     for arg in arguments(term)
-        push!(mults,evalTerm(arg;mapping))
+        push!(mults,eval_term(arg;mapping))
     end
     if isempty(mults)
         return 0
@@ -794,10 +794,10 @@ function evalTerm(term::SymbolicUtils.Mul;mapping::Dict{SymbolicUtils.Sym,Int64}
     end
     return *(mults...)
 end
-function evalTerm(term::SymbolicUtils.Add;mapping::Dict{SymbolicUtils.Sym,Int64}=Dict{SymbolicUtils.Sym,Int64}()) 
+function eval_term(term::SymbolicUtils.Add;mapping::Dict{SymbolicUtils.Sym,Int64}=Dict{SymbolicUtils.Sym,Int64}()) 
     adds = []
     for arg in arguments(term)
-        push!(adds,evalTerm(arg;mapping))
+        push!(adds,eval_term(arg;mapping))
     end
     if isempty(adds)
         return 0
@@ -806,8 +806,8 @@ function evalTerm(term::SymbolicUtils.Add;mapping::Dict{SymbolicUtils.Sym,Int64}
     end
     return sum(adds)
 end
-evalTerm(x;mapping::Dict{SymbolicUtils.Sym,Int64}) = x
-evalEq(eq::Symbolics.Equation;mapping::Dict{SymbolicUtils.Sym,Int64}=Dict{SymbolicUtils.Sym,Int64}()) = Symbolics.Equation(eq.lhs,evalTerm(eq.rhs;mapping))
+eval_term(x;mapping::Dict{SymbolicUtils.Sym,Int64}) = x
+evalEq(eq::Symbolics.Equation;mapping::Dict{SymbolicUtils.Sym,Int64}=Dict{SymbolicUtils.Sym,Int64}()) = Symbolics.Equation(eq.lhs,eval_term(eq.rhs;mapping))
 
 getLHS(eq::Symbolics.Equation) = eq.lhs
 getLHS(x) = []
@@ -849,9 +849,9 @@ Base.:(==)(term1::Term{AvgSym, Nothing},term2::Term{AvgSym, Nothing}) = isequal(
 
 #Value map creation, for easier inserting into the ODEProblem
 """
-    createValueMap(sym::Sym{Parameter, IndexedVariable}, values::Vector;mapping::Dict{SymbolicUtils.Sym,Int64}=Dict{SymbolicUtils.Sym,Int64}())
-    createValueMap(sym::Sym{Parameter, IndexedVariable}, value::Number)
-    createValueMap(sym::Sym{Parameter,DoubleIndexedVariable},values::Matrix;mapping::Dict{SymbolicUtils.Sym,Int64}=Dict{SymbolicUtils.Sym,Int64}())
+    create_value_map(sym::Sym{Parameter, IndexedVariable}, values::Vector;mapping::Dict{SymbolicUtils.Sym,Int64}=Dict{SymbolicUtils.Sym,Int64}())
+    create_value_map(sym::Sym{Parameter, IndexedVariable}, value::Number)
+    create_value_map(sym::Sym{Parameter,DoubleIndexedVariable},values::Matrix;mapping::Dict{SymbolicUtils.Sym,Int64}=Dict{SymbolicUtils.Sym,Int64}())
 
 Function, that creates a Dictionary, for which a indexedVariable is associated with a series of (number) values. The dictionary contains Symbols of either [`SingleNumberedVariable`](@ref)
 or [`DoubleNumberedVariables`](@ref) as keys and the values as values. For a Single-indexed variable, one can
@@ -869,7 +869,7 @@ only a single value, then all possible numbered-Variables are set to the same va
     by a Symbolic.
 
 """
-function createValueMap(sym::Sym{Parameter, IndexedVariable}, values::Vector;mapping::Dict{SymbolicUtils.Sym,Int64}=Dict{SymbolicUtils.Sym,Int64}())
+function create_value_map(sym::Sym{Parameter, IndexedVariable}, values::Vector;mapping::Dict{SymbolicUtils.Sym,Int64}=Dict{SymbolicUtils.Sym,Int64}())
     iVar = sym.metadata
     if iVar.ind.rangeN isa SymbolicUtils.Sym
         if iVar.ind.rangeN in keys(mapping)
@@ -889,7 +889,7 @@ function createValueMap(sym::Sym{Parameter, IndexedVariable}, values::Vector;map
     end
     return dict
 end
-function createValueMap(sym::Sym{Parameter, IndexedVariable}, value::Number)
+function create_value_map(sym::Sym{Parameter, IndexedVariable}, value::Number)
     iVar = sym.metadata
     dict = Dict{Sym{Parameter, Base.ImmutableDict{DataType, Any}},ComplexF64}()
     if iVar.ind.rangeN isa SymbolicUtils.Sym
@@ -906,7 +906,7 @@ function createValueMap(sym::Sym{Parameter, IndexedVariable}, value::Number)
     end
     return dict
 end
-function createValueMap(sym::Sym{Parameter,DoubleIndexedVariable},values::Matrix;mapping::Dict{SymbolicUtils.Sym,Int64}=Dict{SymbolicUtils.Sym,Int64}())
+function create_value_map(sym::Sym{Parameter,DoubleIndexedVariable},values::Matrix;mapping::Dict{SymbolicUtils.Sym,Int64}=Dict{SymbolicUtils.Sym,Int64}())
     dict = Dict{Sym{Parameter, Base.ImmutableDict{DataType, Any}},ComplexF64}()
     var = sym.metadata
     if var.ind1.rangeN isa SymbolicUtils.Sym
@@ -1046,7 +1046,7 @@ function simplifyMeanfieldEquations(me::AbstractMeanfieldEquations)
     end
 end 
 
-#functions for simplifying the indexedComplete function
+#functions for simplifying the indexed_complete function
 function getOps(sum::SymbolicUtils.Sym{Parameter,IndexedAverageSum})
     term = sum.metadata.term
     if typeof(term) == Term{AvgSym, Nothing}

@@ -11,8 +11,9 @@ First of all we need to load the needed packages:
 
 ```@example superradiant_laser_indexed
 using QuantumCumulants
-using ModelingToolkit, DifferentialEquations, OrdinaryDiffEq, SteadyStateDiffEq
+using OrdinaryDiffEq, SteadyStateDiffEq, ModelingToolkit, DifferentialEquations
 using Plots
+nothing #hide
 ```
 
 We continue by defining some of our parameters needed as $@cnumbers$, as well as the order of the cumulant expansion we want to have. Further more we define the Hilberspaces for our system, in this case our system consists of a **FockSpace** (the cavity) and a **NLevelSpace** (the atoms). It is important to note here, that we do not need to construct multiple **NLevelSpaces** for different atoms, since we can use the features of indices, which allow us to distinguish between different atoms in the calculation.
@@ -27,7 +28,10 @@ hc = FockSpace(:cavity)
 ha = NLevelSpace(:atom,2)
 
 h = hc ⊗ ha
+nothing #hide
 ```
+
+    ℋ(cavity) ⊗ ℋ(atom)
 
 In the next step we define those indices by using the constructor **Index**. Here we create several indices at once, since we want to use different indices for different atoms. However, each of the defined **Index** objects has the same range **N** and are defined on the same sub-Hilbertspace **ha**. We can further use these indices to define **IndexedOperator** objects, which are operators associated with an **Index**. Here we also create the Hamiltonian of the System using the symbolic Summation function **Σ**, which creates summation objects.
 
@@ -65,14 +69,14 @@ ops = [a'*a,σ(2,2,k)]
 # It is best-practice to use every Index-Entity in only one context
 
 # create Meanfield-Equations with given order for the given operators
-eqs = indexedMeanfield(ops,H,J;rates=rates,order=order)
+eqs = indexed_meanfield(ops,H,J;rates=rates,order=order)
 nothing #hide
 ```
 
 ```math
 \begin{align}
 \frac{d}{dt} \langle a^\dagger  a\rangle  =& 1 i \underset{i}{\overset{N}{\sum}} g  \langle a  {\sigma}_{i}^{{21}}\rangle  -1 i \underset{i}{\overset{N}{\sum}} g  \langle a^\dagger  {\sigma}_{i}^{{12}}\rangle  -1.0 \kappa \langle a^\dagger  a\rangle  \\
-\frac{d}{dt} \langle {\sigma}_{k}^{{22}}\rangle  =& R -1.0 R \langle {\sigma}_{k}^{{22}}\rangle  -1.0 \Gamma \langle {\sigma}_{k}^{{22}}\rangle  + 1 i g \langle a^\dagger  {\sigma}_{k}^{{12}}\rangle  -1 i g \langle a  {\sigma}_{k}^{{21}}\rangle
+\frac{d}{dt} \langle {\sigma}_{k}^{{22}}\rangle  =& R -1.0 R \langle {\sigma}_{k}^{{22}}\rangle  + 1 i g \langle a^\dagger  {\sigma}_{k}^{{12}}\rangle  -1.0 \Gamma \langle {\sigma}_{k}^{{22}}\rangle  -1 i g \langle a  {\sigma}_{k}^{{21}}\rangle 
 \end{align}
 ```
 
@@ -96,16 +100,16 @@ phase_invariant(x) = iszero(φ(x))
 
 
 # We use the extraIndices keyword to provide names for indices, that are needed for intermediate calculation
-eqs_c = complete(eqs;filter_func=phase_invariant,scaling=false,extraIndices=[:q,:r])
-nothing #hide
+eqs_c = complete(eqs;filter_func=phase_invariant,scaling=false,extra_indices=[:q])
+nothing # hide
 ```
 
 ```math
 \begin{align}
 \frac{d}{dt} \langle a^\dagger  a\rangle  =& 1 i \underset{i}{\overset{N}{\sum}} g  \langle a  {\sigma}_{i}^{{21}}\rangle  -1 i \underset{i}{\overset{N}{\sum}} g  \langle a^\dagger  {\sigma}_{i}^{{12}}\rangle  -1.0 \kappa \langle a^\dagger  a\rangle  \\
-\frac{d}{dt} \langle {\sigma}_{k}^{{22}}\rangle  =& R -1.0 R \langle {\sigma}_{k}^{{22}}\rangle  -1.0 \Gamma \langle {\sigma}_{k}^{{22}}\rangle  + 1 i g \langle a^\dagger  {\sigma}_{k}^{{12}}\rangle  -1 i g \langle a  {\sigma}_{k}^{{21}}\rangle  \\
-\frac{d}{dt} \langle a^\dagger  {\sigma}_{k}^{{12}}\rangle  =& 1 i \underset{i{\ne}k}{\overset{N}{\sum}} g  \langle {\sigma}_{i}^{{21}}  {\sigma}_{k}^{{12}}\rangle  + 1 i g \langle {\sigma}_{k}^{{22}}\rangle  -0.5 R \langle a^\dagger  {\sigma}_{k}^{{12}}\rangle  -0.5 \Gamma \langle a^\dagger  {\sigma}_{k}^{{12}}\rangle  -0.5 \kappa \langle a^\dagger  {\sigma}_{k}^{{12}}\rangle  -1 i g \langle a^\dagger  a\rangle  -1 i \Delta \langle a^\dagger  {\sigma}_{k}^{{12}}\rangle  -0.5 \nu \langle a^\dagger  {\sigma}_{k}^{{12}}\rangle  + 2 i g \langle {\sigma}_{k}^{{22}}\rangle  \langle a^\dagger  a\rangle  \\
-\frac{d}{dt} \langle {\sigma}_{k}^{{12}}  {\sigma}_{q}^{{21}}\rangle  =& 1.0 i g \langle a^\dagger  {\sigma}_{k}^{{12}}\rangle  -1.0 R \langle {\sigma}_{k}^{{12}}  {\sigma}_{q}^{{21}}\rangle  -1.0 \Gamma \langle {\sigma}_{k}^{{12}}  {\sigma}_{q}^{{21}}\rangle  -1.0 \nu \langle {\sigma}_{k}^{{12}}  {\sigma}_{q}^{{21}}\rangle  -1.0 i g \langle a  {\sigma}_{q}^{{21}}\rangle  -2.0 i g \langle {\sigma}_{q}^{{22}}\rangle  \langle a^\dagger  {\sigma}_{k}^{{12}}\rangle  + 2.0 i g \langle {\sigma}_{k}^{{22}}\rangle  \langle a  {\sigma}_{q}^{{21}}\rangle
+\frac{d}{dt} \langle {\sigma}_{k}^{{22}}\rangle  =& R -1.0 R \langle {\sigma}_{k}^{{22}}\rangle  + 1 i g \langle a^\dagger  {\sigma}_{k}^{{12}}\rangle  -1.0 \Gamma \langle {\sigma}_{k}^{{22}}\rangle  -1 i g \langle a  {\sigma}_{k}^{{21}}\rangle  \\
+\frac{d}{dt} \langle a^\dagger  {\sigma}_{k}^{{12}}\rangle  =& 1 i \underset{i{\ne}k}{\overset{N}{\sum}} g  \langle {\sigma}_{i}^{{21}}  {\sigma}_{k}^{{12}}\rangle  + 1 i g \langle {\sigma}_{k}^{{22}}\rangle  -1 i g \langle a^\dagger  a\rangle  -0.5 R \langle a^\dagger  {\sigma}_{k}^{{12}}\rangle  -0.5 \Gamma \langle a^\dagger  {\sigma}_{k}^{{12}}\rangle  -0.5 \kappa \langle a^\dagger  {\sigma}_{k}^{{12}}\rangle  -0.5 \nu \langle a^\dagger  {\sigma}_{k}^{{12}}\rangle  -1 i \Delta \langle a^\dagger  {\sigma}_{k}^{{12}}\rangle  + 2 i g \langle {\sigma}_{k}^{{22}}\rangle  \langle a^\dagger  a\rangle  \\
+\frac{d}{dt} \langle {\sigma}_{k}^{{12}}  {\sigma}_{q}^{{21}}\rangle  =& -1.0 R \langle {\sigma}_{k}^{{12}}  {\sigma}_{q}^{{21}}\rangle  -1.0 \Gamma \langle {\sigma}_{k}^{{12}}  {\sigma}_{q}^{{21}}\rangle  -1.0 \nu \langle {\sigma}_{k}^{{12}}  {\sigma}_{q}^{{21}}\rangle  + 1.0 i g \langle a^\dagger  {\sigma}_{k}^{{12}}\rangle  -1.0 i g \langle a  {\sigma}_{q}^{{21}}\rangle  -2.0 i g \langle {\sigma}_{q}^{{22}}\rangle  \langle a^\dagger  {\sigma}_{k}^{{12}}\rangle  + 2.0 i g \langle {\sigma}_{k}^{{22}}\rangle  \langle a  {\sigma}_{q}^{{21}}\rangle 
 \end{align}
 ```
 
@@ -123,11 +127,12 @@ nothing #hide
 ```math
 \begin{align}
 \frac{d}{dt} \langle a^\dagger  a\rangle  =& -1.0 \kappa \langle a^\dagger  a\rangle  -1 i N g \langle a^\dagger  {\sigma}_{1}^{{12}}\rangle  + 1 i N g \langle a^\dagger  {\sigma}_{1}^{{12}}\rangle ^* \\
-\frac{d}{dt} \langle {\sigma}_{1}^{{22}}\rangle  =& R -1.0 R \langle {\sigma}_{1}^{{22}}\rangle  -1.0 \Gamma \langle {\sigma}_{1}^{{22}}\rangle  + 1 i g \langle a^\dagger  {\sigma}_{1}^{{12}}\rangle  -1 i g \langle a^\dagger  {\sigma}_{1}^{{12}}\rangle ^* \\
-\frac{d}{dt} \langle a^\dagger  {\sigma}_{1}^{{12}}\rangle  =& 1 i g \langle {\sigma}_{1}^{{22}}\rangle  -0.5 R \langle a^\dagger  {\sigma}_{1}^{{12}}\rangle  -1 i g \langle a^\dagger  a\rangle  -0.5 \Gamma \langle a^\dagger  {\sigma}_{1}^{{12}}\rangle  -0.5 \kappa \langle a^\dagger  {\sigma}_{1}^{{12}}\rangle  -0.5 \nu \langle a^\dagger  {\sigma}_{1}^{{12}}\rangle  -1 i \Delta \langle a^\dagger  {\sigma}_{1}^{{12}}\rangle  + 1 i g \left( -1 + N \right) \langle {\sigma}_{1}^{{12}}  {\sigma}_{2}^{{21}}\rangle  + 2 i g \langle {\sigma}_{1}^{{22}}\rangle  \langle a^\dagger  a\rangle  \\
-\frac{d}{dt} \langle {\sigma}_{1}^{{12}}  {\sigma}_{2}^{{21}}\rangle  =& 1.0 i g \langle a^\dagger  {\sigma}_{1}^{{12}}\rangle  -1.0 R \langle {\sigma}_{1}^{{12}}  {\sigma}_{2}^{{21}}\rangle  -1.0 \Gamma \langle {\sigma}_{1}^{{12}}  {\sigma}_{2}^{{21}}\rangle  -1.0 \nu \langle {\sigma}_{1}^{{12}}  {\sigma}_{2}^{{21}}\rangle  -1.0 i g \langle a^\dagger  {\sigma}_{1}^{{12}}\rangle ^* -2.0 i g \langle {\sigma}_{1}^{{22}}\rangle  \langle a^\dagger  {\sigma}_{1}^{{12}}\rangle  + 2.0 i g \langle {\sigma}_{1}^{{22}}\rangle  \langle a^\dagger  {\sigma}_{1}^{{12}}\rangle ^*
+\frac{d}{dt} \langle {\sigma}_{1}^{{22}}\rangle  =& R -1.0 R \langle {\sigma}_{1}^{{22}}\rangle  + 1 i g \langle a^\dagger  {\sigma}_{1}^{{12}}\rangle  -1 i g \langle a^\dagger  {\sigma}_{1}^{{12}}\rangle ^* -1.0 \Gamma \langle {\sigma}_{1}^{{22}}\rangle  \\
+\frac{d}{dt} \langle a^\dagger  {\sigma}_{1}^{{12}}\rangle  =& 1 i g \langle {\sigma}_{1}^{{22}}\rangle  -1 i g \langle a^\dagger  a\rangle  -0.5 R \langle a^\dagger  {\sigma}_{1}^{{12}}\rangle  -0.5 \Gamma \langle a^\dagger  {\sigma}_{1}^{{12}}\rangle  -0.5 \kappa \langle a^\dagger  {\sigma}_{1}^{{12}}\rangle  -1 i \Delta \langle a^\dagger  {\sigma}_{1}^{{12}}\rangle  -0.5 \nu \langle a^\dagger  {\sigma}_{1}^{{12}}\rangle  + 2 i g \langle {\sigma}_{1}^{{22}}\rangle  \langle a^\dagger  a\rangle  + 1 i g \left( -1 + N \right) \langle {\sigma}_{1}^{{12}}  {\sigma}_{2}^{{21}}\rangle  \\
+\frac{d}{dt} \langle {\sigma}_{1}^{{12}}  {\sigma}_{2}^{{21}}\rangle  =& -1.0 R \langle {\sigma}_{1}^{{12}}  {\sigma}_{2}^{{21}}\rangle  -1.0 \Gamma \langle {\sigma}_{1}^{{12}}  {\sigma}_{2}^{{21}}\rangle  -1.0 \nu \langle {\sigma}_{1}^{{12}}  {\sigma}_{2}^{{21}}\rangle  + 1.0 i g \langle a^\dagger  {\sigma}_{1}^{{12}}\rangle  -1.0 i g \langle a^\dagger  {\sigma}_{1}^{{12}}\rangle ^* -2.0 i g \langle {\sigma}_{1}^{{22}}\rangle  \langle a^\dagger  {\sigma}_{1}^{{12}}\rangle  + 2.0 i g \langle {\sigma}_{1}^{{22}}\rangle  \langle a^\dagger  {\sigma}_{1}^{{12}}\rangle ^*
 \end{align}
 ```
+
 
 
 To calculate the dynamics of the system we create a system of ordinary differential equations, which can be used by [DifferentialEquations.jl](https://diffeq.sciml.ai/stable/). Furthermore we define the numerical parameters as well as the initial state of the system and solve the system in the next step.
@@ -168,23 +173,20 @@ s22 = real.(sol[σ(2,2,1)])
 p1 = plot(t, n, xlabel="tΓ", ylabel="⟨a⁺a⟩", legend=false)
 p2 = plot(t, s22, xlabel="tΓ", ylabel="⟨σ22⟩", legend=false)
 plot(p1, p2, layout=(1,2), size=(700,300))
-savefig("superradiant_laser_indexed_time.svg") # hide
+savefig("superradiant_laser_indexed.svg") # hide
 ```
 
+![svg](superradiant_laser_indexed.svg)    
 
-![svg](superradiant_laser_indexed_time.svg)
-
-
-
-
-## Spectrum
+# Spectrum
 
 We can now calculate the spectrum using the Laplace transform of the two-ime correlation function. This is done here with the **Spectrum** function.
 
 
 ```@example superradiant_laser_indexed
-# For the Spectrum
-corr = CorrelationFunction(a', a, eqs_c; steady_state=true, filter_func=phase_invariant,extraIndices=[:q,:r],scaling=true);
+# For the Spectrum 
+# setting the scaling keyword attribute to true gives us again a output in similar form to scale(eqs_c)
+corr = CorrelationFunction(a', a, eqs_c; steady_state=true, filter_func=phase_invariant,extra_indices=[:q],scaling=true);
 S = Spectrum(corr, ps)
 nothing #hide
 ```
@@ -199,12 +201,10 @@ nothing #hide
 
 ```math
 \begin{align}
-\frac{d}{d\tau} \langle a^\dagger  a_0\rangle  =& -1 i \Delta \langle a^\dagger  a_0\rangle  -0.5 \kappa \langle a^\dagger  a_0\rangle  + 1 i N g \langle a_0  {\sigma}_{1}^{{21}}\rangle  \\
-\frac{d}{d\tau} \langle a_0  {\sigma}_{1}^{{21}}\rangle  =& -0.5 R \langle a_0  {\sigma}_{1}^{{21}}\rangle  + 1 i g \langle a^\dagger  a_0\rangle  -0.5 \Gamma \langle a_0  {\sigma}_{1}^{{21}}\rangle  -0.5 \nu \langle a_0  {\sigma}_{1}^{{21}}\rangle  -2 i g \langle {\sigma}_{1}^{{22}}\rangle  \langle a^\dagger  a_0\rangle
+\frac{d}{d\tau} \langle a^\dagger  a_0\rangle  =& -0.5 \kappa \langle a^\dagger  a_0\rangle  -1 i \Delta \langle a^\dagger  a_0\rangle  + 1 i N g \langle a_0  {\sigma}_{1}^{{21}}\rangle  \\
+\frac{d}{d\tau} \langle a_0  {\sigma}_{1}^{{21}}\rangle  =& -0.5 R \langle a_0  {\sigma}_{1}^{{21}}\rangle  -0.5 \Gamma \langle a_0  {\sigma}_{1}^{{21}}\rangle  -0.5 \nu \langle a_0  {\sigma}_{1}^{{21}}\rangle  + 1 i g \langle a^\dagger  a_0\rangle  -2 i g \langle {\sigma}_{1}^{{22}}\rangle  \langle a^\dagger  a_0\rangle 
 \end{align}
 ```
-
-
 
 To ensure we are in the steady state we use a steady solver to calculate it. To this end we need to define the SteadyStateProblem and specify the desired method. We also need to increase the maxiters and the solver accuracy to handle this numerically involved problem.
 
@@ -228,8 +228,9 @@ nothing #hide
 
 ```@example superradiant_laser_indexed
 plot(ω, spec_n, xlabel="ω/Γ", legend=false, size=(500,300))
-savefig("superradiant_laser_indexed_spec.svg") # hide
+savefig("superradiant_laser_indexed_spectrum.svg") # hide
 ```
 
 
-![svg](superradiant_laser_indexed_spec.svg)
+    
+![svg](superradiant_laser_indexed_spectrum.svg)

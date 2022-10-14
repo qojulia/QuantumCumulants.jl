@@ -20,15 +20,15 @@ k_ind = Index(h,:k,N,ha)
 
 #define indexed variables
 g(k) = IndexedVariable(:g,k)
-Γ_ij = DoubleIndexedVariable(:Γ,i_ind,j_ind,true)
-Ω_ij = DoubleIndexedVariable(:Ω,i_ind,j_ind,false)
+Γ_ij = DoubleIndexedVariable(:Γ,i_ind,j_ind)
+Ω_ij = DoubleIndexedVariable(:Ω,i_ind,j_ind;can_have_same=false)
 
 @qnumbers a::Destroy(h)
 σ(i,j,k) = IndexedOperator(Transition(h,:σ,i,j),k)
 
 # Hamiltonian
 
-DSum = Σ(Ω_ij*σ(2,1,i_ind)*σ(1,2,j_ind),j_ind,i_ind,true)
+DSum = Σ(Ω_ij*σ(2,1,i_ind)*σ(1,2,j_ind),j_ind,i_ind;non_equal=true)
 
 @test DSum isa IndexedDoubleSum
 @test isequal(Σ(Σ(Ω_ij*σ(2,1,i_ind)*σ(1,2,j_ind),i_ind,[j_ind]),j_ind),DSum)
@@ -42,7 +42,7 @@ J = [a, [σ(1,2,i_ind),σ(1,2,j_ind)] ]
 rates = [κ,Γ_ij]
 
 ops = [a, σ(2,2,k_ind), σ(1,2,k_ind)]
-eqs = indexedMeanfield(ops,H,J;rates=rates,order=order)
+eqs = indexed_meanfield(ops,H,J;rates=rates,order=order)
 
 @test length(eqs) == 3
 
@@ -50,8 +50,8 @@ ind1 = Index(h,:q,N,ha)
 ind2 = Index(h,:r,N,ha)
 ind3 = Index(h,:s,N,ha)
 
-eqs_comp = complete(eqs;extraIndices=[ind1,ind2,ind3])
-eqs_comp2 = complete(eqs;extraIndices=[:q,:r,:s])
+eqs_comp = complete(eqs;extra_indices=[ind1,ind2,ind3])
+eqs_comp2 = complete(eqs;extra_indices=[:q,:r,:s])
 
 for i=1:length(eqs_comp)
     @test isequal(length(arguments(eqs_comp[i].rhs)),length(arguments(eqs_comp2[i].rhs)))
@@ -60,7 +60,7 @@ eqs_ = evaluate(eqs_comp)
 
 @test length(eqs_) == 18
 
-eqs_4 = indexedMeanfield(ops,H,J;rates=rates,order=4)
+eqs_4 = indexed_meanfield(ops,H,J;rates=rates,order=4)
 
 @test length(eqs_4) == length(eqs)
 
