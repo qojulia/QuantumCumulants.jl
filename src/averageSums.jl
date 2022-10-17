@@ -949,31 +949,6 @@ function containsIndexedOps(term::SymbolicUtils.Term{AvgSym, Nothing})
     end
     return found
 end
-function getIndices(term::SymbolicUtils.Term{AvgSym, Nothing})
-    arg_ = arguments(term)
-    indices = []
-    if typeof(arg_[1]) <: QMul
-        for arg in arg_[1].args_nc
-            if typeof(arg) == IndexedOperator && arg.ind ∉ indices
-                push!(indices, arg.ind)
-            end
-        end
-    elseif typeof(arg_[1]) == IndexedOperator
-        return [arg_[1].ind]
-    end
-    return indices
-end
-function getIndices(term::SymbolicUtils.Mul)
-    indices = []
-    for arg in arguments(term)
-        for ind in getIndices(arg)
-            if ind ∉ indices
-                push!(indices,ind)
-            end
-        end
-    end
-    return indices
-end
 containsIndex(term::SymbolicUtils.Term{AvgSym,Nothing},ind::Index) = ind ∈ getIndices(term)
 
 #simplify functions not "really" needed, they are nice to have, since equation creation of Symbolics sometimes does not simplify certain terms

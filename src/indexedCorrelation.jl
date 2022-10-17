@@ -63,15 +63,18 @@ function IndexedCorrelationFunction(op1,op2,de0::AbstractMeanfieldEquations;
     filter_func=nothing, mix_choice=maximum,
     iv=SymbolicUtils.Sym{Real}(:τ),
     order=nothing,
-    extra_indices::Vector=[],
+    extra_indices::Vector=[:i,:j,:k,:l,:m,:n,:p,:q,:r,:s,:t],
     scaling::Bool=false,
     simplify=true, kwargs...)
     h1 = hilbert(op1)
     h2 = _new_hilbert(hilbert(op2), acts_on(op2))
     h = h1⊗h2
-    
+
+    allInds = getAllIndices(de0)
+    filter!(x -> x ∉ getIndName.(allInds),extra_indices)
+
     extra_inds = copy(extra_indices)
-    extras_ = _new_indices(getAllIndices(de0.states),h)
+    extras_ = _new_indices(getAllIndices(de0.states),h) #the extra indices used in the equations beforehand
 
     H0 = de0.hamiltonian
     J0 = de0.jumps
@@ -173,10 +176,14 @@ function indexed_complete_corr!(de,aon0,lhs_new,order,steady_state,de0;
     Jd = de.jumps_dagger
     rates = de.rates
 
-    indices_ = copy(extra_indices)
-    maxNumb = maximum(length.(getIndices.(de.operators)))
+    extras = copy(extra_indices)
+    maxNumb = maximum(length.(getIndices.(de0.operators)))
 
     sort!(extra_indices)
+
+    if isempty(extra_indices)
+        error("can not complete equations with empty extra_indices!")
+    end
 
     for ind in extra_indices
         if typeof(ind) != typeof(extra_indices[1])
@@ -205,7 +212,7 @@ function indexed_complete_corr!(de,aon0,lhs_new,order,steady_state,de0;
     filter!(!in(vhash), vs′hash)
     missed = find_missing(de.equations, vhash, vs′hash; get_adjoints=false)
     
-    missed = find_missing_sums(missed,de;extra_indices=extra_indices,scaling=scaling,indices=indices_)
+    missed = find_missing_sums(missed,de;extra_indices=extra_indices,scaling=scaling)
     missed = findMissingSpecialTerms(missed,de;scaling=scaling)
     
     missed = sortByIndex.(missed)
@@ -257,7 +264,7 @@ function indexed_complete_corr!(de,aon0,lhs_new,order,steady_state,de0;
 
         missed = find_missing(me.equations, vhash, vs′hash; get_adjoints=false)
         
-        missed = find_missing_sums(missed,de;extra_indices=extra_indices,scaling=scaling,indices=indices_)
+        missed = find_missing_sums(missed,de;extra_indices=extra_indices,scaling=scaling)
         missed = findMissingSpecialTerms(missed,de;scaling=scaling)
         
         missed = sortByIndex.(missed)
@@ -269,14 +276,13 @@ function indexed_complete_corr!(de,aon0,lhs_new,order,steady_state,de0;
             minds = getIndices(missed[i])
             newMinds = copy(minds)
             for ind1 in minds
-                extras=filterExtras(ind1,indices_)
-                sort!(extras)
-                for ind2 in extras
-                    if ind2 < ind1 && ind2 ∉ newMinds #this might go somewhat easier, maybe delete ind2 out of extras after each replacement somehow
-                        missed[i] = change_index(missed[i],ind1,ind2)
+                extras_=filterExtras(ind1,extras)
+                for k = 1:length(extras_)
+                    if findall(x->isequal(x,ind1),extras_)[1] > k && extras_[k] ∉ newMinds #this might go somewhat easier, maybe delete ind2 out of extras after each replacement somehow
+                        missed[i] = change_index(missed[i],ind1,extras_[k])
                         newMinds = getIndices(missed[i])
                         break
-                    elseif ind2 >= ind1
+                    elseif findall(x->isequal(x,ind1),extras_)[1] <= k
                         break
                     end
                 end
@@ -294,7 +300,7 @@ function indexed_complete_corr!(de,aon0,lhs_new,order,steady_state,de0;
         # but still occur on the RHS; set those to 0
         missed = find_missing(de.equations, vhash, vs′hash; get_adjoints=false)
         if order != 1
-            missed = find_missing_sums(missed,de;extra_indices=extra_indices,checking=false,scaling=false,indices=indices_)
+            missed = find_missing_sums(missed,de;extra_indices=extra_indices,checking=false,scaling=false)
             missed = findMissingSpecialTerms(missed,de;scaling=false)
         end
         missed_ = sortByIndex.(missed)

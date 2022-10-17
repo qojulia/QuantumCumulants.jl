@@ -63,6 +63,7 @@ include("averageSums.jl")
 include("indexedMeanfield.jl")
 include("indexedScale.jl")
 include("indexedCorrelation.jl")
+include("index_utils.jl")
 
 @deprecate heisenberg(args...; kwargs...) meanfield(args...; kwargs...)
 

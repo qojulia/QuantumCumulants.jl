@@ -1094,29 +1094,3 @@ _to_expression(a::SymbolicUtils.Sym{Parameter,DoubleIndexedVariable}) = :(Double
 end
 SymbolicUtils._iszero(x::SpecialIndexedTerm) = SymbolicUtils._iszero(x.term)
 
-function getIndices(term::QMul)
-    indices = []
-    for arg in term.args_nc
-        if typeof(arg) == IndexedOperator && arg.ind ∉ indices
-            push!(indices,arg.ind)
-        end
-    end
-    for ind in getIndices(term.arg_c)
-        if ind ∉ indices
-            push!(indices,ind)
-        end
-    end
-    return unique(indices)
-end
-getIndices(a::QNumber) = typeof(a) == IndexedOperator ? [a.ind] : []
-getIndices(a::SymbolicUtils.Sym{Parameter,DoubleIndexedVariable}) = a.metadata.ind1 == a.metadata.ind2 ? [a.metadata.ind1] : [a.metadata.ind1,a.metadata.ind2]
-getIndices(a::SymbolicUtils.Sym{Parameter,IndexedVariable}) = [a.metadata.ind]
-getIndices(x) = []
-
-#Usability functions:
-Σ(a,b) = IndexedDoubleSum(a,b)  #Double-Sum here, because if variable a is not a single sum it will create a single sum anyway
-Σ(a,b,c;kwargs...) = IndexedDoubleSum(a,b,c;kwargs...)
-∑(a,b) = Σ(a,b)
-∑(a,b,c;kwargs...) = Σ(a,b,c;kwargs...)
-
-IndexedOperator(x::indexable,numb::Int64) = NumberedOperator(x,numb)

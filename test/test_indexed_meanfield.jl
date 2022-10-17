@@ -3,6 +3,8 @@ using QuantumCumulants
 using SymbolicUtils
 using Symbolics
 
+const qc = QuantumCumulants
+
 @testset "indexed_meanfield" begin
 
 order = 2
@@ -44,6 +46,9 @@ rates = [κ,Γ_ij]
 ops = [a, σ(2,2,k_ind), σ(1,2,k_ind)]
 eqs = indexed_meanfield(ops,H,J;rates=rates,order=order)
 
+@test isequal([i_ind,j_ind,k_ind],sort(qc.getAllIndices(eqs)))
+@test isequal([:i,:j,:k],sort(qc.getIndName.(qc.getAllIndices(eqs))))
+
 @test length(eqs) == 3
 
 ind1 = Index(h,:q,N,ha)
@@ -51,12 +56,18 @@ ind2 = Index(h,:r,N,ha)
 ind3 = Index(h,:s,N,ha)
 
 eqs_comp = complete(eqs;extra_indices=[ind1,ind2,ind3])
-eqs_comp2 = complete(eqs;extra_indices=[:q,:r,:s])
+eqs_comp2 = complete(eqs)
 
-for i=1:length(eqs_comp)
-    @test isequal(length(arguments(eqs_comp[i].rhs)),length(arguments(eqs_comp2[i].rhs)))
-end
+@test length(eqs_comp.equations) == length(eqs_comp2.equations)
+
 eqs_ = evaluate(eqs_comp)
+eqs_2 = evaluate(eqs_comp2)
+
+@test length(eqs_2) == length(eqs_)
+
+for i = 1:length(eqs_)
+    @test length(arguments(eqs_[i].rhs)) == length(arguments(eqs_2[i].rhs))
+end
 
 @test length(eqs_) == 18
 
