@@ -173,7 +173,7 @@ asdf2 = σ(1,2,k_ind)*specTerm
 @test isequal(simplify(commutator(σ(1,2,i_ind),qadd)),0)
 @test isequal(simplify(commutator(σ(1,2,i_ind),qmul)),0)
 
-Ωij = DoubleIndexedVariable(:Ω,i_ind,j_ind;can_have_same=false)
+Ωij = DoubleIndexedVariable(:Ω,i_ind,j_ind;identical=false)
 
 @test change_index(Ωij,i_ind,j_ind) == 0
 @test reorder(qc.QAdd([]),[(i_ind,j_ind)]) == 0
@@ -183,6 +183,9 @@ asdf2 = σ(1,2,k_ind)*specTerm
 @test reorder(average(qc.QAdd([0])),[(i_ind,j_ind)]) == 0
 
 @test isequal(NumberedOperator(Transition(h,:σ,1,2),1),σ(1,2,1))
+
+@test isequal(∑(σ(1,2,i_ind),i_ind),Σ(σ(1,2,i_ind),i_ind))
+@test isequal(∑(σ(1,2,i_ind)*σ(2,1,j_ind),i_ind,j_ind),Σ(σ(1,2,i_ind)*σ(2,1,j_ind),i_ind,j_ind))
 
 end
 

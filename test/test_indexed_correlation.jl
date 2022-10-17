@@ -119,7 +119,7 @@ i = Index(h,:i,N_,ha)
 j = Index(h,:j,N_,ha)
 
 Γ_ij = DoubleIndexedVariable(:Γ,i,j)
-Ω_ij = DoubleIndexedVariable(:Ω,i,j;can_have_same=false)
+Ω_ij = DoubleIndexedVariable(:Ω,i,j;identical=false)
 gi = IndexedVariable(:g,i)
 
 ΓMatrix = [1.0 1.0

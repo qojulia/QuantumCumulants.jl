@@ -19,7 +19,7 @@ g(k) = IndexedVariable(:g,k)
 σ(i,j,k) = IndexedOperator(Transition(h,:σ,i,j),k)
 
 σn(i,j,k) = NumberedOperator(Transition(h,:σ,i,j),k)
-Ω(i,j) = IndexedVariable(:Ω,i,j;can_have_same=false)
+Ω(i,j) = IndexedVariable(:Ω,i,j;identical=false)
 
 @test Ω(ind(:i),ind(:i)) == 0
 

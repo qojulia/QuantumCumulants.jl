@@ -21,7 +21,7 @@ k_ind = Index(h,:k,N,ha)
 #define indexed variables
 g(k) = IndexedVariable(:g,k)
 Γ_ij = DoubleIndexedVariable(:Γ,i_ind,j_ind)
-Ω_ij = DoubleIndexedVariable(:Ω,i_ind,j_ind;can_have_same=false)
+Ω_ij = DoubleIndexedVariable(:Ω,i_ind,j_ind;identical=false)
 
 @qnumbers a::Destroy(h)
 σ(i,j,k) = IndexedOperator(Transition(h,:σ,i,j),k)

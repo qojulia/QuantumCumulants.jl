@@ -47,7 +47,7 @@ N_n = 2 #number of atoms
 #define indexed variables
 gi = IndexedVariable(:g,i)
 Γ_ij = IndexedVariable(:Γ,i,j)  
-Ω_ij = IndexedVariable(:Ω,i,j;can_have_same=false) #false indicates that the 2 indices can never be the same
+Ω_ij = IndexedVariable(:Ω,i,j;identical=false) #false indicates that the 2 indices can never be the same
 nothing #hide
 ```
 
