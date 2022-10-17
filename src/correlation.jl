@@ -541,11 +541,12 @@ function _build_spec_func(ω, lhs, rhs, a1, a0, steady_vals, ps=[])
     A1 = [_substitute_vars(A_) for A_∈A]
     b1 = [_substitute_vars(b_) for b_∈b]
     c1 = [_substitute_vars(c_) for c_∈c]
+    steady_vals1 = [_substitute_vars(s_) for s_∈steady_vals]
 
     # Build functions
-    Afunc = Symbolics.build_function(A1, ω, steady_vals, ps; expression=false)
-    bfunc = Symbolics.build_function(b1, steady_vals, ps; expression=false)
-    cfunc = Symbolics.build_function(c1, ω, steady_vals, ps; expression=false)
+    Afunc = Symbolics.build_function(A1, ω, steady_vals1, ps; expression=false)
+    bfunc = Symbolics.build_function(b1, steady_vals1, ps; expression=false)
+    cfunc = Symbolics.build_function(c1, ω, steady_vals1, ps; expression=false)
 
     return A, b, c, Afunc, bfunc, cfunc
 end
