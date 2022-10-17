@@ -69,11 +69,9 @@ function IndexedCorrelationFunction(op1,op2,de0::AbstractMeanfieldEquations;
     h1 = hilbert(op1)
     h2 = _new_hilbert(hilbert(op2), acts_on(op2))
     h = h1⊗h2
-
-    #exchange hilberts for indices (if extra_indices given are indices and not symbols)
-    if !isempty(extra_indices) && extra_indices[1] isa Index
-        extra_indices = _new_indices(extra_indices,h)
-    end
+    
+    extra_inds = copy(extra_indices)
+    extras_ = _new_indices(getAllIndices(de0.states),h)
 
     H0 = de0.hamiltonian
     J0 = de0.jumps
@@ -98,6 +96,24 @@ function IndexedCorrelationFunction(op1,op2,de0::AbstractMeanfieldEquations;
     else
         order
     end
+
+    if length(extras_) < order_ && !isemtpy(extras_)
+        if length(extras_) + length(extra_indis) < order_
+            error("For higher order, more extra_indices are required!")
+        end
+        for elem in extra_inds
+            if elem isa Symbol
+                push!(extras_,Index(extras_[1].hilb,elem,extras_[1].rangeN,extras[1].specHilb))
+            elseif elem isa Index
+                push!(extras_,elem)
+            end
+        end
+    end
+    unique!(extras_)
+    if isempty(extras_)
+        extras_ = extra_inds
+    end
+
     op_ = op1_*op2_
     @assert get_order(op_) <= order_
 
@@ -121,7 +137,7 @@ function IndexedCorrelationFunction(op1,op2,de0::AbstractMeanfieldEquations;
             filter_func=filter_func,
             mix_choice=mix_choice,
             simplify=simplify,
-            extra_indices=extra_indices,
+            extra_indices=extras_,
             scaling=scaling,
             kwargs...) 
     if scaling
@@ -157,20 +173,30 @@ function indexed_complete_corr!(de,aon0,lhs_new,order,steady_state,de0;
     Jd = de.jumps_dagger
     rates = de.rates
 
+    indices_ = copy(extra_indices)
+    maxNumb = maximum(length.(getIndices.(de.operators)))
 
-    indices_ = getAllIndices(vs)
+    sort!(extra_indices)
 
-    if isempty(indices_) && extra_indices[1] isa Symbol
-        for op in de.jumps
-            if op isa IndexedOperator
-                indices_ = [Index(op.ind.hilb,extra_indices[1],op.ind.rangeN,op.ind.specHilb)]
-                deleteat!(extra_indices,1)
-                break
-            end
+    for ind in extra_indices
+        if typeof(ind) != typeof(extra_indices[1])
+            error("Cannot use extra_indices of different types. Use either only Symbols or Index-Objects!")
         end
-    elseif isempty(indices_) && extra_indices[1] isa Index
-        indices_ = [extra_indices[1]]
-        deleteat!(extra_indices,1)
+    end
+
+    if containsMultiple(getAllIndices(de.states))
+        if extra_indices[1] isa Symbol
+            error("It is not possible to complete equations, containing indices, that act on different hilbertspaces using Symbols as
+            extra_indices. For this case use specific Indices.")
+        end
+        #maybe write also a check that checks for the indices being correct/enough
+    end
+
+    if de.order > maxNumb && de.order - maxNumb > length(extra_indices)
+        error("Too few extra_indices provided! Please make sure that for higher orders of cumulant expansion, 
+            you also use the extra_indices argument to provide additional indices for calculation. The Number of
+            extra_indices provided should be at least $(de.order - maxNumb).
+        ")
     end
 
     vhash = map(hash, vs)

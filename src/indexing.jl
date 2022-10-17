@@ -883,6 +883,13 @@ function change_index(op::SymbolicUtils.Sym{Parameter,DoubleIndexedVariable},fro
         return DoubleIndexedVariable(op.metadata.name,op.metadata.ind1,to;can_have_same=op.metadata.can_have_same)
     end
 end
+function change_index(mul::SymbolicUtils.Mul,from::Index,to::Index)
+    mults = []
+    for arg in arguments(mul)
+        push!(mults,change_index(arg,from,to))
+    end
+    return *(mults...)
+end
 change_index(x,from::Index,to::Index) = x
 
 ismergeable(a::IndexedOperator,b::IndexedOperator) = isequal(a.ind,b.ind) ? ismergeable(a.op,b.op) : false

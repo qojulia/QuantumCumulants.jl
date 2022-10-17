@@ -99,7 +99,16 @@ scaleTerm(sym::SymbolicUtils.Sym{Parameter,IndexedVariable}) = SingleNumberedVar
 scaleTerm(x) = x
 
 SymbolicUtils.substitute(avrg::SymbolicUtils.Sym{Parameter,SpecialIndexedAverage},subs;fold=false) = SymbolicUtils.substitute(avrg.metadata.term,subs;fold=fold)#SpecialIndexedAverage(SymbolicUtils.substitute(term.metadata.term,subs;fold=fold),term.metadata.indexMapping)
-SymbolicUtils.substitute(sum::SymbolicUtils.Sym{Parameter,IndexedAverageSum},subs;fold=false) = IndexedAverageSum(SymbolicUtils.substitute(sum.metadata.term,subs;fold=fold),sum.metadata.sumIndex,sum.metadata.nonEqualIndices)
+function SymbolicUtils.substitute(sum::SymbolicUtils.Sym{Parameter,IndexedAverageSum},subs;fold=false) 
+    subTerm = SymbolicUtils.substitute(sum.metadata.term,subs;fold=fold)
+    if SymbolicUtils._iszero(subTerm)
+        return 0
+    elseif subTerm isa symbolics_terms
+        return IndexedAverageSum(subTerm,sum.metadata.sumIndex,sum.metadata.nonEqualIndices)
+    else
+        return (sum.metadata.sumIndex - length(sum.metadata.nonEqualIndices)) * subTerm
+    end
+end
 #function to split sums into different clusters, keeping 
 #assume: all the indices that are not equal to the summation index are in the same Sum
 #for anything else than the assumption, there needs an extra argument, to specify where or how the extra indices are handled
@@ -137,6 +146,7 @@ function split_sums(term::SymbolicUtils.Symbolic,ind::Index,amount::Union{<:Symb
         sumInd = term.metadata.sumIndex
         if isequal(ind,sumInd)
             ind2 = Index(sumInd.hilb,sumInd.name,(term.metadata.sumIndex.rangeN/amount),sumInd.specHilb)
+            term_ = change_index(term_,ind,ind2)
             if isempty(term.metadata.nonEqualIndices)
                 return (amount)*IndexedAverageSum(term_,ind2,Index[])
             end
