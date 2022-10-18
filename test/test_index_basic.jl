@@ -188,10 +188,35 @@ asdf2 = σ(1,2,k_ind)*specTerm
 @test isequal(∑(σ(1,2,i_ind)*σ(2,1,j_ind),i_ind,j_ind),Σ(σ(1,2,i_ind)*σ(2,1,j_ind),i_ind,j_ind))
 
 @test isequal([i_ind,j_ind],qc.getIndices(σ(1,2,i_ind) + σ(2,1,j_ind)))
-@test isequal([i_ind,j_ind],qc.getIndices(average(σ(1,2,i_ind)) + 3 + average(σ(2,1,j_ind))))
+@test isequal([i_ind,j_ind],sort(qc.getIndices(average(σ(1,2,i_ind)) + 3 + average(σ(2,1,j_ind)))))
 
 @test isequal(IndexedVariable(:Ω,1,2),qc.DoubleNumberedVariable(:Ω,1,2))
 @test isequal(IndexedVariable(:Ω,2),qc.SingleNumberedVariable(:Ω,2))
+
+@test isequal(σ(1,2,1.0),σ(1,2,1))
+@test isequal(σ(1,2,1.9),σ(1,2,2))
+
+@test isequal(g(1.1),qc.SingleNumberedVariable(:g,1))
+@test isequal(IndexedVariable(:Ω,1.1,2.1),qc.DoubleNumberedVariable(:Ω,1,2))
+
+hc = FockSpace(:cavity)
+hf = FockSpace(:filter)
+
+h = hc ⊗ hf
+
+i = Index(h,:i,N,hf)
+j = Index(h,:j,N,hf)
+k = Index(h,:k,N,hf)
+
+xij = IndexedVariable(:x,i,j)
+
+
+@qnumbers a_::Destroy(h,1)
+b(k) = IndexedOperator(Destroy(h,:b,2), k)
+
+@test reorder(b(i)*b(k)*b(i)',[(i,k)]) isa qc.QAdd
+@test reorder(b(i)'*b(i)*b(k),[(i,k)]) isa qc.SpecialIndexedTerm
+@test isequal(reorder(b(i)*b(k)*b(i)',[(i,k)]),reorder(b(i)'*b(i)*b(k),[(i,k)]) + reorder(b(k),[(i,k)]))
 
 end
 

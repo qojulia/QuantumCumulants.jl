@@ -51,5 +51,35 @@ getIndices(x::Sums) = getIndices(arguments(x))
 ∑(a,b,c;kwargs...) = Σ(a,b,c;kwargs...)
 
 IndexedOperator(x::indexable,numb::Int64) = NumberedOperator(x,numb)
+function IndexedOperator(x::indexable,num)
+    numInt = 0
+    try
+        numInt = round(Int,num)
+    catch
+        error("Could not convert given number to Integer!")
+    end
+    return IndexedOperator(x,numInt)
+end
 IndexedVariable(x,numb::Int64) = SingleNumberedVariable(x,numb)
+function IndexedVariable(x,numb)
+    numInt = 0
+    try
+        numInt = round(Int,numb)
+    catch
+        error("Could not convert given number to Integer!")
+    end
+    return IndexedVariable(x,numInt)
+end
+function IndexedVariable(x,numb1,numb2)
+    numInt1 = 0
+    numInt2 = 0
+    try 
+        numInt1 = round(Int,numb1)
+        numInt2 = round(Int,numb2)
+    catch
+        error("Could not convert given numbers to Integer numbers!")
+    end
+    return IndexedVariable(x,numInt1,numInt2)
+end
 IndexedVariable(x,num1::Int64,num2::Int64) = DoubleNumberedVariable(x,num1,num2)
+IndexedVariable(name::Symbol,ind1::Index,ind2::Index;kwargs...) = DoubleIndexedVariable(name,ind1,ind2;kwargs...)

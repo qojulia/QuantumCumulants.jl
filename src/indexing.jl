@@ -42,7 +42,7 @@ See also: [`value_map`](@ref)
 struct IndexedVariable <: CNumber #just a symbel, that can be manipulated via the metadata field
     name::Symbol
     ind::Index
-    function IndexedVariable(name,ind)
+    function IndexedVariable(name::Symbol,ind::Index)
         metadata = new(name,ind)
         return SymbolicUtils.Sym{Parameter, IndexedVariable}(Symbol("$(name)$(ind.name)"), metadata)
     end
@@ -77,8 +77,6 @@ struct DoubleIndexedVariable <: CNumber #just a symbol, that can be manipulated 
         return SymbolicUtils.Sym{Parameter, DoubleIndexedVariable}(Symbol("$(name)$(ind1.name)$(ind2.name)"), metadata)
     end
 end
-IndexedVariable(name,ind1,ind2;kwargs...) = DoubleIndexedVariable(name,ind1,ind2;kwargs...)
-IndexedVariable(name::Symbol,ind1::Index,ind2::Index) = DoubleIndexedVariable(name,ind1,ind2)
 """
 
     IndexedOperator <: QNumber
@@ -588,8 +586,6 @@ end
 *(a::SNuN,b::SpecialIndexedTerm) = reorder(a*b.term,b.indexMapping)
 *(b::SpecialIndexedTerm,a::SNuN) = a*b
 
-#HERE: There are still multiplication rules missing for special indexed Terms: These are needed since the sums multiplication with a qmul is defined as single multiplication acting on the sum of additional terms and the Sum
-#since any multiplication with a sum 
 function *(x::QNumber, term::SpecialIndexedTerm)
     map = term.indexMapping
     if x isa IndexedOperator
@@ -973,8 +969,12 @@ function reorder(param::QMul,indexMapping::Vector{Tuple{Index,Index}})
     #print(args)
     qmul = *(carg,args...)
 
-    mapping_ = orderMapping(indexMapping)
-    return SpecialIndexedTerm(qmul,mapping_)
+    if qmul isa QMul
+        mapping_ = orderMapping(indexMapping)
+        return SpecialIndexedTerm(qmul,mapping_)
+    else
+        return reorder(qmul,indexMapping)
+    end
 end
 reorder(sum::IndexedSingleSum,indexMapping::Vector{Tuple{Index,Index}}) = IndexedSingleSum(reorder(sum.term,indexMapping),sum.sumIndex,sum.nonEqualIndices)
 reorder(op::SpecialIndexedTerm) = reorder(op.term,op.indexMapping)

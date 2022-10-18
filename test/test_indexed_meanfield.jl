@@ -75,5 +75,36 @@ eqs_4 = indexed_meanfield(ops,H,J;rates=rates,order=4)
 
 @test length(eqs_4) == length(eqs)
 
+order = 1
+
+@cnumbers g N κ
+
+# Hilbertspace
+hc = FockSpace(:cavity)
+hf = FockSpace(:filter)
+
+h = hc ⊗ hf
+
+i = Index(h,:i,N,hf)
+j = Index(h,:j,N,hf)
+k = Index(h,:k,N,hf)
+
+xij = IndexedVariable(:x,i,j)
+
+
+@qnumbers a_::Destroy(h,1)
+b(k) = IndexedOperator(Destroy(h,:b,2), k)
+
+H = g*a_'a_ + Σ(xij*a_'a_*b(i)'b(j),i,j)
+J = [a_]
+rates = [κ]
+
+
+eqs1 = indexed_meanfield(a_,H,J;rates=rates,order=order) 
+eqs2 = indexed_meanfield([a_],H,J;rates=rates,order=order) 
+@test isequal(eqs1.equations,eqs2.equations)
+
+
+
 
 end
