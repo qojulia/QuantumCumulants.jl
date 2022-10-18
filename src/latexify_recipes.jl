@@ -35,7 +35,7 @@ function _postwalk_func(x)
         s = "{$name}$(:_){$(ind)}"
         return s
     elseif MacroTools.@capture(x,DoubleIndexedVariable(name_, ind1_, ind2_))
-        s = "{$name}$(:_){$(ind1)$(ind2)}"
+        s = "{$name}$(:_){$(ind1);$(ind2)}"
         return s
     elseif MacroTools.@capture(x, IndexedOperator(op_,in_,i_,j_))
         s = "{$(op)}$(:_){$(in)}$(transition_idx_script[]){{$(i)$(j)}}"

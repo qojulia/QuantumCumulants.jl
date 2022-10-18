@@ -51,18 +51,11 @@ eqs = indexed_meanfield(ops,H,J;rates=rates,order=order)
 phase_invariant(x) = iszero(φ(x))
 
 eqs_c = complete(eqs;filter_func=phase_invariant,scaling=false,extra_indices=extra_indices);
-eqs_c2 = complete(eqs;filter_func=phase_invariant,scaling=false,extra_indices=[:n]);
 
 eqs_sc1 = scale(eqs_c)
-eqs_sc2 = scale(eqs_c2)
 
 @test length(eqs_sc1) == 4
 @test length(eqs_c) == 4
-
-for i = 1:length(eqs_c)
-    @test isequal(length(arguments(eqs_c[i].rhs)),length(arguments(eqs_c2[i].rhs)))
-    @test isequal(length(arguments(eqs_sc1[i].rhs)),length(arguments(eqs_sc2[i].rhs)))
-end
 
 avrgSum = arguments(arguments(eqs_c[1].rhs)[1])[2]
 
@@ -119,7 +112,7 @@ i = Index(h,:i,N_,ha)
 j = Index(h,:j,N_,ha)
 
 Γ_ij = DoubleIndexedVariable(:Γ,i,j)
-Ω_ij = DoubleIndexedVariable(:Ω,i,j;can_have_same=false)
+Ω_ij = DoubleIndexedVariable(:Ω,i,j;identical=false)
 gi = IndexedVariable(:g,i)
 
 ΓMatrix = [1.0 1.0

@@ -186,7 +186,7 @@ We can now calculate the spectrum using the Laplace transform of the two-ime cor
 ```@example superradiant_laser_indexed
 # For the Spectrum 
 # setting the scaling keyword attribute to true gives us again a output in similar form to scale(eqs_c)
-corr = CorrelationFunction(a', a, eqs_c; steady_state=true, filter_func=phase_invariant,extra_indices=[:q],scaling=true);
+corr = CorrelationFunction(a', a, eqs_c; steady_state=true, filter_func=phase_invariant,scaling=true);
 S = Spectrum(corr, ps)
 nothing #hide
 ```

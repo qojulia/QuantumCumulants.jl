@@ -34,7 +34,7 @@ export HilbertSpace, ProductSpace, ⊗, tensor,
         Index, reorder, IndexedOperator, IndexedSingleSum, IndexedVariable, DoubleIndexedVariable,
         IndexedDoubleSum, indexed_complete, IndexedCorrelationFunction,
         scaleME, evalME, indexed_complete!, indexed_meanfield, subst_reds, AvgSums, plotME,
-        IndexedAverageSum, IndexedAverageDoubleSum, SpecialIndexedTerm, find_missing_sums, Σ,
+        IndexedAverageSum, IndexedAverageDoubleSum, SpecialIndexedTerm, find_missing_sums, Σ, ∑,
         evaluate, value_map, NumberedOperator, change_index, order_by_index, split_sums, insert_index, eval_term
 
 const NO_METADATA = SymbolicUtils.NO_METADATA
@@ -63,6 +63,7 @@ include("averageSums.jl")
 include("indexedMeanfield.jl")
 include("indexedScale.jl")
 include("indexedCorrelation.jl")
+include("index_utils.jl")
 
 @deprecate heisenberg(args...; kwargs...) meanfield(args...; kwargs...)
 

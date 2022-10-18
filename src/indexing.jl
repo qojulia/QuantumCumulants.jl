@@ -42,7 +42,7 @@ See also: [`value_map`](@ref)
 struct IndexedVariable <: CNumber #just a symbel, that can be manipulated via the metadata field
     name::Symbol
     ind::Index
-    function IndexedVariable(name,ind)
+    function IndexedVariable(name::Symbol,ind::Index)
         metadata = new(name,ind)
         return SymbolicUtils.Sym{Parameter, IndexedVariable}(Symbol("$(name)$(ind.name)"), metadata)
     end
@@ -50,7 +50,7 @@ end
 """
 
     DoubleIndexedVariable <: CNumber
-    DoubleIndexedVariable(name::Symbol,ind1::Index,ind2::Index,can_have_same::Bool)
+    DoubleIndexedVariable(name::Symbol,ind1::Index,ind2::Index,identical::Bool)
 
 A double-indexed symbolic variable. The variable can (once equations are calculated) be easily exchanged for numerical values.
 See also: [`value_map`](@ref) 
@@ -61,24 +61,22 @@ Fields:
 * name: A Symbol, defining the name of the variable
 * ind1: The first Index of the variable
 * ind2: The second Index of the variable
-* can_have_same: A Bool, defining if the variable can have non-zero main-diagonal terms, e.g: Γᵢᵢ ≠ 0 would be specified with true.  
+* identical: A Bool, defining if the variable can have non-zero main-diagonal terms, e.g: Γᵢᵢ ≠ 0 would be specified with true.  
 
 """
 struct DoubleIndexedVariable <: CNumber #just a symbol, that can be manipulated via the metadata field
     name::Symbol
     ind1::Index
     ind2::Index
-    can_have_same::Bool
-    function DoubleIndexedVariable(name,ind1,ind2;can_have_same::Bool=true)
-        if !(can_have_same) && (ind1 == ind2)
+    identical::Bool
+    function DoubleIndexedVariable(name,ind1,ind2;identical::Bool=true)
+        if !(identical) && (ind1 == ind2)
             return 0
         end
-        metadata = new(name,ind1,ind2,can_have_same)
+        metadata = new(name,ind1,ind2,identical)
         return SymbolicUtils.Sym{Parameter, DoubleIndexedVariable}(Symbol("$(name)$(ind1.name)$(ind2.name)"), metadata)
     end
 end
-IndexedVariable(name,ind1,ind2;kwargs...) = DoubleIndexedVariable(name,ind1,ind2;kwargs...)
-IndexedVariable(name::Symbol,ind1::Index,ind2::Index) = DoubleIndexedVariable(name,ind1,ind2)
 """
 
     IndexedOperator <: QNumber
@@ -156,6 +154,9 @@ struct IndexedSingleSum <:QTerm #Sum with an index, the term inside the sum must
                     push!(sums, IndexedSingleSum(arg,sumIndex,nonEqualIndices))
                 end
                 return +(sums...)
+            end
+            if term isa Number
+                return (sumIndex.rangeN - length(nonEqualIndices)) * term
             end
             NEI = Index[]
             NEI_ = copy(nonEqualIndices)
@@ -585,8 +586,6 @@ end
 *(a::SNuN,b::SpecialIndexedTerm) = reorder(a*b.term,b.indexMapping)
 *(b::SpecialIndexedTerm,a::SNuN) = a*b
 
-#HERE: There are still multiplication rules missing for special indexed Terms: These are needed since the sums multiplication with a qmul is defined as single multiplication acting on the sum of additional terms and the Sum
-#since any multiplication with a sum 
 function *(x::QNumber, term::SpecialIndexedTerm)
     map = term.indexMapping
     if x isa IndexedOperator
@@ -818,13 +817,13 @@ function change_index(term::QMul, from::Index, to::Index)
             elseif typeof(args[i]) == SymbolicUtils.Sym{Parameter, DoubleIndexedVariable}
                 if args[i].metadata.ind1 == args[i].metadata.ind2 && args[i].metadata.ind1 == from
                     var = args[i].metadata
-                    args[i] = DoubleIndexedVariable(var.name,to,to;can_have_same=var.can_have_same)
+                    args[i] = DoubleIndexedVariable(var.name,to,to;identical=var.identical)
                 elseif args[i].metadata.ind1 == from
                     var = args[i].metadata
-                    args[i] = DoubleIndexedVariable(var.name,to,var.ind2;can_have_same=var.can_have_same)
+                    args[i] = DoubleIndexedVariable(var.name,to,var.ind2;identical=var.identical)
                 elseif args[i].metadata.ind2 == from
                     var = args[i].metadata
-                    args[i] = DoubleIndexedVariable(var.name,var.ind1,to;can_have_same=var.can_have_same)
+                    args[i] = DoubleIndexedVariable(var.name,var.ind1,to;identical=var.identical)
                 end
             end
         end
@@ -834,11 +833,11 @@ function change_index(term::QMul, from::Index, to::Index)
     elseif  typeof(arg_c_) == SymbolicUtils.Sym{Parameter, DoubleIndexedVariable}
         DIndV = arg_c_.metadata
         if DIndV.ind1 == DIndV.ind2 && DIndV.ind1 == from
-            arg_c = DoubleIndexedVariable(DIndV.name,to,to;can_have_same=DIndV.can_have_same)
+            arg_c = DoubleIndexedVariable(DIndV.name,to,to;identical=DIndV.identical)
         elseif DIndV.ind1 == from
-            arg_c = DoubleIndexedVariable(DIndV.name,to,DIndV.ind2;can_have_same=DIndV.can_have_same)
+            arg_c = DoubleIndexedVariable(DIndV.name,to,DIndV.ind2;identical=DIndV.identical)
         elseif DIndV.ind2 == from
-            arg_c = DoubleIndexedVariable(DIndV.name,DIndV.ind1,to;can_have_same=DIndV.can_have_same)
+            arg_c = DoubleIndexedVariable(DIndV.name,DIndV.ind1,to;identical=DIndV.identical)
         end
     end
     if isempty(args_nc) || isequal(arg_c,0) || SymbolicUtils._iszero(args_nc) || 0 in args_nc
@@ -872,16 +871,23 @@ end
 change_index(op::SymbolicUtils.Sym{Parameter,IndexedVariable},from::Index,to::Index) = op.metadata.ind == from ? IndexedVariable(op.metadata.name,to) : op
 function change_index(op::SymbolicUtils.Sym{Parameter,DoubleIndexedVariable},from::Index,to::Index)
     if op.metadata.ind1 == from
-        if op.metadata.ind1 == op.metadata.ind2 && op.metadata.can_have_same
-            return DoubleIndexedVariable(op.metadata.name,to,to;can_have_same=op.metadata.can_have_same)
+        if op.metadata.ind1 == op.metadata.ind2 && op.metadata.identical
+            return DoubleIndexedVariable(op.metadata.name,to,to;identical=op.metadata.identical)
         elseif op.metadata.ind1 == op.metadata.ind2
             return 0
         else
-            return DoubleIndexedVariable(op.metadata.name,to,op.metadata.ind2;can_have_same=op.metadata.can_have_same)
+            return DoubleIndexedVariable(op.metadata.name,to,op.metadata.ind2;identical=op.metadata.identical)
         end
     elseif op.metadata.ind2 == from
-        return DoubleIndexedVariable(op.metadata.name,op.metadata.ind1,to;can_have_same=op.metadata.can_have_same)
+        return DoubleIndexedVariable(op.metadata.name,op.metadata.ind1,to;identical=op.metadata.identical)
     end
+end
+function change_index(mul::SymbolicUtils.Mul,from::Index,to::Index)
+    mults = []
+    for arg in arguments(mul)
+        push!(mults,change_index(arg,from,to))
+    end
+    return *(mults...)
 end
 change_index(x,from::Index,to::Index) = x
 
@@ -963,8 +969,12 @@ function reorder(param::QMul,indexMapping::Vector{Tuple{Index,Index}})
     #print(args)
     qmul = *(carg,args...)
 
-    mapping_ = orderMapping(indexMapping)
-    return SpecialIndexedTerm(qmul,mapping_)
+    if qmul isa QMul
+        mapping_ = orderMapping(indexMapping)
+        return SpecialIndexedTerm(qmul,mapping_)
+    else
+        return reorder(qmul,indexMapping)
+    end
 end
 reorder(sum::IndexedSingleSum,indexMapping::Vector{Tuple{Index,Index}}) = IndexedSingleSum(reorder(sum.term,indexMapping),sum.sumIndex,sum.nonEqualIndices)
 reorder(op::SpecialIndexedTerm) = reorder(op.term,op.indexMapping)
@@ -1084,27 +1094,3 @@ _to_expression(a::SymbolicUtils.Sym{Parameter,DoubleIndexedVariable}) = :(Double
 end
 SymbolicUtils._iszero(x::SpecialIndexedTerm) = SymbolicUtils._iszero(x.term)
 
-function getIndices(term::QMul)
-    indices = []
-    for arg in term.args_nc
-        if typeof(arg) == IndexedOperator && arg.ind ∉ indices
-            push!(indices,arg.ind)
-        end
-    end
-    for ind in getIndices(term.arg_c)
-        if ind ∉ indices
-            push!(indices,ind)
-        end
-    end
-    return unique(indices)
-end
-getIndices(a::QNumber) = typeof(a) == IndexedOperator ? [a.ind] : []
-getIndices(a::SymbolicUtils.Sym{Parameter,DoubleIndexedVariable}) = a.metadata.ind1 == a.metadata.ind2 ? [a.metadata.ind1] : [a.metadata.ind1,a.metadata.ind2]
-getIndices(a::SymbolicUtils.Sym{Parameter,IndexedVariable}) = [a.metadata.ind]
-getIndices(x) = []
-
-#Usability functions:
-Σ(a,b) = IndexedDoubleSum(a,b)  #Double-Sum here, because if variable a is not a single sum it will create a single sum anyway
-Σ(a,b,c;kwargs...) = IndexedDoubleSum(a,b,c;kwargs...)
-
-IndexedOperator(x::indexable,numb::Int64) = NumberedOperator(x,numb)
