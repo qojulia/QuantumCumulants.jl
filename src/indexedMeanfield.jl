@@ -103,6 +103,8 @@ function indexed_meanfield(a::Vector,H,J;Jdagger::Vector=adjoint.(J),rates=ones(
         return me
     end
 end
+indexed_meanfield(a::QNumber,args...;kwargs...) = indexed_meanfield([a],args...;kwargs...)
+indexed_meanfield(a::Vector,H;kwargs...) = indexed_meanfield(a,H,[];Jdagger=[],kwargs...)
 
 function indexed_master_lindblad(a_,J,Jdagger,rates)
     args = Any[]
@@ -196,13 +198,20 @@ function indexed_complete!(de::AbstractMeanfieldEquations;
     filter_func=nothing,
     mix_choice=maximum,
     simplify=true,
-    extra_indices::Vector=[],
+    extra_indices::Vector=[:i,:j,:k,:l,:m,:n,:p,:q,:r,:s,:t],
     scaling::Bool=false,
     kwargs...)
+
+    allInds = getAllIndices(de)
+    filter!(x -> x ∉ getIndName.(allInds),extra_indices)
 
     maxNumb = maximum(length.(getIndices.(de.operators)))
 
     sort!(extra_indices)
+
+    if isempty(extra_indices)
+        error("can not complete equations with empty extra_indices!")
+    end
 
     for ind in extra_indices
         if typeof(ind) != typeof(extra_indices[1])
@@ -210,7 +219,7 @@ function indexed_complete!(de::AbstractMeanfieldEquations;
         end
     end
 
-    if containsMultiple(getAllIndices(de.states))
+    if containsMultiple(getAllIndices(de))
         if extra_indices[1] isa Symbol
             error("It is not possible to complete equations, containing indices, that act on different hilbertspaces using Symbols as
             extra_indices. For this case use specific Indices.")
@@ -249,21 +258,35 @@ function indexed_complete!(de::AbstractMeanfieldEquations;
         end
     end
 
-    indices_ = getAllIndices(vs)
+    indices_lhs = getAllIndices(vs) #indices that are used in the beginning -> have priority
 
-    if isempty(indices_) && extra_indices[1] isa Symbol
-        for op in de.jumps
-            if op isa IndexedOperator
-                indices_ = [Index(op.ind.hilb,extra_indices[1],op.ind.rangeN,op.ind.specHilb)]
-                deleteat!(extra_indices,1)
-                break
-            end
+    if isempty(indices_lhs) && extra_indices[1] isa Symbol
+        for ind in allInds
+            indices_lhs = [Index(ind.hilb,extra_indices[1],ind.rangeN,ind.specHilb)]
+            deleteat!(extra_indices,1)
+            break
         end
-    elseif isempty(indices_) && extra_indices[1] isa Index
-        indices_ = [extra_indices[1]]
+    elseif isempty(indices_lhs) && extra_indices[1] isa Index
+        indices_lhs = [extra_indices[1]]
         deleteat!(extra_indices,1)
     end
 
+    extras = indices_lhs
+    if extra_indices[1] isa Symbol
+        first = extras[1]
+        for name in extra_indices
+            push!(extras,Index(first.hilb,name,first.rangeN,first.specHilb))
+            if length(extras) >= order_
+                break
+            end
+        end
+    end
+    if extra_indices[1] isa Index
+        extras = [extras;extra_indices]
+    end
+
+    #at this point extras is a list of extra_indices, sorted by their priority 
+    # (meaning that indices that were used in the ops of in indexed_meanfield come first)
 
     vhash = map(hash, vs)
     vs′ = map(_conj, vs)
@@ -271,7 +294,7 @@ function indexed_complete!(de::AbstractMeanfieldEquations;
     filter!(!in(vhash), vs′hash)
     missed = find_missing(de.equations, vhash, vs′hash; get_adjoints=false)
 
-    missed = find_missing_sums(missed,de;extra_indices=extra_indices,scaling=scaling,indices=indices_)
+    missed = find_missing_sums(missed,de;extra_indices=extras,scaling=scaling)
     missed = findMissingSpecialTerms(missed,de;scaling=scaling)
     
     missed = sortByIndex.(missed)
@@ -281,13 +304,20 @@ function indexed_complete!(de::AbstractMeanfieldEquations;
     
     filter!(x -> filterComplete(x,de.states,scaling), missed)
 
-    sort!(indices_,by=getIndName)
-
     for i = 1:length(missed)
-        mInd_ = getIndices(missed[i])
-        isempty(mInd_) && continue
-        if indices_[1] ∉ mInd_ #term on lhs does not have the initial index -> change first occuring index into that one
-            missed[i] = change_index(missed[i],mInd_[1],indices_[1]) #replace missed ops with changed indexed ones
+        minds = getIndices(missed[i])
+        newMinds = copy(minds)
+        for ind1 in minds
+            extras_=filterExtras(ind1,extras)
+            for k = 1:length(extras_)
+                if findall(x->isequal(x,ind1),extras_)[1] > k && extras_[k] ∉ newMinds #this might go somewhat easier, maybe delete ind2 out of extras after each replacement somehow
+                    missed[i] = change_index(missed[i],ind1,extras_[k])
+                    newMinds = getIndices(missed[i])
+                    break
+                elseif findall(x->isequal(x,ind1),extras_)[1] <= k
+                    break
+                end
+            end
         end
     end
     missed = unique(missed) #no duplicates
@@ -315,7 +345,7 @@ function indexed_complete!(de::AbstractMeanfieldEquations;
 
         missed = find_missing(me.equations, vhash, vs′hash; get_adjoints=false)
 
-        missed = find_missing_sums(missed,de;extra_indices=extra_indices,scaling=scaling,indices=indices_)
+        missed = find_missing_sums(missed,de;extra_indices=extras,scaling=scaling)
         missed = findMissingSpecialTerms(missed,de;scaling=scaling)
 
         missed = sortByIndex.(missed)
@@ -328,14 +358,13 @@ function indexed_complete!(de::AbstractMeanfieldEquations;
             minds = getIndices(missed[i])
             newMinds = copy(minds)
             for ind1 in minds
-                extras=filterExtras(ind1,indices_)
-                sort!(extras)
-                for ind2 in extras
-                    if ind2 < ind1 && ind2 ∉ newMinds #this might go somewhat easier, maybe delete ind2 out of extras after each replacement somehow
-                        missed[i] = change_index(missed[i],ind1,ind2)
+                extras=filterExtras(ind1,extras)
+                for k = 1:length(extras)
+                    if findall(x->isequal(x,ind1),extras)[1] > k && extras[k] ∉ newMinds #this might go somewhat easier, maybe delete ind2 out of extras after each replacement somehow
+                        missed[i] = change_index(missed[i],ind1,extras[k])
                         newMinds = getIndices(missed[i])
                         break
-                    elseif ind2 >= ind1
+                    elseif findall(x->isequal(x,ind1),extras)[1] <= k
                         break
                     end
                 end
@@ -356,7 +385,7 @@ function indexed_complete!(de::AbstractMeanfieldEquations;
         # but still occur on the RHS; set those to 0
         missed = find_missing(de.equations, vhash, vs′hash; get_adjoints=false)
         
-        missed = find_missing_sums(missed,de;extra_indices=extra_indices,checking=false,indices=indices_) #checkin dissabled, since there might be some terms, that are redundant, but also zero -> set them to zero aswell forsa fety
+        missed = find_missing_sums(missed,de;extra_indices=extras,checking=false) #checkin dissabled, since there might be some terms, that are redundant, but also zero -> set them to zero aswell forsa fety
         missed = findMissingSpecialTerms(missed,de)
     
         missed = sortByIndex.(missed) #this one might not be right (?)
@@ -389,7 +418,24 @@ function getAllIndices(vec::Vector)
     end
     return inds
 end
-function containsMultiple(inds::Vector)
+function getAllIndices(me::AbstractMeanfieldEquations)
+    eqs = me.equations
+    inds = []
+    for eq in eqs
+        for ind in getIndices(eq.rhs)
+            if ind ∉ inds
+                push!(inds,ind)
+            end
+        end
+    end
+    for ind in getAllIndices(me.states)
+        if ind ∉ inds
+            push!(inds,ind)
+        end
+    end
+    return inds
+end
+function containsMultiple(inds::Vector) #checks if in a list of indices, they act on different sub-hilbertSpaces
     isempty(inds) && return false
     length(inds) == 1 && return false
     for i=2:length(inds)
@@ -424,29 +470,17 @@ the equations, the [`Index`](@ref) will be exchanged according to the keyword ar
 
 see also: [`find_missing`](@ref), [`indexed_meanfield`](@ref), [`meanfield`](@ref), [`find_missing_sums`](@ref)
 """
-function find_missing_sums(missed,de::AbstractMeanfieldEquations;extra_indices::Vector=[],checking=true,scaling=false,indices::Vector=[],hasDifferentIndices::Bool=false)
+function find_missing_sums(missed,de::AbstractMeanfieldEquations;extra_indices::Vector=[],checking=true,scaling=false,hasDifferentIndices::Bool=false)
 
     missed_ = copy(missed)
     
-    extras = copy(indices)
-
-    if !isempty(extra_indices)
-        if extra_indices[1] isa Symbol    
-            for name in extra_indices    # create actual indices out of the extras provided    
-                push!(extras,Index(indices[1].hilb,name,indices[1].rangeN,indices[1].specHilb))
-            end
-        else
-            for ind in extra_indices
-                push!(extras,ind)
-            end
-        end
-    end
+    extras = copy(extra_indices)
 
     sums = Any[]
     for eq in de.equations
         sums = checkIfSum(eq.rhs)   #get all sums of the rhs
         for sum in sums
-            extras_filtered = filterExtras(sum.metadata.sumIndex,extras)
+            extras_filtered = filterExtras(sum.metadata.sumIndex,extras) #all the extraIndices, that have the same specific hilbertspace as the sum
             checkAndChange(missed_,sum,extras_filtered,de.states,checking,scaling)
         end
     end   

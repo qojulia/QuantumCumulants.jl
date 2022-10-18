@@ -27,7 +27,7 @@ function plotME(me::EvaledMeanfieldEquations)
 end
 
 
-const symbolics_terms = Union{<:Average,<:SymbolicUtils.Mul}
+const symbolics_terms = Union{<:Average,<:SymbolicUtils.Mul,<:SymbolicUtils.Sym}
 """
     numberedVariable <: CNumber
 
@@ -60,10 +60,9 @@ struct IndexedAverageSum <: CNumber
             end
             return newterm
         end
-        if !(typeof(term) <: symbolics_terms)
+        if sumIndex ∉ getIndices(term)
             return (sumIndex.rangeN - length(nonEqualIndices)) * term
         end
-        prefact = 1.0    #assume term is of type SymbolicUtils.Mul
         neis_sym = ""
         if !(isempty(nonEqualIndices))
             neis_sym = string("(",neis_sym)
@@ -71,12 +70,11 @@ struct IndexedAverageSum <: CNumber
             neis_sym = string(neis_sym, writeNEIs(nonEqualIndices))
             neis_sym = string(neis_sym,")")
         end
-        if typeof(arguments(term)[1]) <: Number # put numbers outside of sum (for easier evaluation)
+        prefact = 1.0
+        if term isa SymbolicUtils.Mul && arguments(term)[1] isa Number # put numbers outside of sum (for easier evaluation)
             prefact = arguments(term)[1]
             args_nc = arguments(term)[2:end]
-            if isempty(args_nc)
-                return 0
-            elseif length(args_nc) == 1
+            if length(args_nc) == 1
                 term = args_nc[1]
             else
                 term = *(args_nc...)
@@ -950,31 +948,6 @@ function containsIndexedOps(term::SymbolicUtils.Term{AvgSym, Nothing})
         return typeof(arg_[1]) == IndexedOperator 
     end
     return found
-end
-function getIndices(term::SymbolicUtils.Term{AvgSym, Nothing})
-    arg_ = arguments(term)
-    indices = []
-    if typeof(arg_[1]) <: QMul
-        for arg in arg_[1].args_nc
-            if typeof(arg) == IndexedOperator && arg.ind ∉ indices
-                push!(indices, arg.ind)
-            end
-        end
-    elseif typeof(arg_[1]) == IndexedOperator
-        return [arg_[1].ind]
-    end
-    return indices
-end
-function getIndices(term::SymbolicUtils.Mul)
-    indices = []
-    for arg in arguments(term)
-        for ind in getIndices(arg)
-            if ind ∉ indices
-                push!(indices,ind)
-            end
-        end
-    end
-    return indices
 end
 containsIndex(term::SymbolicUtils.Term{AvgSym,Nothing},ind::Index) = ind ∈ getIndices(term)
 

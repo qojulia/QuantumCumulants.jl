@@ -19,7 +19,7 @@ g(k) = IndexedVariable(:g,k)
 σ(i,j,k) = IndexedOperator(Transition(h,:σ,i,j),k)
 
 σn(i,j,k) = NumberedOperator(Transition(h,:σ,i,j),k)
-Ω(i,j) = IndexedVariable(:Ω,i,j;can_have_same=false)
+Ω(i,j) = IndexedVariable(:Ω,i,j;identical=false)
 
 @test Ω(ind(:i),ind(:i)) == 0
 
@@ -122,6 +122,12 @@ push!(dict,(qc.SingleNumberedVariable(:g,2) => 2))
 @test isequal(qc.getAvrgs(specAvrg),[average(σ(2,1,ind(:i))*σ(1,2,ind(:j)))])
 
 @test isequal(qc.getAvrgs(SymbolicUtils.arguments(avrgTerm)[1]),[average(σ(2,1,ind(:i))*σ(1,2,ind(:j)))])
+
+@test isequal(ind(:i).rangeN * 5, qc.IndexedAverageSum(5,ind(:i),[]))
+@test isequal(qc.IndexedAverageSum(g(ind(:i)),ind(:i),[]),average(Σ(g(ind(:i)),ind(:i)),[]))
+@test qc.IndexedAverageSum(g(ind(:i)),ind(:i),[]) isa SymbolicUtils.Sym{Parameter,qc.IndexedAverageSum}
+
+@test ind(:i) ∈ qc.getIndices(g(ind(:i)))
 
 end
 

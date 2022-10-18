@@ -159,6 +159,7 @@ function *(sum::IndexedDoubleSum,elem)
 end
     
 SymbolicUtils.istree(a::IndexedDoubleSum) = false
+SymbolicUtils.arguments(a::IndexedDoubleSum) = SymbolicUtils.arguments(a.innerSum)
 checkInnerSums(sum1::IndexedDoubleSum, sum2::IndexedDoubleSum) = ((sum1.innerSum + sum2.innerSum) == 0)
 reorder(dsum::IndexedDoubleSum,indexMapping::Vector{Tuple{Index,Index}}) = IndexedDoubleSum(reorder(dsum.innerSum,indexMapping),dsum.sumIndex,dsum.NEI)
 #Base functions
@@ -188,3 +189,4 @@ function *(sum1::IndexedSingleSum,sum2::IndexedSingleSum; ind=nothing)
 
     end
 end
+
