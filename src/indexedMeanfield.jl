@@ -110,8 +110,8 @@ function indexed_master_lindblad(a_,J,Jdagger,rates)
     args = Any[]
     for k=1:length(J)
         if typeof(J[k]) == IndexedOperator
-            c1 = order_by_index(0.5*rates[k]*Jdagger[k]*commutator(a_,J[k]))
-            c2 = order_by_index(0.5*rates[k]*commutator(Jdagger[k],a_)*J[k])
+            c1 = 0.5*rates[k]*Jdagger[k]*commutator(a_,J[k])
+            c2 = 0.5*rates[k]*commutator(Jdagger[k],a_)*J[k]
             c = nothing
             args_ = []
             push_or_append_nz_args!(args_,c1)
@@ -202,12 +202,7 @@ function indexed_complete!(de::AbstractMeanfieldEquations;
     scaling::Bool=false,
     kwargs...)
 
-    allInds = getAllIndices(de)
-    filter!(x -> x ∉ getIndName.(allInds),extra_indices)
-
     maxNumb = maximum(length.(getIndices.(de.operators)))
-
-    sort!(extra_indices)
 
     if isempty(extra_indices)
         error("can not complete equations with empty extra_indices!")
@@ -225,6 +220,13 @@ function indexed_complete!(de::AbstractMeanfieldEquations;
             extra_indices. For this case use specific Indices.")
         end
         #maybe write also a check that checks for the indices being correct/enough
+    end
+
+    allInds = getAllIndices(de)
+    if extra_indices[1] isa Symbol
+        filter!(x -> x ∉ getIndName.(allInds),extra_indices)
+    else
+        filter!(x -> x ∉ allInds,extra_indices)
     end
 
     if de.order > maxNumb && de.order - maxNumb > length(extra_indices)
@@ -260,6 +262,8 @@ function indexed_complete!(de::AbstractMeanfieldEquations;
 
     indices_lhs = getAllIndices(vs) #indices that are used in the beginning -> have priority
 
+    #if there are no indices on the LHS -> use the first index of extra_indices as starting point
+    #this first index is (if it is a symbol) created similar to the first occuring index in the Equations
     if isempty(indices_lhs) && extra_indices[1] isa Symbol
         for ind in allInds
             indices_lhs = [Index(ind.hilb,extra_indices[1],ind.rangeN,ind.specHilb)]
@@ -271,18 +275,24 @@ function indexed_complete!(de::AbstractMeanfieldEquations;
         deleteat!(extra_indices,1)
     end
 
+    #create (or append to the extras vector) all other extra_indices using the indices on the LHS
     extras = indices_lhs
-    if extra_indices[1] isa Symbol
-        first = extras[1]
-        for name in extra_indices
-            push!(extras,Index(first.hilb,name,first.rangeN,first.specHilb))
-            if length(extras) >= order_
-                break
+    if !isempty(extra_indices)
+        if extra_indices[1] isa Symbol
+            first = extras[1]
+            for name in extra_indices
+                push!(extras,Index(first.hilb,name,first.rangeN,first.specHilb))
+                if length(extras) >= order_
+                    break
+                end
             end
         end
+        if extra_indices[1] isa Index
+            extras = [extras;extra_indices]
+        end
     end
-    if extra_indices[1] isa Index
-        extras = [extras;extra_indices]
+    if length(extras) < order_
+        error("More extra_indices are needed for order $(order_)")
     end
 
     #at this point extras is a list of extra_indices, sorted by their priority 

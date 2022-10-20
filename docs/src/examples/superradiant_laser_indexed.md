@@ -55,7 +55,7 @@ nothing #hide
 ```
 
 
-In the next step we proceed by defining the dissipation operators with their corresponding dissipation rates and the operators, for which we want to calculate the equations of motion. In the final line of this code-block we calculate the meanfield eqautions using the **indexedMeanfield** function, which uses the features of symbolic summations.
+In the next step we proceed by defining the dissipation operators with their corresponding dissipation rates and the operators, for which we want to calculate the equations of motion. In the final line of this code-block we calculate the meanfield eqautions using the **indexed_meanfield** function, which uses the features of symbolic summations.
 
 
 ```@example superradiant_laser_indexed
