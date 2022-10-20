@@ -1129,11 +1129,3 @@ Base.isequal(x::Missing,y::SymbolicUtils.Symbolic) = false
 
 SymbolicUtils.simplify(sym::SymbolicUtils.Sym{Parameter,SpecialIndexedAverage}) = SpecialIndexedAverage(SymbolicUtils.simplify(sym.metadata.term),sym.metadata.indexMapping)
 
-#Numeric Conversion of NumberedOperators
-to_numeric(op::NumberedOperator,b::QuantumOpticsBase.Basis; kwargs...) = to_numeric(op.op,b;kwargs...)# this does not make sense, since a numbered operator always needs to act on a composite basis (except the basis has trivial order)
-function to_numeric(op::NumberedOperator,b::QuantumOpticsBase.CompositeBasis; kwargs...) 
-    #keep in mind: this function does not have a check for hilbert-spaces, meaning it can produce wrong output
-    aon = getNumber(op)[1] - 1
-    op_ = _to_numeric(op.op,b.bases[aon];kwargs...)
-    return QuantumOpticsBase.embed(b,aon,op_)
-end

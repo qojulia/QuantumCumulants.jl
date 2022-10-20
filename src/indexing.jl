@@ -917,8 +917,6 @@ end
 function order_by_index(qmul::QMul,inds::Vector{Index})
     return *(qmul.arg_c,order_by_index(qmul.args_nc,inds)...)
 end
-order_by_index(qadd::QAdd) = +(order_by_index.(qadd.arguments)...)
-order_by_index(x) = x
 #Reorder function: given a tuple vector of indices meaning for each tuple: first ≠ second
 #-> go through the term given and exchange 2 ops when the second has "lower" (i.e. its name is first in the alphabet) index than the first one
 #-> results in a term, ordered by its commutating indices
