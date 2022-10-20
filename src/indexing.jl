@@ -93,6 +93,11 @@ Fields:
 struct IndexedOperator <: QNumber #An operator with an index, for now only transition operators are possible to be declared like this
     op::indexable
     ind::Index
+    function IndexedOperator(op::indexable,ind::Index)
+        @assert isequal(ind.hilb,hilbert(op))
+        @assert isequal(ind.hilb.spaces[acts_on(op)],ind.specHilb)
+        return new(op,ind)
+    end
 end
 
 const Summable = Union{<:QNumber,<:CNumber,<:SymbolicUtils.Sym{Parameter,IndexedVariable},<:SymbolicUtils.Sym{Parameter,DoubleIndexedVariable}}
