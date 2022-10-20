@@ -1,5 +1,6 @@
 using Test
 using QuantumCumulants
+using QuantumOpticsBase
 using SymbolicUtils
 using Symbolics
 
@@ -44,7 +45,7 @@ g(k) = IndexedVariable(:g,k)
 @test(isequal(adjoint(σ(1,2,i_ind)),σ(2,1,i_ind)))
 
 
-@qnumbers a::Destroy(h)
+a = Destroy(h,:a)
 sum1 = IndexedSingleSum(σ(1,2,i_ind)*a',i_ind)
 sum2 = IndexedSingleSum(σ(2,1,i_ind)*a,i_ind)
 @test(isequal(adjoint(sum1),sum2))
@@ -217,6 +218,45 @@ b(k) = IndexedOperator(Destroy(h,:b,2), k)
 @test reorder(b(i)*b(k)*b(i)',[(i,k)]) isa qc.QAdd
 @test reorder(b(i)'*b(i)*b(k),[(i,k)]) isa qc.SpecialIndexedTerm
 @test isequal(reorder(b(i)*b(k)*b(i)',[(i,k)]),reorder(b(i)'*b(i)*b(k),[(i,k)]) + reorder(b(k),[(i,k)]))
+
+
+# Test fock basis conversion
+hfock = FockSpace(:fock)
+bfock = FockBasis(3)
+
+hnlevel = NLevelSpace(:nlevel,2)
+bnlevel = NLevelBasis(2)
+
+h_ = hnlevel ⊗ hfock
+
+
+N_n = 4
+N_f = 2
+ranges = [N_n,N_f]
+
+
+b_1 = ⊗([bnlevel for i = 1:N_n]...)
+b_2 = ⊗([bfock for i =1:N_f]...)
+b_ = b_1 ⊗ b_2
+
+i1 = Index(h_,:i1,N_n,hnlevel)
+j1 = Index(h_,:j1,N_f,hfock)
+
+ai(i) = IndexedOperator(Destroy(h_,:a),i)
+σi(i,j,k) = IndexedOperator(Transition(h_,:σ,i,j),k)
+
+@test to_numeric(ai(1),b_;ranges=ranges) isa Operator
+@test to_numeric(ai(1),b_;ranges=ranges) == QuantumOpticsBase.embed(b_,5,destroy(bfock))
+@test to_numeric(ai(2),b_;ranges=ranges) == QuantumOpticsBase.embed(b_,6,destroy(bfock))
+@test to_numeric(σi(1,2,4),b_;ranges=ranges) isa Operator
+@test to_numeric(σi(1,2,4),b_;ranges=ranges) == QuantumOpticsBase.embed(b_,4,transition(bnlevel,1,2))
+@test_throws MethodError to_numeric(σi(1,2,5),b_;ranges=ranges)
+
+ai2(i) = IndexedOperator(Destroy(hfock,:a),i)
+@test to_numeric(ai2(1),b_2;ranges=[2]) isa Operator
+@test to_numeric(ai2(2),b_2;ranges=[2]) isa Operator
+@test_throws BoundsError to_numeric(ai2(3),b_2;ranges=[2])
+
 
 end
 
