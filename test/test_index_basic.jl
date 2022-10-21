@@ -265,4 +265,15 @@ i.hilb
 @test isa(i.hilb,ProductSpace) == false
 @test σ(1,2,i) == (σ(1,2,i)')'
 
+# Multiplication IndexedOperator*Transition
+hc = NLevelSpace(:cavity, 3)
+ha = NLevelSpace(:atom,2)
+h = hc ⊗ ha
+@cnumbers N
+i = Index(h,:i,N,ha)
+S(x,y) = Transition(h,:S,x,y,1)
+σ(x,y,k) = IndexedOperator(Transition(h,:σ,x,y,2),k)
+S(2,1)*σ(1,2,i) isa QuantumCumulants.QMul
+σ(1,2,i)*S(2,1) isa QuantumCumulants.QMul
+
 end

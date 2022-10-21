@@ -534,6 +534,8 @@ end
 *(b::IndexedOperator,a::Create) = QMul(1,[a,b])
 *(a::Destroy,b::IndexedOperator) = QMul(1,[a,b])
 *(b::IndexedOperator,a::Destroy) = QMul(1,[a,b])
+*(b::IndexedOperator,a::Transition) = QMul(1,[a,b])
+*(a::Transition,b::IndexedOperator) = QMul(1,[a,b])
 
 function *(op1::IndexedOperator,op2::IndexedOperator)
     if op1.ind == op2.ind
