@@ -1,7 +1,7 @@
 #Main class for indexing, here indices, sums and indexed operators and variables are defined with the corresponding calculus.
 #Many helping functions used in the different classes are also defined here.
 
-#Keep in mind: I used alot of pattern-matching and object oriented methods, since this is how I like (learned) to code, 
+#Keep in mind: I used alot of pattern-matching and object oriented methods, since this is how I like (learned) to code,
 #however this might lead to way more lines of code, than actually needed
 
 const ranges = Union{<:SymbolicUtils.Sym,<:Number,<:SymbolicUtils.Mul,<:SymbolicUtils.Div} #possible Types for the range of an index
@@ -21,7 +21,7 @@ Fields:
 * hilb: The whole [`HilbertSpace`](@ref), the index will be defined on.
 * name: A Symbol, which defines the name of the index, and how product-terms of [`IndexedOperators`](@ref) are ordered (alphabetical)
 * rangeN: The upper bound limit of the index. This can be a SymbolicUitls.Symbolic or any Number.
-* specHilb: The specific [`HilbertSpace`](@ref), where the Index should act on. 
+* specHilb: The specific [`HilbertSpace`](@ref), where the Index should act on.
 
 """
 struct Index #main tool
@@ -37,7 +37,7 @@ const indornum = Union{<:Index,<:Int64}
     IndexedVariable(name::Symbol,ind::Index)
 
 A indexed symbolic variable. The variable can (once equations are calculated) be easily exchanged for numerical values.
-See also: [`value_map`](@ref) 
+See also: [`value_map`](@ref)
 """
 struct IndexedVariable <: CNumber #just a symbel, that can be manipulated via the metadata field
     name::Symbol
@@ -53,7 +53,7 @@ end
     DoubleIndexedVariable(name::Symbol,ind1::Index,ind2::Index,identical::Bool)
 
 A double-indexed symbolic variable. The variable can (once equations are calculated) be easily exchanged for numerical values.
-See also: [`value_map`](@ref) 
+See also: [`value_map`](@ref)
 
 Fields:
 ======
@@ -61,7 +61,7 @@ Fields:
 * name: A Symbol, defining the name of the variable
 * ind1: The first Index of the variable
 * ind2: The second Index of the variable
-* identical: A Bool, defining if the variable can have non-zero main-diagonal terms, e.g: Γᵢᵢ ≠ 0 would be specified with true.  
+* identical: A Bool, defining if the variable can have non-zero main-diagonal terms, e.g: Γᵢᵢ ≠ 0 would be specified with true.
 
 """
 struct DoubleIndexedVariable <: CNumber #just a symbol, that can be manipulated via the metadata field
@@ -95,7 +95,7 @@ struct IndexedOperator <: QNumber #An operator with an index, for now only trans
     ind::Index
     function IndexedOperator(op::indexable,ind::Index)
         @assert isequal(ind.hilb,hilbert(op))
-        @assert isequal(ind.hilb.spaces[acts_on(op)],ind.specHilb)
+        isa(ind.hilb, ProductSpace) && (@assert isequal(ind.hilb.spaces[acts_on(op)],ind.specHilb))
         return new(op,ind)
     end
 end
@@ -139,7 +139,7 @@ struct IndexedSingleSum <:QTerm #Sum with an index, the term inside the sum must
                     return (sumIndex.rangeN - length(nonEqualIndices)) * term
                 end
             end
-            if typeof(term) == SymbolicUtils.Sym{Parameter,DoubleIndexedVariable} 
+            if typeof(term) == SymbolicUtils.Sym{Parameter,DoubleIndexedVariable}
                 if (isequal(term.metadata.ind1,sumIndex) || isequal(term.metadata.ind2, sumIndex))
                     return new(term,sumIndex,nonEqualIndices)
                 else
@@ -187,7 +187,7 @@ struct IndexedSingleSum <:QTerm #Sum with an index, the term inside the sum must
                 end
                 if term_ == 0 || SymbolicUtils._iszero(term_)
                     return 0
-                end 
+                end
                 return new(term_,sumIndex,NEI_)
             end
             addTerms = []
@@ -225,7 +225,7 @@ end
 
     SpecialIndexedTerm <: QNumber
 
-A multiplication of [`IndexedOperator`](@ref) entities, with special constraint on the index-values. For example σᵢ²² * σⱼ²² with the constraint i ≠ j 
+A multiplication of [`IndexedOperator`](@ref) entities, with special constraint on the index-values. For example σᵢ²² * σⱼ²² with the constraint i ≠ j
 
 Fields:
 ======
@@ -437,7 +437,7 @@ function *(sum::IndexedSingleSum,elem::QNumber)
         else
             specNEIs = Tuple{Index,Index}[]
             for ind in NEIds
-                tuple = (elem.ind,ind) 
+                tuple = (elem.ind,ind)
                 push!(specNEIs,tuple)
             end
             extraterm_ = change_index(term,sum.sumIndex,elem.ind)
@@ -454,13 +454,13 @@ function *(sum::IndexedSingleSum,elem::QNumber)
         end
         sort!(NEIds,by=getIndName)
         newsum = IndexedSingleSum(qmul,sum.sumIndex,NEIds)
-    
+
         if SymbolicUtils._iszero(newsum)
             return qaddterm
         elseif SymbolicUtils._iszero(qaddterm)
             return newsum
         end
-    
+
         return QAdd([newsum,qaddterm])
     end
     qmul = sum.term*elem
@@ -484,7 +484,7 @@ function *(elem::QNumber,sum::IndexedSingleSum)
         else
             specNEIs = Tuple{Index,Index}[]
             for ind in NEIds
-                tuple = (elem.ind,ind) 
+                tuple = (elem.ind,ind)
                 push!(specNEIs,tuple)
             end
             extraterm_ = change_index(term,sum.sumIndex,elem.ind)
@@ -500,13 +500,13 @@ function *(elem::QNumber,sum::IndexedSingleSum)
         end
         sort!(NEIds,by=getIndName)
         newsum = IndexedSingleSum(qmul,sum.sumIndex,NEIds)
-    
+
         if SymbolicUtils._iszero(newsum)
             return qaddterm
         elseif SymbolicUtils._iszero(qaddterm)
             return newsum
         end
-    
+
         return QAdd([newsum,qaddterm])
     end
     qmul = elem*sum.term
@@ -633,16 +633,16 @@ function *(x::QAdd,term::SpecialIndexedTerm)
     sums = []
     for arg in arguments(x)
         push!(sums,arg*term)
-    end 
+    end
     return sum(sums)
-end 
+end
 function *(term::SpecialIndexedTerm,x::QAdd)
     sums = []
     for arg in arguments(x)
         push!(sums,term*arg)
-    end 
+    end
     return sum(sums)
-end 
+end
 
 function *(x, term::SpecialIndexedTerm)
     return reorder(x*term.term,term.indexMapping)
@@ -662,7 +662,7 @@ acts_on(indSum::IndexedSingleSum) = acts_on(indSum.term)
 
 #extra commutators
 #Indexed operators, evaluate the commutator directly, if 2 indexed ops have the same index
-function commutator(op1::IndexedOperator,op2::IndexedOperator) 
+function commutator(op1::IndexedOperator,op2::IndexedOperator)
     if (op1.ind == op2.ind)
         return IndexedOperator(commutator(op1.op,op2.op),op1.ind)
     else
@@ -747,8 +747,8 @@ function Base.isequal(a::SpecialIndexedTerm,b::SpecialIndexedTerm)
 end
 
 #checks if two sums have opposite numeric values
-function check_sign(a::IndexedSingleSum,b::IndexedSingleSum) 
-    if a.term isa QMul && b.term isa QMul 
+function check_sign(a::IndexedSingleSum,b::IndexedSingleSum)
+    if a.term isa QMul && b.term isa QMul
         return isequal(a.term.arg_c, -1*b.term.arg_c)
     else
         return isequal(a.term,-1*b.term)
@@ -950,11 +950,11 @@ function reorder(param::QMul,indexMapping::Vector{Tuple{Index,Index}})
         else
             push!(others,term[i])
         end
-    end 
+    end
     if isequal(carg,0) || (0 in term)
         return 0
     end
-    while true #go over all ops ind indexed ops -> order by 
+    while true #go over all ops ind indexed ops -> order by
         finish = true
         for i = 1:(length(indOps)-1)
             if ((indOps[i].ind,indOps[i+1].ind) in indexMapping || (indOps[i+1].ind,indOps[i].ind) in indexMapping) && (indOps[i+1].ind < indOps[i].ind)
@@ -1020,7 +1020,7 @@ function Base.show(io::IO,op::IndexedOperator)
         write(io,op_.name)
     end
 end
-function Base.show(io::IO,indSum::IndexedSingleSum) 
+function Base.show(io::IO,indSum::IndexedSingleSum)
     write(io, "Σ", "($(indSum.sumIndex.name)", "=1:$(indSum.sumIndex.rangeN))",)
     if !(isempty(indSum.nonEqualIndices))
         write(io,"($(indSum.sumIndex.name)≠")
@@ -1074,7 +1074,7 @@ function writeNEIs(neis::Vector{Index})
 end
 
 _to_expression(ind::Index) = ind.name
-function _to_expression(x::IndexedOperator) 
+function _to_expression(x::IndexedOperator)
     x.op isa Transition && return :( IndexedOperator($(x.op.name),$(x.ind.name),$(x.op.i),$(x.op.j)) )
     x.op isa Destroy && return :(IndexedDestroy($(x.op.name),$(x.ind.name)))
     x.op isa Create && return :(dagger(IndexedDestroy($(x.op.name),$(x.ind.name))))
@@ -1096,4 +1096,3 @@ _to_expression(a::SymbolicUtils.Sym{Parameter,DoubleIndexedVariable}) = :(Double
     return sumString
 end
 SymbolicUtils._iszero(x::SpecialIndexedTerm) = SymbolicUtils._iszero(x.term)
-
