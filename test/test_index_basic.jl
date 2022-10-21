@@ -70,7 +70,7 @@ k_ind = indT(:k)
     ))
 
 @test(isequal(
-    reorder(σ(1,2,k_ind)*σ(1,2,j_ind)*σ(1,2,i_ind),[(i_ind,j_ind)]), 
+    reorder(σ(1,2,k_ind)*σ(1,2,j_ind)*σ(1,2,i_ind),[(i_ind,j_ind)]),
     SpecialIndexedTerm(σ(1,2,k_ind)*σ(1,2,i_ind)*σ(1,2,j_ind),[(i_ind,j_ind)])
 ))
 @test(isequal(
@@ -257,6 +257,12 @@ ai2(i) = IndexedOperator(Destroy(hfock,:a),i)
 @test to_numeric(ai2(2),b_2;ranges=[2]) isa Operator
 @test_throws BoundsError to_numeric(ai2(3),b_2;ranges=[2])
 
+# Indices and only one HilbertSpace
+h = NLevelSpace(:atom,2)
+i = Index(h,:i,N,h)
+σ(x,y,k) = IndexedOperator(Transition(h,:σ,x,y),k)
+i.hilb
+@test isa(i.hilb,ProductSpace) == false
+@test σ(1,2,i) == (σ(1,2,i)')'
 
 end
-
