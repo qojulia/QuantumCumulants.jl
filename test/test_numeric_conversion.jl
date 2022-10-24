@@ -1,5 +1,7 @@
 using QuantumCumulants
 using QuantumOpticsBase
+using ModelingToolkit
+using OrdinaryDiffEq
 using Test
 using Random; Random.seed!(0)
 
@@ -33,7 +35,6 @@ for i=1:3, j=1:3
     op = σ_sym(lvl1, lvl2)
     @test to_numeric(op, bnlevel; level_map=level_map) == transition(bnlevel, i, j)
 end
-
 
 # On composite bases
 hprod = hfock ⊗ hnlevel
@@ -116,5 +117,56 @@ diff = (2*create(bfock)+2*destroy(bfock)) - to_numeric((2*(a)+2*(a')), bfock)
 
 @test isequal(to_numeric(2*a, bfock),2*to_numeric(a, bfock))
 @test iszero(to_numeric(2*a, bfock) - 2*to_numeric(a, bfock))
+
+# Test indexed initial state (superradiant pulse)
+order = 2 #order of the cumulant expansion
+@cnumbers κ g Γ Δ N
+hc = FockSpace(:cavity)
+ha = NLevelSpace(:atom, 2)
+h = hc ⊗ ha
+i = Index(h,:i,N,ha)
+j = Index(h,:j,N,ha)
+k = Index(h,:k,N,ha)
+@qnumbers a::Destroy(h,1)
+σ(α,β,k) = IndexedOperator(Transition(h,:σ,α,β,2), k)
+bc = FockBasis(3)
+ba = NLevelBasis(2)
+b = tensor(bc, [ba for i=1:order]...)
+ψc = fockstate(bc, 0)
+ψa = normalize(nlevelstate(ba,1) + nlevelstate(ba,2))
+ψ = tensor(ψc, [ψa for i=1:order]...)
+a_ = embed(b,1,destroy(bc))
+σ_(i,j,k) = embed(b,1+k,transition(ba,i,j))
+ranges=[1,2]
+@test to_numeric(σ(1,2,1),b; ranges=ranges) == σ_(1,2,1)
+@test to_numeric(σ(2,2,2),b; ranges=ranges) == σ_(2,2,2)
+@test to_numeric(a,b; ranges=ranges) == a_
+@test to_numeric(a*σ(2,2,2),b; ranges=ranges) == σ_(2,2,2)*a_
+@test numeric_average(σ(2,2,2), ψ; ranges=ranges) ≈ 0.5
+@test numeric_average(average(σ(2,2,1)), ψ; ranges=ranges) ≈ 0.5
+@test numeric_average(average(a'a), ψ; ranges=ranges) ≈ 0.0
+@test numeric_average(average(a*σ(2,2,1)), ψ; ranges=ranges) ≈ 0.0
+@test_throws ArgumentError numeric_average(average(a'a), ψ)
+# Hamiltonian
+H = -Δ*a'a + g*(Σ(a'*σ(1,2,i),i) + Σ(a*σ(2,1,i),i))
+J = [a,σ(1,2,i)]
+rates = [κ, Γ]
+ops = [a,σ(2,2,j)]
+eqs = indexed_meanfield(ops,H,J;rates=rates,order=order)
+eqs_c = complete(eqs; scaling=true)
+eqs_sc = scale(eqs_c)
+@named sys = ODESystem(eqs_sc)
+@test_throws ArgumentError initial_values(eqs_sc, ψ)
+u0 = initial_values(eqs_sc, ψ; ranges=ranges)
+N_ = 2e5
+Γ_ = 1.0 #Γ=1mHz
+Δ_ = 2500Γ_ #Δ=2.5Hz
+g_ = 1000Γ_ #g=1Hz
+κ_ = 5e6*Γ_ #κ=5kHz
+ps = [N, Δ, g, κ, Γ]
+p0 = [N_, Δ_, g_, κ_, Γ_]
+
+prob = ODEProblem(sys,u0,(0.0, 1e-4/Γ_), ps.=>p0)
+@test solve(prob, Tsit5()) isa ODESolution
 
 end # testset

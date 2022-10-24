@@ -318,7 +318,7 @@ Operator(dim=11x11)
 
 """
 function to_numeric(op::QSym, b::QuantumOpticsBase.Basis; kwargs...)
-    check_basis_match(op.hilbert, b)
+    check_basis_match(op.hilbert, b; kwargs...)
     return _to_numeric(op, b; kwargs...)
 end
 
@@ -343,24 +343,34 @@ function _convert_levels(op; level_map = nothing)
     end
 end
 
-check_basis_match(h, b) = throw(ArgumentError("Hilbert space $h and basis $b are incompatible!"))
-check_basis_match(::FockSpace, ::QuantumOpticsBase.FockBasis) = nothing
-function check_basis_match(h::NLevelSpace, b::QuantumOpticsBase.NLevelBasis)
+check_basis_match(h, b; kwargs...) = throw(ArgumentError("Hilbert space $h and basis $b are incompatible!"))
+check_basis_match(::FockSpace, ::QuantumOpticsBase.FockBasis; kwargs...) = nothing
+function check_basis_match(h::NLevelSpace, b::QuantumOpticsBase.NLevelBasis; kwargs...)
     if length(h.levels) != length(b)
         throw(ArgumentError("Hilbert space $h and basis $b have incompatible levels!"))
     end
 end
 
-function check_basis_match(h::ProductSpace, b::QuantumOpticsBase.CompositeBasis)
-    length(h.spaces) == length(b.bases) || throw(ArgumentError("Hilbert space $h and basis $b don't have the same number of subspaces!"))
-    for (h_, b_) ∈ zip(h.spaces, b.bases)
-        check_basis_match(h_, b_)
+function check_basis_match(h::ProductSpace, b::QuantumOpticsBase.CompositeBasis; ranges=[], kwargs...)
+    if length(h.spaces) != length(b.bases) && (isempty(ranges) || sum(ranges) != length(b.bases))
+        throw(ArgumentError("Hilbert space $h and basis $b don't have the same number of subspaces!
+             If you use indices, specify the `ranges` kwarg."))
+    end
+    if isempty(ranges)
+        inds = [1:1:length(h.spaces);]
+    else
+        inds = [sum(ranges[1:i]) for i=1:length(ranges)]
+    end
+    b_r = [b.bases[i] for i in inds]
+    for (h_, b_) ∈ zip(h.spaces, b_r)
+        check_basis_match(h_, b_; ranges=ranges)
     end
 end
 
+
 # Composite bases
 function to_numeric(op::QSym, b::QuantumOpticsBase.CompositeBasis; kwargs...)
-    check_basis_match(op.hilbert, b)
+    check_basis_match(op.hilbert, b; kwargs...)
     aon = acts_on(op)
     op_num = _to_numeric(op, b.bases[aon]; kwargs...)
     return QuantumOpticsBase.embed(b, aon, op_num)
@@ -402,7 +412,7 @@ function numeric_average(op::QNumber, state; kwargs...)
 end
 
 """
-    initial_values(eqs::MeanfieldEquations, state; level_map = nothing)
+    initial_values(eqs::MeanfieldEquations, state; level_map=nothing)
 
 For a set of symbolic equations `eqs` compute the initial state average values
 corresponding to the numeric quantum state `state` of the system. The quantum
@@ -410,7 +420,17 @@ state can either be of type `QuantumOpticsBase.StateVector` or `QuantumOpticsBas
 
 See also: [`to_numeric`](@ref), [`numeric_average`](@ref)
 """
+
 function initial_values(de::MeanfieldEquations, state; kwargs...)
+    vs = de.states
+    vals = eltype(state)[]
+    for v ∈ vs
+        push!(vals, numeric_average(v, state; kwargs...))
+    end
+    return vals
+end
+
+function initial_values(de::AbstractMeanfieldEquations, state; kwargs...)
     vs = de.states
     vals = eltype(state)[]
     for v ∈ vs
