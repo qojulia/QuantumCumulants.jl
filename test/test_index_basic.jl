@@ -269,7 +269,11 @@ h = hc ⊗ ha
 i = Index(h,:i,N,ha)
 S(x,y) = Transition(h,:S,x,y,1)
 σ(x,y,k) = IndexedOperator(Transition(h,:σ,x,y,2),k)
-S(2,1)*σ(1,2,i) isa QuantumCumulants.QMul
-σ(1,2,i)*S(2,1) isa QuantumCumulants.QMul
+@test S(2,1)*σ(1,2,i) isa QuantumCumulants.QMul
+@test σ(1,2,i)*S(2,1) isa QuantumCumulants.QMul
+@test σ(1,2,2)*S(2,1) isa QuantumCumulants.QMul
+@test S(2,1)*σ(1,2,3) isa QuantumCumulants.QMul
+@test σ(1,2,2) isa NumberedOperator
+@test S(2,1)*σ(1,2,i) == σ(1,2,i)*S(2,1)
 
 end
