@@ -318,7 +318,7 @@ Operator(dim=11x11)
 
 """
 function to_numeric(op::QSym, b::QuantumOpticsBase.Basis; kwargs...)
-    check_basis_match(op.hilbert, b)
+    check_basis_match(op.hilbert, b; kwargs...)
     return _to_numeric(op, b; kwargs...)
 end
 
@@ -343,24 +343,26 @@ function _convert_levels(op; level_map = nothing)
     end
 end
 
-check_basis_match(h, b) = throw(ArgumentError("Hilbert space $h and basis $b are incompatible!"))
-check_basis_match(::FockSpace, ::QuantumOpticsBase.FockBasis) = nothing
-function check_basis_match(h::NLevelSpace, b::QuantumOpticsBase.NLevelBasis)
+check_basis_match(h, b; kwargs...) = throw(ArgumentError("Hilbert space $h and basis $b are incompatible!"))
+check_basis_match(::FockSpace, ::QuantumOpticsBase.FockBasis; kwargs...) = nothing
+function check_basis_match(h::NLevelSpace, b::QuantumOpticsBase.NLevelBasis; kwargs...)
     if length(h.levels) != length(b)
         throw(ArgumentError("Hilbert space $h and basis $b have incompatible levels!"))
     end
 end
 
-function check_basis_match(h::ProductSpace, b::QuantumOpticsBase.CompositeBasis)
-    length(h.spaces) == length(b.bases) || throw(ArgumentError("Hilbert space $h and basis $b don't have the same number of subspaces!"))
-    for (h_, b_) ∈ zip(h.spaces, b.bases)
-        check_basis_match(h_, b_)
+function check_basis_match(h::ProductSpace, b::QuantumOpticsBase.CompositeBasis; ranges=ones(Int, length(h)), kwargs...)
+    sum(ranges) == length(b.bases) || throw(ArgumentError("Hilbert space $h and basis $b don't have the same number of subspaces!
+         If you use indices, specify the `ranges` kwarg."))
+    b_r = b[sum(b[1:i]) for i=1:length(b)]
+    for (h_, b_) ∈ zip(h.spaces, b_r.bases) # TODO: test this
+        check_basis_match(h_, b_; ranges=ranges)
     end
 end
 
 # Composite bases
 function to_numeric(op::QSym, b::QuantumOpticsBase.CompositeBasis; kwargs...)
-    check_basis_match(op.hilbert, b)
+    check_basis_match(op.hilbert, b; kwargs...)
     aon = acts_on(op)
     op_num = _to_numeric(op, b.bases[aon]; kwargs...)
     return QuantumOpticsBase.embed(b, aon, op_num)
