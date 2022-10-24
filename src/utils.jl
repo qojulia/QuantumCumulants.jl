@@ -351,14 +351,22 @@ function check_basis_match(h::NLevelSpace, b::QuantumOpticsBase.NLevelBasis; kwa
     end
 end
 
-function check_basis_match(h::ProductSpace, b::QuantumOpticsBase.CompositeBasis; ranges=ones(Int, length(h)), kwargs...)
-    sum(ranges) == length(b.bases) || throw(ArgumentError("Hilbert space $h and basis $b don't have the same number of subspaces!
-         If you use indices, specify the `ranges` kwarg."))
-    b_r = b[sum(b[1:i]) for i=1:length(b)]
-    for (h_, b_) ∈ zip(h.spaces, b_r.bases) # TODO: test this
+function check_basis_match(h::ProductSpace, b::QuantumOpticsBase.CompositeBasis; ranges=[], kwargs...)
+    if length(h.spaces) != length(b.bases) && (isempty(ranges) || sum(ranges) != length(b.bases))
+        throw(ArgumentError("Hilbert space $h and basis $b don't have the same number of subspaces!
+             If you use indices, specify the `ranges` kwarg."))
+    end
+    if isempty(ranges)
+        inds = [1:1:length(h.spaces);]
+    else
+        inds = [sum(ranges[1:i]) for i=1:length(ranges)]
+    end
+    b_r = [b.bases[i] for i in inds]
+    for (h_, b_) ∈ zip(h.spaces, b_r)
         check_basis_match(h_, b_; ranges=ranges)
     end
 end
+
 
 # Composite bases
 function to_numeric(op::QSym, b::QuantumOpticsBase.CompositeBasis; kwargs...)
@@ -404,7 +412,7 @@ function numeric_average(op::QNumber, state; kwargs...)
 end
 
 """
-    initial_values(eqs::MeanfieldEquations, state; level_map = nothing)
+    initial_values(eqs::MeanfieldEquations, state; level_map=nothing)
 
 For a set of symbolic equations `eqs` compute the initial state average values
 corresponding to the numeric quantum state `state` of the system. The quantum
@@ -412,7 +420,17 @@ state can either be of type `QuantumOpticsBase.StateVector` or `QuantumOpticsBas
 
 See also: [`to_numeric`](@ref), [`numeric_average`](@ref)
 """
+
 function initial_values(de::MeanfieldEquations, state; kwargs...)
+    vs = de.states
+    vals = eltype(state)[]
+    for v ∈ vs
+        push!(vals, numeric_average(v, state; kwargs...))
+    end
+    return vals
+end
+
+function initial_values(de::AbstractMeanfieldEquations, state; kwargs...)
     vs = de.states
     vals = eltype(state)[]
     for v ∈ vs

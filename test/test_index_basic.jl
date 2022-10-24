@@ -3,6 +3,7 @@ using QuantumCumulants
 using QuantumOpticsBase
 using SymbolicUtils
 using Symbolics
+using OrdinaryDiffEq
 
 const qc=QuantumCumulants
 
@@ -160,7 +161,6 @@ ai(k) = IndexedOperator(Destroy(h,:a),k)
 
 @test isequal((ai(indF(:m))*ai(indF(:m))'),ai(indF(:m))'*ai(indF(:m)) + 1)
 
-
 specTerm = qc.SpecialIndexedTerm(σ(1,2,i_ind)*σ(1,2,j_ind),[(i_ind,j_ind)])
 asdf = specTerm*σ(1,2,k_ind)
 asdf2 = σ(1,2,k_ind)*specTerm
@@ -211,14 +211,12 @@ k = Index(h,:k,N,hf)
 
 xij = IndexedVariable(:x,i,j)
 
-
 @qnumbers a_::Destroy(h,1)
 b(k) = IndexedOperator(Destroy(h,:b,2), k)
 
 @test reorder(b(i)*b(k)*b(i)',[(i,k)]) isa qc.QAdd
 @test reorder(b(i)'*b(i)*b(k),[(i,k)]) isa qc.SpecialIndexedTerm
 @test isequal(reorder(b(i)*b(k)*b(i)',[(i,k)]),reorder(b(i)'*b(i)*b(k),[(i,k)]) + reorder(b(k),[(i,k)]))
-
 
 # Test fock basis conversion
 hfock = FockSpace(:fock)
@@ -229,11 +227,9 @@ bnlevel = NLevelBasis(2)
 
 h_ = hnlevel ⊗ hfock
 
-
 N_n = 4
 N_f = 2
 ranges = [N_n,N_f]
-
 
 b_1 = ⊗([bnlevel for i = 1:N_n]...)
 b_2 = ⊗([bfock for i =1:N_f]...)
