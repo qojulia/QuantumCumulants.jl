@@ -274,6 +274,6 @@ S(x,y) = Transition(h,:S,x,y,1)
 @test σ(1,2,2)*S(2,1) isa QuantumCumulants.QMul
 @test S(2,1)*σ(1,2,3) isa QuantumCumulants.QMul
 @test σ(1,2,2) isa NumberedOperator
-@test S(2,1)*σ(1,2,i) == σ(1,2,i)*S(2,1)
+@test isequal(S(2,1)*σ(1,2,i), σ(1,2,i)*S(2,1))
 
 end
