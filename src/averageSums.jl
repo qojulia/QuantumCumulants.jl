@@ -226,7 +226,10 @@ struct DoubleNumberedVariable <: numberedVariable
     name::Symbol
     numb1::indornum
     numb2::indornum
-    function DoubleNumberedVariable(name,numb1,numb2)
+    function DoubleNumberedVariable(name,numb1,numb2;identical::Bool=true)
+        if !(identical) && (numb1 == numb2)
+            return 0
+        end
         if typeof(numb1) == typeof(numb2) && typeof(numb1) == Int64
             metadata = source_metadata(:Parameter, name)
             s = SymbolicUtils.Sym{Parameter, typeof(metadata)}(Symbol("$(name)_{$(numb1)$(numb2)}"), metadata)
