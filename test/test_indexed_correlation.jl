@@ -161,5 +161,47 @@ split = split_sums(sum_,i,3)
 @test split isa SymbolicUtils.Add
 @test length(arguments(split)) == 3
 
+hc = FockSpace(:cavity)
+ha = NLevelSpace(:atom,2)
+
+h = hc ⊗ ha
+
+k = Index(h,:k,N,ha)
+l = Index(h,:l,N,ha)
+
+m = Index(h,:m,N,hc)
+n = Index(h,:n,N,hc)
+
+order = 2
+
+σ(i,j,k) = IndexedOperator(Transition(h,:σ,i,j),k)
+ai(k) = IndexedOperator(Destroy(h,:a),k)
+
+H_2 = -Δ*∑(ai(m)'ai(m),m) + g*(∑(Σ(ai(m)'*σ(1,2,k),k),m) + ∑(Σ(ai(m)*σ(2,1,k),k),m))
+
+J_2 = [ai(m),σ(1,2,k),σ(2,1,k),σ(2,2,k)]
+rates_2 = [κ, Γ, R, ν]
+ops_2 = [ai(n)'*ai(n),σ(2,2,l)]
+
+q = Index(h,:q,N,ha)
+r = Index(h,:r,N,hc)
+
+extra_indices = [q,r]
+eqs_2 = indexed_meanfield(ops_2,H_2,J_2;rates=rates_2,order=order)
+
+eqs_s1 = scale(eqs_2;h=ha)
+inds_s1 = qc.get_all_indices(eqs_s1)
+
+for ind in inds_s1
+    @test isequal(ind.specHilb,hc)
+end
+
+eqs_s2 = scale(eqs_2;h=hc)
+inds_s2 = qc.get_all_indices(eqs_s2)
+
+for ind in inds_s2
+    @test isequal(ind.specHilb,ha)
+end
+
 
 end

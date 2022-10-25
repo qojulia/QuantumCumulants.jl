@@ -341,7 +341,7 @@ function *(numOp1::NumberedOperator,numOp2::NumberedOperator)
     if numOp1.op isa Create || numOp1.op isa Destroy || numOp2.op isa Create || numOp2.op isa Destroy
         return merge_commutators(1,[numOp1,numOp2])
     end
-    return numOp1.numb == numOp2.numb ? NumberedOperator(numOp1.op*numOp2.op,numOp1.numb) : QMul(1,[numOp1,numOp2])
+    return (numOp1.numb == numOp2.numb && isequal(acts_on(numOp1.op),acts_on(numOp2.op))) ? NumberedOperator(numOp1.op*numOp2.op,numOp1.numb) : QMul(1,[numOp1,numOp2])
 end
 *(elem::SNuN, numOp::NumberedOperator) = merge_commutators(elem,[numOp])
 *(numOp::NumberedOperator,elem::SNuN) = merge_commutators(elem,[numOp])
@@ -349,6 +349,8 @@ end
 *(b::NumberedOperator,a::Create) = merge_commutators(1,[b,a])
 *(a::Destroy,b::NumberedOperator) = merge_commutators(1,[a,b])
 *(b::NumberedOperator,a::Destroy) = merge_commutators(1,[b,a])
+*(a::Transition,b::NumberedOperator) = merge_commutators(1,[a,b])
+*(b::NumberedOperator,a::Transition) = merge_commutators(1,[b,a])
 *(a::IndexedOperator,b::NumberedOperator) = merge_commutators(1,[a,b])
 *(b::NumberedOperator,a::IndexedOperator) = merge_commutators(1,[b,a])
 
@@ -631,7 +633,7 @@ where indices have been inserted and sums evaluated.
     by a Symbolic.
 
 """
-function evalME(me::AbstractMeanfieldEquations;mapping::Dict{SymbolicUtils.Sym,Int64}=Dict{SymbolicUtils.Sym,Int64}())#this is still pretty slow
+function evalME(me::AbstractMeanfieldEquations;mapping::Dict{SymbolicUtils.Sym,Int64}=Dict{SymbolicUtils.Sym,Int64}(),kwargs...)#this is still pretty slow
     indices = nothing
     for eq in me.equations
         if containsIndexedOps(eq.lhs) && length(getIndices(eq.lhs)) == me.order
@@ -676,7 +678,7 @@ function evalME(me::AbstractMeanfieldEquations;mapping::Dict{SymbolicUtils.Sym,I
     for i = 1:length(me.equations)
         inds = getIndices(me.equations[i].lhs)
         if isempty(inds)
-            evals = evalEquation(me.equations[i],[],[];mapping)
+            evals = evalEquation(me.equations[i],[],[];mapping,kwargs...)
             for eq_ in evals
                 if (eq_.lhs ∉ getLHS.(newEqs)) && (_conj(eq_.lhs) ∉ getLHS.(newEqs))
                     newEqs[counter] = eq_
@@ -717,7 +719,7 @@ function evalME(me::AbstractMeanfieldEquations;mapping::Dict{SymbolicUtils.Sym,I
 
         arrf = appendEach(arr1,arr2)
 
-        evals = evalEquation(me.equations[i],arrf,[nLvls;others];mapping)
+        evals = evalEquation(me.equations[i],arrf,[nLvls;others];mapping,kwargs...)
         for eq_ in evals
             if (eq_.lhs ∉ getLHS.(newEqs)) && (_conj(eq_.lhs) ∉ getLHS.(newEqs))
                 newEqs[counter] = eq_
@@ -745,7 +747,7 @@ function appendEach(vec1,vec2)
     end
     return vecf
 end
-function eval_term(sum_::SymbolicUtils.Sym{Parameter,IndexedAverageSum};mapping::Dict{SymbolicUtils.Sym,Int64}=Dict{SymbolicUtils.Sym,Int64}())
+function eval_term(sum_::SymbolicUtils.Sym{Parameter,IndexedAverageSum};mapping::Dict{SymbolicUtils.Sym,Int64}=Dict{SymbolicUtils.Sym,Int64}(),kwargs...)
     rangeEval = 0
     if sum_.metadata.sumIndex.rangeN in keys(mapping)
         rangeEval = mapping[sum_.metadata.sumIndex.rangeN]
@@ -769,7 +771,7 @@ function eval_term(sum_::SymbolicUtils.Sym{Parameter,IndexedAverageSum};mapping:
         end
         adds[i]=orderTermsByNumber(insert_index(sum_.metadata.term,sum_.metadata.sumIndex,i))
     end
-    filter!(x->x!=nothing,adds)
+    filter!(x->!=(x,nothing),adds)
     if isempty(adds)
         return 0
     elseif length(adds) == 1
@@ -777,13 +779,13 @@ function eval_term(sum_::SymbolicUtils.Sym{Parameter,IndexedAverageSum};mapping:
     end
     return sum(adds)
 end
-function eval_term(sum::SymbolicUtils.Sym{Parameter,IndexedAverageDoubleSum};mapping::Dict{SymbolicUtils.Sym,Int64})
-    return eval_term(IndexedAverageDoubleSum(eval_term(sum.metadata.innerSum;mapping),sum.metadata.sumIndex,sum.metadata.nonEqualIndices);mapping)
+function eval_term(sum::SymbolicUtils.Sym{Parameter,IndexedAverageDoubleSum};mapping::Dict{SymbolicUtils.Sym,Int64},kwargs...)
+    return eval_term(IndexedAverageDoubleSum(eval_term(sum.metadata.innerSum;mapping,kwargs...),sum.metadata.sumIndex,sum.metadata.nonEqualIndices);mapping,kwargs...)
 end
-function eval_term(term::SymbolicUtils.Mul;mapping::Dict{SymbolicUtils.Sym,Int64}=Dict{SymbolicUtils.Sym,Int64}()) 
+function eval_term(term::SymbolicUtils.Mul;mapping::Dict{SymbolicUtils.Sym,Int64}=Dict{SymbolicUtils.Sym,Int64}(),kwargs...) 
     mults = []
     for arg in arguments(term)
-        push!(mults,eval_term(arg;mapping))
+        push!(mults,eval_term(arg;mapping,kwargs...))
     end
     if isempty(mults)
         return 0
@@ -792,10 +794,10 @@ function eval_term(term::SymbolicUtils.Mul;mapping::Dict{SymbolicUtils.Sym,Int64
     end
     return *(mults...)
 end
-function eval_term(term::SymbolicUtils.Add;mapping::Dict{SymbolicUtils.Sym,Int64}=Dict{SymbolicUtils.Sym,Int64}()) 
+function eval_term(term::SymbolicUtils.Add;mapping::Dict{SymbolicUtils.Sym,Int64}=Dict{SymbolicUtils.Sym,Int64}(),kwargs...) 
     adds = []
     for arg in arguments(term)
-        push!(adds,eval_term(arg;mapping))
+        push!(adds,eval_term(arg;mapping,kwargs...))
     end
     if isempty(adds)
         return 0
@@ -805,7 +807,7 @@ function eval_term(term::SymbolicUtils.Add;mapping::Dict{SymbolicUtils.Sym,Int64
     return sum(adds)
 end
 eval_term(x;mapping::Dict{SymbolicUtils.Sym,Int64}) = x
-evalEq(eq::Symbolics.Equation;mapping::Dict{SymbolicUtils.Sym,Int64}=Dict{SymbolicUtils.Sym,Int64}()) = Symbolics.Equation(eq.lhs,eval_term(eq.rhs;mapping))
+evalEq(eq::Symbolics.Equation;mapping::Dict{SymbolicUtils.Sym,Int64}=Dict{SymbolicUtils.Sym,Int64}(),kwargs...) = Symbolics.Equation(eq.lhs,eval_term(eq.rhs;mapping,kwargs...))
 
 getLHS(eq::Symbolics.Equation) = eq.lhs
 getLHS(x) = []

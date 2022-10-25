@@ -46,8 +46,8 @@ rates = [κ,Γ_ij]
 ops = [a, σ(2,2,k_ind), σ(1,2,k_ind)]
 eqs = indexed_meanfield(ops,H,J;rates=rates,order=order)
 
-@test isequal([i_ind,j_ind,k_ind],sort(qc.getAllIndices(eqs)))
-@test isequal([:i,:j,:k],sort(qc.getIndName.(qc.getAllIndices(eqs))))
+@test isequal([i_ind,j_ind,k_ind],sort(qc.get_all_indices(eqs)))
+@test isequal([:i,:j,:k],sort(qc.getIndName.(qc.get_all_indices(eqs))))
 
 @test length(eqs) == 3
 
