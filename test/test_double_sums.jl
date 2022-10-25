@@ -28,7 +28,7 @@ Dsum = IndexedDoubleSum(innerSum,ind(:j),[ind(:i)])
     IndexedDoubleSum(innerSum,ind(:j)), IndexedDoubleSum(IndexedSingleSum(σ(2,1,ind(:i)),ind(:i))*σ(1,2,ind(:j)),ind(:j))
 ))
 
-N_atoms = 4 
+N_atoms = 4
 N_modes = 2
 
 hf = FockSpace(:cavity)
@@ -74,7 +74,7 @@ Dsum2 = H.arguments[2]
 
 @test isequal(Σ(Σ(σ(2,1,i_ind)*σ(1,2,j_ind),i_ind,[j_ind]),j_ind,[i_ind]),Σ(Σ(σ(2,1,i_ind)*σ(1,2,j_ind),i_ind,[j_ind]),j_ind))
 @test isequal(Σ(Σ(σ(2,1,i_ind)*σ(1,2,j_ind),i_ind,[j_ind]),j_ind,[i_ind]),Σ(Σ(σ(2,1,i_ind),i_ind,[j_ind])*σ(1,2,j_ind),j_ind))
- 
+
 ADsum1 = average(DSum1)
 ADsum2 = average(Dsum2)
 
@@ -115,5 +115,17 @@ mul2 = sum1*sum2_
 @test mul1 isa qc.QAdd
 
 @test isequal(mul1,mul2)
+
+# Double indexed variable
+@cnumbers N
+i = Index(h,:i,N,h)
+j = Index(h,:j,N,h)
+Γ(i,j) = IndexedVariable(:Γ,i,j)
+Ω(i,j) = IndexedVariable(:Ω,i,j;identical=false)
+@test iszero(Ω(i,i))
+@test iszero(Ω(2,2))
+@test !isequal(Ω(2,3),0)
+@test !isequal(Γ(i,i),0)
+@test !isequal(Γ(2,2),0)
 
 end
