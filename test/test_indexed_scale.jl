@@ -5,7 +5,7 @@ using Symbolics
 
 const qc = QuantumCumulants
 
-@testset "indexed_correlation" begin
+@testset "indexed_scale" begin
 
 #test a system, where scaling is done individually per hilbertspace
 

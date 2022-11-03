@@ -228,7 +228,7 @@ function split_sums(me::AbstractMeanfieldEquations,ind::Index,amount)
 end
 split_sums(x,ind,amount) = x
 
-scale(eqs::IndexedMeanfieldEquations;kwargs...) = subst_reds(scaleME(eqs;kwargs...);scaling=true)
+scale(eqs::IndexedMeanfieldEquations;kwargs...) = subst_reds(scaleME(eqs;kwargs...))
 
 """
     value_map(ps::Vector,p0::Vector)
@@ -244,7 +244,7 @@ A Function to create parameter values for indexed Variables more convenient.
     of the given variable.
 
 """
-function value_map(ps::Vector,p0::Vector;mapping=nothing)
+function value_map(ps::Vector,p0::Vector;mapping=nothing,kwargs...)
     length(ps) != length(p0) && error("Vectors given have non-equal length!")
 
     if !=(mapping,nothing) && mapping isa Pair

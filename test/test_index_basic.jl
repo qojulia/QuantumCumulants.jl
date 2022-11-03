@@ -276,4 +276,14 @@ S(x,y) = Transition(h,:S,x,y,1)
 S(2,1)*σ(1,2,i) isa QuantumCumulants.QMul
 σ(1,2,i)*S(2,1) isa QuantumCumulants.QMul
 
+j = Index(h,:j,N,hc)
+j2 = Index(h,:j,N,ha)
+ranges1 = [1:10,1:5]
+
+arr = qc.create_index_arrays([i,j],ranges1)
+@test isequal(vec(collect(collect(Iterators.product(ranges1...)))),arr)
+arr = qc.create_index_arrays([i],[1:10])
+@test isequal(1:10,arr)
+
+
 end

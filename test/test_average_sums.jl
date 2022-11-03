@@ -109,10 +109,6 @@ specAvrg = qc.SpecialIndexedAverage(average(σ(2,1,ind(:i))*σ(1,2,ind(:j))),[(i
 
 @test isequal(σ(1,2,ind(:j))*σn(1,2,2),qc.insert_index(σ(1,2,ind(:i))*σ(1,2,ind(:j)),ind(:i),2))
 
-vec1 = qc.appendEach([1,2,3],[3,4,5])
-vec2 = [[1, 3], [1, 4], [1, 5], [2, 3], [2, 4], [2, 5], [3, 3], [3, 4], [3, 5]]
-@test isequal(vec1,vec2)
-
 dict_ = qc.create_value_map(g(ind(:i)),2)
 dict = Dict{SymbolicUtils.Sym{Parameter, Base.ImmutableDict{DataType, Any}},ComplexF64}()
 push!(dict,(qc.SingleNumberedVariable(:g,1) => 2))

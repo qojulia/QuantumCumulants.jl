@@ -488,7 +488,7 @@ function insert_index(term::SymbolicUtils.Mul, ind::Index, value::Int64)
     for arg in arguments(term)
         push!(args,insert_index(arg,ind,value))
     end
-    return *(args...)
+    return prod(args)
 end
 function insert_index(term::SymbolicUtils.Add,ind::Index,value::Int64)
     args = []
@@ -594,27 +594,42 @@ Mainly used by [`evalEquation`](@ref).
     by a Symbolic.
 
 """
-function insertIndices(eq::Symbolics.Equation,map::Dict{Index,Int64};mapping::Dict{SymbolicUtils.Sym,Int64}=Dict{Symbol,Int64}())
-    eq_ = eq
+function insert_indices_rhs(eq::Symbolics.Equation,map::Dict{Index,Int64};mapping=Dict{SymbolicUtils.Sym,Int64}(),kwargs...)
+    eq_rhs = eq.rhs
     while !isempty(map)
         pair = first(map)
-        eq_ = insert_index(eq_,first(pair),last(pair))
+        eq_rhs = insert_index(eq_rhs,first(pair),last(pair))
         delete!(map,first(pair))
     end
-    return evalEq(eq_;mapping) #return finished equation
+    return eval_term(eq_rhs;mapping,kwargs...) #return finished equation
 end
-function evalEquation(eq::Symbolics.Equation,arr,indices;mapping::Dict{SymbolicUtils.Sym,Int64}=Dict{Symbol,Int64}())
+function insert_indices_lhs(term::Term{AvgSym, Nothing},map::Dict{Index,Int64};kwargs...)
+    lhs = term
+    map_ = copy(map)
+    while !isempty(map_)
+        pair = first(map_)
+        lhs = insert_index(lhs,first(pair),last(pair))
+        delete!(map_,first(pair))
+        order_by_number!(lhs)
+    end
+    return lhs
+end 
+function evalEquation(eq::Symbolics.Equation,arr,indices,states;mapping=Dict{Symbol,Int64}(),kwargs...)
     if !(isempty(indices))
         eqs = Vector{Any}(nothing, length(arr))
         #Threads.@threads 
         for i=1:length(arr)
             dict = Dict(indices .=> arr[i])
-            eq_ = orderTermsByNumber(insertIndices(eq,dict;mapping))
-            eqs[i] = eq_
+            eq_lhs = insert_indices_lhs(eq.lhs,dict)
+            if eq_lhs in states || eq_lhs in getLHS.(eqs) || _conj(eq_lhs) in states || _conj(eq_lhs) in getLHS.(eqs)
+                continue
+            end
+            eq_rhs = insert_indices_rhs(eq,dict;mapping=mapping,kwargs...)
+            eqs[i] = Symbolics.Equation(eq_lhs,eq_rhs)
         end
-        return filter(x -> !=(x,nothing),eqs)
+        return eqs[eqs .!=(nothing)]
     else
-        return [evalEq(eq;mapping)]
+        return [evalEq(eq;mapping=mapping,kwargs...)]
     end
 end
 """
@@ -633,7 +648,7 @@ where indices have been inserted and sums evaluated.
     by a Symbolic.
 
 """
-function evalME(me::AbstractMeanfieldEquations;mapping::Dict{SymbolicUtils.Sym,Int64}=Dict{SymbolicUtils.Sym,Int64}(),kwargs...)#this is still pretty slow
+function evalME(me::AbstractMeanfieldEquations;mapping=Dict{SymbolicUtils.Sym,Int64}(),h=nothing,kwargs...)#this is still pretty slow
     indices = nothing
     for eq in me.equations
         if containsIndexedOps(eq.lhs) && length(getIndices(eq.lhs)) == me.order
@@ -654,16 +669,19 @@ function evalME(me::AbstractMeanfieldEquations;mapping::Dict{SymbolicUtils.Sym,I
     end
 
     range = 0
+    if !=(h,nothing)
+        if !(h isa Vector)
+            h = [h]
+        end
+        filter!(x->x.specHilb in h,indices)
+    end
     for ind in indices
         if typeof(ind.rangeN) != Int64 && ind.rangeN ∉ keys(mapping)
             error("Please provide numbers for the upper-limits used: $(ind.rangeN); you can do this by calling: evaluate(me;mapping=[Dictionary with corresponding numbers for limits])")
         end
     end
-    
     sort!(indices)
-
     ranges = []
-    arrays = []
     for ind in indices
         if ind.rangeN in keys(mapping)
             push!(ranges,1:mapping[ind.rangeN])
@@ -673,12 +691,13 @@ function evalME(me::AbstractMeanfieldEquations;mapping::Dict{SymbolicUtils.Sym,I
     end
     maxRange = maximum(ranges)[end]
     newEqs = Vector{Union{Missing,Symbolics.Equation}}(missing,length(indices)*(maxRange*5)^length(indices))
-    
+    states = Vector{Union{Missing,Term{AvgSym, Nothing}}}(missing,length(indices)*(maxRange*5)^length(indices))
+
     counter = 1
     for i = 1:length(me.equations)
         inds = getIndices(me.equations[i].lhs)
         if isempty(inds)
-            evals = evalEquation(me.equations[i],[],[];mapping,kwargs...)
+            evals = evalEquation(me.equations[i],[],[],[];mapping,h=h,kwargs...)
             for eq_ in evals
                 if (eq_.lhs ∉ getLHS.(newEqs)) && (_conj(eq_.lhs) ∉ getLHS.(newEqs))
                     newEqs[counter] = eq_
@@ -688,66 +707,42 @@ function evalME(me::AbstractMeanfieldEquations;mapping::Dict{SymbolicUtils.Sym,I
             continue
         end
 
-        nLvls=[]
-        others=[]
-        for ind in inds
-            if ind.specHilb isa NLevelSpace
-                push!(nLvls,ind)
-            else
-                push!(others,ind)
+        if !=(h,nothing)
+            if !(h isa Vector)
+                h = [h]
             end
+            filter!(x->x.specHilb in h,inds)
         end
-        ranges_nLvl = []
-        for ind in nLvls
-            if ind.rangeN in keys(mapping)
-                push!(ranges_nLvl,1:mapping[ind.rangeN])
+
+        ranges_ = Vector{Any}(nothing,length(inds))
+        for i=1:length(ranges_)
+            if inds[i].rangeN in keys(mapping)
+                ranges_[i]=1:mapping[inds[i].rangeN]
             else
-                push!(ranges_nLvl,1:ind.rangeN)
-            end
-        end
-        ranges_other = []
-        for ind in others
-            if ind.rangeN in keys(mapping)
-                push!(ranges_other,1:mapping[ind.rangeN])
-            else
-                push!(ranges_other,1:ind.rangeN)
+                ranges_[i]=1:inds[i].rangeN
             end
         end
 
-        arr1 = unique(sort.(collect.(filter(x -> length(x) == length(unique(x)),collect(Iterators.product(ranges_nLvl...))))))
-        arr2 = unique(sort.(collect.(collect(Iterators.product(ranges_other...)))))
-
-        arrf = appendEach(arr1,arr2)
-
-        evals = evalEquation(me.equations[i],arrf,[nLvls;others];mapping,kwargs...)
-        for eq_ in evals
-            if (eq_.lhs ∉ getLHS.(newEqs)) && (_conj(eq_.lhs) ∉ getLHS.(newEqs))
-                newEqs[counter] = eq_
-                counter = counter+1
-            end
+        arr = create_index_arrays(inds,ranges_)
+        if !(isempty(newEqs))
+            states = getLHS.(newEqs)
         end
-                    
+        evals = evalEquation(me.equations[i],arr,inds,states;mapping,h=h,kwargs...)
+        newEqs = [newEqs;evals]
     end
-    
-    newEqs = filter(x -> !isequal(x,missing), newEqs)
+
+    newEqs = newEqs[Bool[!isequal(newEqs[i],missing) for i=1:length(newEqs)]]
     vs = getLHS.(newEqs)
     varmap = make_varmap(vs, me.iv)
     return EvaledMeanfieldEquations(newEqs,me.operator_equations,vs,me.operators,me.hamiltonian,me.jumps,me.jumps_dagger,me.rates,me.iv,varmap,me.order)
  end
-function appendEach(vec1,vec2)
-    isempty(vec1) && return vec2
-    isempty(vec2) && return vec1
-    vecf = Vector{Vector{Int64}}(undef,length(vec1)*length(vec2))
-    counter = 1
-    for v1 in vec1
-        for v2 in vec2
-            vecf[counter] = [v1;v2]
-            counter=counter+1
+function eval_term(sum_::SymbolicUtils.Sym{Parameter,IndexedAverageSum};mapping=Dict{SymbolicUtils.Sym,Int64}(), h=nothing, kwargs...)
+    if !=(h,nothing)
+        if !(h isa Vector)
+            h = [h]
         end
+        sum_.metadata.sumIndex.specHilb ∉ h && return sum_
     end
-    return vecf
-end
-function eval_term(sum_::SymbolicUtils.Sym{Parameter,IndexedAverageSum};mapping::Dict{SymbolicUtils.Sym,Int64}=Dict{SymbolicUtils.Sym,Int64}(),kwargs...)
     rangeEval = 0
     if sum_.metadata.sumIndex.rangeN in keys(mapping)
         rangeEval = mapping[sum_.metadata.sumIndex.rangeN]
@@ -767,52 +762,60 @@ function eval_term(sum_::SymbolicUtils.Sym{Parameter,IndexedAverageSum};mapping:
     adds = Vector{Any}(nothing,rangeEval)
     for i = 1:rangeEval
         if i in sum_.metadata.nonEqualIndices
+            adds[i] = 0
             continue
         end
-        adds[i]=orderTermsByNumber(insert_index(sum_.metadata.term,sum_.metadata.sumIndex,i))
+        temp = insert_index(sum_.metadata.term,sum_.metadata.sumIndex,i)
+        order_by_number!(temp)
+        adds[i]=temp
     end
-    filter!(x->!=(x,nothing),adds)
     if isempty(adds)
         return 0
-    elseif length(adds) == 1
-        return adds[1]
     end
     return sum(adds)
 end
-function eval_term(sum::SymbolicUtils.Sym{Parameter,IndexedAverageDoubleSum};mapping::Dict{SymbolicUtils.Sym,Int64},kwargs...)
-    return eval_term(IndexedAverageDoubleSum(eval_term(sum.metadata.innerSum;mapping,kwargs...),sum.metadata.sumIndex,sum.metadata.nonEqualIndices);mapping,kwargs...)
+function eval_term(sum::SymbolicUtils.Sym{Parameter,IndexedAverageDoubleSum};kwargs...)
+    return eval_term(IndexedAverageDoubleSum(eval_term(sum.metadata.innerSum;kwargs...),sum.metadata.sumIndex,sum.metadata.nonEqualIndices);kwargs...)
 end
-function eval_term(term::SymbolicUtils.Mul;mapping::Dict{SymbolicUtils.Sym,Int64}=Dict{SymbolicUtils.Sym,Int64}(),kwargs...) 
-    mults = []
-    for arg in arguments(term)
-        push!(mults,eval_term(arg;mapping,kwargs...))
+function eval_term(term::SymbolicUtils.Mul;kwargs...) 
+    mults = Vector{Any}(nothing,length(arguments(term)))
+    for i=1:length(arguments(term))
+        mults[i] = eval_term(arguments(term)[i];kwargs...)
     end
     if isempty(mults)
         return 0
-    elseif length(mults) == 1
-        return mults[1]
     end
-    return *(mults...)
+    return prod(mults)
 end
-function eval_term(term::SymbolicUtils.Add;mapping::Dict{SymbolicUtils.Sym,Int64}=Dict{SymbolicUtils.Sym,Int64}(),kwargs...) 
-    adds = []
-    for arg in arguments(term)
-        push!(adds,eval_term(arg;mapping,kwargs...))
+function eval_term(term::SymbolicUtils.Add;kwargs...) 
+    adds = Vector{Any}(nothing,length(arguments(term)))
+    for i=1:length(arguments(term))
+        adds[i] = eval_term(arguments(term)[i];kwargs...)
     end
     if isempty(adds)
         return 0
-    elseif length(adds) == 1
-        return adds[1]
     end
     return sum(adds)
 end
-eval_term(x;mapping::Dict{SymbolicUtils.Sym,Int64}) = x
-evalEq(eq::Symbolics.Equation;mapping::Dict{SymbolicUtils.Sym,Int64}=Dict{SymbolicUtils.Sym,Int64}(),kwargs...) = Symbolics.Equation(eq.lhs,eval_term(eq.rhs;mapping,kwargs...))
+function eval_term(x;kwargs...)
+    order_by_number!(x)
+    return x
+end
+evalEq(eq::Symbolics.Equation;kwargs...) = Symbolics.Equation(eq.lhs,eval_term(eq.rhs;kwargs...))
 
 getLHS(eq::Symbolics.Equation) = eq.lhs
 getLHS(x) = []
 
 #functions to order terms inside the sumy by their index-number, used for checking if averages already exist in LHS of the equations
+order_by_number!(qmul::QMul) = sort!(qmul.args_nc,by=getNumber)
+order_by_number!(term::Term{AvgSym, Nothing}) = order_by_number!(arguments(term)[1])
+order_by_number!(mul::SymbolicUtils.Mul) = order_by_number!.(arguments(mul))
+order_by_number!(add::SymbolicUtils.Add) = order_by_number!.(arguments(add))
+order_by_number!(x::Vector) = sort!(x,by=getNumber)
+order_by_number!(eq::Symbolics.Equation) = order_by_number!(eq.rhs)
+order_by_number!(x) = x
+
+#=
 function orderTermsByNumber(qmul::QMul)
     args_nc = qmul.args_nc
     newargs = sort(args_nc,by=getNumber)
@@ -845,6 +848,8 @@ function orderTermsByNumber(add::SymbolicUtils.Add)
 end
 orderTermsByNumber(eq::Symbolics.Equation) = Symbolics.Equation(eq.lhs,orderTermsByNumber(eq.rhs))
 orderTermsByNumber(x) = x
+=#
+
 Base.:(==)(term1::Term{AvgSym, Nothing},term2::Term{AvgSym, Nothing}) = isequal(arguments(term1), arguments(term2))
 
 #Value map creation, for easier inserting into the ODEProblem
@@ -869,7 +874,7 @@ only a single value, then all possible numbered-Variables are set to the same va
     by a Symbolic.
 
 """
-function create_value_map(sym::Sym{Parameter, IndexedVariable}, values::Vector;mapping::Dict{SymbolicUtils.Sym,Int64}=Dict{SymbolicUtils.Sym,Int64}())
+function create_value_map(sym::Sym{Parameter, IndexedVariable}, values::Vector;mapping=Dict{SymbolicUtils.Sym,Int64}(),kwargs...)
     iVar = sym.metadata
     if iVar.ind.rangeN isa SymbolicUtils.Sym
         if iVar.ind.rangeN in keys(mapping)
@@ -906,7 +911,7 @@ function create_value_map(sym::Sym{Parameter, IndexedVariable}, value::Number)
     end
     return dict
 end
-function create_value_map(sym::Sym{Parameter,DoubleIndexedVariable},values::Matrix;mapping::Dict{SymbolicUtils.Sym,Int64}=Dict{SymbolicUtils.Sym,Int64}())
+function create_value_map(sym::Sym{Parameter,DoubleIndexedVariable},values::Matrix;mapping=Dict{SymbolicUtils.Sym,Int64}(),kwargs...)
     dict = Dict{Sym{Parameter, Base.ImmutableDict{DataType, Any}},ComplexF64}()
     var = sym.metadata
     if var.ind1.rangeN isa SymbolicUtils.Sym
@@ -1130,4 +1135,38 @@ end
 Base.isequal(x::Missing,y::SymbolicUtils.Symbolic) = false
 
 SymbolicUtils.simplify(sym::SymbolicUtils.Sym{Parameter,SpecialIndexedAverage}) = SpecialIndexedAverage(SymbolicUtils.simplify(sym.metadata.term),sym.metadata.indexMapping)
+
+#function that creates an array consisting of all possible number values for each index given
+#ind_vec should be sorted beforehand
+function create_index_arrays(ind_vec,ranges)
+    if length(ind_vec) == 1
+        return ranges[1]
+    end
+
+    array = unique(collect(Iterators.product(ranges...)))
+
+    length(ind_vec) == 1 && return array
+    length(unique(get_spec_hilb.(ind_vec))) == length(ind_vec) && return array #every index has its own specHilb
+
+    for vec in get_not_allowed(ind_vec)
+        array = array[Bool[all_different(array[i],vec) for i=1:length(array)]]
+    end
+
+    return collect(array)
+end
+all_different(x,vec) = length(unique(getindex(x,vec))) == length(getindex(x,vec))
+function get_not_allowed(ind_vec)
+    spec_hilbs = get_spec_hilb.(ind_vec)
+    not_allowed = []
+    for ind in ind_vec
+        indices = findall(x -> isequal(x,ind.specHilb) ,spec_hilbs)
+        length(indices) == 1 && continue
+        if indices ∉ not_allowed
+            push!(not_allowed,indices)
+        end
+    end
+    return not_allowed
+end
+get_spec_hilb(ind::Index) = ind.specHilb
+
 

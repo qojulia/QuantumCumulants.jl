@@ -58,6 +58,12 @@ function indexed_meanfield(a::Vector,H,J;Jdagger::Vector=adjoint.(J),rates=ones(
     mix_choice=maximum,
     iv=SymbolicUtils.Sym{Real}(:t))
 
+    for ind in getIndices(a)
+        if ind in getIndices(H)
+            error("Index $(ind.name) in operator-vector is already used in H!")
+        end
+    end
+
     # Derive operator equations
     rhs = Vector{Any}(undef, length(a))
     imH = im*H
@@ -714,13 +720,35 @@ average given as the conjugate of one of the left-hand-side (of the equations) a
 *`scaling`: A Bool defining the way how averages are added to the `missed` vector. If true only averages, whose
     operators (without indices) are not already inside the `missed` vector will be added.
 """
-function subst_reds(me::AbstractMeanfieldEquations;scaling::Bool=false,kwargs...)
-    eqs = []
-    for eq in me.equations
-        push!(eqs,Symbolics.Equation(eq.lhs,subst_reds(eq.rhs,me.states;scaling=scaling,kwargs...)))
+function subst_reds(me::AbstractMeanfieldEquations;kwargs...)
+    eqs = Vector{Union{Missing,Symbolics.Equation}}(missing,length(me.equations))
+    to_sub = find_missing(me)
+    filter!(x->!(x in me.states),to_sub)
+    to_insert = _conj.(to_sub)
+    subs = Dict(to_sub .=> to_insert)
+    for i=1:length(me.equations)
+        eqs[i] = SymbolicUtils.substitute(me.equations[i],subs)
     end
     return IndexedMeanfieldEquations(eqs,me.operator_equations,me.states,me.operators,me.hamiltonian,me.jumps,me.jumps_dagger,me.rates,me.iv,me.varmap,me.order)
 end
+#=
+function subst_reds(term::Average,vect;kwargs...)
+    term in vect && return term
+    _conj(term) in vect && return conj(_conj(term))
+    @warn "unknown term encountered $(term)"
+    return term
+end
+function subst_reds(term,vect;kwargs...)
+    if istree(term)
+        op = operation(term)
+        args = map(x->subst_reds(x,vect;kwargs...),arguments(term))
+        return SymbolicUtils.similarterm(term, op, args)
+    else
+        return term
+    end
+end
+=#
+#=
 function subst_reds(term,vect::Vector;scaling::Bool=false,kwargs...)
     if term isa Average
         for i = 1:length(vect)
@@ -736,17 +764,12 @@ function subst_reds(term,vect::Vector;scaling::Bool=false,kwargs...)
         op = operation(term)
         args = map(x->subst_reds(x,vect;scaling=scaling,kwargs...),arguments(term))
         return SymbolicUtils.similarterm(term, op, args)
-        #=
-    elseif typeof(term) == SymbolicUtils.Sym{Parameter,IndexedAverageSum}
-        return IndexedAverageSum(subst_reds(term.metadata.term,vect;scaling=scaling,kwargs...),term.metadata.sumIndex,term.metadata.nonEqualIndices)
-    elseif typeof(term) == SymbolicUtils.Sym{Parameter,IndexedAverageDoubleSum}
-        return IndexedAverageDoubleSum(subst_reds(term.metadata.innerSum,vect;scaling=scaling,kwargs...),term.metadata.sumIndex,term.metadata.nonEqualIndices)
-        =#
     elseif typeof(term) == SymbolicUtils.Sym{Parameter,SpecialIndexedAverage}
         return SpecialIndexedAverage(subst_reds(term.metadata.term,vect;scaling=scaling,kwargs...),term.metadata.indexMapping)
     end
     return term
 end
+=#
 
 complete(eqs::IndexedMeanfieldEquations;kwargs...) = indexed_complete(eqs;kwargs...)
 complete!(eqs::IndexedMeanfieldEquations;kwargs...) = indexed_complete!(eqs;kwargs...) 
@@ -768,7 +791,7 @@ where indices have been inserted and sums evaluated.
 
 see also: [`evalME`](@ref)
 """
-function evaluate(eqs::IndexedMeanfieldEquations;mapping=nothing)
+function evaluate(eqs::IndexedMeanfieldEquations;mapping=nothing,kwargs...)
     if !=(mapping,nothing) && mapping isa Pair
         mapping_ = Dict{SymbolicUtils.Sym,Int64}(first(mapping) => last(mapping));
         mapping = mapping_
@@ -776,5 +799,5 @@ function evaluate(eqs::IndexedMeanfieldEquations;mapping=nothing)
     if mapping === nothing
         mapping =  Dict{SymbolicUtils.Sym,Int64}();
     end
-    return subst_reds(evalME(eqs;mapping=mapping);scaling=false)
+    return subst_reds(evalME(eqs;mapping=mapping,kwargs...))
 end

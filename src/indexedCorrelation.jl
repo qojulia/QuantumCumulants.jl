@@ -145,10 +145,9 @@ function IndexedCorrelationFunction(op1,op2,de0::AbstractMeanfieldEquations;
             scaling=scaling,
             kwargs...) 
     if scaling
-        de = scaleME(de;h=h_scale,kwargs...)
-        de0_ = scaleME(de0_;h=h_scale,kwargs)
-        de = subst_reds(de;scaling=true)
-        de0_ = subst_reds(de0_;scaling=true)
+        de = scaleME(de;kwargs...)
+        de0_ = scaleME(de0_;kwargs...)
+        de0_ = subst_reds(de0_)
     end
     de = substituteIntoCorrelation(de,de0_;scaling=scaling)
     
@@ -156,9 +155,14 @@ function IndexedCorrelationFunction(op1,op2,de0::AbstractMeanfieldEquations;
 end
 
 function substituteIntoCorrelation(me,de0;scaling::Bool=false)
-    neweqs = []
-    for eq in me.equations
-        push!(neweqs,Symbolics.Equation(eq.lhs,subst_reds(eq.rhs,de0.states;scaling=scaling)))
+    neweqs = Vector{Union{Missing,Symbolics.Equation}}(missing,length(me.equations))
+    de_states = [me.states;de0.states]
+    to_sub = find_missing(me)
+    filter!(x->!(x in de_states),to_sub)
+    to_insert = _conj.(to_sub)
+    subs = Dict(to_sub .=> to_insert)
+    for i=1:length(me.equations)
+        neweqs[i] = SymbolicUtils.substitute(me.equations[i],subs)
     end
     return IndexedMeanfieldEquations(neweqs,me.operator_equations,me.states,me.operators,me.hamiltonian,me.jumps,me.jumps_dagger,me.rates,me.iv,me.varmap,me.order)
 end

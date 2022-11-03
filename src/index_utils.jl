@@ -14,6 +14,17 @@ function getIndices(term::SymbolicUtils.Term{AvgSym, Nothing})
     end
     return indices
 end
+function getIndices(vec::Vector)
+    inds = []
+    for vec in getIndices.(vec)
+        for ind in vec
+            if ind ∉ inds
+                push!(inds,ind)
+            end
+        end
+    end
+    return inds
+end 
 getIndices(a::IndexedOperator) = [a.ind]
 getIndices(a::SymbolicUtils.Sym{Parameter,DoubleIndexedVariable}) = a.metadata.ind1 == a.metadata.ind2 ? [a.metadata.ind1] : [a.metadata.ind1,a.metadata.ind2]
 getIndices(a::SymbolicUtils.Sym{Parameter,IndexedVariable}) = [a.metadata.ind]
