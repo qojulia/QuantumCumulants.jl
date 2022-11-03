@@ -65,16 +65,17 @@ function IndexedCorrelationFunction(op1,op2,de0::AbstractMeanfieldEquations;
     order=nothing,
     extra_indices::Vector=[:i,:j,:k,:l,:m,:n,:p,:q,:r,:s,:t],
     scaling::Bool=false,
+    h_scale=nothing,
     simplify=true, kwargs...)
     h1 = hilbert(op1)
     h2 = _new_hilbert(hilbert(op2), acts_on(op2))
     h = h1⊗h2
 
-    allInds = getAllIndices(de0)
+    allInds = get_all_indices(de0)
     filter!(x -> x ∉ getIndName.(allInds),extra_indices)
 
     extra_inds = copy(extra_indices)
-    extras_ = _new_indices(getAllIndices(de0.states),h) #the extra indices used in the equations beforehand
+    extras_ = _new_indices(get_all_indices(de0.states),h) #the extra indices used in the equations beforehand
 
     H0 = de0.hamiltonian
     J0 = de0.jumps
@@ -144,10 +145,9 @@ function IndexedCorrelationFunction(op1,op2,de0::AbstractMeanfieldEquations;
             scaling=scaling,
             kwargs...) 
     if scaling
-        de = scaleME(de)
-        de0_ = scaleME(de0_)
-        de = subst_reds(de;scaling=true)
-        de0_ = subst_reds(de0_;scaling=true)
+        de = scaleME(de;kwargs...)
+        de0_ = scaleME(de0_;kwargs...)
+        de0_ = subst_reds(de0_)
     end
     de = substituteIntoCorrelation(de,de0_;scaling=scaling)
     
@@ -155,9 +155,14 @@ function IndexedCorrelationFunction(op1,op2,de0::AbstractMeanfieldEquations;
 end
 
 function substituteIntoCorrelation(me,de0;scaling::Bool=false)
-    neweqs = []
-    for eq in me.equations
-        push!(neweqs,Symbolics.Equation(eq.lhs,subst_reds(eq.rhs,de0.states;scaling=scaling)))
+    neweqs = Vector{Union{Missing,Symbolics.Equation}}(missing,length(me.equations))
+    de_states = [me.states;de0.states]
+    to_sub = find_missing(me)
+    filter!(x->!(x in de_states),to_sub)
+    to_insert = _conj.(to_sub)
+    subs = Dict(to_sub .=> to_insert)
+    for i=1:length(me.equations)
+        neweqs[i] = SymbolicUtils.substitute(me.equations[i],subs)
     end
     return IndexedMeanfieldEquations(neweqs,me.operator_equations,me.states,me.operators,me.hamiltonian,me.jumps,me.jumps_dagger,me.rates,me.iv,me.varmap,me.order)
 end
@@ -191,7 +196,7 @@ function indexed_complete_corr!(de,aon0,lhs_new,order,steady_state,de0;
         end
     end
 
-    if containsMultiple(getAllIndices(de.states))
+    if containsMultiple(get_all_indices(de.states))
         if extra_indices[1] isa Symbol
             error("It is not possible to complete equations, containing indices, that act on different hilbertspaces using Symbols as
             extra_indices. For this case use specific Indices.")
