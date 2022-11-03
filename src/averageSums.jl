@@ -226,7 +226,10 @@ struct DoubleNumberedVariable <: numberedVariable
     name::Symbol
     numb1::indornum
     numb2::indornum
-    function DoubleNumberedVariable(name,numb1,numb2)
+    function DoubleNumberedVariable(name,numb1,numb2;identical::Bool=true)
+        if !(identical) && (numb1 == numb2)
+            return 0
+        end
         if typeof(numb1) == typeof(numb2) && typeof(numb1) == Int64
             metadata = source_metadata(:Parameter, name)
             s = SymbolicUtils.Sym{Parameter, typeof(metadata)}(Symbol("$(name)_{$(numb1)$(numb2)}"), metadata)
@@ -306,7 +309,7 @@ end
 
 const AvgSums = Union{SymbolicUtils.Sym{Parameter,IndexedAverageSum},SymbolicUtils.Sym{Parameter,IndexedAverageDoubleSum},SymbolicUtils.Sym{Parameter,SpecialIndexedAverage},IndexedAverageSum,IndexedAverageDoubleSum,SpecialIndexedTerm}
 
-function average(indOp::IndexedOperator) 
+function average(indOp::IndexedOperator)
     if SymbolicUtils._iszero(indOp)
         return 0
     end
@@ -337,7 +340,7 @@ undo_average(a::SymbolicUtils.Sym{Parameter,SpecialIndexedAverage}) = reorder(un
 #define calculus for numbered operators -> break it down into QNuber multiplication
 *(numOp::NumberedOperator, qmul::QMul) = merge_commutators(qmul.arg_c,vcat(numOp,qmul.args_nc))
 *(qmul::QMul, numOp::NumberedOperator) = merge_commutators(qmul.arg_c,vcat(qmul.args_nc,numOp))
-function *(numOp1::NumberedOperator,numOp2::NumberedOperator) 
+function *(numOp1::NumberedOperator,numOp2::NumberedOperator)
     if numOp1.op isa Create || numOp1.op isa Destroy || numOp2.op isa Create || numOp2.op isa Destroy
         return merge_commutators(1,[numOp1,numOp2])
     end
@@ -353,6 +356,8 @@ end
 *(b::NumberedOperator,a::Transition) = merge_commutators(1,[b,a])
 *(a::IndexedOperator,b::NumberedOperator) = merge_commutators(1,[a,b])
 *(b::NumberedOperator,a::IndexedOperator) = merge_commutators(1,[b,a])
+*(a::Transition,b::NumberedOperator) = merge_commutators(1,[a,b])
+*(b::NumberedOperator,a::Transition) = merge_commutators(1,[b,a])
 
 #Symbolics functions
 get_order(a::Sym{Parameter,IndexedAverageSum}) = get_order(a.metadata.term)
@@ -412,7 +417,7 @@ end
 #Base functions
 function Base.hash(a::IndexedAverageSum, h::UInt)
     return hash(IndexedAverageSum, hash(a.term, hash(a.sumIndex, hash(a.nonEqualIndices,h))))
-end 
+end
 Base.isless(a::IndexedAverageSum,b::IndexedAverageSum) = a.sumIndex < b.sumIndex
 Base.isequal(a::SymbolicUtils.Sym{Parameter,IndexedAverageSum},b::SymbolicUtils.Sym{Parameter,IndexedAverageSum}) = isequal(a.metadata,b.metadata)
 function Base.isequal(a::IndexedAverageSum, b::IndexedAverageSum)
@@ -426,7 +431,7 @@ Base.isequal(a::IndexedAverageSum,b) = false
 Base.isequal(::Sym{Parameter, IndexedAverageSum}, ::Sym) = false
 Base.isequal(::IndexedAverageSum, ::SymbolicUtils.Symbolic) = false
 Base.isequal(a::SymbolicUtils.Sym{Parameter,SpecialIndexedAverage},b::SymbolicUtils.Sym{Parameter,SpecialIndexedAverage}) = isequal(a.metadata.term,b.metadata.term) && isequal(a.metadata.indexMapping,b.metadata.indexMapping)
-function Base.isequal(nVal1::Sym{Parameter,numberedVariable},nVal2::Sym{Parameter,numberedVariable}) 
+function Base.isequal(nVal1::Sym{Parameter,numberedVariable},nVal2::Sym{Parameter,numberedVariable})
     if typeof(nVal1) == typeof(nVal2) && typeof(nVal1.metadata) == SingleNumberedVariable
         return (nVal1.metadata.name == nVal2.metadata.name) && (nVal1.metadata.numb == nVal2.metadata.numb)
     elseif typeof(nVal1) == typeof(nVal2) && typeof(nVal1.metadata) == DoubleNumberedVariable
@@ -458,13 +463,13 @@ SymbolicUtils.arguments(op::SpecialIndexedAverage) = arguments(op.term)
 """
     inserIndex(term,ind,value)
 
-Function, that inserts an integer value for a index in a specified term. 
+Function, that inserts an integer value for a index in a specified term.
 This function creates Numbered- Variables/Operators/Sums upon calls.
 
 Examples
 ========
 
-    insert_index(σⱼ²¹,j,1) = σ₁²¹ 
+    insert_index(σⱼ²¹,j,1) = σ₁²¹
 
 """
 function insert_index(sum::SymbolicUtils.Sym{Parameter,IndexedAverageSum}, ind::Index, value::Int64)
@@ -617,7 +622,7 @@ end
 function evalEquation(eq::Symbolics.Equation,arr,indices,states;mapping=Dict{Symbol,Int64}(),kwargs...)
     if !(isempty(indices))
         eqs = Vector{Any}(nothing, length(arr))
-        #Threads.@threads 
+        #Threads.@threads
         for i=1:length(arr)
             dict = Dict(indices .=> arr[i])
             eq_lhs = insert_indices_lhs(eq.lhs,dict)
@@ -952,7 +957,7 @@ function containsIndexedOps(term::SymbolicUtils.Term{AvgSym, Nothing})
             end
         end
     else
-        return typeof(arg_[1]) == IndexedOperator 
+        return typeof(arg_[1]) == IndexedOperator
     end
     return found
 end
@@ -971,7 +976,7 @@ function simplifyMultiplication(term::SymbolicUtils.Mul)
             sumArg = i
             break
         end
-    end 
+    end
     found || return term #no add-terms were found inside the multiplication
     adds = []
     lefts = []
@@ -1024,7 +1029,7 @@ function simplifyMeanfieldEquations(me::AbstractMeanfieldEquations)
     elseif me isa IndexedMeanfieldEquations
         return IndexedMeanfieldEquations(eq_after,op_after,me.states,me.operators,me.hamiltonian,me.jumps,me.jumps_dagger,me.rates,me.iv,me.varmap,me.order)
     end
-end 
+end
 
 #functions for simplifying the indexed_complete function
 function getOps(sum::SymbolicUtils.Sym{Parameter,IndexedAverageSum})
@@ -1072,7 +1077,7 @@ function getAvrgs(sum::SymbolicUtils.Sym{Parameter,SpecialIndexedAverage})
         return ops
     end
 end
-function Base.show(io::IO,indSum::IndexedAverageSum) 
+function Base.show(io::IO,indSum::IndexedAverageSum)
     write(io, "Σ", "($(indSum.sumIndex.name)", "=1:$(indSum.sumIndex.rangeN))",)
     if !(isempty(indSum.nonEqualIndices))
         write(io,"($(indSum.sumIndex.name) ≠ ")
@@ -1110,7 +1115,7 @@ getNumber(x::NumberedOperator) = [acts_on(x) + x.numb]
 getNumber(x::QMul) = acts_on(x)
 getNumber(x) = [acts_on(x)] # this is so that, any other operator still behaves the same as before
 
-function _to_expression(x::NumberedOperator) 
+function _to_expression(x::NumberedOperator)
     x.op isa Transition && return :( NumberedOperator($(x.op.name),$(x.numb),$(x.op.i),$(x.op.j)) )
     x.op isa Destroy && return :(NumberedDestroy($(x.op.name),$(x.numb)))
     x.op isa Create && return :(dagger(NumberedDestroy($(x.op.name),$(x.numb))))

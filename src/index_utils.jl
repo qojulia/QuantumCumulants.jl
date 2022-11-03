@@ -84,7 +84,7 @@ end
 function IndexedVariable(x,numb1,numb2)
     numInt1 = 0
     numInt2 = 0
-    try 
+    try
         numInt1 = round(Int,numb1)
         numInt2 = round(Int,numb2)
     catch
@@ -92,12 +92,12 @@ function IndexedVariable(x,numb1,numb2)
     end
     return IndexedVariable(x,numInt1,numInt2)
 end
-IndexedVariable(x,num1::Int64,num2::Int64) = DoubleNumberedVariable(x,num1,num2)
+IndexedVariable(x,num1::Int64,num2::Int64;kwargs...) = DoubleNumberedVariable(x,num1,num2;kwargs...)
 IndexedVariable(name::Symbol,ind1::Index,ind2::Index;kwargs...) = DoubleIndexedVariable(name,ind1,ind2;kwargs...)
 
 #Numeric Conversion of NumberedOperators
 #this only works, if only one of the hilbertspaces is indexed
-#function to_numeric(op::NumberedOperator,b::QuantumOpticsBase.CompositeBasis; kwargs...) 
+#function to_numeric(op::NumberedOperator,b::QuantumOpticsBase.CompositeBasis; kwargs...)
 #    #keep in mind: this function does not have a check for hilbert-spaces, meaning it can produce wrong output
 #    # or error when getting the right basis of b
 #    aon = getNumber(op)[1] - 1
@@ -110,9 +110,9 @@ function to_numeric(op::NumberedOperator,b::QuantumOpticsBase.CompositeBasis; ra
         error("When calling to_numeric for indexed Operators, specification of the \"ranges\" keyword is needed! This keyword requires a vector of Integers, which specify the maximum range of the index for each hilbertspace.")
     end
     h = hilbert(op)
-    if h isa ProductSpace 
+    if h isa ProductSpace
         if length(h.spaces) != length(ranges)
-            error("Unequal length of hilbertspaces and ranges!")    
+            error("Unequal length of hilbertspaces and ranges!")
         end
     else
         if length(ranges) != 1
@@ -135,4 +135,3 @@ function to_numeric(op::NumberedOperator,b::QuantumOpticsBase.CompositeBasis; ra
     op_ = _to_numeric(op.op,b.bases[aon];kwargs...)
     return QuantumOpticsBase.embed(b,aon,op_)
 end
-
