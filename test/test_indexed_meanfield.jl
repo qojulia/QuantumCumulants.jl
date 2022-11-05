@@ -46,8 +46,8 @@ rates = [κ,Γ_ij]
 ops = [a, σ(2,2,k_ind), σ(1,2,k_ind)]
 eqs = indexed_meanfield(ops,H,J;rates=rates,order=order)
 
-@test isequal([i_ind,j_ind,k_ind],sort(qc.get_all_indices(eqs)))
-@test isequal([:i,:j,:k],sort(qc.getIndName.(qc.get_all_indices(eqs))))
+@test isequal([i_ind,j_ind,k_ind],sort(qc.get_indices_equations(eqs)))
+@test isequal([:i,:j,:k],sort(qc.getIndName.(qc.get_indices_equations(eqs))))
 
 @test length(eqs) == 3
 
@@ -104,6 +104,8 @@ eqs1 = indexed_meanfield(a_,H,J;rates=rates,order=order)
 eqs2 = indexed_meanfield([a_],H,J;rates=rates,order=order) 
 @test isequal(eqs1.equations,eqs2.equations)
 
+@test isequal(sort([i,j]),sort(qc.get_all_indices(eqs1)))
+
 
 #example for testing evaluation of individual hilbertspaces
 @cnumbers N N2 Δ g κ Γ R ν M
@@ -139,6 +141,8 @@ extra_indices = [q,r]
 eqs_com = complete(eqs_2;extra_indices=extra_indices);
 @test length(eqs_com) == 15
 
+@test isequal(sort([k,m,n,l,q,r]),sort(qc.get_all_indices(eqs_com)))
+
 e_1 = evaluate(eqs_com; h=ha,mapping=(N=>5))
 e_2 = evaluate(eqs_com; h=hc,mapping=(N2=>6))
 
@@ -146,8 +150,8 @@ e_2 = evaluate(eqs_com; h=hc,mapping=(N2=>6))
 @test !(e_1.equations == e_2.equations)
 @test !(e_1.states == e_2.states)
 
-@test sort(qc.get_all_indices(e_1)) == sort([m,n,r])
-@test sort(qc.get_all_indices(e_2)) == sort([k,l,q])
+@test sort(qc.get_indices_equations(e_1)) == sort([m,n,r])
+@test sort(qc.get_indices_equations(e_2)) == sort([k,l,q])
 
 mapping = Dict(N=>5,N2=>6)
 s1 = evaluate(eqs_com; h=[hc,ha],mapping=mapping)
@@ -156,7 +160,7 @@ s2 = evaluate(eqs_com; mapping=mapping)
 @test length(s1) == length(s2)
 @test s1.equations == s2.equations
 
-@test qc.get_all_indices(s1) == []
+@test qc.get_indices_equations(s1) == []
 
 @test s1.states == s2.states
 

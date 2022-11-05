@@ -356,8 +356,6 @@ end
 *(b::NumberedOperator,a::Transition) = merge_commutators(1,[b,a])
 *(a::IndexedOperator,b::NumberedOperator) = merge_commutators(1,[a,b])
 *(b::NumberedOperator,a::IndexedOperator) = merge_commutators(1,[b,a])
-*(a::Transition,b::NumberedOperator) = merge_commutators(1,[a,b])
-*(b::NumberedOperator,a::Transition) = merge_commutators(1,[b,a])
 
 #Symbolics functions
 get_order(a::Sym{Parameter,IndexedAverageSum}) = get_order(a.metadata.term)
@@ -417,6 +415,9 @@ end
 #Base functions
 function Base.hash(a::IndexedAverageSum, h::UInt)
     return hash(IndexedAverageSum, hash(a.term, hash(a.sumIndex, hash(a.nonEqualIndices,h))))
+end
+function Base.hash(a::NumberedOperator,h::UInt)
+    return hash(NumberedOperator, hash(a.op, hash(a.numb, h)))
 end
 Base.isless(a::IndexedAverageSum,b::IndexedAverageSum) = a.sumIndex < b.sumIndex
 Base.isequal(a::SymbolicUtils.Sym{Parameter,IndexedAverageSum},b::SymbolicUtils.Sym{Parameter,IndexedAverageSum}) = isequal(a.metadata,b.metadata)
@@ -1032,7 +1033,7 @@ function simplifyMeanfieldEquations(me::AbstractMeanfieldEquations)
 end
 
 #functions for simplifying the indexed_complete function
-function getOps(sum::SymbolicUtils.Sym{Parameter,IndexedAverageSum})
+function getOps(sum::SymbolicUtils.Sym{Parameter,IndexedAverageSum};kwargs...)
     term = sum.metadata.term
     if typeof(term) == Term{AvgSym, Nothing}
         return Any[arguments(term)[1].args_nc]

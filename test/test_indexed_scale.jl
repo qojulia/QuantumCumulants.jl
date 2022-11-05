@@ -49,8 +49,8 @@ s_2 = scale(eqs_com; h=hc)
 @test !(s_1.equations == s_2.equations)
 @test !(s_1.states == s_2.states)
 
-@test sort(qc.get_all_indices(s_1)) == sort([m,n,r])
-@test sort(qc.get_all_indices(s_2)) == sort([k,l,q])
+@test sort(qc.get_indices_equations(s_1)) == sort([m,n,r])
+@test sort(qc.get_indices_equations(s_2)) == sort([k,l,q])
 
 s1 = scale(eqs_com; h=[hc,ha])
 s2 = scale(eqs_com)
@@ -58,7 +58,7 @@ s2 = scale(eqs_com)
 @test length(s1) == length(s2)
 @test s1.equations == s2.equations
 
-@test qc.get_all_indices(s1) == []
+@test qc.get_indices_equations(s1) == []
 
 @test s1.states == s2.states
 

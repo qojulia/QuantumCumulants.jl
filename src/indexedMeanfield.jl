@@ -451,6 +451,33 @@ function get_all_indices(me::AbstractMeanfieldEquations)
             push!(inds,ind)
         end
     end
+    for ind in getIndices(me.hamiltonian)
+        if ind ∉ inds 
+            push!(inds,ind)
+        end
+    end
+    for ind in getIndices(me.jumps)
+        if ind ∉ inds
+            push!(inds,ind)
+        end
+    end
+    return inds
+end
+function get_indices_equations(me::AbstractMeanfieldEquations)
+    eqs = me.equations
+    inds = []
+    for ind in get_all_indices(me.states)
+        if ind ∉ inds
+            push!(inds,ind)
+        end
+    end
+    for eq in eqs
+        for ind in getIndices(eq.rhs)
+            if ind ∉ inds
+                push!(inds,ind)
+            end
+        end
+    end
     return inds
 end
 function containsMultiple(inds::Vector) #checks if in a list of indices, they act on different sub-hilbertSpaces
@@ -720,11 +747,35 @@ average given as the conjugate of one of the left-hand-side (of the equations) a
 *`scaling`: A Bool defining the way how averages are added to the `missed` vector. If true only averages, whose
     operators (without indices) are not already inside the `missed` vector will be added.
 """
-function subst_reds(me::AbstractMeanfieldEquations;kwargs...)
+function subst_reds(me::AbstractMeanfieldEquations;scaling::Bool=false,kwargs...)
     eqs = Vector{Union{Missing,Symbolics.Equation}}(missing,length(me.equations))
     to_sub = find_missing(me)
-    filter!(x->!(x in me.states),to_sub)
-    to_insert = _conj.(to_sub)
+    filter!(x->!(x in me.states)&&!(_conj(x) in me.states),to_sub)
+    if scaling
+        #brute force for now
+        #this should not take too long
+        #proportional to number of elems in to_sub
+        states = me.states
+        op_states = getOps.(states;scaling=scaling)
+        to_insert = Vector{Any}(nothing,length(to_sub))
+        counter = 1
+        for elem in to_sub
+            ind_ = findfirst(x->hasSameOps(x,getOps(elem;scaling=scaling)),op_states)
+            if !=(ind_,nothing)
+                to_insert[counter] = states[ind_]
+                counter = counter + 1
+                continue
+            end
+            ind_ = findfirst(x->hasSameOps(x,getOps(_conj(elem);scaling=scaling)),op_states)
+            if !=(ind_,nothing)
+                to_insert[counter] = _conj(states[ind_])
+                counter = counter + 1
+                continue
+            end
+        end
+    else  
+        to_insert = _conj.(to_sub)
+    end
     subs = Dict(to_sub .=> to_insert)
     for i=1:length(me.equations)
         eqs[i] = SymbolicUtils.substitute(me.equations[i],subs)
