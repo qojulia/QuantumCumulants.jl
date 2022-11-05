@@ -190,14 +190,14 @@ extra_indices = [q,r]
 eqs_2 = indexed_meanfield(ops_2,H_2,J_2;rates=rates_2,order=order)
 
 eqs_s1 = scale(eqs_2;h=ha)
-inds_s1 = qc.get_all_indices(eqs_s1)
+inds_s1 = qc.get_indices_equations(eqs_s1)
 
 for ind in inds_s1
     @test isequal(ind.specHilb,hc)
 end
 
 eqs_s2 = scale(eqs_2;h=hc)
-inds_s2 = qc.get_all_indices(eqs_s2)
+inds_s2 = qc.get_indices_equations(eqs_s2)
 
 for ind in inds_s2
     @test isequal(ind.specHilb,ha)
