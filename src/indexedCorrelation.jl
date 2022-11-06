@@ -30,8 +30,21 @@ function _new_operator(sum::IndexedSingleSum,h)
         end
     end
     return IndexedSingleSum(_new_operator(sum.term,h),newSumIndex,newSumNonEquals)
-    
 end
+function _new_operator(sum::IndexedAverageSum,h;kwargs...)
+    newSumIndex = sum.sumIndex
+    if sum.sumIndex.hilb != h
+        newSumIndex = Index(h,sum.sumIndex.name,sum.sumIndex.rangeN,sum.sumIndex.specHilb)
+    end
+    newSumNonEquals = Index[]
+    for ind in sum.nonEqualIndices
+        if ind.hilb != h
+            push!(newSumNonEquals,Index(h,ind.name,ind.rangeN,ind.specHilb))
+        end
+    end
+    return IndexedAverageSum(_new_operator(sum.term,h),newSumIndex,newSumNonEquals)
+end
+_new_operator(sym::SymbolicUtils.Sym{Parameter,IndexedAverageSum},h;kwargs...) = _new_operator(sym.metadata,h;kwargs...)
 function _new_indices(Inds::Vector,h)
     Inds_ = copy(Inds)
     for i=1:length(Inds)
@@ -65,16 +78,17 @@ function IndexedCorrelationFunction(op1,op2,de0::AbstractMeanfieldEquations;
     order=nothing,
     extra_indices::Vector=[:i,:j,:k,:l,:m,:n,:p,:q,:r,:s,:t],
     scaling::Bool=false,
+    h_scale=nothing,
     simplify=true, kwargs...)
     h1 = hilbert(op1)
     h2 = _new_hilbert(hilbert(op2), acts_on(op2))
     h = h1⊗h2
 
-    allInds = getAllIndices(de0)
+    allInds = get_all_indices(de0)
     filter!(x -> x ∉ getIndName.(allInds),extra_indices)
 
     extra_inds = copy(extra_indices)
-    extras_ = _new_indices(getAllIndices(de0.states),h) #the extra indices used in the equations beforehand
+    extras_ = _new_indices(get_all_indices(de0.states),h) #the extra indices used in the equations beforehand
 
     H0 = de0.hamiltonian
     J0 = de0.jumps
@@ -144,23 +158,67 @@ function IndexedCorrelationFunction(op1,op2,de0::AbstractMeanfieldEquations;
             scaling=scaling,
             kwargs...) 
     if scaling
-        de = scaleME(de)
-        de0_ = scaleME(de0_)
-        de = subst_reds(de;scaling=true)
-        de0_ = subst_reds(de0_;scaling=true)
+        de = scaleME(de;kwargs...)
+        de0_ = scale(de0_;kwargs...)
     end
-    de = substituteIntoCorrelation(de,de0_;scaling=scaling)
+    de = substituteIntoCorrelation(de,de0_;scaling=scaling,kwargs...)
     
     return CorrelationFunction(op1_, op2_, op2_0, de0_, de, steady_state)
 end
 
+#this function is almost similar to the subst_reds function -> maybe merge together?
+function substituteIntoCorrelation(me,de0;scaling::Bool=false,kwargs...)
+    eqs = Vector{Union{Missing,Symbolics.Equation}}(missing,length(me.equations))
+    de_states = [me.states;de0.states]
+    to_sub = find_missing(me)
+    to_insert = nothing
+    filter!(x->!(x in de_states),to_sub)
+    if scaling
+        #brute force for now
+        #this should not take too long
+        #proportional to number of elems in to_sub
+        states = de_states
+        op_states = getOps.(states;scaling=scaling)
+        to_insert = Vector{Any}(nothing,length(to_sub))
+        counter = 1
+        for elem in to_sub
+            ind_ = findfirst(x->hasSameOps(x,getOps(elem;scaling=scaling)),op_states)
+            if !=(ind_,nothing)
+                to_insert[counter] = states[ind_]
+                counter = counter + 1
+                continue
+            end
+            ind_ = findfirst(x->hasSameOps(x,getOps(_conj(elem);scaling=scaling)),op_states)
+            if !=(ind_,nothing)
+                to_insert[counter] = states[ind_]
+                counter = counter + 1
+                continue
+            end
+        end
+        
+    else  
+        to_insert = _conj.(to_sub)
+    end
+    subs = Dict(to_sub .=> to_insert)
+    for i=1:length(me.equations)
+        eqs[i] = SymbolicUtils.substitute(me.equations[i],subs)
+    end
+    return IndexedMeanfieldEquations(eqs,me.operator_equations,me.states,me.operators,me.hamiltonian,me.jumps,me.jumps_dagger,me.rates,me.iv,me.varmap,me.order)
+end
+#=
 function substituteIntoCorrelation(me,de0;scaling::Bool=false)
-    neweqs = []
-    for eq in me.equations
-        push!(neweqs,Symbolics.Equation(eq.lhs,subst_reds(eq.rhs,de0.states;scaling=scaling)))
+    neweqs = Vector{Union{Missing,Symbolics.Equation}}(missing,length(me.equations))
+    de_states = [me.states;de0.states]
+    to_sub = find_missing(me)
+    filter!(x->!(x in de_states),to_sub)
+    to_insert = _conj.(to_sub)
+    subs = Dict(to_sub .=> to_insert)
+    for i=1:length(me.equations)
+        neweqs[i] = SymbolicUtils.substitute(me.equations[i],subs)
     end
     return IndexedMeanfieldEquations(neweqs,me.operator_equations,me.states,me.operators,me.hamiltonian,me.jumps,me.jumps_dagger,me.rates,me.iv,me.varmap,me.order)
 end
+=#
 
 #the function below is quite similar to the indexed_complete function
 function indexed_complete_corr!(de,aon0,lhs_new,order,steady_state,de0;
@@ -191,7 +249,7 @@ function indexed_complete_corr!(de,aon0,lhs_new,order,steady_state,de0;
         end
     end
 
-    if containsMultiple(getAllIndices(de.states))
+    if containsMultiple(get_all_indices(de.states))
         if extra_indices[1] isa Symbol
             error("It is not possible to complete equations, containing indices, that act on different hilbertspaces using Symbols as
             extra_indices. For this case use specific Indices.")

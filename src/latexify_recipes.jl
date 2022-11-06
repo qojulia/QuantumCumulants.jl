@@ -77,7 +77,7 @@ function _postwalk_func(x)
         return s
     elseif MacroTools.@capture(x,CONJ(arg_))
         arg = MacroTools.postwalk(_postwalk_average,arg)
-        s = "$(arg)^*"
+        s = " {$(arg)^{*}}"
         return s
     else
         return x
