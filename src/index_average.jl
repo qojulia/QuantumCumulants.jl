@@ -60,7 +60,7 @@ struct IndexedAverageSum <: CNumber
             end
             return newterm
         end
-        if sumIndex ∉ getIndices(term)
+        if sumIndex ∉ get_indices(term)
             return (sumIndex.rangeN - length(nonEqualIndices)) * term
         end
         neis_sym = ""
@@ -657,14 +657,14 @@ where indices have been inserted and sums evaluated.
 function evalME(me::AbstractMeanfieldEquations;mapping=Dict{SymbolicUtils.Sym,Int64}(),h=nothing,kwargs...)#this is still pretty slow
     indices = nothing
     for eq in me.equations
-        if containsIndexedOps(eq.lhs) && length(getIndices(eq.lhs)) == me.order
-            indices = getIndices(eq.lhs)
+        if containsIndexedOps(eq.lhs) && length(get_indices(eq.lhs)) == me.order
+            indices = get_indices(eq.lhs)
             break
         end
     end
     if indices === nothing
         indices = []
-        indVecs = getIndices.(me.states)
+        indVecs = get_indices.(me.states)
         for indvec in indVecs
             for ind in indvec
                 if ind ∉ indices
@@ -701,7 +701,7 @@ function evalME(me::AbstractMeanfieldEquations;mapping=Dict{SymbolicUtils.Sym,In
 
     counter = 1
     for i = 1:length(me.equations)
-        inds = getIndices(me.equations[i].lhs)
+        inds = get_indices(me.equations[i].lhs)
         if isempty(inds)
             evals = evalEquation(me.equations[i],[],[],[];mapping,h=h,kwargs...)
             for eq_ in evals
@@ -962,7 +962,7 @@ function containsIndexedOps(term::SymbolicUtils.Term{AvgSym, Nothing})
     end
     return found
 end
-containsIndex(term::SymbolicUtils.Term{AvgSym,Nothing},ind::Index) = ind ∈ getIndices(term)
+containsIndex(term::SymbolicUtils.Term{AvgSym,Nothing},ind::Index) = ind ∈ get_indices(term)
 
 #simplify functions not "really" needed, they are nice to have, since equation creation of Symbolics sometimes does not simplify certain terms
 #function to reduce multiplication of numbers with a sum into just a sum of multiplication

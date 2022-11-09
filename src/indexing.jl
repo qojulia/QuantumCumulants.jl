@@ -597,7 +597,7 @@ function *(x::QNumber, term::SpecialIndexedTerm)
     map = term.indexMapping
     if x isa IndexedOperator
         if x.ind ∉ first.(map) && x.ind ∉ last.(map)
-            indices = getIndices(term.term)
+            indices = get_indices(term.term)
             for ind in indices
                 push!(map,(ind,x.ind))
             end
@@ -609,7 +609,7 @@ function *(term::SpecialIndexedTerm,x::QNumber)
     map = term.indexMapping
     if x isa IndexedOperator
         if x.ind ∉ first.(map) && x.ind ∉ last.(map)
-            indices = getIndices(term.term)
+            indices = get_indices(term.term)
             for ind in indices
                 push!(map,(ind,x.ind))
             end

@@ -74,11 +74,10 @@ k_ind = indT(:k)
     reorder(σ(1,2,k_ind)*σ(1,2,j_ind)*σ(1,2,i_ind),[(i_ind,j_ind)]),
     SpecialIndexedTerm(σ(1,2,k_ind)*σ(1,2,i_ind)*σ(1,2,j_ind),[(i_ind,j_ind)])
 ))
-@test(isequal(
-    σ(1,2,k_ind) * sum1, simplify(IndexedSingleSum(σ(1,2,k_ind)*σ(1,2,i_ind)*a',i_ind))
+@test(isequal(σ(1,2,k_ind) * sum1, simplify(IndexedSingleSum(σ(1,2,k_ind)*σ(1,2,i_ind)*a',i_ind))
 ))
-@test(isequal(
-    simplify(σ(2,1,k_ind) * sum1), simplify(IndexedSingleSum(σ(2,1,k_ind)*σ(1,2,i_ind)*a',i_ind,[k_ind]) + a'*σ(2,2,k_ind))
+
+@test(isequal(simplify(σ(2,1,k_ind) * sum1), simplify(IndexedSingleSum(σ(2,1,k_ind)*σ(1,2,i_ind)*a',i_ind,[k_ind]) + a'*σ(2,2,k_ind))
 ))
 innerSum = IndexedSingleSum(σ(2,1,i_ind)*σ(1,2,j_ind),i_ind)
 @test(isequal(
@@ -188,17 +187,17 @@ asdf2 = σ(1,2,k_ind)*specTerm
 @test isequal(∑(σ(1,2,i_ind),i_ind),Σ(σ(1,2,i_ind),i_ind))
 @test isequal(∑(σ(1,2,i_ind)*σ(2,1,j_ind),i_ind,j_ind),Σ(σ(1,2,i_ind)*σ(2,1,j_ind),i_ind,j_ind))
 
-@test isequal([i_ind,j_ind],qc.getIndices(σ(1,2,i_ind) + σ(2,1,j_ind)))
-@test isequal([i_ind,j_ind],sort(qc.getIndices(average(σ(1,2,i_ind)) + 3 + average(σ(2,1,j_ind)))))
+@test isequal([i_ind,j_ind],qc.get_indices(σ(1,2,i_ind) + σ(2,1,j_ind)))
+@test isequal([i_ind,j_ind],sort(qc.get_indices(average(σ(1,2,i_ind)) + 3 + average(σ(2,1,j_ind)))))
 
 @test isequal(IndexedVariable(:Ω,1,2),qc.DoubleNumberedVariable(:Ω,1,2))
 @test isequal(IndexedVariable(:Ω,2),qc.SingleNumberedVariable(:Ω,2))
 
-@test isequal(σ(1,2,1.0),σ(1,2,1))
-@test isequal(σ(1,2,1.9),σ(1,2,2))
-
-@test isequal(g(1.1),qc.SingleNumberedVariable(:g,1))
-@test isequal(IndexedVariable(:Ω,1.1,2.1),qc.DoubleNumberedVariable(:Ω,1,2))
+# @test isequal(σ(1,2,1.0),σ(1,2,1))
+# @test isequal(σ(1,2,1.9),σ(1,2,2))
+#
+# @test isequal(g(1.1),qc.SingleNumberedVariable(:g,1))
+# @test isequal(IndexedVariable(:Ω,1.1,2.1),qc.DoubleNumberedVariable(:Ω,1,2))
 
 hc = FockSpace(:cavity)
 hf = FockSpace(:filter)

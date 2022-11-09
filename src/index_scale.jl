@@ -36,7 +36,7 @@ function scaleTerm(sum::IndexedAverageSum; h=nothing, kwargs...)
             return IndexedAverageSum(scaleTerm(sum.term; h=h, kwargs...),sum.sumIndex,sum.nonEqualIndices)
         end
     end
-    NEI = filter(x->x in getIndices(sum.term),sum.nonEqualIndices)
+    NEI = filter(x->x in get_indices(sum.term),sum.nonEqualIndices)
     prefact = sum.sumIndex.rangeN - length(NEI)
     term_ = scaleTerm(sum.term; h=h, kwargs...)
     return prefact*term_
@@ -51,7 +51,7 @@ function scaleTerm(sum::IndexedAverageDoubleSum; h=nothing, kwargs...)
             return IndexedAverageDoubleSum(scaleTerm(sum.innerSum; h=h, kwargs...),sum.sumIndex,sum.nonEqualIndices)
         end
     end
-    NEI = filter(x->x in getIndices(sum.innerSum),sum.nonEqualIndices)
+    NEI = filter(x->x in get_indices(sum.innerSum),sum.nonEqualIndices)
     prefact = sum.sumIndex.rangeN - length(NEI)
     term_ = scaleTerm(sum.innerSum; h=h, kwargs...)
     return prefact*term_
@@ -79,7 +79,7 @@ function scaleTerm(mul::SymbolicUtils.Mul; h=nothing, kwargs...)
             meta = arg.metadata
             inds = []
             for arg in arguments(mul)
-                push!(inds,getIndices(arg))
+                push!(inds,get_indices(arg))
             end
             if !=(h,nothing)
                 if !(h isa Vector)
@@ -106,7 +106,7 @@ function scaleTerm(mul::SymbolicUtils.Mul; h=nothing, kwargs...)
     end
 end
 function scaleTerm(x::Average; h=nothing,kwargs...)
-    indices = getIndices(x)
+    indices = get_indices(x)
     newterm = x
     if !=(h,nothing)
         if !(h isa Vector)
@@ -123,7 +123,7 @@ function scaleTerm(x::IndexedOperator; h=nothing, kwargs...)
     return NumberedOperator(x.op,1)
 end
 function scaleTerm(x::QMul; h=nothing, kwargs...)
-    indices = getIndices(x)
+    indices = get_indices(x)
     term = x
     if !=(h,nothing)
         if !(h isa Vector)

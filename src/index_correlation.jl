@@ -235,7 +235,7 @@ function indexed_complete_corr!(de,aon0,lhs_new,order,steady_state,de0;
     rates = de.rates
 
     extras = copy(extra_indices)
-    maxNumb = maximum(length.(getIndices.(de0.operators)))
+    maxNumb = maximum(length.(get_indices.(de0.operators)))
 
     sort!(extra_indices)
 
@@ -331,14 +331,14 @@ function indexed_complete_corr!(de,aon0,lhs_new,order,steady_state,de0;
         filter!(x -> filterComplete_corr(x,de.states,de0.states,scaling), missed)
        
         for i = 1:length(missed)
-            minds = getIndices(missed[i])
+            minds = get_indices(missed[i])
             newMinds = copy(minds)
             for ind1 in minds
                 extras_=filterExtras(ind1,extras)
                 for k = 1:length(extras_)
                     if findall(x->isequal(x,ind1),extras_)[1] > k && extras_[k] ∉ newMinds #this might go somewhat easier, maybe delete ind2 out of extras after each replacement somehow
                         missed[i] = change_index(missed[i],ind1,extras_[k])
-                        newMinds = getIndices(missed[i])
+                        newMinds = get_indices(missed[i])
                         break
                     elseif findall(x->isequal(x,ind1),extras_)[1] <= k
                         break

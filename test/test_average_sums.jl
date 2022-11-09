@@ -65,7 +65,7 @@ sum_A = average(sum_)
 
 @test isequal(cumulant_expansion(sum_A,2),qc.IndexedAverageSum(cumulant_expansion(average(sumterm),2),ind(:i),[ind(:j),ind(:k)]))
 
-inds = qc.getIndices(sumterm)
+inds = qc.get_indices(sumterm)
 @test isequal([ind(:i),ind(:j),ind(:k)],inds)
 
 pind = Index(h,:p,5,ha)
@@ -123,7 +123,7 @@ push!(dict,(qc.SingleNumberedVariable(:g,2) => 2))
 @test isequal(qc.IndexedAverageSum(g(ind(:i)),ind(:i),[]),average(Σ(g(ind(:i)),ind(:i)),[]))
 @test qc.IndexedAverageSum(g(ind(:i)),ind(:i),[]) isa SymbolicUtils.Sym{Parameter,qc.IndexedAverageSum}
 
-@test ind(:i) ∈ qc.getIndices(g(ind(:i)))
+@test ind(:i) ∈ qc.get_indices(g(ind(:i)))
 
 end
 

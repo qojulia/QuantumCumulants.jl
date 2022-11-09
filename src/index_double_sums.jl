@@ -34,7 +34,7 @@ struct IndexedDoubleSum <:QTerm
             else
                 extraterm = 0
                 NEI_ = copy(NEI)
-                for index in getIndices(innerSum.term)
+                for index in get_indices(innerSum.term)
                     if sumIndex in innerSum.nonEqualIndices && isequal(index,innerSum.sumIndex)
                         (innerSum.sumIndex ∉ NEI_) && push!(NEI_,index)
                         continue

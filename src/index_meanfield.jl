@@ -58,8 +58,8 @@ function indexed_meanfield(a::Vector,H,J;Jdagger::Vector=adjoint.(J),rates=ones(
     mix_choice=maximum,
     iv=SymbolicUtils.Sym{Real}(:t))
 
-    for ind in getIndices(a)
-        if ind in getIndices(H)
+    for ind in get_indices(a)
+        if ind in get_indices(H)
             error("Index $(ind.name) in operator-vector is already used in H!")
         end
     end
@@ -71,7 +71,7 @@ function indexed_meanfield(a::Vector,H,J;Jdagger::Vector=adjoint.(J),rates=ones(
         try
             rhs_ = commutator(imH,a[i])
             rhs_diss = indexed_master_lindblad(a[i],J,Jdagger,rates)
-            indices = getIndices(a[i])
+            indices = get_indices(a[i])
             if length(indices) <= 1
                 rhs[i] = rhs_ + rhs_diss
             else #everything on lhs commutes -> reorder corresponding terms on rhs
@@ -213,7 +213,7 @@ function indexed_complete!(de::AbstractMeanfieldEquations;
     scaling::Bool=false,
     kwargs...)
 
-    maxNumb = maximum(length.(getIndices.(de.operators)))
+    maxNumb = maximum(length.(get_indices.(de.operators)))
 
     if isempty(extra_indices)
         error("can not complete equations with empty extra_indices!")
@@ -327,14 +327,14 @@ function indexed_complete!(de::AbstractMeanfieldEquations;
     filter!(x -> filterComplete(x,de.states,scaling;kwargs...), missed)
 
     for i = 1:length(missed)
-        minds = getIndices(missed[i])
+        minds = get_indices(missed[i])
         newMinds = copy(minds)
         for ind1 in minds
             extras_=filterExtras(ind1,extras)
             for k = 1:length(extras_)
                 if findall(x->isequal(x,ind1),extras_)[1] > k && extras_[k] ∉ newMinds #this might go somewhat easier, maybe delete ind2 out of extras after each replacement somehow
                     missed[i] = change_index(missed[i],ind1,extras_[k])
-                    newMinds = getIndices(missed[i])
+                    newMinds = get_indices(missed[i])
                     break
                 elseif findall(x->isequal(x,ind1),extras_)[1] <= k
                     break
@@ -372,19 +372,19 @@ function indexed_complete!(de::AbstractMeanfieldEquations;
     
         filter!(x -> filterComplete(x,de.states,scaling;kwargs...), missed)
         for i = 1:length(missed)
-            minds = getIndices(missed[i])
+            minds = get_indices(missed[i])
             newMinds = copy(minds)
             for ind1 in minds
                 extras_=filterExtras(ind1,extras)
                 for k = 1:length(extras_)
                     if ind1 ∉ extras_
                         missed[i] = change_index(missed[i],ind1,extras_[1])
-                        newMinds = getIndices(missed[i])
+                        newMinds = get_indices(missed[i])
                         break
                     end
                     if findall(x->isequal(x,ind1),extras_)[1] > k && extras_[k] ∉ newMinds #this might go somewhat easier, maybe delete ind2 out of extras after each replacement somehow
                         missed[i] = change_index(missed[i],ind1,extras_[k])
-                        newMinds = getIndices(missed[i])
+                        newMinds = get_indices(missed[i])
                         break
                     elseif findall(x->isequal(x,ind1),extras_)[1] <= k
                         break
@@ -426,7 +426,7 @@ filterComplete(x,states,scaling;kwargs...) = (isNotIn(getOps(x;scaling=scaling,k
 function get_all_indices(vec::Vector)
     inds = []
     for i = 1:length(vec)
-        indices_ = getIndices(vec[i])
+        indices_ = get_indices(vec[i])
         isempty(indices_) && continue
         for ind in indices_
             if ind ∉ inds
@@ -440,7 +440,7 @@ function get_all_indices(me::AbstractMeanfieldEquations)
     eqs = me.equations
     inds = []
     for eq in eqs
-        for ind in getIndices(eq.rhs)
+        for ind in get_indices(eq.rhs)
             if ind ∉ inds
                 push!(inds,ind)
             end
@@ -451,12 +451,12 @@ function get_all_indices(me::AbstractMeanfieldEquations)
             push!(inds,ind)
         end
     end
-    for ind in getIndices(me.hamiltonian)
+    for ind in get_indices(me.hamiltonian)
         if ind ∉ inds 
             push!(inds,ind)
         end
     end
-    for ind in getIndices(me.jumps)
+    for ind in get_indices(me.jumps)
         if ind ∉ inds
             push!(inds,ind)
         end
@@ -472,7 +472,7 @@ function get_indices_equations(me::AbstractMeanfieldEquations)
         end
     end
     for eq in eqs
-        for ind in getIndices(eq.rhs)
+        for ind in get_indices(eq.rhs)
             if ind ∉ inds
                 push!(inds,ind)
             end
@@ -532,7 +532,7 @@ function checkAndChange(missed_,sum,extras,states,checking,scaling;kwargs...)
     avrgs = getAvrgs(sum) #get vector of all avrgs in the sum
     for avr in avrgs
         changed_ = nothing
-        avrg_inds = getIndices(avr)
+        avrg_inds = get_indices(avr)
         for i = 1:length(extras)    # check if the extraindex is already in use for the term -> if so use the next in line
             if extras[i] ∉ avrg_inds #this is wrong for multiple indices!!!!
                 changed_ = change_index(avr,sum.metadata.sumIndex,extras[i])
