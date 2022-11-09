@@ -29,7 +29,7 @@ a = Destroy(h,:a)
 @test(isequal(average(g(ind(:k))*σ(2,2,ind(:k))),g(ind(:k))*average(σ(2,2,ind(:k)))))
 @test(isequal(average(g(ind(:k))),g(ind(:k))))
 
-sum1 = IndexedSingleSum(σ(1,2,ind(:k)),ind(:k))
+sum1 = SingleSum(σ(1,2,ind(:k)),ind(:k))
 σn(i,j,k) = NumberedOperator(Transition(h,:σ,i,j),k)
 @test(isequal(eval_term(average(sum1)),average(σn(1,2,1)) + average(σn(1,2,2))))
 @test(isequal(σn(1,2,1)+σn(2,1,1),NumberedOperator(Transition(h,:σ,1,2)+Transition(h,:σ,2,1),1)))
@@ -119,7 +119,7 @@ push!(dict,(qc.SingleNumberedVariable(:g,2) => 2))
 
 @test isequal(qc.getAvrgs(SymbolicUtils.arguments(avrgTerm)[1]),[average(σ(2,1,ind(:i))*σ(1,2,ind(:j)))])
 
-@test isequal(ind(:i).rangeN * 5, qc.IndexedAverageSum(5,ind(:i),[]))
+@test isequal(ind(:i).range * 5, qc.IndexedAverageSum(5,ind(:i),[]))
 @test isequal(qc.IndexedAverageSum(g(ind(:i)),ind(:i),[]),average(Σ(g(ind(:i)),ind(:i)),[]))
 @test qc.IndexedAverageSum(g(ind(:i)),ind(:i),[]) isa SymbolicUtils.Sym{Parameter,qc.IndexedAverageSum}
 

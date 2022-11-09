@@ -44,30 +44,30 @@ Fields:
 ======
 
 * term: A multiplication of average terms.
-* sumIndex: The index, for which the summation will go over.
-* nonEqualIndices: (optional) A vector of indices, for which the summation-index can not be equal with.
+* sum_index: The index, for which the summation will go over.
+* non_equal_indices: (optional) A vector of indices, for which the summation-index can not be equal with.
 
 """
 struct IndexedAverageSum <: CNumber
     term::symbolics_terms
-    sumIndex::Index
-    nonEqualIndices::Vector{indornum}
-    function IndexedAverageSum(term,sumIndex,nonEqualIndices)
+    sum_index::Index
+    non_equal_indices::Vector{IndexInt}
+    function IndexedAverageSum(term,sum_index,non_equal_indices)
         if typeof(term) <: SymbolicUtils.Add
             newterm = 0.0
             for elem in arguments(term)
-                newterm = newterm + IndexedAverageSum(elem,sumIndex,nonEqualIndices)
+                newterm = newterm + IndexedAverageSum(elem,sum_index,non_equal_indices)
             end
             return newterm
         end
-        if sumIndex ∉ get_indices(term)
-            return (sumIndex.rangeN - length(nonEqualIndices)) * term
+        if sum_index ∉ get_indices(term)
+            return (sum_index.range - length(non_equal_indices)) * term
         end
         neis_sym = ""
-        if !(isempty(nonEqualIndices))
+        if !(isempty(non_equal_indices))
             neis_sym = string("(",neis_sym)
-            neis_sym = string(neis_sym, "$(sumIndex.name)≠")
-            neis_sym = string(neis_sym, writeNEIs(nonEqualIndices))
+            neis_sym = string(neis_sym, "$(sum_index.name)≠")
+            neis_sym = string(neis_sym, writeNEIs(non_equal_indices))
             neis_sym = string(neis_sym,")")
         end
         prefact = 1.0
@@ -80,8 +80,8 @@ struct IndexedAverageSum <: CNumber
                 term = *(args_nc...)
             end
         end
-        metadata = new(term,sumIndex,nonEqualIndices)
-        return prefact*SymbolicUtils.Sym{Parameter, IndexedAverageSum}(Symbol("∑($(sumIndex.name)=1:$(sumIndex.rangeN))$(neis_sym)$(term)"), metadata) #Symbol("∑($(sumIndex.name)=1:$(sumIndex.rangeN))$(neis_sym)$(term)")
+        metadata = new(term,sum_index,non_equal_indices)
+        return prefact*SymbolicUtils.Sym{Parameter, IndexedAverageSum}(Symbol("∑($(sum_index.name)=1:$(sum_index.range))$(neis_sym)$(term)"), metadata) #Symbol("∑($(sum_index.name)=1:$(sum_index.range))$(neis_sym)$(term)")
     end
 end
 
@@ -95,32 +95,32 @@ Fields:
 ======
 
 * innerSum: An [`IndexedAverageSum`](@ref) entity.
-* sumIndex: The index, for which the (outer) summation will go over.
-* nonEqualIndices: (optional) A vector of indices, for which the (outer) summation-index can not be equal with.
+* sum_index: The index, for which the (outer) summation will go over.
+* non_equal_indices: (optional) A vector of indices, for which the (outer) summation-index can not be equal with.
 
 """
 struct IndexedAverageDoubleSum <: CNumber
     innerSum::Sym{Parameter, IndexedAverageSum}
-    sumIndex::Index
-    nonEqualIndices::Vector{indornum}
-    function IndexedAverageDoubleSum(term,sumIndex,nonEqualIndices)
+    sum_index::Index
+    non_equal_indices::Vector{IndexInt}
+    function IndexedAverageDoubleSum(term,sum_index,non_equal_indices)
         if typeof(term) <: SymbolicUtils.Add
             newterm = 0.0
             for elem in arguments(term)
-                newterm = newterm + IndexedAverageDoubleSum(elem,sumIndex,nonEqualIndices)
+                newterm = newterm + IndexedAverageDoubleSum(elem,sum_index,non_equal_indices)
             end
             return newterm
         end
         if typeof(term) == Sym{Parameter,IndexedAverageSum}
-            metadata = new(term,sumIndex,nonEqualIndices)
+            metadata = new(term,sum_index,non_equal_indices)
             neis_sym = ""
-            if !(isempty(nonEqualIndices))
+            if !(isempty(non_equal_indices))
                 neis_sym = string("(",neis_sym)
-                neis_sym = string(neis_sym, "$(sumIndex.name)≠")
-                neis_sym = string(neis_sym, writeNEIs(nonEqualIndices))
+                neis_sym = string(neis_sym, "$(sum_index.name)≠")
+                neis_sym = string(neis_sym, writeNEIs(non_equal_indices))
                 neis_sym = string(neis_sym,")")
             end
-            return SymbolicUtils.Sym{Parameter, IndexedAverageDoubleSum}(Symbol("∑($(sumIndex.name):=1:$(sumIndex.rangeN))$(neis_sym)$(String(term.name))"), metadata)
+            return SymbolicUtils.Sym{Parameter, IndexedAverageDoubleSum}(Symbol("∑($(sum_index.name):=1:$(sum_index.range))$(neis_sym)$(String(term.name))"), metadata)
         end
         if typeof(term) <: SymbolicUtils.Mul
             args = arguments(term)
@@ -130,7 +130,7 @@ struct IndexedAverageDoubleSum <: CNumber
                 deleteat!(args,1)
             end
             if length(args) == 1 && typeof(args[1]) == Sym{Parameter, IndexedAverageSum}
-                return param*IndexedAverageDoubleSum(args[1],sumIndex,nonEqualIndices)
+                return param*IndexedAverageDoubleSum(args[1],sum_index,non_equal_indices)
             else
                 for arg in args
                     if typeof(arg) == Sym{Parameter, IndexedAverageSum}
@@ -140,7 +140,7 @@ struct IndexedAverageDoubleSum <: CNumber
                 end
             end
         end
-        return IndexedAverageSum(term,sumIndex,nonEqualIndices)
+        return IndexedAverageSum(term,sum_index,non_equal_indices)
     end
 end
 
@@ -159,7 +159,7 @@ Fields:
 
 """
 struct NumberedOperator <:QNumber
-    op::indexable
+    op::IndexableOps
     numb::Int64
     function NumberedOperator(op,numb)
         if numb <= 0
@@ -224,8 +224,8 @@ Fields:
 """
 struct DoubleNumberedVariable <: numberedVariable
     name::Symbol
-    numb1::indornum
-    numb2::indornum
+    numb1::IndexInt
+    numb2::IndexInt
     function DoubleNumberedVariable(name,numb1,numb2;identical::Bool=true)
         if !(identical) && (numb1 == numb2)
             return 0
@@ -256,7 +256,7 @@ struct NumberedIndexedAverage <: CNumber
 end
 struct SpecialIndexedAverage <: CNumber #An average-Term with special condition, for example l ≠ k; needed for correct calculus of Double indexed Sums
     term::symbolics_terms
-    indexMapping::Vector{Tuple{indornum,indornum}}
+    indexMapping::Vector{Tuple{IndexInt,IndexInt}}
     function SpecialIndexedAverage(term,indexMapping)
         if isempty(indexMapping)
             return term
@@ -317,23 +317,23 @@ function average(indOp::IndexedOperator)
 end
 average(x::SpecialIndexedTerm) = SpecialIndexedAverage(average(x.term),x.indexMapping)
 
-function average(indSum::IndexedSingleSum; kwargs...)
-    return IndexedAverageSum(average(indSum.term),indSum.sumIndex,indSum.nonEqualIndices)
+function average(indSum::SingleSum; kwargs...)
+    return IndexedAverageSum(average(indSum.term),indSum.sum_index,indSum.non_equal_indices)
 end
 function undo_average(a::IndexedAverageSum)
-    return IndexedSingleSum(undo_average(a.term),a.sumIndex,a.nonEqualIndices)
+    return SingleSum(undo_average(a.term),a.sum_index,a.non_equal_indices)
 end
 function undo_average(a::Sym{Parameter,IndexedAverageSum})
     return undo_average(a.metadata)
 end
 function average(indDSum::IndexedDoubleSum)
-    return IndexedAverageDoubleSum(average(indDSum.innerSum),indDSum.sumIndex,indDSum.NEI)
+    return IndexedAverageDoubleSum(average(indDSum.innerSum),indDSum.sum_index,indDSum.NEI)
 end
 function undo_average(a::Sym{Parameter,IndexedAverageDoubleSum})
     return undo_average(a.metadata)
 end
 function undo_average(a::IndexedAverageDoubleSum)
-    return IndexedDoubleSum(undo_average(a.innerSum),a.sumIndex,a.nonEqualIndices)
+    return IndexedDoubleSum(undo_average(a.innerSum),a.sum_index,a.non_equal_indices)
 end
 undo_average(a::SymbolicUtils.Sym{Parameter,SpecialIndexedAverage}) = reorder(undo_average(a.metadata.term),a.metadata.indexMapping)
 
@@ -359,7 +359,7 @@ end
 
 #Symbolics functions
 get_order(a::Sym{Parameter,IndexedAverageSum}) = get_order(a.metadata.term)
-cumulant_expansion(a::IndexedAverageSum,order::Int) = IndexedAverageSum(simplifyMultiplifcation(cumulant_expansion(a.term,order)),a.sumIndex,a.nonEqualIndices) #not used (?)
+cumulant_expansion(a::IndexedAverageSum,order::Int) = IndexedAverageSum(simplifyMultiplifcation(cumulant_expansion(a.term,order)),a.sum_index,a.non_equal_indices) #not used (?)
 SymbolicUtils.istree(a::IndexedAverageSum) = false
 SymbolicUtils._iszero(a::IndexedAverageSum) = SymbolicUtils._iszero(a.term)
 SymbolicUtils._isone(a::IndexedAverageSum) = SymbolicUtils._isone(a.term)
@@ -377,7 +377,7 @@ has_cluster(x::NumberedOperator) = has_cluster(x.op)
 acts_on(x::NumberedOperator) = acts_on(x.op)
 get_order(x::NumberedOperator) = get_order(x.op)
 
-function writeIndexNEIs(neis::Vector{Tuple{indornum,indornum}})
+function writeIndexNEIs(neis::Vector{Tuple{IndexInt,IndexInt}})
     syms = ""
     syms = join([syms,"("])
     for i = 1:length(neis)
@@ -399,7 +399,7 @@ function writeIndexNEIs(neis::Vector{Tuple{indornum,indornum}})
     syms = join([syms,")"])
     return syms
 end
-writeIndexNEIs(neis::Vector{Tuple{Index,Index}}) = writeIndexNEIs(convert(Vector{Tuple{indornum,indornum}},neis))
+writeIndexNEIs(neis::Vector{Tuple{Index,Index}}) = writeIndexNEIs(convert(Vector{Tuple{IndexInt,IndexInt}},neis))
 function writeNeqs(vec::Vector{Tuple{Index,Int64}})
     syms = ""
     for i = 1:length(vec)
@@ -414,17 +414,17 @@ end
 
 #Base functions
 function Base.hash(a::IndexedAverageSum, h::UInt)
-    return hash(IndexedAverageSum, hash(a.term, hash(a.sumIndex, hash(a.nonEqualIndices,h))))
+    return hash(IndexedAverageSum, hash(a.term, hash(a.sum_index, hash(a.non_equal_indices,h))))
 end
 function Base.hash(a::NumberedOperator,h::UInt)
     return hash(NumberedOperator, hash(a.op, hash(a.numb, h)))
 end
-Base.isless(a::IndexedAverageSum,b::IndexedAverageSum) = a.sumIndex < b.sumIndex
+Base.isless(a::IndexedAverageSum,b::IndexedAverageSum) = a.sum_index < b.sum_index
 Base.isequal(a::SymbolicUtils.Sym{Parameter,IndexedAverageSum},b::SymbolicUtils.Sym{Parameter,IndexedAverageSum}) = isequal(a.metadata,b.metadata)
 function Base.isequal(a::IndexedAverageSum, b::IndexedAverageSum)
-    isequal(a.sumIndex,b.sumIndex) || return false
+    isequal(a.sum_index,b.sum_index) || return false
     isequal(a.term, b.term) || return false
-    isequal(a.nonEqualIndices,b.nonEqualIndices) || return false
+    isequal(a.non_equal_indices,b.non_equal_indices) || return false
     return true
 end
 Base.isequal(a::SymbolicUtils.Sym{Parameter,IndexedAverageSum},x) = false
@@ -445,11 +445,11 @@ Base.isequal(::Sym{Parameter, IndexedAverageSum}, ::SymbolicUtils.Symbolic) = fa
 Base.:(==)(nVal1::Sym{Parameter,numberedVariable},nVal2::Sym{Parameter,numberedVariable}) = (nVal1.name == nVal2.name) && (nVal1.numb == nVal2.numb)
 function cumulant_expansion(x::SymbolicUtils.Sym{Parameter,IndexedAverageSum},order::Integer;simplify=true,kwargs...)
     sum = x.metadata
-    return IndexedAverageSum(simplifyMultiplication(cumulant_expansion(sum.term,order;simplify,kwargs...)),sum.sumIndex,sum.nonEqualIndices)
+    return IndexedAverageSum(simplifyMultiplication(cumulant_expansion(sum.term,order;simplify,kwargs...)),sum.sum_index,sum.non_equal_indices)
 end
 function cumulant_expansion(x::SymbolicUtils.Sym{Parameter,IndexedAverageDoubleSum},order::Integer;simplify=true,kwargs...)
     inner = cumulant_expansion(x.metadata.innerSum,order;simplify,kwargs...)
-    return IndexedAverageDoubleSum(inner,x.metadata.sumIndex,x.metadata.nonEqualIndices)
+    return IndexedAverageDoubleSum(inner,x.metadata.sum_index,x.metadata.non_equal_indices)
 end
 cumulant_expansion(a::SymbolicUtils.Sym{Parameter,SpecialIndexedAverage},order::Int;simplify=true,kwargs...) = SpecialIndexedAverage(cumulant_expansion(a.metadata.term,order;simplify=true,kwargs...),a.metadata.indexMapping)
 SymbolicUtils.arguments(op::Sym{Parameter,IndexedAverageSum}) = arguments(op.metadata)
@@ -474,20 +474,20 @@ Examples
 
 """
 function insert_index(sum::SymbolicUtils.Sym{Parameter,IndexedAverageSum}, ind::Index, value::Int64)
-    if ind == sum.metadata.sumIndex
+    if ind == sum.metadata.sum_index
         error("cannot exchange summation index with number!")
     end
-    if ind in sum.metadata.nonEqualIndices
-        newNEI = filter(x-> x != ind,sum.metadata.nonEqualIndices)
+    if ind in sum.metadata.non_equal_indices
+        newNEI = filter(x-> x != ind,sum.metadata.non_equal_indices)
         push!(newNEI,value)
-        return IndexedAverageSum(insert_index(sum.metadata.term,ind,value),sum.metadata.sumIndex,newNEI)
+        return IndexedAverageSum(insert_index(sum.metadata.term,ind,value),sum.metadata.sum_index,newNEI)
     else
-        return IndexedAverageSum(insert_index(sum.metadata.term,ind,value),sum.metadata.sumIndex,sum.metadata.nonEqualIndices)
+        return IndexedAverageSum(insert_index(sum.metadata.term,ind,value),sum.metadata.sum_index,sum.metadata.non_equal_indices)
     end
 end
 function insert_index(sum::SymbolicUtils.Sym{Parameter,IndexedAverageDoubleSum}, ind::Index,value::Int64)
     inner = insert_index(sum.metadata.innerSum,ind,value)
-    return IndexedAverageDoubleSum(inner,sum.metadata.sumIndex,sum.metadata.nonEqualIndices)
+    return IndexedAverageDoubleSum(inner,sum.metadata.sum_index,sum.metadata.non_equal_indices)
 end
 function insert_index(term::SymbolicUtils.Mul, ind::Index, value::Int64)
     args = []
@@ -551,7 +551,7 @@ end
 function insert_index(term::SymbolicUtils.Sym{Parameter,SpecialIndexedAverage},ind::Index,value::Int64)
     meta = term.metadata
     newterm = insert_index(meta.term,ind,value)
-    newMapping = Tuple{indornum,indornum}[]
+    newMapping = Tuple{IndexInt,IndexInt}[]
     for tuple in meta.indexMapping
         if first(tuple) == ind
             if last(tuple) == value
@@ -682,17 +682,17 @@ function evalME(me::AbstractMeanfieldEquations;mapping=Dict{SymbolicUtils.Sym,In
         filter!(x->x.specHilb in h,indices)
     end
     for ind in indices
-        if typeof(ind.rangeN) != Int64 && ind.rangeN ∉ keys(mapping)
-            error("Please provide numbers for the upper-limits used: $(ind.rangeN); you can do this by calling: evaluate(me;mapping=[Dictionary with corresponding numbers for limits])")
+        if typeof(ind.range) != Int64 && ind.range ∉ keys(mapping)
+            error("Please provide numbers for the upper-limits used: $(ind.range); you can do this by calling: evaluate(me;mapping=[Dictionary with corresponding numbers for limits])")
         end
     end
     sort!(indices)
     ranges = []
     for ind in indices
-        if ind.rangeN in keys(mapping)
-            push!(ranges,1:mapping[ind.rangeN])
+        if ind.range in keys(mapping)
+            push!(ranges,1:mapping[ind.range])
         else
-            push!(ranges,1:ind.rangeN)
+            push!(ranges,1:ind.range)
         end
     end
     maxRange = maximum(ranges)[end]
@@ -722,10 +722,10 @@ function evalME(me::AbstractMeanfieldEquations;mapping=Dict{SymbolicUtils.Sym,In
 
         ranges_ = Vector{Any}(nothing,length(inds))
         for i=1:length(ranges_)
-            if inds[i].rangeN in keys(mapping)
-                ranges_[i]=1:mapping[inds[i].rangeN]
+            if inds[i].range in keys(mapping)
+                ranges_[i]=1:mapping[inds[i].range]
             else
-                ranges_[i]=1:inds[i].rangeN
+                ranges_[i]=1:inds[i].range
             end
         end
 
@@ -747,14 +747,14 @@ function eval_term(sum_::SymbolicUtils.Sym{Parameter,IndexedAverageSum};mapping=
         if !(h isa Vector)
             h = [h]
         end
-        sum_.metadata.sumIndex.specHilb ∉ h && return sum_
+        sum_.metadata.sum_index.specHilb ∉ h && return sum_
     end
     rangeEval = 0
-    if sum_.metadata.sumIndex.rangeN in keys(mapping)
-        rangeEval = mapping[sum_.metadata.sumIndex.rangeN]
+    if sum_.metadata.sum_index.range in keys(mapping)
+        rangeEval = mapping[sum_.metadata.sum_index.range]
     else
-        if typeof(sum_.metadata.sumIndex.rangeN) <: SymbolicUtils.Mul
-            args = arguments(sum_.metadata.sumIndex.rangeN)
+        if typeof(sum_.metadata.sum_index.range) <: SymbolicUtils.Mul
+            args = arguments(sum_.metadata.sum_index.range)
             for i=1:length(args)
                 if args[i] in keys(mapping)
                     args[i] = mapping[args[i]]
@@ -762,16 +762,16 @@ function eval_term(sum_::SymbolicUtils.Sym{Parameter,IndexedAverageSum};mapping=
             end
             rangeEval = *(args...)
         else
-            rangeEval = sum_.metadata.sumIndex.rangeN
+            rangeEval = sum_.metadata.sum_index.range
         end
     end
     adds = Vector{Any}(nothing,rangeEval)
     for i = 1:rangeEval
-        if i in sum_.metadata.nonEqualIndices
+        if i in sum_.metadata.non_equal_indices
             adds[i] = 0
             continue
         end
-        temp = insert_index(sum_.metadata.term,sum_.metadata.sumIndex,i)
+        temp = insert_index(sum_.metadata.term,sum_.metadata.sum_index,i)
         order_by_number!(temp)
         adds[i]=temp
     end
@@ -781,7 +781,7 @@ function eval_term(sum_::SymbolicUtils.Sym{Parameter,IndexedAverageSum};mapping=
     return sum(adds)
 end
 function eval_term(sum::SymbolicUtils.Sym{Parameter,IndexedAverageDoubleSum};kwargs...)
-    return eval_term(IndexedAverageDoubleSum(eval_term(sum.metadata.innerSum;kwargs...),sum.metadata.sumIndex,sum.metadata.nonEqualIndices);kwargs...)
+    return eval_term(IndexedAverageDoubleSum(eval_term(sum.metadata.innerSum;kwargs...),sum.metadata.sum_index,sum.metadata.non_equal_indices);kwargs...)
 end
 function eval_term(term::SymbolicUtils.Mul;kwargs...) 
     mults = Vector{Any}(nothing,length(arguments(term)))
@@ -882,14 +882,14 @@ only a single value, then all possible numbered-Variables are set to the same va
 """
 function create_value_map(sym::Sym{Parameter, IndexedVariable}, values::Vector;mapping=Dict{SymbolicUtils.Sym,Int64}(),kwargs...)
     iVar = sym.metadata
-    if iVar.ind.rangeN isa SymbolicUtils.Sym
-        if iVar.ind.rangeN in keys(mapping)
-            range1 = mapping[iVar.ind.rangeN]
+    if iVar.ind.range isa SymbolicUtils.Sym
+        if iVar.ind.range in keys(mapping)
+            range1 = mapping[iVar.ind.range]
         else
             error("Can not evaluate without a mapping")
         end
     else
-        range1 = iVar.ind.rangeN
+        range1 = iVar.ind.range
     end
     if range1 != length(values)
         error("different length of index-range and given values!")
@@ -903,14 +903,14 @@ end
 function create_value_map(sym::Sym{Parameter, IndexedVariable}, value::Number)
     iVar = sym.metadata
     dict = Dict{Sym{Parameter, Base.ImmutableDict{DataType, Any}},ComplexF64}()
-    if iVar.ind.rangeN isa SymbolicUtils.Sym
-        if iVar.ind.rangeN in keys(mapping)
-            range1 = mapping[iVar.ind.rangeN]
+    if iVar.ind.range isa SymbolicUtils.Sym
+        if iVar.ind.range in keys(mapping)
+            range1 = mapping[iVar.ind.range]
         else
             error("Can not evaluate without a mapping")
         end
     else
-        range1 = iVar.ind.rangeN
+        range1 = iVar.ind.range
     end
     for i = 1:range1
         push!(dict,(SingleNumberedVariable(iVar.name,i) => value))
@@ -920,23 +920,23 @@ end
 function create_value_map(sym::Sym{Parameter,DoubleIndexedVariable},values::Matrix;mapping=Dict{SymbolicUtils.Sym,Int64}(),kwargs...)
     dict = Dict{Sym{Parameter, Base.ImmutableDict{DataType, Any}},ComplexF64}()
     var = sym.metadata
-    if var.ind1.rangeN isa SymbolicUtils.Sym
-        if var.ind1.rangeN in keys(mapping)
-            range1 = mapping[var.ind1.rangeN]
+    if var.ind1.range isa SymbolicUtils.Sym
+        if var.ind1.range in keys(mapping)
+            range1 = mapping[var.ind1.range]
         else
             error("Can not evaluate without a mapping")
         end
     else
-        range1 = var.ind1.rangeN
+        range1 = var.ind1.range
     end
-    if var.ind2.rangeN isa SymbolicUtils.Sym
-        if var.ind2.rangeN in keys(mapping)
-            range2 = mapping[var.ind2.rangeN]
+    if var.ind2.range isa SymbolicUtils.Sym
+        if var.ind2.range in keys(mapping)
+            range2 = mapping[var.ind2.range]
         else
             error("Can not evaluate without a mapping")
         end
     else
-        range2 = var.ind2.rangeN
+        range2 = var.ind2.range
     end
     for i = 1:range1
         for j = 1:range2
@@ -1079,12 +1079,12 @@ function getAvrgs(sum::SymbolicUtils.Sym{Parameter,SpecialIndexedAverage})
     end
 end
 function Base.show(io::IO,indSum::IndexedAverageSum)
-    write(io, "Σ", "($(indSum.sumIndex.name)", "=1:$(indSum.sumIndex.rangeN))",)
-    if !(isempty(indSum.nonEqualIndices))
-        write(io,"($(indSum.sumIndex.name) ≠ ")
-        for i = 1:length(indSum.nonEqualIndices)
-            write(io, "$(indSum.nonEqualIndices[i].name)")
-            if i == length(indSum.nonEqualIndices)
+    write(io, "Σ", "($(indSum.sum_index.name)", "=1:$(indSum.sum_index.range))",)
+    if !(isempty(indSum.non_equal_indices))
+        write(io,"($(indSum.sum_index.name) ≠ ")
+        for i = 1:length(indSum.non_equal_indices)
+            write(io, "$(indSum.non_equal_indices[i].name)")
+            if i == length(indSum.non_equal_indices)
                 write(io,")")
             else
                 write(io,",")
@@ -1094,12 +1094,12 @@ function Base.show(io::IO,indSum::IndexedAverageSum)
     Base.show(io,indSum.term)
 end
 function Base.show(io::IO,indSum::IndexedAverageDoubleSum)
-    write(io, "Σ", "($(indSum.sumIndex.name)", "=1:$(indSum.sumIndex.rangeN))",)
-    if !(isempty(indSum.nonEqualIndices))
-        write(io,"($(indSum.sumIndex.name) ≠ ")
-        for i = 1:length(indSum.nonEqualIndices)
-            write(io, "$(indSum.nonEqualIndices[i].name)")
-            if i == length(indSum.nonEqualIndices)
+    write(io, "Σ", "($(indSum.sum_index.name)", "=1:$(indSum.sum_index.range))",)
+    if !(isempty(indSum.non_equal_indices))
+        write(io,"($(indSum.sum_index.name) ≠ ")
+        for i = 1:length(indSum.non_equal_indices)
+            write(io, "$(indSum.non_equal_indices[i].name)")
+            if i == length(indSum.non_equal_indices)
                 write(io,")")
             else
                 write(io,",")
@@ -1121,20 +1121,20 @@ function _to_expression(x::NumberedOperator)
     x.op isa Destroy && return :(NumberedDestroy($(x.op.name),$(x.numb)))
     x.op isa Create && return :(dagger(NumberedDestroy($(x.op.name),$(x.numb))))
 end
-_to_expression(x::SymbolicUtils.Sym{Parameter,IndexedAverageSum}) = :( IndexedAverageSum($(_to_expression(x.metadata.term)),$(x.metadata.sumIndex.name),$(x.metadata.sumIndex.rangeN),$(writeNEIs(x.metadata.nonEqualIndices))) )
+_to_expression(x::SymbolicUtils.Sym{Parameter,IndexedAverageSum}) = :( IndexedAverageSum($(_to_expression(x.metadata.term)),$(x.metadata.sum_index.name),$(x.metadata.sum_index.range),$(writeNEIs(x.metadata.non_equal_indices))) )
 _to_expression(x::SymbolicUtils.Sym{Parameter,SpecialIndexedAverage}) = :($(x.metadata.term))
-_to_expression(x::SymbolicUtils.Sym{Parameter,IndexedAverageDoubleSum}) = :( IndexedAverageDoubleSum($(_to_expression(x.metadata.innerSum)),$(x.metadata.sumIndex.name),$(x.metadata.sumIndex.rangeN),$(writeNEIs(x.metadata.nonEqualIndices))) )
+_to_expression(x::SymbolicUtils.Sym{Parameter,IndexedAverageDoubleSum}) = :( IndexedAverageDoubleSum($(_to_expression(x.metadata.innerSum)),$(x.metadata.sum_index.name),$(x.metadata.sum_index.range),$(writeNEIs(x.metadata.non_equal_indices))) )
 
 @latexrecipe function f(s_::SymbolicUtils.Sym{Parameter,IndexedAverageSum})
     s = s_.metadata
-    neis = writeNEIs(s.nonEqualIndices)
+    neis = writeNEIs(s.non_equal_indices)
 
     ex = latexify(s.term)
     sumString = nothing
     if neis != ""
-        sumString = L"$\underset{%$(s.sumIndex.name) ≠%$(neis) }{\overset{%$(s.sumIndex.rangeN)}{\sum}}$ %$(ex)"
+        sumString = L"$\underset{%$(s.sum_index.name) ≠%$(neis) }{\overset{%$(s.sum_index.range)}{\sum}}$ %$(ex)"
     else
-        sumString = L"$\underset{%$(s.sumIndex.name)}{\overset{%$(s.sumIndex.rangeN)}{\sum}}$ %$(ex)"
+        sumString = L"$\underset{%$(s.sum_index.name)}{\overset{%$(s.sum_index.range)}{\sum}}$ %$(ex)"
     end
     return sumString
 end

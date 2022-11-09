@@ -46,7 +46,7 @@ eqs = indexed_meanfield(ops,H,J;rates=rates,order=order)
 φ(x::QTerm) = sum(map(φ, x.args_nc))
 φ(x::Transition) = x.i - x.j
 φ(x::IndexedOperator) = x.op.i - x.op.j
-φ(x::IndexedSingleSum) = φ(x.term)
+φ(x::SingleSum) = φ(x.term)
 φ(x::AvgSums) = φ(arguments(x))
 phase_invariant(x) = iszero(φ(x))
 
@@ -68,14 +68,14 @@ split1 = split_sums(avrgSum,k,4)
 @test split1 isa SymbolicUtils.Mul
 @test !isequal(split1,avrgSum)
 @test isequal(4,arguments(split1)[1])
-@test isequal(N/4,arguments(split1)[2].metadata.sumIndex.rangeN)
+@test isequal(N/4,arguments(split1)[2].metadata.sum_index.range)
 
 split2 = split_sums(avrgSum,k,M)
 
 @test !isequal(split2,split1)
 @test !isequal(split2,avrgSum)
 @test isequal(M,arguments(split2)[1])
-@test isequal(N/M,arguments(split2)[2].metadata.sumIndex.rangeN)
+@test isequal(N/M,arguments(split2)[2].metadata.sum_index.range)
 
 avrgSum2 = arguments(arguments(eqs_c[3].rhs)[1])[2]
 

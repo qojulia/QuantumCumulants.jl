@@ -49,7 +49,7 @@ function _postwalk_func(x)
     elseif MacroTools.@capture(x, NumberedOperator(op_,num_,i_,j_))
         s = "{$(op)}$(:_){$(num)}$(transition_idx_script[]){{$(i)$(j)}}"
         return s
-    elseif MacroTools.@capture(x,IndexedSingleSum(term_, sumInd_, range_, NEI_))
+    elseif MacroTools.@capture(x,SingleSum(term_, sumInd_, range_, NEI_))
         s = NEI != "" ? "\\underset{$(sumInd)≠$(NEI)}{\\overset{$(range)}{\\sum}} $(_postwalk_func(term))" : "\\underset{$(sumInd)}{\\overset{$(range)}{\\sum}} $(_postwalk_func(term))"
         s = replace(s,"\\\\" => "\\")
         s = replace(s, "\"" => "")

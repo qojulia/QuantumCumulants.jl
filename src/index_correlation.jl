@@ -1,54 +1,54 @@
 function _new_operator(op::IndexedOperator,h,aon=acts_on(op)) 
     if op.ind.hilb != h
-        return IndexedOperator(Transition(h,op.op.name,op.op.i,op.op.j,aon;op.op.metadata),Index(h,op.ind.name,op.ind.rangeN,op.ind.specHilb))
+        return IndexedOperator(Transition(h,op.op.name,op.op.i,op.op.j,aon;op.op.metadata),Index(h,op.ind.name,op.ind.range,op.ind.specHilb))
     end
     return IndexedOperator(Transition(h,op.op.name,op.op.i,op.op.j,aon;op.op.metadata),op.ind)
 end
 _new_operator(nOp::NumberedOperator,h,aon=acts_on(nOp)) = NumberedOperator(Transition(h,nOp.op.name,nOp.op.i,nOp.op.j,aon;nOp.op.metadata),nOp.numb)
-function _new_operator(sum::IndexedSingleSum,h,aon) 
-    newSumIndex = sum.sumIndex
-    if sum.sumIndex.hilb != h
-        newSumIndex = Index(h,sum.sumIndex.name,sum.sumIndex.rangeN,ind.specHilb)
+function _new_operator(sum::SingleSum,h,aon) 
+    newsum_index = sum.sum_index
+    if sum.sum_index.hilb != h
+        newsum_index = Index(h,sum.sum_index.name,sum.sum_index.range,ind.specHilb)
     end
     newSumNonEquals = Index[]
-    for ind in sum.nonEqualIndices
+    for ind in sum.non_equal_indices
         if ind.hilb != h
-            push!(newSumNonEquals,Index(h,ind.name,ind.rangeN,ind.specHilb))
+            push!(newSumNonEquals,Index(h,ind.name,ind.range,ind.specHilb))
         end
     end
-    return IndexedSingleSum(_new_operator(sum.term,h),newSumIndex,newSumNonEquals)
+    return SingleSum(_new_operator(sum.term,h),newsum_index,newSumNonEquals)
 end
-function _new_operator(sum::IndexedSingleSum,h) 
-    newSumIndex = sum.sumIndex
-    if sum.sumIndex.hilb != h
-        newSumIndex = Index(h,sum.sumIndex.name,sum.sumIndex.rangeN,sum.sumIndex.specHilb)
+function _new_operator(sum::SingleSum,h) 
+    newsum_index = sum.sum_index
+    if sum.sum_index.hilb != h
+        newsum_index = Index(h,sum.sum_index.name,sum.sum_index.range,sum.sum_index.specHilb)
     end
     newSumNonEquals = Index[]
-    for ind in sum.nonEqualIndices
+    for ind in sum.non_equal_indices
         if ind.hilb != h
-            push!(newSumNonEquals,Index(h,ind.name,ind.rangeN,ind.specHilb))
+            push!(newSumNonEquals,Index(h,ind.name,ind.range,ind.specHilb))
         end
     end
-    return IndexedSingleSum(_new_operator(sum.term,h),newSumIndex,newSumNonEquals)
+    return SingleSum(_new_operator(sum.term,h),newsum_index,newSumNonEquals)
 end
 function _new_operator(sum::IndexedAverageSum,h;kwargs...)
-    newSumIndex = sum.sumIndex
-    if sum.sumIndex.hilb != h
-        newSumIndex = Index(h,sum.sumIndex.name,sum.sumIndex.rangeN,sum.sumIndex.specHilb)
+    newsum_index = sum.sum_index
+    if sum.sum_index.hilb != h
+        newsum_index = Index(h,sum.sum_index.name,sum.sum_index.range,sum.sum_index.specHilb)
     end
     newSumNonEquals = Index[]
-    for ind in sum.nonEqualIndices
+    for ind in sum.non_equal_indices
         if ind.hilb != h
-            push!(newSumNonEquals,Index(h,ind.name,ind.rangeN,ind.specHilb))
+            push!(newSumNonEquals,Index(h,ind.name,ind.range,ind.specHilb))
         end
     end
-    return IndexedAverageSum(_new_operator(sum.term,h),newSumIndex,newSumNonEquals)
+    return IndexedAverageSum(_new_operator(sum.term,h),newsum_index,newSumNonEquals)
 end
 _new_operator(sym::SymbolicUtils.Sym{Parameter,IndexedAverageSum},h;kwargs...) = _new_operator(sym.metadata,h;kwargs...)
 function _new_indices(Inds::Vector,h)
     Inds_ = copy(Inds)
     for i=1:length(Inds)
-        Inds_[i] = Index(h,Inds[i].name,Inds[i].rangeN,Inds[i].specHilb)
+        Inds_[i] = Index(h,Inds[i].name,Inds[i].range,Inds[i].specHilb)
     end
     return Inds_
 end
@@ -120,7 +120,7 @@ function IndexedCorrelationFunction(op1,op2,de0::AbstractMeanfieldEquations;
         end
         for elem in extra_inds
             if elem isa Symbol
-                push!(extras_,Index(extras_[1].hilb,elem,extras_[1].rangeN,extras[1].specHilb))
+                push!(extras_,Index(extras_[1].hilb,elem,extras_[1].range,extras[1].specHilb))
             elseif elem isa Index
                 push!(extras_,elem)
             end

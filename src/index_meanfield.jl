@@ -133,7 +133,7 @@ function indexed_master_lindblad(a_,J,Jdagger,rates)
                 c = sum(args_)
             end
             if !SymbolicUtils._iszero(c)
-                push!(args, IndexedSingleSum(c,J[k].ind,Index[]))
+                push!(args, SingleSum(c,J[k].ind,Index[]))
             end
         else
             if typeof(rates[k]) == SymbolicUtils.Sym{Parameter,DoubleIndexedVariable}
@@ -146,7 +146,7 @@ function indexed_master_lindblad(a_,J,Jdagger,rates)
                 c1 = Jdagger[k][1]*commutator(a_,J[k][2])
                 c2 = commutator(Jdagger[k][1],a_)*J[k][2]
                 c = 0.5*rates[k]*(c1+c2)
-                push!(args,IndexedDoubleSum(IndexedSingleSum((c),J[k][1].ind,Index[]),J[k][2].ind,Index[]))
+                push!(args,IndexedDoubleSum(SingleSum((c),J[k][1].ind,Index[]),J[k][2].ind,Index[]))
             elseif isa(rates[k],SymbolicUtils.Symbolic) || isa(rates[k],Number) || isa(rates[k],Function)
                 c1 = 0.5*rates[k]*Jdagger[k]*commutator(a_,J[k])
                 c2 = 0.5*rates[k]*commutator(Jdagger[k],a_)*J[k]
@@ -277,7 +277,7 @@ function indexed_complete!(de::AbstractMeanfieldEquations;
     #this first index is (if it is a symbol) created similar to the first occuring index in the Equations
     if isempty(indices_lhs) && extra_indices[1] isa Symbol
         for ind in allInds
-            indices_lhs = [Index(ind.hilb,extra_indices[1],ind.rangeN,ind.specHilb)]
+            indices_lhs = [Index(ind.hilb,extra_indices[1],ind.range,ind.specHilb)]
             deleteat!(extra_indices,1)
             break
         end
@@ -292,7 +292,7 @@ function indexed_complete!(de::AbstractMeanfieldEquations;
         if extra_indices[1] isa Symbol
             first = extras[1]
             for name in extra_indices
-                push!(extras,Index(first.hilb,name,first.rangeN,first.specHilb))
+                push!(extras,Index(first.hilb,name,first.range,first.specHilb))
                 if length(extras) >= order_
                     break
                 end
@@ -522,7 +522,7 @@ function find_missing_sums(missed,de::AbstractMeanfieldEquations;extra_indices::
     for eq in de.equations
         sums = checkIfSum(eq.rhs)   #get all sums of the rhs
         for sum in sums
-            extras_filtered = filterExtras(sum.metadata.sumIndex,extras) #all the extraIndices, that have the same specific hilbertspace as the sum
+            extras_filtered = filterExtras(sum.metadata.sum_index,extras) #all the extraIndices, that have the same specific hilbertspace as the sum
             checkAndChange(missed_,sum,extras_filtered,de.states,checking,scaling;kwargs...)
         end
     end   
@@ -535,7 +535,7 @@ function checkAndChange(missed_,sum,extras,states,checking,scaling;kwargs...)
         avrg_inds = get_indices(avr)
         for i = 1:length(extras)    # check if the extraindex is already in use for the term -> if so use the next in line
             if extras[i] ∉ avrg_inds #this is wrong for multiple indices!!!!
-                changed_ = change_index(avr,sum.metadata.sumIndex,extras[i])
+                changed_ = change_index(avr,sum.metadata.sum_index,extras[i])
                 break
             end
         end

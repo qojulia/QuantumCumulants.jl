@@ -94,7 +94,7 @@ To get a closed set of equations we automatically complete the system. Since thi
 φ(x::QTerm) = sum(map(φ, x.args_nc))
 φ(x::Transition) = x.i - x.j
 φ(x::IndexedOperator) = x.op.i - x.op.j
-φ(x::IndexedSingleSum) = φ(x.term)
+φ(x::SingleSum) = φ(x.term)
 φ(x::AvgSums) = φ(arguments(x))
 phase_invariant(x) = iszero(φ(x))
 

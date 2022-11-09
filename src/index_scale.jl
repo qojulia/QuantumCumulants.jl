@@ -32,12 +32,12 @@ function scaleTerm(sum::IndexedAverageSum; h=nothing, kwargs...)
         if !(h isa Vector)
             h = [h]
         end
-        if !(sum.sumIndex.specHilb in h)
-            return IndexedAverageSum(scaleTerm(sum.term; h=h, kwargs...),sum.sumIndex,sum.nonEqualIndices)
+        if !(sum.sum_index.specHilb in h)
+            return IndexedAverageSum(scaleTerm(sum.term; h=h, kwargs...),sum.sum_index,sum.non_equal_indices)
         end
     end
-    NEI = filter(x->x in get_indices(sum.term),sum.nonEqualIndices)
-    prefact = sum.sumIndex.rangeN - length(NEI)
+    NEI = filter(x->x in get_indices(sum.term),sum.non_equal_indices)
+    prefact = sum.sum_index.range - length(NEI)
     term_ = scaleTerm(sum.term; h=h, kwargs...)
     return prefact*term_
 end
@@ -47,12 +47,12 @@ function scaleTerm(sum::IndexedAverageDoubleSum; h=nothing, kwargs...)
         if !(h isa Vector)
             h = [h]
         end
-        if !(sum.sumIndex.specHilb in h)
-            return IndexedAverageDoubleSum(scaleTerm(sum.innerSum; h=h, kwargs...),sum.sumIndex,sum.nonEqualIndices)
+        if !(sum.sum_index.specHilb in h)
+            return IndexedAverageDoubleSum(scaleTerm(sum.innerSum; h=h, kwargs...),sum.sum_index,sum.non_equal_indices)
         end
     end
-    NEI = filter(x->x in get_indices(sum.innerSum),sum.nonEqualIndices)
-    prefact = sum.sumIndex.rangeN - length(NEI)
+    NEI = filter(x->x in get_indices(sum.innerSum),sum.non_equal_indices)
+    prefact = sum.sum_index.range - length(NEI)
     term_ = scaleTerm(sum.innerSum; h=h, kwargs...)
     return prefact*term_
 end
@@ -147,9 +147,9 @@ function SymbolicUtils.substitute(sum::SymbolicUtils.Sym{Parameter,IndexedAverag
     if SymbolicUtils._iszero(subTerm)
         return 0
     elseif subTerm isa symbolics_terms
-        return IndexedAverageSum(subTerm,sum.metadata.sumIndex,sum.metadata.nonEqualIndices)
+        return IndexedAverageSum(subTerm,sum.metadata.sum_index,sum.metadata.non_equal_indices)
     else
-        return (sum.metadata.sumIndex - length(sum.metadata.nonEqualIndices)) * subTerm
+        return (sum.metadata.sum_index - length(sum.metadata.non_equal_indices)) * subTerm
     end
 end
 #function to split sums into different clusters, keeping 
@@ -186,31 +186,31 @@ function split_sums(term::SymbolicUtils.Symbolic,ind::Index,amount::Union{<:Symb
     end
     if typeof(term) == SymbolicUtils.Sym{Parameter,IndexedAverageSum}
         term_ = term.metadata.term
-        sumInd = term.metadata.sumIndex
+        sumInd = term.metadata.sum_index
         if isequal(ind,sumInd)
-            ind2 = Index(sumInd.hilb,sumInd.name,(term.metadata.sumIndex.rangeN/amount),sumInd.specHilb)
+            ind2 = Index(sumInd.hilb,sumInd.name,(term.metadata.sum_index.range/amount),sumInd.specHilb)
             term_ = change_index(term_,ind,ind2)
-            if isempty(term.metadata.nonEqualIndices)
+            if isempty(term.metadata.non_equal_indices)
                 return (amount)*IndexedAverageSum(term_,ind2,Index[])
             end
-            extrasum = IndexedAverageSum(term_,ind2,term.metadata.nonEqualIndices)
+            extrasum = IndexedAverageSum(term_,ind2,term.metadata.non_equal_indices)
             return extrasum + (amount-1)*IndexedAverageSum(term_,ind2,Index[])
         end
     end
     if typeof(term) == SymbolicUtils.Sym{Parameter,IndexedAverageDoubleSum}
         Dsum = term.metadata
-        if isequal(ind,Dsum.sumIndex)
+        if isequal(ind,Dsum.sum_index)
             #create multiple doubleSums with the same innerSum
-            ind2 = Index(Dsum.sumIndex.hilb,Dsum.sumIndex.name,(Dsum.sumIndex.rangeN/amount),Dsum.sumIndex.specHilb)
-            if isempty(Dsum.nonEqualIndices)
+            ind2 = Index(Dsum.sum_index.hilb,Dsum.sum_index.name,(Dsum.sum_index.range/amount),Dsum.sum_index.specHilb)
+            if isempty(Dsum.non_equal_indices)
                 return amount*IndexedAverageDoubleSum(Dsum.innerSum,ind2,Index[])
             end
-            extraSum = IndexedAverageDoubleSum(Dsum.innerSum,ind2,Dsum.nonEqualIndices)
+            extraSum = IndexedAverageDoubleSum(Dsum.innerSum,ind2,Dsum.non_equal_indices)
             return extraSum + (amount-1)*Σ(Dsum.innerSum,ind2,Index[])
-        elseif isequal(ind,Dsum.innerSum.metadata.sumIndex)
+        elseif isequal(ind,Dsum.innerSum.metadata.sum_index)
             #create doublesum of split innersums
             innerSums = split_sums(Dsum.innerSum,ind,amount)
-            return IndexedAverageDoubleSum(innerSums,Dsum.sumIndex,Dsum.nonEqualIndices)
+            return IndexedAverageDoubleSum(innerSums,Dsum.sum_index,Dsum.non_equal_indices)
         end
     end
     return term

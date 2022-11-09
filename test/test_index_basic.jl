@@ -47,11 +47,11 @@ g(k) = IndexedVariable(:g,k)
 
 
 a = Destroy(h,:a)
-sum1 = IndexedSingleSum(σ(1,2,i_ind)*a',i_ind)
-sum2 = IndexedSingleSum(σ(2,1,i_ind)*a,i_ind)
+sum1 = SingleSum(σ(1,2,i_ind)*a',i_ind)
+sum2 = SingleSum(σ(2,1,i_ind)*a,i_ind)
 @test(isequal(adjoint(sum1),sum2))
 
-sum3 = IndexedSingleSum(a'*σ(1,2,i_ind) + a*σ(2,1,i_ind),i_ind)
+sum3 = SingleSum(a'*σ(1,2,i_ind) + a*σ(2,1,i_ind),i_ind)
 @test(isequal(sum3,(sum1+sum2)))
 @test(isequal(acts_on(σ12i),2))
 @test(i_ind < j_ind)
@@ -74,22 +74,27 @@ k_ind = indT(:k)
     reorder(σ(1,2,k_ind)*σ(1,2,j_ind)*σ(1,2,i_ind),[(i_ind,j_ind)]),
     SpecialIndexedTerm(σ(1,2,k_ind)*σ(1,2,i_ind)*σ(1,2,j_ind),[(i_ind,j_ind)])
 ))
-@test(isequal(σ(1,2,k_ind) * sum1, simplify(IndexedSingleSum(σ(1,2,k_ind)*σ(1,2,i_ind)*a',i_ind))
+@test(isequal(σ(1,2,k_ind) * sum1, simplify(SingleSum(σ(1,2,k_ind)*σ(1,2,i_ind)*a',i_ind))
 ))
+σ(1,2,k_ind) * sum1
+qqq = simplify(SingleSum(σ(1,2,k_ind)*σ(1,2,i_ind)*a',i_ind))
+# qqq = SingleSum(σ(1,2,k_ind)*σ(1,2,i_ind)*a',i_ind)
+QuantumCumulants.get_indices(qqq)
+SymbolicUtils._iszero(a'*σ(1,2,i_ind)*σ(1,2,k_ind))
 
-@test(isequal(simplify(σ(2,1,k_ind) * sum1), simplify(IndexedSingleSum(σ(2,1,k_ind)*σ(1,2,i_ind)*a',i_ind,[k_ind]) + a'*σ(2,2,k_ind))
+@test(isequal(simplify(σ(2,1,k_ind) * sum1), simplify(SingleSum(σ(2,1,k_ind)*σ(1,2,i_ind)*a',i_ind,[k_ind]) + a'*σ(2,2,k_ind))
 ))
-innerSum = IndexedSingleSum(σ(2,1,i_ind)*σ(1,2,j_ind),i_ind)
+innerSum = SingleSum(σ(2,1,i_ind)*σ(1,2,j_ind),i_ind)
 @test(isequal(
-    IndexedDoubleSum(innerSum,j_ind), IndexedDoubleSum(IndexedSingleSum(σ(2,1,i_ind)*σ(1,2,j_ind),i_ind,[j_ind]),j_ind) + IndexedSingleSum(σ(2,2,j_ind),j_ind)
+    IndexedDoubleSum(innerSum,j_ind), IndexedDoubleSum(SingleSum(σ(2,1,i_ind)*σ(1,2,j_ind),i_ind,[j_ind]),j_ind) + SingleSum(σ(2,2,j_ind),j_ind)
 ))
 @test(isequal(SymbolicUtils.arguments(σ(1,2,indT(:i))*a'),SymbolicUtils.arguments(sum1)))
 
 @test isequal(N*g(ind(:j)),Σ(g(ind(:j)),ind(:i)))
-@test Σ(g(ind(:j)),ind(:j)) isa qc.IndexedSingleSum
+@test Σ(g(ind(:j)),ind(:j)) isa qc.SingleSum
 
 @test isequal(N*Γij,Σ(Γij,ind(:k)))
-@test Σ(Γij,ind(:i)) isa qc.IndexedSingleSum
+@test Σ(Γij,ind(:i)) isa qc.SingleSum
 
 @test (sum1 + a') isa qc.QAdd
 @test (sum1 + σ(1,2,i_ind)) isa qc.QAdd

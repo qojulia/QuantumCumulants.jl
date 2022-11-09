@@ -14,7 +14,7 @@ get_indices(a::SymbolicUtils.Sym{Parameter,DoubleIndexedVariable}) = unique([a.m
 get_indices(a::SymbolicUtils.Sym{Parameter,IndexedVariable}) = [a.metadata.ind]
 get_indices(x::Number) = []
 get_indices(term) = istree(term) ? get_indices(arguments(term)) : []
-const Sums = Union{IndexedSingleSum,IndexedDoubleSum}
+const Sums = Union{SingleSum,IndexedDoubleSum}
 get_indices(x::Sums) = get_indices(arguments(x))
 
 #Usability functions:
@@ -22,7 +22,7 @@ get_indices(x::Sums) = get_indices(arguments(x))
 Σ(a,b,c;kwargs...) = IndexedDoubleSum(a,b,c;kwargs...)
 ∑(args...; kwargs...) = Σ(args...; kwargs...)
 
-IndexedOperator(x::indexable,numb::Int64) = NumberedOperator(x,numb)
+IndexedOperator(x::IndexableOps,numb::Int64) = NumberedOperator(x,numb)
 IndexedVariable(x,numb::Int64) = SingleNumberedVariable(x,numb)
 IndexedVariable(x,num1::Int64,num2::Int64;kwargs...) = DoubleNumberedVariable(x,num1,num2;kwargs...)
 IndexedVariable(name::Symbol,ind1::Index,ind2::Index;kwargs...) = DoubleIndexedVariable(name,ind1,ind2;kwargs...)

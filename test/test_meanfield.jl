@@ -56,6 +56,7 @@ H = δ*(σ_(2,2,1)+σ_(2,2,2))
 J = [[σ_(1,2,1), σ_(1,2,2)]]
 rates = [[G11 G12; G21 G22]]
 ops_0 = [σ_(1,2,1)]
+
 eqs1 = meanfield(ops_0,H,J; rates=rates)
 eqs_c1 = complete(eqs1)
 eqs2 = meanfield(ops_0,H,J[1]; rates=rates[1])
