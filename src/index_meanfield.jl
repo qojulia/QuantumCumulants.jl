@@ -515,7 +515,7 @@ the equations, the [`Index`](@ref) will be exchanged according to the keyword ar
 
 see also: [`find_missing`](@ref), [`indexed_meanfield`](@ref), [`meanfield`](@ref), [`find_missing_sums`](@ref)
 """
-function find_missing_sums(missed,de::AbstractMeanfieldEquations;extra_indices::Vector=[],checking=true,scaling=false,hasDifferentIndices::Bool=false,kwargs...)
+function find_missing_sums(missed,de::AbstractMeanfieldEquations;extra_indices::Vector=[],checking=true,scaling=false,kwargs...)
     missed_ = copy(missed)
     extras = copy(extra_indices)
     sums = Any[]
@@ -543,7 +543,7 @@ function checkAndChange(missed_,sum,extras,states,checking,scaling;kwargs...)
             changed_ = avr
         end
         
-        if typeof(changed_) == Term{AvgSym, Nothing}
+        if changed_ isa Term{AvgSym, Nothing}
             changed = sortByIndex(changed_)    # this can be done, since terms inside the sum commute anyway
             if !(changed isa Average)
                 continue
