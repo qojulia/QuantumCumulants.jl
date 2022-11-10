@@ -219,15 +219,66 @@ Fields:
 #         end
 #     end
 # end
-struct SingleSum <: QTerm #Sum with an index, the term inside the sum must be a multiplication, either a QMul or a Symbolic one
+struct SingleSum{M} <: QTerm #Sum with an index, the term inside the sum must be a multiplication, either a QMul or a Symbolic one
     term::Summable
     sum_index::Index
-    non_equal_indices::Vector{Index}  #indices not equal to the summation index
-    metadata
-    function SingleSum(term::Summable,sum_index::Index,non_equal_indices::Vector{Index},metadata)
-        SymbolicUtils._iszero(term) ? 0 : new(term,sum_index,non_equal_indices,metadata)
+    non_equal_indices::Vector{IndexInt}  #indices not equal to the summation index
+    metadata::M
+    function SingleSum(term::Summable,sum_index::Index,non_equal_indices::Vector,metadata)
+        SymbolicUtils._iszero(term) ? 0 : new{typeof(metadata)}(term,sum_index,non_equal_indices,metadata)
     end
 end
+"""
+
+    SpecialIndexedTerm <: QNumber
+
+A multiplication of [`IndexedOperator`](@ref) entities, with special constraint on the index-values. For example σᵢ²² * σⱼ²² with the constraint i ≠ j
+
+Fields:
+======
+
+* term: A multiplication of [`QNumber`](@ref) terms.
+* indexMapping: A Vector of [`Index`](@ref) tuples, specifying the contraints for the term. Each Tuple is considered to one constraint. e.g: (i,j) -> i ≠ j
+
+"""
+struct SpecialIndexedTerm <: QNumber    #A term, not in a sum, that has a condition on the indices, for example σⱼ*σₖ with condition j≠k
+    term::Summable
+    indexMapping::Vector{Tuple{Index,Index}}    #The conditions on indices are given via this tuple-vector, each tuple representing one condition (not to be confused with the numbered ones in averages)
+    function SpecialIndexedTerm(term,indexMapping)
+        if length(indexMapping) == 0
+            return term
+        #elseif typeof(term) == IndexedOperator
+        #    return term
+        #elseif typeof(term) == Destroy
+        #    return term
+        #elseif typeof(term) <: SymbolicUtils.Add
+        #    args = []
+        #    for arg in arguments(term)
+        #        push!(args,reorder(arg,indexMapping))
+        #    end
+        #    return +(args...)
+        #elseif term isa QAdd
+        #    args = []
+        #    for arg in arguments(term)
+        #        push!(args,reorder(arg,indexMapping))
+        #    end
+        #    return +(args...)
+        elseif SymbolicUtils._iszero(term)
+            return 0
+        else
+            return new(term,indexMapping)
+        end
+    end
+end
+const IndexedObSym = Union{IndexedOperator,SymbolicUtils.Sym{Parameter,IndexedVariable},SymbolicUtils.Sym{Parameter,DoubleIndexedVariable}}
+const IndexedAdd = Union{QAdd, SymbolicUtils.Add}
+
+SpecialIndexedTerm(term::IndexedObSym,indexMapping) = term
+function SpecialIndexedTerm(add::IndexedAdd,indexMapping) 
+    args = copy(arguments(add))
+    return sum(reorder.(args,indexMapping))
+end
+
 # function SingleSum(term::IndexedOperator, sum_index, non_equal_indices)
 #     if term.ind == sum_index
 #         return SingleSum(term,sum_index,non_equal_indices)
@@ -235,7 +286,7 @@ end
 #         return (sum_index.range - length(non_equal_indices)) * term
 #     end
 # end
-const IndexedObSym = Union{IndexedOperator,SymbolicUtils.Sym{Parameter,IndexedVariable},SymbolicUtils.Sym{Parameter,DoubleIndexedVariable}}
+
 function SingleSum(term::IndexedObSym, sum_index, non_equal_indices;metadata=NO_METADATA)
     term_indices = get_indices(term)
     if sum_index in term_indices
@@ -244,15 +295,11 @@ function SingleSum(term::IndexedObSym, sum_index, non_equal_indices;metadata=NO_
         return (sum_index.range - length(non_equal_indices)) * term
     end
 end
-const IndexedAdd = Union{QAdd, SymbolicUtils.Add}
+
 function SingleSum(term::IndexedAdd, sum_index, non_equal_indices;metadata=NO_METADATA)
     sum(SingleSum(arg,sum_index,non_equal_indices;metadata=metadata) for arg in arguments(term))
 end
-SingleSum(term::Number, sum_index, non_equal_indices;metadata=NO_METADATA) = (sum_index.range - length(non_equal_indices)) * term
-#SingleSum(term::QNumber, sum_index, non_equal_indices;metadata=NO_METADATA) = (sum_index.range - length(non_equal_indices)) * term
-function SingleSum(term, sum_index, non_equal_indices;metadata=NO_METADATA)
-    println(11111111)
-    println(term)
+function SingleSum(term::QMul, sum_index, non_equal_indices;metadata=NO_METADATA)
     SymbolicUtils._iszero(term) && return 0
     NEI = Index[]
     NEI_ = copy(non_equal_indices)
@@ -310,7 +357,30 @@ function SingleSum(term, sum_index, non_equal_indices;metadata=NO_METADATA)
     sort!(NEI_,by=getIndName)
     return +(SingleSum(term_,sum_index,NEI_;metadata=metadata),addTerms...)
 end
+function SingleSum(term::SpecialIndexedTerm,ind::Index,NEI;metadata=NO_METADATA)
+    if length(term.indexMapping) == 0
+        return SingleSum(term.term,ind,NEI)
+    else
+        NEI_ = copy(NEI)
+        for tuple in term.indexMapping
+            if first(tuple) == ind && last(tuple) ∉ NEI_
+                push!(NEI_, last(tuple))
+            elseif last(tuple) == ind && first(tuple) ∉ NEI_
+                push!(NEI_, first(tuple))
+            end
+        end
+        return SingleSum(term.term,ind,NEI_;metadata=metadata)
+    end
+end
+SingleSum(ops::Vector{Any},ind::Index,NEI::Vector;metadata=NO_METADATA) = SingleSum(*(1,ops...),ind,NEI;metadata=metadata)
+SingleSum(ops::QMul,ind::Index;metadata=NO_METADATA) = SingleSum(ops,ind,Index[];metadata=metadata)
+SingleSum(ops::QAdd,ind::Index;metadata=NO_METADATA) = SingleSum(ops,ind,Index[];metadata=metadata)
+SingleSum(op::QNumber,ind::Index;metadata=NO_METADATA) = SingleSum(op,ind,Index[];metadata=metadata)
+SingleSum(ops::Number,ind::Index,NEI::Vector;metadata=NO_METADATA) = (ind.range - length(NEI))*ops
+SingleSum(ops::SymbolicUtils.Mul,ind::Index,NEI::Vector;metadata=NO_METADATA) = (ind.range - length(NEI))*ops
+SingleSum(term::QSym,ind::Index,NEI::Vector;metadata=NO_METADATA) = (ind.range - length(NEI))*term
 
+SingleSum(term, sum_index, non_equal_indices;metadata=NO_METADATA) = (sum_index.range - length(non_equal_indices)) * term
 
 
 #     function SingleSum(term,sum_index,non_equal_indices) #rather expensive constructor to make sure Sums are created as they should
@@ -414,49 +484,6 @@ end
 #     end
 # end
 
-"""
-
-    SpecialIndexedTerm <: QNumber
-
-A multiplication of [`IndexedOperator`](@ref) entities, with special constraint on the index-values. For example σᵢ²² * σⱼ²² with the constraint i ≠ j
-
-Fields:
-======
-
-* term: A multiplication of [`QNumber`](@ref) terms.
-* indexMapping: A Vector of [`Index`](@ref) tuples, specifying the contraints for the term. Each Tuple is considered to one constraint. e.g: (i,j) -> i ≠ j
-
-"""
-struct SpecialIndexedTerm <: QNumber    #A term, not in a sum, that has a condition on the indices, for example σⱼ*σₖ with condition j≠k
-    term::Summable
-    indexMapping::Vector{Tuple{Index,Index}}    #The conditions on indices are given via this tuple-vector, each tuple representing one condition (not to be confused with the numbered ones in averages)
-    function SpecialIndexedTerm(term,indexMapping)
-        if length(indexMapping) == 0
-            return term
-        elseif typeof(term) == IndexedOperator
-            return term
-        elseif typeof(term) == Destroy
-            return term
-        elseif typeof(term) <: SymbolicUtils.Add
-            args = []
-            for arg in arguments(term)
-                push!(args,reorder(arg,indexMapping))
-            end
-            return +(args...)
-        elseif term isa QAdd
-            args = []
-            for arg in arguments(term)
-                push!(args,reorder(arg,indexMapping))
-            end
-            return +(args...)
-        elseif SymbolicUtils._iszero(term)
-            return 0
-        else
-            return new(term,indexMapping)
-        end
-    end
-end
-
 #Additional Constructors:
 
 #Operators
@@ -479,28 +506,6 @@ end
 IndexedOperator(op::SNuN,ind::Index) = op     #This is just declared, so one can ignore type-checking on numbers
 
 #Sums
-SingleSum(ops::Vector{Any},ind::Index,NEI::Vector{Index}) = SingleSum(*(1,ops...),ind,NEI)
-SingleSum(ops::QMul,ind::Index) = SingleSum(ops,ind,Index[])
-SingleSum(ops::QAdd,ind::Index) = SingleSum(ops,ind,Index[])
-SingleSum(op::QNumber,ind::Index) = SingleSum(op,ind,Index[])
-SingleSum(ops::Number,ind::Index,NEI::Vector{Index}) = (ind.range - length(NEI))*ops
-SingleSum(ops::SymbolicUtils.Mul,ind::Index,NEI::Vector{Index}) = (ind.range - length(NEI))*ops
-SingleSum(term::QSym,ind::Index,NEI::Vector{Index}) = (ind.range - length(NEI))*term
-function SingleSum(term::SpecialIndexedTerm,ind::Index,NEI::Vector{Index})
-    if length(term.indexMapping) == 0
-        return SingleSum(term.term,ind,NEI)
-    else
-        NEI_ = copy(NEI)
-        for tuple in term.indexMapping
-            if first(tuple) == ind && last(tuple) ∉ NEI_
-                push!(NEI_, last(tuple))
-            elseif last(tuple) == ind && first(tuple) ∉ NEI_
-                push!(NEI_, first(tuple))
-            end
-        end
-        return SingleSum(term.term,ind,NEI_)
-    end
-end
 
 #hilberts
 hilbert(ind::Index) = ind.hilb

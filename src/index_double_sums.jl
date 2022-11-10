@@ -56,7 +56,7 @@ struct IndexedDoubleSum <:QTerm
                     end
                     sort!(NEI_)
                     innerSum_ = SingleSum(qmul,innerSum.sum_index,innerSum.non_equal_indices)
-                    if typeof(innerSum_) == SingleSum
+                    if innerSum_ isa SingleSum
                         if extraterm == 0
                             return new(innerSum_,sum_index,NEI_)
                         end

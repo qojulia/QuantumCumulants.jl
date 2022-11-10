@@ -4,18 +4,17 @@ function get_indices(term::SymbolicUtils.Term{AvgSym, Nothing})
     get_indices(arguments(term)[1])
 end
 function get_indices(term::QMul)
-    args_nc = copy(term.args_nc)
-    filter!(x -> x isa IndexedOperator, args_nc)
-    indices = unique(get_indices(args_nc))
+    args_nc = filter(x -> x isa IndexedOperator, term.args_nc)
+    return unique(vcat(get_indices(args_nc),get_indices(term.arg_c)))
 end
 get_indices(a::IndexedOperator) = [a.ind]
-get_indices(vec::Vector) = vcat(get_indices.(vec)...)
+get_indices(vec::Vector) = unique(vcat(get_indices.(vec)...))
 get_indices(a::SymbolicUtils.Sym{Parameter,DoubleIndexedVariable}) = unique([a.metadata.ind1,a.metadata.ind2])
 get_indices(a::SymbolicUtils.Sym{Parameter,IndexedVariable}) = [a.metadata.ind]
+const Sums = Union{SingleSum,IndexedDoubleSum}
+get_indices(x::Sums) = unique(get_indices(arguments(x)))
 get_indices(x::Number) = []
 get_indices(term) = istree(term) ? get_indices(arguments(term)) : []
-const Sums = Union{SingleSum,IndexedDoubleSum}
-get_indices(x::Sums) = get_indices(arguments(x))
 
 #Usability functions:
 Σ(a,b) = IndexedDoubleSum(a,b)  #Double-Sum here, because if variable a is not a single sum it will create a single sum anyway
