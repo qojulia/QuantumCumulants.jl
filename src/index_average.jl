@@ -147,7 +147,7 @@ end
 #For representing in average terms
 """
 
-    NumberedOperator <: QNumber
+    NumberedOperator <: QSym
 
 Defines an operator, associated with a Number. Commutator-relations are calculated using these numbers, as a sort of an index.
 
@@ -158,7 +158,7 @@ Fields:
 * numb: An Integer Number.
 
 """
-struct NumberedOperator <:QNumber
+struct NumberedOperator <:QSym
     op::IndexableOps
     numb::Int64
     function NumberedOperator(op,numb)
@@ -338,24 +338,24 @@ end
 undo_average(a::SymbolicUtils.Sym{Parameter,SpecialIndexedAverage}) = reorder(undo_average(a.metadata.term),a.metadata.indexMapping)
 
 #define calculus for numbered operators -> break it down into QNuber multiplication
-*(numOp::NumberedOperator, qmul::QMul) = merge_commutators(qmul.arg_c,vcat(numOp,qmul.args_nc))
-*(qmul::QMul, numOp::NumberedOperator) = merge_commutators(qmul.arg_c,vcat(qmul.args_nc,numOp))
+#*(numOp::NumberedOperator, qmul::QMul) = merge_commutators(qmul.arg_c,vcat(numOp,qmul.args_nc))
+#*(qmul::QMul, numOp::NumberedOperator) = merge_commutators(qmul.arg_c,vcat(qmul.args_nc,numOp))
 function *(numOp1::NumberedOperator,numOp2::NumberedOperator)
     if numOp1.op isa Create || numOp1.op isa Destroy || numOp2.op isa Create || numOp2.op isa Destroy
         return merge_commutators(1,[numOp1,numOp2])
     end
     return (numOp1.numb == numOp2.numb && isequal(acts_on(numOp1.op),acts_on(numOp2.op))) ? NumberedOperator(numOp1.op*numOp2.op,numOp1.numb) : QMul(1,[numOp1,numOp2])
 end
-*(elem::SNuN, numOp::NumberedOperator) = merge_commutators(elem,[numOp])
-*(numOp::NumberedOperator,elem::SNuN) = merge_commutators(elem,[numOp])
-*(a::Create,b::NumberedOperator) = merge_commutators(1,[a,b])
-*(b::NumberedOperator,a::Create) = merge_commutators(1,[b,a])
-*(a::Destroy,b::NumberedOperator) = merge_commutators(1,[a,b])
-*(b::NumberedOperator,a::Destroy) = merge_commutators(1,[b,a])
-*(a::Transition,b::NumberedOperator) = merge_commutators(1,[a,b])
-*(b::NumberedOperator,a::Transition) = merge_commutators(1,[b,a])
-*(a::IndexedOperator,b::NumberedOperator) = merge_commutators(1,[a,b])
-*(b::NumberedOperator,a::IndexedOperator) = merge_commutators(1,[b,a])
+#*(elem::SNuN, numOp::NumberedOperator) = merge_commutators(elem,[numOp])
+#*(numOp::NumberedOperator,elem::SNuN) = merge_commutators(elem,[numOp])
+#*(a::Create,b::NumberedOperator) = merge_commutators(1,[a,b])
+#*(b::NumberedOperator,a::Create) = merge_commutators(1,[b,a])
+#*(a::Destroy,b::NumberedOperator) = merge_commutators(1,[a,b])
+#*(b::NumberedOperator,a::Destroy) = merge_commutators(1,[b,a])
+#*(a::Transition,b::NumberedOperator) = merge_commutators(1,[a,b])
+#*(b::NumberedOperator,a::Transition) = merge_commutators(1,[b,a])
+#*(a::IndexedOperator,b::NumberedOperator) = merge_commutators(1,[a,b])
+#*(b::NumberedOperator,a::IndexedOperator) = merge_commutators(1,[b,a])
 
 #Symbolics functions
 get_order(a::Sym{Parameter,IndexedAverageSum}) = get_order(a.metadata.term)
