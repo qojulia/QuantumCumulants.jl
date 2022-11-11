@@ -1039,41 +1039,48 @@ function Base.isequal(a::SpecialIndexedTerm,b::SpecialIndexedTerm)
 end
 
 #checks if two sums have opposite numeric values
-function check_sign(a::SingleSum,b::SingleSum)
-    if a.term isa QMul && b.term isa QMul
-        return isequal(a.term.arg_c, -1*b.term.arg_c)
-    else
-        return isequal(a.term,-1*b.term)
-    end
-end
-function check_term(a::SingleSum,b::SingleSum)
-    isequal(a.sum_index,b.sum_index) || return false
-    isequal(a.term.arg_c, b.term.arg_c) || isequal(a.term.arg_c, -1*b.term.arg_c) || return false
-    length(a.term.args_nc)==length(b.term.args_nc) || return false
-    length(a.non_equal_indices) == length(b.non_equal_indices) || return false
-    sort!(a.non_equal_indices, by=getIndName) == sort!(b.non_equal_indices, by=getIndName) || return false
-    for (arg_a, arg_b) ∈ zip(sort!(a.term.args_nc,by=getIndName), sort!(b.term.args_nc,by=getIndName))
-        isequal(arg_a,arg_b) || return false
-    end
-    return true
-end
+# function check_sign(a::SingleSum,b::SingleSum)
+#     if a.term isa QMul && b.term isa QMul
+#         return isequal(a.term.arg_c, -1*b.term.arg_c)
+#     else
+#         return isequal(a.term,-1*b.term)
+#     end
+# end
+# function check_term(a::SingleSum,b::SingleSum)
+#     isequal(a.sum_index,b.sum_index) || return false
+#     isequal(a.term.arg_c, b.term.arg_c) || isequal(a.term.arg_c, -1*b.term.arg_c) || return false
+#     length(a.term.args_nc)==length(b.term.args_nc) || return false
+#     length(a.non_equal_indices) == length(b.non_equal_indices) || return false
+#     sort!(a.non_equal_indices, by=getIndName) == sort!(b.non_equal_indices, by=getIndName) || return false
+#     for (arg_a, arg_b) ∈ zip(sort!(a.term.args_nc,by=getIndName), sort!(b.term.args_nc,by=getIndName))
+#         isequal(arg_a,arg_b) || return false
+#     end
+#     return true
+# end
 function Base.isequal(a::SingleSum, b::SingleSum)
-    isequal(a.sum_index,b.sum_index) || return false
-    typeof(a.term) == typeof(b.term) || return false
-    if !(typeof(a.term) <: QMul) || !(typeof(b.term) <: QMul)
-        return isequal(a.term,b.term)
+    if isequal(a.sum_index,b.sum_index)
+        typeof(a.term) == typeof(b.term) || return false
+        isequal(a.term,b.term) || return false    
+    elseif isequal(a.sum_index.specHilb,b.sum_index.specHilb)
+        typeof(a.term) == typeof(b.term) || return false
+        isequal(a.term,change_index(b.term,b.sum_index,a.sum_index)) || return false 
     end
-    if (typeof(a.term) == IndexedOperator && typeof(b.term) != IndexedOperator) || (typeof(b.term) == IndexedOperator && typeof(a.term) != IndexedOperator)
-        return false
-    end
-    isequal(a.term.arg_c, b.term.arg_c) || return false
-    length(a.term.args_nc)==length(b.term.args_nc) || return false
-    for (arg_a, arg_b) ∈ zip(order_by_index(a.term.args_nc,[a.sum_index]), order_by_index(b.term.args_nc,[b.sum_index]))
-        isequal(arg_a,arg_b) || return false
-    end
-    return true
+    return isequal(a.non_equal_indices,b.non_equal_indices)
+    
+    # if !(typeof(a.term) <: QMul) || !(typeof(b.term) <: QMul)
+    #     return isequal(a.term,b.term)
+    # end
+    # if (typeof(a.term) == IndexedOperator && typeof(b.term) != IndexedOperator) || (typeof(b.term) == IndexedOperator && typeof(a.term) != IndexedOperator)
+    #     return false
+    # end
+    # isequal(a.term.arg_c, b.term.arg_c) || return false
+    # length(a.term.args_nc)==length(b.term.args_nc) || return false
+    # for (arg_a, arg_b) ∈ zip(order_by_index(a.term.args_nc,[a.sum_index]), order_by_index(b.term.args_nc,[b.sum_index]))
+    #     isequal(arg_a,arg_b) || return false
+    # end
+    # return true
 end
-hilbert(a::SNuN) = 0
+#hilbert(a::SNuN) = 0
 
 #Function that changes the index of a sum term into a different indexed term
 #used for evaluating the extra terms when multiplying a sum with an operator with different index
