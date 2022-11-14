@@ -98,6 +98,8 @@ DSum = Σ(innerSum,j_ind)
 @test innerSum isa qc.QAdd
 @test Dsum isa qc.QAdd
 
+@test DSum isa qc.QAdd
+
 @test Dsum.arguments[1] isa qc.IndexedDoubleSum
 @test Dsum.arguments[2] isa qc.SingleSum
 

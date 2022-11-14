@@ -549,31 +549,40 @@ import Base: *, +, -
 
 #Multiplications
 #Sums
-function *(sum::SingleSum,qmul::QMul)
-    args_nc = qmul.args_nc
-    arg_c = qmul.arg_c
-    newSum = sum
-    if iszero(newSum)
-        return 0
-    end
-    for i = 1:length(args_nc)
-        if iszero(args_nc[i])
-            return 0
-        end
-        newSum = newSum*args_nc[i]
-    end
-    return arg_c * newSum
-end
+*(sum::SingleSum,qmul::QMul) = qmul.arg_c*(*(sum,qmul.args_nc...))
+# *(qmul::QMul,sum::SingleSum) = qmul.arg_c*(*(qmul.args_nc...,sum)) # does not work, since multiplication again creates a QMul -> infinite loop
 function *(qmul::QMul,sum::SingleSum)
-    args_nc = qmul.args_nc
-    arg_c = qmul.arg_c
-    newSum = sum
-    len = length(args_nc)
-    for i = 1:len
-        newSum = args_nc[len+1-i]*newSum    #multiply each element into the summation term -> recreate a new Sum after that
+    sum_ = sum
+    for i = length(qmul.args_nc):-1:1
+        sum_ = qmul.args_nc[i] * sum_
     end
-    return arg_c * newSum
+    return qmul.arg_c*sum_ 
 end
+# function *(sum::SingleSum,qmul::QMul)
+#     args_nc = qmul.args_nc
+#     arg_c = qmul.arg_c
+#     newSum = sum
+#     if iszero(newSum)
+#         return 0
+#     end
+#     for i = 1:length(args_nc)
+#         if iszero(args_nc[i])
+#             return 0
+#         end
+#         newSum = newSum*args_nc[i]
+#     end
+#     return arg_c * newSum
+# end
+# function *(qmul::QMul,sum::SingleSum)
+#     args_nc = qmul.args_nc
+#     arg_c = qmul.arg_c
+#     newSum = sum
+#     len = length(args_nc)
+#     for i = 1:len
+#         newSum = args_nc[len+1-i]*newSum    #multiply each element into the summation term -> recreate a new Sum after that
+#     end
+#     return arg_c * newSum
+# end
 
 function *(sum::SingleSum,elem::IndexedObSym)
     NEIds = copy(sum.non_equal_indices)
