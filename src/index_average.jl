@@ -338,13 +338,13 @@ end
 undo_average(a::SymbolicUtils.Sym{Parameter,SpecialIndexedAverage}) = reorder(undo_average(a.metadata.term),a.metadata.indexMapping)
 
 #define calculus for numbered operators -> break it down into QNuber multiplication
-#*(numOp::NumberedOperator, qmul::QMul) = merge_commutators(qmul.arg_c,vcat(numOp,qmul.args_nc))
-#*(qmul::QMul, numOp::NumberedOperator) = merge_commutators(qmul.arg_c,vcat(qmul.args_nc,numOp))
+*(numOp::NumberedOperator, qmul::QMul) = merge_commutators(qmul.arg_c,order_by_number!(vcat(numOp,qmul.args_nc)))
+*(qmul::QMul, numOp::NumberedOperator) = merge_commutators(qmul.arg_c,order_by_number!(vcat(qmul.args_nc,numOp)))
 function *(numOp1::NumberedOperator,numOp2::NumberedOperator)
     if numOp1.op isa Create || numOp1.op isa Destroy || numOp2.op isa Create || numOp2.op isa Destroy
         return merge_commutators(1,[numOp1,numOp2])
     end
-    return (numOp1.numb == numOp2.numb && isequal(acts_on(numOp1.op),acts_on(numOp2.op))) ? NumberedOperator(numOp1.op*numOp2.op,numOp1.numb) : QMul(1,[numOp1,numOp2])
+    return (numOp1.numb == numOp2.numb && isequal(acts_on(numOp1.op),acts_on(numOp2.op))) ? NumberedOperator(numOp1.op*numOp2.op,numOp1.numb) : QMul(1,order_by_number!([numOp1,numOp2]))
 end
 #*(elem::SNuN, numOp::NumberedOperator) = merge_commutators(elem,[numOp])
 #*(numOp::NumberedOperator,elem::SNuN) = merge_commutators(elem,[numOp])
