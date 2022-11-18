@@ -267,8 +267,10 @@ undo_average(a::IndexedAverageDoubleSum) = IndexedDoubleSum(undo_average(a.inner
 undo_average(a::SymbolicUtils.Sym{Parameter,SpecialIndexedAverage}) = reorder(undo_average(a.metadata.term),a.metadata.indexMapping)
 
 #define calculus for numbered operators -> break it down into QNuber multiplication
+
 *(numOp::NumberedOperator, qmul::QMul) = merge_commutators(qmul.arg_c,inorder!(vcat(numOp,qmul.args_nc)))
 *(qmul::QMul, numOp::NumberedOperator) = merge_commutators(qmul.arg_c,inorder!(vcat(qmul.args_nc,numOp)))
+
 function *(numOp1::NumberedOperator,numOp2::NumberedOperator)
     if numOp1.op isa Create || numOp1.op isa Destroy || numOp2.op isa Create || numOp2.op isa Destroy
         return merge_commutators(1,[numOp1,numOp2])
