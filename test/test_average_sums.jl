@@ -72,7 +72,8 @@ pind = Index(h,:p,5,ha)
 @test isequal(4*a,Σ(a,pind,[ind(:i)]))
 @test isequal(average(Σ(σ(1,2,ind(:i)),ind(:i))),qc.IndexedAverageSum(average(σ(1,2,ind(:i))),ind(:i),[]))
 
-@test isequal(0,qc.IndexedAverageSum(average(σ(2,1,ind(:i))*σ(2,1,ind(:i))),ind(:i),[]))
+#this test does not really make any sense
+#@test isequal(0,qc.IndexedAverageSum(average(σ(2,1,ind(:i))*σ(2,1,ind(:i))),ind(:i),[]))
 
 avrgTerm = average(Σ(σ(2,1,ind(:i))*σ(1,2,ind(:j)),ind(:i)))
 @test avrgTerm isa SymbolicUtils.Add
@@ -80,10 +81,6 @@ ADsum1 = qc.IndexedAverageDoubleSum(avrgTerm,ind(:j),[ind(:i)])
 @test ADsum1 isa SymbolicUtils.Add
 @test arguments(ADsum1)[1].metadata isa qc.IndexedAverageDoubleSum  
 @test arguments(ADsum1)[2].metadata isa qc.IndexedAverageSum  
-
-@test qc.NumberedIndexedAverage(average(σ(1,2,ind(:i))),[]) isa Average
-@test qc.NumberedIndexedAverage(average(σ(1,2,ind(:j))),[(ind(:j),3)]).metadata isa qc.NumberedIndexedAverage
-@test qc.NumberedIndexedAverage(average(0),[(ind(:j),3)]) == 0
 
 @test isequal(qc.SpecialIndexedAverage(average(σ(1,2,ind(:i))),[(ind(:i),ind(:j))])+qc.SpecialIndexedAverage(average(σ(2,1,ind(:j))),[(ind(:i),ind(:j))]),
 qc.SpecialIndexedAverage(average(σ(1,2,ind(:i))) + average(σ(2,1,ind(:j))),[(ind(:i),ind(:j))]))
@@ -107,7 +104,7 @@ specAvrg = qc.SpecialIndexedAverage(average(σ(2,1,ind(:i))*σ(1,2,ind(:j))),[(i
 @test isequal(SymbolicUtils.arguments(SymbolicUtils.arguments(SymbolicUtils.arguments(ADsum1)[1])),SymbolicUtils.arguments(average(σ(2,1,ind(:i))*σ(1,2,ind(:j)))))
 @test isequal(SymbolicUtils.arguments(specAvrg),SymbolicUtils.arguments(average(σ(2,1,ind(:i))*σ(1,2,ind(:j)))))
 
-@test isequal(σ(1,2,ind(:j))*σn(1,2,2),qc.insert_index(σ(1,2,ind(:i))*σ(1,2,ind(:j)),ind(:i),2))
+@test isequal(qc.insert_index(σ(1,2,ind(:j))*σn(1,2,2),ind(:j),1),qc.insert_index(qc.insert_index(σ(1,2,ind(:i))*σ(1,2,ind(:j)),ind(:i),2),ind(:j),1))
 
 dict_ = qc.create_value_map(g(ind(:i)),2)
 dict = Dict{SymbolicUtils.Sym{Parameter, Base.ImmutableDict{DataType, Any}},ComplexF64}()
@@ -115,15 +112,22 @@ push!(dict,(qc.SingleNumberedVariable(:g,1) => 2))
 push!(dict,(qc.SingleNumberedVariable(:g,2) => 2))
 @test isequal(dict_,dict)
 
-@test isequal(qc.getAvrgs(specAvrg),[average(σ(2,1,ind(:i))*σ(1,2,ind(:j)))])
+@test isequal(qc.getAvrgs(specAvrg),average(σ(2,1,ind(:i))*σ(1,2,ind(:j))))
+@test isequal(qc.getAvrgs(SymbolicUtils.arguments(avrgTerm)[1]),average(σ(2,1,ind(:i))*σ(1,2,ind(:j))))
 
-@test isequal(qc.getAvrgs(SymbolicUtils.arguments(avrgTerm)[1]),[average(σ(2,1,ind(:i))*σ(1,2,ind(:j)))])
-
-@test isequal(ind(:i).range * 5, qc.IndexedAverageSum(5,ind(:i),[]))
+#@test isequal(ind(:i).range * 5, qc.IndexedAverageSum(5,ind(:i),[]))
 @test isequal(qc.IndexedAverageSum(g(ind(:i)),ind(:i),[]),average(Σ(g(ind(:i)),ind(:i)),[]))
 @test qc.IndexedAverageSum(g(ind(:i)),ind(:i),[]) isa SymbolicUtils.Sym{Parameter,qc.IndexedAverageSum}
 
 @test ind(:i) ∈ qc.get_indices(g(ind(:i)))
+
+@cnumbers N_ 
+ind2(i) = Index(h,i,N_,ha)
+
+N_n = 10
+mappingDict = Dict{SymbolicUtils.Sym,Int64}(N_ => N_n)
+sum2_A = average(∑(σ(1,2,ind2(:i))*σ(2,1,ind2(:j)),ind2(:i)))
+@test isequal(qc.eval_term(sum2_A;mapping=mappingDict),evaluate(sum2_A;mapping=(N_ => N_n)))
 
 end
 

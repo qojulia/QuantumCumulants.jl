@@ -1035,6 +1035,7 @@ Base.isless(a::Index,b::Index) = a.name < b.name
 Base.isless(a::SingleSum,b::SingleSum) = Base.isless(a.sum_index,b.sum_index)
 
 Base.isequal(ind1::Index,ind2::Index) = (ind1.name == ind2.name) && isequal(ind1.range,ind2.range) && (ind1.hilb == ind2.hilb) && isequal(ind1.specHilb,ind2.specHilb)
+Base.isequal(op1::IndexedOperator,op2::IndexedOperator) = isequal(op1.op,op2.op) && isequal(op1.ind,op2.ind)
 Base.:(==)(ind1::Index,ind2::Index) = isequal(ind1,ind2)
 function Base.isequal(a::SpecialIndexedTerm,b::SpecialIndexedTerm)
     isequal(a.term, b.term) || return false
@@ -1109,79 +1110,72 @@ Examples
 
 """
 function change_index(term::QMul, from::Index, to::Index)
-    arg_c = term.arg_c
-    arg_c_ = term.arg_c
-    args_nc = copy(term.args_nc)
-    for i = 1:length(args_nc)
-        elem = args_nc[i]
-        if elem isa IndexedOperator && elem.ind == from
-            elem = IndexedOperator(elem.op,to)
-        end
-        args_nc[i] = elem #inplace exchange of element
-    end
-    if typeof(arg_c_) <: SymbolicUtils.Mul
-        args = copy(arguments(arg_c_))
-        for i = 1:length(args)
-            if typeof(args[i]) == SymbolicUtils.Sym{Parameter,IndexedVariable}
-                if args[i].metadata.ind == from
-                    var = args[i].metadata      #the actual indexed-value
-                    args[i] = IndexedVariable(var.name,to) # inplace exchange
-                end
-            elseif typeof(args[i]) == SymbolicUtils.Sym{Parameter, DoubleIndexedVariable}
-                if args[i].metadata.ind1 == args[i].metadata.ind2 && args[i].metadata.ind1 == from
-                    var = args[i].metadata
-                    args[i] = DoubleIndexedVariable(var.name,to,to;identical=var.identical)
-                elseif args[i].metadata.ind1 == from
-                    var = args[i].metadata
-                    args[i] = DoubleIndexedVariable(var.name,to,var.ind2;identical=var.identical)
-                elseif args[i].metadata.ind2 == from
-                    var = args[i].metadata
-                    args[i] = DoubleIndexedVariable(var.name,var.ind1,to;identical=var.identical)
-                end
-            end
-        end
-        arg_c = *(args...)
-    elseif typeof(arg_c_) == SymbolicUtils.Sym{Parameter, IndexedVariable} && arg_c_.metadata.ind == from
-        arg_c = IndexedVariable(arg_c_.metadata.name,to)
-    elseif  typeof(arg_c_) == SymbolicUtils.Sym{Parameter, DoubleIndexedVariable}
-        DIndV = arg_c_.metadata
-        if DIndV.ind1 == DIndV.ind2 && DIndV.ind1 == from
-            arg_c = DoubleIndexedVariable(DIndV.name,to,to;identical=DIndV.identical)
-        elseif DIndV.ind1 == from
-            arg_c = DoubleIndexedVariable(DIndV.name,to,DIndV.ind2;identical=DIndV.identical)
-        elseif DIndV.ind2 == from
-            arg_c = DoubleIndexedVariable(DIndV.name,DIndV.ind1,to;identical=DIndV.identical)
-        end
-    end
-    if isempty(args_nc) || isequal(arg_c,0) || SymbolicUtils._iszero(args_nc) || 0 in args_nc
-        return 0
-    end
-    mult = *(arg_c,args_nc...)
-    if typeof(mult) <: QMul
-        return merge_commutators(mult.arg_c,mult.args_nc)
-    else
-        return mult
-    end
+    arg_c = change_index(term.arg_c,from,to)
+    args_nc = [change_index(arg,from,to) for arg in copy(term.args_nc)]
+    return arg_c*prod(args_nc)
+    # arg_c = term.arg_c
+    # arg_c_ = term.arg_c
+    # for i = 1:length(args_nc)
+    #     elem = args_nc[i]
+    #     if elem isa IndexedOperator && elem.ind == from
+    #         elem = IndexedOperator(elem.op,to)
+    #     end
+    #     args_nc[i] = elem #inplace exchange of element
+    # end
+    # if arg_c isa SymbolicUtils.Mul
+    #     args = copy(arguments(arg_c_))
+    #     for i = 1:length(args)
+    #         if args[i] isa SymbolicUtils.Sym{Parameter,IndexedVariable}
+    #             if args[i].metadata.ind == from
+    #                 var = args[i].metadata      #the actual indexed-value
+    #                 args[i] = IndexedVariable(var.name,to) # inplace exchange
+    #             end
+    #         elseif args[i] isa SymbolicUtils.Sym{Parameter, DoubleIndexedVariable}
+    #             if args[i].metadata.ind1 == args[i].metadata.ind2 && args[i].metadata.ind1 == from
+    #                 var = args[i].metadata
+    #                 args[i] = DoubleIndexedVariable(var.name,to,to;identical=var.identical)
+    #             elseif args[i].metadata.ind1 == from
+    #                 var = args[i].metadata
+    #                 args[i] = DoubleIndexedVariable(var.name,to,var.ind2;identical=var.identical)
+    #             elseif args[i].metadata.ind2 == from
+    #                 var = args[i].metadata
+    #                 args[i] = DoubleIndexedVariable(var.name,var.ind1,to;identical=var.identical)
+    #             end
+    #         end
+    #     end
+    #     arg_c = prod(args)
+    # elseif arg_c isa SymbolicUtils.Sym{Parameter, IndexedVariable} && arg_c_.metadata.ind == from
+    #     arg_c = IndexedVariable(arg_c_.metadata.name,to)
+    # elseif  arg_c isa SymbolicUtils.Sym{Parameter, DoubleIndexedVariable}
+    #     DIndV = arg_c_.metadata
+    #     if DIndV.ind1 == DIndV.ind2 && DIndV.ind1 == from
+    #         arg_c = DoubleIndexedVariable(DIndV.name,to,to;identical=DIndV.identical)
+    #     elseif DIndV.ind1 == from
+    #         arg_c = DoubleIndexedVariable(DIndV.name,to,DIndV.ind2;identical=DIndV.identical)
+    #     elseif DIndV.ind2 == from
+    #         arg_c = DoubleIndexedVariable(DIndV.name,DIndV.ind1,to;identical=DIndV.identical)
+    #     end
+    # end
+    # if isempty(args_nc) || isequal(arg_c,0) || SymbolicUtils._iszero(args_nc) || 0 in args_nc
+    #     return 0
+    # end
+    # return arg_c*prod(args_nc)
+    # if typeof(mult) <: QMul
+    #     return merge_commutators(mult.arg_c,mult.args_nc)
+    # else
+    #     return mult
+    # end
 end
-function change_index(term::SymbolicUtils.Term{AvgSym, Nothing}, from::Index,to::Index)
-    qmul = arguments(term)[1]
-    return average(change_index(qmul,from,to))
-end
-function change_index(op::IndexedOperator,from::Index,to::Index)
-    if op.ind == from
-        return IndexedOperator(op.op,to)
-    else
-        return op
-    end
-end
-function change_index(ops::Vector,from::Index,to::Index)
-    ops_ = copy(ops)
-    for i = 1:length(ops_)
-        ops_[i] = change_index(ops_[i],from,to)
-    end
-    return ops_
-end
-change_index(op::SymbolicUtils.Sym{Parameter,IndexedVariable},from::Index,to::Index) = op.metadata.ind == from ? IndexedVariable(op.metadata.name,to) : op
+change_index(term::Average, from::Index,to::Index) = average(change_index(arguments(term)[1],from,to))
+change_index(op::IndexedOperator,from::Index,to::Index) = isequal(op.ind,from) ? IndexedOperator(op.op,to) : op
+# function change_index(ops::Vector,from::Index,to::Index)
+#     ops_ = copy(ops)
+#     for i = 1:length(ops_)
+#         ops_[i] = change_index(ops_[i],from,to)
+#     end
+#     return ops_
+# end
+change_index(op::SymbolicUtils.Sym{Parameter,IndexedVariable},from::Index,to::Index) = isequal(op.metadata.ind,from) ? IndexedVariable(op.metadata.name,to) : op
 function change_index(op::SymbolicUtils.Sym{Parameter,DoubleIndexedVariable},from::Index,to::Index)
     if op.metadata.ind1 == from
         if op.metadata.ind1 == op.metadata.ind2 && op.metadata.identical
@@ -1195,13 +1189,14 @@ function change_index(op::SymbolicUtils.Sym{Parameter,DoubleIndexedVariable},fro
         return DoubleIndexedVariable(op.metadata.name,op.metadata.ind1,to;identical=op.metadata.identical)
     end
 end
-function change_index(mul::SymbolicUtils.Mul,from::Index,to::Index)
-    mults = []
-    for arg in arguments(mul)
-        push!(mults,change_index(arg,from,to))
-    end
-    return *(mults...)
-end
+change_index(mul::SymbolicUtils.Mul,from::Index,to::Index) = prod([change_index(arg,from,to) for arg in arguments(mul)])
+# function change_index(mul::SymbolicUtils.Mul,from::Index,to::Index)
+#     mults = []
+#     for arg in arguments(mul)
+#         push!(mults,change_index(arg,from,to))
+#     end
+#     return *(mults...)
+# end
 change_index(x,from::Index,to::Index) = x
 
 ismergeable(a::IndexedOperator,b::IndexedOperator) = isequal(a.ind,b.ind) ? ismergeable(a.op,b.op) : false
@@ -1218,18 +1213,15 @@ get_order(::IndexedOperator) = 1
 #It is assumed that the term for which this operation is done already commutes with indices inside the indices-Vector
 function order_by_index(vec::Vector,indices::Vector{Index})
     vec_ = copy(vec)
-    frontfront = []
-    front = []
-    back = []
     frontfront = filter(x -> !(typeof(x) == IndexedOperator),vec_)
     front = filter(x -> typeof(x) == IndexedOperator && x.ind in indices,vec_)
     back = filter(x -> typeof(x) == IndexedOperator && x.ind ∉ indices,vec_)
     sort!(front,by=getIndName)
     return vcat(frontfront,front,back)
 end
-function order_by_index(qmul::QMul,inds::Vector{Index})
-    return *(qmul.arg_c,order_by_index(qmul.args_nc,inds)...)
-end
+order_by_index(qmul::QMul,inds::Vector{Index}) = qmul.arg_c*prod(order_by_index(qmul.args_nc,inds))
+order_by_index(avrg::Average,inds::Vector{Index}) = order_by_index(arguments(avrg)[1],inds)
+order_by_index(x,inds) = x
 #Reorder function: given a tuple vector of indices meaning for each tuple: first ≠ second
 #-> go through the term given and exchange 2 ops when the second has "lower" (i.e. its name is first in the alphabet) index than the first one
 #-> results in a term, ordered by its commutating indices
