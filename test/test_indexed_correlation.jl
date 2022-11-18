@@ -2,6 +2,11 @@ using Test
 using QuantumCumulants
 using SymbolicUtils
 using Symbolics
+using OrdinaryDiffEq
+using SteadyStateDiffEq
+using ModelingToolkit
+using DifferentialEquations
+using Plots
 
 const qc = QuantumCumulants
 
@@ -45,7 +50,7 @@ eqs = indexed_meanfield(ops,H,J;rates=rates,order=order)
 φ(::Create) =1
 φ(x::QTerm) = sum(map(φ, x.args_nc))
 φ(x::Transition) = x.i - x.j
-φ(x::IndexedOperator) = x.op.i - x.op.j
+φ(x::IndexedOperator) = φ(x.op)
 φ(x::SingleSum) = φ(x.term)
 φ(x::AvgSums) = φ(arguments(x))
 phase_invariant(x) = iszero(φ(x))
@@ -56,6 +61,29 @@ eqs_sc1 = scale(eqs_c)
 
 @test length(eqs_sc1) == 4
 @test length(eqs_c) == 4
+
+
+# define the ODE System and Problem
+@named sys = ODESystem(eqs_sc1)
+
+# Initial state
+u0 = zeros(ComplexF64, length(eqs_sc1))
+# System parameters
+N_ = 2e5
+Γ_ = 1.0 #Γ=1mHz
+Δ_ = 2500Γ_ #Δ=2.5Hz
+g_ = 1000Γ_ #g=1Hz
+κ_ = 5e6*Γ_ #κ=5kHz
+R_ = 1000Γ_ #R=1Hz
+ν_ = 1000Γ_ #ν=1Hz
+
+ps = [N, Δ, g, κ, Γ, R, ν]
+p0 = [N_, Δ_, g_, κ_, Γ_, R_, ν_]
+
+prob = ODEProblem(sys,u0,(0.0, 1.0/50Γ_), ps.=>p0);
+
+# Solve the Problem
+sol = solve(prob,maxiters=1e7)
 
 avrgSum = arguments(arguments(eqs_c[1].rhs)[1])[2]
 
@@ -99,6 +127,13 @@ ps = [N, Δ, g, κ, Γ, R, ν]
 
 @test length(corr.de0) == 4
 @test length(corr.de) == 2
+
+S = Spectrum(corr, ps);
+
+prob_ss = SteadyStateProblem(prob)
+sol_ss = solve(prob_ss, DynamicSS(Tsit5(); abstol=1e-8, reltol=1e-8),
+    reltol=1e-14, abstol=1e-14, maxiters=5e7);
+
 
 mapping = Dict{SymbolicUtils.Sym,Int64}(N=>5)
 evals = evaluate(eqs_c;mapping=mapping)

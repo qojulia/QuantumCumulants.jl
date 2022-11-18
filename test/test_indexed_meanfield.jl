@@ -1,7 +1,10 @@
-using Test
 using QuantumCumulants
-using SymbolicUtils
-using Symbolics
+using QuantumOpticsBase
+using ModelingToolkit
+using OrdinaryDiffEq
+using Test
+using Random
+using SteadyStateDiffEq
 
 const qc = QuantumCumulants
 
@@ -71,7 +74,43 @@ end
 
 @test length(eqs_) == 18
 
+@named sys = ODESystem(eqs_);
+
+u0 = zeros(ComplexF64, length(eqs_))
+# parameter
+Γ_ = 1.0
+d = 2π*0.08 #0.08λ
+θ = π/2
+
+Ωij_(i,j) = Γ_*(-3/4)*( (1-(cos(θ))^2)*cos(d)/d-(1-3*(cos(θ))^2)*(sin(d)/(d^2)+(cos(d)/(d^3))) )
+function Γij_(i,j)
+    i==j ? Γ_ : Γ_*(3/2)*( (1-(cos(θ))^2)*sin(d)/d+(1-3*(cos(θ))^2)*((cos(d)/(d^2))-(sin(d)/(d^3))))
+end
+
+ΓMatrix = [Γij_(i,j) for i = 1:2, j=1:2]
+ΩMatrix = [Ωij_(i,j) for i = 1:2, j=1:2]
+
+g_ = 2Γ_
+κ_ = 20Γ_
+Δa_ = 0Γ_
+Δc_ = 0Γ_
+η_ = κ_/100
+
+g_v = [g_*(-1)^j for j=1:2]
+ps = [Δc, η, Δa, κ, g(i_ind), Γ_ij, Ω_ij];
+
 eqs_4 = indexed_meanfield(ops,H,J;rates=rates,order=4)
+
+Δc_i = -10*Γ_
+Δa_i = Δc_i + Ωij_(1,2) #cavity on resonace with the shifted collective emitter
+p0_i = [Δc_i, η_, Δa_i, κ_, g_v, ΓMatrix, ΩMatrix]
+
+ps_ = value_map(ps,p0_i) #Combine all the parameters + values to one list for solving
+prob = ODEProblem(sys,u0,(0.0, 20Γ_), ps_);
+prob_ss = SteadyStateProblem(prob);
+
+sol_ss = solve(prob_ss, DynamicSS(Tsit5(); abstol=1e-8, reltol=1e-8),
+        reltol=1e-14, abstol=1e-14, maxiters=5e7)
 
 @test length(eqs_4) == length(eqs)
 

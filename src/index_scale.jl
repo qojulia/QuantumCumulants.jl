@@ -16,11 +16,10 @@ function scaleME(me::IndexedMeanfieldEquations; kwargs...)
         tempEq = scaleEq(eq; kwargs...)
         if tempEq.lhs in getLHS.(newEqs)
             continue
-        elseif isNotIn(getOps(tempEq.lhs;scaling=true,kwargs...),getOps.(getLHS.(newEqs);scaling=true,kwargs...),true) && isNotIn(getOps(_conj(tempEq.lhs);scaling=true,kwargs...),getOps.(getLHS.(newEqs);scaling=true,kwargs...),true)
+        elseif isNotIn(tempEq.lhs,getLHS.(newEqs),true;kwargs...) && isNotIn(_inconj(tempEq.lhs),getLHS.(newEqs),true;kwargs...)    
             push!(newEqs,tempEq)
         end
     end
-    filter!(x -> !isequal(x,missing), newEqs)
     vs = getLHS.(newEqs)
     varmap = make_varmap(vs, me.iv)
     ops = undo_average.(vs)
@@ -184,7 +183,7 @@ function split_sums(term::SymbolicUtils.Symbolic,ind::Index,amount::Union{<:Symb
         end
         return op(args...)
     end
-    if typeof(term) == SymbolicUtils.Sym{Parameter,IndexedAverageSum}
+    if term isa SymbolicUtils.Sym{Parameter,IndexedAverageSum}
         term_ = term.metadata.term
         sumInd = term.metadata.sum_index
         if isequal(ind,sumInd)
@@ -197,7 +196,7 @@ function split_sums(term::SymbolicUtils.Symbolic,ind::Index,amount::Union{<:Symb
             return extrasum + (amount-1)*IndexedAverageSum(term_,ind2,Index[])
         end
     end
-    if typeof(term) == SymbolicUtils.Sym{Parameter,IndexedAverageDoubleSum}
+    if term isa SymbolicUtils.Sym{Parameter,IndexedAverageDoubleSum}
         Dsum = term.metadata
         if isequal(ind,Dsum.sum_index)
             #create multiple doubleSums with the same innerSum
