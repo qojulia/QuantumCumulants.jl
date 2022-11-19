@@ -5,7 +5,6 @@ using Symbolics
 using OrdinaryDiffEq
 using SteadyStateDiffEq
 using ModelingToolkit
-using Plots
 
 const qc = QuantumCumulants
 
