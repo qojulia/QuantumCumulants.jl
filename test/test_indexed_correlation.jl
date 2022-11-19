@@ -5,7 +5,6 @@ using Symbolics
 using OrdinaryDiffEq
 using SteadyStateDiffEq
 using ModelingToolkit
-using DifferentialEquations
 using Plots
 
 const qc = QuantumCumulants
@@ -55,7 +54,7 @@ eqs = indexed_meanfield(ops,H,J;rates=rates,order=order)
 φ(x::AvgSums) = φ(arguments(x))
 phase_invariant(x) = iszero(φ(x))
 
-eqs_c = complete(eqs;filter_func=phase_invariant,scaling=false,extra_indices=extra_indices);
+eqs_c = qc.complete(eqs;filter_func=phase_invariant,scaling=false,extra_indices=extra_indices);
 
 eqs_sc1 = scale(eqs_c)
 
@@ -83,7 +82,7 @@ p0 = [N_, Δ_, g_, κ_, Γ_, R_, ν_]
 prob = ODEProblem(sys,u0,(0.0, 1.0/50Γ_), ps.=>p0);
 
 # Solve the Problem
-sol = solve(prob,maxiters=1e7)
+sol = solve(prob,Tsit5(),maxiters=1e7)
 
 avrgSum = arguments(arguments(eqs_c[1].rhs)[1])[2]
 
