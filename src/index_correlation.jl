@@ -1,6 +1,6 @@
 function _new_operator(op::IndexedOperator,h,aon=acts_on(op)) 
     if op.ind.hilb != h
-        return IndexedOperator(Transition(h,op.op.name,op.op.i,op.op.j,aon;op.op.metadata),Index(h,op.ind.name,op.ind.range,op.ind.specHilb))
+        return IndexedOperator(Transition(h,op.op.name,op.op.i,op.op.j,aon;op.op.metadata),Index(h,op.ind.name,op.ind.range,op.ind.aon))
     end
     return IndexedOperator(Transition(h,op.op.name,op.op.i,op.op.j,aon;op.op.metadata),op.ind)
 end
@@ -8,12 +8,12 @@ _new_operator(nOp::NumberedOperator,h,aon=acts_on(nOp)) = NumberedOperator(Trans
 function _new_operator(sum::SingleSum,h,aon) 
     newsum_index = sum.sum_index
     if sum.sum_index.hilb != h
-        newsum_index = Index(h,sum.sum_index.name,sum.sum_index.range,ind.specHilb)
+        newsum_index = Index(h,sum.sum_index.name,sum.sum_index.range,ind.aon)
     end
     newSumNonEquals = Index[]
     for ind in sum.non_equal_indices
         if ind.hilb != h
-            push!(newSumNonEquals,Index(h,ind.name,ind.range,ind.specHilb))
+            push!(newSumNonEquals,Index(h,ind.name,ind.range,ind.aon))
         end
     end
     return SingleSum(_new_operator(sum.term,h),newsum_index,newSumNonEquals)
@@ -21,12 +21,12 @@ end
 function _new_operator(sum::SingleSum,h) 
     newsum_index = sum.sum_index
     if sum.sum_index.hilb != h
-        newsum_index = Index(h,sum.sum_index.name,sum.sum_index.range,sum.sum_index.specHilb)
+        newsum_index = Index(h,sum.sum_index.name,sum.sum_index.range,sum.sum_index.aon)
     end
     newSumNonEquals = Index[]
     for ind in sum.non_equal_indices
         if ind.hilb != h
-            push!(newSumNonEquals,Index(h,ind.name,ind.range,ind.specHilb))
+            push!(newSumNonEquals,Index(h,ind.name,ind.range,ind.aon))
         end
     end
     return SingleSum(_new_operator(sum.term,h),newsum_index,newSumNonEquals)
@@ -34,12 +34,12 @@ end
 function _new_operator(sum::IndexedAverageSum,h;kwargs...)
     newsum_index = sum.sum_index
     if sum.sum_index.hilb != h
-        newsum_index = Index(h,sum.sum_index.name,sum.sum_index.range,sum.sum_index.specHilb)
+        newsum_index = Index(h,sum.sum_index.name,sum.sum_index.range,sum.sum_index.aon)
     end
     newSumNonEquals = Index[]
     for ind in sum.non_equal_indices
         if ind.hilb != h
-            push!(newSumNonEquals,Index(h,ind.name,ind.range,ind.specHilb))
+            push!(newSumNonEquals,Index(h,ind.name,ind.range,ind.aon))
         end
     end
     return IndexedAverageSum(_new_operator(sum.term,h),newsum_index,newSumNonEquals)
@@ -48,7 +48,7 @@ _new_operator(sym::SymbolicUtils.Sym{Parameter,IndexedAverageSum},h;kwargs...) =
 function _new_indices(Inds::Vector,h)
     Inds_ = copy(Inds)
     for i=1:length(Inds)
-        Inds_[i] = Index(h,Inds[i].name,Inds[i].range,Inds[i].specHilb)
+        Inds_[i] = Index(h,Inds[i].name,Inds[i].range,Inds[i].aon)
     end
     return Inds_
 end
@@ -77,8 +77,6 @@ function IndexedCorrelationFunction(op1,op2,de0::AbstractMeanfieldEquations;
     iv=SymbolicUtils.Sym{Real}(:τ),
     order=nothing,
     extra_indices::Vector=[:i,:j,:k,:l,:m,:n,:p,:q,:r,:s,:t],
-    scaling::Bool=false,
-    h_scale=nothing,
     simplify=true, kwargs...)
     h1 = hilbert(op1)
     h2 = _new_hilbert(hilbert(op2), acts_on(op2))
@@ -120,7 +118,7 @@ function IndexedCorrelationFunction(op1,op2,de0::AbstractMeanfieldEquations;
         end
         for elem in extra_inds
             if elem isa Symbol
-                push!(extras_,Index(extras_[1].hilb,elem,extras_[1].range,extras[1].specHilb))
+                push!(extras_,Index(extras_[1].hilb,elem,extras_[1].range,extras[1].aon))
             elseif elem isa Index
                 push!(extras_,elem)
             end
@@ -155,15 +153,17 @@ function IndexedCorrelationFunction(op1,op2,de0::AbstractMeanfieldEquations;
             mix_choice=mix_choice,
             simplify=simplify,
             extra_indices=extras_,
-            scaling=scaling,
-            kwargs...) 
-    if scaling
-        de = scaleME(de;kwargs...)
-        de0_ = scale(de0_;kwargs...)
-    end
-    de = substituteIntoCorrelation(de,de0_;scaling=scaling,kwargs...)
+            kwargs...)
+
+    de = substituteIntoCorrelation(de,de0_;kwargs...)
     
     return CorrelationFunction(op1_, op2_, op2_0, de0_, de, steady_state)
+end
+function scale(corr::CorrelationFunction;kwargs...)
+    de = scaleME(corr.de;kwargs...)
+    de0 = scale(corr.de0;kwargs...)
+    de_ = substituteIntoCorrelation(de,de0;scaling=true,kwargs...)
+    return CorrelationFunction(corr.op1, corr.op2, corr.op2_0, de0, de_, corr.steady_state)
 end
 
 #this function is almost similar to the subst_reds function -> maybe merge together?
@@ -208,8 +208,8 @@ function indexed_complete_corr!(de,aon0,lhs_new,order,steady_state,de0;
         simplify::Bool=true,
         filter_func=nothing,
         extra_indices::Vector=[],
-        scaling::Bool=false,
         kwargs...)
+
     vs = de.states
     H = de.hamiltonian
     J = de.jumps
@@ -252,13 +252,12 @@ function indexed_complete_corr!(de,aon0,lhs_new,order,steady_state,de0;
     filter!(!in(vhash), vs′hash)
     missed = find_missing(de.equations, vhash, vs′hash; get_adjoints=false)
     
-    missed = find_missing_sums(missed,de;extra_indices=extra_indices,scaling=scaling)
-    # missed = findMissingSpecialTerms(missed,de;scaling=scaling)
+    missed = find_missing_sums(missed,de;extra_indices=extra_indices)
     
     missed = inorder!.(missed)
     isnothing(filter_func) || filter!(filter_func, missed) # User-defined filter
 
-    filter!(x -> filterComplete_corr(x,de.states,de0.states,scaling;kwargs...), missed)
+    filter!(x -> filterComplete_corr(x,de.states,de0.states,false;kwargs...), missed)
     missed = inorder!.(missed)
 
     missed = unique(missed) #no duplicates
@@ -305,13 +304,12 @@ function indexed_complete_corr!(de,aon0,lhs_new,order,steady_state,de0;
 
         missed = find_missing(me.equations, vhash, vs′hash; get_adjoints=false)
         
-        missed = find_missing_sums(missed,de;extra_indices=extra_indices,scaling=scaling)
-        # missed = findMissingSpecialTerms(missed,de;scaling=scaling)
+        missed = find_missing_sums(missed,de;extra_indices=extra_indices)
         
         missed = inorder!.(missed)
         isnothing(filter_func) || filter!(filter_func, missed) # User-defined filter
     
-        filter!(x -> filterComplete_corr(x,de.states,de0.states,scaling;kwargs...), missed)
+        filter!(x -> filterComplete_corr(x,de.states,de0.states,false;kwargs...), missed)
         missed = inorder!.(missed)
        
         for i = 1:length(missed)
@@ -332,9 +330,9 @@ function indexed_complete_corr!(de,aon0,lhs_new,order,steady_state,de0;
         end
         filter!(_filter_aon, missed)
         isnothing(filter_func) || filter!(filter_func, missed) # User-defined Filter
-        filter!(x -> filterComplete_corr(x,de.states,de0.states,scaling;kwargs...), missed)
+        filter!(x -> filterComplete_corr(x,de.states,de0.states,false;kwargs...), missed)
         missed = unique(missed) #no duplicates
-        missed = elimRed!(missed;scaling=scaling)
+        missed = elimRed!(missed)
         missed = inorder!.(missed)
     end
 
@@ -344,7 +342,6 @@ function indexed_complete_corr!(de,aon0,lhs_new,order,steady_state,de0;
         missed = find_missing(de.equations, vhash, vs′hash; get_adjoints=false)
         if order != 1
             missed = find_missing_sums(missed,de;extra_indices=extra_indices,checking=false,scaling=false)
-            # missed = findMissingSpecialTerms(missed,de;scaling=false)
         end
         missed_ = inorder!.(missed)
         missed = vcat(missed,missed_)
@@ -360,8 +357,6 @@ function indexed_complete_corr!(de,aon0,lhs_new,order,steady_state,de0;
     return de
 end
 
-# filterComplete_corr(x,states1,states2,scaling) = (isNotIn(getOps(x;scaling=scaling),getOps.(states1;scaling=scaling),scaling) && isNotIn(getOps(inorder!(_conj(x));scaling=scaling),getOps.(states1;scaling=scaling),scaling) 
-#     && isNotIn(getOps(x;scaling=scaling),getOps.(states2;scaling=scaling),scaling)&& isNotIn(getOps(inorder!(_conj(x));scaling=scaling),getOps.(states2;scaling=scaling),scaling))
 filterComplete_corr(x,states1,states2,scaling;kwargs...) = (isNotIn(x,states1,scaling;kwargs...) && isNotIn(_inconj(x),states1,scaling;kwargs...) 
     && isNotIn(x,states2,scaling;kwargs...)&& isNotIn(_inconj(x),states2,scaling;kwargs...))
 

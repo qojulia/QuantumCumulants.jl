@@ -108,15 +108,21 @@ function indexed_meanfield(a::Vector,H,J;Jdagger::Vector=adjoint.(J),rates=ones(
     varmap = make_varmap(vs, iv)
 
     me = IndexedMeanfieldEquations(eqs_avg,eqs,vs,a,H,J,Jdagger,rates,iv,varmap,order)
-    # if has_cluster(H)
-    #     return scale(me;simplify=simplify,order=order,mix_choice=mix_choice)
-    # else
-    #     return me
-    # end
     return me
 end
 indexed_meanfield(a::QNumber,args...;kwargs...) = indexed_meanfield([a],args...;kwargs...)
 indexed_meanfield(a::Vector,H;kwargs...) = indexed_meanfield(a,H,[];Jdagger=[],kwargs...)
+
+meanfield(a::QNumber,args...;kwargs...) = meanfield([a],args...;kwargs...)
+meanfield(a::Vector,H;kwargs...) = meanfield(a,H,[];Jdagger=[],kwargs...)
+function meanfield(a::Vector,H,J;kwargs...)
+    inds = vcat(get_indices(a),get_indices(H),get_indices(J))
+    if isempty(inds)
+        return _meanfield(a,H,J;kwargs...)
+    else
+        return indexed_meanfield(a,H,J;kwargs...)
+    end
+end
 
 function indexed_master_lindblad(a_,J,Jdagger,rates)
     args = Any[]
@@ -211,7 +217,6 @@ function indexed_complete!(de::AbstractMeanfieldEquations;
     mix_choice=maximum,
     simplify=true,
     extra_indices::Vector=[:i,:j,:k,:l,:m,:n,:p,:q,:r,:s,:t],
-    scaling::Bool=false,
     kwargs...)
 
     maxNumb = maximum(length.(get_indices.(de.operators)))
@@ -226,15 +231,16 @@ function indexed_complete!(de::AbstractMeanfieldEquations;
         end
     end
 
-    if containsMultiple(get_all_indices(de))
-        if extra_indices[1] isa Symbol
-            error("It is not possible to complete equations, containing indices, that act on different hilbertspaces using Symbols as
-            extra_indices. For this case use specific Indices.")
-        end
-        #maybe write also a check that checks for the indices being correct/enough
-    end
+    # if containsMultiple(get_all_indices(de))
+    #     if extra_indices[1] isa Symbol
+    #         error("It is not possible to complete equations, containing indices, that act on different hilbertspaces using Symbols as
+    #         extra_indices. For this case use specific Indices.")
+    #     end
+    #     #maybe write also a check that checks for the indices being correct/enough
+    # end
 
     allInds = get_all_indices(de)
+
     if extra_indices[1] isa Symbol
         filter!(x -> x ∉ getIndName.(allInds),extra_indices)
     else
@@ -274,37 +280,55 @@ function indexed_complete!(de::AbstractMeanfieldEquations;
 
     indices_lhs = get_all_indices(vs) #indices that are used in the beginning -> have priority
 
-    #if there are no indices on the LHS -> use the first index of extra_indices as starting point
-    #this first index is (if it is a symbol) created similar to the first occuring index in the Equations
-    if isempty(indices_lhs) && extra_indices[1] isa Symbol
-        for ind in allInds
-            indices_lhs = [Index(ind.hilb,extra_indices[1],ind.range,ind.specHilb)]
-            deleteat!(extra_indices,1)
-            break
-        end
-    elseif isempty(indices_lhs) && extra_indices[1] isa Index
-        indices_lhs = [extra_indices[1]]
-        deleteat!(extra_indices,1)
-    end
-
-    #create (or append to the extras vector) all other extra_indices using the indices on the LHS
-    extras = indices_lhs
-    if !isempty(extra_indices)
-        if extra_indices[1] isa Symbol
-            first = extras[1]
-            for name in extra_indices
-                push!(extras,Index(first.hilb,name,first.range,first.specHilb))
-                if length(extras) >= order_
-                    break
-                end
+    if containsMultiple(allInds) && extra_indices[1] isa Symbol
+        dic = split_inds(allInds)
+        filter!(x->!isempty(last(x)),dic)
+        dic2 = Dict{Int,Any}(i => Any[] for i in keys(dic)) 
+        for k in keys(dic)
+            dic2[k] = filter(x->isequal(x.aon,k),indices_lhs)
+            while length(dic2[k]) < order
+                push!(dic2[k],Index(dic2[k][1].hilb,extra_indices[1],dic2[k][1].range,k))
+                deleteat!(extra_indices,1)
             end
         end
-        if extra_indices[1] isa Index
-            extras = [extras;extra_indices]
+        extras = []
+        for vec in values(dic2)
+            extras = [extras;vec]
         end
-    end
-    if length(extras) < order_
-        error("More extra_indices are needed for order $(order_)")
+    else
+        #if there are no indices on the LHS -> use the first index of extra_indices as starting point
+        #this first index is (if it is a symbol) created similar to the first occuring index in the Equations
+        if isempty(indices_lhs) && extra_indices[1] isa Symbol
+            for ind in allInds
+                indices_lhs = [Index(ind.hilb,extra_indices[1],ind.range,ind.aon)]
+                deleteat!(extra_indices,1)
+                break
+            end
+        elseif isempty(indices_lhs) && extra_indices[1] isa Index
+            indices_lhs = [extra_indices[1]]
+            deleteat!(extra_indices,1)
+        end
+
+        #create (or append to the extras vector) all other extra_indices using the indices on the LHS
+        extras = indices_lhs
+        if !isempty(extra_indices)
+            if extra_indices[1] isa Symbol
+                first = extras[1]
+                for name in extra_indices
+                    push!(extras,Index(first.hilb,name,first.range,first.aon))
+                    if length(extras) >= order_
+                        break
+                    end
+                end
+            end
+            if extra_indices[1] isa Index
+                extras = [extras;extra_indices]
+            end
+        end
+        if length(extras) < order_
+            error("More extra_indices are needed for order $(order_)")
+        end
+
     end
 
     #at this point extras is a list of extra_indices, sorted by their priority 
@@ -317,14 +341,13 @@ function indexed_complete!(de::AbstractMeanfieldEquations;
     filter!(!in(vhash), vs′hash)
     missed = find_missing(de.equations, vhash, vs′hash; get_adjoints=false)
 
-    missed = find_missing_sums(missed,de;extra_indices=extras,scaling=scaling,kwargs...)
-    # missed = findMissingSpecialTerms(missed,de;scaling=scaling,kwargs...)
+    missed = find_missing_sums(missed,de;extra_indices=extras,kwargs...)
     
     missed = inorder!.(missed)
     filter!(x -> (x isa Average),missed)
     isnothing(filter_func) || filter!(filter_func, missed) # User-defined filter
 
-    filter!(x -> filterComplete(x,de.states,scaling;kwargs...), missed) # filterComplete does for whatever reason interfere with the order in the averages...
+    filter!(x -> filterComplete(x,de.states,false;kwargs...), missed) # filterComplete does for whatever reason interfere with the order in the averages...
     missed = inorder!.(missed)   # ...thats why we resort here the missed again
 
     for i = 1:length(missed)
@@ -344,7 +367,7 @@ function indexed_complete!(de::AbstractMeanfieldEquations;
         end
     end
     missed = unique(missed) #no duplicates
-    missed = elimRed!(missed;scaling=scaling,kwargs...)
+    missed = elimRed!(missed;kwargs...)
     missed = inorder!.(missed)
 
     while !isempty(missed)
@@ -366,14 +389,14 @@ function indexed_complete!(de::AbstractMeanfieldEquations;
             vs′hash_[i] ∈ vhash_ || push!(vs′hash, vs′hash_[i])
         end
         missed = find_missing(me.equations, vhash, vs′hash; get_adjoints=false)
-        missed = find_missing_sums(missed,de;extra_indices=extras,scaling=scaling,kwargs...)
-        # missed = findMissingSpecialTerms(missed,de;scaling=scaling,kwargs...)
+        missed = find_missing_sums(missed,de;extra_indices=extras,kwargs...)
+
         missed = inorder!.(missed)
 
         filter!(x -> (x isa Average),missed)
         isnothing(filter_func) || filter!(filter_func, missed) # User-defined filter
     
-        filter!(x -> filterComplete(x,de.states,scaling;kwargs...), missed)
+        filter!(x -> filterComplete(x,de.states,false;kwargs...), missed)
         missed = inorder!.(missed)
 
         for i = 1:length(missed)
@@ -398,10 +421,10 @@ function indexed_complete!(de::AbstractMeanfieldEquations;
             end
         end
     
-        filter!(x -> filterComplete(x,de.states,scaling;kwargs...), missed)
+        filter!(x -> filterComplete(x,de.states,false;kwargs...), missed)
         missed = inorder!.(missed)
         missed = unique(missed)
-        missed = elimRed!(missed;scaling=scaling,kwargs...)
+        missed = elimRed!(missed;kwargs...)
         
     end
 
@@ -425,7 +448,19 @@ function indexed_complete!(de::AbstractMeanfieldEquations;
 
     return de
 end
-# filterComplete(x,states,scaling;kwargs...) = (isNotIn(getOps(x;scaling=scaling,kwargs...),getOps.(states;scaling=scaling,kwargs...),scaling) && isNotIn(getOps(inorder!(_conj(x));scaling=scaling,kwargs...),getOps.(states;scaling=scaling,kwargs...),scaling))
+
+#function that splits a vector of indices into a vector of vectors, in which all indices are acting on the same hilbertspace
+function split_inds(inds::Vector)
+    h = inds[1].hilb
+    spaces = h.spaces
+    dic = Dict{Int,Any}(i => Any[] for i = 1:length(spaces))
+    for ind in inds
+        push!(dic[ind.aon],ind)
+    end
+    return dic
+end
+
+
 filterComplete(x,states,scaling;kwargs...) = isNotIn(x,states,scaling;kwargs...) && isNotIn(_inconj(x),states,scaling;kwargs...)
 
 #gets all indices that are used in the states of the meanfieldequations
@@ -445,13 +480,13 @@ end
 function get_all_indices(me::AbstractMeanfieldEquations)
     eqs = me.equations
     inds = []
-    for eq in eqs
-        for ind in get_indices(eq.rhs)
-            if ind ∉ inds
-                push!(inds,ind)
-            end
-        end
-    end
+    # for eq in eqs #this is probably not needed
+    #     for ind in get_indices(eq.rhs)
+    #         if ind ∉ inds
+    #             push!(inds,ind)
+    #         end
+    #     end
+    # end
     for ind in get_all_indices(me.states)
         if ind ∉ inds
             push!(inds,ind)
@@ -490,7 +525,7 @@ function containsMultiple(inds::Vector) #checks if in a list of indices, they ac
     isempty(inds) && return false
     length(inds) == 1 && return false
     for i=2:length(inds)
-        if inds[1].specHilb != inds[i].specHilb
+        if inds[1].aon != inds[i].aon
             return true
         end
     end
@@ -566,8 +601,7 @@ function checkAndChange(missed_,sum,extras,states,checking,scaling;kwargs...)
 end
 # function that filters indices so that only indices get replaces that "live" in the same sub-hilbertspace
 function filterExtras(wanted,extras)
-    return filter(x -> isequal(x.specHilb,wanted.specHilb),extras)
-    
+    return filter(x -> isequal(x.aon,wanted.aon),extras)
 end
 
 find_missing!(missed,missed_hashes,term::SymbolicUtils.Sym{Parameter,SpecialIndexedAverage},vhash,vshash;kwargs...) = find_missing!(missed,missed_hashes,term.metadata.term,vhash,vshash;kwargs...)
@@ -645,30 +679,30 @@ where indices have been inserted and sums evaluated.
 *`me::MeanfieldEquations`: A [`MeanfieldEquations`](@ref) entity, which shall be evaluated.
 
 # Optional argumentes
-*`mapping::Dict{SymbolicUtils.Sym,Int64}=Dict{Symbol,Int64}()`: A seperate dictionary, to
+*`limits::Dict{SymbolicUtils.Sym,Int64}=Dict{Symbol,Int64}()`: A seperate dictionary, to
     specify any symbolic limits used when [`Index`](@ref) entities were defined. This needs
     to be specified, when the equations contain summations, for which the upper bound is given
     by a Symbolic.
 
 see also: [`evalME`](@ref)
 """
-function evaluate(eqs::IndexedMeanfieldEquations;mapping=nothing,kwargs...)
-    if !=(mapping,nothing) && mapping isa Pair
-        mapping_ = Dict{SymbolicUtils.Sym,Int64}(first(mapping) => last(mapping));
-        mapping = mapping_
+function evaluate(eqs::IndexedMeanfieldEquations;limits=nothing,kwargs...)
+    if !=(limits,nothing) && limits isa Pair
+        limits_ = Dict{SymbolicUtils.Sym,Int64}(first(limits) => last(limits));
+        limits = limits_
     end
-    if mapping === nothing
-        mapping =  Dict{SymbolicUtils.Sym,Int64}();
+    if limits === nothing
+        limits =  Dict{SymbolicUtils.Sym,Int64}();
     end
-    return subst_reds(evalME(eqs;mapping=mapping,kwargs...))
+    return subst_reds(evalME(eqs;limits=limits,kwargs...))
 end
-function evaluate(term;mapping=nothing,kwargs...)
-    if !=(mapping,nothing) && mapping isa Pair
-        mapping_ = Dict{SymbolicUtils.Sym,Int64}(first(mapping) => last(mapping));
-        mapping = mapping_
+function evaluate(term;limits=nothing,kwargs...)
+    if !=(limits,nothing) && limits isa Pair
+        limits_ = Dict{SymbolicUtils.Sym,Int64}(first(limits) => last(limits));
+        limits = limits_
     end
-    if mapping === nothing
-        mapping =  Dict{SymbolicUtils.Sym,Int64}();
+    if limits === nothing
+        limits =  Dict{SymbolicUtils.Sym,Int64}();
     end
-    return eval_term(term;mapping=mapping)
+    return eval_term(term;limits=limits)
 end

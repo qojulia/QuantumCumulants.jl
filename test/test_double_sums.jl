@@ -120,8 +120,8 @@ mul2 = sum1*sum2_
 
 # Double indexed variable
 @cnumbers N
-i = Index(h,:i,N,h)
-j = Index(h,:j,N,h)
+i = Index(h,:i,N,ha)
+j = Index(h,:j,N,ha)
 Γ(i,j) = IndexedVariable(:Γ,i,j)
 Ω(i,j) = IndexedVariable(:Ω,i,j;identical=false)
 @test iszero(Ω(i,i))

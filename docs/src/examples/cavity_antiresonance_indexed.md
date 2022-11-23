@@ -87,7 +87,7 @@ Using the Hamiltonian and Liouvillian we derive the system of equations in first
 
 ```@example cavity_antiresonance_indexed
 ops = [a, σ(2,2,k), σ(1,2,k)]
-eqs = indexed_meanfield(ops,H,J;rates=rates,order=order)
+eqs = meanfield(ops,H,J;rates=rates,order=order)
 nothing #hide
 ```
 
@@ -102,7 +102,7 @@ nothing #hide
 We complete the set of equations automatically.
 
 ```@example cavity_antiresonance_indexed
-eqs_comp = complete(eqs;extra_indices=[:q])
+eqs_comp = complete(eqs)
 nothing #hide
 ```
 
@@ -110,7 +110,7 @@ We now evaluate the symbolic indices inside these equations to their numerical v
 
 
 ```@example cavity_antiresonance_indexed
-eqs_ = evaluate(eqs_comp;mapping=(N=>N_n)) #use the numerical value of N in mapping keyword
+eqs_ = evaluate(eqs_comp;limits=(N=>N_n)) #use the numerical value of N in mapping keyword
 @named sys = ODESystem(eqs_)
 nothing #hide
 ```
@@ -155,7 +155,7 @@ for i=1:length(Δ_ls)
     Δc_i = Δ_ls[i]
     Δa_i = Δc_i + Ωij_(1,2) #cavity on resonace with the shifted collective emitter
     p0_i = [Δc_i, η_, Δa_i, κ_, g_v, ΓMatrix, ΩMatrix]
-    ps_ = value_map(ps,p0_i;mapping=(N=>N_n)) #Combine all the parameters + values to one list for solving
+    ps_ = value_map(ps,p0_i;limits=(N=>N_n)) #Combine all the parameters + values to one list for solving
     prob = ODEProblem(sys,u0,(0.0, 20Γ_), ps_);
     prob_ss = SteadyStateProblem(prob);
     sol_ss = solve(prob_ss, DynamicSS(Tsit5(); abstol=1e-8, reltol=1e-8),
