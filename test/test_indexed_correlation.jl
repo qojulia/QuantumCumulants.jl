@@ -39,7 +39,7 @@ H = -Δ*a'a + g*(Σ(a'*σ(1,2,k),k) + Σ(a*σ(2,1,k),k))
 J = [a,σ(1,2,l),σ(2,1,l),σ(2,2,l)]
 rates = [κ, Γ, R, ν]
 ops = [a'*a,σ(2,2,m)]
-eqs = indexed_meanfield(ops,H,J;rates=rates,order=order)
+eqs = meanfield(ops,H,J;rates=rates,order=order)
 
 @test length(eqs) == 2
 
@@ -53,7 +53,7 @@ eqs = indexed_meanfield(ops,H,J;rates=rates,order=order)
 φ(x::AvgSums) = φ(arguments(x))
 phase_invariant(x) = iszero(φ(x))
 
-eqs_c = qc.complete(eqs;filter_func=phase_invariant,scaling=false,extra_indices=extra_indices);
+eqs_c = qc.complete(eqs;filter_func=phase_invariant);
 
 eqs_sc1 = scale(eqs_c)
 
@@ -119,7 +119,8 @@ _split1 = split_sums(avrgSum2,k,3)
 op1 = a'
 op2 = a
 
-corr = IndexedCorrelationFunction(a', a, eqs_c; steady_state=true, filter_func=phase_invariant,extra_indices=extra_indices,scaling=true);
+corr = IndexedCorrelationFunction(a', a, eqs_c; steady_state=true, filter_func=phase_invariant,extra_indices=extra_indices);
+corr = scale(corr)
 
 ps = [N, Δ, g, κ, Γ, R, ν]
 
@@ -133,8 +134,8 @@ sol_ss = solve(prob_ss, DynamicSS(Tsit5(); abstol=1e-8, reltol=1e-8),
     reltol=1e-14, abstol=1e-14, maxiters=5e7);
 
 
-mapping = Dict{SymbolicUtils.Sym,Int64}(N=>5)
-evals = evaluate(eqs_c;mapping=mapping)
+limits = Dict{SymbolicUtils.Sym,Int64}(N=>5)
+evals = evaluate(eqs_c;limits=limits)
 
 @test length(evals) == 21
 @test length(unique(evals.states)) == length(evals.states)
@@ -160,8 +161,8 @@ gn = [1.0,2.0]
 ps = [Γ_ij,Ω_ij,gi,κ]
 p0 = [ΓMatrix,ΩMatrix,gn,κn]
 
-mapping = Dict{SymbolicUtils.Sym,Int64}(N_=>2)
-valmap = value_map(ps,p0;mapping=mapping)
+limits = Dict{SymbolicUtils.Sym,Int64}(N_=>2)
+valmap = value_map(ps,p0;limits=limits)
 
 map_ = Dict{SymbolicUtils.Sym{Parameter, Base.ImmutableDict{DataType, Any}},ComplexF64}()
 push!(map_,qc.DoubleNumberedVariable(:Γ,1,1)=>1.0)
@@ -220,20 +221,20 @@ q = Index(h,:q,N,ha)
 r = Index(h,:r,N,hc)
 
 extra_indices = [q,r]
-eqs_2 = indexed_meanfield(ops_2,H_2,J_2;rates=rates_2,order=order)
+eqs_2 = meanfield(ops_2,H_2,J_2;rates=rates_2,order=order)
 
-eqs_s1 = scale(eqs_2;h=ha)
+eqs_s1 = scale(eqs_2;h=2)
 inds_s1 = qc.get_indices_equations(eqs_s1)
 
 for ind in inds_s1
-    @test isequal(ind.specHilb,hc)
+    @test isequal(ind.aon,1)
 end
 
-eqs_s2 = scale(eqs_2;h=hc)
+eqs_s2 = scale(eqs_2;h=1)
 inds_s2 = qc.get_indices_equations(eqs_s2)
 
 for ind in inds_s2
-    @test isequal(ind.specHilb,ha)
+    @test isequal(ind.aon,2)
 end
 
 

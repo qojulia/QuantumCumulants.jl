@@ -69,7 +69,7 @@ ops = [a'*a,σ(2,2,k)]
 # It is best-practice to use every Index-Entity in only one context
 
 # create Meanfield-Equations with given order for the given operators
-eqs = indexed_meanfield(ops,H,J;rates=rates,order=order)
+eqs = meanfield(ops,H,J;rates=rates,order=order)
 nothing #hide
 ```
 
@@ -100,7 +100,7 @@ phase_invariant(x) = iszero(φ(x))
 
 
 # We use the extraIndices keyword to provide names for indices, that are needed for intermediate calculation
-eqs_c = complete(eqs;filter_func=phase_invariant,scaling=false,extra_indices=[:q])
+eqs_c = complete(eqs;filter_func=phase_invariant)
 nothing # hide
 ```
 
@@ -186,7 +186,8 @@ We can now calculate the spectrum using the Laplace transform of the two-ime cor
 ```@example superradiant_laser_indexed
 # For the Spectrum 
 # setting the scaling keyword attribute to true gives us again a output in similar form to scale(eqs_c)
-corr = CorrelationFunction(a', a, eqs_c; steady_state=true, filter_func=phase_invariant,scaling=true);
+corr = CorrelationFunction(a', a, eqs_c; steady_state=true, filter_func=phase_invariant);
+corr = scale(corr)
 S = Spectrum(corr, ps)
 nothing #hide
 ```

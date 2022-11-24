@@ -127,7 +127,7 @@ ind2(i) = Index(h,i,N_,ha)
 N_n = 10
 mappingDict = Dict{SymbolicUtils.Sym,Int64}(N_ => N_n)
 sum2_A = average(∑(σ(1,2,ind2(:i))*σ(2,1,ind2(:j)),ind2(:i)))
-@test isequal(qc.eval_term(sum2_A;mapping=mappingDict),evaluate(sum2_A;mapping=(N_ => N_n)))
+@test isequal(qc.eval_term(sum2_A;limits=mappingDict),evaluate(sum2_A;limits=(N_ => N_n)))
 
 end
 

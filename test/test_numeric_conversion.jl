@@ -152,8 +152,8 @@ H = -Δ*a'a + g*(Σ(a'*σ(1,2,i),i) + Σ(a*σ(2,1,i),i))
 J = [a,σ(1,2,i)]
 rates = [κ, Γ]
 ops = [a,σ(2,2,j)]
-eqs = indexed_meanfield(ops,H,J;rates=rates,order=order)
-eqs_c = complete(eqs; scaling=true)
+eqs = meanfield(ops,H,J;rates=rates,order=order)
+eqs_c = complete(eqs)
 eqs_sc = scale(eqs_c)
 @named sys = ODESystem(eqs_sc)
 @test_throws ArgumentError initial_values(eqs_sc, ψ)

@@ -18,16 +18,24 @@ Fields:
 * hilb: The whole [`HilbertSpace`](@ref), the index will be defined on.
 * name: A Symbol, which defines the name of the index, and how product-terms of [`IndexedOperators`](@ref) are ordered (alphabetical)
 * range: The upper bound limit of the index. This can be a SymbolicUitls.Symbolic or any Number.
-* specHilb: The specific [`HilbertSpace`](@ref), where the Index should act on.
+* aon: Number specifying the specific [`HilbertSpace`](@ref), where the Index acts on.
 
 """
-#TODO: only specHilb -> hilbert
 struct Index #main tool
     hilb::HilbertSpace
     name::Symbol
     range::Ranges
-    specHilb::HilbertSpace
+    aon::Int
 end
+function Index(hilb::HilbertSpace,name::Symbol,range::Ranges,specHilb::HilbertSpace)
+    if hilb isa ProductSpace
+        aon = findfirst(x -> isequal(x,specHilb), hilb.spaces)
+        return Index(hilb,name,range,aon)
+    else
+        return Index(hilb,name,range,1)
+    end
+end
+
 const IndexInt = Union{<:Index,<:Int64}
 """
 
@@ -93,7 +101,7 @@ struct IndexedOperator <: QSym
     ind::Index
     function IndexedOperator(op::IndexableOps,ind::Index)
         @assert isequal(ind.hilb,hilbert(op))
-        isa(ind.hilb, ProductSpace) && (@assert isequal(ind.hilb.spaces[acts_on(op)],ind.specHilb))
+        isa(ind.hilb, ProductSpace) && (@assert isequal(acts_on(op),ind.aon))
         return new(op,ind)
     end
 end
@@ -114,111 +122,6 @@ Fields:
 * non_equal_indices: (optional) A vector of indices, for which the summation-index can not be equal with.
 
 """
-
-# struct SingleSum <:QTerm #Sum with an index, the term inside the sum must be a multiplication, either a QMul or a Symbolic one
-#     term::Summable
-#     sum_index::Index
-#     non_equal_indices::Vector{Index}  #indces, not equal to the summation index
-#     function SingleSum(term,sum_index,non_equal_indices) #rather expensive constructor to make sure Sums are created as they should
-#         if (typeof(term) == QMul && (SymbolicUtils._iszero(term.arg_c) || term.arg_c == 0)) || term === 0
-#             return 0
-#         else
-#             if (typeof(term) == IndexedOperator)
-#                 if term.ind == sum_index
-#                     return new(term,sum_index,non_equal_indices)
-#                 else
-#                     return (sum_index.range - length(non_equal_indices)) * term
-#                 end
-#             end
-#             if typeof(term) == SymbolicUtils.Sym{Parameter,IndexedVariable}
-#                 if isequal(term.metadata.ind,sum_index)
-#                     return new(term,sum_index,non_equal_indices)
-#                 else
-#                     return (sum_index.range - length(non_equal_indices)) * term
-#                 end
-#             end
-#             if typeof(term) == SymbolicUtils.Sym{Parameter,DoubleIndexedVariable}
-#                 if (isequal(term.metadata.ind1,sum_index) || isequal(term.metadata.ind2, sum_index))
-#                     return new(term,sum_index,non_equal_indices)
-#                 else
-#                     return (sum_index.range - length(non_equal_indices)) * term
-#                 end
-#             end
-#             if term isa QAdd
-#                 sums = []
-#                 for arg in term.arguments
-#                     push!(sums, SingleSum(arg,sum_index,non_equal_indices))
-#                 end
-#                 return +(sums...)
-#             end
-#             if typeof(term) <: SymbolicUtils.Add
-#                 sums = []
-#                 for arg in arguments(term)
-#                     push!(sums, SingleSum(arg,sum_index,non_equal_indices))
-#                 end
-#                 return +(sums...)
-#             end
-#             if term isa Number
-#                 return (sum_index.range - length(non_equal_indices)) * term
-#             end
-#             NEI = Index[]
-#             NEI_ = copy(non_equal_indices)
-#             for arg in term.args_nc
-#                 if typeof(arg) == IndexedOperator || typeof(arg) == IndexedVariable
-#                     if arg.ind == sum_index || arg.ind in NEI_ || sum_index.specHilb != arg.ind.specHilb
-#                         continue
-#                     else
-#                     push!(NEI,arg.ind)
-#                     push!(NEI_,arg.ind)
-#                     end
-#                 end
-#             end
-#             if length(NEI) == 0 #NEI are newly found indices of all operators that do not have the summation index, or are not already in the non equals list
-#                 #in this if-condition all operators always commute with the summation index (since there are no other indices left)
-#                 args = copy(term.args_nc)
-#                 args_ = order_by_index(args,[sum_index]) #here all operators in the sum comute with operators indexed with the summation index -> push them in front
-#                 term_ = 0
-#                 if length(args_) == 1
-#                     term_ = *(term.arg_c,args_[1])
-#                 else
-#                     term_ = *(term.arg_c,args_...) #merge operators again, since their order in the sum has changed
-#                 end
-#                 if term_ == 0 || SymbolicUtils._iszero(term_)
-#                     return 0
-#                 end
-#                 return new(term_,sum_index,NEI_)
-#             end
-#             addTerms = []
-#             for i = 1:length(NEI) #NEI are the newly found Indices of all the ops that do not have the summation index
-#                 ind = NEI[i]
-#                 #when adding a new index to the list of non equals, all the following insertions for the summation index have the
-#                 #condition, that they now can no longer be equal to any of the already inserted indices
-#                 #for example: in first iteration i -> j => i ≠ j
-#                 #second iteration i ≠ j, i -> k => i ≠ k (in sum); j ≠ k (for the extra term)
-#                 if length(addTerms) > 0
-#                     indexMapping = Tuple{Index,Index}[]
-#                     for j = 1:i
-#                         if i != j
-#                             push!(indexMapping,(NEI[j],NEI[i]))
-#                         end
-#                     end
-#                     push!(addTerms, reorder(change_index(term,sum_index,ind),indexMapping))
-#                 else
-#                     push!(addTerms,change_index(term,sum_index,ind))
-#                 end
-#             end
-#             args = copy(term.args_nc)
-#             args_ = order_by_index(args,[sum_index]) #here all operators in the sum comute with operators indexed with the summation index -> push them in front
-#             if length(args_) == 1
-#                 term_ = *(term.arg_c,args_[1])
-#             else
-#                 term_ = *(term.arg_c,args_...) #merge operators again, since their order in the sum has changed
-#             end
-#             sort!(NEI_,by=getIndName)
-#             return +(SingleSum(term_,sum_index,NEI_),addTerms...)
-#         end
-#     end
-# end
 struct SingleSum{M} <: QTerm #Sum with an index, the term inside the sum must be a multiplication, either a QMul or a Symbolic one
     term::Summable
     sum_index::Index
@@ -247,22 +150,6 @@ struct SpecialIndexedTerm <: QTerm    #A term, not in a sum, that has a conditio
     function SpecialIndexedTerm(term,indexMapping)
         if length(indexMapping) == 0
             return term
-        #elseif typeof(term) == IndexedOperator
-        #    return term
-        #elseif typeof(term) == Destroy
-        #    return term
-        #elseif typeof(term) <: SymbolicUtils.Add
-        #    args = []
-        #    for arg in arguments(term)
-        #        push!(args,reorder(arg,indexMapping))
-        #    end
-        #    return +(args...)
-        #elseif term isa QAdd
-        #    args = []
-        #    for arg in arguments(term)
-        #        push!(args,reorder(arg,indexMapping))
-        #    end
-        #    return +(args...)
         elseif SymbolicUtils._iszero(term)
             return 0
         else
@@ -278,14 +165,6 @@ function SpecialIndexedTerm(add::IndexedAdd,indexMapping)
     args = copy(arguments(add))
     return sum(reorder.(args,indexMapping))
 end
-
-# function SingleSum(term::IndexedOperator, sum_index, non_equal_indices)
-#     if term.ind == sum_index
-#         return SingleSum(term,sum_index,non_equal_indices)
-#     else
-#         return (sum_index.range - length(non_equal_indices)) * term
-#     end
-# end
 
 function SingleSum(term::IndexedObSym, sum_index, non_equal_indices;metadata=NO_METADATA)
     term_indices = get_indices(term)
@@ -305,7 +184,7 @@ function SingleSum(term::QMul, sum_index, non_equal_indices;metadata=NO_METADATA
     NEI_ = copy(non_equal_indices)
     for arg in term.args_nc
         if typeof(arg) == IndexedOperator || typeof(arg) == IndexedVariable
-            if arg.ind == sum_index || arg.ind in NEI_ || sum_index.specHilb != arg.ind.specHilb
+            if arg.ind == sum_index || arg.ind in NEI_ || sum_index.aon != arg.ind.aon
                 continue
             else
                 push!(NEI,arg.ind)
@@ -378,115 +257,9 @@ SingleSum(ops::QAdd,ind::Index;metadata=NO_METADATA) = SingleSum(ops,ind,Index[]
 SingleSum(op::QNumber,ind::Index;metadata=NO_METADATA) = SingleSum(op,ind,Index[];metadata=metadata)
 SingleSum(ops::Number,ind::Index,NEI::Vector;metadata=NO_METADATA) = (ind.range - length(NEI))*ops
 SingleSum(ops::SymbolicUtils.Mul,ind::Index,NEI::Vector;metadata=NO_METADATA) = (ind.range - length(NEI))*ops
-#SingleSum(term::QSym,ind::Index,NEI::Vector;metadata=NO_METADATA) = (ind.range - length(NEI))*term
 
 SingleSum(term, sum_index, non_equal_indices;metadata=NO_METADATA) = (sum_index.range - length(non_equal_indices)) * term
 
-
-#     function SingleSum(term,sum_index,non_equal_indices) #rather expensive constructor to make sure Sums are created as they should
-#         # if (typeof(term) == QMul && (SymbolicUtils._iszero(term.arg_c) || term.arg_c == 0)) || term === 0
-#         #     return 0
-#         # else
-#             # if (typeof(term) == IndexedOperator)
-#             #     if term.ind == sum_index
-#             #         return new(term,sum_index,non_equal_indices)
-#             #     else
-#             #         return (sum_index.range - length(non_equal_indices)) * term
-#             #     end
-#             # end
-#             # if typeof(term) == SymbolicUtils.Sym{Parameter,IndexedVariable}
-#             #     if isequal(term.metadata.ind,sum_index)
-#             #         return new(term,sum_index,non_equal_indices)
-#             #     else
-#             #         return (sum_index.range - length(non_equal_indices)) * term
-#             #     end
-#             # end
-#             # if typeof(term) == SymbolicUtils.Sym{Parameter,DoubleIndexedVariable}
-#             #     if (isequal(term.metadata.ind1,sum_index) || isequal(term.metadata.ind2, sum_index))
-#             #         return new(term,sum_index,non_equal_indices)
-#             #     else
-#             #         return (sum_index.range - length(non_equal_indices)) * term
-#             #     end
-#             # end
-#             # if term isa QAdd
-#             #     sums = []
-#             #     for arg in term.arguments
-#             #         push!(sums, SingleSum(arg,sum_index,non_equal_indices))
-#             #     end
-#             #     return +(sums...)
-#             # end
-#             # if typeof(term) <: SymbolicUtils.Add
-#             #     sums = []
-#             #     for arg in arguments(term)
-#             #         push!(sums, SingleSum(arg,sum_index,non_equal_indices))
-#             #     end
-#             #     return +(sums...)
-#             # end
-#             # if term isa Number
-#             #     return (sum_index.range - length(non_equal_indices)) * term
-#             # end
-#             NEI = Index[]
-#             NEI_ = copy(non_equal_indices)
-#             for arg in term.args_nc
-#                 if typeof(arg) == IndexedOperator || typeof(arg) == IndexedVariable
-#                     if arg.ind == sum_index || arg.ind in NEI_ || sum_index.specHilb != arg.ind.specHilb
-#                         continue
-#                     else
-#                     push!(NEI,arg.ind)
-#                     push!(NEI_,arg.ind)
-#                     end
-#                 end
-#             end
-#             if length(NEI) == 0 #NEI are newly found indices of all operators that do not have the summation index, or are not already in the non equals list
-#                 #in this if-condition all operators always commute with the summation index (since there are no other indices left)
-#                 args = copy(term.args_nc)
-#                 args_ = order_by_index(args,[sum_index]) #here all operators in the sum comute with operators indexed with the summation index -> push them in front
-#                 term_ = 0
-#                 if length(args_) == 1
-#                     term_ = *(term.arg_c,args_[1])
-#                 else
-#                     term_ = *(term.arg_c,args_...) #merge operators again, since their order in the sum has changed
-#                 end
-#                 if term_ == 0 || SymbolicUtils._iszero(term_)
-#                     return 0
-#                 end
-#                 return new(term_,sum_index,NEI_)
-#             end
-#             addTerms = []
-#             for i = 1:length(NEI) #NEI are the newly found Indices of all the ops that do not have the summation index
-#                 ind = NEI[i]
-#                 #when adding a new index to the list of non equals, all the following insertions for the summation index have the
-#                 #condition, that they now can no longer be equal to any of the already inserted indices
-#                 #for example: in first iteration i -> j => i ≠ j
-#                 #second iteration i ≠ j, i -> k => i ≠ k (in sum); j ≠ k (for the extra term)
-#                 if length(addTerms) > 0
-#                     indexMapping = Tuple{Index,Index}[]
-#                     for j = 1:i
-#                         if i != j
-#                             push!(indexMapping,(NEI[j],NEI[i]))
-#                         end
-#                     end
-#                     push!(addTerms, reorder(change_index(term,sum_index,ind),indexMapping))
-#                 else
-#                     push!(addTerms,change_index(term,sum_index,ind))
-#                 end
-#             end
-#             args = copy(term.args_nc)
-#             args_ = order_by_index(args,[sum_index]) #here all operators in the sum comute with operators indexed with the summation index -> push them in front
-#             if length(args_) == 1
-#                 term_ = *(term.arg_c,args_[1])
-#             else
-#                 term_ = *(term.arg_c,args_...) #merge operators again, since their order in the sum has changed
-#             end
-#             sort!(NEI_,by=getIndName)
-#             return +(SingleSum(term_,sum_index,NEI_),addTerms...)
-#         end
-#     end
-# end
-
-#Additional Constructors:
-
-#Operators
 function IndexedOperator(op::QMul,ind::Index)
     arg_c = op.arg_c
     ops_nc = []
@@ -505,8 +278,6 @@ function IndexedOperator(qadd::QAdd,ind::Index)
 end
 IndexedOperator(op::SNuN,ind::Index) = op     #This is just declared, so one can ignore type-checking on numbers
 
-#Sums
-
 #hilberts
 hilbert(ind::Index) = ind.hilb
 hilbert(op::IndexedOperator) = op.ind.hilb
@@ -516,36 +287,6 @@ hilbert(x::SpecialIndexedTerm) = hilbert(x.term)
 
 #Basic functions for indexed Operators
 import Base: *, +, -
-
-#function +(sum1::SingleSum,sum2::SingleSum)
-#    isequal(sum1,-1*sum2) && return 0
-#    return QAdd([sum1,sum2])
-#end
-#+(sum1::SingleSum,sum2::IndexedOperator) = QAdd([sum1,sum2])
-#function +(op1::IndexedOperator,op2::IndexedOperator)
-#    check_hilbert(op1,op2)
-#    return QAdd([op1,op2])
-#end
-##Number
-#function +(a::QNumber,op::IndexedOperator)
-#    check_hilbert(a,op)
-#    return QAdd([a,op])
-#end
-#+(a::SingleSum, b::QNumber) = QAdd([a,b])
-#+(a::SingleSum, b::QAdd) = QAdd(vcat([a,copy(b.arguments)]))
-#+(a::SingleSum, b::SNuN) = QAdd([a,b])
-
-
-##QMul
-#+(qmul::QMul,sum::SingleSum) = QAdd([qmul,sum])
-#+(qmul::QMul,indO::IndexedOperator) = QAdd([qmul,indO])
-## Special terms
-#+(a::SpecialIndexedTerm,b::QAdd) = QAdd(sort(vcat([a,copy(b.arguments)])))
-#+(a::SpecialIndexedTerm,b::SNuN) = SymbolicUtils._iszero(b) ? a : QAdd([a,b])
-#+(a::SpecialIndexedTerm,b::QNumber) = QAdd([a,b])
-#+(a::SpecialIndexedTerm,b::SpecialIndexedTerm) = isequal(-1*a,b) ? 0 : QAdd([a,b])
-#+(a::SpecialIndexedTerm,b::IndexedOperator) = QAdd([a,b])
-#+(a::SpecialIndexedTerm,b::SingleSum) = QAdd([a,b])
 
 #Multiplications
 #Sums
@@ -558,35 +299,10 @@ function *(qmul::QMul,sum::SingleSum)
     end
     return qmul.arg_c*sum_ 
 end
-# function *(sum::SingleSum,qmul::QMul)
-#     args_nc = qmul.args_nc
-#     arg_c = qmul.arg_c
-#     newSum = sum
-#     if iszero(newSum)
-#         return 0
-#     end
-#     for i = 1:length(args_nc)
-#         if iszero(args_nc[i])
-#             return 0
-#         end
-#         newSum = newSum*args_nc[i]
-#     end
-#     return arg_c * newSum
-# end
-# function *(qmul::QMul,sum::SingleSum)
-#     args_nc = qmul.args_nc
-#     arg_c = qmul.arg_c
-#     newSum = sum
-#     len = length(args_nc)
-#     for i = 1:len
-#         newSum = args_nc[len+1-i]*newSum    #multiply each element into the summation term -> recreate a new Sum after that
-#     end
-#     return arg_c * newSum
-# end
 
 function *(sum::SingleSum,elem::IndexedObSym)
     NEIds = copy(sum.non_equal_indices)
-    if !(elem.ind == sum.sum_index) && (elem.ind ∉ NEIds) && (sum.sum_index.specHilb == elem.ind.specHilb)
+    if !(elem.ind == sum.sum_index) && (elem.ind ∉ NEIds) && (sum.sum_index.aon == elem.ind.aon)
         qaddterm = nothing
         term = sum.term
         if length(NEIds) == 0
@@ -630,7 +346,7 @@ function *(sum::SingleSum,elem::IndexedObSym)
 end
 function *(elem::IndexedObSym,sum::SingleSum)
     NEIds = copy(sum.non_equal_indices)
-    if !(elem.ind == sum.sum_index) && (elem.ind ∉ NEIds) && (sum.sum_index.specHilb == elem.ind.specHilb)
+    if !(elem.ind == sum.sum_index) && (elem.ind ∉ NEIds) && (sum.sum_index.aon == elem.ind.aon)
         qaddterm = nothing
         term = sum.term
         if length(NEIds) == 0
@@ -692,99 +408,6 @@ function *(elem::QNumber,sum::SingleSum)
 end
 
 
-# function *(sum::SingleSum,elem::QNumber)
-#     NEIds = copy(sum.non_equal_indices)
-#     if (elem isa IndexedOperator || elem isa SymbolicUtils.Sym{Parameter,IndexedVariable}) && !(elem.ind == sum.sum_index) && (elem.ind ∉ NEIds) && (sum.sum_index.specHilb == elem.ind.specHilb)
-#         qaddterm = nothing
-#         term = sum.term
-#         if length(NEIds) == 0
-#             extraterm = change_index(term,sum.sum_index,elem.ind)
-#             qaddterm = extraterm*elem
-#         else
-#             specNEIs = Tuple{Index,Index}[]
-#             for ind in NEIds
-#                 tuple = (elem.ind,ind)
-#                 push!(specNEIs,tuple)
-#             end
-#             extraterm_ = change_index(term,sum.sum_index,elem.ind)
-#             qaddterm = reorder(extraterm_*elem,specNEIs)
-#         end
-#         push!(NEIds,elem.ind)
-#         qmul = sum.term*elem
-#         if qmul isa QMul
-#             qmul = order_by_index(qmul,[sum.sum_index])
-#             #qmul = *(qmul.arg_c,sort(qmul.args_nc, by=getIndName)...) #inside the sum everything always commutes
-#         end
-#         if (qmul isa QMul && (isequal(qmul.arg_c,0) || SymbolicUtils._iszero(qmul.args_nc)))
-#             return 0
-#         end
-#         sort!(NEIds,by=getIndName)
-#         newsum = SingleSum(qmul,sum.sum_index,NEIds)
-
-#         if SymbolicUtils._iszero(newsum)
-#             return qaddterm
-#         elseif SymbolicUtils._iszero(qaddterm)
-#             return newsum
-#         end
-
-#         return QAdd([newsum,qaddterm])
-#     end
-#     qmul = sum.term*elem
-#     if qmul isa QMul
-#         qmul = order_by_index(qmul,[sum.sum_index])
-#     end
-#     if (qmul isa QMul && (isequal(qmul.arg_c,0) || SymbolicUtils._iszero(qmul.args_nc)))
-#         return 0
-#     end
-#     return SingleSum(qmul,sum.sum_index,NEIds)
-# end
-
-# function *(elem::QNumber,sum::SingleSum)
-#     NEIds = copy(sum.non_equal_indices)
-#     if (elem isa IndexedOperator || elem isa SymbolicUtils.Sym{Parameter,IndexedVariable}) && !(elem.ind == sum.sum_index) && (elem.ind ∉ NEIds) && (sum.sum_index.specHilb == elem.ind.specHilb)
-#         qaddterm = nothing
-#         term = sum.term
-#         if length(NEIds) == 0
-#             extraterm = change_index(term,sum.sum_index,elem.ind)
-#             qaddterm = elem*extraterm
-#         else
-#             specNEIs = Tuple{Index,Index}[]
-#             for ind in NEIds
-#                 tuple = (elem.ind,ind)
-#                 push!(specNEIs,tuple)
-#             end
-#             extraterm_ = change_index(term,sum.sum_index,elem.ind)
-#             qaddterm = reorder(elem*extraterm_,specNEIs)
-#         end
-#         push!(NEIds,elem.ind)
-#         qmul = elem*sum.term
-#         if qmul isa QMul
-#             qmul = order_by_index(qmul,[sum.sum_index])
-#         end
-#         if (qmul isa QMul && (isequal(qmul.arg_c,0) || SymbolicUtils._iszero(qmul.args_nc)))
-#             return 0
-#         end
-#         sort!(NEIds,by=getIndName)
-#         newsum = SingleSum(qmul,sum.sum_index,NEIds)
-
-#         if SymbolicUtils._iszero(newsum)
-#             return qaddterm
-#         elseif SymbolicUtils._iszero(qaddterm)
-#             return newsum
-#         end
-
-#         return QAdd([newsum,qaddterm])
-#     end
-#     qmul = elem*sum.term
-#     if qmul isa QMul
-#         qmul = order_by_index(qmul,[sum.sum_index])
-#         #qmul = *(qmul.arg_c,sort(qmul.args_nc, by=getIndName)...) #inside the sum everything always commutes
-#     end
-#     if (qmul isa QMul && (isequal(qmul.arg_c,0) || SymbolicUtils._iszero(qmul.args_nc)))
-#         return 0
-#     end
-#     return SingleSum(qmul,sum.sum_index,NEIds)
-# end
 *(elem::SNuN,sum::SingleSum) = SingleSum(elem*sum.term,sum.sum_index,sum.non_equal_indices) #put elements from outside into sum
 *(sum::SingleSum,elem::SNuN) = *(elem,sum)
 
@@ -793,15 +416,6 @@ end
 -(op::QNumber,sum::SingleSum) = -1*sum + op
 -(op::Any,sum::SingleSum) = -1*sum + op
 -(sum::SingleSum, op::Any) = -1*op + sum
-#
-#-(op::IndexedOperator) = -1*op
-#
-#*(a::Create,b::IndexedOperator) = QMul(1,[a,b])
-#*(b::IndexedOperator,a::Create) = QMul(1,[a,b])
-#*(a::Destroy,b::IndexedOperator) = QMul(1,[a,b])
-#*(b::IndexedOperator,a::Destroy) = QMul(1,[a,b])
-#*(b::IndexedOperator,a::Transition) = QMul(1,[a,b])
-#*(a::Transition,b::IndexedOperator) = QMul(1,[a,b])
 
 function *(op1::IndexedOperator,op2::IndexedOperator)
     if op1.ind == op2.ind
@@ -817,37 +431,6 @@ function *(op1::IndexedOperator,op2::IndexedOperator)
         return QMul(1,[op1,op2])
     end
 end
-#function *(a::IndexedOperator, b::SNuN)
-#    SymbolicUtils._iszero(b) && return b
-#    SymbolicUtils._isone(b) && return a
-#    return QMul(b,[a])
-#end
-#function *(a::IndexedOperator, b::QMul)
-#    check_hilbert(a, b)
-#    args_nc = vcat(a,b.args_nc)
-#    sort!(args_nc,by=acts_on)
-#    return merge_commutators(b.arg_c,args_nc)
-#end
-#function *(a::QMul, b::IndexedOperator)
-#    check_hilbert(a, b)
-#    args_nc = vcat(a.args_nc,b)
-#    sort!(args_nc, by=acts_on)
-#    return merge_commutators(a.arg_c,args_nc)
-#end
-#function *(a::QAdd,b::IndexedOperator)
-#    check_hilbert(a, b)
-#    args = Any[a_ * b for a_ ∈ a.arguments]
-#    flatten_adds!(args)
-#    isempty(args) && return 0
-#    return QAdd(args)
-#end
-#function *(a::IndexedOperator,b::QAdd)
-#    check_hilbert(a, b)
-#    args = Any[a * b_ for b_ ∈ b.arguments]
-#    flatten_adds!(args)
-#    isempty(args) && return 0
-#    return QAdd(args)
-#end
 
 # Special terms
 *(a::SNuN,b::SpecialIndexedTerm) = reorder(a*b.term,b.indexMapping)
@@ -892,66 +475,6 @@ function *(term::SpecialIndexedTerm,x::IndexedObSym)
     end
     return reorder(term.term*x,map)
 end
-
-# function *(x::QNumber, term::SpecialIndexedTerm)
-#     map = term.indexMapping
-#     if x isa IndexedOperator
-#         if x.ind ∉ first.(map) && x.ind ∉ last.(map)
-#             indices = get_indices(term.term)
-#             for ind in indices
-#                 push!(map,(ind,x.ind))
-#             end
-#         end
-#     end
-#     return reorder(x*term.term,map)
-# end
-# function *(term::SpecialIndexedTerm,x::QNumber)
-#     map = term.indexMapping
-#     if x isa IndexedOperator
-#         if x.ind ∉ first.(map) && x.ind ∉ last.(map)
-#             indices = get_indices(term.term)
-#             for ind in indices
-#                 push!(map,(ind,x.ind))
-#             end
-#         end
-#     end
-#     return reorder(term.term*x,map)
-# end
-#function *(term::SpecialIndexedTerm,x::QMul)
-#    temp = term
-#    for arg in x.args_nc
-#        temp = temp*arg
-#    end
-#    return x.arg_c*temp
-#end
-#function *(x::QMul,term::SpecialIndexedTerm)
-#    temp = term
-#    for i=length(x.args_nc):-1:1
-#        temp = x.args_nc[i]*temp
-#    end
-#    return x.arg_c*temp
-#end
-#function *(x::QAdd,term::SpecialIndexedTerm)
-#    sums = []
-#    for arg in arguments(x)
-#        push!(sums,arg*term)
-#    end
-#    return sum(sums)
-#end
-#function *(term::SpecialIndexedTerm,x::QAdd)
-#    sums = []
-#    for arg in arguments(x)
-#        push!(sums,term*arg)
-#    end
-#    return sum(sums)
-#end
-#
-#function *(x, term::SpecialIndexedTerm)
-#    return reorder(x*term.term,term.indexMapping)
-#end
-#function *(term::SpecialIndexedTerm,x)
-#    return reorder(term.term*x,term.indexMapping)
-#end
 
 #acts on
 acts_on(op::IndexedOperator) = acts_on(op.op)
@@ -1034,7 +557,7 @@ Base.isless(b::Symbol,nothing) = false
 Base.isless(a::Index,b::Index) = a.name < b.name
 Base.isless(a::SingleSum,b::SingleSum) = Base.isless(a.sum_index,b.sum_index)
 
-Base.isequal(ind1::Index,ind2::Index) = (ind1.name == ind2.name) && isequal(ind1.range,ind2.range) && (ind1.hilb == ind2.hilb) && isequal(ind1.specHilb,ind2.specHilb)
+Base.isequal(ind1::Index,ind2::Index) = (ind1.name == ind2.name) && isequal(ind1.range,ind2.range) && (ind1.hilb == ind2.hilb) && isequal(ind1.aon,ind2.aon)
 Base.isequal(op1::IndexedOperator,op2::IndexedOperator) = isequal(op1.op,op2.op) && isequal(op1.ind,op2.ind)
 Base.:(==)(ind1::Index,ind2::Index) = isequal(ind1,ind2)
 function Base.isequal(a::SpecialIndexedTerm,b::SpecialIndexedTerm)
@@ -1048,49 +571,16 @@ function Base.isequal(a::SpecialIndexedTerm,b::SpecialIndexedTerm)
     return true
 end
 
-#checks if two sums have opposite numeric values
-# function check_sign(a::SingleSum,b::SingleSum)
-#     if a.term isa QMul && b.term isa QMul
-#         return isequal(a.term.arg_c, -1*b.term.arg_c)
-#     else
-#         return isequal(a.term,-1*b.term)
-#     end
-# end
-# function check_term(a::SingleSum,b::SingleSum)
-#     isequal(a.sum_index,b.sum_index) || return false
-#     isequal(a.term.arg_c, b.term.arg_c) || isequal(a.term.arg_c, -1*b.term.arg_c) || return false
-#     length(a.term.args_nc)==length(b.term.args_nc) || return false
-#     length(a.non_equal_indices) == length(b.non_equal_indices) || return false
-#     sort!(a.non_equal_indices, by=getIndName) == sort!(b.non_equal_indices, by=getIndName) || return false
-#     for (arg_a, arg_b) ∈ zip(sort!(a.term.args_nc,by=getIndName), sort!(b.term.args_nc,by=getIndName))
-#         isequal(arg_a,arg_b) || return false
-#     end
-#     return true
-# end
 function Base.isequal(a::SingleSum, b::SingleSum)
     if isequal(a.sum_index,b.sum_index)
         typeof(a.term) == typeof(b.term) || return false
         isequal(a.term,b.term) || return false    
-    elseif isequal(a.sum_index.specHilb,b.sum_index.specHilb)
+    elseif isequal(a.sum_index.aon,b.sum_index.aon)
         typeof(a.term) == typeof(b.term) || return false
         isequal(a.term,change_index(b.term,b.sum_index,a.sum_index)) || return false 
     end
     return isequal(a.non_equal_indices,b.non_equal_indices)
-    
-    # if !(typeof(a.term) <: QMul) || !(typeof(b.term) <: QMul)
-    #     return isequal(a.term,b.term)
-    # end
-    # if (typeof(a.term) == IndexedOperator && typeof(b.term) != IndexedOperator) || (typeof(b.term) == IndexedOperator && typeof(a.term) != IndexedOperator)
-    #     return false
-    # end
-    # isequal(a.term.arg_c, b.term.arg_c) || return false
-    # length(a.term.args_nc)==length(b.term.args_nc) || return false
-    # for (arg_a, arg_b) ∈ zip(order_by_index(a.term.args_nc,[a.sum_index]), order_by_index(b.term.args_nc,[b.sum_index]))
-    #     isequal(arg_a,arg_b) || return false
-    # end
-    # return true
 end
-#hilbert(a::SNuN) = 0
 
 #Function that changes the index of a sum term into a different indexed term
 #used for evaluating the extra terms when multiplying a sum with an operator with different index
@@ -1113,68 +603,9 @@ function change_index(term::QMul, from::Index, to::Index)
     arg_c = change_index(term.arg_c,from,to)
     args_nc = [change_index(arg,from,to) for arg in copy(term.args_nc)]
     return arg_c*prod(args_nc)
-    # arg_c = term.arg_c
-    # arg_c_ = term.arg_c
-    # for i = 1:length(args_nc)
-    #     elem = args_nc[i]
-    #     if elem isa IndexedOperator && elem.ind == from
-    #         elem = IndexedOperator(elem.op,to)
-    #     end
-    #     args_nc[i] = elem #inplace exchange of element
-    # end
-    # if arg_c isa SymbolicUtils.Mul
-    #     args = copy(arguments(arg_c_))
-    #     for i = 1:length(args)
-    #         if args[i] isa SymbolicUtils.Sym{Parameter,IndexedVariable}
-    #             if args[i].metadata.ind == from
-    #                 var = args[i].metadata      #the actual indexed-value
-    #                 args[i] = IndexedVariable(var.name,to) # inplace exchange
-    #             end
-    #         elseif args[i] isa SymbolicUtils.Sym{Parameter, DoubleIndexedVariable}
-    #             if args[i].metadata.ind1 == args[i].metadata.ind2 && args[i].metadata.ind1 == from
-    #                 var = args[i].metadata
-    #                 args[i] = DoubleIndexedVariable(var.name,to,to;identical=var.identical)
-    #             elseif args[i].metadata.ind1 == from
-    #                 var = args[i].metadata
-    #                 args[i] = DoubleIndexedVariable(var.name,to,var.ind2;identical=var.identical)
-    #             elseif args[i].metadata.ind2 == from
-    #                 var = args[i].metadata
-    #                 args[i] = DoubleIndexedVariable(var.name,var.ind1,to;identical=var.identical)
-    #             end
-    #         end
-    #     end
-    #     arg_c = prod(args)
-    # elseif arg_c isa SymbolicUtils.Sym{Parameter, IndexedVariable} && arg_c_.metadata.ind == from
-    #     arg_c = IndexedVariable(arg_c_.metadata.name,to)
-    # elseif  arg_c isa SymbolicUtils.Sym{Parameter, DoubleIndexedVariable}
-    #     DIndV = arg_c_.metadata
-    #     if DIndV.ind1 == DIndV.ind2 && DIndV.ind1 == from
-    #         arg_c = DoubleIndexedVariable(DIndV.name,to,to;identical=DIndV.identical)
-    #     elseif DIndV.ind1 == from
-    #         arg_c = DoubleIndexedVariable(DIndV.name,to,DIndV.ind2;identical=DIndV.identical)
-    #     elseif DIndV.ind2 == from
-    #         arg_c = DoubleIndexedVariable(DIndV.name,DIndV.ind1,to;identical=DIndV.identical)
-    #     end
-    # end
-    # if isempty(args_nc) || isequal(arg_c,0) || SymbolicUtils._iszero(args_nc) || 0 in args_nc
-    #     return 0
-    # end
-    # return arg_c*prod(args_nc)
-    # if typeof(mult) <: QMul
-    #     return merge_commutators(mult.arg_c,mult.args_nc)
-    # else
-    #     return mult
-    # end
 end
 change_index(term::Average, from::Index,to::Index) = average(change_index(arguments(term)[1],from,to))
 change_index(op::IndexedOperator,from::Index,to::Index) = isequal(op.ind,from) ? IndexedOperator(op.op,to) : op
-# function change_index(ops::Vector,from::Index,to::Index)
-#     ops_ = copy(ops)
-#     for i = 1:length(ops_)
-#         ops_[i] = change_index(ops_[i],from,to)
-#     end
-#     return ops_
-# end
 change_index(op::SymbolicUtils.Sym{Parameter,IndexedVariable},from::Index,to::Index) = isequal(op.metadata.ind,from) ? IndexedVariable(op.metadata.name,to) : op
 function change_index(op::SymbolicUtils.Sym{Parameter,DoubleIndexedVariable},from::Index,to::Index)
     if op.metadata.ind1 == from
@@ -1190,13 +621,6 @@ function change_index(op::SymbolicUtils.Sym{Parameter,DoubleIndexedVariable},fro
     end
 end
 change_index(mul::SymbolicUtils.Mul,from::Index,to::Index) = prod([change_index(arg,from,to) for arg in arguments(mul)])
-# function change_index(mul::SymbolicUtils.Mul,from::Index,to::Index)
-#     mults = []
-#     for arg in arguments(mul)
-#         push!(mults,change_index(arg,from,to))
-#     end
-#     return *(mults...)
-# end
 change_index(x,from::Index,to::Index) = x
 
 ismergeable(a::IndexedOperator,b::IndexedOperator) = isequal(a.ind,b.ind) ? ismergeable(a.op,b.op) : false
