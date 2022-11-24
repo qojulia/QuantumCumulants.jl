@@ -251,6 +251,7 @@ function SpecialIndexedAverage(term::SymbolicUtils.Mul,indexMapping)
     end
     return prefac * prod(SpecialIndexedAverage(arg,indexMapping) for arg in args)
 end
+
 SpecialIndexedAverage(x,indexMapping) = x
 
 const AvgSums = Union{SymbolicUtils.Sym{Parameter,IndexedAverageSum},SymbolicUtils.Sym{Parameter,IndexedAverageDoubleSum},SymbolicUtils.Sym{Parameter,SpecialIndexedAverage},IndexedAverageSum,IndexedAverageDoubleSum,SpecialIndexedTerm}

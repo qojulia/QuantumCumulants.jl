@@ -55,6 +55,7 @@ phase_invariant(x) = iszero(φ(x))
 
 eqs_c = qc.complete(eqs;filter_func=phase_invariant);
 
+
 eqs_sc1 = scale(eqs_c)
 
 @test length(eqs_sc1) == 4
@@ -136,6 +137,7 @@ sol_ss = solve(prob_ss, DynamicSS(Tsit5(); abstol=1e-8, reltol=1e-8),
 
 limits = Dict{SymbolicUtils.Sym,Int64}(N=>5)
 evals = evaluate(eqs_c;limits=limits)
+
 
 @test length(evals) == 21
 @test length(unique(evals.states)) == length(evals.states)

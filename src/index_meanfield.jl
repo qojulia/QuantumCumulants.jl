@@ -367,6 +367,7 @@ function indexed_complete!(de::AbstractMeanfieldEquations;
         end
     end
     missed = unique(missed) #no duplicates
+
     missed = elimRed!(missed;kwargs...)
     missed = inorder!.(missed)
 
@@ -459,7 +460,6 @@ function split_inds(inds::Vector)
     end
     return dic
 end
-
 
 filterComplete(x,states,scaling;kwargs...) = isNotIn(x,states,scaling;kwargs...) && isNotIn(_inconj(x),states,scaling;kwargs...)
 
