@@ -86,6 +86,7 @@ end
 ΓMatrix = [Γij_(i,j) for i = 1:2, j=1:2]
 ΩMatrix = [Ωij_(i,j) for i = 1:2, j=1:2]
 
+
 g_ = 2Γ_
 κ_ = 20Γ_
 Δa_ = 0Γ_
@@ -201,7 +202,6 @@ s2 = evaluate(eqs_com; limits=limits)
 @test qc.get_indices_equations(s1) == []
 
 @test s1.states == s2.states
-
 
 
 end

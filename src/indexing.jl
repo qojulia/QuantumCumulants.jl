@@ -558,6 +558,7 @@ Base.isless(a::Index,b::Index) = a.name < b.name
 Base.isless(a::SingleSum,b::SingleSum) = Base.isless(a.sum_index,b.sum_index)
 
 Base.isequal(ind1::Index,ind2::Index) = (ind1.name == ind2.name) && isequal(ind1.range,ind2.range) && (ind1.hilb == ind2.hilb) && isequal(ind1.aon,ind2.aon)
+
 Base.isequal(op1::IndexedOperator,op2::IndexedOperator) = isequal(op1.op,op2.op) && isequal(op1.ind,op2.ind)
 Base.:(==)(ind1::Index,ind2::Index) = isequal(ind1,ind2)
 function Base.isequal(a::SpecialIndexedTerm,b::SpecialIndexedTerm)
@@ -603,9 +604,11 @@ function change_index(term::QMul, from::Index, to::Index)
     arg_c = change_index(term.arg_c,from,to)
     args_nc = [change_index(arg,from,to) for arg in copy(term.args_nc)]
     return arg_c*prod(args_nc)
+
 end
 change_index(term::Average, from::Index,to::Index) = average(change_index(arguments(term)[1],from,to))
 change_index(op::IndexedOperator,from::Index,to::Index) = isequal(op.ind,from) ? IndexedOperator(op.op,to) : op
+
 change_index(op::SymbolicUtils.Sym{Parameter,IndexedVariable},from::Index,to::Index) = isequal(op.metadata.ind,from) ? IndexedVariable(op.metadata.name,to) : op
 function change_index(op::SymbolicUtils.Sym{Parameter,DoubleIndexedVariable},from::Index,to::Index)
     if op.metadata.ind1 == from

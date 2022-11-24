@@ -252,12 +252,14 @@ function indexed_complete_corr!(de,aon0,lhs_new,order,steady_state,de0;
     filter!(!in(vhash), vs′hash)
     missed = find_missing(de.equations, vhash, vs′hash; get_adjoints=false)
     
+
     missed = find_missing_sums(missed,de;extra_indices=extra_indices)
-    
+ 
     missed = inorder!.(missed)
     isnothing(filter_func) || filter!(filter_func, missed) # User-defined filter
 
     filter!(x -> filterComplete_corr(x,de.states,de0.states,false;kwargs...), missed)
+
     missed = inorder!.(missed)
 
     missed = unique(missed) #no duplicates
@@ -305,11 +307,12 @@ function indexed_complete_corr!(de,aon0,lhs_new,order,steady_state,de0;
         missed = find_missing(me.equations, vhash, vs′hash; get_adjoints=false)
         
         missed = find_missing_sums(missed,de;extra_indices=extra_indices)
-        
+
         missed = inorder!.(missed)
         isnothing(filter_func) || filter!(filter_func, missed) # User-defined filter
     
         filter!(x -> filterComplete_corr(x,de.states,de0.states,false;kwargs...), missed)
+
         missed = inorder!.(missed)
        
         for i = 1:length(missed)
@@ -342,6 +345,7 @@ function indexed_complete_corr!(de,aon0,lhs_new,order,steady_state,de0;
         missed = find_missing(de.equations, vhash, vs′hash; get_adjoints=false)
         if order != 1
             missed = find_missing_sums(missed,de;extra_indices=extra_indices,checking=false,scaling=false)
+
         end
         missed_ = inorder!.(missed)
         missed = vcat(missed,missed_)
