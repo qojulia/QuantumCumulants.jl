@@ -251,6 +251,7 @@ function SpecialIndexedAverage(term::SymbolicUtils.Mul,indexMapping)
     end
     return prefac * prod(SpecialIndexedAverage(arg,indexMapping) for arg in args)
 end
+
 SpecialIndexedAverage(x,indexMapping) = x
 
 const AvgSums = Union{SymbolicUtils.Sym{Parameter,IndexedAverageSum},SymbolicUtils.Sym{Parameter,IndexedAverageDoubleSum},SymbolicUtils.Sym{Parameter,SpecialIndexedAverage},IndexedAverageSum,IndexedAverageDoubleSum,SpecialIndexedTerm}
@@ -469,7 +470,7 @@ insert_index(term::IndexedOperator,ind::Index,value::Int64) = term.ind == ind ? 
 insert_index(term::SymbolicUtils.Sym{Parameter,IndexedVariable},ind::Index,value::Int64) = term.metadata.ind == ind ? SingleNumberedVariable(term.metadata.name,value) : term
 insert_index(x,ind::Index,value::Int64) = x
 """
-    insertIndices(eq::Symbolics.Equation,map::Dict{Index,Int64};mapping::Dict{SymbolicUtils.Sym,Int64}=Dict{Symbol,Int64}())
+    insertIndices(eq::Symbolics.Equation,map::Dict{Index,Int64};limits::Dict{SymbolicUtils.Sym,Int64}=Dict{Symbol,Int64}())
 
 Function, that inserts an integer value for a index in a specified Equation. This function creates Numbered- Variables/Operators/Sums upon calls.
 Mainly used by [`evalEquation`](@ref).
@@ -480,20 +481,20 @@ Mainly used by [`evalEquation`](@ref).
     the entry (i => 5) would result in all `i` indices being replaced with the number 5.
 
 # Optional argumentes
-*`mapping::Dict{SymbolicUtils.Sym,Int64}=Dict{Symbol,Int64}()`: A seperate dictionary, to
+*`limits::Dict{SymbolicUtils.Sym,Int64}=Dict{Symbol,Int64}()`: A seperate dictionary, to
     specify any symbolic limits used when [`Index`](@ref) entities were defined. This needs
     to be specified, when the equation contains summations, for which the upper bound is given
     by a Symbolic.
 
 """
-function insert_indices_rhs(eq::Symbolics.Equation,map::Dict{Index,Int64};mapping=Dict{SymbolicUtils.Sym,Int64}(),kwargs...)
+function insert_indices_rhs(eq::Symbolics.Equation,map::Dict{Index,Int64};limits=Dict{SymbolicUtils.Sym,Int64}(),kwargs...)
     eq_rhs = eq.rhs
     while !isempty(map)
         pair = first(map)
         eq_rhs = insert_index(eq_rhs,first(pair),last(pair))
         delete!(map,first(pair))
     end
-    return eval_term(eq_rhs;mapping,kwargs...) #return finished equation
+    return eval_term(eq_rhs;limits,kwargs...) #return finished equation
 end
 function insert_indices_lhs(term::Term{AvgSym, Nothing},map::Dict{Index,Int64};kwargs...)
     lhs = term
@@ -506,7 +507,7 @@ function insert_indices_lhs(term::Term{AvgSym, Nothing},map::Dict{Index,Int64};k
     end
     return lhs
 end 
-function evalEquation(eq::Symbolics.Equation,arr,indices,states;mapping=Dict{Symbol,Int64}(),kwargs...)
+function evalEquation(eq::Symbolics.Equation,arr,indices,states;limits=Dict{Symbol,Int64}(),kwargs...)
     if !(isempty(indices))
         eqs = Vector{Any}(nothing, length(arr))
         #Threads.@threads
@@ -516,16 +517,16 @@ function evalEquation(eq::Symbolics.Equation,arr,indices,states;mapping=Dict{Sym
             if eq_lhs in states || eq_lhs in getLHS.(eqs) || _inconj(eq_lhs) in states || _inconj(eq_lhs) in getLHS.(eqs)
                 continue
             end
-            eq_rhs = insert_indices_rhs(eq,dict;mapping=mapping,kwargs...)
+            eq_rhs = insert_indices_rhs(eq,dict;limits=limits,kwargs...)
             eqs[i] = Symbolics.Equation(eq_lhs,eq_rhs)
         end
         return eqs[eqs .!=(nothing)]
     else
-        return [evalEq(eq;mapping=mapping,kwargs...)]
+        return [evalEq(eq;limits=limits,kwargs...)]
     end
 end
 """
-    evalME(me::MeanfieldEquations;mapping::Dict{SymbolicUtils.Sym,Int64}=Dict{SymbolicUtils.Sym,Int64}())
+    evalME(me::MeanfieldEquations;limits::Dict{SymbolicUtils.Sym,Int64}=Dict{SymbolicUtils.Sym,Int64}())
 
 Function, that evaluates a given [`MeanfieldEquations`](@ref) entity and returns again equations,
 where indices have been inserted and sums evaluated.
@@ -534,13 +535,13 @@ where indices have been inserted and sums evaluated.
 *`me::MeanfieldEquations`: A [`MeanfieldEquations`](@ref) entity, which shall be evaluated.
 
 # Optional argumentes
-*`mapping::Dict{SymbolicUtils.Sym,Int64}=Dict{Symbol,Int64}()`: A seperate dictionary, to
+*`limits::Dict{SymbolicUtils.Sym,Int64}=Dict{Symbol,Int64}()`: A seperate dictionary, to
     specify any symbolic limits used when [`Index`](@ref) entities were defined. This needs
     to be specified, when the equations contain summations, for which the upper bound is given
     by a Symbolic.
 
 """
-function evalME(me::AbstractMeanfieldEquations;mapping=Dict{SymbolicUtils.Sym,Int64}(),h=nothing,kwargs...)#this is still pretty slow
+function evalME(me::AbstractMeanfieldEquations;limits=Dict{SymbolicUtils.Sym,Int64}(),h=nothing,kwargs...)#this is still pretty slow
     indices = nothing
     for eq in me.equations
         if containsIndexedOps(eq.lhs) && length(get_indices(eq.lhs)) == me.order
@@ -557,18 +558,18 @@ function evalME(me::AbstractMeanfieldEquations;mapping=Dict{SymbolicUtils.Sym,In
         if !(h isa Vector)
             h = [h]
         end
-        filter!(x->x.specHilb in h,indices)
+        filter!(x->x.aon in h,indices)
     end
     for ind in indices
-        if !(ind.range isa Int64) && ind.range ∉ keys(mapping)
-            error("Please provide numbers for the upper-limits used: $(ind.range); you can do this by calling: evaluate(me;mapping=[Dictionary with corresponding numbers for limits])")
+        if !(ind.range isa Int64) && ind.range ∉ keys(limits)
+            error("Please provide numbers for the upper-limits used: $(ind.range); you can do this by calling: evaluate(me;limits=[Dictionary with corresponding numbers for limits])")
         end
     end
     sort!(indices)
     ranges = []
     for ind in indices
-        if ind.range in keys(mapping)
-            push!(ranges,1:mapping[ind.range])
+        if ind.range in keys(limits)
+            push!(ranges,1:limits[ind.range])
         else
             push!(ranges,1:ind.range)
         end
@@ -581,7 +582,7 @@ function evalME(me::AbstractMeanfieldEquations;mapping=Dict{SymbolicUtils.Sym,In
     for i = 1:length(me.equations)
         inds = get_indices(me.equations[i].lhs)
         if isempty(inds)
-            evals = evalEquation(me.equations[i],[],[],[];mapping,h=h,kwargs...)
+            evals = evalEquation(me.equations[i],[],[],[];limits,h=h,kwargs...)
             for eq_ in evals
                 if (eq_.lhs ∉ getLHS.(newEqs)) && (_inconj(eq_.lhs) ∉ getLHS.(newEqs))
                     newEqs[counter] = eq_
@@ -595,13 +596,13 @@ function evalME(me::AbstractMeanfieldEquations;mapping=Dict{SymbolicUtils.Sym,In
             if !(h isa Vector)
                 h = [h]
             end
-            filter!(x->x.specHilb in h,inds)
+            filter!(x->x.aon in h,inds)
         end
 
         ranges_ = Vector{Any}(nothing,length(inds))
         for i=1:length(ranges_)
-            if inds[i].range in keys(mapping)
-                ranges_[i]=1:mapping[inds[i].range]
+            if inds[i].range in keys(limits)
+                ranges_[i]=1:limits[inds[i].range]
             else
                 ranges_[i]=1:inds[i].range
             end
@@ -611,7 +612,7 @@ function evalME(me::AbstractMeanfieldEquations;mapping=Dict{SymbolicUtils.Sym,In
         if !(isempty(newEqs))
             states = getLHS.(newEqs)
         end
-        evals = evalEquation(me.equations[i],arr,inds,states;mapping,h=h,kwargs...)
+        evals = evalEquation(me.equations[i],arr,inds,states;limits,h=h,kwargs...)
         newEqs = [newEqs;evals]
     end
 
@@ -620,22 +621,22 @@ function evalME(me::AbstractMeanfieldEquations;mapping=Dict{SymbolicUtils.Sym,In
     varmap = make_varmap(vs, me.iv)
     return EvaledMeanfieldEquations(newEqs,me.operator_equations,vs,me.operators,me.hamiltonian,me.jumps,me.jumps_dagger,me.rates,me.iv,varmap,me.order)
  end
-function eval_term(sum_::SymbolicUtils.Sym{Parameter,IndexedAverageSum};mapping=Dict{SymbolicUtils.Sym,Int64}(), h=nothing, kwargs...)
+function eval_term(sum_::SymbolicUtils.Sym{Parameter,IndexedAverageSum};limits=Dict{SymbolicUtils.Sym,Int64}(), h=nothing, kwargs...)
     if !=(h,nothing)
         if !(h isa Vector)
             h = [h]
         end
-        sum_.metadata.sum_index.specHilb ∉ h && return sum_
+        sum_.metadata.sum_index.aon ∉ h && return sum_
     end
     rangeEval = 0
-    if sum_.metadata.sum_index.range in keys(mapping)
-        rangeEval = mapping[sum_.metadata.sum_index.range]
+    if sum_.metadata.sum_index.range in keys(limits)
+        rangeEval = limits[sum_.metadata.sum_index.range]
     else
         if sum_.metadata.sum_index.range isa SymbolicUtils.Mul
             args = arguments(sum_.metadata.sum_index.range)
             for i=1:length(args)
-                if args[i] in keys(mapping)
-                    args[i] = mapping[args[i]]
+                if args[i] in keys(limits)
+                    args[i] = limits[args[i]]
                 end
             end
             rangeEval = *(args...)
@@ -694,13 +695,13 @@ Base.:(==)(term1::Term{AvgSym, Nothing},term2::Term{AvgSym, Nothing}) = isequal(
 
 #Value map creation, for easier inserting into the ODEProblem
 """
-    create_value_map(sym::Sym{Parameter, IndexedVariable}, values::Vector;mapping::Dict{SymbolicUtils.Sym,Int64}=Dict{SymbolicUtils.Sym,Int64}())
+    create_value_map(sym::Sym{Parameter, IndexedVariable}, values::Vector;limits::Dict{SymbolicUtils.Sym,Int64}=Dict{SymbolicUtils.Sym,Int64}())
     create_value_map(sym::Sym{Parameter, IndexedVariable}, value::Number)
-    create_value_map(sym::Sym{Parameter,DoubleIndexedVariable},values::Matrix;mapping::Dict{SymbolicUtils.Sym,Int64}=Dict{SymbolicUtils.Sym,Int64}())
+    create_value_map(sym::Sym{Parameter,DoubleIndexedVariable},values::Matrix;limits::Dict{SymbolicUtils.Sym,Int64}=Dict{SymbolicUtils.Sym,Int64}())
 
 Function, that creates a Dictionary, for which a indexedVariable is associated with a series of (number) values. The dictionary contains Symbols of either [`SingleNumberedVariable`](@ref)
 or [`DoubleNumberedVariables`](@ref) as keys and the values as values. For a Single-indexed variable, one can
-create such a mapping by giving a Vector of values, and for double-indexed variables by giving a Matrix. One can also create such a mapping, by using
+create such a limits by giving a Vector of values, and for double-indexed variables by giving a Matrix. One can also create such a limits, by using
 only a single value, then all possible numbered-Variables are set to the same values.
 
 # Arguments
@@ -708,19 +709,19 @@ only a single value, then all possible numbered-Variables are set to the same va
 *`values`: For a [`IndexedVariable`](@ref) either a vector or a single number, and for [`DoubleIndexedVariable`](@ref) a matrix.
 
 # Optional argumentes
-*`mapping::Dict{SymbolicUtils.Sym,Int64}=Dict{Symbol,Int64}()`: A seperate dictionary, to
+*`limits::Dict{SymbolicUtils.Sym,Int64}=Dict{Symbol,Int64}()`: A seperate dictionary, to
     specify any symbolic limits used when [`Index`](@ref) entities were defined. This needs
     to be specified, when the equations contain summations, for which the upper bound is given
     by a Symbolic.
 
 """
-function create_value_map(sym::Sym{Parameter, IndexedVariable}, values::Vector;mapping=Dict{SymbolicUtils.Sym,Int64}(),kwargs...)
+function create_value_map(sym::Sym{Parameter, IndexedVariable}, values::Vector;limits=Dict{SymbolicUtils.Sym,Int64}(),kwargs...)
     iVar = sym.metadata
     if iVar.ind.range isa SymbolicUtils.Sym
-        if iVar.ind.range in keys(mapping)
-            range1 = mapping[iVar.ind.range]
+        if iVar.ind.range in keys(limits)
+            range1 = limits[iVar.ind.range]
         else
-            error("Can not evaluate without a mapping")
+            error("Can not evaluate without a limits")
         end
     else
         range1 = iVar.ind.range
@@ -738,10 +739,10 @@ function create_value_map(sym::Sym{Parameter, IndexedVariable}, value::Number)
     iVar = sym.metadata
     dict = Dict{Sym{Parameter, Base.ImmutableDict{DataType, Any}},ComplexF64}()
     if iVar.ind.range isa SymbolicUtils.Sym
-        if iVar.ind.range in keys(mapping)
-            range1 = mapping[iVar.ind.range]
+        if iVar.ind.range in keys(limits)
+            range1 = limits[iVar.ind.range]
         else
-            error("Can not evaluate without a mapping")
+            error("Can not evaluate without a limits")
         end
     else
         range1 = iVar.ind.range
@@ -751,23 +752,23 @@ function create_value_map(sym::Sym{Parameter, IndexedVariable}, value::Number)
     end
     return dict
 end
-function create_value_map(sym::Sym{Parameter,DoubleIndexedVariable},values::Matrix;mapping=Dict{SymbolicUtils.Sym,Int64}(),kwargs...)
+function create_value_map(sym::Sym{Parameter,DoubleIndexedVariable},values::Matrix;limits=Dict{SymbolicUtils.Sym,Int64}(),kwargs...)
     dict = Dict{Sym{Parameter, Base.ImmutableDict{DataType, Any}},ComplexF64}()
     var = sym.metadata
     if var.ind1.range isa SymbolicUtils.Sym
-        if var.ind1.range in keys(mapping)
-            range1 = mapping[var.ind1.range]
+        if var.ind1.range in keys(limits)
+            range1 = limits[var.ind1.range]
         else
-            error("Can not evaluate without a mapping")
+            error("Can not evaluate without a limits")
         end
     else
         range1 = var.ind1.range
     end
     if var.ind2.range isa SymbolicUtils.Sym
-        if var.ind2.range in keys(mapping)
-            range2 = mapping[var.ind2.range]
+        if var.ind2.range in keys(limits)
+            range2 = limits[var.ind2.range]
         else
-            error("Can not evaluate without a mapping")
+            error("Can not evaluate without a limits")
         end
     else
         range2 = var.ind2.range
@@ -959,7 +960,7 @@ function get_not_allowed(ind_vec)
     spec_hilbs = get_spec_hilb.(ind_vec)
     not_allowed = []
     for ind in ind_vec
-        indices = findall(x -> isequal(x,ind.specHilb) ,spec_hilbs)
+        indices = findall(x -> isequal(x,ind.aon) ,spec_hilbs)
         length(indices) == 1 && continue
         if indices ∉ not_allowed
             push!(not_allowed,indices)
@@ -967,6 +968,4 @@ function get_not_allowed(ind_vec)
     end
     return not_allowed
 end
-get_spec_hilb(ind::Index) = ind.specHilb
-
-
+get_spec_hilb(ind::Index) = ind.aon

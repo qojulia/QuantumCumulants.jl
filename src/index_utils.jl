@@ -155,7 +155,7 @@ function get_ops_of_inds(qmul::QMul; h=nothing, kwargs...)
         if !(h isa Vector)
             h = [h]
         end
-        filter!(x -> x.specHilb in h,inds)
+        filter!(x -> x.aon in h,inds)
     end
     dic = Dict{Index,Any}(ind => Any[] for ind in inds)
     allVec = []
@@ -178,15 +178,12 @@ end
 
 #function that returns a vector of vector of ops depending on their numbers
 # so all ops with the same number are returned in the same subvector
-#
-# this is still not really correct i think
 function get_ops_of_numbs(qmul::QMul; h=nothing, kwargs...)
     numbs = get_numbers(qmul)
     if !=(h,nothing)
         if !(h isa Vector)
             h = [h]
         end
-        #filter!(x -> x.specHilb in h,inds)
     end
     dic = Dict{Int64,Any}(numb => Any[] for numb in numbs)
     allVec = []
@@ -230,4 +227,51 @@ function isNotIn(avrg::Average,states::Vector,scaling;kwargs...)
         end
         return true
     end 
+end
+
+"""
+    value_map(ps::Vector,p0::Vector)
+
+A Function to create parameter values for indexed Variables more convenient.
+
+# Arguments
+*`ps::Vector`: A vector of parameters, that have no value assigned to them.
+*`p0::Vector`: A vector for numeric values, that should get assigned to the corresponding
+    entry in the `ps` vector. For Single-Indexed Variables the entry in the vector can also be again
+    a Vector, that has an amount of entries as the index of the variables has range. For Double-Indexed
+    Variables, this can also be a Matrix of a dimension, that corresponds to the ranges of the indices
+    of the given variable.
+
+"""
+function value_map(ps::Vector,p0::Vector;limits=nothing,kwargs...)
+    length(ps) != length(p0) && error("Vectors given have non-equal length!")
+
+    if !=(limits,nothing) && limits isa Pair
+        mapping_ = Dict{SymbolicUtils.Sym,Int64}(first(limits)=>last(limits))
+        limits = mapping_
+    end
+    if limits === nothing
+        limits = Dict{SymbolicUtils.Sym,Int64}()
+    end
+
+    dict = Dict{Sym{Parameter, Base.ImmutableDict{DataType, Any}},ComplexF64}()
+    for i=1:length(ps)
+        dicVal = nothing
+        if ps[i] isa SymbolicUtils.Sym{Parameter, IndexedVariable}
+            if p0[i] isa Vector || p0[i] isa Number
+                dicVal = create_value_map(ps[i],p0[i];limits)
+            else
+                error("cannot resolve entry at $i-th position in values-vector")
+            end
+        elseif ps[i] isa SymbolicUtils.Sym{Parameter, DoubleIndexedVariable}
+            if p0[i] isa Matrix || p0[i] isa Number
+                dicVal = create_value_map(ps[i],p0[i];limits)
+            end
+        else
+            push!(dict,ps[i]=>p0[i])
+            continue
+        end
+        dict = merge(dict,dicVal)
+    end
+    return collect(dict)
 end

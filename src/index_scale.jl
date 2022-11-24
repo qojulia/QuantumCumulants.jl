@@ -31,7 +31,7 @@ function scaleTerm(sum::IndexedAverageSum; h=nothing, kwargs...)
         if !(h isa Vector)
             h = [h]
         end
-        if !(sum.sum_index.specHilb in h)
+        if !(sum.sum_index.aon in h)
             return IndexedAverageSum(scaleTerm(sum.term; h=h, kwargs...),sum.sum_index,sum.non_equal_indices)
         end
     end
@@ -46,7 +46,7 @@ function scaleTerm(sum::IndexedAverageDoubleSum; h=nothing, kwargs...)
         if !(h isa Vector)
             h = [h]
         end
-        if !(sum.sum_index.specHilb in h)
+        if !(sum.sum_index.aon in h)
             return IndexedAverageDoubleSum(scaleTerm(sum.innerSum; h=h, kwargs...),sum.sum_index,sum.non_equal_indices)
         end
     end
@@ -84,7 +84,7 @@ function scaleTerm(mul::SymbolicUtils.Mul; h=nothing, kwargs...)
                 if !(h isa Vector)
                     h = [h]
                 end
-                filter!(x -> x.specHilb in h,inds)
+                filter!(x -> x.aon in h,inds)
             end
             order = maximum(length.(inds))
             if order <= 1
@@ -111,7 +111,7 @@ function scaleTerm(x::Average; h=nothing,kwargs...)
         if !(h isa Vector)
             h = [h]
         end
-        filter!(x -> x.specHilb in h, indices)
+        filter!(x -> x.aon in h, indices)
     end
     for i=1:length(indices)
         newterm = insert_index(newterm,indices[i],i)
@@ -128,7 +128,7 @@ function scaleTerm(x::QMul; h=nothing, kwargs...)
         if !(h isa Vector)
             h = [h]
         end
-        filter!(x -> x.specHilb in h, indices)
+        filter!(x -> x.aon in h, indices)
     end
     for i = 1:length(indices)
         term = insert_index(term,indices[i],i)
@@ -187,7 +187,7 @@ function split_sums(term::SymbolicUtils.Symbolic,ind::Index,amount::Union{<:Symb
         term_ = term.metadata.term
         sumInd = term.metadata.sum_index
         if isequal(ind,sumInd)
-            ind2 = Index(sumInd.hilb,sumInd.name,(term.metadata.sum_index.range/amount),sumInd.specHilb)
+            ind2 = Index(sumInd.hilb,sumInd.name,(term.metadata.sum_index.range/amount),sumInd.aon)
             term_ = change_index(term_,ind,ind2)
             if isempty(term.metadata.non_equal_indices)
                 return (amount)*IndexedAverageSum(term_,ind2,Index[])
@@ -200,7 +200,7 @@ function split_sums(term::SymbolicUtils.Symbolic,ind::Index,amount::Union{<:Symb
         Dsum = term.metadata
         if isequal(ind,Dsum.sum_index)
             #create multiple doubleSums with the same innerSum
-            ind2 = Index(Dsum.sum_index.hilb,Dsum.sum_index.name,(Dsum.sum_index.range/amount),Dsum.sum_index.specHilb)
+            ind2 = Index(Dsum.sum_index.hilb,Dsum.sum_index.name,(Dsum.sum_index.range/amount),Dsum.sum_index.aon)
             if isempty(Dsum.non_equal_indices)
                 return amount*IndexedAverageDoubleSum(Dsum.innerSum,ind2,Index[])
             end
@@ -228,51 +228,3 @@ end
 split_sums(x,ind,amount) = x
 
 scale(eqs::IndexedMeanfieldEquations;kwargs...) = subst_reds(scaleME(eqs;kwargs...);scaling=true,kwargs...)
-
-"""
-    value_map(ps::Vector,p0::Vector)
-
-A Function to create parameter values for indexed Variables more convenient.
-
-# Arguments
-*`ps::Vector`: A vector of parameters, that have no value assigned to them.
-*`p0::Vector`: A vector for numeric values, that should get assigned to the corresponding
-    entry in the `ps` vector. For Single-Indexed Variables the entry in the vector can also be again
-    a Vector, that has an amount of entries as the index of the variables has range. For Double-Indexed
-    Variables, this can also be a Matrix of a dimension, that corresponds to the ranges of the indices
-    of the given variable.
-
-"""
-function value_map(ps::Vector,p0::Vector;mapping=nothing,kwargs...)
-    length(ps) != length(p0) && error("Vectors given have non-equal length!")
-
-    if !=(mapping,nothing) && mapping isa Pair
-        mapping_ = Dict{SymbolicUtils.Sym,Int64}(first(mapping)=>last(mapping))
-        mapping = mapping_
-    end
-    if mapping === nothing
-        mapping = Dict{SymbolicUtils.Sym,Int64}()
-    end
-
-    dict = Dict{Sym{Parameter, Base.ImmutableDict{DataType, Any}},ComplexF64}()
-    for i=1:length(ps)
-        dicVal = nothing
-        if ps[i] isa SymbolicUtils.Sym{Parameter, IndexedVariable}
-            if p0[i] isa Vector || p0[i] isa Number
-                dicVal = create_value_map(ps[i],p0[i];mapping)
-            else
-                error("cannot resolve entry at $i-th position in values-vector")
-            end
-        elseif ps[i] isa SymbolicUtils.Sym{Parameter, DoubleIndexedVariable}
-            if p0[i] isa Matrix || p0[i] isa Number
-                dicVal = create_value_map(ps[i],p0[i];mapping)
-            end
-        else
-            push!(dict,ps[i]=>p0[i])
-            continue
-        end
-        dict = merge(dict,dicVal)
-    end
-    return collect(dict)
-end
-
