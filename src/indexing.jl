@@ -819,3 +819,5 @@ _to_expression(a::SymbolicUtils.Sym{Parameter,DoubleIndexedVariable}) = :(Double
     return sumString
 end
 SymbolicUtils._iszero(x::SpecialIndexedTerm) = SymbolicUtils._iszero(x.term)
+get_range(i::Index) = i.range
+

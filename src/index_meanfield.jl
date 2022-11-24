@@ -694,7 +694,7 @@ function evaluate(eqs::IndexedMeanfieldEquations;limits=nothing,kwargs...)
     if limits === nothing
         limits =  Dict{SymbolicUtils.Sym,Int64}();
     end
-    return subst_reds(evalME(eqs;limits=limits,kwargs...))
+    return subst_reds_eval(evalME(eqs;limits=limits,kwargs...),eqs;limits=limits,kwargs...)
 end
 function evaluate(term;limits=nothing,kwargs...)
     if !=(limits,nothing) && limits isa Pair

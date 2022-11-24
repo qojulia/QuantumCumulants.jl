@@ -95,37 +95,121 @@ average given as the conjugate of one of the left-hand-side (of the equations) a
 *`scaling`: A Bool defining the way how averages are added to the `missed` vector. If true only averages, whose
     operators (without indices) are not already inside the `missed` vector will be added.
 """
-function subst_reds(me::AbstractMeanfieldEquations;scaling::Bool=false,kwargs...)
-    to_sub = find_missing(me)
-    to_insert = Vector{Any}(nothing,length(to_sub))
-    to_sub = inorder!.(to_sub)
-    filter!(x->!(x in me.states), to_sub) #this one might be redundant
-    if scaling
-        states = deepcopy(me.states)
-        counter = 1
-        while counter <= length(to_sub)
-            elem = to_sub[counter]
-            ind_ = findfirst(x -> isscaleequal(elem,x;kwargs...),states)
-            if !=(ind_,nothing)
-                to_insert[counter] = states[ind_]
-                counter = counter + 1
-                continue
-            end
-            ind_ = findfirst(x -> isscaleequal(_inconj(elem),x;kwargs...),states)
-            if !=(ind_,nothing)
-                to_insert[counter] = conj(states[ind_])
-                counter = counter + 1
-                continue
-            end
-            deleteat!(to_insert,counter)
-            deleteat!(to_sub,counter)
-        end
-    else  
-        to_insert = conj(_inconj.(to_sub))
-    end
-    filter!(x -> !=(x,nothing),to_insert)
+function subst_reds_eval(me::AbstractMeanfieldEquations,eqs_c::AbstractMeanfieldEquations;limits=Dict{SymbolicUtils.Sym,Int64}(),kwargs...)
+    missed = find_missing(eqs_c)
+    missed = find_missing_sums(missed,eqs_c)
+    inorder!.(missed)
+
+    to_sub = eval_all(missed;limits=limits,kwargs...)
+    filter!(x -> x ∉ me.states,to_sub)
+
+    to_insert = conj(_inconj.(to_sub))
     subs = Dict(to_sub .=> to_insert)
     eqs = [substitute(eq,subs) for eq in me.equations]
+
+    return IndexedMeanfieldEquations(eqs,me.operator_equations,me.states,me.operators,me.hamiltonian,me.jumps,me.jumps_dagger,me.rates,me.iv,me.varmap,me.order)
+
+    # to_sub = find_missing(me)
+    # to_insert = Vector{Any}(nothing,length(to_sub))
+    # to_sub = inorder!.(to_sub)
+    # filter!(x->!(x in me.states), to_sub) #this one might be redundant
+    # if scaling
+    #     states = deepcopy(me.states)
+    #     counter = 1
+    #     while counter <= length(to_sub)
+    #         elem = to_sub[counter]
+    #         ind_ = findfirst(x -> isscaleequal(elem,x;kwargs...),states)
+    #         if !=(ind_,nothing)
+    #             to_insert[counter] = states[ind_]
+    #             counter = counter + 1
+    #             continue
+    #         end
+    #         ind_ = findfirst(x -> isscaleequal(_inconj(elem),x;kwargs...),states)
+    #         if !=(ind_,nothing)
+    #             to_insert[counter] = conj(states[ind_])
+    #             counter = counter + 1
+    #             continue
+    #         end
+    #         deleteat!(to_insert,counter)
+    #         deleteat!(to_sub,counter)
+    #     end
+    # else  
+    #     to_insert = conj(_inconj.(to_sub))
+    # end
+    # filter!(x -> !=(x,nothing),to_insert)
+    # subs = Dict(to_sub .=> to_insert)
+    # eqs = [substitute(eq,subs) for eq in me.equations]
+    # return IndexedMeanfieldEquations(eqs,me.operator_equations,me.states,me.operators,me.hamiltonian,me.jumps,me.jumps_dagger,me.rates,me.iv,me.varmap,me.order)
+end
+
+function eval_all(vec;limits=Dict(),h=nothing,kwargs...)
+    if !=(h,nothing) && !(h isa Vector)
+        h = [h]
+    end
+    maxSize = count_eq_number(vec;limits=limits,h=h,kwargs...)
+    evaled = Vector{Any}(nothing,maxSize)
+    counter = 1
+    for avg in vec
+        inds = get_indices(avg)
+        if !=(h,nothing)
+            filter!(x->x.aon ∈ h,inds)
+        end
+        if !isempty(inds)
+            ranges_ = Vector{Any}(nothing,length(inds))
+            for i=1:length(inds)
+                if (inds[i].range in keys(limits))
+                    ranges_[i] = 1:limits[inds[i].range]
+                else
+                    ranges_[i] = 1:inds[i].range
+                end
+            end
+            arr = create_index_arrays(inds,ranges_)
+            for vec in arr
+                dict = Dict(inds .=> vec)
+                evaled[counter] = insert_indices_lhs(avg,dict;h=h,kwargs...)
+                counter = counter + 1
+            end
+        end
+    end
+    return evaled[1:(counter-1)]
+end
+
+
+function subst_reds_scale(me::AbstractMeanfieldEquations,eqs_c::AbstractMeanfieldEquations;kwargs...)
+
+    states = me.states
+
+    missed = find_missing(eqs_c)
+    missed = find_missing_sums(missed,eqs_c)
+    inorder!.(missed)
+
+    to_sub = scaleTerm.(missed;kwargs...)
+    filter!(x->x ∉ states,to_sub)
+
+    to_insert = Vector{Any}(nothing,length(to_sub))
+    
+    counter = 1
+    while counter <= length(to_sub)
+        elem = to_sub[counter]
+        ind_ = findfirst(x -> isscaleequal(elem,x;kwargs...),states)
+        if !=(ind_,nothing)
+            to_insert[counter] = states[ind_]
+            counter = counter + 1
+            continue
+        end
+        ind_ = findfirst(x -> isscaleequal(_inconj(elem),x;kwargs...),states)
+        if !=(ind_,nothing)
+            to_insert[counter] = conj(states[ind_])
+            counter = counter + 1
+            continue
+        end
+        deleteat!(to_insert,counter)
+        deleteat!(to_sub,counter)
+    end
+
+    subs = Dict(to_sub .=> to_insert)
+    eqs = [substitute(eq,subs) for eq in me.equations]
+
     return IndexedMeanfieldEquations(eqs,me.operator_equations,me.states,me.operators,me.hamiltonian,me.jumps,me.jumps_dagger,me.rates,me.iv,me.varmap,me.order)
 end
 
