@@ -306,11 +306,11 @@ function flatten_adds!(args)
         if args[i] isa QAdd
             append!(args,args[i].arguments)
             deleteat!(args, i)
-        end
-        if SymbolicUtils._iszero(args[i]) # I added an aditional zero check here
+        elseif SymbolicUtils._iszero(args[i]) || isequal(args[i],0) # I added an aditional zero check here
             deleteat!(args,i)
+        else
+            i += 1
         end
-        i += 1
     end
     return args
 end
@@ -325,6 +325,7 @@ hilbert(a::QSym) = a.hilbert
 hilbert(a::QMul) = hilbert(a.args_nc[1])
 function hilbert(a::QAdd)
     idx = findfirst(x->x isa QNumber, a.arguments)
+    idx === nothing && print(a)
     hilbert(a.arguments[idx])
 end
 

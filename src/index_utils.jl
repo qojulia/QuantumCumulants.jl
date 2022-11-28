@@ -9,14 +9,14 @@ get_indices(a::IndexedOperator) = [a.ind]
 get_indices(vec::Vector) = unique(vcat(get_indices.(vec)...))
 get_indices(a::SymbolicUtils.Sym{Parameter,DoubleIndexedVariable}) = unique([a.metadata.ind1,a.metadata.ind2])
 get_indices(a::SymbolicUtils.Sym{Parameter,IndexedVariable}) = [a.metadata.ind]
-const Sums = Union{SingleSum,IndexedDoubleSum}
+const Sums = Union{SingleSum,DoubleSum}
 get_indices(x::Sums) = unique(get_indices(arguments(x)))
 get_indices(x::Number) = []
 get_indices(term) = istree(term) ? get_indices(arguments(term)) : []
 
 #Usability functions:
-Σ(a,b) = IndexedDoubleSum(a,b)  #Double-Sum here, because if variable a is not a single sum it will create a single sum anyway
-Σ(a,b,c;kwargs...) = IndexedDoubleSum(a,b,c;kwargs...)
+Σ(a,b) = DoubleSum(a,b)  #Double-Sum here, because if variable a is not a single sum it will create a single sum anyway
+Σ(a,b,c;kwargs...) = DoubleSum(a,b,c;kwargs...)
 ∑(args...; kwargs...) = Σ(args...; kwargs...)
 
 IndexedOperator(x::IndexableOps,numb::Int64) = NumberedOperator(x,numb)
@@ -72,7 +72,7 @@ inadjoint(x) = adjoint(x)
 
 inorder!(v::Average) = average(inorder!(arguments(v)[1]))
 function inorder!(q::QMul)
-    sort!(q.args_nc, by=_get_number)
+    sort!(q.args_nc, by=get_numbers)
     sort!(q.args_nc, by=getIndName)
     sort!(q.args_nc, by=acts_on)
     return q
@@ -80,13 +80,13 @@ end
 inorder!(x) = x
 
 get_numbers(term::Average) = get_numbers(arguments(term)[1])
-get_numbers(term::QMul) = unique(vcat(_get_number.(term.args_nc)))
-_get_number(x::NumberedOperator) = x.numb
-_get_number(x) = 0
+get_numbers(term::QMul) = unique(vcat(get_numbers.(term.args_nc)))
+get_numbers(x::NumberedOperator) = x.numb
+get_numbers(x) = 0
 
 
 """
-    subst_reds(de::MeanfieldEquations)
+    subst_reds(de::AbstractMeanfieldEquations)
 
 Function that substitutes possible redundant conjugate averages inside the given Equations with their corresponding
 average given as the conjugate of one of the left-hand-side (of the equations) averages.
@@ -95,95 +95,72 @@ average given as the conjugate of one of the left-hand-side (of the equations) a
 *`scaling`: A Bool defining the way how averages are added to the `missed` vector. If true only averages, whose
     operators (without indices) are not already inside the `missed` vector will be added.
 """
-function subst_reds_eval(me::AbstractMeanfieldEquations,eqs_c::AbstractMeanfieldEquations;limits=Dict{SymbolicUtils.Sym,Int64}(),kwargs...)
-    missed = find_missing(eqs_c)
-    missed = find_missing_sums(missed,eqs_c)
-    inorder!.(missed)
+subst_reds(de::AbstractMeanfieldEquations;scaling=false,kwargs...) = scaling ? subst_reds_scale(de;kwargs...) : subst_reds_eval(de;kwargs...)
 
-    to_sub = eval_all(missed;limits=limits,kwargs...)
-    filter!(x -> x ∉ me.states,to_sub)
+# function subst_reds_eval(me::AbstractMeanfieldEquations,eqs_c::AbstractMeanfieldEquations;limits=Dict{SymbolicUtils.Sym,Int64}(),kwargs...)
+#     missed = find_missing(eqs_c)
+#     missed = find_missing_sums(missed,eqs_c)
+#     inorder!.(missed)
 
-    to_insert = conj(_inconj.(to_sub))
+#     to_sub = eval_all(missed;limits=limits,kwargs...)
+#     filter!(x -> x ∉ me.states,to_sub)
+
+#     to_insert = conj.(_inconj.(to_sub))
+#     subs = Dict(to_sub .=> to_insert)
+#     eqs = [substitute(eq,subs) for eq in me.equations]
+
+#     return IndexedMeanfieldEquations(eqs,me.operator_equations,me.states,me.operators,me.hamiltonian,me.jumps,me.jumps_dagger,me.rates,me.iv,me.varmap,me.order)
+# end
+
+# function eval_all(vec;limits=Dict(),h=nothing,kwargs...)
+#     if !=(h,nothing) && !(h isa Vector)
+#         h = [h]
+#     end
+#     maxSize = count_eq_number(vec;limits=limits,h=h,kwargs...)
+#     evaled = Vector{Any}(nothing,maxSize)
+#     counter = 1
+#     for avg in vec
+#         inds = get_indices(avg)
+#         if !=(h,nothing)
+#             filter!(x->x.aon ∈ h,inds)
+#         end
+#         if !isempty(inds)
+#             ranges_ = Vector{Any}(nothing,length(inds))
+#             for i=1:length(inds)
+#                 if (inds[i].range in keys(limits))
+#                     ranges_[i] = 1:limits[inds[i].range]
+#                 else
+#                     ranges_[i] = 1:inds[i].range
+#                 end
+#             end
+#             arr = create_index_arrays(inds,ranges_)
+#             for vec in arr
+#                 dict = Dict(inds .=> vec)
+#                 evaled[counter] = insert_indices_lhs(avg,dict;h=h,kwargs...)
+#                 counter = counter + 1
+#             end
+#         end
+#     end
+#     return evaled[1:(counter-1)]
+# end
+# "old" subst_reds_eval
+function subst_reds_eval(me::AbstractMeanfieldEquations;kwargs...)
+    to_sub = find_missing(me)
+    to_sub = inorder!.(to_sub)
+    filter!(x->x ∉ me.states, to_sub)
+    to_insert = conj.(_inconj.(to_sub))
     subs = Dict(to_sub .=> to_insert)
     eqs = [substitute(eq,subs) for eq in me.equations]
-
     return IndexedMeanfieldEquations(eqs,me.operator_equations,me.states,me.operators,me.hamiltonian,me.jumps,me.jumps_dagger,me.rates,me.iv,me.varmap,me.order)
-
-    # to_sub = find_missing(me)
-    # to_insert = Vector{Any}(nothing,length(to_sub))
-    # to_sub = inorder!.(to_sub)
-    # filter!(x->!(x in me.states), to_sub) #this one might be redundant
-    # if scaling
-    #     states = deepcopy(me.states)
-    #     counter = 1
-    #     while counter <= length(to_sub)
-    #         elem = to_sub[counter]
-    #         ind_ = findfirst(x -> isscaleequal(elem,x;kwargs...),states)
-    #         if !=(ind_,nothing)
-    #             to_insert[counter] = states[ind_]
-    #             counter = counter + 1
-    #             continue
-    #         end
-    #         ind_ = findfirst(x -> isscaleequal(_inconj(elem),x;kwargs...),states)
-    #         if !=(ind_,nothing)
-    #             to_insert[counter] = conj(states[ind_])
-    #             counter = counter + 1
-    #             continue
-    #         end
-    #         deleteat!(to_insert,counter)
-    #         deleteat!(to_sub,counter)
-    #     end
-    # else  
-    #     to_insert = conj(_inconj.(to_sub))
-    # end
-    # filter!(x -> !=(x,nothing),to_insert)
-    # subs = Dict(to_sub .=> to_insert)
-    # eqs = [substitute(eq,subs) for eq in me.equations]
-    # return IndexedMeanfieldEquations(eqs,me.operator_equations,me.states,me.operators,me.hamiltonian,me.jumps,me.jumps_dagger,me.rates,me.iv,me.varmap,me.order)
 end
 
-function eval_all(vec;limits=Dict(),h=nothing,kwargs...)
-    if !=(h,nothing) && !(h isa Vector)
-        h = [h]
-    end
-    maxSize = count_eq_number(vec;limits=limits,h=h,kwargs...)
-    evaled = Vector{Any}(nothing,maxSize)
-    counter = 1
-    for avg in vec
-        inds = get_indices(avg)
-        if !=(h,nothing)
-            filter!(x->x.aon ∈ h,inds)
-        end
-        if !isempty(inds)
-            ranges_ = Vector{Any}(nothing,length(inds))
-            for i=1:length(inds)
-                if (inds[i].range in keys(limits))
-                    ranges_[i] = 1:limits[inds[i].range]
-                else
-                    ranges_[i] = 1:inds[i].range
-                end
-            end
-            arr = create_index_arrays(inds,ranges_)
-            for vec in arr
-                dict = Dict(inds .=> vec)
-                evaled[counter] = insert_indices_lhs(avg,dict;h=h,kwargs...)
-                counter = counter + 1
-            end
-        end
-    end
-    return evaled[1:(counter-1)]
-end
-
-
-function subst_reds_scale(me::AbstractMeanfieldEquations,eqs_c::AbstractMeanfieldEquations;kwargs...)
+function subst_reds_scale(me::AbstractMeanfieldEquations;kwargs...)
 
     states = me.states
-
-    missed = find_missing(eqs_c)
-    missed = find_missing_sums(missed,eqs_c)
+    missed = find_missing(me)
     inorder!.(missed)
 
-    to_sub = scaleTerm.(missed;kwargs...)
+    to_sub = missed
     filter!(x->x ∉ states,to_sub)
 
     to_insert = Vector{Any}(nothing,length(to_sub))
@@ -195,16 +172,16 @@ function subst_reds_scale(me::AbstractMeanfieldEquations,eqs_c::AbstractMeanfiel
         if !=(ind_,nothing)
             to_insert[counter] = states[ind_]
             counter = counter + 1
-            continue
+        else
+            ind_ = findfirst(x -> isscaleequal(inorder!(_inconj(elem)),x;kwargs...),states)
+            if !=(ind_,nothing)
+                to_insert[counter] = conj(states[ind_])
+                counter = counter + 1
+            else
+                deleteat!(to_insert,counter) # these deletes are for consistancy only -> it is possible that not all terms are fully evaluated
+                deleteat!(to_sub,counter)   # yet in the system -> leftovers in the find_missing
+            end
         end
-        ind_ = findfirst(x -> isscaleequal(_inconj(elem),x;kwargs...),states)
-        if !=(ind_,nothing)
-            to_insert[counter] = conj(states[ind_])
-            counter = counter + 1
-            continue
-        end
-        deleteat!(to_insert,counter)
-        deleteat!(to_sub,counter)
     end
 
     subs = Dict(to_sub .=> to_insert)
@@ -213,79 +190,77 @@ function subst_reds_scale(me::AbstractMeanfieldEquations,eqs_c::AbstractMeanfiel
     return IndexedMeanfieldEquations(eqs,me.operator_equations,me.states,me.operators,me.hamiltonian,me.jumps,me.jumps_dagger,me.rates,me.iv,me.varmap,me.order)
 end
 
+function _subst_reds(v::Average,states::Vector;kwargs...)
+    v in states && return v
+    ind_ = findfirst(x -> isscaleequal(v,x;kwargs...),states)
+    if !=(ind_,nothing)
+        return states[ind_]
+    else
+        ind_ = findfirst(x -> isscaleequal(_inconj(v),x;kwargs...),states)
+        if !=(ind_,nothing)
+            return states[ind_]
+        end
+    end
+    return v
+end
+function _subst_reds(t,states::Vector;kwargs...)
+    if SymbolicUtils.istree(t)
+        f = SymbolicUtils.operation(t)
+        args = [_subst_reds(arg,states;kwargs...) for arg∈SymbolicUtils.arguments(t)]
+        return SymbolicUtils.similarterm(t, f, args)
+    else
+        return t
+    end
+end
+
 #function that checks if 2 averages are the same, if they would get scaled
-# or within a scaled system
-# meaning, that for example <σ²²₁ σ²¹₂> == <σ²¹₁ σ²²₂>   
+# or when they are within a scaled system
+# meaning, that for example <σ²²₁ σ²¹₂> == <σ²¹₁ σ²²₂> when both σ are acting on the same hilbertspace
 isscaleequal(avr1::Average,avr2::Average;kwargs...) = isscaleequal(arguments(avr1)[1],arguments(avr2)[1];kwargs...)
 function isscaleequal(qmul1::QMul,qmul2::QMul;kwargs...)
     isequal(qmul1,qmul2) && return true
     isequal(length(qmul1.args_nc), length(qmul2.args_nc)) || return false
-
-    return has_same(vcat(get_ops_of_inds(qmul1;kwargs...),get_ops_of_numbs(qmul1;kwargs...)),vcat(get_ops_of_inds(qmul2;kwargs...),get_ops_of_numbs(qmul2;kwargs...)))
+    isequal(acts_on(qmul1),acts_on(qmul2)) || return false
+    return has_same(get_ops_of_aons(qmul1;kwargs...),get_ops_of_aons(qmul2;kwargs...)) 
 end
 isscaleequal(a::NumberedOperator,b::NumberedOperator;h=nothing,kwargs...) = isequal(a.op,b.op) 
 isscaleequal(a::IndexedOperator,b::IndexedOperator;h=nothing,kwargs...) = isequal(a.op,b.op)
 isscaleequal(a,b;kwargs...) = isequal(a,b)
 function has_same(vec1::Vector,vec2::Vector)
     length(vec1) != length(vec2) && return false
-    !(issetequal(vec1,vec2)) && return false
-    return isequal(counter(vec1),counter(vec2))
+    return isequal(counter.(vec1),counter.(vec2))
 end
-#function that returns a vector of vector of ops depending on their indices
-# so all ops with the same index are returned in the same subvector
-function get_ops_of_inds(qmul::QMul; h=nothing, kwargs...)
-    inds = get_indices(qmul)
+#function that returns a vector of vector of ops depending on their aons
+# so all ops, that act on the same  are returned in the same subvector
+function get_ops_of_aons(qmul::QMul; h=nothing, kwargs...)
+    aons = acts_on(qmul)
     if !=(h,nothing)
         if !(h isa Vector)
             h = [h]
         end
-        filter!(x -> x.aon in h,inds)
+        filter!(x -> x in h,aons)
     end
-    dic = Dict{Index,Any}(ind => Any[] for ind in inds)
-    allVec = []
-    noIndsVec = []
+    dic = Dict{Int,Any}(aon => Any[] for aon in aons)
+    noAonVec = []
     for op in qmul.args_nc
-        if (op isa IndexedOperator && op.ind ∉ inds) || (!(op isa NumberedOperator) && !(op isa IndexedOperator))
-            push!(noIndsVec,op)
-            continue
-        elseif op isa IndexedOperator && op.ind in inds
-            push!(dic[op.ind],op)
+        if acts_on(op) in aons
+            if op isa NumberedOperator || op isa IndexedOperator
+                push!(dic[acts_on(op)],op.op)
+            else
+                push!(dic[acts_on(op)],op)
+            end
+        else
+            push!(noAonVec,op)
         end
     end
-    for ind in keys(dic)
-        push!(allVec,dic[ind])
+    allVec = []
+    for i in keys(dic)
+        push!(allVec,dic[i])
     end
-    push!(allVec,noIndsVec)
+    push!(allVec,noAonVec)
     return allVec
 end
 
-
-#function that returns a vector of vector of ops depending on their numbers
-# so all ops with the same number are returned in the same subvector
-function get_ops_of_numbs(qmul::QMul; h=nothing, kwargs...)
-    numbs = get_numbers(qmul)
-    if !=(h,nothing)
-        if !(h isa Vector)
-            h = [h]
-        end
-    end
-    dic = Dict{Int64,Any}(numb => Any[] for numb in numbs)
-    allVec = []
-    noNumbsVec = []
-    for op in qmul.args_nc
-        if (op isa NumberedOperator && op.numb ∉ numbs) || (!(op isa NumberedOperator) && !(op isa IndexedOperator))
-            push!(noNumbsVec,op)
-            continue
-        elseif op isa NumberedOperator && op.numb in numbs
-            push!(dic[op.numb],op)
-        end
-    end
-    for numb in keys(dic)
-        push!(allVec,dic[numb])
-    end
-    push!(allVec,noNumbsVec)
-    return allVec
-end
 # function, that creates a dictionary within each key is an element of it and the value the count of the elemt,
 # used to calculate, if two arrays are containing the exact same elements, without order
 # copied from https://discourse.julialang.org/t/compare-array-of-string-with-no-regard-to-the-order/62322

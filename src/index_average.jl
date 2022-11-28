@@ -84,6 +84,7 @@ function IndexedAverageSum(term::symbolics_terms,sum_index::Index,non_equal_indi
     end
     return prefact*IndexedAverageSum(term,sum_index,non_equal_indices,metadata)
 end
+IndexedAverageSum(x,args...;kwargs...) = average(SingleSum(x,args...;kwargs...))
 
 """
 
@@ -137,7 +138,7 @@ IndexedAverageDoubleSum(x,y,z) = IndexedAverageSum(x,y,z)
 
     NumberedOperator <: QSym
 
-Defines an operator, associated with a Number. Commutator-relations are calculated using these numbers, as a sort of an index.
+Defines an operator, associated with a Number. Commutator-relations are calculated using these numbers, as a sort of a specific index-value.
 
 Fields:
 ======
@@ -175,7 +176,7 @@ end
 
     SingleNumberedVariable <: numberedVariable
 
-Defines an variable, associated with a Number. Used by [`value_map`](@ref)
+Defines a variable, associated with a Number. Used by [`value_map`](@ref)
 
 Fields:
 ======
@@ -197,7 +198,7 @@ end
 
     DoubleNumberedVariable <: numberedVariable
 
-Defines an variable, associated with two Numbers. Used by [`value_map`](@ref)
+Defines a variable, associated with two Numbers. Used by [`value_map`](@ref)
 
 Fields:
 ======
@@ -259,12 +260,12 @@ const AvgSums = Union{SymbolicUtils.Sym{Parameter,IndexedAverageSum},SymbolicUti
 average(indOp::IndexedOperator) = SymbolicUtils._iszero(indOp) ? 0 : _average(indOp)
 average(x::SpecialIndexedTerm) = SpecialIndexedAverage(average(x.term),x.indexMapping)
 average(indSum::SingleSum; kwargs...) = IndexedAverageSum(average(indSum.term),indSum.sum_index,indSum.non_equal_indices)
-average(indDSum::IndexedDoubleSum) = IndexedAverageDoubleSum(average(indDSum.innerSum),indDSum.sum_index,indDSum.NEI)
+average(indDSum::DoubleSum) = IndexedAverageDoubleSum(average(indDSum.innerSum),indDSum.sum_index,indDSum.NEI)
 
 undo_average(a::IndexedAverageSum) = SingleSum(undo_average(a.term),a.sum_index,a.non_equal_indices)
 undo_average(a::Sym{Parameter,IndexedAverageSum}) = undo_average(a.metadata)
 undo_average(a::Sym{Parameter,IndexedAverageDoubleSum}) = undo_average(a.metadata)
-undo_average(a::IndexedAverageDoubleSum) = IndexedDoubleSum(undo_average(a.innerSum),a.sum_index,a.non_equal_indices)
+undo_average(a::IndexedAverageDoubleSum) = DoubleSum(undo_average(a.innerSum),a.sum_index,a.non_equal_indices)
 undo_average(a::SymbolicUtils.Sym{Parameter,SpecialIndexedAverage}) = reorder(undo_average(a.metadata.term),a.metadata.indexMapping)
 
 #define calculus for numbered operators -> break it down into QNuber multiplication
@@ -378,7 +379,7 @@ SymbolicUtils.arguments(op::SpecialIndexedAverage) = arguments(op.term)
 #this is the new method, insert values directly into the average before calculating anything, simplifies evaluation afterwards extremely
 #function for inserting index, k -> 1,2,...,N
 """
-    inserIndex(term,ind,value)
+    insert_index(term,ind::Index,value::Int)
 
 Function, that inserts an integer value for a index in a specified term.
 This function creates Numbered- Variables/Operators/Sums upon calls.
@@ -470,7 +471,7 @@ insert_index(term::IndexedOperator,ind::Index,value::Int64) = term.ind == ind ? 
 insert_index(term::SymbolicUtils.Sym{Parameter,IndexedVariable},ind::Index,value::Int64) = term.metadata.ind == ind ? SingleNumberedVariable(term.metadata.name,value) : term
 insert_index(x,ind::Index,value::Int64) = x
 """
-    insertIndices(eq::Symbolics.Equation,map::Dict{Index,Int64};limits::Dict{SymbolicUtils.Sym,Int64}=Dict{Symbol,Int64}())
+    insert_indices(eq::Symbolics.Equation,map::Dict{Index,Int64};limits=Dict{SymbolicUtils.Sym,Int64}())
 
 Function, that inserts an integer value for a index in a specified Equation. This function creates Numbered- Variables/Operators/Sums upon calls.
 Mainly used by [`evalEquation`](@ref).
@@ -487,7 +488,7 @@ Mainly used by [`evalEquation`](@ref).
     by a Symbolic.
 
 """
-function insert_indices_rhs(eq::Symbolics.Equation,map::Dict{Index,Int64};limits=Dict{SymbolicUtils.Sym,Int64}(),kwargs...)
+function insert_indices(eq::Symbolics.Equation,map::Dict{Index,Int64};limits=Dict{SymbolicUtils.Sym,Int64}(),kwargs...)
     eq_rhs = eq.rhs
     while !isempty(map)
         pair = first(map)
@@ -507,35 +508,6 @@ function insert_indices_lhs(term::Term{AvgSym, Nothing},map::Dict{Index,Int64};k
     end
     return lhs
 end 
-# function evalEquation(eq::Symbolics.Equation,arr,indices,states;limits=Dict{Symbol,Int64}(),kwargs...)
-#     if !(isempty(indices))
-#         eqs = Vector{Any}(nothing, length(arr))
-#         for i=1:length(arr)
-#             dict = Dict(indices .=> arr[i])
-#             eq_lhs = insert_indices_lhs(eq.lhs,dict)
-#             if eq_lhs in states || eq_lhs in getLHS.(eqs) || _inconj(eq_lhs) in states || _inconj(eq_lhs) in getLHS.(eqs)
-#                 continue
-#             end
-#             eq_rhs = insert_indices_rhs(eq,dict;limits=limits,kwargs...)
-#             eqs[i] = Symbolics.Equation(eq_lhs,eq_rhs)
-#         end
-#         return eqs
-#         # return eqs[eqs .!=(nothing)]
-#     else
-#         return 
-#     end
-# end
-# function evalEquations!(newEqs,counter,eq,arr,indices,states;kwargs...)
-#     for i=1:length(arr)
-#         dict = Dict(indices .=> arr[i])
-#         eq_lhs = insert_indices_lhs(eq.lhs,dict)
-#         if !(eq_lhs in states || _inconj(eq_lhs) in states)
-#             eq_rhs = insert_indices_rhs(eq,dict;limits=limits,kwargs...)    
-#             newEqs[counter] = Symbolics.Equation(eq_lhs,eq_rhs)
-#             counter = counter + 1
-#         end
-#     end
-# end
 """
     evalME(me::MeanfieldEquations;limits::Dict{SymbolicUtils.Sym,Int64}=Dict{SymbolicUtils.Sym,Int64}())
 
@@ -546,46 +518,13 @@ where indices have been inserted and sums evaluated.
 *`me::MeanfieldEquations`: A [`MeanfieldEquations`](@ref) entity, which shall be evaluated.
 
 # Optional argumentes
-*`limits::Dict{SymbolicUtils.Sym,Int64}=Dict{Symbol,Int64}()`: A seperate dictionary, to
+*`limits=Dict{SymbolicUtils.Sym,Int64}()`: A seperate dictionary, to
     specify any symbolic limits used when [`Index`](@ref) entities were defined. This needs
     to be specified, when the equations contain summations, for which the upper bound is given
     by a Symbolic.
 
 """
 function evalME(me::AbstractMeanfieldEquations;limits=Dict{SymbolicUtils.Sym,Int64}(),h=nothing,kwargs...)#this is still pretty slow
-    # indices = nothing
-    # for eq in me.equations
-    #     if containsIndexedOps(eq.lhs) && length(get_indices(eq.lhs)) == me.order
-    #         indices = get_indices(eq.lhs)
-    #         break
-    #     end
-    # end
-    # if indices === nothing
-    #     indices = unique(vcat(get_indices.(me.states)))
-    # end
-
-    # range = 0
-    # if !=(h,nothing)
-    #     if !(h isa Vector)
-    #         h = [h]
-    #     end
-    #     filter!(x->x.aon in h,indices)
-    # end
-    # for ind in indices
-    #     if !(ind.range isa Int64) && ind.range ∉ keys(limits)
-    #         error("Please provide numbers for the upper-limits used: $(ind.range); you can do this by calling: evaluate(me;limits=[Dictionary with corresponding numbers for limits])")
-    #     end
-    # end
-    # sort!(indices)
-    # ranges = []
-    # for ind in indices
-    #     if ind.range in keys(limits)
-    #         push!(ranges,1:limits[ind.range])
-    #     else
-    #         push!(ranges,1:ind.range)
-    #     end
-    # end
-    
     vs = me.states
 
     maxRange = count_eq_number(vs;limits=limits,h=h,kwargs...)
@@ -617,11 +556,6 @@ function evalME(me::AbstractMeanfieldEquations;limits=Dict{SymbolicUtils.Sym,Int
             ranges_ = Vector{Any}(nothing,length(inds))
             for i=1:length(inds)
                 ranges_[i] = (inds[i].range in keys(limits)) ? (1:limits[inds[i].range]) : (1:inds[i].range)
-                # if inds[i].range in keys(limits)
-                #     ranges_[i]=1:limits[inds[i].range]
-                # else
-                #     ranges_[i]=1:inds[i].range
-                # end
             end
             
             arr = create_index_arrays(inds,ranges_)
@@ -630,19 +564,16 @@ function evalME(me::AbstractMeanfieldEquations;limits=Dict{SymbolicUtils.Sym,Int
                 dict = Dict{Index,Int}(inds .=> arr[j])
                 eq_lhs = insert_indices_lhs(eq.lhs,dict)
                 if !(eq_lhs in states || _inconj(eq_lhs) in states)
-                    eq_rhs = insert_indices_rhs(eq,dict;limits=limits,h=h,kwargs...)    
+                    eq_rhs = insert_indices(eq,dict;limits=limits,h=h,kwargs...)    
                     states[counter] = eq_lhs
-                    newEqs[counter] = Symbolics.Equation(eq_lhs,eq_rhs)
+                    if SymbolicUtils._iszero(eq_rhs)
+                        newEqs[counter] = Symbolics.Equation(eq_lhs,0)
+                    else
+                        newEqs[counter] = Symbolics.Equation(eq_lhs,eq_rhs)
+                    end
                     counter = counter + 1
                 end
             end
-
-            # if !(isempty(newEqs))
-            #     states = getLHS.(newEqs)
-            # end
-            # evalEquations!(newEqs,counter,me.equations[i],arr,inds,states;limits=limits,h=h,kwargs...)
-            # newEqs = [newEqs;evals]
-
         end
     end 
     states = states[1:(counter-1)]
@@ -690,7 +621,7 @@ function eval_term(sum_::SymbolicUtils.Sym{Parameter,IndexedAverageSum};limits=D
                     args[i] = limits[args[i]]
                 end
             end
-            rangeEval = *(args...)
+            rangeEval = prod(args)
         else
             rangeEval = sum_.metadata.sum_index.range
         end
@@ -720,7 +651,16 @@ function eval_term(x;kwargs...)
     inorder!(x)
     return x
 end
-evalEq(eq::Symbolics.Equation;kwargs...) = Symbolics.Equation(eq.lhs,eval_term(eq.rhs;kwargs...))
+function evalEq(eq::Symbolics.Equation;kwargs...) 
+    rhs_ = eval_term(eq.rhs;kwargs...)
+    if SymbolicUtils._iszero(rhs_)
+        return Symbolics.Equation(eq.lhs,0)
+    else
+        return Symbolics.Equation(eq.lhs,rhs_)
+    end
+end
+
+    
 
 getLHS(eq::Symbolics.Equation) = eq.lhs
 getLHS(x) = []

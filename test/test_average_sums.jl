@@ -88,7 +88,7 @@ qc.SpecialIndexedAverage(average(σ(1,2,ind(:i))) + average(σ(2,1,ind(:j))),[(i
 @test qc.SpecialIndexedAverage(average(0),[(ind(:i),ind(:j))]) == 0
 @test qc.SpecialIndexedAverage(average(σ(2,1,ind(:i))),[(ind(:i),ind(:j))]).metadata isa qc.SpecialIndexedAverage
 
-@test qc.undo_average(arguments(ADsum1)[1]) isa qc.IndexedDoubleSum
+@test qc.undo_average(arguments(ADsum1)[1]) isa qc.DoubleSum
 @test isequal(Σ(Σ(σ(2,1,ind(:i))*σ(1,2,ind(:j)),ind(:i)),ind(:j),[ind(:i)]),qc.undo_average(ADsum1))
 
 @test σ(1,2,ind(:i))*σ(2,1,ind(:j))*σn(2,2,3) isa qc.QMul

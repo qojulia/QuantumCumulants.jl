@@ -86,7 +86,7 @@ SymbolicUtils._iszero(a'*σ(1,2,i_ind)*σ(1,2,k_ind))
 ))
 innerSum = SingleSum(σ(2,1,i_ind)*σ(1,2,j_ind),i_ind)
 @test(isequal(
-    IndexedDoubleSum(innerSum,j_ind), IndexedDoubleSum(SingleSum(σ(2,1,i_ind)*σ(1,2,j_ind),i_ind,[j_ind]),j_ind) + SingleSum(σ(2,2,j_ind),j_ind)
+    DoubleSum(innerSum,j_ind), DoubleSum(SingleSum(σ(2,1,i_ind)*σ(1,2,j_ind),i_ind,[j_ind]),j_ind) + SingleSum(σ(2,2,j_ind),j_ind)
 ))
 @test(isequal(SymbolicUtils.arguments(σ(1,2,indT(:i))*a'),SymbolicUtils.arguments(sum1)))
 

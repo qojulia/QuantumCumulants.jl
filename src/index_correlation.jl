@@ -67,7 +67,8 @@ Note that the correlation function is stored in the first index of the underlyin
 system of equations.
 
 This is the indexed-version of the [`CorrelationFunction`](@ref) and allows [`IndexedOperator`](@ref)
-entities as argument-values.
+entities as argument-values. This function will automatically be called by [`CorrelationFunction`](@ref),
+when the original system `de0` contains any types of [`Index`](@ref) entities.
 
 See also: [`CorrelationFunction`](@ref)
 """
@@ -155,7 +156,7 @@ function IndexedCorrelationFunction(op1,op2,de0::AbstractMeanfieldEquations;
             extra_indices=extras_,
             kwargs...)
 
-    de = substituteIntoCorrelation(de,de0_;kwargs...)
+    # de = substituteIntoCorrelation(de,de0_;kwargs...)
     
     return CorrelationFunction(op1_, op2_, op2_0, de0_, de, steady_state)
 end
@@ -165,14 +166,21 @@ function scale(corr::CorrelationFunction;kwargs...)
     de_ = substituteIntoCorrelation(de,de0;scaling=true,kwargs...)
     return CorrelationFunction(corr.op1, corr.op2, corr.op2_0, de0, de_, corr.steady_state)
 end
+function evaluate(corr::CorrelationFunction;kwargs...)
+    de = evalME(corr.de;kwargs...)
+    de0 = evaluate(corr.de0;kwargs...)
+    de_ = substituteIntoCorrelation(de,de0;scaling=false,kwargs...)
+    return CorrelationFunction(corr.op1, corr.op2, corr.op2_0, de0, de_, corr.steady_state)
+end
 
 #this function is almost similar to the subst_reds function -> maybe merge together?
 function substituteIntoCorrelation(me,de0;scaling::Bool=false,kwargs...)
     to_sub = find_missing(me)
     de_states = [me.states;de0.states]
-    to_insert = Vector{Any}(nothing,length(to_sub))
     to_sub = inorder!.(to_sub)
-    filter!(x->!(x in de_states),to_sub) #this one might be redundant
+    filter!(x->x ∉ de_states,to_sub)
+    to_sub = inorder!.(to_sub)
+    to_insert = Vector{Any}(nothing,length(to_sub))
     if scaling
         states = de_states
         counter = 1
@@ -184,7 +192,7 @@ function substituteIntoCorrelation(me,de0;scaling::Bool=false,kwargs...)
                 counter = counter + 1
                 continue
             end
-            ind_ = findfirst(x -> isscaleequal(_inconj(elem),x;kwargs...),states)
+            ind_ = findfirst(x -> isscaleequal((_inconj(elem)),x;kwargs...),states)
             if !=(ind_,nothing)
                 to_insert[counter] = conj(states[ind_])
                 counter = counter + 1
@@ -196,7 +204,7 @@ function substituteIntoCorrelation(me,de0;scaling::Bool=false,kwargs...)
     else  
         to_insert = conj(_inconj.(to_sub))
     end
-    filter!(x -> !=(x,nothing),to_insert)
+    # filter!(x -> !=(x,nothing),to_insert)
     subs = Dict(to_sub .=> to_insert)
     eqs = [substitute(eq,subs) for eq in me.equations]
     return IndexedMeanfieldEquations(eqs,me.operator_equations,me.states,me.operators,me.hamiltonian,me.jumps,me.jumps_dagger,me.rates,me.iv,me.varmap,me.order)

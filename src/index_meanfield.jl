@@ -153,7 +153,7 @@ function indexed_master_lindblad(a_,J,Jdagger,rates)
                 c1 = Jdagger[k][1]*commutator(a_,J[k][2])
                 c2 = commutator(Jdagger[k][1],a_)*J[k][2]
                 c = 0.5*rates[k]*(c1+c2)
-                push!(args,IndexedDoubleSum(SingleSum((c),J[k][1].ind,Index[]),J[k][2].ind,Index[]))
+                push!(args,DoubleSum(SingleSum((c),J[k][1].ind,Index[]),J[k][2].ind,Index[]))
             elseif isa(rates[k],SymbolicUtils.Symbolic) || isa(rates[k],Number) || isa(rates[k],Function)
                 c1 = 0.5*rates[k]*Jdagger[k]*commutator(a_,J[k])
                 c2 = 0.5*rates[k]*commutator(Jdagger[k],a_)*J[k]
@@ -230,14 +230,6 @@ function indexed_complete!(de::AbstractMeanfieldEquations;
             error("Cannot use extra_indices of different types. Use either only Symbols or Index-Objects!")
         end
     end
-
-    # if containsMultiple(get_all_indices(de))
-    #     if extra_indices[1] isa Symbol
-    #         error("It is not possible to complete equations, containing indices, that act on different hilbertspaces using Symbols as
-    #         extra_indices. For this case use specific Indices.")
-    #     end
-    #     #maybe write also a check that checks for the indices being correct/enough
-    # end
 
     allInds = get_all_indices(de)
 
@@ -670,7 +662,7 @@ complete(eqs::IndexedMeanfieldEquations;kwargs...) = indexed_complete(eqs;kwargs
 complete!(eqs::IndexedMeanfieldEquations;kwargs...) = indexed_complete!(eqs;kwargs...) 
 
 """
-    evaluate(eqs::IndexedMeanfieldEquations)
+    evaluate(eqs::IndexedMeanfieldEquations;limits)
 
 Function, that evaluates a given [`MeanfieldEquations`](@ref) entity and returns again equations,
 where indices have been inserted and sums evaluated.
@@ -694,7 +686,7 @@ function evaluate(eqs::IndexedMeanfieldEquations;limits=nothing,kwargs...)
     if limits === nothing
         limits =  Dict{SymbolicUtils.Sym,Int64}();
     end
-    return subst_reds_eval(evalME(eqs;limits=limits,kwargs...),eqs;limits=limits,kwargs...)
+    return subst_reds_eval(evalME(eqs;limits=limits,kwargs...);limits=limits,kwargs...)
 end
 function evaluate(term;limits=nothing,kwargs...)
     if !=(limits,nothing) && limits isa Pair

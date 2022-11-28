@@ -6,7 +6,7 @@ const IndexableOps = Union{Transition,Create,Destroy} #every operator that can h
 
 """
 
-    Index(hilb::HilbertSpace,name::Symbol,range::Union{Int64,Sym},transition::Bool)
+    Index(hilb::HilbertSpace,name::Symbol,range::Union{Int64,Sym},aon::Int)
 
 Defines an index, using a Symbol as a name, and a [`HilbertSpace`](@ref) for computation and
 commutator-relations. Indices with all same fields will be considered equal.
@@ -56,7 +56,7 @@ end
 """
 
     DoubleIndexedVariable <: CNumber
-    DoubleIndexedVariable(name::Symbol,ind1::Index,ind2::Index,identical::Bool)
+    DoubleIndexedVariable(name::Symbol,ind1::Index,ind2::Index;identical::Bool)
 
 A double-indexed symbolic variable. The variable can (once equations are calculated) be easily exchanged for numerical values.
 See also: [`value_map`](@ref)
@@ -86,6 +86,7 @@ end
 """
 
     IndexedOperator <: QSym
+    IndexedOperator(op::Union{Transition,Create,Destroy},ind::Index)
 
 Operator, associated with an index.
 
@@ -291,7 +292,6 @@ import Base: *, +, -
 #Multiplications
 #Sums
 *(sum::SingleSum,qmul::QMul) = qmul.arg_c*(*(sum,qmul.args_nc...))
-# *(qmul::QMul,sum::SingleSum) = qmul.arg_c*(*(qmul.args_nc...,sum)) # does not work, since multiplication again creates a QMul -> infinite loop
 function *(qmul::QMul,sum::SingleSum)
     sum_ = sum
     for i = length(qmul.args_nc):-1:1
@@ -418,7 +418,7 @@ end
 -(sum::SingleSum, op::Any) = -1*op + sum
 
 function *(op1::IndexedOperator,op2::IndexedOperator)
-    if op1.ind == op2.ind
+    if isequal(op1.ind, op2.ind)
         if op1.op isa Transition
             return IndexedOperator(op1.op*op2.op,op1.ind)
         end
@@ -587,7 +587,7 @@ end
 #used for evaluating the extra terms when multiplying a sum with an operator with different index
 #return a new QMul with indices swapped: from -> to index
 """
-    change_index(term,from,to)
+    change_index(term,from::Index,to::Index)
 
 Exchanges all occuring indices inside the given term, that are equal to the `from` to the `to` index.
 
@@ -672,7 +672,7 @@ function reorder(param::QMul,indexMapping::Vector{Tuple{Index,Index}})
     indOps = []
     others = []
     for i = 1:length(term) #Split into indexed ops and non indexed ops
-        if typeof(term[i]) == IndexedOperator
+        if term[i] isa IndexedOperator
             push!(indOps,term[i])
         else
             push!(others,term[i])
@@ -681,7 +681,8 @@ function reorder(param::QMul,indexMapping::Vector{Tuple{Index,Index}})
     if isequal(carg,0) || (0 in term)
         return 0
     end
-    while true #go over all ops ind indexed ops -> order by
+    finish = false
+    while !(finish) #go over all ops ind indexed ops -> order by
         finish = true
         for i = 1:(length(indOps)-1)
             if ((indOps[i].ind,indOps[i+1].ind) in indexMapping || (indOps[i+1].ind,indOps[i].ind) in indexMapping) && (indOps[i+1].ind < indOps[i].ind)
@@ -691,12 +692,9 @@ function reorder(param::QMul,indexMapping::Vector{Tuple{Index,Index}})
                 finish = false
             end
         end
-        if finish
-            break
-        end
     end
     args = vcat(others,indOps)
-    qmul = *(carg,args...)
+    qmul = carg*prod(args)
 
     if qmul isa QMul
         mapping_ = orderMapping(indexMapping)
@@ -823,4 +821,5 @@ _to_expression(a::SymbolicUtils.Sym{Parameter,DoubleIndexedVariable}) = :(Double
 end
 SymbolicUtils._iszero(x::SpecialIndexedTerm) = SymbolicUtils._iszero(x.term)
 get_range(i::Index) = i.range
+get_aon(i::Index) = i.aon
 

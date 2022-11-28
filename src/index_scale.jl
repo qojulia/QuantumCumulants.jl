@@ -227,4 +227,4 @@ function split_sums(me::AbstractMeanfieldEquations,ind::Index,amount)
 end
 split_sums(x,ind,amount) = x
 
-scale(eqs::IndexedMeanfieldEquations;kwargs...) = subst_reds_scale(scaleME(eqs;kwargs...),eqs;kwargs...)
+scale(eqs::IndexedMeanfieldEquations;kwargs...) = subst_reds_scale(scaleME(eqs;kwargs...);kwargs...)
