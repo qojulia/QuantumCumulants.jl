@@ -97,19 +97,23 @@ function DoubleSum(term::QMul,outerInd::Index,innerInd::Index;non_equal::Bool=fa
     end
 end
 
+
 hilbert(elem::DoubleSum) = hilbert(elem.sum_index)
 #multiplications
 *(elem::SNuN, sum::DoubleSum) = DoubleSum(elem*sum.innerSum,sum.sum_index,sum.NEI)
 *(sum::DoubleSum,elem::SNuN) = DoubleSum(sum.innerSum*elem,sum.sum_index,sum.NEI)
 *(sum::DoubleSum,qmul::QMul) = qmul.arg_c*(*(sum,qmul.args_nc...))
 function *(qmul::QMul,sum::DoubleSum)
+
     sum_ = sum
     for i = length(qmul.args_nc):-1:1
         sum_ = qmul.args_nc[i] * sum_
     end
     return qmul.arg_c*sum_ 
 end
+
 function *(elem::IndexedObSym,sum::DoubleSum)
+
     NEI = copy(sum.NEI)
     if elem.ind != sum.sum_index && elem.ind ∉ NEI
         if ((sum.sum_index.aon != sum.innerSum.sum_index.aon) && isequal(elem.ind.aon,sum.sum_index.aon))
@@ -134,10 +138,12 @@ end
 *(sum::DoubleSum,x) = DoubleSum(sum.innerSum*x,sum.sum_index,sum.NEI)
 *(x,sum::DoubleSum) = DoubleSum(x*sum.innerSum,sum.sum_index,sum.NEI) 
 
+
 SymbolicUtils.istree(a::DoubleSum) = false
 SymbolicUtils.arguments(a::DoubleSum) = SymbolicUtils.arguments(a.innerSum)
 checkInnerSums(sum1::DoubleSum, sum2::DoubleSum) = ((sum1.innerSum + sum2.innerSum) == 0)
 reorder(dsum::DoubleSum,indexMapping::Vector{Tuple{Index,Index}}) = DoubleSum(reorder(dsum.innerSum,indexMapping),dsum.sum_index,dsum.NEI)
+
 #Base functions
 function Base.show(io::IO,elem::DoubleSum)
     write(io,"Σ", "($(elem.sum_index.name)=1:$(elem.sum_index.range))")

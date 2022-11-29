@@ -228,3 +228,4 @@ end
 split_sums(x,ind,amount) = x
 
 scale(eqs::IndexedMeanfieldEquations;kwargs...) = subst_reds_scale(scaleME(eqs;kwargs...);kwargs...)
+

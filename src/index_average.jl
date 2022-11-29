@@ -525,6 +525,7 @@ where indices have been inserted and sums evaluated.
 
 """
 function evalME(me::AbstractMeanfieldEquations;limits=Dict{SymbolicUtils.Sym,Int64}(),h=nothing,kwargs...)#this is still pretty slow
+
     vs = me.states
 
     maxRange = count_eq_number(vs;limits=limits,h=h,kwargs...)
@@ -582,8 +583,8 @@ function evalME(me::AbstractMeanfieldEquations;limits=Dict{SymbolicUtils.Sym,Int
     return EvaledMeanfieldEquations(newEqs,me.operator_equations,states,me.operators,me.hamiltonian,me.jumps,me.jumps_dagger,me.rates,me.iv,varmap,me.order)
  end
 
- # function that counts how many equations are needed for a given set of states
- function count_eq_number(vs;limits=Dict(),h=nothing,kwargs...)
+# function that counts how many equations are needed for a given set of states
+function count_eq_number(vs;limits=Dict(),h=nothing,kwargs...)
     if !=(h,nothing) && !(h isa Vector)
         h = [h]
     end
