@@ -55,7 +55,7 @@ function _postwalk_func(x)
         s = replace(s, "\"" => "")
         s = replace(s, "*" => "")
         return s
-    elseif MacroTools.@capture(x,IndexedDoubleSum(term_, sumInd_, range_, NEI_))
+    elseif MacroTools.@capture(x,DoubleSum(term_, sumInd_, range_, NEI_))
         s = NEI != "" ? "\\underset{$(sumInd)≠$(NEI)}{\\overset{$(range)}{\\sum}} $(_postwalk_func(term))" : "\\underset{$(sumInd)}{\\overset{$(range)}{\\sum}} $(_postwalk_func(term))"
         s = replace(s,"\\\\" => "\\")
         s = replace(s, "\"" => "")
@@ -77,7 +77,7 @@ function _postwalk_func(x)
         return s
     elseif MacroTools.@capture(x,CONJ(arg_))
         arg = MacroTools.postwalk(_postwalk_average,arg)
-        s = " {$(arg)^{*}}"
+        s = "{$(arg){^{*}}}"
         return s
     else
         return x

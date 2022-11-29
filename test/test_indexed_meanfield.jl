@@ -35,7 +35,7 @@ g(k) = IndexedVariable(:g,k)
 
 DSum = Σ(Ω_ij*σ(2,1,i_ind)*σ(1,2,j_ind),j_ind,i_ind;non_equal=true)
 
-@test DSum isa IndexedDoubleSum
+@test DSum isa DoubleSum
 @test isequal(Σ(Σ(Ω_ij*σ(2,1,i_ind)*σ(1,2,j_ind),i_ind,[j_ind]),j_ind),DSum)
 
 Hc = Δc*a'a + η*(a' + a)
