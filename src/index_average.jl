@@ -518,7 +518,6 @@ where indices have been inserted and sums evaluated.
 
 """
 function evalME(me::AbstractMeanfieldEquations;limits=Dict{SymbolicUtils.Sym,Int64}(),h=nothing,kwargs...)#this is still pretty slow
-
     vs = me.states
     maxRange = count_eq_number(vs;limits=limits,h=h,kwargs...)
     if !(maxRange isa Int)
@@ -633,6 +632,7 @@ function eval_term(sum::SymbolicUtils.Sym{Parameter,IndexedAverageDoubleSum};kwa
 end
 eval_term(term::SymbolicUtils.Mul;kwargs...) = prod(eval_term(arg;kwargs...) for arg in arguments(term))
 eval_term(term::SymbolicUtils.Add;kwargs...) = sum(eval_term(arg;kwargs...) for arg in arguments(term))
+
 function eval_term(x;kwargs...)
     inorder!(x)
     return x
