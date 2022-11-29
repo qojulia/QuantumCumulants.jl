@@ -137,7 +137,24 @@ function scaleTerm(x::QMul; h=nothing, kwargs...)
 end
 scaleTerm(x::SymbolicUtils.Sym{Parameter,SpecialIndexedAverage}; kwargs...) = scaleTerm(x.metadata.term; kwargs...) #this is fine, since the intrinsic conditions on the indices go away automatically from the scaling 
 scaleEq(eq::Symbolics.Equation; kwargs...) = Symbolics.Equation(scaleTerm(eq.lhs; kwargs...),scaleTerm(eq.rhs; kwargs...))
-scaleTerm(sym::SymbolicUtils.Sym{Parameter,IndexedVariable}; kwargs...) = SingleNumberedVariable(sym.metadata.name,1)
+function scaleTerm(sym::SymbolicUtils.Sym{Parameter,IndexedVariable}; h=nothing,kwargs...) 
+    if !=(h,nothing)
+        if sym.metadata.ind.aon in h
+            return SingleNumberedVariable(sym.metadata.name,1)
+        end
+    end
+    return sym
+end
+function scaleTerm(sym::SymbolicUtils.Sym{Parameter,DoubleIndexedVariable}; h=nothing,kwargs...) 
+    if !=(h,nothing)
+        if sym.metadata.ind1.aon in h
+            return DoubleNumberedVariable(sym.metadata.name,1,sym.metadata.ind2)
+        elseif sym.metadata.ind2.aon in h
+            return DoubleNumberedVariable(sym.metadata.name,sym.metadata.ind1,1)
+        end
+    end
+    return sym
+end
 scaleTerm(x; kwargs...) = x
 
 SymbolicUtils.substitute(avrg::SymbolicUtils.Sym{Parameter,SpecialIndexedAverage},subs;fold=false) = SymbolicUtils.substitute(avrg.metadata.term,subs;fold=fold)#SpecialIndexedAverage(SymbolicUtils.substitute(term.metadata.term,subs;fold=fold),term.metadata.indexMapping)
@@ -227,4 +244,21 @@ function split_sums(me::AbstractMeanfieldEquations,ind::Index,amount)
 end
 split_sums(x,ind,amount) = x
 
-scale(eqs::IndexedMeanfieldEquations;kwargs...) = subst_reds_scale(scaleME(eqs;kwargs...);kwargs...)
+function scale(eqs::IndexedMeanfieldEquations;h=nothing,kwargs...)
+    hilb = hilbert(arguments(eqs[1].lhs)[1]) #hilbertspace of the whole system
+    if !=(h,nothing)
+        if !(h isa Vector)
+            h=[h]
+        end
+        h_ = Vector{Any}(nothing,length(h))
+        for i = 1:length(h)
+            if h[i] isa HilbertSpace
+                h_[i] = findfirst(x->isequal(x,h[i]),hilb.spaces)
+            else
+                h_[i] = h[i]
+            end
+        end
+        h = h_
+    end    
+    return subst_reds_scale(scaleME(eqs;h=h,kwargs...);h=h,kwargs...)
+end
