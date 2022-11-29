@@ -145,8 +145,10 @@ subst_reds(de::AbstractMeanfieldEquations;scaling=false,kwargs...) = scaling ? s
 # end
 # "old" subst_reds_eval
 function subst_reds_eval(me::AbstractMeanfieldEquations;kwargs...)
-    to_sub = find_missing(me)
-    to_sub = inorder!.(to_sub)
+    # to_sub = find_missing(me)
+    # to_sub = inorder!.(to_sub)
+    states = deepcopy(me.states)
+    to_sub = _inconj.(states)
     filter!(x->x ∉ me.states, to_sub)
     to_insert = conj.(_inconj.(to_sub))
     subs = Dict(to_sub .=> to_insert)
