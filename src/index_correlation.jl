@@ -155,8 +155,6 @@ function IndexedCorrelationFunction(op1,op2,de0::AbstractMeanfieldEquations;
             simplify=simplify,
             extra_indices=extras_,
             kwargs...)
-
-    # de = substituteIntoCorrelation(de,de0_;kwargs...)
     
     return CorrelationFunction(op1_, op2_, op2_0, de0_, de, steady_state)
 end
