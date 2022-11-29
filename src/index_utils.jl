@@ -70,7 +70,13 @@ inadjoint(op::QNumber) = adjoint(op)
 inadjoint(s::SymbolicUtils.Symbolic{<:Number}) = _conj(s)
 inadjoint(x) = adjoint(x)
 
-inorder!(v::Average) = average(inorder!(arguments(v)[1]))
+function inorder!(v::Average) 
+    f = operation(v)
+    if f == conj
+        return conj(average(inorder!(arguments(v)[1])))
+    end
+    return average(inorder!(arguments(v)[1]))
+end
 function inorder!(q::QMul)
     sort!(q.args_nc, by=get_numbers)
     sort!(q.args_nc, by=getIndName)

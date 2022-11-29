@@ -70,9 +70,19 @@ es = qc.evaluate(eqs_com;h=[2],limits=(N=>2))
 es2 = scale(es;h=[1])
 
 @test length(se2.equations) == length(es2.equations)
+@test isequal(se2.equations[1],es2.equations[1])
 
 @test length(s1) == length(s2)
 @test s1.equations == s2.equations
+
+avg = average(σ(2,2,k))
+c_avg = conj(avg)
+
+@test operation(qc.inorder!(c_avg)) == conj
+@test operation(qc.inorder!(avg)) == qc.sym_average
+
+@test operation(qc.insert_index(avg,k,1)) == qc.sym_average
+@test operation(qc.insert_index(c_avg,k,1)) == conj
 
 @test qc.get_indices_equations(s1) == []
 
