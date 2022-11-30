@@ -32,6 +32,9 @@ tensor
 
 ## [q-Numbers](@id API: Operators)
 
+```@docs
+QNumber
+```
 
 ```@docs
 QSym
@@ -162,4 +165,70 @@ fundamental_operators
 
 ```@docs
 transition_superscript
+```
+
+## [Symbolic Summations](@id API: Sums)
+
+```@docs
+Index
+```
+
+```@docs
+IndexedOperator
+```
+
+```@docs
+IndexedVariable
+```
+
+```@docs
+DoubleIndexedVariable
+```
+
+```@docs
+SingleSum
+```
+
+```@docs
+DoubleSum
+```
+
+```@docs
+change_index
+```
+
+```@docs
+insert_index
+```
+
+```@docs
+SpecialIndexedTerm
+```
+
+```@docs
+reorder
+```
+
+```@docs
+IndexedAverageSum
+```
+
+```@docs
+IndexedAverageDoubleSum
+```
+
+```@docs
+NumberedOperator
+```
+
+```@docs
+evaluate
+```
+
+```@docs
+scale
+```
+
+```@docs
+value_map
 ```

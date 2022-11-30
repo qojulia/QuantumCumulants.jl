@@ -46,8 +46,15 @@ H = Hc + Ha + Hi
 J = [a, [σ(1,2,i_ind),σ(1,2,j_ind)] ] 
 rates = [κ,Γ_ij]
 
+J_2 = [a, σ(1,2,i_ind) ] 
+rates_2 = [κ,Γ_ij]
+
 ops = [a, σ(2,2,k_ind), σ(1,2,k_ind)]
 eqs = meanfield(ops,H,J;rates=rates,order=order)
+
+eqs_2 = meanfield(ops,H,J_2;rates=rates_2,order=order)
+
+@test eqs.equations == eqs_2.equations
 
 @test isequal([i_ind,j_ind,k_ind],sort(qc.get_indices_equations(eqs)))
 @test isequal([:i,:j,:k],sort(qc.getIndName.(qc.get_indices_equations(eqs))))

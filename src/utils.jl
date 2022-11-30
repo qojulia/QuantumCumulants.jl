@@ -88,6 +88,8 @@ Optional arguments
     be ignored when completing a system. This works by calling `filter!(filter_func, missed)`
     where `missed` is the vector resulting from [`find_missing`](@ref). Occurrences
     of averages for which `filter_func` returns `false` are substituted to 0.
+*`extra_indices=Vector`: Used for indexed equations. Can be used to specify additional
+    indices, that are needed for calculation.
 *`kwargs...`: Further keyword arguments are passed on to [`meanfield`](@ref) and
     simplification.
 

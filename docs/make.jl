@@ -10,6 +10,7 @@ pages = [
         "correlation.md",
         "implementation.md",
         "api.md",
+        "symbolic_summations.md",
         "Examples" => [
             "examples/single-atom-laser-spectrum.md"
             "examples/mollow.md"

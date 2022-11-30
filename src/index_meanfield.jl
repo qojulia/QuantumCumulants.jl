@@ -4,19 +4,6 @@
 
 #function that takes indexed operators and double indexed varaibles to calculate the meanfield equations
 #the jump operators have to have same indices as the indices specified by the double indexed variable
-struct IndexedMeanfieldEquations <: AbstractMeanfieldEquations
-    equations::Vector{Symbolics.Equation}
-    operator_equations::Vector{Symbolics.Equation}
-    states::Vector
-    operators::Vector{QNumber}
-    hamiltonian::QNumber
-    jumps::Vector
-    jumps_dagger
-    rates::Vector
-    iv::SymbolicUtils.Sym
-    varmap::Vector{Pair}
-    order::Union{Int,Vector{<:Int},Nothing}
-end
 """
     indexed_meanfield(ops::Vector,H::QNumber,J::Vector;
         Jdagger::Vector=adjoint.(J),rates=ones(length(J)))
@@ -113,21 +100,10 @@ end
 indexed_meanfield(a::QNumber,args...;kwargs...) = indexed_meanfield([a],args...;kwargs...)
 indexed_meanfield(a::Vector,H;kwargs...) = indexed_meanfield(a,H,[];Jdagger=[],kwargs...)
 
-meanfield(a::QNumber,args...;kwargs...) = meanfield([a],args...;kwargs...)
-meanfield(a::Vector,H;kwargs...) = meanfield(a,H,[];Jdagger=[],kwargs...)
-function meanfield(a::Vector,H,J;kwargs...)
-    inds = vcat(get_indices(a),get_indices(H),get_indices(J))
-    if isempty(inds)
-        return _meanfield(a,H,J;kwargs...)
-    else
-        return indexed_meanfield(a,H,J;kwargs...)
-    end
-end
-
 function indexed_master_lindblad(a_,J,Jdagger,rates)
     args = Any[]
     for k=1:length(J)
-        if J[k] isa IndexedOperator
+        if J[k] isa IndexedOperator && !(rates[k] isa SymbolicUtils.Sym{Parameter,DoubleIndexedVariable})
             c1 = 0.5*rates[k]*Jdagger[k]*commutator(a_,J[k])
             c2 = 0.5*rates[k]*commutator(Jdagger[k],a_)*J[k]
             c = nothing
@@ -144,16 +120,31 @@ function indexed_master_lindblad(a_,J,Jdagger,rates)
             end
         else
             if rates[k] isa SymbolicUtils.Sym{Parameter,DoubleIndexedVariable}
-                if J[k][1].ind != rates[k].metadata.ind1
-                    error("unequal index of first jump operator and variable")
+                if !(J[k] isa Vector) && J[k] isa IndexedOperator
+                    if J[k].ind != rates[k].metadata.ind1 && J[k].ind != rates[k].metadata.ind2
+                        error("unequal index of first jump operator and variable")
+                    elseif J[k].ind == rates[k].metadata.ind1 && J[k].ind != rates[k].metadata.ind2
+                        vec = [J[k],change_index(J[k],J[k].ind,rates[k].metadata.ind2)]
+                    elseif J[k].ind != rates[k].metadata.ind1 && J[k].ind == rates[k].metadata.ind2
+                        vec = [change_index(J[k],J[k].ind,rates[k].metadata.ind1),J[k]]
+                    end
+                    vecdagger = adjoint.(vec)
+                    c1 = vecdagger[1]*commutator(a_,vec[2])
+                    c2 = commutator(vecdagger[1],a_)*vec[2]
+                    c = 0.5*rates[k]*(c1+c2)
+                    push!(args,DoubleSum(SingleSum((c),vec[1].ind,Index[]),vec[2].ind,Index[]))
+                else
+                    if J[k][1].ind != rates[k].metadata.ind1
+                        error("unequal index of first jump operator and variable")
+                    end
+                    if J[k][2].ind != rates[k].metadata.ind2
+                        error("unequal index of second jump operator and variable")
+                    end
+                    c1 = Jdagger[k][1]*commutator(a_,J[k][2])
+                    c2 = commutator(Jdagger[k][1],a_)*J[k][2]
+                    c = 0.5*rates[k]*(c1+c2)
+                    push!(args,DoubleSum(SingleSum((c),J[k][1].ind,Index[]),J[k][2].ind,Index[]))
                 end
-                if J[k][2].ind != rates[k].metadata.ind2
-                    error("unequal index of second jump operator and variable")
-                end
-                c1 = Jdagger[k][1]*commutator(a_,J[k][2])
-                c2 = commutator(Jdagger[k][1],a_)*J[k][2]
-                c = 0.5*rates[k]*(c1+c2)
-                push!(args,DoubleSum(SingleSum((c),J[k][1].ind,Index[]),J[k][2].ind,Index[]))
             elseif isa(rates[k],SymbolicUtils.Symbolic) || isa(rates[k],Number) || isa(rates[k],Function)
                 c1 = 0.5*rates[k]*Jdagger[k]*commutator(a_,J[k])
                 c2 = 0.5*rates[k]*commutator(Jdagger[k],a_)*J[k]
@@ -473,13 +464,6 @@ end
 function get_all_indices(me::AbstractMeanfieldEquations)
     eqs = me.equations
     inds = []
-    # for eq in eqs #this is probably not needed
-    #     for ind in get_indices(eq.rhs)
-    #         if ind ∉ inds
-    #             push!(inds,ind)
-    #         end
-    #     end
-    # end
     for ind in get_all_indices(me.states)
         if ind ∉ inds
             push!(inds,ind)
@@ -664,9 +648,12 @@ complete!(eqs::IndexedMeanfieldEquations;kwargs...) = indexed_complete!(eqs;kwar
 
 """
     evaluate(eqs::IndexedMeanfieldEquations;limits)
+    evaluate(corr::CorrelationFunction;limits)
+    evaluate(x;limits)
 
 Function, that evaluates a given [`MeanfieldEquations`](@ref) entity and returns again equations,
-where indices have been inserted and sums evaluated.
+where indices have been inserted and sums evaluated. Can also be called on individual terms, to
+evaluate any summations inside these terms.
 
 # Arguments
 *`me::MeanfieldEquations`: A [`MeanfieldEquations`](@ref) entity, which shall be evaluated.
@@ -676,8 +663,8 @@ where indices have been inserted and sums evaluated.
     specify any symbolic limits used when [`Index`](@ref) entities were defined. This needs
     to be specified, when the equations contain summations, for which the upper bound is given
     by a Symbolic.
-
-see also: [`evalME`](@ref)
+*`h`: A HilbertSpace, Vector of Hilbertspaces or Numbers, specifying the specific Hilbertspaces,
+    that shall be evaluated. Does not evaluate any other Hilbertspace, other than the given ones.
 """
 function evaluate(eqs::IndexedMeanfieldEquations;limits=nothing,h=nothing,kwargs...)
     hilb = hilbert(arguments(eqs[1].lhs)[1]) #hilbertspace of the whole system

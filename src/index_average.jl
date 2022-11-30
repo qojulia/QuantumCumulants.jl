@@ -693,7 +693,7 @@ function create_value_map(sym::Sym{Parameter, IndexedVariable}, values::Vector;l
     end
     return dict
 end
-function create_value_map(sym::Sym{Parameter, IndexedVariable}, value::Number)
+function create_value_map(sym::Sym{Parameter, IndexedVariable}, value::Number;limits=Dict{SymbolicUtils.Sym,Int64}(),kwargs...)
     iVar = sym.metadata
     dict = Dict{Sym{Parameter, Base.ImmutableDict{DataType, Any}},ComplexF64}()
     if iVar.ind.range isa SymbolicUtils.Sym
@@ -837,7 +837,7 @@ function _to_expression(x::NumberedOperator)
     x.op isa Create && return :(dagger(NumberedDestroy($(x.op.name),$(x.numb))))
 end
 _to_expression(x::SymbolicUtils.Sym{Parameter,IndexedAverageSum}) = :( IndexedAverageSum($(_to_expression(x.metadata.term)),$(x.metadata.sum_index.name),$(x.metadata.sum_index.range),$(writeNEIs(x.metadata.non_equal_indices))) )
-_to_expression(x::SymbolicUtils.Sym{Parameter,SpecialIndexedAverage}) = :($(x.metadata.term))
+_to_expression(x::SymbolicUtils.Sym{Parameter,SpecialIndexedAverage}) = _to_expression(x.metadata.term)
 _to_expression(x::SymbolicUtils.Sym{Parameter,IndexedAverageDoubleSum}) = :( IndexedAverageDoubleSum($(_to_expression(x.metadata.innerSum)),$(x.metadata.sum_index.name),$(x.metadata.sum_index.range),$(writeNEIs(x.metadata.non_equal_indices))) )
 
 @latexrecipe function f(s_::SymbolicUtils.Sym{Parameter,IndexedAverageSum})
