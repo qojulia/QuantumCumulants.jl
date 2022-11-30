@@ -16,7 +16,7 @@ Fields:
 ======
 
 * hilb: The whole [`HilbertSpace`](@ref), the index will be defined on.
-* name: A Symbol, which defines the name of the index, and how product-terms of [`IndexedOperators`](@ref) are ordered (alphabetical)
+* name: A Symbol, which defines the name of the index, and how product-terms of [`IndexedOperator`](@ref) are ordered (alphabetical)
 * range: The upper bound limit of the index. This can be a SymbolicUitls.Symbolic or any Number.
 * aon: Number specifying the specific [`HilbertSpace`](@ref), where the Index acts on.
 
@@ -390,7 +390,7 @@ function *(elem::IndexedObSym,sum::SingleSum)
         return SingleSum(qmul,sum.sum_index,NEIds)
     end
 end
-function *(sum::SingleSum,elem::QNumber)
+function *(sum::SingleSum,elem::QSym)
     NEIds = copy(sum.non_equal_indices)
     qmul = sum.term*elem
     if qmul isa QMul 
@@ -399,7 +399,7 @@ function *(sum::SingleSum,elem::QNumber)
     qmul isa QMul && (isequal(qmul.arg_c,0) || SymbolicUtils._iszero(qmul.args_nc)) && return 0
     return SingleSum(qmul,sum.sum_index,NEIds)
 end
-function *(elem::QNumber,sum::SingleSum)
+function *(elem::QSym,sum::SingleSum)
     NEIds = copy(sum.non_equal_indices)
     qmul = elem*sum.term
     if qmul isa QMul 

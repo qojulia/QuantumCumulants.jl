@@ -40,6 +40,44 @@ struct MeanfieldEquations <: AbstractMeanfieldEquations
     order::Union{Int,Vector{<:Int},Nothing}
 end
 
+"""
+    IndexedMeanfieldEquations <: AbstractMeanfieldEquations
+
+Type defining a system of differential equations, where `lhs` is a vector of
+derivatives and `rhs` is a vector of expressions. In addition, it keeps track
+of the Hamiltonian, the collapse operators and the corresponding decay rates of
+the system. Similar to [`MeanfieldEquations`](@ref), specialized for equations,
+that are using [`Index`](@ref) entities.
+
+# Fields
+*`equations`: Vector of the differential equations of averages.
+*`operator_equations`: Vector of the operator differential equations.
+*`states`: Vector containing the averages on the left-hand-side of the equations.
+*`operators`: Vector containing the operators on the left-hand-side of the equations.
+*`hamiltonian`: Operator defining the system Hamiltonian.
+*`jumps`: Vector of operators specifying the decay processes.
+*`jumps_dagger`: Vector of operators specifying the adjoint of the decay processes.
+*`rates`: Decay rates corresponding to the `jumps`.
+*`iv`: The independent variable (time parameter) of the system.
+*`varmap`: Vector of pairs that map the averages to time-dependent variables.
+    That format is necessary for ModelingToolkit functionality.
+*`order`: The order at which the [`cumulant_expansion`](@ref) has been performed.
+
+"""
+struct IndexedMeanfieldEquations <: AbstractMeanfieldEquations #these are for easier dispatching of meanfield, complete,... functions
+    equations::Vector{Symbolics.Equation}
+    operator_equations::Vector{Symbolics.Equation}
+    states::Vector
+    operators::Vector{QNumber}
+    hamiltonian::QNumber
+    jumps::Vector
+    jumps_dagger
+    rates::Vector
+    iv::SymbolicUtils.Sym
+    varmap::Vector{Pair}
+    order::Union{Int,Vector{<:Int},Nothing}
+end
+
 Base.getindex(de::AbstractMeanfieldEquations, i::Int) = de.equations[i]
 Base.getindex(de::AbstractMeanfieldEquations, i) = de.equations[i]
 Base.lastindex(de::AbstractMeanfieldEquations) = lastindex(de.equations)

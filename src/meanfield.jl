@@ -33,6 +33,16 @@ equivalent to the Quantum-Langevin equation where noise is neglected.
     which `order` to prefer on terms that act on multiple Hilbert spaces.
 *`iv=SymbolicUtils.Sym{Real}(:t)`: The independent variable (time parameter) of the system.
 """
+function meanfield(a::Vector,H,J;kwargs...)
+    inds = vcat(get_indices(a),get_indices(H),get_indices(J))
+    if isempty(inds)
+        return _meanfield(a,H,J;kwargs...)
+    else
+        return indexed_meanfield(a,H,J;kwargs...)
+    end
+end
+meanfield(a::QNumber,args...;kwargs...) = meanfield([a],args...;kwargs...)
+meanfield(a::Vector,H;kwargs...) = meanfield(a,H,[];Jdagger=[],kwargs...)
 function _meanfield(a::Vector,H,J;Jdagger::Vector=adjoint.(J),rates=ones(Int,length(J)),
                     multithread=false,
                     simplify=true,
@@ -84,8 +94,6 @@ function _meanfield(a::Vector,H,J;Jdagger::Vector=adjoint.(J),rates=ones(Int,len
         return me
     end
 end
-# meanfield(a::QNumber,args...;kwargs...) = meanfield([a],args...;kwargs...)
-# meanfield(a::Vector,H;kwargs...) = meanfield(a,H,[];Jdagger=[],kwargs...)
 
 function _master_lindblad(a_,J,Jdagger,rates)
     args = Any[]

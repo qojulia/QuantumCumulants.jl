@@ -141,9 +141,11 @@ function scaleTerm(sym::SymbolicUtils.Sym{Parameter,IndexedVariable}; h=nothing,
     if !=(h,nothing)
         if sym.metadata.ind.aon in h
             return SingleNumberedVariable(sym.metadata.name,1)
+        else
+            return sym
         end
     end
-    return sym
+    return SingleNumberedVariable(sym.metadata.name,1)
 end
 function scaleTerm(sym::SymbolicUtils.Sym{Parameter,DoubleIndexedVariable}; h=nothing,kwargs...) 
     if !=(h,nothing)
@@ -151,7 +153,14 @@ function scaleTerm(sym::SymbolicUtils.Sym{Parameter,DoubleIndexedVariable}; h=no
             return DoubleNumberedVariable(sym.metadata.name,1,sym.metadata.ind2)
         elseif sym.metadata.ind2.aon in h
             return DoubleNumberedVariable(sym.metadata.name,sym.metadata.ind1,1)
+        else
+            return sym
         end
+    end
+    if sym.metadata.ind1 != sym.metadata.ind2
+        return DoubleNumberedVariable(sym.metadata.name,1,2)
+    elseif sym.metadata.ind1 == sym.metadata.ind2
+        return DoubleNumberedVariable(sym.metadata.name,1,1)
     end
     return sym
 end
@@ -244,21 +253,3 @@ function split_sums(me::AbstractMeanfieldEquations,ind::Index,amount)
 end
 split_sums(x,ind,amount) = x
 
-function scale(eqs::IndexedMeanfieldEquations;h=nothing,kwargs...)
-    hilb = hilbert(arguments(eqs[1].lhs)[1]) #hilbertspace of the whole system
-    if !=(h,nothing)
-        if !(h isa Vector)
-            h=[h]
-        end
-        h_ = Vector{Any}(nothing,length(h))
-        for i = 1:length(h)
-            if h[i] isa HilbertSpace
-                h_[i] = findfirst(x->isequal(x,h[i]),hilb.spaces)
-            else
-                h_[i] = h[i]
-            end
-        end
-        h = h_
-    end    
-    return subst_reds_scale(scaleME(eqs;h=h,kwargs...);h=h,kwargs...)
-end
