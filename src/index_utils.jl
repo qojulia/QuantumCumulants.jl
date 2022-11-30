@@ -70,7 +70,13 @@ inadjoint(op::QNumber) = adjoint(op)
 inadjoint(s::SymbolicUtils.Symbolic{<:Number}) = _conj(s)
 inadjoint(x) = adjoint(x)
 
-inorder!(v::Average) = average(inorder!(arguments(v)[1]))
+function inorder!(v::Average) 
+    f = operation(v)
+    if f == conj
+        return conj(average(inorder!(arguments(v)[1])))
+    end
+    return average(inorder!(arguments(v)[1]))
+end
 function inorder!(q::QMul)
     sort!(q.args_nc, by=get_numbers)
     sort!(q.args_nc, by=getIndName)
@@ -176,8 +182,32 @@ function isscaleequal(qmul1::QMul,qmul2::QMul;kwargs...)
     isequal(acts_on(qmul1),acts_on(qmul2)) || return false
     return has_same(get_ops_of_aons(qmul1;kwargs...),get_ops_of_aons(qmul2;kwargs...)) 
 end
-isscaleequal(a::NumberedOperator,b::NumberedOperator;h=nothing,kwargs...) = isequal(a.op,b.op) 
-isscaleequal(a::IndexedOperator,b::IndexedOperator;h=nothing,kwargs...) = isequal(a.op,b.op)
+function isscaleequal(a::NumberedOperator,b::NumberedOperator;h=nothing,kwargs...) 
+    isequal(a,b) && return true 
+    if !=(h,nothing)
+        if !(h isa Vector)
+            h = [h]
+        end
+        acts_on(a) == acts_on(b) || return false
+        (acts_on(a) in h) && return isequal(a.op,b.op)
+        return isequal(a,b)
+    else
+        return isequal(a.op,b.op)
+    end
+end
+function isscaleequal(a::IndexedOperator,b::IndexedOperator;h=nothing,kwargs...) 
+    isequal(a,b) && return true 
+    if !=(h,nothing)
+        if !(h isa Vector)
+            h = [h]
+        end
+        acts_on(a) == acts_on(b) || return false
+        (acts_on(a) in h) && return isequal(a.op,b.op)
+        return isequal(a,b)
+    else
+        return isequal(a.op,b.op)
+    end
+end
 isscaleequal(a,b;kwargs...) = isequal(a,b)
 function has_same(vec1::Vector,vec2::Vector)
     length(vec1) != length(vec2) && return false

@@ -278,8 +278,9 @@ function indexed_complete!(de::AbstractMeanfieldEquations;
         dic2 = Dict{Int,Any}(i => Any[] for i in keys(dic)) 
         for k in keys(dic)
             dic2[k] = filter(x->isequal(x.aon,k),indices_lhs)
+            ind = allInds[findfirst(x->isequal(x.aon,k),allInds)]
             while length(dic2[k]) < order
-                push!(dic2[k],Index(dic2[k][1].hilb,extra_indices[1],dic2[k][1].range,k))
+                push!(dic2[k],Index(ind.hilb,extra_indices[1],ind.range,k))
                 deleteat!(extra_indices,1)
             end
         end
@@ -678,7 +679,22 @@ where indices have been inserted and sums evaluated.
 
 see also: [`evalME`](@ref)
 """
-function evaluate(eqs::IndexedMeanfieldEquations;limits=nothing,kwargs...)
+function evaluate(eqs::IndexedMeanfieldEquations;limits=nothing,h=nothing,kwargs...)
+    hilb = hilbert(arguments(eqs[1].lhs)[1]) #hilbertspace of the whole system
+    if !=(h,nothing)
+        if !(h isa Vector)
+            h=[h]
+        end
+        h_ = Vector{Any}(nothing,length(h))
+        for i = 1:length(h)
+            if h[i] isa HilbertSpace
+                h_[i] = findfirst(x->isequal(x,h[i]),hilb.spaces)
+            else
+                h_[i] = h[i]
+            end
+        end
+        h = h_
+    end    
     if !=(limits,nothing) && limits isa Pair
         limits_ = Dict{SymbolicUtils.Sym,Int64}(first(limits) => last(limits));
         limits = limits_
@@ -686,9 +702,9 @@ function evaluate(eqs::IndexedMeanfieldEquations;limits=nothing,kwargs...)
     if limits === nothing
         limits =  Dict{SymbolicUtils.Sym,Int64}();
     end
-    return subst_reds_eval(evalME(eqs;limits=limits,kwargs...);limits=limits,kwargs...)
+    return subst_reds_eval(evalME(eqs;limits=limits,h=h,kwargs...);limits=limits,h=h,kwargs...)
 end
-function evaluate(term;limits=nothing,kwargs...)
+function evaluate(term;limits=nothing,kwargs...) 
     if !=(limits,nothing) && limits isa Pair
         limits_ = Dict{SymbolicUtils.Sym,Int64}(first(limits) => last(limits));
         limits = limits_

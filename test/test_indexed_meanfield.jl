@@ -196,6 +196,11 @@ limits = Dict(N=>5,N2=>6)
 s1 = evaluate(eqs_com; h=[1,2],limits=limits)
 s2 = evaluate(eqs_com; limits=limits)
 
+s1_ = evaluate(eqs_com; h=[ha],limits=(N=>5))
+s2_ = evaluate(eqs_com; h=[2],limits=(N=>5))
+
+@test s1_.equations == s2_.equations
+
 @test length(s1) == length(s2)
 @test s1.equations == s2.equations
 

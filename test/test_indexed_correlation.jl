@@ -239,5 +239,15 @@ for ind in inds_s2
     @test isequal(ind.aon,2)
 end
 
+sum1 = ∑(σ(2,1,i),i)
+op1 = a'
+op2 = a
+h1 = qc.hilbert(op1)
+h2 = qc._new_hilbert(qc.hilbert(op2), acts_on(op2))
+h_ = h1⊗h2
+new_sum = qc._new_operator(sum1,h_)
+@test isequal(qc.hilbert(new_sum),h_)
+
+
 
 end

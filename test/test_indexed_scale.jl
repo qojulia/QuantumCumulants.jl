@@ -57,11 +57,36 @@ s_2 = scale(eqs_com; h=1)
 s1 = scale(eqs_com; h=[1,2])
 s2 = scale(eqs_com)
 
+s1_ = scale(eqs_com; h=[hc])
+s2_ = scale(eqs_com; h=[1])
+
+@test s1_.equations == s2_.equations
+
+
+se = scale(eqs_com;h=[1])
+se2 = qc.evaluate(se;h=[2],limits=(N=>2))
+
+es = qc.evaluate(eqs_com;h=[2],limits=(N=>2))
+es2 = scale(es;h=[1])
+
+@test length(se2.equations) == length(es2.equations)
+@test isequal(se2.equations[1],es2.equations[1])
+
 @test length(s1) == length(s2)
 @test s1.equations == s2.equations
+
+avg = average(σ(2,2,k))
+c_avg = conj(avg)
+
+@test operation(qc.inorder!(c_avg)) == conj
+@test operation(qc.inorder!(avg)) == qc.sym_average
+
+@test operation(qc.insert_index(avg,k,1)) == qc.sym_average
+@test operation(qc.insert_index(c_avg,k,1)) == conj
 
 @test qc.get_indices_equations(s1) == []
 
 @test s1.states == s2.states
+
 
 end

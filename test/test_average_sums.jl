@@ -129,5 +129,17 @@ mappingDict = Dict{SymbolicUtils.Sym,Int64}(N_ => N_n)
 sum2_A = average(∑(σ(1,2,ind2(:i))*σ(2,1,ind2(:j)),ind2(:i)))
 @test isequal(qc.eval_term(sum2_A;limits=mappingDict),evaluate(sum2_A;limits=(N_ => N_n)))
 
+@cnumbers n_ m_
+ind3(i) = Index(h,i,(n_*m_),ha)
+map2 = Dict{SymbolicUtils.Sym,Int64}(n_ => 2, m_ => 2)
+sum3_A = average(∑(σ(2,1,ind3(:i))*σ(1,2,ind3(:j)),ind3(:i)))
+sum3_B = qc.insert_index(sum3_A,ind3(:j),2)
+eva = qc.eval_term(sum3_B;limits=map2)
+@test eva isa SymbolicUtils.Add
+@test length(arguments(eva)) == 4
+
+@test qc.containsIndexedOps(average(a*σ(2,1,ind(:i))*σ(1,2,ind(:j))))
+@test !(qc.containsIndexedOps(average(a'*a)))
+
 end
 
