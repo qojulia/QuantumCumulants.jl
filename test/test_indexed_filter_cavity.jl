@@ -89,9 +89,9 @@ n_ind2 = sol2[a'a][end]
 nf_ind2 = [sol2[b(k)'b(k)][end] for k=1:M_]
 s22_ind2 = sol2[σ(2,2,1)][end]
 
-@test n_ind == n_ind2
-@test nf_ind == nf_ind2
-@test s22_ind == s22_ind2
+@test n_ind ≈ n_ind2
+@test nf_ind ≈ nf_ind2
+@test s22_ind ≈ s22_ind2
 
 ### brute-force for M filter cavities
 hc_ = FockSpace(:cavity)
