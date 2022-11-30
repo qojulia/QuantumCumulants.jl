@@ -19,6 +19,7 @@ names = [
     "test_indexed_meanfield.jl"
     "test_indexed_correlation.jl"
     "test_indexed_scale.jl"
+    "test_indexed_filter_cavity.jl"
 ]
 
 detected_tests = filter(
