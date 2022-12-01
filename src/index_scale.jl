@@ -16,11 +16,10 @@ function scaleME(me::IndexedMeanfieldEquations; kwargs...)
         tempEq = scaleEq(eq; kwargs...)
         if tempEq.lhs in getLHS.(newEqs)
             continue
-        elseif isNotIn(getOps(tempEq.lhs;scaling=true,kwargs...),getOps.(getLHS.(newEqs);scaling=true,kwargs...),true) && isNotIn(getOps(_conj(tempEq.lhs);scaling=true,kwargs...),getOps.(getLHS.(newEqs);scaling=true,kwargs...),true)
+        elseif isNotIn(tempEq.lhs,getLHS.(newEqs),true;kwargs...) && isNotIn(_inconj(tempEq.lhs),getLHS.(newEqs),true;kwargs...)    
             push!(newEqs,tempEq)
         end
     end
-    filter!(x -> !isequal(x,missing), newEqs)
     vs = getLHS.(newEqs)
     varmap = make_varmap(vs, me.iv)
     ops = undo_average.(vs)
@@ -32,12 +31,12 @@ function scaleTerm(sum::IndexedAverageSum; h=nothing, kwargs...)
         if !(h isa Vector)
             h = [h]
         end
-        if !(sum.sumIndex.specHilb in h)
-            return IndexedAverageSum(scaleTerm(sum.term; h=h, kwargs...),sum.sumIndex,sum.nonEqualIndices)
+        if !(sum.sum_index.aon in h)
+            return IndexedAverageSum(scaleTerm(sum.term; h=h, kwargs...),sum.sum_index,sum.non_equal_indices)
         end
     end
-    NEI = filter(x->x in getIndices(sum.term),sum.nonEqualIndices)
-    prefact = sum.sumIndex.rangeN - length(NEI)
+    NEI = filter(x->x in get_indices(sum.term),sum.non_equal_indices)
+    prefact = sum.sum_index.range - length(NEI)
     term_ = scaleTerm(sum.term; h=h, kwargs...)
     return prefact*term_
 end
@@ -47,12 +46,12 @@ function scaleTerm(sum::IndexedAverageDoubleSum; h=nothing, kwargs...)
         if !(h isa Vector)
             h = [h]
         end
-        if !(sum.sumIndex.specHilb in h)
-            return IndexedAverageDoubleSum(scaleTerm(sum.innerSum; h=h, kwargs...),sum.sumIndex,sum.nonEqualIndices)
+        if !(sum.sum_index.aon in h)
+            return IndexedAverageDoubleSum(scaleTerm(sum.innerSum; h=h, kwargs...),sum.sum_index,sum.non_equal_indices)
         end
     end
-    NEI = filter(x->x in getIndices(sum.innerSum),sum.nonEqualIndices)
-    prefact = sum.sumIndex.rangeN - length(NEI)
+    NEI = filter(x->x in get_indices(sum.innerSum),sum.non_equal_indices)
+    prefact = sum.sum_index.range - length(NEI)
     term_ = scaleTerm(sum.innerSum; h=h, kwargs...)
     return prefact*term_
 end
@@ -79,13 +78,13 @@ function scaleTerm(mul::SymbolicUtils.Mul; h=nothing, kwargs...)
             meta = arg.metadata
             inds = []
             for arg in arguments(mul)
-                push!(inds,getIndices(arg))
+                push!(inds,get_indices(arg))
             end
             if !=(h,nothing)
                 if !(h isa Vector)
                     h = [h]
                 end
-                filter!(x -> x.specHilb in h,inds)
+                filter!(x -> x.aon in h,inds)
             end
             order = maximum(length.(inds))
             if order <= 1
@@ -106,13 +105,13 @@ function scaleTerm(mul::SymbolicUtils.Mul; h=nothing, kwargs...)
     end
 end
 function scaleTerm(x::Average; h=nothing,kwargs...)
-    indices = getIndices(x)
+    indices = get_indices(x)
     newterm = x
     if !=(h,nothing)
         if !(h isa Vector)
             h = [h]
         end
-        filter!(x -> x.specHilb in h, indices)
+        filter!(x -> x.aon in h, indices)
     end
     for i=1:length(indices)
         newterm = insert_index(newterm,indices[i],i)
@@ -123,13 +122,13 @@ function scaleTerm(x::IndexedOperator; h=nothing, kwargs...)
     return NumberedOperator(x.op,1)
 end
 function scaleTerm(x::QMul; h=nothing, kwargs...)
-    indices = getIndices(x)
+    indices = get_indices(x)
     term = x
     if !=(h,nothing)
         if !(h isa Vector)
             h = [h]
         end
-        filter!(x -> x.specHilb in h, indices)
+        filter!(x -> x.aon in h, indices)
     end
     for i = 1:length(indices)
         term = insert_index(term,indices[i],i)
@@ -138,7 +137,33 @@ function scaleTerm(x::QMul; h=nothing, kwargs...)
 end
 scaleTerm(x::SymbolicUtils.Sym{Parameter,SpecialIndexedAverage}; kwargs...) = scaleTerm(x.metadata.term; kwargs...) #this is fine, since the intrinsic conditions on the indices go away automatically from the scaling 
 scaleEq(eq::Symbolics.Equation; kwargs...) = Symbolics.Equation(scaleTerm(eq.lhs; kwargs...),scaleTerm(eq.rhs; kwargs...))
-scaleTerm(sym::SymbolicUtils.Sym{Parameter,IndexedVariable}; kwargs...) = SingleNumberedVariable(sym.metadata.name,1)
+function scaleTerm(sym::SymbolicUtils.Sym{Parameter,IndexedVariable}; h=nothing,kwargs...) 
+    if !=(h,nothing)
+        if sym.metadata.ind.aon in h
+            return SingleNumberedVariable(sym.metadata.name,1)
+        else
+            return sym
+        end
+    end
+    return SingleNumberedVariable(sym.metadata.name,1)
+end
+function scaleTerm(sym::SymbolicUtils.Sym{Parameter,DoubleIndexedVariable}; h=nothing,kwargs...) 
+    if !=(h,nothing)
+        if sym.metadata.ind1.aon in h
+            return DoubleNumberedVariable(sym.metadata.name,1,sym.metadata.ind2)
+        elseif sym.metadata.ind2.aon in h
+            return DoubleNumberedVariable(sym.metadata.name,sym.metadata.ind1,1)
+        else
+            return sym
+        end
+    end
+    if sym.metadata.ind1 != sym.metadata.ind2
+        return DoubleNumberedVariable(sym.metadata.name,1,2)
+    elseif sym.metadata.ind1 == sym.metadata.ind2
+        return DoubleNumberedVariable(sym.metadata.name,1,1)
+    end
+    return sym
+end
 scaleTerm(x; kwargs...) = x
 
 SymbolicUtils.substitute(avrg::SymbolicUtils.Sym{Parameter,SpecialIndexedAverage},subs;fold=false) = SymbolicUtils.substitute(avrg.metadata.term,subs;fold=fold)#SpecialIndexedAverage(SymbolicUtils.substitute(term.metadata.term,subs;fold=fold),term.metadata.indexMapping)
@@ -147,9 +172,9 @@ function SymbolicUtils.substitute(sum::SymbolicUtils.Sym{Parameter,IndexedAverag
     if SymbolicUtils._iszero(subTerm)
         return 0
     elseif subTerm isa symbolics_terms
-        return IndexedAverageSum(subTerm,sum.metadata.sumIndex,sum.metadata.nonEqualIndices)
+        return IndexedAverageSum(subTerm,sum.metadata.sum_index,sum.metadata.non_equal_indices)
     else
-        return (sum.metadata.sumIndex - length(sum.metadata.nonEqualIndices)) * subTerm
+        return (sum.metadata.sum_index - length(sum.metadata.non_equal_indices)) * subTerm
     end
 end
 #function to split sums into different clusters, keeping 
@@ -184,33 +209,33 @@ function split_sums(term::SymbolicUtils.Symbolic,ind::Index,amount::Union{<:Symb
         end
         return op(args...)
     end
-    if typeof(term) == SymbolicUtils.Sym{Parameter,IndexedAverageSum}
+    if term isa SymbolicUtils.Sym{Parameter,IndexedAverageSum}
         term_ = term.metadata.term
-        sumInd = term.metadata.sumIndex
+        sumInd = term.metadata.sum_index
         if isequal(ind,sumInd)
-            ind2 = Index(sumInd.hilb,sumInd.name,(term.metadata.sumIndex.rangeN/amount),sumInd.specHilb)
+            ind2 = Index(sumInd.hilb,sumInd.name,(term.metadata.sum_index.range/amount),sumInd.aon)
             term_ = change_index(term_,ind,ind2)
-            if isempty(term.metadata.nonEqualIndices)
+            if isempty(term.metadata.non_equal_indices)
                 return (amount)*IndexedAverageSum(term_,ind2,Index[])
             end
-            extrasum = IndexedAverageSum(term_,ind2,term.metadata.nonEqualIndices)
+            extrasum = IndexedAverageSum(term_,ind2,term.metadata.non_equal_indices)
             return extrasum + (amount-1)*IndexedAverageSum(term_,ind2,Index[])
         end
     end
-    if typeof(term) == SymbolicUtils.Sym{Parameter,IndexedAverageDoubleSum}
+    if term isa SymbolicUtils.Sym{Parameter,IndexedAverageDoubleSum}
         Dsum = term.metadata
-        if isequal(ind,Dsum.sumIndex)
+        if isequal(ind,Dsum.sum_index)
             #create multiple doubleSums with the same innerSum
-            ind2 = Index(Dsum.sumIndex.hilb,Dsum.sumIndex.name,(Dsum.sumIndex.rangeN/amount),Dsum.sumIndex.specHilb)
-            if isempty(Dsum.nonEqualIndices)
+            ind2 = Index(Dsum.sum_index.hilb,Dsum.sum_index.name,(Dsum.sum_index.range/amount),Dsum.sum_index.aon)
+            if isempty(Dsum.non_equal_indices)
                 return amount*IndexedAverageDoubleSum(Dsum.innerSum,ind2,Index[])
             end
-            extraSum = IndexedAverageDoubleSum(Dsum.innerSum,ind2,Dsum.nonEqualIndices)
+            extraSum = IndexedAverageDoubleSum(Dsum.innerSum,ind2,Dsum.non_equal_indices)
             return extraSum + (amount-1)*Σ(Dsum.innerSum,ind2,Index[])
-        elseif isequal(ind,Dsum.innerSum.metadata.sumIndex)
+        elseif isequal(ind,Dsum.innerSum.metadata.sum_index)
             #create doublesum of split innersums
             innerSums = split_sums(Dsum.innerSum,ind,amount)
-            return IndexedAverageDoubleSum(innerSums,Dsum.sumIndex,Dsum.nonEqualIndices)
+            return IndexedAverageDoubleSum(innerSums,Dsum.sum_index,Dsum.non_equal_indices)
         end
     end
     return term
@@ -227,53 +252,3 @@ function split_sums(me::AbstractMeanfieldEquations,ind::Index,amount)
     return IndexedMeanfieldEquations(newEqs,me.operator_equations,vs,me.operators,me.hamiltonian,me.jumps,me.jumps_dagger,me.rates,me.iv,varmap,me.order)
 end
 split_sums(x,ind,amount) = x
-
-scale(eqs::IndexedMeanfieldEquations;kwargs...) = subst_reds(scaleME(eqs;kwargs...);scaling=true,kwargs...)
-
-"""
-    value_map(ps::Vector,p0::Vector)
-
-A Function to create parameter values for indexed Variables more convenient.
-
-# Arguments
-*`ps::Vector`: A vector of parameters, that have no value assigned to them.
-*`p0::Vector`: A vector for numeric values, that should get assigned to the corresponding
-    entry in the `ps` vector. For Single-Indexed Variables the entry in the vector can also be again
-    a Vector, that has an amount of entries as the index of the variables has range. For Double-Indexed
-    Variables, this can also be a Matrix of a dimension, that corresponds to the ranges of the indices
-    of the given variable.
-
-"""
-function value_map(ps::Vector,p0::Vector;mapping=nothing,kwargs...)
-    length(ps) != length(p0) && error("Vectors given have non-equal length!")
-
-    if !=(mapping,nothing) && mapping isa Pair
-        mapping_ = Dict{SymbolicUtils.Sym,Int64}(first(mapping)=>last(mapping))
-        mapping = mapping_
-    end
-    if mapping === nothing
-        mapping = Dict{SymbolicUtils.Sym,Int64}()
-    end
-
-    dict = Dict{Sym{Parameter, Base.ImmutableDict{DataType, Any}},ComplexF64}()
-    for i=1:length(ps)
-        dicVal = nothing
-        if ps[i] isa SymbolicUtils.Sym{Parameter, IndexedVariable}
-            if p0[i] isa Vector || p0[i] isa Number
-                dicVal = create_value_map(ps[i],p0[i];mapping)
-            else
-                error("cannot resolve entry at $i-th position in values-vector")
-            end
-        elseif ps[i] isa SymbolicUtils.Sym{Parameter, DoubleIndexedVariable}
-            if p0[i] isa Matrix || p0[i] isa Number
-                dicVal = create_value_map(ps[i],p0[i];mapping)
-            end
-        else
-            push!(dict,ps[i]=>p0[i])
-            continue
-        end
-        dict = merge(dict,dicVal)
-    end
-    return collect(dict)
-end
-

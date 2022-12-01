@@ -18,14 +18,14 @@ ind(i) = Index(h,i,N,ha)
 σ(i,j,k) = IndexedOperator(Transition(h,:σ,i,j),k)
 g(k) = IndexedVariable(:g,k)
 
-innerSum = IndexedSingleSum(σ(2,1,ind(:i))*σ(1,2,ind(:j)),ind(:i))
-Dsum = IndexedDoubleSum(innerSum,ind(:j),[ind(:i)])
+innerSum = SingleSum(σ(2,1,ind(:i))*σ(1,2,ind(:j)),ind(:i))
+Dsum = DoubleSum(innerSum,ind(:j),[ind(:i)])
 @test(isequal(
-    IndexedDoubleSum(innerSum,ind(:j)), IndexedDoubleSum(IndexedSingleSum(σ(2,1,ind(:i))*σ(1,2,ind(:j)),ind(:i),[ind(:j)]),ind(:j)) + IndexedSingleSum(σ(2,2,ind(:j)),ind(:j))
+    DoubleSum(innerSum,ind(:j)), DoubleSum(SingleSum(σ(2,1,ind(:i))*σ(1,2,ind(:j)),ind(:i),[ind(:j)]),ind(:j)) + SingleSum(σ(2,2,ind(:j)),ind(:j))
 ))
 
 @test(isequal(
-    IndexedDoubleSum(innerSum,ind(:j)), IndexedDoubleSum(IndexedSingleSum(σ(2,1,ind(:i)),ind(:i))*σ(1,2,ind(:j)),ind(:j))
+    DoubleSum(innerSum,ind(:j)), DoubleSum(SingleSum(σ(2,1,ind(:i)),ind(:i))*σ(1,2,ind(:j)),ind(:j))
 ))
 
 N_atoms = 4
@@ -54,18 +54,18 @@ Ssum2 = Σ(g_ik*a(k_ind)'*σ(1,2,i_ind),i_ind)
 @test isequal(Σ(Σ(g_ik*(a(k_ind)*σ(2,1,i_ind) + a(k_ind)'*σ(1,2,i_ind)),i_ind),k_ind),
     Σ(Ssum1+Ssum2,k_ind))
 
-@test Ssum1 isa IndexedSingleSum
-@test Σ(Ssum1,k_ind) isa IndexedDoubleSum
+@test Ssum1 isa SingleSum
+@test Σ(Ssum1,k_ind) isa DoubleSum
 
 H = Σ(Σ(g_ik*(a(k_ind)*σ(2,1,i_ind) + a(k_ind)'*σ(1,2,i_ind)),i_ind),k_ind)
 
 for arg in H.arguments
-    @test arg isa IndexedDoubleSum
+    @test arg isa DoubleSum
 end
 
 H2 = H*a(l_ind)
 
-@test Ssum1*a(l_ind) isa IndexedSingleSum
+@test Ssum1*a(l_ind) isa SingleSum
 
 DSum1 = H.arguments[1]
 Dsum2 = H.arguments[2]
@@ -84,22 +84,24 @@ split0 = split_sums(ADsum1,j_ind,15)
 split1 = split_sums(ADsum1,k_ind,5)
 @test split1 isa SymbolicUtils.Mul
 @test isequal(5,arguments(split1)[1])
-@test isequal(N_modes/5,arguments(split1)[2].metadata.sumIndex.rangeN)
+@test isequal(N_modes/5,arguments(split1)[2].metadata.sum_index.range)
 
 split2 = split_sums(ADsum1,i_ind,5)
 @test split2 isa SymbolicUtils.Mul
 @test isequal(5,arguments(split2)[1])
-@test isequal(N_atoms/5,arguments(split2)[2].metadata.innerSum.metadata.sumIndex.rangeN)
+@test isequal(N_atoms/5,arguments(split2)[2].metadata.innerSum.metadata.sum_index.range)
 
-@test isequal(N_modes,arguments(split2)[2].metadata.sumIndex.rangeN)
+@test isequal(N_modes,arguments(split2)[2].metadata.sum_index.range)
 
 innerSum = Σ(σ(1,2,i_ind)*σ(2,1,j_ind),i_ind)
 DSum = Σ(innerSum,j_ind)
 @test innerSum isa qc.QAdd
 @test Dsum isa qc.QAdd
 
-@test Dsum.arguments[1] isa qc.IndexedDoubleSum
-@test Dsum.arguments[2] isa qc.IndexedSingleSum
+@test DSum isa qc.QAdd
+
+@test Dsum.arguments[1] isa qc.DoubleSum
+@test Dsum.arguments[2] isa qc.SingleSum
 
 @test isequal(Σ(Σ(σ(1,2,i_ind)*σ(2,1,j_ind),i_ind,[j_ind]),j_ind) + Σ(σ(1,2,j_ind)*σ(2,1,j_ind),j_ind),DSum)
 
@@ -118,8 +120,8 @@ mul2 = sum1*sum2_
 
 # Double indexed variable
 @cnumbers N
-i = Index(h,:i,N,h)
-j = Index(h,:j,N,h)
+i = Index(h,:i,N,ha)
+j = Index(h,:j,N,ha)
 Γ(i,j) = IndexedVariable(:Γ,i,j)
 Ω(i,j) = IndexedVariable(:Ω,i,j;identical=false)
 @test iszero(Ω(i,i))

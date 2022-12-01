@@ -535,6 +535,11 @@ function _build_spec_func(ω, lhs, rhs, a1, a0, steady_vals, ps=[])
     b = [substitute_conj(b_,vs_adj,vs′hash) for b_∈b]
     c = [substitute_conj(c_,vs_adj,vs′hash) for c_∈c]
 
+    # need to substitute A,b and c using scaleequal
+    A = [_subst_reds(A_,steady_vals) for A_∈A]
+    b = [_subst_reds(b_,steady_vals) for b_∈b]
+    c = [_subst_reds(c_,steady_vals) for c_∈c]
+
     # Keep Symbolics.unflatten_long_ops from stepping into symbolic average
     # functions by substituting. This can be removed once averages store
     # operators as metadata

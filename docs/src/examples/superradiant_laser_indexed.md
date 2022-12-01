@@ -1,147 +1,152 @@
-# Superradiant Laser using Symbolic Summations
+# Superradiant Laser
 
-We can use the implemented indexing and summation features to calculate the Superradiant Laser example. Here we take advantage of these functionalities to simplify the definition of our Hamiltonian and the completion of the resulting equations of motion. The Hamiltonian of the system is once again given as:
+Using symmetry properties of a system can reduce the number of needed equations dramatically. A common approximation for laser systems to handle sufficiently big atom numbers is to assume that several atoms in the system behave completely identically. This means all the identical atoms have the same averages.
 
-$H = - \hbar \Delta a^\dagger a +  \hbar \sum\limits_{j=1}^{N}  g_j (a^\dagger \sigma^{12}_{j} + a \sigma^{21}_{j}),$
+In this example we describe a so-called superradiant laser, where we assume all atoms to be identical. This model has been described in [D. Meiser et al., Phys. Rev. Lett. 102, 163601 (2009):](https://journals.aps.org/prl/abstract/10.1103/PhysRevLett.102.163601) The Hamiltonian of this system is
+```math
+\begin{equation}
+H = - \hbar \Delta a^\dagger a +  \hbar \sum\limits_{j=1}^{N}  g_j (a^\dagger \sigma^{12}_{j} + a \sigma^{21}_{j}) ,
+\end{equation}
+```
+where $\Delta = \omega_a - \omega_c$ is the detuning between the cavity ($\omega_c$) and the atomic ($\omega_a$) resonance frequency, the atom cavity coupling of the atom $j$ is denoted by $g_j$. Additionally there are dissipative processes in the system, namely: Atoms are incoherently pumped with the rate $R$, they decay individually with the rate $\Gamma$ and are affected by individual atomic dephasing with the rate $\nu$. Photons leak out of the system with the rate $\kappa$.
 
-where $\Delta = \omega_a - \omega_c$ is the detuning between the cavity ($\omega_c$) and the atomic ($\omega_a$) resonance frequency, the atom cavity coupling of the atom $j$ is denoted by $g_j$. Additionally there are dissipative processes in the system, namely: Atoms are incoherently pumped with the rate $R$, they decay individually with the rate $\Gamma$ and are affected by individual atomic dephasing with the rate $\nu$. Photons also leak out of the system with the rate $\kappa$.
-
-First of all we need to load the needed packages:
+We start by loading the packages.
 
 
 ```@example superradiant_laser_indexed
 using QuantumCumulants
-using OrdinaryDiffEq, SteadyStateDiffEq, ModelingToolkit, DifferentialEquations
+using OrdinaryDiffEq, SteadyStateDiffEq, ModelingToolkit
 using Plots
-nothing #hide
 ```
 
-We continue by defining some of our parameters needed as $@cnumbers$, as well as the order of the cumulant expansion we want to have. Further more we define the Hilberspaces for our system, in this case our system consists of a **FockSpace** (the cavity) and a **NLevelSpace** (the atoms). It is important to note here, that we do not need to construct multiple **NLevelSpaces** for different atoms, since we can use the features of indices, which allow us to distinguish between different atoms in the calculation.
+Due to the implementation of symbolic indices and sums we only need to define the Hilbert space for one atom, even though we will simulate a system for several thousand.
+Creating an operator with an $\texttt{Index}$ is done with the constructor $\texttt{IndexedOperator}$.
 
 
 ```@example superradiant_laser_indexed
-order = 2 #order of the cumulant expansion
-@cnumbers N Δ g κ Γ R ν
-
 # Hilbertspace
 hc = FockSpace(:cavity)
 ha = NLevelSpace(:atom,2)
-
 h = hc ⊗ ha
-nothing #hide
-```
 
-    ℋ(cavity) ⊗ ℋ(atom)
-
-In the next step we define those indices by using the constructor **Index**. Here we create several indices at once, since we want to use different indices for different atoms. However, each of the defined **Index** objects has the same range **N** and are defined on the same sub-Hilbertspace **ha**. We can further use these indices to define **IndexedOperator** objects, which are operators associated with an **Index**. Here we also create the Hamiltonian of the System using the symbolic Summation function **Σ**, which creates summation objects.
-
-
-```@example superradiant_laser_indexed
-# Indices and Operators
-i = Index(h,:i,N,ha)
-k = Index(h,:k,N,ha)
-l = Index(h,:l,N,ha)
-
+# operators
 @qnumbers a::Destroy(h)
-σ(i,j,k) = IndexedOperator(Transition(h,:σ,i,j),k)
-
-# Define the Hamiltonian
-H = -Δ*a'a + g*(Σ(a'*σ(1,2,i),i) + Σ(a*σ(2,1,i),i))
-nothing #hide
+σ(α,β,i) = IndexedOperator(Transition(h, :σ, α, β),i)
+nothing # hide
 ```
 
-```math
-\underset{i}{\overset{N}{\sum}} g  a^\dagger  {\sigma}_{i}^{{12}} + \underset{i}{\overset{N}{\sum}} g  a  {\sigma}_{i}^{{21}} -1 \Delta a^\dagger a
-```
-
-
-In the next step we proceed by defining the dissipation operators with their corresponding dissipation rates and the operators, for which we want to calculate the equations of motion. In the final line of this code-block we calculate the meanfield eqautions using the **indexed_meanfield** function, which uses the features of symbolic summations.
+Now we define the indices and the parameters of the system. An $\texttt{Index}$ needs the system Hilbert space, a symbol, an upper bound and the specific Hilbert space of the indexed operator. $\texttt{IndexedVariable}$ creates indexed variables. Actually we wouldn't need indexed variable in this example, this is just for demonstration purposes.
 
 
 ```@example superradiant_laser_indexed
-# Define Jump-Operators with corresponding rates
-J = [a,σ(1,2,l),σ(2,1,l),σ(2,2,l)]
-rates = [κ, Γ, R, ν]
+@cnumbers N Δ κ Γ R ν
+g(i) = IndexedVariable(:g, i)
 
-# Define Operators, for which the meanfield shall be calculated
-ops = [a'*a,σ(2,2,k)]
-
-# It is best-practice to use every Index-Entity in only one context
-
-# create Meanfield-Equations with given order for the given operators
-eqs = indexed_meanfield(ops,H,J;rates=rates,order=order)
-nothing #hide
+i = Index(h,:i,N,ha)
+j = Index(h,:j,N,ha)
 ```
+
+
+We define the Hamiltonian using symbolic sums and define the individual dissipative processes. For an indexed jump operator the (symbolic) sum is build in the Liouvillian.
+
+
+```@example superradiant_laser_indexed
+# Hamiltonian
+H = -Δ*a'a + Σ(g(i)*( a'*σ(1,2,i) + a*σ(2,1,i) ),i)
+
+# Jump operators wth corresponding rates
+J = [a, σ(1,2,i), σ(2,1,i), σ(2,2,i)]
+rates = [κ, Γ, R, ν]
+nothing # hide
+```
+
+First we want to derive the equation for $\langle a^\dagger a \rangle$ and $\langle \sigma_j^{22} \rangle$. Note that you can only use indices on the LHS which haven't been used for the Hamiltonian and the jumps.
+
+
+```@example superradiant_laser_indexed
+# Derive equations
+ops = [a'*a, σ(2,2,j)]
+eqs = meanfield(ops,H,J;rates=rates,order=2)
+nothing # hide
+```
+
+
 
 ```math
 \begin{align}
-\frac{d}{dt} \langle a^\dagger  a\rangle  =& 1 i \underset{i}{\overset{N}{\sum}} g  \langle a  {\sigma}_{i}^{{21}}\rangle  -1 i \underset{i}{\overset{N}{\sum}} g  \langle a^\dagger  {\sigma}_{i}^{{12}}\rangle  -1.0 \kappa \langle a^\dagger  a\rangle  \\
-\frac{d}{dt} \langle {\sigma}_{k}^{{22}}\rangle  =& R -1.0 R \langle {\sigma}_{k}^{{22}}\rangle  + 1 i g \langle a^\dagger  {\sigma}_{k}^{{12}}\rangle  -1.0 \Gamma \langle {\sigma}_{k}^{{22}}\rangle  -1 i g \langle a  {\sigma}_{k}^{{21}}\rangle 
+\frac{d}{dt} \langle a^\dagger  a\rangle  =& 1 i \underset{i}{\overset{N}{\sum}} {g}_{i}  \langle a  {\sigma}_{i}^{{21}}\rangle  -1 i \underset{i}{\overset{N}{\sum}} {g}_{i}  \langle a^\dagger  {\sigma}_{i}^{{12}}\rangle  -1.0 \kappa \langle a^\dagger  a\rangle  \\
+\frac{d}{dt} \langle {\sigma}_{j}^{{22}}\rangle  =& R -1.0 R \langle {\sigma}_{j}^{{22}}\rangle  + 1 i {g}_{j} \langle a^\dagger  {\sigma}_{j}^{{12}}\rangle  -1 i {g}_{j} \langle a  {\sigma}_{j}^{{21}}\rangle  -1.0 \Gamma \langle {\sigma}_{j}^{{22}}\rangle
 \end{align}
 ```
 
 
 
-To get a closed set of equations we automatically complete the system. Since this system is phase invariant we know that all averages with a phase are zero, therefore we exclude these terms with a filter function.
+To get a closed set of equations we automatically complete the system. Since this system is phase invariant we know that all averages with a phase are zero, therefore we exclude these terms with a filter function. To be able to dispatch on all kind of sums containing averages we defined the Union $\texttt{AvgSums}$.
 
 
 ```@example superradiant_laser_indexed
 # custom filter function
-# Using the filter function defined below, one can reduce the size of the complete system to only contain phase-invariant terms
 φ(x::Average) = φ(x.arguments[1])
 φ(::Destroy) = -1
 φ(::Create) =1
 φ(x::QTerm) = sum(map(φ, x.args_nc))
 φ(x::Transition) = x.i - x.j
 φ(x::IndexedOperator) = x.op.i - x.op.j
-φ(x::IndexedSingleSum) = φ(x.term)
+φ(x::SingleSum) = φ(x.term)
 φ(x::AvgSums) = φ(arguments(x))
 phase_invariant(x) = iszero(φ(x))
 
-
-# We use the extraIndices keyword to provide names for indices, that are needed for intermediate calculation
-eqs_c = complete(eqs;filter_func=phase_invariant,scaling=false,extra_indices=[:q])
+# Complete equations
+eqs_c = complete(eqs; filter_func=phase_invariant)
 nothing # hide
 ```
 
+
+
 ```math
 \begin{align}
-\frac{d}{dt} \langle a^\dagger  a\rangle  =& 1 i \underset{i}{\overset{N}{\sum}} g  \langle a  {\sigma}_{i}^{{21}}\rangle  -1 i \underset{i}{\overset{N}{\sum}} g  \langle a^\dagger  {\sigma}_{i}^{{12}}\rangle  -1.0 \kappa \langle a^\dagger  a\rangle  \\
-\frac{d}{dt} \langle {\sigma}_{k}^{{22}}\rangle  =& R -1.0 R \langle {\sigma}_{k}^{{22}}\rangle  + 1 i g \langle a^\dagger  {\sigma}_{k}^{{12}}\rangle  -1.0 \Gamma \langle {\sigma}_{k}^{{22}}\rangle  -1 i g \langle a  {\sigma}_{k}^{{21}}\rangle  \\
-\frac{d}{dt} \langle a^\dagger  {\sigma}_{k}^{{12}}\rangle  =& 1 i \underset{i{\ne}k}{\overset{N}{\sum}} g  \langle {\sigma}_{i}^{{21}}  {\sigma}_{k}^{{12}}\rangle  + 1 i g \langle {\sigma}_{k}^{{22}}\rangle  -1 i g \langle a^\dagger  a\rangle  -0.5 R \langle a^\dagger  {\sigma}_{k}^{{12}}\rangle  -0.5 \Gamma \langle a^\dagger  {\sigma}_{k}^{{12}}\rangle  -0.5 \kappa \langle a^\dagger  {\sigma}_{k}^{{12}}\rangle  -0.5 \nu \langle a^\dagger  {\sigma}_{k}^{{12}}\rangle  -1 i \Delta \langle a^\dagger  {\sigma}_{k}^{{12}}\rangle  + 2 i g \langle {\sigma}_{k}^{{22}}\rangle  \langle a^\dagger  a\rangle  \\
-\frac{d}{dt} \langle {\sigma}_{k}^{{12}}  {\sigma}_{q}^{{21}}\rangle  =& -1.0 R \langle {\sigma}_{k}^{{12}}  {\sigma}_{q}^{{21}}\rangle  -1.0 \Gamma \langle {\sigma}_{k}^{{12}}  {\sigma}_{q}^{{21}}\rangle  -1.0 \nu \langle {\sigma}_{k}^{{12}}  {\sigma}_{q}^{{21}}\rangle  + 1.0 i g \langle a^\dagger  {\sigma}_{k}^{{12}}\rangle  -1.0 i g \langle a  {\sigma}_{q}^{{21}}\rangle  -2.0 i g \langle {\sigma}_{q}^{{22}}\rangle  \langle a^\dagger  {\sigma}_{k}^{{12}}\rangle  + 2.0 i g \langle {\sigma}_{k}^{{22}}\rangle  \langle a  {\sigma}_{q}^{{21}}\rangle 
+\frac{d}{dt} \langle a^\dagger  a\rangle  =& 1 i \underset{i}{\overset{N}{\sum}} {g}_{i}  \langle a  {\sigma}_{i}^{{21}}\rangle  -1 i \underset{i}{\overset{N}{\sum}} {g}_{i}  \langle a^\dagger  {\sigma}_{i}^{{12}}\rangle  -1.0 \kappa \langle a^\dagger  a\rangle  \\
+\frac{d}{dt} \langle {\sigma}_{j}^{{22}}\rangle  =& R -1.0 R \langle {\sigma}_{j}^{{22}}\rangle  + 1 i {g}_{j} \langle a^\dagger  {\sigma}_{j}^{{12}}\rangle  -1 i {g}_{j} \langle a  {\sigma}_{j}^{{21}}\rangle  -1.0 \Gamma \langle {\sigma}_{j}^{{22}}\rangle  \\
+\frac{d}{dt} \langle a^\dagger  {\sigma}_{j}^{{12}}\rangle  =& 1 i \underset{i{\ne}j}{\overset{N}{\sum}} {g}_{i}  \langle {\sigma}_{i}^{{21}}  {\sigma}_{j}^{{12}}\rangle  + 1 i {g}_{j} \langle {\sigma}_{j}^{{22}}\rangle  -1 i {g}_{j} \langle a^\dagger  a\rangle  -0.5 R \langle a^\dagger  {\sigma}_{j}^{{12}}\rangle  -0.5 \Gamma \langle a^\dagger  {\sigma}_{j}^{{12}}\rangle  -0.5 \kappa \langle a^\dagger  {\sigma}_{j}^{{12}}\rangle  -0.5 \nu \langle a^\dagger  {\sigma}_{j}^{{12}}\rangle  -1 i \Delta \langle a^\dagger  {\sigma}_{j}^{{12}}\rangle  + 2 i {g}_{j} \langle {\sigma}_{j}^{{22}}\rangle  \langle a^\dagger  a\rangle  \\
+\frac{d}{dt} \langle {\sigma}_{j}^{{12}}  {\sigma}_{k}^{{21}}\rangle  =& \left( -1.0 R -1.0 \Gamma \right) \langle {\sigma}_{j}^{{12}}  {\sigma}_{k}^{{21}}\rangle  -1 i {g}_{j} \langle a  {\sigma}_{k}^{{21}}\rangle  + 1 i {g}_{k} \langle a^\dagger  {\sigma}_{j}^{{12}}\rangle  -1.0 \nu \langle {\sigma}_{j}^{{12}}  {\sigma}_{k}^{{21}}\rangle  + 2 i {g}_{j} \langle {\sigma}_{j}^{{22}}\rangle  \langle a  {\sigma}_{k}^{{21}}\rangle  -2 i {g}_{k} \langle {\sigma}_{k}^{{22}}\rangle  \langle a^\dagger  {\sigma}_{j}^{{12}}\rangle
 \end{align}
 ```
 
 
 
-The equations, that we got in the previous step can now be easily adjusted for different purposes. We assume here all atoms in the system behave identically. We can then simply reduce the above equations to equations for specific atoms (atom 1,2,3...) by using the **scale** function.
+As mentioned before, we assume that all atoms behave identical. This means that e.g. the excited state population is equal for all atoms, hence we only need to calculate it for the first $\langle \sigma^{22}_1 \rangle = \langle \sigma^{22}_j \rangle$. Furthermore, it is clear that a sum over $N$ identical objects can be replaced by $N$ times the object. The function $\texttt{scale()}$ uses these rules to simplify the equations.
 
 
 ```@example superradiant_laser_indexed
-# Now one can easily scale the Equations above
 eqs_sc = scale(eqs_c)
-nothing #hide
+nothing # hide
 ```
+
+
 
 ```math
 \begin{align}
-\frac{d}{dt} \langle a^\dagger  a\rangle  =& -1.0 \kappa \langle a^\dagger  a\rangle  -1 i N g \langle a^\dagger  {\sigma}_{1}^{{12}}\rangle  + 1 i N g \langle a^\dagger  {\sigma}_{1}^{{12}}\rangle ^* \\
-\frac{d}{dt} \langle {\sigma}_{1}^{{22}}\rangle  =& R -1.0 R \langle {\sigma}_{1}^{{22}}\rangle  + 1 i g \langle a^\dagger  {\sigma}_{1}^{{12}}\rangle  -1 i g \langle a^\dagger  {\sigma}_{1}^{{12}}\rangle ^* -1.0 \Gamma \langle {\sigma}_{1}^{{22}}\rangle  \\
-\frac{d}{dt} \langle a^\dagger  {\sigma}_{1}^{{12}}\rangle  =& 1 i g \langle {\sigma}_{1}^{{22}}\rangle  -1 i g \langle a^\dagger  a\rangle  -0.5 R \langle a^\dagger  {\sigma}_{1}^{{12}}\rangle  -0.5 \Gamma \langle a^\dagger  {\sigma}_{1}^{{12}}\rangle  -0.5 \kappa \langle a^\dagger  {\sigma}_{1}^{{12}}\rangle  -1 i \Delta \langle a^\dagger  {\sigma}_{1}^{{12}}\rangle  -0.5 \nu \langle a^\dagger  {\sigma}_{1}^{{12}}\rangle  + 2 i g \langle {\sigma}_{1}^{{22}}\rangle  \langle a^\dagger  a\rangle  + 1 i g \left( -1 + N \right) \langle {\sigma}_{1}^{{12}}  {\sigma}_{2}^{{21}}\rangle  \\
-\frac{d}{dt} \langle {\sigma}_{1}^{{12}}  {\sigma}_{2}^{{21}}\rangle  =& -1.0 R \langle {\sigma}_{1}^{{12}}  {\sigma}_{2}^{{21}}\rangle  -1.0 \Gamma \langle {\sigma}_{1}^{{12}}  {\sigma}_{2}^{{21}}\rangle  -1.0 \nu \langle {\sigma}_{1}^{{12}}  {\sigma}_{2}^{{21}}\rangle  + 1.0 i g \langle a^\dagger  {\sigma}_{1}^{{12}}\rangle  -1.0 i g \langle a^\dagger  {\sigma}_{1}^{{12}}\rangle ^* -2.0 i g \langle {\sigma}_{1}^{{22}}\rangle  \langle a^\dagger  {\sigma}_{1}^{{12}}\rangle  + 2.0 i g \langle {\sigma}_{1}^{{22}}\rangle  \langle a^\dagger  {\sigma}_{1}^{{12}}\rangle ^*
+\frac{d}{dt} \langle a^\dagger  a\rangle  =& -1.0 \kappa \langle a^\dagger  a\rangle  -1 i N g_{1} \langle a^\dagger  {\sigma}_{1}^{{12}}\rangle  + 1 i N g_{1} \langle a  {\sigma}_{1}^{{21}}\rangle  \\
+\frac{d}{dt} \langle {\sigma}_{1}^{{22}}\rangle  =& R -1.0 R \langle {\sigma}_{1}^{{22}}\rangle  -1.0 \Gamma \langle {\sigma}_{1}^{{22}}\rangle  + 1 i g_{1} \langle a^\dagger  {\sigma}_{1}^{{12}}\rangle  -1 i g_{1} \langle a  {\sigma}_{1}^{{21}}\rangle  \\
+\frac{d}{dt} \langle a^\dagger  {\sigma}_{1}^{{12}}\rangle  =& -0.5 R \langle a^\dagger  {\sigma}_{1}^{{12}}\rangle  -0.5 \Gamma \langle a^\dagger  {\sigma}_{1}^{{12}}\rangle  -0.5 \kappa \langle a^\dagger  {\sigma}_{1}^{{12}}\rangle  -0.5 \nu \langle a^\dagger  {\sigma}_{1}^{{12}}\rangle  + 1 i g_{1} \langle {\sigma}_{1}^{{22}}\rangle  -1 i g_{1} \langle a^\dagger  a\rangle  -1 i \Delta \langle a^\dagger  {\sigma}_{1}^{{12}}\rangle  + 1 i g_{1} \left( -1 + N \right) \langle {\sigma}_{1}^{{12}}  {\sigma}_{2}^{{21}}\rangle  + 2 i g_{1} \langle {\sigma}_{1}^{{22}}\rangle  \langle a^\dagger  a\rangle  \\
+\frac{d}{dt} \langle {\sigma}_{1}^{{12}}  {\sigma}_{2}^{{21}}\rangle  =& \left( -1.0 R -1.0 \Gamma \right) \langle {\sigma}_{1}^{{12}}  {\sigma}_{2}^{{21}}\rangle  + 1 i g_{1} \langle a^\dagger  {\sigma}_{1}^{{12}}\rangle  -1 i g_{1} \langle a  {\sigma}_{1}^{{21}}\rangle  -1.0 \nu \langle {\sigma}_{1}^{{12}}  {\sigma}_{2}^{{21}}\rangle  -2 i g_{1} \langle {\sigma}_{1}^{{22}}\rangle  \langle a^\dagger  {\sigma}_{1}^{{12}}\rangle  + 2 i g_{1} \langle {\sigma}_{1}^{{22}}\rangle  \langle a  {\sigma}_{1}^{{21}}\rangle
 \end{align}
 ```
 
 
 
-To calculate the dynamics of the system we create a system of ordinary differential equations, which can be used by [DifferentialEquations.jl](https://diffeq.sciml.ai/stable/). Furthermore we define the numerical parameters as well as the initial state of the system and solve the system in the next step.
+To calculate the dynamic of the system we create a system of ordinary differential equations, which can be used by [DifferentialEquations.jl](https://diffeq.sciml.ai/stable/).
 
 
 ```@example superradiant_laser_indexed
-# define the ODE System and Problem
 @named sys = ODESystem(eqs_sc)
+nothing # hide
+```
 
+Finally we need to define the numerical parameters and the initial value of the system. We will consider $2 \cdot 10^5$ Strontium atoms which are repumped with a rate of $R = 1\text{Hz}$ on the clock transition ($\Gamma = 1 \text{mHz}$). The atom-cavity coupling rate is $g = 1\text{Hz}$, the cavity has a linewidth of $\kappa = 5\text{kHz}$ and is detuned from the atomic resonance by $\Delta = 2.5\text{Hz}$.
+
+
+```@example superradiant_laser_indexed
 # Initial state
 u0 = zeros(ComplexF64, length(eqs_sc))
 # System parameters
@@ -153,17 +158,17 @@ g_ = 1000Γ_ #g=1Hz
 R_ = 1000Γ_ #R=1Hz
 ν_ = 1000Γ_ #ν=1Hz
 
-ps = [N, Δ, g, κ, Γ, R, ν]
+ps = [N, Δ, g(1), κ, Γ, R, ν]
 p0 = [N_, Δ_, g_, κ_, Γ_, R_, ν_]
 
 prob = ODEProblem(sys,u0,(0.0, 1.0/50Γ_), ps.=>p0)
-nothing #hide
+nothing # hide
 ```
 
 
 ```@example superradiant_laser_indexed
-# Solve the Problem
-sol = solve(prob,maxiters=1e7)
+# Solve the numeric problem
+sol = solve(prob,Tsit5(),maxiters=1e7)
 
 # Plot time evolution
 t = sol.t
@@ -176,45 +181,52 @@ plot(p1, p2, layout=(1,2), size=(700,300))
 savefig("superradiant_laser_indexed.svg") # hide
 ```
 
-![svg](superradiant_laser_indexed.svg)    
-
-# Spectrum
-
-We can now calculate the spectrum using the Laplace transform of the two-ime correlation function. This is done here with the **Spectrum** function.
+![svg](superradiant_laser_indexed.svg)
 
 
-```@example superradiant_laser_indexed
-# For the Spectrum 
-# setting the scaling keyword attribute to true gives us again a output in similar form to scale(eqs_c)
-corr = CorrelationFunction(a', a, eqs_c; steady_state=true, filter_func=phase_invariant,scaling=true);
-S = Spectrum(corr, ps)
-nothing #hide
-```
 
-The set of equations for the correlation function is then given by:
+## Spectrum
+
+We calculate the spectrum here with the Laplace transform of the two-time corelation function. This is implemented with the function $\texttt{Spectrum}$.
 
 
 ```@example superradiant_laser_indexed
-corr.de
-nothing #hide
+corr = CorrelationFunction(a', a, eqs_c; steady_state=true, filter_func=phase_invariant)
+corr_sc = scale(corr)
+S = Spectrum(corr_sc, ps)
+nothing # hide
 ```
+
+The set of equations for the correlation function is given by
+
+
+```@example superradiant_laser_indexed
+corr_sc.de
+nothing # hide
+```
+
+
 
 ```math
 \begin{align}
-\frac{d}{d\tau} \langle a^\dagger  a_0\rangle  =& -0.5 \kappa \langle a^\dagger  a_0\rangle  -1 i \Delta \langle a^\dagger  a_0\rangle  + 1 i N g \langle a_0  {\sigma}_{1}^{{21}}\rangle  \\
-\frac{d}{d\tau} \langle a_0  {\sigma}_{1}^{{21}}\rangle  =& -0.5 R \langle a_0  {\sigma}_{1}^{{21}}\rangle  -0.5 \Gamma \langle a_0  {\sigma}_{1}^{{21}}\rangle  -0.5 \nu \langle a_0  {\sigma}_{1}^{{21}}\rangle  + 1 i g \langle a^\dagger  a_0\rangle  -2 i g \langle {\sigma}_{1}^{{22}}\rangle  \langle a^\dagger  a_0\rangle 
+\frac{d}{d\tau} \langle a^\dagger  a_0\rangle  =& -0.5 \kappa \langle a^\dagger  a_0\rangle  -1 i \Delta \langle a^\dagger  a_0\rangle  + 1 i N g_{1} \langle {\sigma}_{1}^{{21}}  a_0\rangle  \\
+\frac{d}{d\tau} \langle {\sigma}_{1}^{{21}}  a_0\rangle  =& -0.5 R \langle {\sigma}_{1}^{{21}}  a_0\rangle  + 1 i g_{1} \langle a^\dagger  a_0\rangle  -0.5 \Gamma \langle {\sigma}_{1}^{{21}}  a_0\rangle  -0.5 \nu \langle {\sigma}_{1}^{{21}}  a_0\rangle  -2 i g_{1} \langle {\sigma}_{1}^{{22}}\rangle  \langle a^\dagger  a_0\rangle
 \end{align}
 ```
 
-To ensure we are in the steady state we use a steady solver to calculate it. To this end we need to define the SteadyStateProblem and specify the desired method. We also need to increase the maxiters and the solver accuracy to handle this numerically involved problem.
+
+
+To ensure we are in the steady state we use a steady solver to calculate it. To this end we need to define the $\texttt{SteadyStateProblem}$ and specify the desired method. We also need to increase the $\texttt{maxiters}$ and the solver accuracy to handle this numerically involved problem.
 
 
 ```@example superradiant_laser_indexed
 prob_ss = SteadyStateProblem(prob)
 sol_ss = solve(prob_ss, DynamicSS(Tsit5(); abstol=1e-8, reltol=1e-8),
-    reltol=1e-14, abstol=1e-14, maxiters=5e7)
-nothing #hide
+        reltol=1e-14, abstol=1e-14, maxiters=5e7)
+nothing # hide
 ```
+
+The spectrum is then calculated with
 
 
 ```@example superradiant_laser_indexed
@@ -222,15 +234,18 @@ nothing #hide
 spec = S(ω,sol_ss.u,p0)
 spec_n = spec ./ maximum(spec)
 δ = abs(ω[(findmax(spec)[2])])
-nothing #hide
+nothing # hide
 ```
+
 
 
 ```@example superradiant_laser_indexed
 plot(ω, spec_n, xlabel="ω/Γ", legend=false, size=(500,300))
-savefig("superradiant_laser_indexed_spectrum.svg") # hide
+savefig("spectrum_superradiant_laser_indexed.svg") # hide
 ```
 
+![svg](spectrum_superradiant_laser_indexed.svg)
 
-    
-![svg](superradiant_laser_indexed_spectrum.svg)
+
+
+Beside the narrow linewidth we can also see another key feature of the superradiant laser here, namely the very weak cavity pulling. At a detunig of $\Delta = 2500\Gamma$ there is only a shift of the laser light from the atomic resonance frequency of $\delta = 1\Gamma$.

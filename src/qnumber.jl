@@ -114,7 +114,7 @@ SymbolicUtils.metadata(a::QMul) = a.metadata
 function Base.adjoint(q::QMul)
     args_nc = map(adjoint, q.args_nc)
     reverse!(args_nc)
-    sort!(args_nc, by=getNumber) #before: "by=acts_on"; had to change this for numbered operators still being in order, this however does not affect any of the other implemented operator types
+    sort!(args_nc, by=acts_on)
     return QMul(conj(q.arg_c), args_nc; q.metadata)
 end
 
@@ -306,11 +306,11 @@ function flatten_adds!(args)
         if args[i] isa QAdd
             append!(args,args[i].arguments)
             deleteat!(args, i)
-        end
-        if SymbolicUtils._iszero(args[i]) # I added an aditional zero check here
+        elseif SymbolicUtils._iszero(args[i]) || isequal(args[i],0) # I added an aditional zero check here
             deleteat!(args,i)
+        else
+            i += 1
         end
-        i += 1
     end
     return args
 end
@@ -325,6 +325,7 @@ hilbert(a::QSym) = a.hilbert
 hilbert(a::QMul) = hilbert(a.args_nc[1])
 function hilbert(a::QAdd)
     idx = findfirst(x->x isa QNumber, a.arguments)
+    idx === nothing && print(a)
     hilbert(a.arguments[idx])
 end
 

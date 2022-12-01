@@ -35,7 +35,7 @@ function _postwalk_func(x)
         s = "{$name}$(:_){$(ind)}"
         return s
     elseif MacroTools.@capture(x,DoubleIndexedVariable(name_, ind1_, ind2_))
-        s = "{$name}$(:_){$(ind1);$(ind2)}"
+        s = "{$name}$(:_){$(ind1),$(ind2)}"
         return s
     elseif MacroTools.@capture(x, IndexedOperator(op_,in_,i_,j_))
         s = "{$(op)}$(:_){$(in)}$(transition_idx_script[]){{$(i)$(j)}}"
@@ -49,13 +49,13 @@ function _postwalk_func(x)
     elseif MacroTools.@capture(x, NumberedOperator(op_,num_,i_,j_))
         s = "{$(op)}$(:_){$(num)}$(transition_idx_script[]){{$(i)$(j)}}"
         return s
-    elseif MacroTools.@capture(x,IndexedSingleSum(term_, sumInd_, range_, NEI_))
+    elseif MacroTools.@capture(x,SingleSum(term_, sumInd_, range_, NEI_))
         s = NEI != "" ? "\\underset{$(sumInd)≠$(NEI)}{\\overset{$(range)}{\\sum}} $(_postwalk_func(term))" : "\\underset{$(sumInd)}{\\overset{$(range)}{\\sum}} $(_postwalk_func(term))"
         s = replace(s,"\\\\" => "\\")
         s = replace(s, "\"" => "")
         s = replace(s, "*" => "")
         return s
-    elseif MacroTools.@capture(x,IndexedDoubleSum(term_, sumInd_, range_, NEI_))
+    elseif MacroTools.@capture(x,DoubleSum(term_, sumInd_, range_, NEI_))
         s = NEI != "" ? "\\underset{$(sumInd)≠$(NEI)}{\\overset{$(range)}{\\sum}} $(_postwalk_func(term))" : "\\underset{$(sumInd)}{\\overset{$(range)}{\\sum}} $(_postwalk_func(term))"
         s = replace(s,"\\\\" => "\\")
         s = replace(s, "\"" => "")
@@ -77,7 +77,7 @@ function _postwalk_func(x)
         return s
     elseif MacroTools.@capture(x,CONJ(arg_))
         arg = MacroTools.postwalk(_postwalk_average,arg)
-        s = " {$(arg)^{*}}"
+        s = "{$(arg){^{*}}}"
         return s
     else
         return x

@@ -4,19 +4,6 @@
 
 #function that takes indexed operators and double indexed varaibles to calculate the meanfield equations
 #the jump operators have to have same indices as the indices specified by the double indexed variable
-struct IndexedMeanfieldEquations <: AbstractMeanfieldEquations
-    equations::Vector{Symbolics.Equation}
-    operator_equations::Vector{Symbolics.Equation}
-    states::Vector
-    operators::Vector{QNumber}
-    hamiltonian::QNumber
-    jumps::Vector
-    jumps_dagger
-    rates::Vector
-    iv::SymbolicUtils.Sym
-    varmap::Vector{Pair}
-    order::Union{Int,Vector{<:Int},Nothing}
-end
 """
     indexed_meanfield(ops::Vector,H::QNumber,J::Vector;
         Jdagger::Vector=adjoint.(J),rates=ones(length(J)))
@@ -58,8 +45,8 @@ function indexed_meanfield(a::Vector,H,J;Jdagger::Vector=adjoint.(J),rates=ones(
     mix_choice=maximum,
     iv=SymbolicUtils.Sym{Real}(:t))
 
-    for ind in getIndices(a)
-        if ind in getIndices(H)
+    for ind in get_indices(a)
+        if ind in get_indices(H)
             error("Index $(ind.name) in operator-vector is already used in H!")
         end
     end
@@ -71,7 +58,7 @@ function indexed_meanfield(a::Vector,H,J;Jdagger::Vector=adjoint.(J),rates=ones(
         try
             rhs_ = commutator(imH,a[i])
             rhs_diss = indexed_master_lindblad(a[i],J,Jdagger,rates)
-            indices = getIndices(a[i])
+            indices = get_indices(a[i])
             if length(indices) <= 1
                 rhs[i] = rhs_ + rhs_diss
             else #everything on lhs commutes -> reorder corresponding terms on rhs
@@ -108,11 +95,7 @@ function indexed_meanfield(a::Vector,H,J;Jdagger::Vector=adjoint.(J),rates=ones(
     varmap = make_varmap(vs, iv)
 
     me = IndexedMeanfieldEquations(eqs_avg,eqs,vs,a,H,J,Jdagger,rates,iv,varmap,order)
-    if has_cluster(H)
-        return scale(me;simplify=simplify,order=order,mix_choice=mix_choice)
-    else
-        return me
-    end
+    return me
 end
 indexed_meanfield(a::QNumber,args...;kwargs...) = indexed_meanfield([a],args...;kwargs...)
 indexed_meanfield(a::Vector,H;kwargs...) = indexed_meanfield(a,H,[];Jdagger=[],kwargs...)
@@ -120,7 +103,7 @@ indexed_meanfield(a::Vector,H;kwargs...) = indexed_meanfield(a,H,[];Jdagger=[],k
 function indexed_master_lindblad(a_,J,Jdagger,rates)
     args = Any[]
     for k=1:length(J)
-        if typeof(J[k]) == IndexedOperator
+        if J[k] isa IndexedOperator && !(rates[k] isa SymbolicUtils.Sym{Parameter,DoubleIndexedVariable})
             c1 = 0.5*rates[k]*Jdagger[k]*commutator(a_,J[k])
             c2 = 0.5*rates[k]*commutator(Jdagger[k],a_)*J[k]
             c = nothing
@@ -133,20 +116,35 @@ function indexed_master_lindblad(a_,J,Jdagger,rates)
                 c = sum(args_)
             end
             if !SymbolicUtils._iszero(c)
-                push!(args, IndexedSingleSum(c,J[k].ind,Index[]))
+                push!(args, SingleSum(c,J[k].ind,Index[]))
             end
         else
-            if typeof(rates[k]) == SymbolicUtils.Sym{Parameter,DoubleIndexedVariable}
-                if J[k][1].ind != rates[k].metadata.ind1
-                    error("unequal index of first jump operator and variable")
+            if rates[k] isa SymbolicUtils.Sym{Parameter,DoubleIndexedVariable}
+                if !(J[k] isa Vector) && J[k] isa IndexedOperator
+                    if J[k].ind != rates[k].metadata.ind1 && J[k].ind != rates[k].metadata.ind2
+                        error("unequal index of first jump operator and variable")
+                    elseif J[k].ind == rates[k].metadata.ind1 && J[k].ind != rates[k].metadata.ind2
+                        vec = [J[k],change_index(J[k],J[k].ind,rates[k].metadata.ind2)]
+                    elseif J[k].ind != rates[k].metadata.ind1 && J[k].ind == rates[k].metadata.ind2
+                        vec = [change_index(J[k],J[k].ind,rates[k].metadata.ind1),J[k]]
+                    end
+                    vecdagger = adjoint.(vec)
+                    c1 = vecdagger[1]*commutator(a_,vec[2])
+                    c2 = commutator(vecdagger[1],a_)*vec[2]
+                    c = 0.5*rates[k]*(c1+c2)
+                    push!(args,DoubleSum(SingleSum((c),vec[1].ind,Index[]),vec[2].ind,Index[]))
+                else
+                    if J[k][1].ind != rates[k].metadata.ind1
+                        error("unequal index of first jump operator and variable")
+                    end
+                    if J[k][2].ind != rates[k].metadata.ind2
+                        error("unequal index of second jump operator and variable")
+                    end
+                    c1 = Jdagger[k][1]*commutator(a_,J[k][2])
+                    c2 = commutator(Jdagger[k][1],a_)*J[k][2]
+                    c = 0.5*rates[k]*(c1+c2)
+                    push!(args,DoubleSum(SingleSum((c),J[k][1].ind,Index[]),J[k][2].ind,Index[]))
                 end
-                if J[k][2].ind != rates[k].metadata.ind2
-                    error("unequal index of second jump operator and variable")
-                end
-                c1 = Jdagger[k][1]*commutator(a_,J[k][2])
-                c2 = commutator(Jdagger[k][1],a_)*J[k][2]
-                c = 0.5*rates[k]*(c1+c2)
-                push!(args,IndexedDoubleSum(IndexedSingleSum((c),J[k][1].ind,Index[]),J[k][2].ind,Index[]))
             elseif isa(rates[k],SymbolicUtils.Symbolic) || isa(rates[k],Number) || isa(rates[k],Function)
                 c1 = 0.5*rates[k]*Jdagger[k]*commutator(a_,J[k])
                 c2 = 0.5*rates[k]*commutator(Jdagger[k],a_)*J[k]
@@ -210,10 +208,9 @@ function indexed_complete!(de::AbstractMeanfieldEquations;
     mix_choice=maximum,
     simplify=true,
     extra_indices::Vector=[:i,:j,:k,:l,:m,:n,:p,:q,:r,:s,:t],
-    scaling::Bool=false,
     kwargs...)
 
-    maxNumb = maximum(length.(getIndices.(de.operators)))
+    maxNumb = maximum(length.(get_indices.(de.operators)))
 
     if isempty(extra_indices)
         error("can not complete equations with empty extra_indices!")
@@ -225,15 +222,8 @@ function indexed_complete!(de::AbstractMeanfieldEquations;
         end
     end
 
-    if containsMultiple(get_all_indices(de))
-        if extra_indices[1] isa Symbol
-            error("It is not possible to complete equations, containing indices, that act on different hilbertspaces using Symbols as
-            extra_indices. For this case use specific Indices.")
-        end
-        #maybe write also a check that checks for the indices being correct/enough
-    end
-
     allInds = get_all_indices(de)
+
     if extra_indices[1] isa Symbol
         filter!(x -> x ∉ getIndName.(allInds),extra_indices)
     else
@@ -273,37 +263,56 @@ function indexed_complete!(de::AbstractMeanfieldEquations;
 
     indices_lhs = get_all_indices(vs) #indices that are used in the beginning -> have priority
 
-    #if there are no indices on the LHS -> use the first index of extra_indices as starting point
-    #this first index is (if it is a symbol) created similar to the first occuring index in the Equations
-    if isempty(indices_lhs) && extra_indices[1] isa Symbol
-        for ind in allInds
-            indices_lhs = [Index(ind.hilb,extra_indices[1],ind.rangeN,ind.specHilb)]
-            deleteat!(extra_indices,1)
-            break
-        end
-    elseif isempty(indices_lhs) && extra_indices[1] isa Index
-        indices_lhs = [extra_indices[1]]
-        deleteat!(extra_indices,1)
-    end
-
-    #create (or append to the extras vector) all other extra_indices using the indices on the LHS
-    extras = indices_lhs
-    if !isempty(extra_indices)
-        if extra_indices[1] isa Symbol
-            first = extras[1]
-            for name in extra_indices
-                push!(extras,Index(first.hilb,name,first.rangeN,first.specHilb))
-                if length(extras) >= order_
-                    break
-                end
+    if containsMultiple(allInds) && extra_indices[1] isa Symbol
+        dic = split_inds(allInds)
+        filter!(x->!isempty(last(x)),dic)
+        dic2 = Dict{Int,Any}(i => Any[] for i in keys(dic)) 
+        for k in keys(dic)
+            dic2[k] = filter(x->isequal(x.aon,k),indices_lhs)
+            ind = allInds[findfirst(x->isequal(x.aon,k),allInds)]
+            while length(dic2[k]) < order
+                push!(dic2[k],Index(ind.hilb,extra_indices[1],ind.range,k))
+                deleteat!(extra_indices,1)
             end
         end
-        if extra_indices[1] isa Index
-            extras = [extras;extra_indices]
+        extras = []
+        for vec in values(dic2)
+            extras = [extras;vec]
         end
-    end
-    if length(extras) < order_
-        error("More extra_indices are needed for order $(order_)")
+    else
+        #if there are no indices on the LHS -> use the first index of extra_indices as starting point
+        #this first index is (if it is a symbol) created similar to the first occuring index in the Equations
+        if isempty(indices_lhs) && extra_indices[1] isa Symbol
+            for ind in allInds
+                indices_lhs = [Index(ind.hilb,extra_indices[1],ind.range,ind.aon)]
+                deleteat!(extra_indices,1)
+                break
+            end
+        elseif isempty(indices_lhs) && extra_indices[1] isa Index
+            indices_lhs = [extra_indices[1]]
+            deleteat!(extra_indices,1)
+        end
+
+        #create (or append to the extras vector) all other extra_indices using the indices on the LHS
+        extras = indices_lhs
+        if !isempty(extra_indices)
+            if extra_indices[1] isa Symbol
+                first = extras[1]
+                for name in extra_indices
+                    push!(extras,Index(first.hilb,name,first.range,first.aon))
+                    if length(extras) >= order_
+                        break
+                    end
+                end
+            end
+            if extra_indices[1] isa Index
+                extras = [extras;extra_indices]
+            end
+        end
+        if length(extras) < order_
+            error("More extra_indices are needed for order $(order_)")
+        end
+
     end
 
     #at this point extras is a list of extra_indices, sorted by their priority 
@@ -311,30 +320,29 @@ function indexed_complete!(de::AbstractMeanfieldEquations;
 
 
     vhash = map(hash, vs)
-    vs′ = map(_conj, vs)
+    vs′ = map(_inconj, vs)
     vs′hash = map(hash, vs′)
     filter!(!in(vhash), vs′hash)
     missed = find_missing(de.equations, vhash, vs′hash; get_adjoints=false)
 
-    missed = find_missing_sums(missed,de;extra_indices=extras,scaling=scaling,kwargs...)
-    missed = findMissingSpecialTerms(missed,de;scaling=scaling,kwargs...)
+    missed = find_missing_sums(missed,de;extra_indices=extras,kwargs...)
     
-    missed = sortByIndex.(missed)
+    missed = inorder!.(missed)
     filter!(x -> (x isa Average),missed)
-
     isnothing(filter_func) || filter!(filter_func, missed) # User-defined filter
-    
-    filter!(x -> filterComplete(x,de.states,scaling;kwargs...), missed)
+
+    filter!(x -> filterComplete(x,de.states,false;kwargs...), missed) # filterComplete does for whatever reason interfere with the order in the averages...
+    missed = inorder!.(missed)   # ...thats why we resort here the missed again
 
     for i = 1:length(missed)
-        minds = getIndices(missed[i])
+        minds = get_indices(missed[i])
         newMinds = copy(minds)
         for ind1 in minds
             extras_=filterExtras(ind1,extras)
             for k = 1:length(extras_)
                 if findall(x->isequal(x,ind1),extras_)[1] > k && extras_[k] ∉ newMinds #this might go somewhat easier, maybe delete ind2 out of extras after each replacement somehow
                     missed[i] = change_index(missed[i],ind1,extras_[k])
-                    newMinds = getIndices(missed[i])
+                    newMinds = get_indices(missed[i])
                     break
                 elseif findall(x->isequal(x,ind1),extras_)[1] <= k
                     break
@@ -343,6 +351,9 @@ function indexed_complete!(de::AbstractMeanfieldEquations;
         end
     end
     missed = unique(missed) #no duplicates
+
+    missed = elimRed!(missed;kwargs...)
+    missed = inorder!.(missed)
 
     while !isempty(missed)
         ops_ = [SymbolicUtils.arguments(m)[1] for m in missed]
@@ -357,34 +368,36 @@ function indexed_complete!(de::AbstractMeanfieldEquations;
             kwargs...)
         _append!(de, me)
         vhash_ = hash.(me.states)
-        vs′hash_ = hash.(_conj.(me.states))
+        vs′hash_ = hash.(_inconj.(me.states))
         append!(vhash, vhash_)
         for i=1:length(vhash_)
             vs′hash_[i] ∈ vhash_ || push!(vs′hash, vs′hash_[i])
         end
         missed = find_missing(me.equations, vhash, vs′hash; get_adjoints=false)
-        missed = find_missing_sums(missed,de;extra_indices=extras,scaling=scaling,kwargs...)
-        missed = findMissingSpecialTerms(missed,de;scaling=scaling,kwargs...)
-        missed = sortByIndex.(missed)
+        missed = find_missing_sums(missed,de;extra_indices=extras,kwargs...)
+
+        missed = inorder!.(missed)
 
         filter!(x -> (x isa Average),missed)
         isnothing(filter_func) || filter!(filter_func, missed) # User-defined filter
     
-        filter!(x -> filterComplete(x,de.states,scaling;kwargs...), missed)
+        filter!(x -> filterComplete(x,de.states,false;kwargs...), missed)
+        missed = inorder!.(missed)
+
         for i = 1:length(missed)
-            minds = getIndices(missed[i])
+            minds = get_indices(missed[i])
             newMinds = copy(minds)
             for ind1 in minds
                 extras_=filterExtras(ind1,extras)
                 for k = 1:length(extras_)
                     if ind1 ∉ extras_
                         missed[i] = change_index(missed[i],ind1,extras_[1])
-                        newMinds = getIndices(missed[i])
+                        newMinds = get_indices(missed[i])
                         break
                     end
                     if findall(x->isequal(x,ind1),extras_)[1] > k && extras_[k] ∉ newMinds #this might go somewhat easier, maybe delete ind2 out of extras after each replacement somehow
                         missed[i] = change_index(missed[i],ind1,extras_[k])
-                        newMinds = getIndices(missed[i])
+                        newMinds = get_indices(missed[i])
                         break
                     elseif findall(x->isequal(x,ind1),extras_)[1] <= k
                         break
@@ -392,21 +405,21 @@ function indexed_complete!(de::AbstractMeanfieldEquations;
                 end
             end
         end
-        missed = sortByIndex.(missed)
-        filter!(x -> filterComplete(x,de.states,scaling;kwargs...), missed)
+    
+        filter!(x -> filterComplete(x,de.states,false;kwargs...), missed)
+        missed = inorder!.(missed)
         missed = unique(missed)
-        missed = elimRed(missed;scaling=scaling,kwargs...)
+        missed = elimRed!(missed;kwargs...)
+        
     end
 
     if !isnothing(filter_func)
         # Find missing values that are filtered by the custom filter function,
         # but still occur on the RHS; set those to 0
         missed = find_missing(de.equations, vhash, vs′hash; get_adjoints=false)
-        
         missed = find_missing_sums(missed,de;extra_indices=extras,checking=false,kwargs...) #checkin dissabled, since there might be some terms, that are redundant, but also zero -> set them to zero aswell forsa fety
-        missed = findMissingSpecialTerms(missed,de;kwargs...)
-    
-        missed = sortByIndex.(missed) #this one might not be right (?)
+
+        missed = inorder!.(missed) #this one might not be right (?) -> not even needed i think
         filter!(x -> (x isa Average),missed)
 
         filter!(!filter_func, missed)
@@ -420,13 +433,25 @@ function indexed_complete!(de::AbstractMeanfieldEquations;
 
     return de
 end
-filterComplete(x,states,scaling;kwargs...) = (isNotIn(getOps(x;scaling=scaling,kwargs...),getOps.(states;scaling=scaling,kwargs...),scaling) && isNotIn(getOps(sortByIndex(_conj(x));scaling=scaling,kwargs...),getOps.(states;scaling=scaling,kwargs...),scaling))
+
+#function that splits a vector of indices into a vector of vectors, in which all indices are acting on the same hilbertspace
+function split_inds(inds::Vector)
+    h = inds[1].hilb
+    spaces = h.spaces
+    dic = Dict{Int,Any}(i => Any[] for i = 1:length(spaces))
+    for ind in inds
+        push!(dic[ind.aon],ind)
+    end
+    return dic
+end
+
+filterComplete(x,states,scaling;kwargs...) = isNotIn(x,states,scaling;kwargs...) && isNotIn(_inconj(x),states,scaling;kwargs...)
 
 #gets all indices that are used in the states of the meanfieldequations
 function get_all_indices(vec::Vector)
     inds = []
     for i = 1:length(vec)
-        indices_ = getIndices(vec[i])
+        indices_ = get_indices(vec[i])
         isempty(indices_) && continue
         for ind in indices_
             if ind ∉ inds
@@ -439,24 +464,17 @@ end
 function get_all_indices(me::AbstractMeanfieldEquations)
     eqs = me.equations
     inds = []
-    for eq in eqs
-        for ind in getIndices(eq.rhs)
-            if ind ∉ inds
-                push!(inds,ind)
-            end
-        end
-    end
     for ind in get_all_indices(me.states)
         if ind ∉ inds
             push!(inds,ind)
         end
     end
-    for ind in getIndices(me.hamiltonian)
+    for ind in get_indices(me.hamiltonian)
         if ind ∉ inds 
             push!(inds,ind)
         end
     end
-    for ind in getIndices(me.jumps)
+    for ind in get_indices(me.jumps)
         if ind ∉ inds
             push!(inds,ind)
         end
@@ -472,7 +490,7 @@ function get_indices_equations(me::AbstractMeanfieldEquations)
         end
     end
     for eq in eqs
-        for ind in getIndices(eq.rhs)
+        for ind in get_indices(eq.rhs)
             if ind ∉ inds
                 push!(inds,ind)
             end
@@ -484,7 +502,7 @@ function containsMultiple(inds::Vector) #checks if in a list of indices, they ac
     isempty(inds) && return false
     length(inds) == 1 && return false
     for i=2:length(inds)
-        if inds[1].specHilb != inds[i].specHilb
+        if inds[1].aon != inds[i].aon
             return true
         end
     end
@@ -515,36 +533,36 @@ the equations, the [`Index`](@ref) will be exchanged according to the keyword ar
 
 see also: [`find_missing`](@ref), [`indexed_meanfield`](@ref), [`meanfield`](@ref), [`find_missing_sums`](@ref)
 """
-function find_missing_sums(missed,de::AbstractMeanfieldEquations;extra_indices::Vector=[],checking=true,scaling=false,hasDifferentIndices::Bool=false,kwargs...)
+function find_missing_sums(missed,de::AbstractMeanfieldEquations;extra_indices::Vector=[],checking=true,scaling=false,kwargs...)
     missed_ = copy(missed)
     extras = copy(extra_indices)
-    sums = Any[]
-    for eq in de.equations
+    eqs = de.equations
+    for eq in eqs
         sums = checkIfSum(eq.rhs)   #get all sums of the rhs
         for sum in sums
-            extras_filtered = filterExtras(sum.metadata.sumIndex,extras) #all the extraIndices, that have the same specific hilbertspace as the sum
+            extras_filtered = filterExtras(sum.metadata.sum_index,extras) #all the extraIndices, that have the same specific hilbertspace as the sum
             checkAndChange(missed_,sum,extras_filtered,de.states,checking,scaling;kwargs...)
         end
-    end   
-    return missed_
+    end 
+    return inorder!.(missed_)
 end
 function checkAndChange(missed_,sum,extras,states,checking,scaling;kwargs...)
     avrgs = getAvrgs(sum) #get vector of all avrgs in the sum
     for avr in avrgs
         changed_ = nothing
-        avrg_inds = getIndices(avr)
+        avrg_inds = get_indices(avr)
         for i = 1:length(extras)    # check if the extraindex is already in use for the term -> if so use the next in line
             if extras[i] ∉ avrg_inds #this is wrong for multiple indices!!!!
-                changed_ = change_index(avr,sum.metadata.sumIndex,extras[i])
+                changed_ = change_index(avr,sum.metadata.sum_index,extras[i])
                 break
             end
         end
-        if isequal(changed_,nothing) #if avrg consists of none indexed operators, or only of operators that already have the desired indices -> push along the whole average
+        if changed_ === nothing #if avrg consists of none indexed operators, or only of operators that already have the desired indices -> push along the whole average
             changed_ = avr
         end
         
-        if typeof(changed_) == Term{AvgSym, Nothing}
-            changed = sortByIndex(changed_)    # this can be done, since terms inside the sum commute anyway
+        if changed_ isa Average
+            changed = inorder!(changed_)    # this can be done, since terms inside the sum commute anyway
             if !(changed isa Average)
                 continue
             end
@@ -560,148 +578,25 @@ function checkAndChange(missed_,sum,extras,states,checking,scaling;kwargs...)
 end
 # function that filters indices so that only indices get replaces that "live" in the same sub-hilbertspace
 function filterExtras(wanted,extras)
-    filtered = []
-    for ind in extras
-        if isequal(ind.specHilb,wanted.specHilb)
-            push!(filtered,ind)
-        end
-    end
-    return filtered
+    return filter(x -> isequal(x.aon,wanted.aon),extras)
 end
 
-#This is basically just the find_missing function but for the extra defined SpecialTerms, which have extra index constraints and for that also some extra checks
-function findMissingSpecialTerms(missed,me::AbstractMeanfieldEquations;scaling=false,kwargs...)
-    missed_ = copy(missed)
-    vs = me.states
-    vhash = map(hash, vs)
-    vs′=map(_conj, vs)
-    vs′hash = map(hash, vs′)
-    filter!(!in(vhash), vs′hash)
-    missed_hashes = map(hash,missed_)
-    for eq in me.equations
-        if eq.rhs isa Number
-            continue
-        else
-            for arg in arguments(eq.rhs)
-                if typeof(arg) == Int64
-                    continue
-                end
-                if typeof(arg) == SymbolicUtils.Sym{Parameter,SpecialIndexedAverage}
-                    missed_ = find_missing!(missed_, missed_hashes, arg.metadata.term, vhash, vs′hash)
-                end
-                if typeof(arg) <: SymbolicUtils.Mul
-                    for arg_ in arguments(arg)
-                        if typeof(arg_) == Int64
-                            continue
-                        end
-                        if typeof(arg_) == SymbolicUtils.Sym{Parameter,SpecialIndexedAverage}
-                            missed_ = find_missing!(missed_, missed_hashes, arg_.metadata.term, vhash, vs′hash)
-                        end
-                    end
-                end
-            end
-        end
-        
-    end
-    return missed_
-end
+find_missing!(missed,missed_hashes,term::SymbolicUtils.Sym{Parameter,SpecialIndexedAverage},vhash,vshash;kwargs...) = find_missing!(missed,missed_hashes,term.metadata.term,vhash,vshash;kwargs...)
 
 #Utility Functions
-function sortByIndex(term::Term{AvgSym, Nothing})
-    arg = arguments(term)[1]
-    if typeof(arg) <: QMul
-        args_nc = arg.args_nc
-        sort!(args_nc,by=getIndName)
-        if isempty(args_nc)
-            return 0
-        elseif length(args_nc) == 1
-            return average(args_nc[1])
-        end
-        mult = *(args_nc...)
-        return average(mult)
-    end
-    return term
-end
-#checks if there is a sum (or multiple) in the equation rhs term, if so it returns the sums (as symbol) as a vector
+#checks if there is a sum (or multiple) in the equation rhs term, if so it returns the sums as a vector
 function checkIfSum(term)
     sums = Any[]
-    if typeof(term) == SymbolicUtils.Sym{Parameter,IndexedAverageSum}
-        return [term]
-    elseif typeof(term) <: SymbolicUtils.Add || typeof(term) <: SymbolicUtils.Mul
-        args = arguments(term)
+    if term isa SymbolicUtils.Sym{Parameter,IndexedAverageSum}
+        return copy([term])
+    elseif term isa SymbolicUtils.Add || term isa SymbolicUtils.Mul
+        args = copy(arguments(term))
         for arg in args
             sums = vcat(sums,checkIfSum(arg))
         end
     end
     return sums
 end
-function checkIfDSum(term)
-    sums = Any[]
-    if typeof(term) == SymbolicUtils.Sym{Parameter,IndexedAverageDoubleSum}
-        return [term]
-    elseif typeof(term) <: SymbolicUtils.Add || typeof(term) <: SymbolicUtils.Mul
-        args = arguments(term)
-        for arg in args
-            sums = vcat(sums,checkIfDSum(arg))
-        end
-    end
-    return sums
-end
-function getOps(term::SymbolicUtils.Mul;scaling::Bool=false,kwargs...)
-    for arg in arguments(term)
-        if arg isa Average
-            return getOps(arg;scaling=scaling,kwargs...)
-        end
-    end
-    return []
-end
-function getOps(ops::Term{AvgSym, Nothing};scaling::Bool=false,h=nothing,kwargs...)
-    args = arguments(ops)[1]
-    if typeof(args) <: QMul 
-        return getOps(args;scaling=scaling,kwargs...)
-    elseif scaling && (args isa NumberedOperator || args isa IndexedOperator)
-        return Any[args.op]
-    else #single op in term
-        return Any[args]
-    end
-end
-function getOps(ops::QMul;scaling::Bool=false,h=nothing,kwargs...)
-    arr = Any[]
-    for arg in ops.args_nc
-        if scaling && arg isa NumberedOperator
-            push!(arr,arg.op)
-        elseif scaling && arg isa IndexedOperator
-            if !=(h,nothing)
-                if isequal(arg.ind.specHilb, h)
-                    push!(arr,arg.op)
-                else
-                    push!(arr,arg)
-                end
-            else
-                push!(arr,arg.op)
-            end
-        else
-            push!(arr,arg)
-        end
-    end
-    return arr
-end
-getOps(x;scaling::Bool=false,kwargs...) = Vector{Vector{Any}}()
-function isNotIn(terms::Vector{Any},vects::Vector{Vector{Any}},scaling::Bool)
-    for vect in vects
-        if scaling
-            if hasSameOps(vect,terms)
-                return false
-            end
-        else
-            if isequal(vect,terms)
-                return false
-            end
-        end
-    end
-    return true
-end
-isNotIn(terms::Vector{Any},vects::Vector{Any},scaling) = isNotIn(terms,[vects],scaling)
 
 function hasSameOps(vec1::Vector,vec2::Vector)
     length(vec1) != length(vec2) && return false
@@ -719,136 +614,90 @@ function hasSameOps(vec1::Vector,vec2::Vector)
 end
 
 # this is most likely not the best method, works fine however
-function elimRed(missed::Vector;scaling::Bool=false,kwargs...)
-    all = getOps.(missed)
-    for i=1:length(missed)
-        if i > length(missed)
-            break
-        end
-        for j=1:length(missed)
-            if j > length(missed)
-                break
+function elimRed!(missed::Vector;scaling::Bool=false,kwargs...)
+    counter = 2
+    while counter <= length(missed)
+        for j=1:(counter-1)
+            if scaling
+                if isscaleequal(missed[counter],missed[j];kwargs...) || isscaleequal(inorder!(_inconj(missed[counter])),missed[j];kwargs...)
+                    deleteat!(missed,counter)
+                    if counter > length(missed)
+                        break
+                    else 
+                        j = 1
+                    end
+                end
+            else
+                if isequal(missed[counter],missed[j]) || isequal(inorder!(_inconj(missed[counter])),missed[j])
+                    deleteat!(missed,counter)
+                    if counter > length(missed)
+                        break
+                    else 
+                        j = 1
+                    end
+                end
             end
-            if hasSameOps(getOps(_conj(missed[i]);scaling=scaling,kwargs...),getOps(missed[j];scaling=scaling,kwargs...)) && !hasSameOps(getOps(missed[i];scaling=scaling,kwargs...),getOps(missed[j];scaling=scaling,kwargs...))
-                deleteat!(missed,j)
-            end
         end
+        counter = counter + 1
     end
     return missed
 end
-
-"""
-    subst_reds(de::MeanfieldEquations)
-
-Function that substitutes possible redundant conjugate averages inside the given Equations with their corresponding
-average given as the conjugate of one of the left-hand-side (of the equations) averages.
-
-# Optional Arguments
-*`scaling`: A Bool defining the way how averages are added to the `missed` vector. If true only averages, whose
-    operators (without indices) are not already inside the `missed` vector will be added.
-"""
-function subst_reds(me::AbstractMeanfieldEquations;scaling::Bool=false,kwargs...)
-    eqs = Vector{Union{Missing,Symbolics.Equation}}(missing,length(me.equations))
-    to_sub = find_missing(me)
-    filter!(x->!(x in me.states)&&!(_conj(x) in me.states),to_sub)
-    if scaling
-        #brute force for now
-        #this should not take too long
-        #proportional to number of elems in to_sub
-        states = me.states
-        op_states = getOps.(states;scaling=scaling)
-        to_insert = Vector{Any}(nothing,length(to_sub))
-        counter = 1
-        for elem in to_sub
-            ind_ = findfirst(x->hasSameOps(x,getOps(elem;scaling=scaling)),op_states)
-            if !=(ind_,nothing)
-                to_insert[counter] = states[ind_]
-                counter = counter + 1
-                continue
-            end
-            ind_ = findfirst(x->hasSameOps(x,getOps(_conj(elem);scaling=scaling)),op_states)
-            if !=(ind_,nothing)
-                to_insert[counter] = _conj(states[ind_])
-                counter = counter + 1
-                continue
-            end
-        end
-    else  
-        to_insert = _conj.(to_sub)
-    end
-    subs = Dict(to_sub .=> to_insert)
-    for i=1:length(me.equations)
-        eqs[i] = SymbolicUtils.substitute(me.equations[i],subs)
-    end
-    return IndexedMeanfieldEquations(eqs,me.operator_equations,me.states,me.operators,me.hamiltonian,me.jumps,me.jumps_dagger,me.rates,me.iv,me.varmap,me.order)
-end
-#=
-function subst_reds(term::Average,vect;kwargs...)
-    term in vect && return term
-    _conj(term) in vect && return conj(_conj(term))
-    @warn "unknown term encountered $(term)"
-    return term
-end
-function subst_reds(term,vect;kwargs...)
-    if istree(term)
-        op = operation(term)
-        args = map(x->subst_reds(x,vect;kwargs...),arguments(term))
-        return SymbolicUtils.similarterm(term, op, args)
-    else
-        return term
-    end
-end
-=#
-#=
-function subst_reds(term,vect::Vector;scaling::Bool=false,kwargs...)
-    if term isa Average
-        for i = 1:length(vect)
-            temp = getOps(_conj(vect[i]);scaling=scaling,kwargs...)
-            if hasSameOps(getOps(term;scaling=scaling,kwargs...),temp) && !(hasSameOps(getOps(term;scaling=scaling,kwargs...),getOps(vect[i];scaling=scaling,kwargs...)))
-                return conj(vect[i])
-            end
-            if hasSameOps(getOps(term;scaling=scaling,kwargs...),getOps(vect[i];scaling=scaling,kwargs...))
-                return vect[i]
-            end
-        end
-    elseif istree(term)
-        op = operation(term)
-        args = map(x->subst_reds(x,vect;scaling=scaling,kwargs...),arguments(term))
-        return SymbolicUtils.similarterm(term, op, args)
-    elseif typeof(term) == SymbolicUtils.Sym{Parameter,SpecialIndexedAverage}
-        return SpecialIndexedAverage(subst_reds(term.metadata.term,vect;scaling=scaling,kwargs...),term.metadata.indexMapping)
-    end
-    return term
-end
-=#
 
 complete(eqs::IndexedMeanfieldEquations;kwargs...) = indexed_complete(eqs;kwargs...)
 complete!(eqs::IndexedMeanfieldEquations;kwargs...) = indexed_complete!(eqs;kwargs...) 
 
 """
-    evaluate(eqs::IndexedMeanfieldEquations)
+    evaluate(eqs::IndexedMeanfieldEquations;limits)
+    evaluate(corr::CorrelationFunction;limits)
+    evaluate(x;limits)
 
 Function, that evaluates a given [`MeanfieldEquations`](@ref) entity and returns again equations,
-where indices have been inserted and sums evaluated.
+where indices have been inserted and sums evaluated. Can also be called on individual terms, to
+evaluate any summations inside these terms.
 
 # Arguments
 *`me::MeanfieldEquations`: A [`MeanfieldEquations`](@ref) entity, which shall be evaluated.
 
 # Optional argumentes
-*`mapping::Dict{SymbolicUtils.Sym,Int64}=Dict{Symbol,Int64}()`: A seperate dictionary, to
+*`limits::Dict{SymbolicUtils.Sym,Int64}=Dict{Symbol,Int64}()`: A seperate dictionary, to
     specify any symbolic limits used when [`Index`](@ref) entities were defined. This needs
     to be specified, when the equations contain summations, for which the upper bound is given
     by a Symbolic.
-
-see also: [`evalME`](@ref)
+*`h`: A HilbertSpace, Vector of Hilbertspaces or Numbers, specifying the specific Hilbertspaces,
+    that shall be evaluated. Does not evaluate any other Hilbertspace, other than the given ones.
 """
-function evaluate(eqs::IndexedMeanfieldEquations;mapping=nothing,kwargs...)
-    if !=(mapping,nothing) && mapping isa Pair
-        mapping_ = Dict{SymbolicUtils.Sym,Int64}(first(mapping) => last(mapping));
-        mapping = mapping_
+function evaluate(eqs::IndexedMeanfieldEquations;limits=nothing,h=nothing,kwargs...)
+    hilb = hilbert(arguments(eqs[1].lhs)[1]) #hilbertspace of the whole system
+    if !=(h,nothing)
+        if !(h isa Vector)
+            h=[h]
+        end
+        h_ = Vector{Any}(nothing,length(h))
+        for i = 1:length(h)
+            if h[i] isa HilbertSpace
+                h_[i] = findfirst(x->isequal(x,h[i]),hilb.spaces)
+            else
+                h_[i] = h[i]
+            end
+        end
+        h = h_
+    end    
+    if !=(limits,nothing) && limits isa Pair
+        limits_ = Dict{SymbolicUtils.Sym,Int64}(first(limits) => last(limits));
+        limits = limits_
     end
-    if mapping === nothing
-        mapping =  Dict{SymbolicUtils.Sym,Int64}();
+    if limits === nothing
+        limits =  Dict{SymbolicUtils.Sym,Int64}();
     end
-    return subst_reds(evalME(eqs;mapping=mapping,kwargs...))
+    return subst_reds_eval(evalME(eqs;limits=limits,h=h,kwargs...);limits=limits,h=h,kwargs...)
+end
+function evaluate(term;limits=nothing,kwargs...) 
+    if !=(limits,nothing) && limits isa Pair
+        limits_ = Dict{SymbolicUtils.Sym,Int64}(first(limits) => last(limits));
+        limits = limits_
+    end
+    if limits === nothing
+        limits =  Dict{SymbolicUtils.Sym,Int64}();
+    end
+    return eval_term(term;limits=limits)
 end

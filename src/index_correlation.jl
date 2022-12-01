@@ -1,54 +1,41 @@
 function _new_operator(op::IndexedOperator,h,aon=acts_on(op)) 
     if op.ind.hilb != h
-        return IndexedOperator(Transition(h,op.op.name,op.op.i,op.op.j,aon;op.op.metadata),Index(h,op.ind.name,op.ind.rangeN,op.ind.specHilb))
+        return IndexedOperator(Transition(h,op.op.name,op.op.i,op.op.j,aon;op.op.metadata),Index(h,op.ind.name,op.ind.range,op.ind.aon))
     end
     return IndexedOperator(Transition(h,op.op.name,op.op.i,op.op.j,aon;op.op.metadata),op.ind)
 end
 _new_operator(nOp::NumberedOperator,h,aon=acts_on(nOp)) = NumberedOperator(Transition(h,nOp.op.name,nOp.op.i,nOp.op.j,aon;nOp.op.metadata),nOp.numb)
-function _new_operator(sum::IndexedSingleSum,h,aon) 
-    newSumIndex = sum.sumIndex
-    if sum.sumIndex.hilb != h
-        newSumIndex = Index(h,sum.sumIndex.name,sum.sumIndex.rangeN,ind.specHilb)
+function _new_operator(sum::SingleSum,h) 
+    newsum_index = sum.sum_index
+    if sum.sum_index.hilb != h
+        newsum_index = Index(h,sum.sum_index.name,sum.sum_index.range,sum.sum_index.aon)
     end
     newSumNonEquals = Index[]
-    for ind in sum.nonEqualIndices
+    for ind in sum.non_equal_indices
         if ind.hilb != h
-            push!(newSumNonEquals,Index(h,ind.name,ind.rangeN,ind.specHilb))
+            push!(newSumNonEquals,Index(h,ind.name,ind.range,ind.aon))
         end
     end
-    return IndexedSingleSum(_new_operator(sum.term,h),newSumIndex,newSumNonEquals)
-end
-function _new_operator(sum::IndexedSingleSum,h) 
-    newSumIndex = sum.sumIndex
-    if sum.sumIndex.hilb != h
-        newSumIndex = Index(h,sum.sumIndex.name,sum.sumIndex.rangeN,sum.sumIndex.specHilb)
-    end
-    newSumNonEquals = Index[]
-    for ind in sum.nonEqualIndices
-        if ind.hilb != h
-            push!(newSumNonEquals,Index(h,ind.name,ind.rangeN,ind.specHilb))
-        end
-    end
-    return IndexedSingleSum(_new_operator(sum.term,h),newSumIndex,newSumNonEquals)
+    return SingleSum(_new_operator(sum.term,h),newsum_index,newSumNonEquals)
 end
 function _new_operator(sum::IndexedAverageSum,h;kwargs...)
-    newSumIndex = sum.sumIndex
-    if sum.sumIndex.hilb != h
-        newSumIndex = Index(h,sum.sumIndex.name,sum.sumIndex.rangeN,sum.sumIndex.specHilb)
+    newsum_index = sum.sum_index
+    if sum.sum_index.hilb != h
+        newsum_index = Index(h,sum.sum_index.name,sum.sum_index.range,sum.sum_index.aon)
     end
     newSumNonEquals = Index[]
-    for ind in sum.nonEqualIndices
+    for ind in sum.non_equal_indices
         if ind.hilb != h
-            push!(newSumNonEquals,Index(h,ind.name,ind.rangeN,ind.specHilb))
+            push!(newSumNonEquals,Index(h,ind.name,ind.range,ind.aon))
         end
     end
-    return IndexedAverageSum(_new_operator(sum.term,h),newSumIndex,newSumNonEquals)
+    return IndexedAverageSum(_new_operator(sum.term,h),newsum_index,newSumNonEquals)
 end
 _new_operator(sym::SymbolicUtils.Sym{Parameter,IndexedAverageSum},h;kwargs...) = _new_operator(sym.metadata,h;kwargs...)
 function _new_indices(Inds::Vector,h)
     Inds_ = copy(Inds)
     for i=1:length(Inds)
-        Inds_[i] = Index(h,Inds[i].name,Inds[i].rangeN,Inds[i].specHilb)
+        Inds_[i] = Index(h,Inds[i].name,Inds[i].range,Inds[i].aon)
     end
     return Inds_
 end
@@ -67,7 +54,8 @@ Note that the correlation function is stored in the first index of the underlyin
 system of equations.
 
 This is the indexed-version of the [`CorrelationFunction`](@ref) and allows [`IndexedOperator`](@ref)
-entities as argument-values.
+entities as argument-values. This function will automatically be called by [`CorrelationFunction`](@ref),
+when the original system `de0` contains any types of [`Index`](@ref) entities.
 
 See also: [`CorrelationFunction`](@ref)
 """
@@ -77,8 +65,6 @@ function IndexedCorrelationFunction(op1,op2,de0::AbstractMeanfieldEquations;
     iv=SymbolicUtils.Sym{Real}(:τ),
     order=nothing,
     extra_indices::Vector=[:i,:j,:k,:l,:m,:n,:p,:q,:r,:s,:t],
-    scaling::Bool=false,
-    h_scale=nothing,
     simplify=true, kwargs...)
     h1 = hilbert(op1)
     h2 = _new_hilbert(hilbert(op2), acts_on(op2))
@@ -120,7 +106,7 @@ function IndexedCorrelationFunction(op1,op2,de0::AbstractMeanfieldEquations;
         end
         for elem in extra_inds
             if elem isa Symbol
-                push!(extras_,Index(extras_[1].hilb,elem,extras_[1].rangeN,extras[1].specHilb))
+                push!(extras_,Index(extras_[1].hilb,elem,extras_[1].range,extras[1].aon))
             elseif elem isa Index
                 push!(extras_,elem)
             end
@@ -155,70 +141,59 @@ function IndexedCorrelationFunction(op1,op2,de0::AbstractMeanfieldEquations;
             mix_choice=mix_choice,
             simplify=simplify,
             extra_indices=extras_,
-            scaling=scaling,
-            kwargs...) 
-    if scaling
-        de = scaleME(de;kwargs...)
-        de0_ = scale(de0_;kwargs...)
-    end
-    de = substituteIntoCorrelation(de,de0_;scaling=scaling,kwargs...)
+            kwargs...)
     
     return CorrelationFunction(op1_, op2_, op2_0, de0_, de, steady_state)
+end
+function scale(corr::CorrelationFunction;kwargs...)
+    de = scaleME(corr.de;kwargs...)
+    de0 = scale(corr.de0;kwargs...)
+    de_ = substituteIntoCorrelation(de,de0;scaling=true,kwargs...)
+    return CorrelationFunction(corr.op1, corr.op2, corr.op2_0, de0, de_, corr.steady_state)
+end
+function evaluate(corr::CorrelationFunction;kwargs...)
+    de = evalME(corr.de;kwargs...)
+    de0 = evaluate(corr.de0;kwargs...)
+    de_ = substituteIntoCorrelation(de,de0;scaling=false,kwargs...)
+    return CorrelationFunction(corr.op1, corr.op2, corr.op2_0, de0, de_, corr.steady_state)
 end
 
 #this function is almost similar to the subst_reds function -> maybe merge together?
 function substituteIntoCorrelation(me,de0;scaling::Bool=false,kwargs...)
-    eqs = Vector{Union{Missing,Symbolics.Equation}}(missing,length(me.equations))
-    de_states = [me.states;de0.states]
     to_sub = find_missing(me)
-    to_insert = nothing
-    filter!(x->!(x in de_states),to_sub)
+    de_states = [me.states;de0.states]
+    to_sub = inorder!.(to_sub)
+    filter!(x->x ∉ de_states,to_sub)
+    to_sub = inorder!.(to_sub)
+    to_insert = Vector{Any}(nothing,length(to_sub))
     if scaling
-        #brute force for now
-        #this should not take too long
-        #proportional to number of elems in to_sub
         states = de_states
-        op_states = getOps.(states;scaling=scaling)
-        to_insert = Vector{Any}(nothing,length(to_sub))
         counter = 1
-        for elem in to_sub
-            ind_ = findfirst(x->hasSameOps(x,getOps(elem;scaling=scaling)),op_states)
+        while counter <= length(to_sub)
+            elem = to_sub[counter]
+            ind_ = findfirst(x -> isscaleequal(elem,x;kwargs...),states)
             if !=(ind_,nothing)
                 to_insert[counter] = states[ind_]
                 counter = counter + 1
                 continue
             end
-            ind_ = findfirst(x->hasSameOps(x,getOps(_conj(elem);scaling=scaling)),op_states)
+            ind_ = findfirst(x -> isscaleequal((_inconj(elem)),x;kwargs...),states)
             if !=(ind_,nothing)
-                to_insert[counter] = states[ind_]
+                to_insert[counter] = conj(states[ind_])
                 counter = counter + 1
                 continue
             end
+            deleteat!(to_insert,counter)
+            deleteat!(to_sub,counter)
         end
-        
     else  
-        to_insert = _conj.(to_sub)
+        to_insert = conj(_inconj.(to_sub))
     end
+    # filter!(x -> !=(x,nothing),to_insert)
     subs = Dict(to_sub .=> to_insert)
-    for i=1:length(me.equations)
-        eqs[i] = SymbolicUtils.substitute(me.equations[i],subs)
-    end
+    eqs = [substitute(eq,subs) for eq in me.equations]
     return IndexedMeanfieldEquations(eqs,me.operator_equations,me.states,me.operators,me.hamiltonian,me.jumps,me.jumps_dagger,me.rates,me.iv,me.varmap,me.order)
 end
-#=
-function substituteIntoCorrelation(me,de0;scaling::Bool=false)
-    neweqs = Vector{Union{Missing,Symbolics.Equation}}(missing,length(me.equations))
-    de_states = [me.states;de0.states]
-    to_sub = find_missing(me)
-    filter!(x->!(x in de_states),to_sub)
-    to_insert = _conj.(to_sub)
-    subs = Dict(to_sub .=> to_insert)
-    for i=1:length(me.equations)
-        neweqs[i] = SymbolicUtils.substitute(me.equations[i],subs)
-    end
-    return IndexedMeanfieldEquations(neweqs,me.operator_equations,me.states,me.operators,me.hamiltonian,me.jumps,me.jumps_dagger,me.rates,me.iv,me.varmap,me.order)
-end
-=#
 
 #the function below is quite similar to the indexed_complete function
 function indexed_complete_corr!(de,aon0,lhs_new,order,steady_state,de0;
@@ -226,8 +201,8 @@ function indexed_complete_corr!(de,aon0,lhs_new,order,steady_state,de0;
         simplify::Bool=true,
         filter_func=nothing,
         extra_indices::Vector=[],
-        scaling::Bool=false,
         kwargs...)
+
     vs = de.states
     H = de.hamiltonian
     J = de.jumps
@@ -235,7 +210,7 @@ function indexed_complete_corr!(de,aon0,lhs_new,order,steady_state,de0;
     rates = de.rates
 
     extras = copy(extra_indices)
-    maxNumb = maximum(length.(getIndices.(de0.operators)))
+    maxNumb = maximum(length.(get_indices.(de0.operators)))
 
     sort!(extra_indices)
 
@@ -265,18 +240,20 @@ function indexed_complete_corr!(de,aon0,lhs_new,order,steady_state,de0;
     end
 
     vhash = map(hash, vs)
-    vs′ = map(_conj, vs)
+    vs′ = map(_inconj, vs)
     vs′hash = map(hash, vs′)
     filter!(!in(vhash), vs′hash)
     missed = find_missing(de.equations, vhash, vs′hash; get_adjoints=false)
     
-    missed = find_missing_sums(missed,de;extra_indices=extra_indices,scaling=scaling)
-    missed = findMissingSpecialTerms(missed,de;scaling=scaling)
-    
-    missed = sortByIndex.(missed)
+
+    missed = find_missing_sums(missed,de;extra_indices=extra_indices)
+ 
+    missed = inorder!.(missed)
     isnothing(filter_func) || filter!(filter_func, missed) # User-defined filter
 
-    filter!(x -> filterComplete_corr(x,de.states,de0.states,scaling), missed)
+    filter!(x -> filterComplete_corr(x,de.states,de0.states,false;kwargs...), missed)
+
+    missed = inorder!.(missed)
 
     missed = unique(missed) #no duplicates
 
@@ -314,7 +291,7 @@ function indexed_complete_corr!(de,aon0,lhs_new,order,steady_state,de0;
         _append!(de, me)
 
         vhash_ = hash.(me.states)
-        vs′hash_ = hash.(_conj.(me.states))
+        vs′hash_ = hash.(_inconj.(me.states))
         append!(vhash, vhash_)
         for i=1:length(vhash_)
             vs′hash_[i] ∈ vhash_ || push!(vs′hash, vs′hash_[i])
@@ -322,23 +299,24 @@ function indexed_complete_corr!(de,aon0,lhs_new,order,steady_state,de0;
 
         missed = find_missing(me.equations, vhash, vs′hash; get_adjoints=false)
         
-        missed = find_missing_sums(missed,de;extra_indices=extra_indices,scaling=scaling)
-        missed = findMissingSpecialTerms(missed,de;scaling=scaling)
-        
-        missed = sortByIndex.(missed)
+        missed = find_missing_sums(missed,de;extra_indices=extra_indices)
+
+        missed = inorder!.(missed)
         isnothing(filter_func) || filter!(filter_func, missed) # User-defined filter
     
-        filter!(x -> filterComplete_corr(x,de.states,de0.states,scaling), missed)
+        filter!(x -> filterComplete_corr(x,de.states,de0.states,false;kwargs...), missed)
+
+        missed = inorder!.(missed)
        
         for i = 1:length(missed)
-            minds = getIndices(missed[i])
+            minds = get_indices(missed[i])
             newMinds = copy(minds)
             for ind1 in minds
                 extras_=filterExtras(ind1,extras)
                 for k = 1:length(extras_)
                     if findall(x->isequal(x,ind1),extras_)[1] > k && extras_[k] ∉ newMinds #this might go somewhat easier, maybe delete ind2 out of extras after each replacement somehow
                         missed[i] = change_index(missed[i],ind1,extras_[k])
-                        newMinds = getIndices(missed[i])
+                        newMinds = get_indices(missed[i])
                         break
                     elseif findall(x->isequal(x,ind1),extras_)[1] <= k
                         break
@@ -348,9 +326,10 @@ function indexed_complete_corr!(de,aon0,lhs_new,order,steady_state,de0;
         end
         filter!(_filter_aon, missed)
         isnothing(filter_func) || filter!(filter_func, missed) # User-defined Filter
-        filter!(x -> filterComplete_corr(x,de.states,de0.states,scaling), missed)
+        filter!(x -> filterComplete_corr(x,de.states,de0.states,false;kwargs...), missed)
         missed = unique(missed) #no duplicates
-        missed = elimRed(missed;scaling=scaling)
+        missed = elimRed!(missed)
+        missed = inorder!.(missed)
     end
 
     if !isnothing(filter_func)
@@ -359,9 +338,9 @@ function indexed_complete_corr!(de,aon0,lhs_new,order,steady_state,de0;
         missed = find_missing(de.equations, vhash, vs′hash; get_adjoints=false)
         if order != 1
             missed = find_missing_sums(missed,de;extra_indices=extra_indices,checking=false,scaling=false)
-            missed = findMissingSpecialTerms(missed,de;scaling=false)
+
         end
-        missed_ = sortByIndex.(missed)
+        missed_ = inorder!.(missed)
         missed = vcat(missed,missed_)
         filter!(!filter_func, missed)
         missed_adj = map(_adjoint, missed)
@@ -375,7 +354,7 @@ function indexed_complete_corr!(de,aon0,lhs_new,order,steady_state,de0;
     return de
 end
 
-filterComplete_corr(x,states1,states2,scaling) = (isNotIn(getOps(x;scaling=scaling),getOps.(states1;scaling=scaling),scaling) && isNotIn(getOps(sortByIndex(_conj(x));scaling=scaling),getOps.(states1;scaling=scaling),scaling) 
-    && isNotIn(getOps(x;scaling=scaling),getOps.(states2;scaling=scaling),scaling)&& isNotIn(getOps(sortByIndex(_conj(x));scaling=scaling),getOps.(states2;scaling=scaling),scaling))
+filterComplete_corr(x,states1,states2,scaling;kwargs...) = (isNotIn(x,states1,scaling;kwargs...) && isNotIn(_inconj(x),states1,scaling;kwargs...) 
+    && isNotIn(x,states2,scaling;kwargs...)&& isNotIn(_inconj(x),states2,scaling;kwargs...))
 
 CorrelationFunction(op1,op2,de0::IndexedMeanfieldEquations; kwargs...) = IndexedCorrelationFunction(op1,op2,de0;kwargs...)
