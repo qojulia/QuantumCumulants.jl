@@ -289,5 +289,10 @@ arr = qc.create_index_arrays([i,j],ranges1)
 arr = qc.create_index_arrays([i],[1:10])
 @test isequal(1:10,arr)
 
+@test isequal(qc.inorder!(σ(2,1,1)*σ(2,2,2)*σ(1,2,1)),σ(2,2,1)*σ(2,2,2))
+@test isequal(qc.inadjoint(σ(2,1,1)*σ(2,2,2)*σ(1,2,1)),σ(2,2,1)*σ(2,2,2))
+@test isequal(qc._inconj(average(σ(2,1,1)*σ(2,2,2)*σ(1,2,1))),(average(σ(2,2,1)*σ(2,2,2))))
+@test qc.ismergeable(σ(2,1,5),σ(1,2,5))
+
 
 end

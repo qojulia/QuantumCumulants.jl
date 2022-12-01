@@ -536,7 +536,7 @@ see also: [`find_missing`](@ref), [`indexed_meanfield`](@ref), [`meanfield`](@re
 function find_missing_sums(missed,de::AbstractMeanfieldEquations;extra_indices::Vector=[],checking=true,scaling=false,kwargs...)
     missed_ = copy(missed)
     extras = copy(extra_indices)
-    eqs = copy(de.equations)
+    eqs = de.equations
     for eq in eqs
         sums = checkIfSum(eq.rhs)   #get all sums of the rhs
         for sum in sums
