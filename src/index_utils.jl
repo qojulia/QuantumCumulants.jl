@@ -73,7 +73,7 @@ inadjoint(x) = adjoint(x)
 function inorder!(v::Average) 
     f = operation(v)
     if f == conj
-        return conj(average(inorder!(arguments(v)[1])))
+        return conj(inorder!(arguments(v)[1]))
     end
     return average(inorder!(arguments(v)[1]))
 end
@@ -81,7 +81,7 @@ function inorder!(q::QMul)
     sort!(q.args_nc, by=get_numbers)
     sort!(q.args_nc, by=getIndName)
     sort!(q.args_nc, by=acts_on)
-    return q
+    return merge_commutators(q.arg_c,q.args_nc)
 end
 inorder!(x) = x
 

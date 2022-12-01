@@ -265,14 +265,16 @@ undo_average(a::SymbolicUtils.Sym{Parameter,SpecialIndexedAverage}) = reorder(un
 
 #define calculus for numbered operators -> break it down into QNuber multiplication
 
-*(numOp::NumberedOperator, qmul::QMul) = merge_commutators(qmul.arg_c,inorder!(vcat(numOp,qmul.args_nc)))
-*(qmul::QMul, numOp::NumberedOperator) = merge_commutators(qmul.arg_c,inorder!(vcat(qmul.args_nc,numOp)))
+ismergeable(a::NumberedOperator,b::NumberedOperator) = isequal(a.numb,b.numb) ? ismergeable(a.op,b.op) : false
+
+*(numOp::NumberedOperator, qmul::QMul) = inorder!(QMul(qmul.arg_c,vcat(numOp,qmul.args_nc)))
+*(qmul::QMul, numOp::NumberedOperator) = inorder!(QMul(qmul.arg_c,vcat(qmul.args_nc,numOp)))
 
 function *(numOp1::NumberedOperator,numOp2::NumberedOperator)
     if numOp1.op isa Create || numOp1.op isa Destroy || numOp2.op isa Create || numOp2.op isa Destroy
         return merge_commutators(1,[numOp1,numOp2])
     end
-    return (numOp1.numb == numOp2.numb && isequal(acts_on(numOp1.op),acts_on(numOp2.op))) ? NumberedOperator(numOp1.op*numOp2.op,numOp1.numb) : inorder!(QMul(1,[numOp1,numOp2]))
+    return (numOp1.numb == numOp2.numb && isequal(acts_on(numOp1.op),acts_on(numOp2.op))) ? NumberedOperator(numOp1.op*numOp2.op,numOp1.numb) : QMul(1,sort([numOp1,numOp2],by=get_numbers))
 end
 #Symbolics functions
 get_order(a::Sym{Parameter,IndexedAverageSum}) = get_order(a.metadata.term)
@@ -394,7 +396,7 @@ function insert_index(sum::SymbolicUtils.Sym{Parameter,IndexedAverageSum}, ind::
         error("cannot exchange summation index with number!")
     end
     if ind in sum.metadata.non_equal_indices
-        newNEI = filter(x-> x != ind,sum.metadata.non_equal_indices)
+        newNEI = filter(x-> !isequal(x,ind),sum.metadata.non_equal_indices)
         push!(newNEI,value)
         return IndexedAverageSum(insert_index(sum.metadata.term,ind,value),sum.metadata.sum_index,newNEI)
     else
@@ -410,8 +412,10 @@ insert_index(term::SymbolicUtils.Add,ind::Index,value::Int64) = sum(insert_index
 insert_index(term::SymbolicUtils.Pow,ind::Index,value::Int64) = insert_index(arguments(term)[1],ind,value)^(arguments(term)[2])
 function insert_index(term::SymbolicUtils.Term{AvgSym,Nothing},ind::Index,value::Int64)
     f = operation(term)
-    arg = inorder!(insert_index(arguments(term)[1],ind,value))
-    return f(arg)
+    if f == conj
+        return conj(insert_index(arguments(term)[1],ind,value))
+    end
+    return average(inorder!(insert_index(arguments(term)[1],ind,value)))
 end
 function insert_index(term_::Sym{Parameter, DoubleIndexedVariable},ind::Index,value::Int64)
     term = term_.metadata
@@ -616,11 +620,11 @@ function eval_term(sum_::SymbolicUtils.Sym{Parameter,IndexedAverageSum};limits=D
     for i = 1:rangeEval
         if i in sum_.metadata.non_equal_indices
             adds[i] = 0
-            continue
+        else
+            temp = insert_index(sum_.metadata.term,sum_.metadata.sum_index,i)
+            inorder!(temp)
+            adds[i]=temp
         end
-        temp = insert_index(sum_.metadata.term,sum_.metadata.sum_index,i)
-        inorder!(temp)
-        adds[i]=temp
     end
     if isempty(adds)
         return 0
@@ -763,6 +767,7 @@ function create_index_arrays(ind_vec,ranges)
     if length(ind_vec) == 1
         return ranges[1]
     end
+    @assert length(ind_vec) == length(ranges)
     array = unique(collect(Iterators.product(ranges...)))
     length(ind_vec) == 1 && return array
     length(unique(get_spec_hilb.(ind_vec))) == length(ind_vec) && return array #every index has its own specHilb

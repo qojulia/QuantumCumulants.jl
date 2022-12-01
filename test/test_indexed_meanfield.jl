@@ -8,7 +8,7 @@ using SteadyStateDiffEq
 
 const qc = QuantumCumulants
 
-@testset "meanfield" begin
+@testset "indexed_meanfield" begin
 
 order = 2
 @cnumbers Δc η Δa κ
