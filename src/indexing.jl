@@ -120,7 +120,7 @@ Defines a symbolic summation over a term, using one [`Index`](@ref) entity.
 Fields:
 ======
 
-* term: A multiplication of [`QNumber`](@ref) terms. When the multiplication contains any [`IndexedOperator`](@ref) with the same index as the summation-index, a symbolic sum will be created.
+* term: A multiplication of q-number terms. When the multiplication contains any [`IndexedOperator`](@ref) with the same index as the summation-index, a symbolic sum will be created.
 * sum_index: The index, for which the summation will go over.
 * non_equal_indices: (optional) A vector of indices, for which the summation-index can not be equal with.
 
@@ -143,7 +143,7 @@ A multiplication of [`IndexedOperator`](@ref) entities, with special constraint 
 Fields:
 ======
 
-* term: A multiplication of [`QNumber`](@ref) terms.
+* term: A multiplication of q-number terms.
 * indexMapping: A Vector of [`Index`](@ref) tuples, specifying the contraints for the term. Each Tuple is considered to one constraint. e.g: (i,j) -> i ≠ j
 
 """

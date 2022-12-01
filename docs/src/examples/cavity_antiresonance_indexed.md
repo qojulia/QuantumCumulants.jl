@@ -160,6 +160,7 @@ for i=1:length(Δ_ls)
         reltol=1e-14, abstol=1e-14, maxiters=5e7)
     n_ls[i] = abs2(sol_ss[a])
 end
+nothing #hide
 ```
 
 The transmission rate $T$ with respect to the pump laser detuning is given by the relative steady state intra-cavity photon number $n(\Delta)/n_\mathrm{max}$. We qualitatively reproduce the antiresonance from [D. Plankensteiner, et. al., Phys. Rev. Lett. 119, 093601 (2017)](https://journals.aps.org/prl/abstract/10.1103/PhysRevLett.119.093601) for two atoms.
