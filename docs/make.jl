@@ -16,12 +16,13 @@ pages = [
             "examples/mollow.md"
             "examples/many-atom-laser.md"
             "examples/optomechanical-cooling.md"
-            "examples/superradiant-laser.md"
             "examples/excitation-transport-chain.md"
             "examples/cavity_antiresonance.md"
             "examples/ramsey_spectroscopy.md"
             "examples/superradiant_laser_indexed.md"
             "examples/cavity_antiresonance_indexed.md"
+            "examples/filter-cavity_indexed.md"
+            "examples/superradiant-laser.md"
             ]
     ]
 

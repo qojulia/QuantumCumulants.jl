@@ -1,4 +1,11 @@
-# Superradiant Laser
+# Superradiant Laser (outdated)
+
+!!! note
+
+    The $\texttt{ClusterSpace}$ is no longer necessary, due to the implementation of symbolic sums and indices, use the later instead now, as in the examples
+    [Superradiant Laser](https://qojulia.github.io/QuantumCumulants.jl/stable/examples/superradiant_laser_indexed/) or [Laser with Filter Cavities](https://qojulia.github.io/QuantumCumulants.jl/stable/examples/filter_cavity_indexed). However, since the $\texttt{ClusterSpace}$ was already used in several publications we keep this example
+    on the documentation.
+
 
 Using symmetry properties of a system can reduce the number of needed equations dramatically. A common approximation for laser systems to handle sufficiently big atom numbers is to assume that several atoms in the system behave completely identically. This means all the identical atoms have the same averages.
 
