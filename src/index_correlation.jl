@@ -5,19 +5,6 @@ function _new_operator(op::IndexedOperator,h,aon=acts_on(op))
     return IndexedOperator(Transition(h,op.op.name,op.op.i,op.op.j,aon;op.op.metadata),op.ind)
 end
 _new_operator(nOp::NumberedOperator,h,aon=acts_on(nOp)) = NumberedOperator(Transition(h,nOp.op.name,nOp.op.i,nOp.op.j,aon;nOp.op.metadata),nOp.numb)
-function _new_operator(sum::SingleSum,h,aon) 
-    newsum_index = sum.sum_index
-    if sum.sum_index.hilb != h
-        newsum_index = Index(h,sum.sum_index.name,sum.sum_index.range,ind.aon)
-    end
-    newSumNonEquals = Index[]
-    for ind in sum.non_equal_indices
-        if ind.hilb != h
-            push!(newSumNonEquals,Index(h,ind.name,ind.range,ind.aon))
-        end
-    end
-    return SingleSum(_new_operator(sum.term,h),newsum_index,newSumNonEquals)
-end
 function _new_operator(sum::SingleSum,h) 
     newsum_index = sum.sum_index
     if sum.sum_index.hilb != h
