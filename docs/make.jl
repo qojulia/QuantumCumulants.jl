@@ -17,7 +17,6 @@ pages = [
             "examples/many-atom-laser.md"
             "examples/optomechanical-cooling.md"
             "examples/excitation-transport-chain.md"
-            "examples/cavity_antiresonance.md"
             "examples/ramsey_spectroscopy.md"
             "examples/superradiant_laser_indexed.md"
             "examples/cavity_antiresonance_indexed.md"
