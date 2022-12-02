@@ -14,7 +14,7 @@ In principle we can write down and derive the equations for all $N$ atoms explic
 
 ### Index
 
-The main tool to use symbolic summations is the **Index** object. This object has four different fields, which all need to be specified upon construction. These fields consist of the full [`HilbertSpace`](@ref) **h**, a **name**, which is just a generic symbol, a **range**, which can either consist of again a symbol or a concrete number and a specific Hilbert space **aon**, which defines the space on which operators, that inherit the **Index** entity, act on. This means that an **Index**, for a [`NLevelSpace`](@ref) can only be used by [`Transition`](@ref) operators. In the example below, two indices are defined equivalently, as well as a third one being defined acting on the [`FockSpace`](@ref) of the defined [`ProductSpace`](@ref) **h**.
+The main tool to use symbolic summations is the **Index** object. This object has four different fields, which all need to be specified upon construction. These fields consist of the full [`HilbertSpace`](@ref) **h**, a **name**, which is just a generic symbol, a **range**, which can either consist of again a symbol or a concrete number, and a specific Hilbert space **aon**, which defines the space on which operators, that inherit the **Index** entity, act on. This means that an **Index** for a [`NLevelSpace`](@ref) can only be used by [`Transition`](@ref) operators. In the example below, two indices are defined equivalently, as well as a third one being defined acting on the [`FockSpace`](@ref) of the defined [`ProductSpace`](@ref) **h**.
 
 
 ```@example symbolic_sums
@@ -35,7 +35,7 @@ n = Index(h,:n,5,hc)
 
 ### IndexedOperators
 
-Operators, such as the quantum harmonic destruction operator [`Destroy`](@ref) or the [`Transition`](@ref) operator can be associated with an [`Index`](@ref) of the corresponding Hilbert space by creating a so called [`IndexedOperator`](@ref). This object consists of two fields, namely the operator itself and an **Index**. Below, there are two **IndexedOperator** entities created on the two different Hilbert spaces defined previously.
+Operators, such as [`Destroy`](@ref) or [`Transition`](@ref) can be associated with an [`Index`](@ref) of the corresponding Hilbert space by creating a so-called [`IndexedOperator`](@ref). This object consists of two fields, namely the operator itself and an **Index**. Below, there are two **IndexedOperator** entities created on the two different Hilbert spaces defined previously.
 
 
 ```@example symbolic_sums
@@ -44,7 +44,7 @@ a(z) = IndexedOperator(Destroy(h,:a),z)
 ```
 
 
-In the above example, we defined both indexed operators **σ** and **a** as callable Instances with the attribute-variable **z**. These can now be used to easily create operators, that act specifically with their associated index.
+In the above example, we defined both indexed operators **σ** and **a** as callable instances with the attribute-variable **z**. These can now be used to easily create operators, that act specifically with their associated index.
 
 
 ```@example symbolic_sums
@@ -56,7 +56,7 @@ nothing #hide
 {a}_{n} {\sigma}_{i}^{{22}}
 ```
 
-Similar to operators, one can also create so called [`IndexedVariable`](@ref) objects, which consist simply of a name and an index.
+Similar to operators, one can also create so-called [`IndexedVariable`](@ref) objects, which consist simply of a name and an index.
 
 
 ```@example symbolic_sums
@@ -81,7 +81,7 @@ nothing #hide
 \underset{i}{\overset{N}{\sum}} {σ}_{i}^{{22}}
 ```
 
-As can be seen above, a sum with a single running-index can be created using the **∑** (\sum) command. Other equivalent functions are **Σ** (\Sigma) and the **SingleSum()** constructor. These constructors can also take a third optional argument specifying a set of indices, which are non equivalent to the summation index. 
+As can be seen above, a sum with a single running-index can be created using the **∑** (\sum) command. Other equivalent functions are **Σ** (\Sigma) and the **SingleSum()** constructor. These constructors can also take a third optional argument specifying a set of indices, which are non equivalent to the summation index.
 
 
 ```@example symbolic_sums
@@ -106,12 +106,12 @@ nothing #hide
 ```
 
 
-These two running-indices do not need to act on different Hilbert spaces. However, for indices acting on the same Hilbert space, a simplification occurs, as shown below.
+These two running-indices do not need to act on different Hilbert spaces. In particular, for indices acting on the same Hilbert space, a simplification occurs, as shown below.
 
 
 ```@example symbolic_sums
 k = Index(h,:k,N,ha)
-l = Index(h,:l,N,ha) 
+l = Index(h,:l,N,ha)
 
 ∑(σ(2,1,k)*σ(1,2,l),k,l)
 nothing #hide
@@ -122,11 +122,11 @@ nothing #hide
 ```
 
 
-If two indices, acting on the same Hilbert space, meet inside of a sum, the special case, where the numeric values of both indices are the same, i.e `l`=`k`, is calculated immediately. This can also be observed, when a symbolic sum is multiplied with an [`IndexedOperator`](@ref), that is acting on the same Hilbert space as the summation-index.
+If two indices, acting on the same Hilbert space, meet inside of a sum, the special case, where the numeric values of both indices are the same, i.e `l`=`k`, is calculated immediately. This can also be observed, when a symbolic sum is multiplied with an [`IndexedOperator`](@ref) that is acting on the same Hilbert space as the summation-index.
 
 
 ```@example symbolic_sums
-∑(σ(2,2,k),k) * σ(2,1,l) 
+∑(σ(2,2,k),k) * σ(2,1,l)
 nothing #hide
 ```
 
@@ -136,7 +136,7 @@ nothing #hide
 
 ## Short Example
 
-We will briefly go over the entire process of defining a Hamiltonian, the derivation of equations and solving these equations numerically. For this example we will consider **N** 2-level atoms in a single mode Cavity.
+We will briefly go over the entire process of defining a Hamiltonian, the derivation of equations and solving these equations numerically. For this example we will consider **N** 2-level atoms in a single mode cavity.
 
 We start by defining all indices and operators and create the Hamiltonian.
 
@@ -165,8 +165,8 @@ nothing #hide
 \underset{i}{\overset{N}{\sum}} {g}_{i}  b  {\sigma}_{i}^{{21}} + \underset{i}{\overset{N}{\sum}} {g}_{i}  b^\dagger  {\sigma}_{i}^{{12}} + \Delta b^\dagger b
 ```
 
-We continue by defining the starting operators **ops**, for which the equations are calculated, as well as the Jump operators **J** with their corresponding rates. It is important to note here, that the indexed operators, for which these equations are calculated need to have an [`Index`](@ref), which is not yet used in the Hamiltonian, jumps or rates. We can then create the first set by simply calling the **meanfield** function. 
-Note that if an indexed operator $J_i$ is used as jump operator, the following dissipative term is created 
+We continue by defining the starting operators **ops**, for which the equations are derived, as well as the Jump operators **J** with their corresponding rates. It is important to note here, that the indexed operators, for which these equations are derived need to have an [`Index`](@ref), which is not yet used in the Hamiltonian, jumps or rates. We can then create the first set by simply calling the **meanfield** function.
+Note, if an indexed operator $J_i$ is used as jump operator, the following dissipative term is created
 
 ```math
 \begin{equation}
@@ -179,7 +179,7 @@ The corresponding rate can, but does need to be an indexed variable. However, if
 
 ```@example symbolic_sums
 ops = [b'b, σ(2,2,j)]
-J = [b, σ(1,2,i), σ(2,1,i)] 
+J = [b, σ(1,2,i), σ(2,1,i)]
 rates = [κ, γ, ν]
 
 eqs = meanfield(ops,H,J;rates=rates,order=2)
@@ -189,7 +189,7 @@ nothing #hide
 ```math
 \begin{align}
 \frac{d}{dt} \langle b^\dagger  b\rangle  =& 1 i \underset{i}{\overset{N}{\sum}} {g}_{i}  \langle b  {\sigma}_{i}^{{21}}\rangle  -1 i \underset{i}{\overset{N}{\sum}} {g}_{i}  \langle b^\dagger  {\sigma}_{i}^{{12}}\rangle  -1.0 \kappa \langle b^\dagger  b\rangle  \\
-\frac{d}{dt} \langle {\sigma}_{j}^{{22}}\rangle  =& \nu + 1 i {g}_{j} \langle b^\dagger  {\sigma}_{j}^{{12}}\rangle  -1.0 \gamma \langle {\sigma}_{j}^{{22}}\rangle  -1.0 \nu \langle {\sigma}_{j}^{{22}}\rangle  -1 i {g}_{j} \langle b  {\sigma}_{j}^{{21}}\rangle 
+\frac{d}{dt} \langle {\sigma}_{j}^{{22}}\rangle  =& \nu + 1 i {g}_{j} \langle b^\dagger  {\sigma}_{j}^{{12}}\rangle  -1.0 \gamma \langle {\sigma}_{j}^{{22}}\rangle  -1.0 \nu \langle {\sigma}_{j}^{{22}}\rangle  -1 i {g}_{j} \langle b  {\sigma}_{j}^{{21}}\rangle
 \end{align}
 ```
 
@@ -202,7 +202,7 @@ nothing #hide
 
 ### Evaluate and Scale
 
-The equations still contain symbolic summations and indices. Until now, we did not specify a numerical value for the upper boundaries of the summations, meaning the used **N** still has no numerical assignment. There are now two different cases to create the set of equations with a specific number of elements. We can either construct all equations for **N** individual atoms with the function [`evaluate`](@ref) or we assume that all particles behave identical and create the equations with the function [`scale`](@ref). The latter uses the symmetry properties of identical particles, which can substantially reduce the number of equations. 
+The equations still contain symbolic summations and indices. Until now, we did not specify a numerical value for the upper boundaries of the summations, meaning the used **N** still has no numerical assignment. There are now two different cases to create the set of equations with a specific number of elements. We can either construct all equations for **N** individual atoms with the function [`evaluate`](@ref) or we assume that all particles behave identical and create the equations with the function [`scale`](@ref). The latter uses the symmetry properties of identical particles, which can substantially reduce the number of equations.
 
 In this example we use **evaluate** for $N=3$ atoms. We can specify the numerical value of $N$ to 3 within the kwarg `limits`.
 
@@ -212,7 +212,7 @@ evaled = evaluate(eqs_comp;limits=(N=>3))
 nothing #hide
 ```
 
-The last set of equations are now in a numerical solvable form, that we can convert to an `ODESystem` as defined in [ModelingToolkit](https://github.com/SciML/ModelingToolkit.jl), which can be solved numerically with [OrdinaryDiffEq](https://github.com/JuliaDiffEq/OrdinaryDiffEq.jl). Furthermore we give each atom a different coupling strength `g`. This can now be done by using the [`value_map`](@ref) function to create a parameter mapping for the `ODEProblem`. In this case we give as coupling strength a vector with three different values.
+The last set of equations is now in a form, which can be convert to an `ODESystem` as defined in [ModelingToolkit](https://github.com/SciML/ModelingToolkit.jl) and be solved numerically with [OrdinaryDiffEq](https://github.com/JuliaDiffEq/OrdinaryDiffEq.jl). Furthermore we give each atom a different coupling strength `g`. This can now be done by using the [`value_map`](@ref) function to create a parameter mapping for the `ODEProblem`. In this case we give as coupling strength a vector with three different values.
 
 
 ```@example symbolic_sums

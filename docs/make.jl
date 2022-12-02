@@ -8,9 +8,9 @@ pages = [
         "theory.md",
         "tutorial.md",
         "correlation.md",
+        "symbolic_sums.md",
         "implementation.md",
         "api.md",
-        "symbolic_sums.md",
         "Examples" => [
             "examples/single-atom-laser-spectrum.md"
             "examples/mollow.md"
