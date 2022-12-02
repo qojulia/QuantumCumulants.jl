@@ -1,8 +1,8 @@
 # Laser with Filter Cavities
 
-An intuitive and straightforward approach to calculate the spectrum of a laser is to filter the emitted light. We can do this by coupling filter cavities with different detunings to the main cavity and observe the photon number in the 'filters', see for example [K. Debnath et al., Phys Rev A 98, 063837 (2018)](https://journals.aps.org/pra/abstract/10.1103/PhysRevA.98.063837).
+An intuitive and straightforward approach to calculate the spectrum of a laser is to filter the emitted light. We can do this by coupling filter cavities with different detunings to the main cavity and observe the photon number in these 'filters', see for example [K. Debnath et al., Phys Rev A 98, 063837 (2018)](https://journals.aps.org/pra/abstract/10.1103/PhysRevA.98.063837).
 
-The main goal of this example is to combine two indexed Hilbert spaces, where one will be scaled and the other evaluated. The model is basically the same as for the [superradiant laser](https://qojulia.github.io/QuantumCumulants.jl/stable/examples/superradiant_laser_indexed/) example, but with the additional filter cavity terms. The Hamiltonian of this system is
+The main goal of this example is to combine two indexed Hilbert spaces, where one will be scaled and the other evaluated. The model is basically the same as for the [superradiant laser](https://qojulia.github.io/QuantumCumulants.jl/stable/examples/superradiant_laser_indexed/) example, but with the additional terms due to the filter cavities. The Hamiltonian of this system is
 
 ```math
 \begin{equation}
@@ -10,7 +10,7 @@ H = - \Delta a^\dagger a + g \sum\limits_{j=1}^{N} (a^\dagger \sigma^{12}_{j} + 
 \end{equation}
 ```
 
-where $\delta_i$ is the detuning of the $i$-th filter cavity and $g_f$ the coupling with the normal cavity, their decay rate is $\kappa_f$.
+where $\delta_i$ is the detuning of the $i$-th filter cavity and $g_f$ the coupling to the normal cavity. Furthermore, their decay rate is $\kappa_f$.
 
 We start by loading the packages.
 
@@ -49,7 +49,7 @@ We define the Hamiltonian using symbolic sums and define the individual dissipat
 
 ```@example filter_cavity_indexed
 # Hamiltonian
-H = Δ*Σ(σ(2,2,j),j) + Σ(δ(i)*b(i)'b(i),i) + Σ(δ(i)*b(i)'b(i),i) +
+H = Δ*Σ(σ(2,2,j),j) + Σ(δ(i)*b(i)'b(i),i) +
     gf*(Σ(a'*b(i) + a*b(i)',i)) + g*(Σ(a'*σ(1,2,j) + a*σ(2,1,j),j))
 
 # Jumps & rates
@@ -84,7 +84,7 @@ eqs_c = complete(eqs);
 nothing # hide
 ```
 
-Now we assume that all atoms behave identically, but we want to obtain the equations for 20 different filter cavities. To this end we $\texttt{scale}$ the Hilbert space of the atoms and $\texttt{evaluate}$ the filter cavities. Specifying the Hilbert space is done with the kwarg $\texttt{h}$, which can either be the specific Hilbert space or it's acts-on number. Evaluating the filer cavities requires a numeric upper bound for the used $\texttt{Index}$, we provide this with a dictionary on the kwarg $\texttt{limits}$.
+Now we assume that all atoms behave identically, but we want to obtain the equations for 20 different filter cavities. To this end we $\texttt{scale}$ the Hilbert space of the atoms and $\texttt{evaluate}$ the filter cavities. Specifying the Hilbert space is done with the kwarg $\texttt{h}$, which can either be the specific Hilbert space or its acts-on number. Evaluating the filter cavities requires a numeric upper bound for the used $\texttt{Index}$, we provide this with a dictionary on the kwarg $\texttt{limits}$.
 
 
 ```@example filter_cavity_indexed
@@ -94,7 +94,7 @@ eqs_eval = evaluate(eqs_sc; limits=Dict(M=>M_)) #h=[hf]
 println("Number of eqs.: $(length(eqs_eval))")
 ```
 
-To calculate the dynamic of the system we create a system of ordinary differential equations, which can be used by [DifferentialEquations.jl](https://diffeq.sciml.ai/stable/). Finally we need to define the numerical parameters and the initial value of the system.
+To calculate the dynamics of the system we create a system of ordinary differential equations, which can be used by [DifferentialEquations.jl](https://diffeq.sciml.ai/stable/). Finally we need to define the numerical parameters and the initial state of the system.
 
 
 ```@example filter_cavity_indexed

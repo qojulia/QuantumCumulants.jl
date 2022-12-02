@@ -32,6 +32,9 @@ tensor
 
 ## [q-Numbers](@id API: Operators)
 
+```@docs
+QNumber
+```
 
 ```@docs
 QSym

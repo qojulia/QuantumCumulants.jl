@@ -8,7 +8,7 @@ In this example we describe a so-called superradiant laser, where we assume all 
 H = - \hbar \Delta a^\dagger a +  \hbar \sum\limits_{j=1}^{N}  g_j (a^\dagger \sigma^{12}_{j} + a \sigma^{21}_{j}) ,
 \end{equation}
 ```
-where $\Delta = \omega_a - \omega_c$ is the detuning between the cavity ($\omega_c$) and the atomic ($\omega_a$) resonance frequency, the atom cavity coupling of the atom $j$ is denoted by $g_j$. Additionally there are dissipative processes in the system, namely: Atoms are incoherently pumped with the rate $R$, they decay individually with the rate $\Gamma$ and are affected by individual atomic dephasing with the rate $\nu$. Photons leak out of the system with the rate $\kappa$.
+where $\Delta = \omega_a - \omega_c$ is the detuning between the cavity ($\omega_c$) and the atomic ($\omega_a$) resonance frequency, the atom cavity coupling of the $j$-th atom is denoted by $g_j$. Additionally there are dissipative processes in the system: Atoms are incoherently pumped with the rate $R$, they decay individually with the rate $\Gamma$ and are affected by individual atomic dephasing with the rate $\nu$. Furthermore, photons leak out of the system with the rate $\kappa$.
 
 We start by loading the packages.
 
@@ -135,7 +135,7 @@ nothing # hide
 
 
 
-To calculate the dynamic of the system we create a system of ordinary differential equations, which can be used by [DifferentialEquations.jl](https://diffeq.sciml.ai/stable/).
+To calculate the dynamics of the system we create a system of ordinary differential equations, which can be used by [DifferentialEquations.jl](https://diffeq.sciml.ai/stable/).
 
 
 ```@example superradiant_laser_indexed

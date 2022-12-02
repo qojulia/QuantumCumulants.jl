@@ -24,7 +24,7 @@ using OrdinaryDiffEq, SteadyStateDiffEq, ModelingToolkit
 using Plots
 ```
 
-The Hilbert space for this system is given by one cavity mode and $N$ two-level atoms. We use here symbolic indices, sums and double sums to define the system.
+The Hilbert space for this system is given by one cavity mode and $N$ two-level atoms. Here we use symbolic indices, sums and double sums to define the system.
 The parameters $g_j, \, \Gamma_{ij}$ and $\Omega_{ij}$ are defined as indexed variables of atom $i$ and $j$. We will describe the system in first order mean-field.
 
 
@@ -55,7 +55,7 @@ Now we create the operators on the composite Hilbert space using the $\texttt{In
 nothing # hide
 ```
 
-We define the Hamiltonian and Liouvillian. For the collective atomic decay we write the corresponding jump process with a double indexed variable $R_{ij}$ and an indexed jump operator $J_j$, such that an operator average $\langle \mathcal{O} \rangle$ follows the equation
+We define the Hamiltonian and Liouvillian. For the collective atomic decay we write the corresponding dissipative processes with a double indexed variable $R_{ij}$ and an indexed jump operator $J_j$, such that an operator average $\langle \mathcal{O} \rangle$ follows the equation
 
 ```math
 \begin{equation}

@@ -57,7 +57,7 @@ p0 = [κ => 1,
     (g .=> 1.5 .* ones(N))...,
     (Δ .=> ones(N))...,]
 
-prob = ODEProblem(sys,u0,(0.0,10.0),p0,jac=true,sparse=true)
+prob = ODEProblem(sys,u0,(0.0,10.0),p0)
 
 sol = solve(prob,RK4())
 

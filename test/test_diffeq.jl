@@ -38,7 +38,7 @@ p0 = ps .=> [0.0,0.5,1.0,0.1,0.9]
 u0 = zeros(ComplexF64,3)
 tmax = 10.0
 
-prob = ODEProblem(sys,u0,(0.0,tmax),p0,jac=true)
+prob = ODEProblem(sys,u0,(0.0,tmax),p0)
 sol = solve(prob,RK4())
 n = sol[average(a'*a)]
 pe = getindex.(sol.u,2)
