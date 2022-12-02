@@ -1,7 +1,6 @@
 #Base file for defining DoubleIndexedSums
 
 """
-
     DoubleSum <: QTerm
 
 Defines a symbolic summation over another [`SingleSum`](@ref), using one [`Index`](@ref) entity. This corresponds to a double-summation over a multiplication of terms.
@@ -43,7 +42,7 @@ function DoubleSum(innerSum::SingleSum,sum_index::Index,NEI;metadata=NO_METADATA
                 if index != sum_index && index ∉ NEI && isequal(index.aon,sum_index.aon)
                     extraterm = SingleSum(change_index(innerSum.term,sum_index,index),innerSum.sum_index,innerSum.non_equal_indices)
                     push!(NEI_,index)
-                end 
+                end
             end
             if innerSum.term isa QMul
                 # put terms of the outer index in front
@@ -109,7 +108,7 @@ function *(qmul::QMul,sum::DoubleSum)
     for i = length(qmul.args_nc):-1:1
         sum_ = qmul.args_nc[i] * sum_
     end
-    return qmul.arg_c*sum_ 
+    return qmul.arg_c*sum_
 end
 
 function *(elem::IndexedObSym,sum::DoubleSum)
@@ -117,7 +116,7 @@ function *(elem::IndexedObSym,sum::DoubleSum)
     NEI = copy(sum.NEI)
     if elem.ind != sum.sum_index && elem.ind ∉ NEI
         if ((sum.sum_index.aon != sum.innerSum.sum_index.aon) && isequal(elem.ind.aon,sum.sum_index.aon))
-            push!(NEI,elem.ind) 
+            push!(NEI,elem.ind)
             addterm = SingleSum(elem*change_index(sum.innerSum.term,sum.sum_index,elem.ind),sum.innerSum.sum_index,sum.innerSum.non_equal_indices)
             return DoubleSum(elem*sum.innerSum,sum.sum_index,NEI) + addterm
         end
@@ -136,7 +135,7 @@ function *(sum::DoubleSum,elem::IndexedObSym)
     return DoubleSum(sum.innerSum*elem,sum.sum_index,NEI)
 end
 *(sum::DoubleSum,x) = DoubleSum(sum.innerSum*x,sum.sum_index,sum.NEI)
-*(x,sum::DoubleSum) = DoubleSum(x*sum.innerSum,sum.sum_index,sum.NEI) 
+*(x,sum::DoubleSum) = DoubleSum(x*sum.innerSum,sum.sum_index,sum.NEI)
 
 
 SymbolicUtils.istree(a::DoubleSum) = false
@@ -171,4 +170,3 @@ function *(sum1::SingleSum,sum2::SingleSum; ind=nothing)
 
     end
 end
-

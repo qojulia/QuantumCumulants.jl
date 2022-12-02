@@ -16,7 +16,7 @@ function scaleME(me::IndexedMeanfieldEquations; kwargs...)
         tempEq = scaleEq(eq; kwargs...)
         if tempEq.lhs in getLHS.(newEqs)
             continue
-        elseif isNotIn(tempEq.lhs,getLHS.(newEqs),true;kwargs...) && isNotIn(_inconj(tempEq.lhs),getLHS.(newEqs),true;kwargs...)    
+        elseif isNotIn(tempEq.lhs,getLHS.(newEqs),true;kwargs...) && isNotIn(_inconj(tempEq.lhs),getLHS.(newEqs),true;kwargs...)
             push!(newEqs,tempEq)
         end
     end
@@ -135,9 +135,9 @@ function scaleTerm(x::QMul; h=nothing, kwargs...)
     end
     return term
 end
-scaleTerm(x::SymbolicUtils.Sym{Parameter,SpecialIndexedAverage}; kwargs...) = scaleTerm(x.metadata.term; kwargs...) #this is fine, since the intrinsic conditions on the indices go away automatically from the scaling 
+scaleTerm(x::SymbolicUtils.Sym{Parameter,SpecialIndexedAverage}; kwargs...) = scaleTerm(x.metadata.term; kwargs...) #this is fine, since the intrinsic conditions on the indices go away automatically from the scaling
 scaleEq(eq::Symbolics.Equation; kwargs...) = Symbolics.Equation(scaleTerm(eq.lhs; kwargs...),scaleTerm(eq.rhs; kwargs...))
-function scaleTerm(sym::SymbolicUtils.Sym{Parameter,IndexedVariable}; h=nothing,kwargs...) 
+function scaleTerm(sym::SymbolicUtils.Sym{Parameter,IndexedVariable}; h=nothing,kwargs...)
     if !=(h,nothing)
         if sym.metadata.ind.aon in h
             return SingleNumberedVariable(sym.metadata.name,1)
@@ -147,7 +147,7 @@ function scaleTerm(sym::SymbolicUtils.Sym{Parameter,IndexedVariable}; h=nothing,
     end
     return SingleNumberedVariable(sym.metadata.name,1)
 end
-function scaleTerm(sym::SymbolicUtils.Sym{Parameter,DoubleIndexedVariable}; h=nothing,kwargs...) 
+function scaleTerm(sym::SymbolicUtils.Sym{Parameter,DoubleIndexedVariable}; h=nothing,kwargs...)
     if !=(h,nothing)
         if sym.metadata.ind1.aon in h
             return DoubleNumberedVariable(sym.metadata.name,1,sym.metadata.ind2)
@@ -167,7 +167,7 @@ end
 scaleTerm(x; kwargs...) = x
 
 SymbolicUtils.substitute(avrg::SymbolicUtils.Sym{Parameter,SpecialIndexedAverage},subs;fold=false) = SymbolicUtils.substitute(avrg.metadata.term,subs;fold=fold)#SpecialIndexedAverage(SymbolicUtils.substitute(term.metadata.term,subs;fold=fold),term.metadata.indexMapping)
-function SymbolicUtils.substitute(sum::SymbolicUtils.Sym{Parameter,IndexedAverageSum},subs;fold=false) 
+function SymbolicUtils.substitute(sum::SymbolicUtils.Sym{Parameter,IndexedAverageSum},subs;fold=false)
     subTerm = SymbolicUtils.substitute(sum.metadata.term,subs;fold=fold)
     if SymbolicUtils._iszero(subTerm)
         return 0
@@ -177,7 +177,8 @@ function SymbolicUtils.substitute(sum::SymbolicUtils.Sym{Parameter,IndexedAverag
         return (sum.metadata.sum_index - length(sum.metadata.non_equal_indices)) * subTerm
     end
 end
-#function to split sums into different clusters, keeping 
+
+#function to split sums into different clusters, keeping
 #assume: all the indices that are not equal to the summation index are in the same Sum
 #for anything else than the assumption, there needs an extra argument, to specify where or how the extra indices are handled
 """
