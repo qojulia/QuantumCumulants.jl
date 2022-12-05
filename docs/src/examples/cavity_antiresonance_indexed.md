@@ -151,7 +151,7 @@ p_idx = [findfirst(isequal(p), ps) for p∈p_sys]
 
 for i=1:length(Δ_ls)
     Δc_i = Δ_ls[i]
-    Δa_i = Δc_ + Ωij(1,2) # cavity on resonace with the shifted collective emitter
+    Δa_i = Δc_i + Ωij(1,2) # cavity on resonace with the shifted collective emitter
     p0_ = [Δc_i; η_; Δa_i; κ_; gi_; Γij_; Ωij_]
 
     # create new SteadyStateProblem
