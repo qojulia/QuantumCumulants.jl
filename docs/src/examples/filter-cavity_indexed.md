@@ -150,7 +150,4 @@ end
 
 p2 = plot([-reverse(δ_ls);δ_ls], [reverse(n_f);n_f], xlabel="δ/Γ", ylabel="intensity", legend=false)
 plot(p1, p2, layout=(1,2), size=(700,300))
-savefig("filter_cavities_indexed.svg") # hide
 ```
-
-![svg](filter_cavities_indexed.svg)

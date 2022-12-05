@@ -154,10 +154,8 @@ s22 = real.(sol[σ(2,2)[1]])
 p1 = plot(t, n, xlabel="tΓ", ylabel="⟨a⁺a⟩", legend=false)
 p2 = plot(t, s22, xlabel="tΓ", ylabel="⟨σ22⟩", legend=false)
 plot(p1, p2, layout=(1,2), size=(700,300))
-savefig("superradiant_laser_time.svg") # hide
 ```
 
-![svg](superradiant_laser_time.svg)
 
 
 
@@ -213,12 +211,7 @@ spec_n = spec ./ maximum(spec)
 
 ```@example superradiant-laser
 plot(ω, spec_n, xlabel="ω/Γ", legend=false, size=(500,300))
-savefig("superradiant_laser_spec.svg") # hide
 ```
-
-
-![svg](superradiant_laser_spec.svg)
-
 
 
 Beside the narrow linewidth we can also see another key feature of the superradiant laser here, namely the very weak cavity pulling. At a detunig of $\Delta = 2500\Gamma$ there is only a shift of the laser light from the atomic resonance frequency of $\delta = 1\Gamma$.

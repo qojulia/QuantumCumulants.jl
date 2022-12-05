@@ -107,8 +107,4 @@ photons = real.(sol[a'a])
 p1 = plot(t, T, ylabel="T in K", legend=false)
 p2 = plot(t, photons, xlabel="t⋅ωm", ylabel="⟨a⁺a⟩", legend=false)
 plot(p1, p2, layout=(2,1), size=(650,400))
-savefig("opto_cooling.svg") # hide
 ```
-
-
-![svg](opto_cooling.svg)

@@ -133,7 +133,4 @@ n_t = real.(sol[average(a'*a)])
 p1 = plot(sol.t, n_t, xlabel="tΓ₁₂", ylabel="⟨a⁺a⟩", legend = false)
 p2 = plot(sol.t, σ22m11_t, xlabel="tΓ₁₂", ylabel="⟨σ22⟩ - ⟨σ11⟩", legend = false)
 plot(p1, p2, layout=(1,2), size=(800,300))
-savefig("3-level-laser.svg") # hide
 ```
-
-![](3-level-laser.svg)

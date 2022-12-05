@@ -101,14 +101,7 @@ nothing # hide
 
 ```@example mollow
 plot(sol, vars=((x,y)->(x,real(y)), 0, 2),xlabel="γt", label="Excited state population")
-savefig("mollow-1.svg") # hide
 ```
-
-
-
-
-![svg](mollow-1.svg)
-
 
 
 Now, solving the linear system to obtain the spectrum can simply be done by calling the instance at a range of frequencies, and providing the proper steady-state values and numerical parameters.
@@ -118,14 +111,7 @@ Now, solving the linear system to obtain the spectrum can simply be done by call
 ω = range(-6pi,6pi,length=1001)
 s = S(ω,sol.u[end],p0)
 plot(ω,s,xlabel="ω - ωℓ",label="Resonance spectrum")
-savefig("mollow-2.svg") # hide
 ```
-
-
-
-
-![svg](mollow-2.svg)
-
 
 
 The resulting spectrum shows a prominent peak at the resonance point ($\omega=\omega_\ell=\omega_a$), but also two more peaks around $\omega \approx \pm \Omega^2/\gamma$. These two resonances originate from the dressed states. These three peaks are called Mollow Triplet.

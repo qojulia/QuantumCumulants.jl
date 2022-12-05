@@ -101,10 +101,7 @@ sol = solve(prob,Tsit5(),maxiters=1e7)
 t = sol.t
 s22 = real.(sol[σ(2,2)])
 plot(t, s22, xlabel="tΓ", ylabel="⟨σ22⟩", legend=false, size=(600,300))
-savefig("timeevolution_ramsey.svg") # hide
 ```
-
-![svg](timeevolution_ramsey.svg)
 
 
 Scanning over the detuning for the excited state population leads to the well-known Ramsey fringes.
@@ -121,7 +118,4 @@ for i=1:length(Δ_ls)
 end
 
 plot(Δ_ls, s22_ls, xlabel="Δ/Γ", ylabel="⟨σ22⟩", legend=false, size=(600,300))
-savefig("scan_ramsey.svg") # hide
 ```
-
-![svg](scan_ramsey.svg)

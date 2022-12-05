@@ -242,7 +242,5 @@ pl = plot(sol.t, n, label="Photon number", xlabel="t")
 for i = 1:3
     plot!(sol.t, pe[i], label="Excited state population of atom $(i)")
 end
-savefig("symbolic_sums.svg") # hide
+pl # hide
 ```
-
-![Photon number and excited state population](symbolic_sums.svg)

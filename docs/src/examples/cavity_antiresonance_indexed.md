@@ -150,9 +150,9 @@ p_sys = parameters(sys)
 p_idx = [findfirst(isequal(p), ps) for p∈p_sys]
 
 for i=1:length(Δ_ls)
-    Δc_ = Δ_ls[i]
-    Δa_ = Δc_ + Ωij(1,2) # cavity on resonace with the shifted collective emitter
-    p0_ = [Δc_; η_; Δa_; κ_; gi_; Γij_; Ωij_]
+    Δc_i = Δ_ls[i]
+    Δa_i = Δc_ + Ωij(1,2) # cavity on resonace with the shifted collective emitter
+    p0_ = [Δc_i; η_; Δa_i; κ_; gi_; Γij_; Ωij_]
 
     # create new SteadyStateProblem
     prob_ss_ = remake(prob_ss, p=p0_[p_idx])
@@ -169,7 +169,4 @@ The transmission rate $T$ with respect to the pump laser detuning is given by th
 ```@example antiresonance_indexed
 T = n_ls ./ maximum(n_ls)
 plot(Δ_ls, T, xlabel="Δ/Γ", ylabel="T", legend=false)
-savefig("cavity_antiresonance_indexed.svg") # hide
 ```
-
-![svg](cavity_antiresonance_indexed.svg)

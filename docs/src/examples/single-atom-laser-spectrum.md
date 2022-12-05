@@ -157,9 +157,6 @@ nothing # hide
 plot(ω, s_fft, label="Spectrum (FFT)", xlabel="ω")
 plot!(ω, s_laplace, label="Spectrum (Laplace)")
 xlims!(-3,3)
-savefig("laser-spectrum.svg") # hide
 ```
-
-![svg](laser-spectrum.svg)
 
 As expected, both methods yield exactly the same spectrum. The difference is just in the method used, with the Laplace transform having a computational advantage.
