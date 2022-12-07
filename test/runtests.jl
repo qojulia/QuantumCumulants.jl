@@ -20,6 +20,7 @@ names = [
     "test_indexed_correlation.jl"
     "test_indexed_scale.jl"
     "test_indexed_filter_cavity.jl"
+    "test_indexed_mixed_order.jl"
 ]
 
 detected_tests = filter(

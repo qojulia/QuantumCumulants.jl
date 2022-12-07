@@ -34,8 +34,8 @@ const symbolics_terms = Union{<:Average,<:SymbolicUtils.Mul,<:SymbolicUtils.Sym}
 abstract type for numbered Variables.
 """
 abstract type numberedVariable <: CNumber end
-
 """
+
     IndexedAverageSum <: CNumber
 
 Defines a symbolic summation over an average, or a multiplication of several averages, using one [`Index`](@ref) entity.
@@ -88,6 +88,7 @@ IndexedAverageSum(x,args...;kwargs...) = average(SingleSum(x,args...;kwargs...))
 IndexedAverageSum(x::Number) = x
 
 """
+
     IndexedAverageDoubleSum <: CNumber
 
 Defines a symbolic summation over an [`IndexedAverageSum`](@ref), using a [`Index`](@ref) entity. This schematically represent a double-sum over a multiplication of averages.
@@ -135,6 +136,7 @@ IndexedAverageDoubleSum(x,y,z) = IndexedAverageSum(x,y,z)
 
 #For representing in average terms
 """
+
     NumberedOperator <: QSym
 
 Defines an operator, associated with a Number. Commutator-relations are calculated using these numbers, as a sort of a specific index-value.
@@ -167,6 +169,7 @@ end
 
 #Variables
 """
+
     SingleNumberedVariable <: numberedVariable
 
 Defines a variable, associated with a Number. Used by [`value_map`](@ref)
@@ -187,8 +190,8 @@ struct SingleNumberedVariable <: numberedVariable
         return SymbolicUtils.setmetadata(s, MTK.MTKParameterCtx, true)
     end
 end
-
 """
+
     DoubleNumberedVariable <: numberedVariable
 
 Defines a variable, associated with two Numbers. Used by [`value_map`](@ref)
@@ -233,7 +236,7 @@ struct SpecialIndexedAverage <: CNumber #An average-Term with special condition,
         return SymbolicUtils.Sym{Parameter, SpecialIndexedAverage}(Symbol("$(neis)$(term)"), metadata)
     end
 end
-function SpecialIndexedAverage(term::SymbolicUtils.Add,indexMapping)
+function SpecialIndexedAverage(term::SymbolicUtils.Add,indexMapping) 
     sum(SpecialIndexedAverage(arg,indexMapping) for arg in arguments(term))
 end
 function SpecialIndexedAverage(term::SymbolicUtils.Mul,indexMapping)
@@ -356,16 +359,16 @@ function Base.isequal(nVal1::Sym{Parameter,numberedVariable},nVal2::Sym{Paramete
 end
 Base.:(==)(nVal1::Sym{Parameter,numberedVariable},nVal2::Sym{Parameter,numberedVariable}) = (nVal1.name == nVal2.name) && (nVal1.numb == nVal2.numb)
 
-function cumulant_expansion(x::SymbolicUtils.Sym{Parameter,IndexedAverageSum},order::Integer;kwargs...)
+function _cumulant_expansion(x::SymbolicUtils.Sym{Parameter,IndexedAverageSum},order;kwargs...)
     sum = x.metadata
     return IndexedAverageSum(simplifyMultiplication(cumulant_expansion(sum.term,order;kwargs...)),sum.sum_index,sum.non_equal_indices)
 end
-function cumulant_expansion(x::SymbolicUtils.Sym{Parameter,IndexedAverageDoubleSum},order::Integer;kwargs...)
-    inner = cumulant_expansion(x.metadata.innerSum,order;kwargs...)
+function _cumulant_expansion(x::SymbolicUtils.Sym{Parameter,IndexedAverageDoubleSum},order;kwargs...)
+    inner = _cumulant_expansion(x.metadata.innerSum,order;kwargs...)
     return IndexedAverageDoubleSum(inner,x.metadata.sum_index,x.metadata.non_equal_indices)
 end
-cumulant_expansion(a::SymbolicUtils.Sym{Parameter,SpecialIndexedAverage},order::Int;kwargs...) = SpecialIndexedAverage(cumulant_expansion(a.metadata.term,order;kwargs...),a.metadata.indexMapping)
-cumulant_expansion(a::IndexedAverageSum,order::Int) = IndexedAverageSum(simplifyMultiplication(cumulant_expansion(a.term,order)),a.sum_index,a.non_equal_indices)
+_cumulant_expansion(a::SymbolicUtils.Sym{Parameter,SpecialIndexedAverage},order;kwargs...) = SpecialIndexedAverage(cumulant_expansion(a.metadata.term,order;kwargs...),a.metadata.indexMapping)
+_cumulant_expansion(a::IndexedAverageSum,order) = IndexedAverageSum(simplifyMultiplication(cumulant_expansion(a.term,order)),a.sum_index,a.non_equal_indices)
 
 SymbolicUtils.arguments(op::Sym{Parameter,IndexedAverageSum}) = arguments(op.metadata)
 SymbolicUtils.arguments(op::IndexedAverageSum) = arguments(op.term)
@@ -501,8 +504,7 @@ function insert_indices_lhs(term::Term{AvgSym, Nothing},map::Dict{Index,Int64};k
         inorder!(lhs)
     end
     return lhs
-end
-
+end 
 """
     evalME(me::MeanfieldEquations;limits::Dict{SymbolicUtils.Sym,Int64}=Dict{SymbolicUtils.Sym,Int64}())
 
@@ -551,7 +553,7 @@ function evalME(me::AbstractMeanfieldEquations;limits=Dict{SymbolicUtils.Sym,Int
                 dict = Dict{Index,Int}(inds .=> arr[j])
                 eq_lhs = insert_indices_lhs(eq.lhs,dict)
                 if !(eq_lhs in states || _inconj(eq_lhs) in states)
-                    eq_rhs = insert_indices(eq,dict;limits=limits,h=h,kwargs...)
+                    eq_rhs = insert_indices(eq,dict;limits=limits,h=h,kwargs...)    
                     states[counter] = eq_lhs
                     if SymbolicUtils._iszero(eq_rhs)
                         newEqs[counter] = Symbolics.Equation(eq_lhs,0)
@@ -562,7 +564,7 @@ function evalME(me::AbstractMeanfieldEquations;limits=Dict{SymbolicUtils.Sym,Int
                 end
             end
         end
-    end
+    end 
     states = states[1:(counter-1)]
     newEqs = newEqs[1:(counter-1)]
     varmap = make_varmap(states, me.iv)
@@ -583,7 +585,7 @@ function evalME(me::AbstractMeanfieldEquations;limits=Dict{SymbolicUtils.Sym,Int
             counter = counter + 1
         else
             ranges = get_range.(inds)
-            counter = counter + prod(ranges)
+            counter = counter + prod(ranges) 
         end
     end
     return substitute(counter,limits)
@@ -639,7 +641,7 @@ function eval_term(x;kwargs...)
     inorder!(x)
     return x
 end
-function evalEq(eq::Symbolics.Equation;kwargs...)
+function evalEq(eq::Symbolics.Equation;kwargs...) 
     rhs_ = eval_term(eq.rhs;kwargs...)
     if SymbolicUtils._iszero(rhs_)
         return Symbolics.Equation(eq.lhs,0)
