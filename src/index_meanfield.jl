@@ -330,9 +330,9 @@ function indexed_complete!(de::AbstractMeanfieldEquations;
     vs′hash = map(hash, vs′)
     filter!(!in(vhash), vs′hash)
     missed = find_missing(de.equations, vhash, vs′hash; get_adjoints=false)
-
     missed = find_missing_sums(missed,de;extra_indices=extras,kwargs...)
-    
+    missed = find_missing_Dsums(missed,de;extra_indices=extras,kwargs...)
+
     missed = inorder!.(missed)
     filter!(x -> (x isa Average),missed)
     isnothing(filter_func) || filter!(filter_func, missed) # User-defined filter
@@ -381,6 +381,7 @@ function indexed_complete!(de::AbstractMeanfieldEquations;
         end
         missed = find_missing(me.equations, vhash, vs′hash; get_adjoints=false)
         missed = find_missing_sums(missed,de;extra_indices=extras,kwargs...)
+        missed = find_missing_Dsums(missed,de;extra_indices=extras,kwargs...)
 
         missed = inorder!.(missed)
 
@@ -424,12 +425,15 @@ function indexed_complete!(de::AbstractMeanfieldEquations;
         # but still occur on the RHS; set those to 0
         missed = find_missing(de.equations, vhash, vs′hash; get_adjoints=false)
         missed = find_missing_sums(missed,de;extra_indices=extras,checking=false,kwargs...) #checkin dissabled, since there might be some terms, that are redundant, but also zero -> set them to zero aswell forsa fety
+        missed = find_missing_Dsums(missed,de;extra_indices=extras,checking=false,kwargs...)
+        missed = find_missing_sums(missed,de;checking=false,kwargs...) 
+        missed = find_missing_Dsums(missed,de;checking=false,kwargs...)
 
         missed = inorder!.(missed) #this one might not be right (?) -> not even needed i think
         filter!(x -> (x isa Average),missed)
 
         filter!(!filter_func, missed)
-        missed_adj = map(_adjoint, missed)
+        missed_adj = map(_inconj, missed)
         subs = Dict(vcat(missed, missed_adj) .=> 0)
         for i=1:length(de.equations)
             de.equations[i] = (SymbolicUtils.substitute(de.equations[i], subs))
@@ -552,6 +556,18 @@ function find_missing_sums(missed,de::AbstractMeanfieldEquations;extra_indices::
     end 
     return inorder!.(missed_)
 end
+#this function might not be so fast
+function find_missing_Dsums(missed,de::AbstractMeanfieldEquations;extra_indices::Vector=[],checking=true,scaling=false,kwargs...)
+    missed_ = copy(missed)
+    extras = copy(extra_indices)
+    for eq in de.equations
+        Dsums = getDSums(eq.rhs)
+        for sum in Dsums
+            checkAndChangeDsum(missed_,sum,extras,de.states,checking,scaling;kwargs...)
+        end
+    end
+    return inorder!.(missed_)
+end
 function checkAndChange(missed_,sum,extras,states,checking,scaling;kwargs...)
     avrgs = getAvrgs(sum) #get vector of all avrgs in the sum
     for avr in avrgs
@@ -582,6 +598,52 @@ function checkAndChange(missed_,sum,extras,states,checking,scaling;kwargs...)
         end
     end
 end
+function checkAndChangeDsum(missed_,sum,extras,states,checking,scaling;kwargs...)
+    avrgs = getAvrgs(sum) #get vector of all avrgs in the sum
+    inner = sum.metadata.innerSum
+    outerInd = sum.metadata.sum_index
+    innerInd = inner.metadata.sum_index
+    for avr in avrgs
+        changed_ = nothing
+        avrg_inds = get_indices(avr)
+        if outerInd in avrg_inds
+            filtered = filterExtras(outerInd,extras)
+            for i = 1:length(filtered)    # check if the extraindex is already in use for the term -> if so use the next in line
+                if filtered[i] ∉ avrg_inds
+                    changed_ = change_index(avr,outerInd,filtered[i])
+                    break
+                end
+            end
+        end
+        if innerInd in avrg_inds
+            filtered = filterExtras(innerInd,extras)
+            for i = 1:length(filtered)    
+                if filtered[i] ∉ avrg_inds 
+                    changed_ = change_index(avr,innerInd,filtered[i])
+                    break
+                end
+            end
+        end
+        if changed_ === nothing #if avrg consists of none indexed operators, or only of operators that already have the desired indices -> push along the whole average
+            changed_ = avr
+        end
+        if changed_ isa Average
+            changed = inorder!(changed_)    # this can be done, since terms inside the sum commute anyway
+            if !(changed isa Average)
+                continue
+            end
+            if checking     # checks if the missed term found by this function is already in the list of missed averages (checking = false is needed for substituting and filtering of adjoint summation terms since the same function is called when substituting inside sums)
+                if filterComplete(changed,states,scaling;kwargs...) && filterComplete(changed,missed_,scaling;kwargs...)
+                    push!(missed_,changed)
+                end
+            else
+                push!(missed_,changed)
+            end
+        end
+    end
+end
+
+
 # function that filters indices so that only indices get replaces that "live" in the same sub-hilbertspace
 function filterExtras(wanted,extras)
     return filter(x -> isequal(x.aon,wanted.aon),extras)
@@ -602,6 +664,17 @@ function checkIfSum(term)
         end
     end
     return sums
+end
+function getDSums(term)
+    Dsums = Any[]
+    if istree(term)
+        for arg in arguments(term)
+            Dsums = vcat(Dsums,getDSums(arg))
+        end
+    elseif term isa SymbolicUtils.Sym{Parameter,IndexedAverageDoubleSum}
+        return [term]
+    end
+    return Dsums
 end
 
 function hasSameOps(vec1::Vector,vec2::Vector)

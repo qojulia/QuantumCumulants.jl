@@ -793,6 +793,7 @@ get_spec_hilb(ind::Index) = ind.aon
 
 getAvrgs(sum::SymbolicUtils.Sym{Parameter,SpecialIndexedAverage}) = getAvrgs(sum.metadata.term)
 getAvrgs(sum::SymbolicUtils.Sym{Parameter,IndexedAverageSum}) = getAvrgs(sum.metadata.term)
+getAvrgs(Dsum::SymbolicUtils.Sym{Parameter,IndexedAverageDoubleSum}) = getAvrgs(Dsum.metadata.innerSum)
 getAvrgs(term::SymbolicUtils.Mul) = vcat(filter(x -> !=(x,nothing),[getAvrgs(arg) for arg in arguments(term)]))
 getAvrgs(avrg::Average) = avrg
 getAvrgs(x) = nothing

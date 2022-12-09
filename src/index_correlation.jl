@@ -244,10 +244,9 @@ function indexed_complete_corr!(de,aon0,lhs_new,order,steady_state,de0;
     vs′hash = map(hash, vs′)
     filter!(!in(vhash), vs′hash)
     missed = find_missing(de.equations, vhash, vs′hash; get_adjoints=false)
-    
-
     missed = find_missing_sums(missed,de;extra_indices=extra_indices)
- 
+    missed = find_missing_Dsums(missed,de;extra_indices=extra_indices)
+
     missed = inorder!.(missed)
     isnothing(filter_func) || filter!(filter_func, missed) # User-defined filter
 
@@ -298,8 +297,8 @@ function indexed_complete_corr!(de,aon0,lhs_new,order,steady_state,de0;
         end
 
         missed = find_missing(me.equations, vhash, vs′hash; get_adjoints=false)
-        
         missed = find_missing_sums(missed,de;extra_indices=extra_indices)
+        missed = find_missing_Dsums(missed,de;extra_indices=extra_indices)
 
         missed = inorder!.(missed)
         isnothing(filter_func) || filter!(filter_func, missed) # User-defined filter
@@ -338,12 +337,14 @@ function indexed_complete_corr!(de,aon0,lhs_new,order,steady_state,de0;
         missed = find_missing(de.equations, vhash, vs′hash; get_adjoints=false)
         if order != 1
             missed = find_missing_sums(missed,de;extra_indices=extra_indices,checking=false,scaling=false)
-
+            missed = find_missing_Dsums(missed,de;extra_indices=extra_indices,checking=false,scaling=false)
+            missed = find_missing_sums(missed,de;checking=false,scaling=false)
+            missed = find_missing_Dsums(missed,de;checking=false,scaling=false)
         end
         missed_ = inorder!.(missed)
         missed = vcat(missed,missed_)
         filter!(!filter_func, missed)
-        missed_adj = map(_adjoint, missed)
+        missed_adj = map(_inconj, missed)
         subs = Dict(vcat(missed, missed_adj) .=> 0)
         for i=1:length(de.equations)
             de.equations[i] = substitute(de.equations[i], subs; fold=true)
