@@ -132,6 +132,8 @@ function cumulant_expansion(x::SymbolicUtils.Symbolic,order::Integer;simplify=tr
             cumulants = [cumulant_expansion(arg,order;kwargs...) for arg in args]
             return f(cumulants...)
         end
+    elseif x isa AvgSums
+        return _cumulant_expansion(x,order;simplify,kwargs...) # basically just another cumulant_expansion dispatch
     else
         return x
     end
@@ -153,6 +155,8 @@ function cumulant_expansion(x::SymbolicUtils.Symbolic,order;mix_choice=maximum,s
         else
             return f(cumulants...)
         end
+    elseif x isa AvgSums
+        return _cumulant_expansion(x,order;mix_choice,simplify,kwargs...) # basically just another cumulant_expansion dispatch
     else
         return x
     end

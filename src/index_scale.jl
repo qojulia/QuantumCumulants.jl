@@ -174,9 +174,23 @@ function SymbolicUtils.substitute(sum::SymbolicUtils.Sym{Parameter,IndexedAverag
     elseif subTerm isa symbolics_terms
         return IndexedAverageSum(subTerm,sum.metadata.sum_index,sum.metadata.non_equal_indices)
     else
-        return (sum.metadata.sum_index - length(sum.metadata.non_equal_indices)) * subTerm
+        return (sum.metadata.sum_index.range - length(sum.metadata.non_equal_indices)) * subTerm
     end
 end
+SymbolicUtils.substitute(Dsum::SymbolicUtils.Sym{Parameter,IndexedAverageDoubleSum},subs;fold=false) = SymbolicUtils.substitute(Dsum.metadata,subs;fold=fold)
+function SymbolicUtils.substitute(Dsum::IndexedAverageDoubleSum,subs;fold=false)
+    inner = SymbolicUtils.substitute(Dsum.innerSum,subs;fold=fold)
+    if SymbolicUtils._iszero(inner)
+        return 0
+    elseif inner isa SymbolicUtils.Sym{Parameter,IndexedAverageSum}
+        return IndexedAverageDoubleSum(inner,Dsum.sum_index,Dsum.non_equal_indices)
+    else
+        return (Dsum.sum_index.range - length(Dsum.non_equal_indices)) * inner
+    end
+end
+
+
+
 
 #function to split sums into different clusters, keeping
 #assume: all the indices that are not equal to the summation index are in the same Sum
