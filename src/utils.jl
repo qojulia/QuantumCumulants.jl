@@ -486,3 +486,36 @@ _conj(x::Number) = conj(x)
 _adjoint(op::QNumber) = adjoint(op)
 _adjoint(s::SymbolicUtils.Symbolic{<:Number}) = _conj(s)
 _adjoint(x) = adjoint(x)
+
+"""
+    get_solution(sol::QTerm, op)
+    get_solution(sol::QNumber, op)
+
+Returns the result for the average of the operator expression `op` in the solution
+`sol` of an ODE- or SteadyStateProblem, similar to `sol[op]`. It can also be used
+for linear combinations of operators, which is not possible with `sol[op]`.
+"""
+get_solution(sol, op::QuantumCumulants.QNumber) = sol[op]
+function get_solution(sol, x)
+    if length(sol[1]) == 1 #SteadyStateProblem
+        return x
+    else
+        return x*ones(length(sol))
+    end
+end
+function get_solution(sol, op::QTerm)
+    f = SymbolicUtils.operation(op)
+    args = SymbolicUtils.arguments(op)
+    if f===(+)
+        sol_args = [get_solution(sol, args[i]) for i=1:length(args)]
+        return f(sol_args...)
+    elseif f === (*)
+        c = args[1]
+        if length(args) > 2
+            op_ = f(args[2:end]...)
+        else
+            op_ = args[2]
+        end
+        return c*sol[op_]
+    end
+end

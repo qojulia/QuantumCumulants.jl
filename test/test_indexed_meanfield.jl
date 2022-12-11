@@ -43,10 +43,10 @@ Ha = Δa*Σ(σ(2,2,i_ind),i_ind) + DSum
 Hi = Σ(g(i_ind)*(a'*σ(1,2,i_ind) + a*σ(2,1,i_ind)),i_ind)
 H = Hc + Ha + Hi
 
-J = [a, [σ(1,2,i_ind),σ(1,2,j_ind)] ] 
+J = [a, [σ(1,2,i_ind),σ(1,2,j_ind)] ]
 rates = [κ,Γ_ij]
 
-J_2 = [a, σ(1,2,i_ind) ] 
+J_2 = [a, σ(1,2,i_ind) ]
 rates_2 = [κ,Γ_ij]
 
 ops = [a, σ(2,2,k_ind), σ(1,2,k_ind)]
@@ -118,8 +118,10 @@ sol_ss = solve(prob_ss, DynamicSS(Tsit5(); abstol=1e-8, reltol=1e-8),
 
 @test length(eqs_4) == length(eqs)
 
-order = 1
+@test get_solution(sol_ss, 2a + σ(1,1,1)) == (2*sol_ss[a] + 1- sol_ss[σ(2,2,1)])
+@test isequal(σ(1,1,2), 1-σ(2,2,2))
 
+order = 1
 @cnumbers g N κ
 
 # Hilbertspace
@@ -134,7 +136,6 @@ k = Index(h,:k,N,hf)
 
 xij = IndexedVariable(:x,i,j)
 
-
 @qnumbers a_::Destroy(h,1)
 b(k) = IndexedOperator(Destroy(h,:b,2), k)
 
@@ -143,8 +144,8 @@ J = [a_]
 rates = [κ]
 
 
-eqs1 = meanfield(a_,H,J;rates=rates,order=order) 
-eqs2 = meanfield([a_],H,J;rates=rates,order=order) 
+eqs1 = meanfield(a_,H,J;rates=rates,order=order)
+eqs2 = meanfield([a_],H,J;rates=rates,order=order)
 @test isequal(eqs1.equations,eqs2.equations)
 
 @test isequal(sort([i,j]),sort(qc.get_all_indices(eqs1)))
