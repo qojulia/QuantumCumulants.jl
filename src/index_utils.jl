@@ -20,6 +20,11 @@ get_indices(term) = istree(term) ? get_indices(arguments(term)) : []
 ∑(args...; kwargs...) = Σ(args...; kwargs...)
 
 IndexedOperator(x::IndexableOps,numb::Int64) = NumberedOperator(x,numb)
+function IndexedOperator(x::QTerm, numb::Int64) # σ(1,1,2)
+    f = SymbolicUtils.operation(x)
+    args = SymbolicUtils.arguments(x)
+    f([NumberedOperator(arg, numb) for arg in args]...)
+end
 IndexedVariable(x,numb::Int64) = SingleNumberedVariable(x,numb)
 IndexedVariable(x,num1::Int64,num2::Int64;kwargs...) = DoubleNumberedVariable(x,num1,num2;kwargs...)
 IndexedVariable(name::Symbol,ind1::Index,ind2::Index;kwargs...) = DoubleIndexedVariable(name,ind1,ind2;kwargs...)
@@ -70,7 +75,7 @@ inadjoint(op::QNumber) = adjoint(op)
 inadjoint(s::SymbolicUtils.Symbolic{<:Number}) = _conj(s)
 inadjoint(x) = adjoint(x)
 
-function inorder!(v::Average) 
+function inorder!(v::Average)
     f = operation(v)
     if f == conj
         return conj(inorder!(arguments(v)[1]))
@@ -123,7 +128,7 @@ function subst_reds_scale(me::AbstractMeanfieldEquations;kwargs...)
     filter!(x->x ∉ states,to_sub)
 
     to_insert = Vector{Any}(nothing,length(to_sub))
-    
+
     counter = 1
     while counter <= length(to_sub)
         elem = to_sub[counter]
@@ -180,10 +185,10 @@ function isscaleequal(qmul1::QMul,qmul2::QMul;kwargs...)
     isequal(qmul1,qmul2) && return true
     isequal(length(qmul1.args_nc), length(qmul2.args_nc)) || return false
     isequal(acts_on(qmul1),acts_on(qmul2)) || return false
-    return has_same(get_ops_of_aons(qmul1;kwargs...),get_ops_of_aons(qmul2;kwargs...)) 
+    return has_same(get_ops_of_aons(qmul1;kwargs...),get_ops_of_aons(qmul2;kwargs...))
 end
-function isscaleequal(a::NumberedOperator,b::NumberedOperator;h=nothing,kwargs...) 
-    isequal(a,b) && return true 
+function isscaleequal(a::NumberedOperator,b::NumberedOperator;h=nothing,kwargs...)
+    isequal(a,b) && return true
     if !=(h,nothing)
         if !(h isa Vector)
             h = [h]
@@ -195,8 +200,8 @@ function isscaleequal(a::NumberedOperator,b::NumberedOperator;h=nothing,kwargs..
         return isequal(a.op,b.op)
     end
 end
-function isscaleequal(a::IndexedOperator,b::IndexedOperator;h=nothing,kwargs...) 
-    isequal(a,b) && return true 
+function isscaleequal(a::IndexedOperator,b::IndexedOperator;h=nothing,kwargs...)
+    isequal(a,b) && return true
     if !=(h,nothing)
         if !(h isa Vector)
             h = [h]
@@ -268,7 +273,7 @@ function isNotIn(avrg::Average,states::Vector,scaling;kwargs...)
             isequal(_avg,state) && return false
         end
         return true
-    end 
+    end
 end
 
 """

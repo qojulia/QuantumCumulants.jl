@@ -64,6 +64,8 @@ sol = solve(prob,RK4())
 n = real.(sol[average(a'*a)])
 pe = sol[average(σ(:e,:e,1))]
 
+@test get_solution(sol, σ(:g,:g,1)) == -sol[σ(:e,:e,1)] .+ 1
+@test get_solution(sol, 2a'a + 3*σ(:e,:e,1)) == 2*sol[a'a] + 3*sol[σ(:e,:e,1)]
 
 # Test with complete and custom filter
 ϕ(::Destroy) = -1
