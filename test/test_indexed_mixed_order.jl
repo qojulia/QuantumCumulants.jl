@@ -67,5 +67,26 @@ for state in eqs.states
     end
 end
 
+corr = CorrelationFunction(a',a,eqs; steady_state=true)
+corr_sc = scale(corr)
+corr_ev = evaluate(corr;limits=Dict(N=>3))
+corr_ev2 = evaluate(corr;limits=(N=>3))
+
+@test corr_ev.de.equations == corr_ev2.de.equations
+
+missed_sc = find_missing(corr_sc.de)
+filter!(x -> x ∉ conj.(corr_sc.de.states),missed_sc)
+filter!(x -> x ∉ conj.(corr_sc.de0.states),missed_sc)
+filter!(x -> x ∉ corr_sc.de0.states,missed_sc)
+filter!(x -> !(length(acts_on(x)) == 1 && acts_on(x)[1] == 3),missed_sc) #a_0 filter
+
+missed_ev = find_missing(corr_ev.de)
+filter!(x -> x ∉ conj.(corr_ev.de.states),missed_ev)
+filter!(x -> x ∉ conj.(corr_ev.de0.states),missed_ev)
+filter!(x -> x ∉ corr_ev.de0.states,missed_ev)
+filter!(x -> !(length(acts_on(x)) == 1 && acts_on(x)[1] == 3),missed_ev) #a_0 filter
+
+@test isempty(missed_sc)
+@test isempty(missed_ev)
 
 end # testset

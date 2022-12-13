@@ -731,7 +731,7 @@ complete!(eqs::IndexedMeanfieldEquations;kwargs...) = indexed_complete!(eqs;kwar
     evaluate(x;limits)
 
 Function, that evaluates a given [`MeanfieldEquations`](@ref) entity and returns again equations,
-where indices have been inserted and sums evaluated. Can also be called on individual terms, to
+where indices have been inserted and sums evaluated. Can also be called on individual terms and a [`CorrelationFunction`](@ref) entity, to
 evaluate any summations inside these terms.
 
 # Arguments

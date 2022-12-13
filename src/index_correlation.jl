@@ -1,10 +1,10 @@
 function _new_operator(op::IndexedOperator,h,aon=acts_on(op)) 
     if op.ind.hilb != h
-        return IndexedOperator(Transition(h,op.op.name,op.op.i,op.op.j,aon;op.op.metadata),Index(h,op.ind.name,op.ind.range,op.ind.aon))
+        return IndexedOperator(_new_operator(op.op,h,aon),Index(h,op.ind.name,op.ind.range,op.ind.aon))
     end
-    return IndexedOperator(Transition(h,op.op.name,op.op.i,op.op.j,aon;op.op.metadata),op.ind)
+    return IndexedOperator(_new_operator(op.op,h,aon),op.ind)
 end
-_new_operator(nOp::NumberedOperator,h,aon=acts_on(nOp)) = NumberedOperator(Transition(h,nOp.op.name,nOp.op.i,nOp.op.j,aon;nOp.op.metadata),nOp.numb)
+_new_operator(nOp::NumberedOperator,h,aon=acts_on(nOp)) = NumberedOperator(_new_operator(op.op,h,aon),nOp.numb)
 function _new_operator(sum::SingleSum,h) 
     newsum_index = sum.sum_index
     if sum.sum_index.hilb != h
@@ -17,6 +17,20 @@ function _new_operator(sum::SingleSum,h)
         end
     end
     return SingleSum(_new_operator(sum.term,h),newsum_index,newSumNonEquals)
+end
+function _new_operator(sum::DoubleSum,h) 
+    newsum_index = sum.sum_index
+    if sum.sum_index.hilb != h
+        newsum_index = Index(h,sum.sum_index.name,sum.sum_index.range,sum.sum_index.aon)
+    end
+    newSumNonEquals = Index[]
+    for ind in sum.NEI
+        if ind.hilb != h
+            push!(newSumNonEquals,Index(h,ind.name,ind.range,ind.aon))
+        end
+    end
+    inner = _new_operator(sum.innerSum,h)
+    return DoubleSum(inner,newsum_index,newSumNonEquals)
 end
 function _new_operator(sum::IndexedAverageSum,h;kwargs...)
     newsum_index = sum.sum_index
@@ -33,12 +47,45 @@ function _new_operator(sum::IndexedAverageSum,h;kwargs...)
 end
 _new_operator(sym::SymbolicUtils.Sym{Parameter,IndexedAverageSum},h;kwargs...) = _new_operator(sym.metadata,h;kwargs...)
 function _new_indices(Inds::Vector,h)
-    Inds_ = copy(Inds)
+    Inds_ = deepcopy(Inds)
     for i=1:length(Inds)
         Inds_[i] = Index(h,Inds[i].name,Inds[i].range,Inds[i].aon)
     end
     return Inds_
 end
+function _new_operator(sum::IndexedAverageDoubleSum,h;kwargs...)
+    newsum_index = sum.sum_index
+    if sum.sum_index.hilb != h
+        newsum_index = Index(h,sum.sum_index.name,sum.sum_index.range,sum.sum_index.aon)
+    end
+    newSumNonEquals = Index[]
+    for ind in sum.non_equal_indices
+        if ind.hilb != h
+            push!(newSumNonEquals,Index(h,ind.name,ind.range,ind.aon))
+        end
+    end
+    inner = _new_operator(sum.innerSum,h;kwargs...)
+    return IndexedAverageDoubleSum(inner,newsum_index,newSumNonEquals)
+end
+_new_operator(sym::SymbolicUtils.Sym{Parameter,IndexedAverageDoubleSum},h;kwargs...) = _new_operator(sym.metadata,h;kwargs...)
+_new_operator(sym::SymbolicUtils.Sym{Parameter,IndexedVariable},h;kwargs...) = _new_operator(sym.metadata,h;kwargs...)
+_new_operator(sym::SymbolicUtils.Sym{Parameter,DoubleIndexedVariable},h;kwargs...) = _new_operator(sym.metadata,h;kwargs...)
+function _new_operator(sym::IndexedVariable,h;kwargs...)
+    if sym.ind.hilb != h
+        newInd = Index(h,sym.ind.name,sym.ind.range,sym.ind.aon)
+    end
+    return IndexedVariable(sym.name,newInd)
+end
+function _new_operator(sym::DoubleIndexedVariable,h;kwargs...)
+    if sym.ind1.hilb != h
+        newInd1 = Index(h,sym.ind1.name,sym.ind1.range,sym.ind1.aon)
+    end
+    if sym.ind2.hilb != h
+        newInd2 = Index(h,sym.ind2.name,sym.ind2.range,sym.ind2.aon)
+    end
+    return DoubleIndexedVariable(sym.name,newInd1,newInd2)
+end
+_new_operator(x::Vector,h;kwargs...) = _new_operator.(x,h;kwargs...)
 
 """
     IndexedCorrelationFunction(op1,op2,de0;steady_state=false,add_subscript=0,mix_choice=maximum)
@@ -70,10 +117,6 @@ function IndexedCorrelationFunction(op1,op2,de0::AbstractMeanfieldEquations;
     h2 = _new_hilbert(hilbert(op2), acts_on(op2))
     h = h1⊗h2
 
-    allInds = get_all_indices(de0)
-    filter!(x -> x ∉ getIndName.(allInds),extra_indices)
-
-    extra_inds = copy(extra_indices)
     extras_ = _new_indices(get_all_indices(de0.states),h) #the extra indices used in the equations beforehand
 
     H0 = de0.hamiltonian
@@ -86,13 +129,17 @@ function IndexedCorrelationFunction(op1,op2,de0::AbstractMeanfieldEquations;
     H = _new_operator(H0, h)
     J = [_new_operator(j, h) for j in J0]
     Jd = [_new_operator(j, h) for j in Jd0]
+    rates_ = [_new_operator(r,h) for r in de0.rates]
     lhs_new = [_new_operator(l, h) for l in de0.states]
 
-    order_ = if order===nothing
-        if de0.order===nothing
+    order_ = if order === nothing
+        if de0.order === nothing
             order_lhs = maximum(get_order(l) for l in de0.states)
             order_corr = get_order(op1_*op2_)
             max(order_lhs, order_corr)
+        elseif de0.order isa Vector
+            ind_ = acts_on(op1)
+            vcat(de0.order,[de0.order[ind_]])
         else
             de0.order
         end
@@ -100,25 +147,7 @@ function IndexedCorrelationFunction(op1,op2,de0::AbstractMeanfieldEquations;
         order
     end
 
-    if length(extras_) < order_ && !isemtpy(extras_)
-        if length(extras_) + length(extra_indis) < order_
-            error("For higher order, more extra_indices are required!")
-        end
-        for elem in extra_inds
-            if elem isa Symbol
-                push!(extras_,Index(extras_[1].hilb,elem,extras_[1].range,extras[1].aon))
-            elseif elem isa Index
-                push!(extras_,elem)
-            end
-        end
-    end
-    unique!(extras_)
-    if isempty(extras_)
-        extras_ = extra_inds
-    end
-
     op_ = op1_*op2_
-    @assert get_order(op_) <= order_
 
     varmap = make_varmap(lhs_new, de0.iv)
 
@@ -132,10 +161,10 @@ function IndexedCorrelationFunction(op1,op2,de0::AbstractMeanfieldEquations;
             push!(eqs, Symbolics.Equation(lhs_new[i], rhs))
             push!(eqs_op, Symbolics.Equation(ops[i], rhs_op))
         end
-        IndexedMeanfieldEquations(eqs,eqs_op,lhs_new,ops,H,J,Jd,de0.rates,de0.iv,varmap,order_)
+        IndexedMeanfieldEquations(eqs,eqs_op,lhs_new,ops,H,J,Jd,rates_,de0.iv,varmap,order_)
     end
 
-    de = indexed_meanfield([op_],H,J;Jdagger=Jd,rates=de0.rates,iv=iv,order=order_)
+    de = indexed_meanfield([op_],H,J;Jdagger=Jd,rates=rates_,iv=iv,order=order_)
     indexed_complete_corr!(de, length(h.spaces), lhs_new, order_, steady_state, de0_;
             filter_func=filter_func,
             mix_choice=mix_choice,
@@ -151,9 +180,16 @@ function scale(corr::CorrelationFunction;kwargs...)
     de_ = substituteIntoCorrelation(de,de0;scaling=true,kwargs...)
     return CorrelationFunction(corr.op1, corr.op2, corr.op2_0, de0, de_, corr.steady_state)
 end
-function evaluate(corr::CorrelationFunction;kwargs...)
-    de = evalME(corr.de;kwargs...)
-    de0 = evaluate(corr.de0;kwargs...)
+function evaluate(corr::CorrelationFunction;limits=nothing,kwargs...)
+    if !=(limits,nothing) && limits isa Pair
+        limits_ = Dict{SymbolicUtils.Sym,Int64}(first(limits) => last(limits));
+        limits = limits_
+    end
+    if limits === nothing
+        limits =  Dict{SymbolicUtils.Sym,Int64}();
+    end
+    de = evalME(corr.de;limits=limits,kwargs...)
+    de0 = evaluate(corr.de0;limits=limits,kwargs...)
     de_ = substituteIntoCorrelation(de,de0;scaling=false,kwargs...)
     return CorrelationFunction(corr.op1, corr.op2, corr.op2_0, de0, de_, corr.steady_state)
 end
@@ -224,18 +260,16 @@ function indexed_complete_corr!(de,aon0,lhs_new,order,steady_state,de0;
         end
     end
 
-    if containsMultiple(get_all_indices(de.states))
-        if extra_indices[1] isa Symbol
-            error("It is not possible to complete equations, containing indices, that act on different hilbertspaces using Symbols as
-            extra_indices. For this case use specific Indices.")
-        end
-        #maybe write also a check that checks for the indices being correct/enough
+    if de.order isa Vector 
+        order_max = maximum(de.order)
+    else
+        order_max = de.order
     end
 
-    if de.order > maxNumb && de.order - maxNumb > length(extra_indices)
+    if order_max > maxNumb && order_max - maxNumb > length(extra_indices)
         error("Too few extra_indices provided! Please make sure that for higher orders of cumulant expansion, 
             you also use the extra_indices argument to provide additional indices for calculation. The Number of
-            extra_indices provided should be at least $(de.order - maxNumb).
+            extra_indices provided should be at least $(order_max - maxNumb).
         ")
     end
 
@@ -335,12 +369,11 @@ function indexed_complete_corr!(de,aon0,lhs_new,order,steady_state,de0;
         # Find missing values that are filtered by the custom filter function,
         # but still occur on the RHS; set those to 0
         missed = find_missing(de.equations, vhash, vs′hash; get_adjoints=false)
-        if order != 1
-            missed = find_missing_sums(missed,de;extra_indices=extra_indices,checking=false,scaling=false)
-            missed = find_missing_Dsums(missed,de;extra_indices=extra_indices,checking=false,scaling=false)
-            missed = find_missing_sums(missed,de;checking=false,scaling=false)
-            missed = find_missing_Dsums(missed,de;checking=false,scaling=false)
-        end
+        missed = find_missing_sums(missed,de;extra_indices=extra_indices,checking=false,scaling=false)
+        missed = find_missing_Dsums(missed,de;extra_indices=extra_indices,checking=false,scaling=false)
+        missed = find_missing_sums(missed,de;checking=false,scaling=false)
+        missed = find_missing_Dsums(missed,de;checking=false,scaling=false)
+
         missed_ = inorder!.(missed)
         missed = vcat(missed,missed_)
         filter!(!filter_func, missed)
