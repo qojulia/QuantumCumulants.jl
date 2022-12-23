@@ -128,7 +128,7 @@ struct SingleSum{M} <: QTerm #Sum with an index, the term inside the sum must be
     non_equal_indices::Vector{IndexInt}  #indices not equal to the summation index
     metadata::M
     function SingleSum(term::Summable,sum_index::Index,non_equal_indices::Vector,metadata)
-        SymbolicUtils._iszero(term) ? 0 : new{typeof(metadata)}(term,sum_index,non_equal_indices,metadata)
+        SymbolicUtils._iszero(term) ? 0 : new{typeof(metadata)}(term,sum_index,sort(non_equal_indices,by=getIndName),metadata)
     end
 end
 

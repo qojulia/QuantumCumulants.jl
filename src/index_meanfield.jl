@@ -103,47 +103,46 @@ indexed_meanfield(a::Vector,H;kwargs...) = indexed_meanfield(a,H,[];Jdagger=[],k
 function indexed_master_lindblad(a_,J,Jdagger,rates)
     args = Any[]
     for k=1:length(J)
-        if J[k] isa IndexedOperator && !(rates[k] isa SymbolicUtils.Sym{Parameter,DoubleIndexedVariable})
+        if !isempty(get_indices(J[k])) && !(rates[k] isa SymbolicUtils.Sym{Parameter,DoubleIndexedVariable})
+            inds = get_indices(J[k])
+            length(inds) != 1 && error("Jump operators with multiple different indices are not supported!")
             c1 = 0.5*rates[k]*Jdagger[k]*commutator(a_,J[k])
             c2 = 0.5*rates[k]*commutator(Jdagger[k],a_)*J[k]
-            c = nothing
-            args_ = []
-            push_or_append_nz_args!(args_,c1)
-            push_or_append_nz_args!(args_,c2)
-            if isempty(args_)
-                c = 0
-            else
-                c = sum(args_)
-            end
-            if !SymbolicUtils._iszero(c)
-                push!(args, SingleSum(c,J[k].ind,Index[]))
-            end
+            c = c1 + c2
+            !SymbolicUtils._iszero(c) && push!(args, SingleSum(c,inds[1],Index[]))
         else
             if rates[k] isa SymbolicUtils.Sym{Parameter,DoubleIndexedVariable}
-                if !(J[k] isa Vector) && J[k] isa IndexedOperator
-                    if J[k].ind != rates[k].metadata.ind1 && J[k].ind != rates[k].metadata.ind2
-                        error("unequal index of first jump operator and variable")
-                    elseif J[k].ind == rates[k].metadata.ind1 && J[k].ind != rates[k].metadata.ind2
-                        vec = [J[k],change_index(J[k],J[k].ind,rates[k].metadata.ind2)]
-                    elseif J[k].ind != rates[k].metadata.ind1 && J[k].ind == rates[k].metadata.ind2
-                        vec = [change_index(J[k],J[k].ind,rates[k].metadata.ind1),J[k]]
+                if !(J[k] isa Vector) && !(isempty(get_indices(J[k])))
+                    inds = get_indices(J[k])
+                    length(inds) != 1 && error("Jump operators with multiple different indices are not supported!")
+                    ind_ = inds[1]
+                    if !isequal(ind_,rates[k].metadata.ind1) && !isequal(ind_,rates[k].metadata.ind2)
+                        error("unequal index of jump operator and variable!")
+                    elseif isequal(ind_,rates[k].metadata.ind1) && !isequal(ind_,rates[k].metadata.ind2)
+                        vec = [J[k],change_index(J[k],ind_,rates[k].metadata.ind2)]
+                    elseif !isequal(ind_,rates[k].metadata.ind1) && isequal(ind_,rates[k].metadata.ind2)
+                        vec = [change_index(J[k],ind_,rates[k].metadata.ind1),J[k]]
                     end
                     vecdagger = adjoint.(vec)
                     c1 = vecdagger[1]*commutator(a_,vec[2])
                     c2 = commutator(vecdagger[1],a_)*vec[2]
                     c = 0.5*rates[k]*(c1+c2)
-                    push!(args,DoubleSum(SingleSum((c),vec[1].ind,Index[]),vec[2].ind,Index[]))
+                    push!(args,∑(c,vec[1].ind,vec[2].ind))
                 else
-                    if J[k][1].ind != rates[k].metadata.ind1
+                    length(get_indices(J[k][1])) != 1 && error("Jump operators with multiple different indices are not supported!")
+                    length(get_indices(J[k][2])) != 1 && error("Jump operators with multiple different indices are not supported!")
+                    ind_1 = get_indices(J[k][1])[1]
+                    ind_2 = get_indices(J[k][2])[1]
+                    if !isequal(ind_1, rates[k].metadata.ind1)
                         error("unequal index of first jump operator and variable")
                     end
-                    if J[k][2].ind != rates[k].metadata.ind2
+                    if !isequal(ind_2,rates[k].metadata.ind2)
                         error("unequal index of second jump operator and variable")
                     end
                     c1 = Jdagger[k][1]*commutator(a_,J[k][2])
                     c2 = commutator(Jdagger[k][1],a_)*J[k][2]
                     c = 0.5*rates[k]*(c1+c2)
-                    push!(args,DoubleSum(SingleSum((c),J[k][1].ind,Index[]),J[k][2].ind,Index[]))
+                    push!(args,∑(c,J[k][1].ind,J[k][2].ind))
                 end
             elseif isa(rates[k],SymbolicUtils.Symbolic) || isa(rates[k],Number) || isa(rates[k],Function)
                 c1 = 0.5*rates[k]*Jdagger[k]*commutator(a_,J[k])
@@ -474,6 +473,11 @@ end
 function get_all_indices(me::AbstractMeanfieldEquations)
     eqs = me.equations
     inds = []
+    for ind in get_all_indices(me.rates)
+        if ind ∉ inds
+            push!(inds,ind)
+        end
+    end
     for ind in get_all_indices(me.states)
         if ind ∉ inds
             push!(inds,ind)

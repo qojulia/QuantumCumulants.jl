@@ -28,7 +28,7 @@ struct DoubleSum{M} <:QTerm
 
     end
 end
-function DoubleSum(innerSum::SingleSum,sum_index::Index,NEI;metadata=NO_METADATA)
+function DoubleSum(innerSum::SingleSum,sum_index::Index,NEI::Vector;metadata=NO_METADATA)
         if innerSum.sum_index == sum_index
             error("summation index is the same as the index of the inner sum")
         else
@@ -40,7 +40,7 @@ function DoubleSum(innerSum::SingleSum,sum_index::Index,NEI;metadata=NO_METADATA
                     continue
                 end
                 if index != sum_index && index ∉ NEI && isequal(index.aon,sum_index.aon)
-                    extraterm = SingleSum(change_index(innerSum.term,sum_index,index),innerSum.sum_index,innerSum.non_equal_indices)
+                    extraterm = extraterm + SingleSum(change_index(innerSum.term,sum_index,index),innerSum.sum_index,innerSum.non_equal_indices)
                     push!(NEI_,index)
                 end
             end
@@ -62,21 +62,21 @@ function DoubleSum(innerSum::SingleSum,sum_index::Index,NEI;metadata=NO_METADATA
                     end
                     return DoubleSum(innerSum_,sum_index,NEI_,metadata) + extraterm
                 else
-                    return DoubleSum(innerSum_,sum_index,NEI_;metadata=metadata)
+                    return DoubleSum(innerSum_,sum_index,NEI_;metadata=metadata) + extraterm
                 end
-            else
+            else # this case is only reachable if innersum has only one operator ->  no extraterm anyway
                 sort!(NEI)
                 return DoubleSum(innerSum,sum_index,NEI,metadata)
             end
         end
 end
-function DoubleSum(innerSum::IndexedAdd,sum_index::Index,NEI;metadata=NO_METADATA)
+function DoubleSum(innerSum::IndexedAdd,sum_index::Index,NEI::Vector;metadata=NO_METADATA)
     sums = [DoubleSum(arg,sum_index,NEI;metadata=metadata) for arg in arguments(innerSum)]
     isempty(sums) && return 0
     length(sums) == 1 && return sums[1]
     return +(sums...)
 end
-DoubleSum(x,ind::Index,NEI;metadata=NO_METADATA) = SingleSum(x,ind,NEI)
+DoubleSum(x,ind::Index,NEI::Vector;metadata=NO_METADATA) = SingleSum(x,ind,NEI)
 DoubleSum(x,ind::Index;metadata=NO_METADATA) = DoubleSum(x,ind,Index[])
 
 #In this constructor the NEI is considered so, that all indices given in ind are unequal to any of the NEI
@@ -86,7 +86,7 @@ function DoubleSum(term::QMul,ind::Vector{Index},NEI::Vector{Index};metadata=NO_
     end
     return DoubleSum(SingleSum(term,ind[1],NEI),ind[2],NEI;metadata=metadata)
 end
-function DoubleSum(term::QMul,outerInd::Index,innerInd::Index;non_equal::Bool=false,metadata=NO_METADATA)
+function DoubleSum(term,outerInd::Index,innerInd::Index;non_equal::Bool=false,metadata=NO_METADATA)
     if non_equal
         innerSum = SingleSum(term,innerInd,[outerInd])
         return DoubleSum(innerSum,outerInd,[];metadata=metadata)
