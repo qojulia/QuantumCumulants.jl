@@ -216,5 +216,52 @@ s2_ = evaluate(eqs_com; h=[2],limits=(N=>5))
 
 @test s1.states == s2.states
 
+# test for linear combinations in jump operators
+
+ha = NLevelSpace(:atoms,2)
+hc = FockSpace(:cavity)
+h = hc ⊗ ha
+
+@cnumbers N Δ κ γ ν χ 
+
+i = Index(h,:i,N,ha)
+j = Index(h,:j,N,ha)
+
+@qnumbers b::Destroy(h)
+σ(x,y,z) = IndexedOperator(Transition(h,:σ,x,y),z)
+gi = IndexedVariable(:g,i)
+
+H = Δ*b'*b + ∑(gi*(b*σ(2,1,i) + b'*σ(1,2,i)),i)
+ops = [b'b, σ(2,2,j)]
+
+J = [b, σ(1,2,i), σ(2,1,i), σ(2,2,i) - σ(1,1,i)]
+rates = [κ, γ, ν, χ]
+
+eqs = meanfield(ops,H,J;rates=rates,order=2)
+eqs_c = complete(eqs);
+
+#test with scale
+eqs_sc = scale(eqs_c);
+@named sys_sc = ODESystem(eqs_sc);
+u0 = zeros(ComplexF64, length(eqs_sc))
+u0[1] = 2 # initial value for ⟨b'*b⟩
+ps_sc = [IndexedVariable(:g,1),N,Δ, κ, γ, ν, χ]
+p_sc = [0.5, 3, 0.0, 1.0, 1.0, 0.5, 2.0]
+P_sc = value_map(ps_sc,p_sc);
+prob_sc = ODEProblem(sys_sc,u0,(0.0, 10.0), P_sc);
+sol_sc = solve(prob_sc,Tsit5());
+@test sol_sc isa ODESolution
+
+#test with evaluate
+eqs_eval = evaluate(eqs_c;limits=(N=>3));
+@named sys = ODESystem(eqs_eval);
+u0 = zeros(ComplexF64, length(eqs_eval))
+u0[1] = 2
+ps = [gi,Δ, κ, γ, ν, χ]
+p = [[0.5,1.0,1.5],0.0, 1.0, 1.0, 0.5, 2.0]
+P = value_map(ps,p;limits=(N=>3));
+prob = ODEProblem(sys,u0,(0.0, 10.0), P);
+sol = solve(prob,Tsit5());
+@test sol isa ODESolution
 
 end
