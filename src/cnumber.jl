@@ -24,7 +24,7 @@ Base.promote_rule(::Type{<:CNumber},::Type{<:Number}) = CNumber
 
 Base.one(::Type{Parameter}) = 1
 Base.zero(::Type{Parameter}) = 0
-Base.adjoint(x::SymbolicUtils.Sym{Parameter}) = conj(x)
+Base.adjoint(x::SymbolicUtils.Symbolic{<:CNumber}) = conj(x)
 
 """
     @cnumbers(ps...)
