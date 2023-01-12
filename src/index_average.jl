@@ -214,10 +214,10 @@ struct DoubleNumberedVariable <: numberedVariable
         end
         if typeof(numb1) == typeof(numb2) && numb1 isa Int64
             metadata = source_metadata(:Parameter, name)
-            s = SymbolicUtils.Sym{Parameter, typeof(metadata)}(Symbol("$(name)_{$(numb1)$(numb2)}"), metadata)
+            s = SymbolicUtils.Sym{Parameter, typeof(metadata)}(Symbol("$(name)_{$(numb1),$(numb2)}"), metadata)
             return SymbolicUtils.setmetadata(s, MTK.MTKParameterCtx, true)
         else
-            return SymbolicUtils.Sym{Parameter, numberedVariable}(Symbol("$(name)_{$(numb1)$(numb2)}"), new(name,numb1,numb2))
+            return SymbolicUtils.Sym{Parameter, numberedVariable}(Symbol("$(name)_{$(numb1),$(numb2)}"), new(name,numb1,numb2))
         end
     end
 end
