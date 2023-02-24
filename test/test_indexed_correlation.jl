@@ -123,6 +123,9 @@ op2 = a
 corr = IndexedCorrelationFunction(a', a, eqs_c; steady_state=true, filter_func=phase_invariant,extra_indices=extra_indices);
 corr = scale(corr)
 
+corr_nss = IndexedCorrelationFunction(a', a, eqs_c; steady_state=false, filter_func=phase_invariant);
+corr_nss_sc = scale(corr_nss)
+
 ps = [N, Δ, g, κ, Γ, R, ν]
 
 @test length(corr.de0) == 4
@@ -134,6 +137,16 @@ prob_ss = SteadyStateProblem(prob)
 sol_ss = solve(prob_ss, DynamicSS(Tsit5(); abstol=1e-8, reltol=1e-8),
     reltol=1e-14, abstol=1e-14, maxiters=5e7);
 
+
+p0_c = correlation_p0(corr_nss_sc, sol.u[end],ps.=>p0)
+u0_c = correlation_u0(corr_nss_sc, sol.u[end])
+
+@named csys = ODESystem(corr_nss_sc) # 5 equations, 8 parameters
+
+prob_c = ODEProblem(csys,u0_c,(0.0,10.0),p0_c);
+sol_c = solve(prob_c,Tsit5();saveat=0.001,maxiters=1e8); #UndefVarError: avg not defined
+
+@test sol_c.retcode == SciMLBase.ReturnCode.Success
 
 limits = Dict{SymbolicUtils.Sym,Int64}(N=>5)
 evals = evaluate(eqs_c;limits=limits)

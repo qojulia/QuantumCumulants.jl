@@ -284,7 +284,7 @@ function indexed_complete_corr!(de,aon0,lhs_new,order,steady_state,de0;
     missed = inorder!.(missed)
     isnothing(filter_func) || filter!(filter_func, missed) # User-defined filter
 
-    filter!(x -> filterComplete_corr(x,de.states,de0.states,false;kwargs...), missed)
+    filter!(x -> filterComplete_corr(x,de.states,de0.states,false,steady_state;kwargs...), missed)
 
     missed = inorder!.(missed)
 
@@ -337,7 +337,7 @@ function indexed_complete_corr!(de,aon0,lhs_new,order,steady_state,de0;
         missed = inorder!.(missed)
         isnothing(filter_func) || filter!(filter_func, missed) # User-defined filter
     
-        filter!(x -> filterComplete_corr(x,de.states,de0.states,false;kwargs...), missed)
+        filter!(x -> filterComplete_corr(x,de.states,de0.states,false,steady_state;kwargs...), missed)
 
         missed = inorder!.(missed)
        
@@ -359,7 +359,7 @@ function indexed_complete_corr!(de,aon0,lhs_new,order,steady_state,de0;
         end
         filter!(_filter_aon, missed)
         isnothing(filter_func) || filter!(filter_func, missed) # User-defined Filter
-        filter!(x -> filterComplete_corr(x,de.states,de0.states,false;kwargs...), missed)
+        filter!(x -> filterComplete_corr(x,de.states,de0.states,false,steady_state;kwargs...), missed)
         missed = unique(missed) #no duplicates
         missed = elimRed!(missed)
         missed = inorder!.(missed)
@@ -388,7 +388,14 @@ function indexed_complete_corr!(de,aon0,lhs_new,order,steady_state,de0;
     return de
 end
 
-filterComplete_corr(x,states1,states2,scaling;kwargs...) = (isNotIn(x,states1,scaling;kwargs...) && isNotIn(_inconj(x),states1,scaling;kwargs...) 
-    && isNotIn(x,states2,scaling;kwargs...)&& isNotIn(_inconj(x),states2,scaling;kwargs...))
+function filterComplete_corr(x,states1,states2,scaling,steady_state;kwargs...) 
+    if steady_state
+        return (isNotIn(x,states1,scaling;kwargs...) && isNotIn(_inconj(x),states1,scaling;kwargs...) 
+            && isNotIn(x,states2,scaling;kwargs...)&& isNotIn(_inconj(x),states2,scaling;kwargs...))
+    else 
+        return (isNotIn(x,states1,scaling;kwargs...) && isNotIn(_inconj(x),states1,scaling;kwargs...))
+            #&& isNotIn(x,states2,scaling;kwargs...)&& isNotIn(_inconj(x),states2,scaling;kwargs...))
+    end
+end
 
 CorrelationFunction(op1,op2,de0::IndexedMeanfieldEquations; kwargs...) = IndexedCorrelationFunction(op1,op2,de0;kwargs...)
