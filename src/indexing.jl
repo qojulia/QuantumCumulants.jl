@@ -1,7 +1,7 @@
 #Main class for indexing, here indices, sums and indexed operators and variables are defined with the corresponding calculus.
 #Many helping functions used in the different classes are also defined here.
 
-const Ranges = Union{<:SymbolicUtils.Sym,<:Number,<:SymbolicUtils.Mul,<:SymbolicUtils.Div} #possible Types for the range of an index
+const Ranges = Union{<:SymbolicUtils.Sym,<:Number,<:SymbolicUtils.Mul,<:SymbolicUtils.Div,<:BasicSymbolic} #possible Types for the range of an index
 const IndexableOps = Union{Transition,Create,Destroy} #every operator that can have an index
 
 """
@@ -50,7 +50,9 @@ struct IndexedVariable <: CNumber #just a symbol, that can be manipulated via th
     ind::Index
     function IndexedVariable(name::Symbol,ind::Index)
         metadata = new(name,ind)
-        return SymbolicUtils.Sym{Parameter, IndexedVariable}(Symbol("$(name)$(ind.name)"), metadata)
+        sym = SymbolicUtils.Sym{IndexedVariable}(Symbol("$(name)$(ind.name)"))
+        sym = SymbolicUtils.setmetadata(sym,typeof(metadata),metadata)
+        return sym
     end
 end
 
@@ -80,7 +82,9 @@ struct DoubleIndexedVariable <: CNumber #just a symbol, that can be manipulated 
             return 0
         end
         metadata = new(name,ind1,ind2,identical)
-        return SymbolicUtils.Sym{Parameter, DoubleIndexedVariable}(Symbol("$(name)$(ind1.name)$(ind2.name)"), metadata)
+        sym = SymbolicUtils.Sym{DoubleIndexedVariable}(Symbol("$(name)$(ind1.name)$(ind2.name)"))
+        sym = SymbolicUtils.setmetadata(sym,typeof(metadata),metadata)
+        return sym
     end
 end
 
@@ -107,7 +111,7 @@ struct IndexedOperator <: QSym
     end
 end
 
-const Summable = Union{<:QNumber,<:CNumber,<:SymbolicUtils.Sym{Parameter,IndexedVariable},<:SymbolicUtils.Sym{Parameter,DoubleIndexedVariable}}
+const Summable = Union{<:QNumber,<:CNumber,<:BasicSymbolic{IndexedVariable},<:BasicSymbolic{DoubleIndexedVariable}}
 
 """
     SingleSum <: QTerm
@@ -157,26 +161,37 @@ struct SpecialIndexedTerm <: QTerm    #A term, not in a sum, that has a conditio
         end
     end
 end
-const IndexedObSym = Union{IndexedOperator,SymbolicUtils.Sym{Parameter,IndexedVariable},SymbolicUtils.Sym{Parameter,DoubleIndexedVariable}}
-const IndexedAdd = Union{QAdd, SymbolicUtils.Add}
+const IndexedAdd = Union{QAdd, BasicSymbolic{<:CNumber}}
+const IndexedObSym = Union{IndexedOperator,BasicSymbolic{IndexedVariable},BasicSymbolic{DoubleIndexedVariable}}
 
-SpecialIndexedTerm(term::IndexedObSym,indexMapping) = term
-function SpecialIndexedTerm(add::IndexedAdd,indexMapping)
-    args = copy(arguments(add))
-    return sum(reorder.(args,indexMapping))
-end
-
-function SingleSum(term::IndexedObSym, sum_index, non_equal_indices;metadata=NO_METADATA)
-    term_indices = get_indices(term)
-    if sum_index in term_indices
-        return SingleSum(term,sum_index,non_equal_indices,metadata)
+function SpecialIndexedTerm(term::IndexedAdd,indexMapping)
+    if istree(term)
+        op = operation(term)
+        args = arguments(term)
+        return op([reorder(arg,indexMapping) for arg in args]...)
     else
-        return (sum_index.range - length(non_equal_indices)) * term
+        return term
     end
 end
 
+function SingleSum(term::IndexedObSym,sum_index::Index,non_equal_indices;metadata=NO_METADATA)
+    inds = get_indices(term)
+    sum_index in inds || return (sum_index.range - length(non_equal_indices)) * term
+    return SingleSum(term,sum_index,non_equal_indices,metadata)
+end
 function SingleSum(term::IndexedAdd, sum_index, non_equal_indices;metadata=NO_METADATA)
-    sum(SingleSum(arg,sum_index,non_equal_indices;metadata=metadata) for arg in arguments(term))
+    if istree(term)
+        op = operation(term)
+        args = arguments(term)
+        if op === +
+            return sum([SingleSum(arg,sum_index,non_equal_indices;metadata=NO_METADATA) for arg in args])
+        else
+            return (sum_index.range - length(non_equal_indices))*term
+        end
+    else
+        return (sum_index.range - length(non_equal_indices))*term
+    end
+    # sum(SingleSum(arg,sum_index,non_equal_indices;metadata=metadata) for arg in arguments(term))
 end
 function SingleSum(term::QMul, sum_index, non_equal_indices;metadata=NO_METADATA)
     SymbolicUtils._iszero(term) && return 0
@@ -256,8 +271,6 @@ SingleSum(ops::QMul,ind::Index;metadata=NO_METADATA) = SingleSum(ops,ind,Index[]
 SingleSum(ops::QAdd,ind::Index;metadata=NO_METADATA) = SingleSum(ops,ind,Index[];metadata=metadata)
 SingleSum(op::QNumber,ind::Index;metadata=NO_METADATA) = SingleSum(op,ind,Index[];metadata=metadata)
 SingleSum(ops::Number,ind::Index,NEI::Vector;metadata=NO_METADATA) = (ind.range - length(NEI))*ops
-SingleSum(ops::SymbolicUtils.Mul,ind::Index,NEI::Vector;metadata=NO_METADATA) = (ind.range - length(NEI))*ops
-
 SingleSum(term, sum_index, non_equal_indices;metadata=NO_METADATA) = (sum_index.range - length(non_equal_indices)) * term
 
 function IndexedOperator(op::QMul,ind::Index)
@@ -603,26 +616,56 @@ function change_index(term::QMul, from::Index, to::Index)
     arg_c = change_index(term.arg_c,from,to)
     args_nc = [change_index(arg,from,to) for arg in copy(term.args_nc)]
     return arg_c*prod(args_nc)
-
 end
 change_index(term::Average, from::Index,to::Index) = average(change_index(arguments(term)[1],from,to))
 change_index(op::IndexedOperator,from::Index,to::Index) = isequal(op.ind,from) ? IndexedOperator(op.op,to) : op
 
-change_index(op::SymbolicUtils.Sym{Parameter,IndexedVariable},from::Index,to::Index) = isequal(op.metadata.ind,from) ? IndexedVariable(op.metadata.name,to) : op
-function change_index(op::SymbolicUtils.Sym{Parameter,DoubleIndexedVariable},from::Index,to::Index)
-    if op.metadata.ind1 == from
-        if op.metadata.ind1 == op.metadata.ind2 && op.metadata.identical
-            return DoubleIndexedVariable(op.metadata.name,to,to;identical=op.metadata.identical)
-        elseif op.metadata.ind1 == op.metadata.ind2
-            return 0
-        else
-            return DoubleIndexedVariable(op.metadata.name,to,op.metadata.ind2;identical=op.metadata.identical)
-        end
-    elseif op.metadata.ind2 == from
-        return DoubleIndexedVariable(op.metadata.name,op.metadata.ind1,to;identical=op.metadata.identical)
+function change_index(op::BasicSymbolic{IndexedVariable},from::Index,to::Index)
+    if SymbolicUtils.hasmetadata(op,IndexedVariable)
+        meta = SymbolicUtils.metadata(op)[IndexedVariable]
+        return isequal(meta.ind,from) ? IndexedVariable(meta.name,to) : op
     end
 end
-change_index(mul::SymbolicUtils.Mul,from::Index,to::Index) = prod([change_index(arg,from,to) for arg in arguments(mul)])
+function change_index(op::BasicSymbolic{DoubleIndexedVariable},from::Index,to::Index)
+    if SymbolicUtils.hasmetadata(op,DoubleIndexedVariable)
+        meta = SymbolicUtils.metadata(op)[DoubleIndexedVariable]
+        if meta.ind1 == from
+            if meta.ind1 == meta.ind2 && meta.identical
+                return DoubleIndexedVariable(meta.name,to,to;identical=meta.identical)
+            elseif meta.ind1 == meta.ind2
+                return 0
+            else
+                return DoubleIndexedVariable(meta.name,to,meta.ind2;identical=meta.identical)
+            end
+        elseif meta.ind2 == from
+            return DoubleIndexedVariable(meta.name,meta.ind1,to;identical=meta.identical)
+        end
+    end
+end
+function change_index(term::BasicSymbolic{<:CNumber},from::Index,to::Index) 
+    if istree(term)
+        op = operation(term)
+        if op === +
+            args = arguments(term)
+            if length(args) == 1
+                return change_index(args[1],from,to)
+            end
+            return op([change_index(arg,from,to) for arg in args]...)
+        end
+        if op === *
+            args = arguments(term)
+            if length(args) == 1
+                return change_index(args[1],from,to)
+            end
+            return op([change_index(arg,from,to) for arg in args]...)
+        end
+        if op === ^
+            args = arguments(term)
+            return change_index(args[1],from,to)^args[2]
+        end
+    end
+    return term
+end
 change_index(x,from::Index,to::Index) = x
 
 ismergeable(a::IndexedOperator,b::IndexedOperator) = isequal(a.ind,b.ind) ? ismergeable(a.op,b.op) : false
@@ -804,8 +847,20 @@ function _to_expression(x::IndexedOperator)
     x.op isa Create && return :(dagger(IndexedDestroy($(x.op.name),$(x.ind.name))))
 end
 _to_expression(s::SingleSum) = :( SingleSum($(_to_expression(s.term)),$(s.sum_index.name),$(s.sum_index.range),$(writeNEIs(s.non_equal_indices))))
-_to_expression(a::SymbolicUtils.Sym{Parameter,IndexedVariable}) = :(IndexedVariable($(a.metadata.name),$(a.metadata.ind.name)))
-_to_expression(a::SymbolicUtils.Sym{Parameter,DoubleIndexedVariable}) = :(DoubleIndexedVariable($(a.metadata.name),$(a.metadata.ind1.name),$(a.metadata.ind2.name)))
+_to_expression(a::IndexedVariable) = :(IndexedVariable($(a.name),$(a.ind.name)))
+_to_expression(a::DoubleIndexedVariable) = :(DoubleIndexedVariable($(a.name),$(a.ind1.name),$(a.ind2.name)))
+function _to_expression(a::BasicSymbolic{IndexedVariable})
+    if SymbolicUtils.hasmetadata(a,IndexedVariable)
+        meta = SymbolicUtils.metadata(a)[IndexedVariable]
+        return _to_expression(meta)
+    end
+end
+function _to_expression(a::BasicSymbolic{DoubleIndexedVariable})
+    if SymbolicUtils.hasmetadata(a,DoubleIndexedVariable)
+        meta = SymbolicUtils.metadata(a)[DoubleIndexedVariable]
+        return _to_expression(meta)
+    end
+end
 
 @latexrecipe function f(s::SingleSum)
     neis = writeNEIs(s.non_equal_indices)
@@ -822,3 +877,5 @@ end
 SymbolicUtils._iszero(x::SpecialIndexedTerm) = SymbolicUtils._iszero(x.term)
 get_range(i::Index) = i.range
 get_aon(i::Index) = i.aon
+
+-(a::BasicSymbolic{IndexedVariable}) = -1*a

@@ -188,7 +188,7 @@ _to_expression(p::Parameter) = p.name
 function _to_expression(s::SymbolicUtils.Symbolic)
     if SymbolicUtils.istree(s)
         f = SymbolicUtils.operation(s)
-        fsym = if f === sym_average
+        fsym = if isequal(f,sym_average) # "===" results in false for symbolics version 5
             :AVG
         elseif f === conj
             :CONJ

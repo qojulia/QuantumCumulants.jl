@@ -82,16 +82,16 @@ split0 = split_sums(ADsum1,j_ind,15)
 @test isequal(split0,ADsum1)
 
 split1 = split_sums(ADsum1,k_ind,5)
-@test split1 isa SymbolicUtils.Mul
+@test split1 isa SymbolicUtils.BasicSymbolic && operation(split1) === *
 @test isequal(5,arguments(split1)[1])
-@test isequal(N_modes/5,arguments(split1)[2].metadata.sum_index.range)
+@test isequal(N_modes/5,arguments(split1)[2].metadata[qc.IndexedAverageDoubleSum].sum_index.range)
 
 split2 = split_sums(ADsum1,i_ind,5)
-@test split2 isa SymbolicUtils.Mul
+@test split2 isa SymbolicUtils.BasicSymbolic && operation(split2) === *
 @test isequal(5,arguments(split2)[1])
-@test isequal(N_atoms/5,arguments(split2)[2].metadata.innerSum.metadata.sum_index.range)
+@test isequal(N_atoms/5,arguments(split2)[2].metadata[qc.IndexedAverageDoubleSum].innerSum.metadata[qc.IndexedAverageSum].sum_index.range)
 
-@test isequal(N_modes,arguments(split2)[2].metadata.sum_index.range)
+@test isequal(N_modes,arguments(split2)[2].metadata[qc.IndexedAverageDoubleSum].sum_index.range)
 
 innerSum = Σ(σ(1,2,i_ind)*σ(2,1,j_ind),i_ind)
 DSum = Σ(innerSum,j_ind)

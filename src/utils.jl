@@ -444,7 +444,7 @@ end
 
 # Overload getindex to obtain solutions with averages
 for T ∈ [:AbstractTimeseriesSolution,:AbstractNoTimeSolution]
-    @eval function Base.getindex(sol::SciMLBase.$(T), avg::SymbolicUtils.Term{<:AvgSym})
+    @eval function Base.getindex(sol::SciMLBase.$(T), avg::Average)
         tsym = sol.prob.f.indepsym # This is a bit hacky
         t = SymbolicUtils.Sym{Real}(tsym)
         syms = SciMLBase.getsyms(sol)
@@ -461,7 +461,7 @@ for T ∈ [:AbstractTimeseriesSolution,:AbstractNoTimeSolution]
 end
 
 # Internal functions
-function _conj(v::SymbolicUtils.Term{<:AvgSym})
+function _conj(v::Average)
     arg = v.arguments[1]
     adj_arg = adjoint(arg)
     if has_cluster(arg)
@@ -495,7 +495,7 @@ Returns the result for the average of the operator expression `op` in the soluti
 `sol` of an ODE- or SteadyStateProblem, similar to `sol[op]`. It can also be used
 for linear combinations of operators, which is not possible with `sol[op]`.
 """
-get_solution(sol, op::QuantumCumulants.QNumber) = sol[op]
+get_solution(sol, op::QNumber) = sol[op]
 function get_solution(sol, x)
     if length(sol[1]) == 1 #SteadyStateProblem
         return x

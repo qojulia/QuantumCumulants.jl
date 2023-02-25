@@ -103,7 +103,7 @@ indexed_meanfield(a::Vector,H;kwargs...) = indexed_meanfield(a,H,[];Jdagger=[],k
 function indexed_master_lindblad(a_,J,Jdagger,rates)
     args = Any[]
     for k=1:length(J)
-        if !isempty(get_indices(J[k])) && !(rates[k] isa SymbolicUtils.Sym{Parameter,DoubleIndexedVariable})
+        if !isempty(get_indices(J[k])) && !(rates[k] isa BasicSymbolic{DoubleIndexedVariable})
             inds = get_indices(J[k])
             length(inds) != 1 && error("Jump operators with multiple different indices are not supported!")
             c1 = 0.5*rates[k]*Jdagger[k]*commutator(a_,J[k])
@@ -111,17 +111,18 @@ function indexed_master_lindblad(a_,J,Jdagger,rates)
             c = c1 + c2
             !SymbolicUtils._iszero(c) && push!(args, SingleSum(c,inds[1],Index[]))
         else
-            if rates[k] isa SymbolicUtils.Sym{Parameter,DoubleIndexedVariable}
+            if rates[k] isa BasicSymbolic{DoubleIndexedVariable}
+                meta = SymbolicUtils.metadata(rates[k])[DoubleIndexedVariable]
                 if !(J[k] isa Vector) && !(isempty(get_indices(J[k])))
                     inds = get_indices(J[k])
                     length(inds) != 1 && error("Jump operators with multiple different indices are not supported!")
                     ind_ = inds[1]
-                    if !isequal(ind_,rates[k].metadata.ind1) && !isequal(ind_,rates[k].metadata.ind2)
+                    if !isequal(ind_,meta.ind1) && !isequal(ind_,meta.ind2)
                         error("unequal index of jump operator and variable!")
-                    elseif isequal(ind_,rates[k].metadata.ind1) && !isequal(ind_,rates[k].metadata.ind2)
-                        vec = [J[k],change_index(J[k],ind_,rates[k].metadata.ind2)]
-                    elseif !isequal(ind_,rates[k].metadata.ind1) && isequal(ind_,rates[k].metadata.ind2)
-                        vec = [change_index(J[k],ind_,rates[k].metadata.ind1),J[k]]
+                    elseif isequal(ind_,meta.ind1) && !isequal(ind_,meta.ind2)
+                        vec = [J[k],change_index(J[k],ind_,meta.ind2)]
+                    elseif !isequal(ind_,meta.ind1) && isequal(ind_,meta.ind2)
+                        vec = [change_index(J[k],ind_,meta.ind1),J[k]]
                     end
                     vecdagger = adjoint.(vec)
                     c1 = vecdagger[1]*commutator(a_,vec[2])
@@ -133,10 +134,10 @@ function indexed_master_lindblad(a_,J,Jdagger,rates)
                     length(get_indices(J[k][2])) != 1 && error("Jump operators with multiple different indices are not supported!")
                     ind_1 = get_indices(J[k][1])[1]
                     ind_2 = get_indices(J[k][2])[1]
-                    if !isequal(ind_1, rates[k].metadata.ind1)
+                    if !isequal(ind_1, meta.ind1)
                         error("unequal index of first jump operator and variable")
                     end
-                    if !isequal(ind_2,rates[k].metadata.ind2)
+                    if !isequal(ind_2, meta.ind2)
                         error("unequal index of second jump operator and variable")
                     end
                     c1 = Jdagger[k][1]*commutator(a_,J[k][2])
@@ -554,7 +555,8 @@ function find_missing_sums(missed,de::AbstractMeanfieldEquations;extra_indices::
     for eq in eqs
         sums = checkIfSum(eq.rhs)   #get all sums of the rhs
         for sum in sums
-            extras_filtered = filterExtras(sum.metadata.sum_index,extras) #all the extraIndices, that have the same specific hilbertspace as the sum
+            meta = SymbolicUtils.metadata(sum)[IndexedAverageSum]
+            extras_filtered = filterExtras(meta.sum_index,extras) #all the extraIndices, that have the same specific hilbertspace as the sum
             checkAndChange(missed_,sum,extras_filtered,de.states,checking,scaling;kwargs...)
         end
     end 
@@ -573,13 +575,14 @@ function find_missing_Dsums(missed,de::AbstractMeanfieldEquations;extra_indices:
     return inorder!.(missed_)
 end
 function checkAndChange(missed_,sum,extras,states,checking,scaling;kwargs...)
+    meta = SymbolicUtils.metadata(sum)[IndexedAverageSum]
     avrgs = getAvrgs(sum) #get vector of all avrgs in the sum
     for avr in avrgs
         changed_ = nothing
         avrg_inds = get_indices(avr)
         for i = 1:length(extras)    # check if the extraindex is already in use for the term -> if so use the next in line
             if extras[i] ∉ avrg_inds #this is wrong for multiple indices!!!!
-                changed_ = change_index(avr,sum.metadata.sum_index,extras[i])
+                changed_ = change_index(avr,meta.sum_index,extras[i])
                 break
             end
         end
@@ -604,9 +607,11 @@ function checkAndChange(missed_,sum,extras,states,checking,scaling;kwargs...)
 end
 function checkAndChangeDsum(missed_,sum,extras,states,checking,scaling;kwargs...)
     avrgs = getAvrgs(sum) #get vector of all avrgs in the sum
-    inner = sum.metadata.innerSum
-    outerInd = sum.metadata.sum_index
-    innerInd = inner.metadata.sum_index
+    meta = SymbolicUtils.metadata(sum)[IndexedAverageDoubleSum]
+    inner = meta.innerSum
+    outerInd = meta.sum_index
+    meta_inner = SymbolicUtils.metadata(sum)[IndexedAverageSum]
+    innerInd = meta_inner.sum_index
     for avr in avrgs
         changed_ = nothing
         avrg_inds = get_indices(avr)
@@ -653,15 +658,18 @@ function filterExtras(wanted,extras)
     return filter(x -> isequal(x.aon,wanted.aon),extras)
 end
 
-find_missing!(missed,missed_hashes,term::SymbolicUtils.Sym{Parameter,SpecialIndexedAverage},vhash,vshash;kwargs...) = find_missing!(missed,missed_hashes,term.metadata.term,vhash,vshash;kwargs...)
+function find_missing!(missed,missed_hashes,term::BasicSymbolic{SpecialIndexedAverage},vhash,vshash;kwargs...) 
+    meta = SymbolicUtils.metadata(term)[SpecialIndexedAverage]
+    return find_missing!(missed,missed_hashes,meta.term,vhash,vshash;kwargs...)
+end
 
 #Utility Functions
 #checks if there is a sum (or multiple) in the equation rhs term, if so it returns the sums as a vector
 function checkIfSum(term)
     sums = Any[]
-    if term isa SymbolicUtils.Sym{Parameter,IndexedAverageSum}
+    if term isa BasicSymbolic{IndexedAverageSum}
         return copy([term])
-    elseif term isa SymbolicUtils.Add || term isa SymbolicUtils.Mul
+    elseif istree(term)
         args = copy(arguments(term))
         for arg in args
             sums = vcat(sums,checkIfSum(arg))
@@ -675,7 +683,7 @@ function getDSums(term)
         for arg in arguments(term)
             Dsums = vcat(Dsums,getDSums(arg))
         end
-    elseif term isa SymbolicUtils.Sym{Parameter,IndexedAverageDoubleSum}
+    elseif term isa BasicSymbolic{IndexedAverageDoubleSum}
         return [term]
     end
     return Dsums
@@ -742,7 +750,7 @@ evaluate any summations inside these terms.
 *`me::MeanfieldEquations`: A [`MeanfieldEquations`](@ref) entity, which shall be evaluated.
 
 # Optional argumentes
-*`limits::Dict{SymbolicUtils.Sym,Int64}=Dict{Symbol,Int64}()`: A seperate dictionary, to
+*`limits::Dict{BasicSymbolic,Int64}=Dict{Symbol,Int64}()`: A seperate dictionary, to
     specify any symbolic limits used when [`Index`](@ref) entities were defined. This needs
     to be specified, when the equations contain summations, for which the upper bound is given
     by a Symbolic.
@@ -766,21 +774,21 @@ function evaluate(eqs::IndexedMeanfieldEquations;limits=nothing,h=nothing,kwargs
         h = h_
     end    
     if !=(limits,nothing) && limits isa Pair
-        limits_ = Dict{SymbolicUtils.Sym,Int64}(first(limits) => last(limits));
+        limits_ = Dict{BasicSymbolic,Int64}(first(limits) => last(limits));
         limits = limits_
     end
     if limits === nothing
-        limits =  Dict{SymbolicUtils.Sym,Int64}();
+        limits =  Dict{BasicSymbolic,Int64}();
     end
     return subst_reds_eval(evalME(eqs;limits=limits,h=h,kwargs...);limits=limits,h=h,kwargs...)
 end
 function evaluate(term;limits=nothing,kwargs...) 
     if !=(limits,nothing) && limits isa Pair
-        limits_ = Dict{SymbolicUtils.Sym,Int64}(first(limits) => last(limits));
+        limits_ = Dict{BasicSymbolic,Int64}(first(limits) => last(limits));
         limits = limits_
     end
     if limits === nothing
-        limits =  Dict{SymbolicUtils.Sym,Int64}();
+        limits =  Dict{BasicSymbolic,Int64}();
     end
     return eval_term(term;limits=limits)
 end
