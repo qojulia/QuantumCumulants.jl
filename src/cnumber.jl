@@ -76,3 +76,22 @@ function cnumbers(s::String)
     syms = [Symbol(p) for p in split(s, " ")]
     return cnumbers(syms...)
 end
+
+"""
+    cnumber(symbols::Symbol)
+    cnumber(s::String)
+
+Create symbolic cnumber.
+
+Expamples
+=========
+```
+julia> ps = cnumber(:a)
+a
+
+julia> cnumber("a") == ps
+true
+```
+"""
+cnumber(s::Symbol) = Parameter(s; metadata=source_metadata(:cnumbers, s))
+cnumber(s::String) = cnumber(Symbol(s))
