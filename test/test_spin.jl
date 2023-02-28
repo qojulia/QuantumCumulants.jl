@@ -25,6 +25,10 @@ sy(i) = σ(i, :y)
 sz(i) = σ(i, :z)
 sx(1) == σx(1)
 
+@test isequal(σx(2)*σx(1), σx(1)*σx(2))
+@test isequal(σy(2)*σx(1), σx(1)*σy(2))
+@test isequal(σz(2)*σz(1), σz(1)*σz(2))
+
 @cnumbers J
 Δ(i) = cnumber(Symbol(:Δ_,i))
 H = Δ(1)*σz(1) + Δ(2)*σz(2) + J*σx(1)*σx(2)

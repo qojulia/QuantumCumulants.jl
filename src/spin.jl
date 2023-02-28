@@ -62,11 +62,29 @@ Base.:(==)(s1::Sigma,s2::Sigma) = isequal(s1,s2)
 
 ismergeable(::Sigma,::Sigma) = true
 function Base.:*(si::Sigma,sj::Sigma)
-    i=si.axis
-    j=sj.axis
-    k = filter(x->x ∉ [i,j],[1,2,3])[1]
-    sk = Sigma(si.hilbert, si.name, k, si.aon)
-    return (i==j) + 1im*levicivita([i,j,k])*sk
+    check_hilbert(si,sj)
+    aon_si = acts_on(si)
+    aon_sj = acts_on(sj)
+    if aon_si == aon_sj
+        i=si.axis
+        j=sj.axis
+        k = filter(x->x ∉ [i,j],[1,2,3])[1]
+        sk = Sigma(si.hilbert, si.name, k, aon_si)
+        return (i==j) + 1im*levicivita([i,j,k])*sk    
+    elseif aon_si < aon_sj
+        return QMul(1, [si,sj])
+    else
+        return QMul(1, [sj,si])
+    end
 end
+
+# function Base.:*(si::Sigma,sj::Sigma)
+#     i=si.axis
+#     j=sj.axis
+#     k = filter(x->x ∉ [i,j],[1,2,3])[1]
+#     sk = Sigma(si.hilbert, si.name, k, si.aon)
+#     return (i==j) + 1im*levicivita([i,j,k])*sk
+# end
+
 
 # TODO: x,y,z printing; 
