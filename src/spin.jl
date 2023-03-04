@@ -77,14 +77,3 @@ function Base.:*(si::Sigma,sj::Sigma)
         return QMul(1, [sj,si])
     end
 end
-
-# function Base.:*(si::Sigma,sj::Sigma)
-#     i=si.axis
-#     j=sj.axis
-#     k = filter(x->x ∉ [i,j],[1,2,3])[1]
-#     sk = Sigma(si.hilbert, si.name, k, si.aon)
-#     return (i==j) + 1im*levicivita([i,j,k])*sk
-# end
-
-
-# TODO: x,y,z printing; 
