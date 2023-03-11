@@ -118,7 +118,7 @@ sol_ss = solve(prob_ss, DynamicSS(Tsit5(); abstol=1e-8, reltol=1e-8),
 
 @test length(eqs_4) == length(eqs)
 
-@test get_solution(sol_ss, 2a + σ(1,1,1)) == (2*sol_ss[a] + 1- sol_ss[σ(2,2,1)])
+@test get_solution(sol_ss, 2a + σ(1,1,1)) ≈ (2*sol_ss[a] + 1- sol_ss[σ(2,2,1)])
 @test isequal(σ(1,1,2), 1-σ(2,2,2))
 
 order = 1

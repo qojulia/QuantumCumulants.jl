@@ -12,7 +12,7 @@ import ModelingToolkit
 import ModelingToolkit: complete
 const MTK = ModelingToolkit
 
-using Combinatorics: partitions, combinations
+using Combinatorics: partitions, combinations, levicivita
 using LinearAlgebra
 
 using QuantumOpticsBase
@@ -22,9 +22,10 @@ export HilbertSpace, ProductSpace, ⊗, tensor,
         QSym, QTerm, @qnumbers,
         FockSpace, Destroy, Create,
         NLevelSpace, Transition,
+        SpinSpace, Sigma,
         MeanfieldEquations,
         meanfield, commutator, acts_on,
-        CNumber, Parameter, @cnumbers, cnumbers,
+        CNumber, Parameter, @cnumbers, cnumbers, cnumber,
         Average, average, cumulant_expansion, get_order, cumulant,
         find_missing, complete, complete!, find_operators, fundamental_operators,
             unique_ops, unique_ops!, to_numeric, numeric_average, initial_values, get_solution,
@@ -48,6 +49,7 @@ include("qnumber.jl")
 include("cnumber.jl")
 include("fock.jl")
 include("nlevel.jl")
+include("spin.jl")
 include("equations.jl")
 include("meanfield.jl")
 include("average.jl")

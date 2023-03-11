@@ -115,7 +115,7 @@ u0 = zeros(ComplexF64, 2)
 prob = ODEProblem(sys,u0,(0.0,20.0),ps .=> p0)
 sol = solve(prob,RK4())
 
-@test sol.retcode == :Success
+@test sol.retcode == SciMLBase.ReturnCode.Success
 
 c = CorrelationFunction(σ(:e,:g), σ(:g,:e), eqs; steady_state=true)
 @named csys = ODESystem(c)
@@ -128,7 +128,7 @@ cp0 = correlation_p0(c, sol.u[end], ps .=> p0)
 cprob = ODEProblem(csys,cu0,(0.0,20.0),cp0)
 csol = solve(cprob, RK4())
 
-@test csol.retcode == :Success
+@test csol.retcode == SciMLBase.ReturnCode.Success
 
 # Mollow when not in steady state
 c = CorrelationFunction(σ(:e,:g), σ(:g,:e), eqs; steady_state=false)
