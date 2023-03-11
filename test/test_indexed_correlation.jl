@@ -148,7 +148,7 @@ sol_c = solve(prob_c,Tsit5();saveat=0.001,maxiters=1e8); #UndefVarError: avg not
 
 @test sol_c.retcode == SciMLBase.ReturnCode.Success
 
-limits = Dict{SymbolicUtils.Sym,Int64}(N=>5)
+limits = Dict{SymbolicUtils.BasicSymbolic,Int64}(N=>5)
 evals = evaluate(eqs_c;limits=limits)
 
 

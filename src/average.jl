@@ -63,7 +63,6 @@ Compute the average of an operator. If `order` is given, the [`cumulant_expansio
 up to that order is computed immediately.
 """
 average(op::QSym) = _average(op)
-# I rewrite this function for more consistancy (i hope so atleast)
 function average(op::QTerm)
     f = SymbolicUtils.operation(op)
     if f===(+) || f===(-) # linearity
@@ -231,7 +230,7 @@ function _cumulant_expansion(args::Vector,order::Int)
                 if length(p_) > order # If the encountered moment is larger than order, apply expansion
                     push!(args_prod, _cumulant_expansion(p_, order))
                 else # Else, average and add its product
-                    op_ = QMul(1, p_) 
+                    op_ = QMul(1, p_)
                     push!(args_prod, _average(op_))
                 end
             end

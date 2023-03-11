@@ -201,10 +201,6 @@ struct SingleNumberedVariable <: numberedVariable
     name::Symbol
     numb::Int64
     function SingleNumberedVariable(name,numb)
-        # metadata=source_metadata(:Parameter, name)
-        # sym = SymbolicUtils.Sym{Parameter}(Symbol("$(name)_$(numb)"))
-        # sym = SymbolicUtils.setmetadata(sym,typeof(metadata),metadata)
-        # return sym
         sym_name = Symbol("$(name)_$(numb)")
         return Parameter(sym_name)
     end
@@ -232,10 +228,6 @@ struct DoubleNumberedVariable <: numberedVariable
             return 0
         end
         if typeof(numb1) == typeof(numb2) && numb1 isa Int64
-            # metadata = source_metadata(:Parameter, name)
-            # sym = SymbolicUtils.Sym{Parameter}(Symbol("$(name)_{$(numb1),$(numb2)}"))
-            # sym = SymbolicUtils.setmetadata(sym,typeof(metadata),metadata)
-            # return sym
             sym_name = Symbol("$(name)_{$(numb1),$(numb2)}")
         return Parameter(sym_name)
         else
@@ -277,7 +269,6 @@ function SpecialIndexedAverage(term::symbolics_terms,indexMapping)
                 return prefac * SpecialIndexedAverage(args[1],indexMapping)
             end
             specInds = [SpecialIndexedAverage(arg,indexMapping) for arg in args]
-            # filter!(x -> !=(x,nothing),specInds)
             return prefac * prod(specInds)
         elseif op === +
             return sum(SpecialIndexedAverage(arg,indexMapping) for arg in args)
@@ -316,7 +307,9 @@ function undo_average(a::BasicSymbolic{SpecialIndexedAverage})
         return undo_average(meta)
     end
 end
-#define calculus for numbered operators -> break it down into QNuber multiplication
+
+
+#define calculus for numbered operators -> break it down into QNumber multiplication
 
 ismergeable(a::NumberedOperator,b::NumberedOperator) = isequal(a.numb,b.numb) ? ismergeable(a.op,b.op) : false
 
@@ -751,8 +744,6 @@ function eval_term(term::BasicSymbolic{<:CNumber};kwargs...)
     end
     return term
 end
-# eval_term(term::SymbolicUtils.Mul;kwargs...) = prod(eval_term(arg;kwargs...) for arg in arguments(term))
-# eval_term(term::SymbolicUtils.Add;kwargs...) = sum(eval_term(arg;kwargs...) for arg in arguments(term))
 
 function eval_term(x;kwargs...)
     inorder!(x)

@@ -114,42 +114,7 @@ function scaleTerm(add::BasicSymbolic{<:CNumber}; h=nothing, kwargs...)
     end
     return add
 end
-# function scaleTerm(mul::SymbolicUtils.Mul; h=nothing, kwargs...)
-#     mults = []
-#     for arg in arguments(mul)
-#         if arg isa BasicSymbolic{DoubleIndexedVariable}
-#             # Double numbered variables need extra computation, since they depend on the number of indices within an average
-#             # for example Γij * <σi> * <σj> -> Γ11, since both averages only have 1 index
-#             # however Γij <σi * σj> -> Γ12 = Γ21 for scaled terms
-#             meta = SymbolicUtils.metadata(arg)[DoubleIndexedVariable]
-#             inds = []
-#             for arg in arguments(mul)
-#                 push!(inds,get_indices(arg))
-#             end
-#             if !=(h,nothing)
-#                 if !(h isa Vector)
-#                     h = [h]
-#                 end
-#                 filter!(x -> x.aon in h,inds)
-#             end
-#             order = maximum(length.(inds))
-#             if order <= 1
-#                 push!(mults,DoubleNumberedVariable(meta.name,1,1))
-#             else
-#                 push!(mults,DoubleNumberedVariable(meta.name,1,2))
-#             end
-#         else
-#             push!(mults,scaleTerm(arg; h=h, kwargs...))
-#         end
-#     end
-#     if length(mults) == 1
-#         return mults[1]
-#     elseif isempty(mults)
-#         return 0
-#     else
-#         return *(mults...)
-#     end
-# end
+
 function scaleTerm(x::Average; h=nothing,kwargs...)
     indices = get_indices(x)
     newterm = x

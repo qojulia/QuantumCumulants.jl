@@ -225,7 +225,6 @@ function substituteIntoCorrelation(me,de0;scaling::Bool=false,kwargs...)
     else  
         to_insert = conj(_inconj.(to_sub))
     end
-    # filter!(x -> !=(x,nothing),to_insert)
     subs = Dict(to_sub .=> to_insert)
     eqs = [substitute(eq,subs) for eq in me.equations]
     return IndexedMeanfieldEquations(eqs,me.operator_equations,me.states,me.operators,me.hamiltonian,me.jumps,me.jumps_dagger,me.rates,me.iv,me.varmap,me.order)
@@ -394,7 +393,6 @@ function filterComplete_corr(x,states1,states2,scaling,steady_state;kwargs...)
             && isNotIn(x,states2,scaling;kwargs...)&& isNotIn(_inconj(x),states2,scaling;kwargs...))
     else 
         return (isNotIn(x,states1,scaling;kwargs...) && isNotIn(_inconj(x),states1,scaling;kwargs...))
-            #&& isNotIn(x,states2,scaling;kwargs...)&& isNotIn(_inconj(x),states2,scaling;kwargs...))
     end
 end
 

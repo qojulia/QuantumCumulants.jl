@@ -15,8 +15,7 @@ struct Parameter <: CNumber
     function Parameter(name; metadata=source_metadata(:Parameter, name))
         s = SymbolicUtils.Sym{Parameter}(name)
         s = SymbolicUtils.setmetadata(s, MTK.VariableSource, (:Parameter, name))
-        # return SymbolicUtils.setmetadata(s, MTK.MTKParameterCtx, true) # this is not the case anymore for the current SymbolicUtils + MTK versions
-        return SymbolicUtils.setmetadata(s,MTK.MTKVariableTypeCtx,MTK.PARAMETER) #this works with current version of MTK
+        return SymbolicUtils.setmetadata(s,MTK.MTKVariableTypeCtx,MTK.PARAMETER)
     end
 end
 

@@ -271,8 +271,7 @@ function +(a::QAdd,b::QAdd)
     return QAdd(args)
 end
 
-function *(a::QAdd, b) #this and the function below are quite unstable, since it is possible that they return QAdd([0,0]), which results in a QAdd object rather than being 0. this is a problem when someone wants to use the result of this again in a product
-    #I added a version with a zero-chack in "indexing.jl" specialized for indexedOperators
+function *(a::QAdd, b)
     check_hilbert(a, b)
     args = Any[a_ * b for a_ ∈ a.arguments]
     flatten_adds!(args)
@@ -307,7 +306,7 @@ function flatten_adds!(args)
         if args[i] isa QAdd
             append!(args,args[i].arguments)
             deleteat!(args, i)
-        elseif SymbolicUtils._iszero(args[i]) || isequal(args[i],0) # I added an aditional zero check here
+        elseif SymbolicUtils._iszero(args[i]) || isequal(args[i],0)
             deleteat!(args,i)
         else
             i += 1

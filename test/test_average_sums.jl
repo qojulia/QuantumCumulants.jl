@@ -49,7 +49,7 @@ gamma2 = insert_index(Γij,ind(:j),2)
 gamma2_ = insert_index(Γij,ind(:i),1)
 g_ = insert_index(g(ind(:j)),ind(:j),1)
 @test g_ isa SymbolicUtils.BasicSymbolic
-@test gamma isa BasicSymbolic{qc.DoubleNumberedVariable}
+@test gamma isa SymbolicUtils.BasicSymbolic{qc.DoubleNumberedVariable}
 
 gamma_ = insert_index(gamma,ind(:j),2)
 @test gamma_ isa SymbolicUtils.BasicSymbolic{Parameter}
@@ -107,7 +107,7 @@ specAvrg = qc.SpecialIndexedAverage(average(σ(2,1,ind(:i))*σ(1,2,ind(:j))),[(i
 @test isequal(qc.insert_index(σ(1,2,ind(:j))*σn(1,2,2),ind(:j),1),qc.insert_index(qc.insert_index(σ(1,2,ind(:i))*σ(1,2,ind(:j)),ind(:i),2),ind(:j),1))
 
 dict_ = qc.create_value_map(g(ind(:i)),2)
-dict = Dict{BasicSymbolic,ComplexF64}()
+dict = Dict{SymbolicUtils.BasicSymbolic,ComplexF64}()
 push!(dict,(qc.SingleNumberedVariable(:g,1) => 2))
 push!(dict,(qc.SingleNumberedVariable(:g,2) => 2))
 @test isequal(dict_,dict)
@@ -125,17 +125,17 @@ push!(dict,(qc.SingleNumberedVariable(:g,2) => 2))
 ind2(i) = Index(h,i,N_,ha)
 
 N_n = 10
-mappingDict = Dict{BasicSymbolic,Int64}(N_ => N_n)
+mappingDict = Dict{SymbolicUtils.BasicSymbolic,Int64}(N_ => N_n)
 sum2_A = average(∑(σ(1,2,ind2(:i))*σ(2,1,ind2(:j)),ind2(:i)))
 @test isequal(qc.eval_term(sum2_A;limits=mappingDict),evaluate(sum2_A;limits=(N_ => N_n)))
 
 @cnumbers n_ m_
 ind3(i) = Index(h,i,(n_*m_),ha)
-map2 = Dict{BasicSymbolic,Int64}(n_ => 2, m_ => 2)
+map2 = Dict{SymbolicUtils.BasicSymbolic,Int64}(n_ => 2, m_ => 2)
 sum3_A = average(∑(σ(2,1,ind3(:i))*σ(1,2,ind3(:j)),ind3(:i)))
 sum3_B = qc.insert_index(sum3_A,ind3(:j),2)
 eva = qc.eval_term(sum3_B;limits=map2)
-@test eva isa BasicSymbolic{<:CNumber} && operation(eva) === +
+@test eva isa SymbolicUtils.BasicSymbolic{<:CNumber} && operation(eva) === +
 @test length(arguments(eva)) == 4
 
 @test qc.containsIndexedOps(average(a*σ(2,1,ind(:i))*σ(1,2,ind(:j))))
