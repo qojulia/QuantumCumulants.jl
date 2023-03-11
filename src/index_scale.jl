@@ -25,7 +25,7 @@ function scaleME(me::IndexedMeanfieldEquations; kwargs...)
     ops = undo_average.(vs)
     return IndexedMeanfieldEquations(newEqs,me.operator_equations,vs,ops,me.hamiltonian,me.jumps,me.jumps_dagger,me.rates,me.iv,varmap,me.order)
 end
-scaleTerm(sym::SymbolicUtils.Sym{Parameter,IndexedAverageSum}; kwargs...) = scaleTerm(sym.metadata; kwargs...)
+scaleTerm(sym::BasicSymbolic{IndexedAverageSum}; kwargs...) = scaleTerm(SymbolicUtils.metadata(sym)[IndexedAverageSum]; kwargs...)
 function scaleTerm(sum::IndexedAverageSum; h=nothing, kwargs...)
     if !=(h,nothing)
         if !(h isa Vector)
@@ -40,7 +40,7 @@ function scaleTerm(sum::IndexedAverageSum; h=nothing, kwargs...)
     term_ = scaleTerm(sum.term; h=h, kwargs...)
     return prefact*term_
 end
-scaleTerm(sym::SymbolicUtils.Sym{Parameter,IndexedAverageDoubleSum}; kwargs...) = scaleTerm(sym.metadata; kwargs...)
+scaleTerm(sym::BasicSymbolic{IndexedAverageDoubleSum}; kwargs...) = scaleTerm(SymbolicUtils.metadata(sym)[IndexedAverageDoubleSum]; kwargs...)
 function scaleTerm(sum::IndexedAverageDoubleSum; h=nothing, kwargs...)
     if !=(h,nothing)
         if !(h isa Vector)
@@ -59,51 +59,97 @@ function scaleTerm(pow::SymbolicUtils.Pow; kwargs...)
     args = arguments(pow)
     return scaleTerm(args[1]; kwargs...)^(args[2])
 end
-function scaleTerm(add::SymbolicUtils.Add; kwargs...)
-    args = arguments(add)
-    adds = Vector{Any}(nothing,length(args))
-    for i=1:length(args)
-        adds[i] = scaleTerm(args[i]; kwargs...)
-    end
-    filter!(x -> !=(x,nothing),adds)
-    return sum(adds)
-end
-function scaleTerm(mul::SymbolicUtils.Mul; h=nothing, kwargs...)
-    mults = []
-    for arg in arguments(mul)
-        if arg isa SymbolicUtils.Sym{Parameter,DoubleIndexedVariable}
-            # Double numbered variables need extra computation, since they depend on the number of indices within an average
-            # for example Γij * <σi> * <σj> -> Γ11, since both averages only have 1 index
-            # however Γij <σi * σj> -> Γ12 = Γ21 for scaled terms
-            meta = arg.metadata
-            inds = []
+function scaleTerm(add::BasicSymbolic{<:CNumber}; h=nothing, kwargs...)
+    if istree(add)
+        op = operation(add)
+        if op === +
+            args = arguments(add)
+            adds = Vector{Any}(nothing,length(args))
+            for i=1:length(args)
+                adds[i] = scaleTerm(args[i]; h=h, kwargs...)
+            end
+            # filter!(x -> !=(x,nothing),adds)
+            return sum(adds)
+        elseif op === * 
+            mul = add
+            mults = []
             for arg in arguments(mul)
-                push!(inds,get_indices(arg))
-            end
-            if !=(h,nothing)
-                if !(h isa Vector)
-                    h = [h]
+                if arg isa BasicSymbolic{DoubleIndexedVariable}
+                    # Double numbered variables need extra computation, since they depend on the number of indices within an average
+                    # for example Γij * <σi> * <σj> -> Γ11, since both averages only have 1 index
+                    # however Γij <σi * σj> -> Γ12 = Γ21 for scaled terms
+                    meta = SymbolicUtils.metadata(arg)[DoubleIndexedVariable]
+                    inds = []
+                    for arg in arguments(mul)
+                        push!(inds,get_indices(arg))
+                    end
+                    if !=(h,nothing)
+                        if !(h isa Vector)
+                            h = [h]
+                        end
+                        filter!(x -> x.aon in h,inds)
+                    end
+                    order = maximum(length.(inds))
+                    if order <= 1
+                        push!(mults,DoubleNumberedVariable(meta.name,1,1))
+                    else
+                        push!(mults,DoubleNumberedVariable(meta.name,1,2))
+                    end
+                else
+                    push!(mults,scaleTerm(arg; h=h, kwargs...))
                 end
-                filter!(x -> x.aon in h,inds)
             end
-            order = maximum(length.(inds))
-            if order <= 1
-                push!(mults,DoubleNumberedVariable(meta.name,1,1))
+            if length(mults) == 1
+                return mults[1]
+            elseif isempty(mults)
+                return 0
             else
-                push!(mults,DoubleNumberedVariable(meta.name,1,2))
+                # filter!(x->!=(x,nothing),mults)
+                return *(mults...)
             end
-        else
-            push!(mults,scaleTerm(arg; h=h, kwargs...))
+        elseif op === ^
+            args = arguments(add)
+            return scaleTerm(args[1])^(args[2])
         end
     end
-    if length(mults) == 1
-        return mults[1]
-    elseif isempty(mults)
-        return 0
-    else
-        return *(mults...)
-    end
+    return add
 end
+# function scaleTerm(mul::SymbolicUtils.Mul; h=nothing, kwargs...)
+#     mults = []
+#     for arg in arguments(mul)
+#         if arg isa BasicSymbolic{DoubleIndexedVariable}
+#             # Double numbered variables need extra computation, since they depend on the number of indices within an average
+#             # for example Γij * <σi> * <σj> -> Γ11, since both averages only have 1 index
+#             # however Γij <σi * σj> -> Γ12 = Γ21 for scaled terms
+#             meta = SymbolicUtils.metadata(arg)[DoubleIndexedVariable]
+#             inds = []
+#             for arg in arguments(mul)
+#                 push!(inds,get_indices(arg))
+#             end
+#             if !=(h,nothing)
+#                 if !(h isa Vector)
+#                     h = [h]
+#                 end
+#                 filter!(x -> x.aon in h,inds)
+#             end
+#             order = maximum(length.(inds))
+#             if order <= 1
+#                 push!(mults,DoubleNumberedVariable(meta.name,1,1))
+#             else
+#                 push!(mults,DoubleNumberedVariable(meta.name,1,2))
+#             end
+#         else
+#             push!(mults,scaleTerm(arg; h=h, kwargs...))
+#         end
+#     end
+#     if length(mults) == 1
+#         return mults[1]
+#     elseif isempty(mults)
+#         return 0
+#     else
+#         return *(mults...)
+#     end
+# end
 function scaleTerm(x::Average; h=nothing,kwargs...)
     indices = get_indices(x)
     newterm = x
@@ -135,54 +181,57 @@ function scaleTerm(x::QMul; h=nothing, kwargs...)
     end
     return term
 end
-scaleTerm(x::SymbolicUtils.Sym{Parameter,SpecialIndexedAverage}; kwargs...) = scaleTerm(x.metadata.term; kwargs...) #this is fine, since the intrinsic conditions on the indices go away automatically from the scaling
+scaleTerm(x::BasicSymbolic{SpecialIndexedAverage}; kwargs...) = scaleTerm(SymbolicUtils.metadata(x)[SpecialIndexedAverage].term; kwargs...) #this is fine, since the intrinsic conditions on the indices go away automatically from the scaling
 scaleEq(eq::Symbolics.Equation; kwargs...) = Symbolics.Equation(scaleTerm(eq.lhs; kwargs...),scaleTerm(eq.rhs; kwargs...))
-function scaleTerm(sym::SymbolicUtils.Sym{Parameter,IndexedVariable}; h=nothing,kwargs...)
+function scaleTerm(sym::BasicSymbolic{IndexedVariable}; h=nothing,kwargs...)
+    meta = SymbolicUtils.metadata(sym)[IndexedVariable]
     if !=(h,nothing)
-        if sym.metadata.ind.aon in h
-            return SingleNumberedVariable(sym.metadata.name,1)
+        if meta.ind.aon in h
+            return SingleNumberedVariable(meta.name,1)
         else
             return sym
         end
     end
-    return SingleNumberedVariable(sym.metadata.name,1)
+    return SingleNumberedVariable(meta.name,1)
 end
-function scaleTerm(sym::SymbolicUtils.Sym{Parameter,DoubleIndexedVariable}; h=nothing,kwargs...)
+function scaleTerm(sym::BasicSymbolic{DoubleIndexedVariable}; h=nothing,kwargs...)
+    meta = SymbolicUtils.metadata(sym)[DoubleIndexedVariable]
     if !=(h,nothing)
-        if sym.metadata.ind1.aon in h
-            return DoubleNumberedVariable(sym.metadata.name,1,sym.metadata.ind2)
-        elseif sym.metadata.ind2.aon in h
-            return DoubleNumberedVariable(sym.metadata.name,sym.metadata.ind1,1)
+        if meta.ind1.aon in h
+            return DoubleNumberedVariable(meta.name,1,meta.ind2)
+        elseif meta.ind2.aon in h
+            return DoubleNumberedVariable(meta.name,meta.ind1,1)
         else
             return sym
         end
     end
-    if sym.metadata.ind1 != sym.metadata.ind2
-        return DoubleNumberedVariable(sym.metadata.name,1,2)
-    elseif sym.metadata.ind1 == sym.metadata.ind2
-        return DoubleNumberedVariable(sym.metadata.name,1,1)
+    if meta.ind1 != meta.ind2
+        return DoubleNumberedVariable(meta.name,1,2)
+    elseif meta.ind1 == meta.ind2
+        return DoubleNumberedVariable(meta.name,1,1)
     end
     return sym
 end
 scaleTerm(x; kwargs...) = x
 
-SymbolicUtils.substitute(avrg::SymbolicUtils.Sym{Parameter,SpecialIndexedAverage},subs;fold=false) = SymbolicUtils.substitute(avrg.metadata.term,subs;fold=fold)#SpecialIndexedAverage(SymbolicUtils.substitute(term.metadata.term,subs;fold=fold),term.metadata.indexMapping)
-function SymbolicUtils.substitute(sum::SymbolicUtils.Sym{Parameter,IndexedAverageSum},subs;fold=false)
-    subTerm = SymbolicUtils.substitute(sum.metadata.term,subs;fold=fold)
+SymbolicUtils.substitute(avrg::BasicSymbolic{SpecialIndexedAverage},subs;fold=false) = SymbolicUtils.substitute(SymbolicUtils.metadata(avrg)[SpecialIndexedAverage].term,subs;fold=fold)#SpecialIndexedAverage(SymbolicUtils.substitute(term.metadata.term,subs;fold=fold),term.metadata.indexMapping)
+function SymbolicUtils.substitute(sum::BasicSymbolic{IndexedAverageSum},subs;fold=false)
+    meta = SymbolicUtils.metadata(sum)[IndexedAverageSum]
+    subTerm = SymbolicUtils.substitute(meta.term,subs;fold=fold)
     if SymbolicUtils._iszero(subTerm)
         return 0
     elseif subTerm isa symbolics_terms
-        return IndexedAverageSum(subTerm,sum.metadata.sum_index,sum.metadata.non_equal_indices)
+        return IndexedAverageSum(subTerm,meta.sum_index,meta.non_equal_indices)
     else
-        return (sum.metadata.sum_index.range - length(sum.metadata.non_equal_indices)) * subTerm
+        return (meta.sum_index.range - length(meta.non_equal_indices)) * subTerm
     end
 end
-SymbolicUtils.substitute(Dsum::SymbolicUtils.Sym{Parameter,IndexedAverageDoubleSum},subs;fold=false) = SymbolicUtils.substitute(Dsum.metadata,subs;fold=fold)
+SymbolicUtils.substitute(Dsum::BasicSymbolic{IndexedAverageDoubleSum},subs;fold=false) = SymbolicUtils.substitute(SymbolicUtils.metadata(Dsum)[IndexedAverageDoubleSum],subs;fold=fold)
 function SymbolicUtils.substitute(Dsum::IndexedAverageDoubleSum,subs;fold=false)
     inner = SymbolicUtils.substitute(Dsum.innerSum,subs;fold=fold)
     if SymbolicUtils._iszero(inner)
         return 0
-    elseif inner isa SymbolicUtils.Sym{Parameter,IndexedAverageSum}
+    elseif inner isa BasicSymbolic{IndexedAverageSum}
         return IndexedAverageDoubleSum(inner,Dsum.sum_index,Dsum.non_equal_indices)
     else
         return (Dsum.sum_index.range - length(Dsum.non_equal_indices)) * inner
@@ -207,7 +256,7 @@ where in only one of the sums the dependencies for the indices (non equal indice
 *`amount::Union{<:SymbolicUtils.Sym,<:Int64}`: A Number or Symbolic determining, in how many terms a sum is split
 
 """
-function split_sums(term::SymbolicUtils.Symbolic,ind::Index,amount::Union{<:SymbolicUtils.Sym,<:Int64})
+function split_sums(term::SymbolicUtils.BasicSymbolic,ind::Index,amount::Union{<:SymbolicUtils.BasicSymbolic,<:Int64})
     if term isa Average
         return term
     end
@@ -224,21 +273,22 @@ function split_sums(term::SymbolicUtils.Symbolic,ind::Index,amount::Union{<:Symb
         end
         return op(args...)
     end
-    if term isa SymbolicUtils.Sym{Parameter,IndexedAverageSum}
-        term_ = term.metadata.term
-        sumInd = term.metadata.sum_index
+    if term isa BasicSymbolic{IndexedAverageSum}
+        meta = SymbolicUtils.metadata(term)[IndexedAverageSum]
+        term_ = meta.term
+        sumInd = meta.sum_index
         if isequal(ind,sumInd)
-            ind2 = Index(sumInd.hilb,sumInd.name,(term.metadata.sum_index.range/amount),sumInd.aon)
+            ind2 = Index(sumInd.hilb,sumInd.name,(meta.sum_index.range/amount),sumInd.aon)
             term_ = change_index(term_,ind,ind2)
-            if isempty(term.metadata.non_equal_indices)
+            if isempty(meta.non_equal_indices)
                 return (amount)*IndexedAverageSum(term_,ind2,Index[])
             end
-            extrasum = IndexedAverageSum(term_,ind2,term.metadata.non_equal_indices)
+            extrasum = IndexedAverageSum(term_,ind2,meta.non_equal_indices)
             return extrasum + (amount-1)*IndexedAverageSum(term_,ind2,Index[])
         end
     end
-    if term isa SymbolicUtils.Sym{Parameter,IndexedAverageDoubleSum}
-        Dsum = term.metadata
+    if term isa BasicSymbolic{IndexedAverageDoubleSum}
+        Dsum = SymbolicUtils.metadata(term)[IndexedAverageDoubleSum]
         if isequal(ind,Dsum.sum_index)
             #create multiple doubleSums with the same innerSum
             ind2 = Index(Dsum.sum_index.hilb,Dsum.sum_index.name,(Dsum.sum_index.range/amount),Dsum.sum_index.aon)
@@ -247,7 +297,7 @@ function split_sums(term::SymbolicUtils.Symbolic,ind::Index,amount::Union{<:Symb
             end
             extraSum = IndexedAverageDoubleSum(Dsum.innerSum,ind2,Dsum.non_equal_indices)
             return extraSum + (amount-1)*Σ(Dsum.innerSum,ind2,Index[])
-        elseif isequal(ind,Dsum.innerSum.metadata.sum_index)
+        elseif isequal(ind,SymbolicUtils.metadata(Dsum.innerSum)[IndexedAverageSum].sum_index)
             #create doublesum of split innersums
             innerSums = split_sums(Dsum.innerSum,ind,amount)
             return IndexedAverageDoubleSum(innerSums,Dsum.sum_index,Dsum.non_equal_indices)

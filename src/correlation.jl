@@ -408,7 +408,7 @@ function _new_operator(t, h, aon=nothing; kwargs...)
         return t
     end
 end
-function _new_operator(avg::SymbolicUtils.Term{<:AvgSym}, h, aon=nothing; kwargs...)
+function _new_operator(avg::Average, h, aon=nothing; kwargs...)
     op = SymbolicUtils.arguments(avg)[1]
     if isnothing(aon)
         _average(_new_operator(op, h; kwargs...))

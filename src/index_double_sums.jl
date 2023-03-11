@@ -71,10 +71,16 @@ function DoubleSum(innerSum::SingleSum,sum_index::Index,NEI::Vector;metadata=NO_
         end
 end
 function DoubleSum(innerSum::IndexedAdd,sum_index::Index,NEI::Vector;metadata=NO_METADATA)
-    sums = [DoubleSum(arg,sum_index,NEI;metadata=metadata) for arg in arguments(innerSum)]
-    isempty(sums) && return 0
-    length(sums) == 1 && return sums[1]
-    return +(sums...)
+    if istree(innerSum)
+        op = operation(innerSum)
+        if op === +
+            sums = [DoubleSum(arg,sum_index,NEI;metadata=metadata) for arg in arguments(innerSum)]
+            isempty(sums) && return 0
+            length(sums) == 1 && return sums[1]
+            return +(sums...)
+        end
+    end
+    return SingleSum(innerSum,sum_index,NEI;metadata=metadata)
 end
 DoubleSum(x,ind::Index,NEI::Vector;metadata=NO_METADATA) = SingleSum(x,ind,NEI)
 DoubleSum(x,ind::Index;metadata=NO_METADATA) = DoubleSum(x,ind,Index[])
