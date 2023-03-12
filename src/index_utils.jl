@@ -7,8 +7,11 @@ function get_indices(term::QMul)
 end
 get_indices(a::IndexedOperator) = [a.ind]
 get_indices(vec::Vector) = unique(vcat(get_indices.(vec)...))
-get_indices(a::SymbolicUtils.Sym{Parameter,DoubleIndexedVariable}) = unique([a.metadata.ind1,a.metadata.ind2])
-get_indices(a::SymbolicUtils.Sym{Parameter,IndexedVariable}) = [a.metadata.ind]
+function get_indices(a::BasicSymbolic{DoubleIndexedVariable}) 
+    meta = SymbolicUtils.metadata(a)[DoubleIndexedVariable]
+    return unique([meta.ind1,meta.ind2])
+end
+get_indices(a::BasicSymbolic{IndexedVariable}) = [SymbolicUtils.metadata(a)[IndexedVariable].ind]
 const Sums = Union{SingleSum,DoubleSum}
 get_indices(x::Sums) = unique(get_indices(arguments(x)))
 get_indices(x::Number) = []
@@ -295,23 +298,23 @@ function value_map(ps::Vector,p0::Vector;limits=nothing,kwargs...)
     length(ps) != length(p0) && error("Vectors given have non-equal length!")
 
     if !=(limits,nothing) && limits isa Pair
-        mapping_ = Dict{SymbolicUtils.Sym,Int64}(first(limits)=>last(limits))
+        mapping_ = Dict{BasicSymbolic,Int64}(first(limits)=>last(limits))
         limits = mapping_
     end
     if limits === nothing
-        limits = Dict{SymbolicUtils.Sym,Int64}()
+        limits = Dict{BasicSymbolic,Int64}()
     end
 
-    dict = Dict{Sym{Parameter, Base.ImmutableDict{DataType, Any}},ComplexF64}()
+    dict = Dict{SymbolicUtils.BasicSymbolic,ComplexF64}()
     for i=1:length(ps)
         dicVal = nothing
-        if ps[i] isa SymbolicUtils.Sym{Parameter, IndexedVariable}
+        if ps[i] isa BasicSymbolic{IndexedVariable}
             if p0[i] isa Vector || p0[i] isa Number
                 dicVal = create_value_map(ps[i],p0[i];limits)
             else
                 error("cannot resolve entry at $i-th position in values-vector")
             end
-        elseif ps[i] isa SymbolicUtils.Sym{Parameter, DoubleIndexedVariable}
+        elseif ps[i] isa BasicSymbolic{DoubleIndexedVariable}
             if p0[i] isa Matrix || p0[i] isa Number
                 dicVal = create_value_map(ps[i],p0[i];limits)
             end

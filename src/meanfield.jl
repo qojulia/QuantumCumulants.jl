@@ -48,7 +48,7 @@ function _meanfield(a::Vector,H,J;Jdagger::Vector=adjoint.(J),rates=ones(Int,len
                     simplify=true,
                     order=nothing,
                     mix_choice=maximum,
-                    iv=SymbolicUtils.Sym{Real}(:t))
+                    iv=SymbolicUtils.Sym{Real}(:t)) # this creates with Symbolics v5.0 a BasicSymbolic, not a Sym anymore
 
     if rates isa Matrix
         J = [J]; Jdagger = [Jdagger]; rates = [rates]

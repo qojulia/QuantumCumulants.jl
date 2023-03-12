@@ -122,7 +122,7 @@ sol_ss = solve(prob_ss, DynamicSS(Tsit5(); abstol=1e-8, reltol=1e-8),
 @test isequal(σ(1,1,2), 1-σ(2,2,2))
 
 order = 1
-@cnumbers g N κ
+@cnumbers g_ N κ
 
 # Hilbertspace
 hc = FockSpace(:cavity)
@@ -139,7 +139,7 @@ xij = IndexedVariable(:x,i,j)
 @qnumbers a_::Destroy(h,1)
 b(k) = IndexedOperator(Destroy(h,:b,2), k)
 
-H = g*a_'a_ + Σ(xij*a_'a_*b(i)'b(j),i,j)
+H = g_*a_'a_ + Σ(xij*a_'a_*b(i)'b(j),i,j)
 J = [a_]
 rates = [κ]
 
@@ -152,7 +152,7 @@ eqs2 = meanfield([a_],H,J;rates=rates,order=order)
 
 
 #example for testing evaluation of individual hilbertspaces
-@cnumbers N N2 Δ g κ Γ R ν M
+@cnumbers N N2 Δ κ Γ R ν M
 
 hc = FockSpace(:cavity)
 ha = NLevelSpace(:atom,2)
@@ -170,7 +170,7 @@ order = 2
 σ(i,j,k) = IndexedOperator(Transition(h,:σ,i,j),k)
 ai(k) = IndexedOperator(Destroy(h,:a),k)
 
-H_2 = -Δ*∑(ai(m)'ai(m),m) + g*(∑(Σ(ai(m)'*σ(1,2,k),k),m) + ∑(Σ(ai(m)*σ(2,1,k),k),m))
+H_2 = -Δ*∑(ai(m)'ai(m),m) + g_*(∑(Σ(ai(m)'*σ(1,2,k),k),m) + ∑(Σ(ai(m)*σ(2,1,k),k),m))
 
 J_2 = [ai(m),σ(1,2,k),σ(2,1,k),σ(2,2,k)]
 rates_2 = [κ, Γ, R, ν]
@@ -227,14 +227,14 @@ h = hc ⊗ ha
 i = Index(h,:i,N,ha)
 j = Index(h,:j,N,ha)
 
-@qnumbers b::Destroy(h)
+@qnumbers b_::Destroy(h)
 σ(x,y,z) = IndexedOperator(Transition(h,:σ,x,y),z)
 gi = IndexedVariable(:g,i)
 
-H = Δ*b'*b + ∑(gi*(b*σ(2,1,i) + b'*σ(1,2,i)),i)
-ops = [b'b, σ(2,2,j)]
+H = Δ*b_'*b_ + ∑(gi*(b_*σ(2,1,i) + b_'*σ(1,2,i)),i)
+ops = [b_'b_, σ(2,2,j)]
 
-J = [b, σ(1,2,i), σ(2,1,i), σ(2,2,i) - σ(1,1,i)]
+J = [b_, σ(1,2,i), σ(2,1,i), σ(2,2,i) - σ(1,1,i)]
 rates = [κ, γ, ν, χ]
 
 eqs = meanfield(ops,H,J;rates=rates,order=2)

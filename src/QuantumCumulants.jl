@@ -1,7 +1,7 @@
 module QuantumCumulants
 
 import SymbolicUtils
-import SymbolicUtils: substitute
+import SymbolicUtils: substitute, BasicSymbolic
 
 import Symbolics
 import TermInterface

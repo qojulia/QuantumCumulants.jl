@@ -51,7 +51,7 @@ ex = (im*g)*σee + (-im*g)*a'*a + (im*(ωc - ωa) - 0.5*(κ + γ + ν))*a'*σ + 
 N=2
 @cnumbers G11 G12 G21 G22 δ
 h = ⊗([NLevelSpace(Symbol(:atom,i),2) for i=1:N]...)
-σ_(i,j,k) = Transition(h,Symbol("σ__{$k}"),i,j,k)
+σ_(i,j,k) = Transition(h,Symbol("σ_{$k}"),i,j,k)
 H = δ*(σ_(2,2,1)+σ_(2,2,2))
 J = [[σ_(1,2,1), σ_(1,2,2)]]
 rates = [[G11 G12; G21 G22]]

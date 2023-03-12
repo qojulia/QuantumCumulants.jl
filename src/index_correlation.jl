@@ -45,7 +45,7 @@ function _new_operator(sum::IndexedAverageSum,h;kwargs...)
     end
     return IndexedAverageSum(_new_operator(sum.term,h),newsum_index,newSumNonEquals)
 end
-_new_operator(sym::SymbolicUtils.Sym{Parameter,IndexedAverageSum},h;kwargs...) = _new_operator(sym.metadata,h;kwargs...)
+_new_operator(sym::BasicSymbolic{IndexedAverageSum},h;kwargs...) = _new_operator(SymbolicUtils.metadata(sym)[IndexedAverageSum],h;kwargs...)
 function _new_indices(Inds::Vector,h)
     Inds_ = deepcopy(Inds)
     for i=1:length(Inds)
@@ -67,9 +67,9 @@ function _new_operator(sum::IndexedAverageDoubleSum,h;kwargs...)
     inner = _new_operator(sum.innerSum,h;kwargs...)
     return IndexedAverageDoubleSum(inner,newsum_index,newSumNonEquals)
 end
-_new_operator(sym::SymbolicUtils.Sym{Parameter,IndexedAverageDoubleSum},h;kwargs...) = _new_operator(sym.metadata,h;kwargs...)
-_new_operator(sym::SymbolicUtils.Sym{Parameter,IndexedVariable},h;kwargs...) = _new_operator(sym.metadata,h;kwargs...)
-_new_operator(sym::SymbolicUtils.Sym{Parameter,DoubleIndexedVariable},h;kwargs...) = _new_operator(sym.metadata,h;kwargs...)
+_new_operator(sym::BasicSymbolic{IndexedAverageDoubleSum},h;kwargs...) = _new_operator(SymbolicUtils.metadata(sym)[IndexedAvergeDoubleSum],h;kwargs...)
+_new_operator(sym::BasicSymbolic{IndexedVariable},h;kwargs...) = _new_operator(SymbolicUtils.metadata(sym)[IndexedVariable],h;kwargs...)
+_new_operator(sym::BasicSymbolic{DoubleIndexedVariable},h;kwargs...) = _new_operator(SymbolicUtils.metadata(sym)[DoubleIndexedVariable],h;kwargs...)
 function _new_operator(sym::IndexedVariable,h;kwargs...)
     if sym.ind.hilb != h
         newInd = Index(h,sym.ind.name,sym.ind.range,sym.ind.aon)
@@ -182,11 +182,11 @@ function scale(corr::CorrelationFunction;kwargs...)
 end
 function evaluate(corr::CorrelationFunction;limits=nothing,kwargs...)
     if !=(limits,nothing) && limits isa Pair
-        limits_ = Dict{SymbolicUtils.Sym,Int64}(first(limits) => last(limits));
+        limits_ = Dict{BasicSymbolic,Int64}(first(limits) => last(limits));
         limits = limits_
     end
     if limits === nothing
-        limits =  Dict{SymbolicUtils.Sym,Int64}();
+        limits =  Dict{BasicSymbolic,Int64}();
     end
     de = evalME(corr.de;limits=limits,kwargs...)
     de0 = evaluate(corr.de0;limits=limits,kwargs...)
@@ -225,7 +225,6 @@ function substituteIntoCorrelation(me,de0;scaling::Bool=false,kwargs...)
     else  
         to_insert = conj(_inconj.(to_sub))
     end
-    # filter!(x -> !=(x,nothing),to_insert)
     subs = Dict(to_sub .=> to_insert)
     eqs = [substitute(eq,subs) for eq in me.equations]
     return IndexedMeanfieldEquations(eqs,me.operator_equations,me.states,me.operators,me.hamiltonian,me.jumps,me.jumps_dagger,me.rates,me.iv,me.varmap,me.order)
@@ -394,7 +393,6 @@ function filterComplete_corr(x,states1,states2,scaling,steady_state;kwargs...)
             && isNotIn(x,states2,scaling;kwargs...)&& isNotIn(_inconj(x),states2,scaling;kwargs...))
     else 
         return (isNotIn(x,states1,scaling;kwargs...) && isNotIn(_inconj(x),states1,scaling;kwargs...))
-            #&& isNotIn(x,states2,scaling;kwargs...)&& isNotIn(_inconj(x),states2,scaling;kwargs...))
     end
 end
 

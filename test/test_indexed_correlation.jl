@@ -92,17 +92,17 @@ split0 = split_sums(avrgSum,l,15)
 
 split1 = split_sums(avrgSum,k,4)
 
-@test split1 isa SymbolicUtils.Mul
+@test split1 isa SymbolicUtils.BasicSymbolic && operation(split1) === *
 @test !isequal(split1,avrgSum)
 @test isequal(4,arguments(split1)[1])
-@test isequal(N/4,arguments(split1)[2].metadata.sum_index.range)
+@test isequal(N/4,arguments(split1)[2].metadata[qc.IndexedAverageSum].sum_index.range)
 
 split2 = split_sums(avrgSum,k,M)
 
 @test !isequal(split2,split1)
 @test !isequal(split2,avrgSum)
 @test isequal(M,arguments(split2)[1])
-@test isequal(N/M,arguments(split2)[2].metadata.sum_index.range)
+@test isequal(N/M,arguments(split2)[2].metadata[qc.IndexedAverageSum].sum_index.range)
 
 avrgSum2 = arguments(arguments(eqs_c[3].rhs)[1])[2]
 
@@ -114,7 +114,7 @@ _split0 = split_sums(avrgSum2,l,15)
 _split1 = split_sums(avrgSum2,k,3)
 
 @test !isequal(_split1,avrgSum2)
-@test _split1 isa SymbolicUtils.Add
+@test _split1 isa SymbolicUtils.BasicSymbolic && operation(_split1) === +
 @test isequal(2,length(arguments(_split1)))
 
 op1 = a'
@@ -148,7 +148,7 @@ sol_c = solve(prob_c,Tsit5();saveat=0.001,maxiters=1e8); #UndefVarError: avg not
 
 @test sol_c.retcode == SciMLBase.ReturnCode.Success
 
-limits = Dict{SymbolicUtils.Sym,Int64}(N=>5)
+limits = Dict{SymbolicUtils.BasicSymbolic,Int64}(N=>5)
 evals = evaluate(eqs_c;limits=limits)
 
 
@@ -176,10 +176,10 @@ gn = [1.0,2.0]
 ps = [Γ_ij,Ω_ij,gi,κ]
 p0 = [ΓMatrix,ΩMatrix,gn,κn]
 
-limits = Dict{SymbolicUtils.Sym,Int64}(N_=>2)
+limits = Dict{SymbolicUtils.BasicSymbolic,Int64}(N_=>2)
 valmap = value_map(ps,p0;limits=limits)
 
-map_ = Dict{SymbolicUtils.Sym{Parameter, Base.ImmutableDict{DataType, Any}},ComplexF64}()
+map_ = Dict{SymbolicUtils.BasicSymbolic,ComplexF64}()
 push!(map_,qc.DoubleNumberedVariable(:Γ,1,1)=>1.0)
 push!(map_,qc.DoubleNumberedVariable(:Γ,2,1)=>1.0)
 push!(map_,qc.DoubleNumberedVariable(:Γ,1,2)=>1.0)
@@ -207,7 +207,7 @@ sum_ = average(Σ(σ(2,1,i)*σ(1,2,j),i))
 
 split = split_sums(sum_,i,3)
 
-@test split isa SymbolicUtils.Add
+@test split isa SymbolicUtils.BasicSymbolic && operation(split) === +
 @test length(arguments(split)) == 3
 
 hc = FockSpace(:cavity)
