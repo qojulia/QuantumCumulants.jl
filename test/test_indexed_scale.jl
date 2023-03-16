@@ -88,5 +88,24 @@ c_avg = conj(avg)
 
 @test s1.states == s2.states
 
+@test isequal(scale(∑(average(σ(2,2,k)),k)), N*average(σ(2,2,1)))
+@test isequal(scale(∑(average(ai(m)),m)), N2*average(ai(1)))
+@test isequal(scale(average(∑(σ(2,1,k)*σ(1,2,l),k))), (N-1)*average(σ(2,1,1)*σ(1,2,2)) + average(σ(2,2,1)))
+
+
+hc_ = FockSpace(:cavity) 
+ha_ = NLevelSpace(:atom, 3)
+h_ = hc_ ⊗ ha_
+i2 = Index(h_,:i,N,ha_);
+j2 = Index(h_,:j,N,ha_);
+
+σ2(i,j,k) = IndexedOperator(Transition(h_,:σ,i,j),k)
+
+Sz_(i) = ∑(σ2(2,2,i) - σ2(3,3,i),i)
+Sz2 = average(Sz_(i2)*Sz_(j2))
+
+@test isequal(scale(Sz2), N*average(σ2(2,2,1)) + N*average(σ2(3,3,1)) + (-1+N)^2*average(σ2(2,2,1)*σ2(2,2,2)) +
+    (-1+N)^2*average(σ2(3,3,1)*σ2(3,3,2)) -2*(-1+N)^2*average(σ2(2,2,1)*σ2(3,3,2)))
+
 
 end

@@ -519,3 +519,27 @@ function get_solution(sol, op::QTerm)
         return c*sol[op_]
     end
 end
+function get_solution(sol, op::SymbolicUtils.BasicSymbolic{CNumber})
+    f = SymbolicUtils.operation(op)
+    args = SymbolicUtils.arguments(op)
+    sol_args = [get_solution(sol, args[i]) for i=1:length(args)]
+    (f).(sol_args...)
+end
+function get_solution(sol, op::SymbolicUtils.BasicSymbolic{QuantumCumulants.AvgSym})
+    sol[op]
+end
+function get_solution(sol, op, dict::Dict)
+    x = get_solution(sol, op)
+    [substitute(x_, dict) for x_ in x]
+end
+function get_scale_solution(sol,op::Average,eqs;kwargs...)
+    if op in eqs.states
+        return sol[op]
+    else
+        ind_ = findfirst(x -> isscaleequal(op,x;kwargs...),eqs.states)
+        if !=(ind_,nothing)
+            return sol[eqs.states[ind_]]
+        end
+    end
+    return sol[op]
+end

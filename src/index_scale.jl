@@ -282,3 +282,7 @@ function split_sums(me::AbstractMeanfieldEquations,ind::Index,amount)
     return IndexedMeanfieldEquations(newEqs,me.operator_equations,vs,me.operators,me.hamiltonian,me.jumps,me.jumps_dagger,me.rates,me.iv,varmap,me.order)
 end
 split_sums(x,ind,amount) = x
+
+function scale(args...; kwargs...) 
+    return subst_reds_scale(scaleTerm(args...; kwargs...);kwargs...)
+end
