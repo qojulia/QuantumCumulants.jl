@@ -907,7 +907,7 @@ getAvrgs(sum::BasicSymbolic{IndexedAverageSum}) = getAvrgs(SymbolicUtils.metadat
 getAvrgs(Dsum::BasicSymbolic{IndexedAverageDoubleSum}) = getAvrgs(SymbolicUtils.metadata(Dsum)[IndexedAverageDoubleSum].innerSum)
 function getAvrgs(term::BasicSymbolic{<:CNumber}) 
     if istree(term)
-        return vcat(filter(x -> !=(x,nothing),[getAvrgs(arg) for arg in arguments(term)]))
+        return  vcat(filter(x->!=(x,nothing),[getAvrgs(arg) for arg in arguments(term)])...)
     else
         return nothing
     end

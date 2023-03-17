@@ -157,6 +157,19 @@ function subst_reds_scale(me::AbstractMeanfieldEquations;kwargs...)
 
     return IndexedMeanfieldEquations(eqs,me.operator_equations,me.states,me.operators,me.hamiltonian,me.jumps,me.jumps_dagger,me.rates,me.iv,me.varmap,me.order)
 end
+function subst_reds_scale(term::SymbolicUtils.BasicSymbolic;kwargs...)
+    avrgs = getAvrgs(term);
+    len = length(avrgs)
+    for i = 1:len
+        y = avrgs[i]
+        ind_ = findfirst(x -> QuantumCumulants.isscaleequal(y,x) && !isequal(y,x),avrgs)
+        if !=(ind_,nothing)
+            avrgs[ind_] = nothing
+        end
+    end
+    filter(x -> !=(x,nothing),avrgs)
+    return _subst_reds(term,avrgs;kwargs...)
+end
 
 function _subst_reds(v::Average,states::Vector;kwargs...)
     v in states && return v
