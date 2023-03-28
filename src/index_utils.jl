@@ -66,17 +66,32 @@ function to_numeric(op::NumberedOperator,b::QuantumOpticsBase.CompositeBasis; ra
 end
 #function that returns the conjugate of an average, but also preserving the correct ordering
 function _inconj(v::Average)
+    f = operation(v)
+    if f == conj
+        return _inconj(arguments(v)[1])
+    end
     arg = v.arguments[1]
     adj_arg = inadjoint(arg)
     return _average(adj_arg)
 end
+function _inconj(v::SymbolicUtils.BasicSymbolic)
+    if SymbolicUtils.istree(v)
+        f = SymbolicUtils.operation(v)
+        args = map(_inconj, SymbolicUtils.arguments(v))
+        return SymbolicUtils.similarterm(v, f, args)
+    else
+        return conj(v)
+    end
+end
+_inconj(x::Number) = conj(x)
+
 function inadjoint(q::QMul)
     qad = adjoint(q)
     inorder!(qad)
     return qad
 end
 inadjoint(op::QNumber) = adjoint(op)
-inadjoint(s::SymbolicUtils.Symbolic{<:Number}) = _conj(s)
+inadjoint(s::SymbolicUtils.BasicSymbolic{<:Number}) = _conj(s)
 inadjoint(x) = adjoint(x)
 
 function inorder!(v::Average)
@@ -92,12 +107,21 @@ function inorder!(q::QMul)
     sort!(q.args_nc, by=acts_on)
     return merge_commutators(q.arg_c,q.args_nc)
 end
+function inorder!(v::SymbolicUtils.BasicSymbolic)
+    if SymbolicUtils.istree(v)
+        f = SymbolicUtils.operation(v)
+        args = map(inorder!, SymbolicUtils.arguments(v))
+        return SymbolicUtils.similarterm(v, f, args)
+    end
+    return v
+end
 inorder!(x) = x
 
 get_numbers(term::Average) = get_numbers(arguments(term)[1])
-get_numbers(term::QMul) = unique(vcat(get_numbers.(term.args_nc)))
-get_numbers(x::NumberedOperator) = x.numb
-get_numbers(x) = 0
+get_numbers(term::QMul) = unique(vcat(get_numbers.(term.args_nc)...))
+get_numbers(x::NumberedOperator) = [x.numb]
+get_numbers(x::Vector) = unique(vcat(get_numbers.(x)...))
+get_numbers(x) = []
 
 
 """

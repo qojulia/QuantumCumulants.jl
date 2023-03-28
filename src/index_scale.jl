@@ -68,7 +68,6 @@ function scaleTerm(add::BasicSymbolic{<:CNumber}; h=nothing, kwargs...)
             for i=1:length(args)
                 adds[i] = scaleTerm(args[i]; h=h, kwargs...)
             end
-            # filter!(x -> !=(x,nothing),adds)
             return sum(adds)
         elseif op === * 
             mul = add
@@ -117,21 +116,22 @@ end
 
 function scaleTerm(x::Average; h=nothing,kwargs...)
     indices = get_indices(x)
-    newterm = x
+    term = x
     if !=(h,nothing)
         if !(h isa Vector)
             h = [h]
         end
         filter!(x -> x.aon in h, indices)
     end
-    for i=1:length(indices)
-        newterm = insert_index(newterm,indices[i],i)
+    dic = get_ind_dic(indices)
+    for a in keys(dic)
+        for i = 1:length(dic[a])
+            term = insert_index(term,dic[a][i],i)
+        end
     end
-    return newterm
+    return term
 end
-function scaleTerm(x::IndexedOperator; h=nothing, kwargs...)
-    return NumberedOperator(x.op,1)
-end
+scaleTerm(x::IndexedOperator; h=nothing, kwargs...) = NumberedOperator(x.op,1)
 function scaleTerm(x::QMul; h=nothing, kwargs...)
     indices = get_indices(x)
     term = x
@@ -141,10 +141,21 @@ function scaleTerm(x::QMul; h=nothing, kwargs...)
         end
         filter!(x -> x.aon in h, indices)
     end
-    for i = 1:length(indices)
-        term = insert_index(term,indices[i],i)
+    dic = get_ind_dic(indices)
+    for a in keys(dic)
+        for i = 1:length(dic[a])
+            term = insert_index(term,dic[a][i],i)
+        end
     end
     return term
+end
+function get_ind_dic(inds)
+    dic = Dict()
+    aons = unique(get_aon.(inds))
+    for a in aons
+        push!(dic, a => filter(x->isequal(a,x.aon),inds))
+    end
+    return dic
 end
 scaleTerm(x::BasicSymbolic{SpecialIndexedAverage}; kwargs...) = scaleTerm(SymbolicUtils.metadata(x)[SpecialIndexedAverage].term; kwargs...) #this is fine, since the intrinsic conditions on the indices go away automatically from the scaling
 scaleEq(eq::Symbolics.Equation; kwargs...) = Symbolics.Equation(scaleTerm(eq.lhs; kwargs...),scaleTerm(eq.rhs; kwargs...))

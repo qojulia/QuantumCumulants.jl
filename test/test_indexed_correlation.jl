@@ -126,6 +126,46 @@ corr = scale(corr)
 corr_nss = IndexedCorrelationFunction(a', a, eqs_c; steady_state=false, filter_func=phase_invariant);
 corr_nss_sc = scale(corr_nss)
 
+op1 = σ(1,2,m)
+op2 = σ(2,1,n)
+
+corr2 = CorrelationFunction(op1, op2, eqs_c) 
+corr2_sc = scale(corr);
+
+p0_c2 = correlation_p0(corr2_sc, sol.u[end],ps.=>p0)
+u0_c2 = correlation_u0(corr2_sc, sol.u[end])
+@named csys2 = ODESystem(corr2_sc) # 5 equations, 8 parameters
+
+prob_c2 = ODEProblem(csys2,u0_c2,(0.0,5.0),p0_c2)
+sol_c2 = solve(prob_c2,Tsit5();saveat=0.001,maxiters=1e8);
+
+@test sol_c2.retcode == SciMLBase.ReturnCode.Success
+
+# Test system with no filter func to evaluate corr function
+
+eqs_c_2 = complete(eqs);
+eqs_ev = evaluate(eqs_c_2;limits=(N=>3))
+
+u0_ev = zeros(ComplexF64, length(eqs_ev))
+
+@named sys_ev = ODESystem(eqs_ev)
+prob_ev = ODEProblem(sys_ev,u0_ev,(0.0, 1.0/50Γ_), ps.=>p0);
+
+sol_ev = solve(prob_ev,Tsit5(),maxiters=1e7)
+@test sol_ev.retcode == SciMLBase.ReturnCode.Success
+
+corr3 = CorrelationFunction(op1, op2, eqs_c_2)
+corr3_ev = evaluate(corr3,1,2; limits=(N=>3));
+
+p0_c3 = correlation_p0(corr3_ev, sol_ev.u[end],ps.=>p0)
+u0_c3 = correlation_u0(corr3_ev, sol_ev.u[end])
+@named csys3 = ODESystem(corr3_ev) 
+
+prob_c3 = ODEProblem(csys3,u0_c3,(0.0,5.0),p0_c3)
+sol_c3 = solve(prob_c3,Tsit5();saveat=0.001,maxiters=1e8);
+
+@test sol_c3.retcode == SciMLBase.ReturnCode.Success
+
 ps = [N, Δ, g, κ, Γ, R, ν]
 
 @test length(corr.de0) == 4
@@ -141,10 +181,10 @@ sol_ss = solve(prob_ss, DynamicSS(Tsit5(); abstol=1e-8, reltol=1e-8),
 p0_c = correlation_p0(corr_nss_sc, sol.u[end],ps.=>p0)
 u0_c = correlation_u0(corr_nss_sc, sol.u[end])
 
-@named csys = ODESystem(corr_nss_sc) # 5 equations, 8 parameters
+@named csys = ODESystem(corr_nss_sc) 
 
 prob_c = ODEProblem(csys,u0_c,(0.0,10.0),p0_c);
-sol_c = solve(prob_c,Tsit5();saveat=0.001,maxiters=1e8); #UndefVarError: avg not defined
+sol_c = solve(prob_c,Tsit5();saveat=0.001,maxiters=1e8); 
 
 @test sol_c.retcode == SciMLBase.ReturnCode.Success
 

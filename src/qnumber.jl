@@ -318,7 +318,7 @@ end
 
 
 ## Hilbert space checks
-check_hilbert(a::QNumber,b::QNumber) = (hilbert(a) == hilbert(b)) || error("Incompatible Hilbert spaces $(a.hilbert) and $(b.hilbert)!")
+check_hilbert(a::QNumber,b::QNumber) = (hilbert(a) == hilbert(b)) || error("Incompatible Hilbert spaces $(hilbert(a)) and $(hilbert(b))!")
 check_hilbert(x,y) = nothing
 
 hilbert(a::QSym) = a.hilbert

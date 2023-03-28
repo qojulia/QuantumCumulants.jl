@@ -106,7 +106,7 @@ function correlation_u0(c::CorrelationFunction, u_end)
     keys = []
     for j=1:length(lhs)
         l=lhs[j]
-        l_adj = _adjoint(l)
+        l_adj = _inconj(l)
         if l ∈ Set(lhs0)
             i = findfirst(isequal(l), lhs0)
             push!(u0, u_end[i])
@@ -123,7 +123,7 @@ function correlation_u0(c::CorrelationFunction, u_end)
             for i=1:length(lhs0)
                 l_ = substitute(l, Dict(lhs0[i] => u_end[i]))
                 check = !isequal(l_, l)
-                check && (push!(u0, l_); push!(keys, make_var(c.de.equations[i].lhs, τ)); break)
+                check && (push!(u0, l_); push!(keys, make_var(c.de.equations[j].lhs, τ)); break)
             end
             check || error("Could not find initial value for $l !")
         end
@@ -534,11 +534,6 @@ function _build_spec_func(ω, lhs, rhs, a1, a0, steady_vals, ps=[])
     A = [substitute_conj(A_,vs_adj,vs′hash) for A_∈A]
     b = [substitute_conj(b_,vs_adj,vs′hash) for b_∈b]
     c = [substitute_conj(c_,vs_adj,vs′hash) for c_∈c]
-
-    # need to substitute A,b and c using scaleequal
-    A = [_subst_reds(A_,steady_vals) for A_∈A]
-    b = [_subst_reds(b_,steady_vals) for b_∈b]
-    c = [_subst_reds(c_,steady_vals) for c_∈c]
 
     # Keep Symbolics.unflatten_long_ops from stepping into symbolic average
     # functions by substituting. This can be removed once averages store
