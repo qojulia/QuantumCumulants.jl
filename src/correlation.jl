@@ -99,7 +99,7 @@ function correlation_u0(c::CorrelationFunction, u_end)
     a1 = c.op2
     subs = Dict(a1=>a0)
     ops = c.de.operators
-    lhs = [average(substitute(op, subs)) for op in ops]
+    lhs = [inorder!(average(substitute(op, subs))) for op in ops]
     u0 = complex(eltype(u_end))[]
     lhs0 = c.de0.states
     τ = MTK.get_iv(c.de)
@@ -505,7 +505,7 @@ function _build_spec_func(ω, lhs, rhs, a1, a0, steady_vals, ps=[])
     s = Dict(a0=>a1)
     ops = [SymbolicUtils.arguments(l)[1] for l in lhs]
 
-    b = [average(substitute(op, s)) for op in ops] # Initial values
+    b = [inorder!(average(substitute(op, s))) for op in ops] # Initial values
     c = [SymbolicUtils.simplify(c_ / (1.0im*ω)) for c_ in _find_independent(rhs, a0)]
     aon0 = acts_on(a0)
     @assert length(aon0)==1
@@ -514,8 +514,8 @@ function _build_spec_func(ω, lhs, rhs, a1, a0, steady_vals, ps=[])
 
     # Substitute <a0> by steady-state average <a>
     s_avg = Dict(average(a0) => average(a1))
-    Ax = [substitute(A, s_avg) for A∈Ax]
-    c = [substitute(c_, s_avg) for c_∈c]
+    Ax = [inorder!(substitute(A, s_avg)) for A∈Ax]
+    c = [inorder!(substitute(c_, s_avg)) for c_∈c]
 
     # Compute symbolic A column-wise by substituting unit vectors into element-wise form of A*x
     A = Matrix{Any}(undef, length(Ax), length(Ax))
@@ -523,7 +523,7 @@ function _build_spec_func(ω, lhs, rhs, a1, a0, steady_vals, ps=[])
         subs_vals = zeros(length(Ax))
         subs_vals[i] = 1
         subs = Dict(lhs .=> subs_vals)
-        A_i = [SymbolicUtils.simplify(substitute(Ax[j],subs)) for j=1:length(Ax)]
+        A_i = [inorder!(SymbolicUtils.simplify(substitute(Ax[j],subs))) for j=1:length(Ax)]
         A[:,i] = A_i
     end
 
