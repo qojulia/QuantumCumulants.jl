@@ -66,17 +66,32 @@ function to_numeric(op::NumberedOperator,b::QuantumOpticsBase.CompositeBasis; ra
 end
 #function that returns the conjugate of an average, but also preserving the correct ordering
 function _inconj(v::Average)
+    f = operation(v)
+    if f == conj
+        return _inconj(arguments(v)[1])
+    end
     arg = v.arguments[1]
     adj_arg = inadjoint(arg)
     return _average(adj_arg)
 end
+function _inconj(v::SymbolicUtils.BasicSymbolic)
+    if SymbolicUtils.istree(v)
+        f = SymbolicUtils.operation(v)
+        args = map(_inconj, SymbolicUtils.arguments(v))
+        return SymbolicUtils.similarterm(v, f, args)
+    else
+        return conj(v)
+    end
+end
+_inconj(x::Number) = conj(x)
+
 function inadjoint(q::QMul)
     qad = adjoint(q)
     inorder!(qad)
     return qad
 end
 inadjoint(op::QNumber) = adjoint(op)
-inadjoint(s::SymbolicUtils.Symbolic{<:Number}) = _conj(s)
+inadjoint(s::SymbolicUtils.BasicSymbolic{<:Number}) = _conj(s)
 inadjoint(x) = adjoint(x)
 
 function inorder!(v::Average)
@@ -92,12 +107,21 @@ function inorder!(q::QMul)
     sort!(q.args_nc, by=acts_on)
     return merge_commutators(q.arg_c,q.args_nc)
 end
+function inorder!(v::SymbolicUtils.BasicSymbolic)
+    if SymbolicUtils.istree(v)
+        f = SymbolicUtils.operation(v)
+        args = map(inorder!, SymbolicUtils.arguments(v))
+        return SymbolicUtils.similarterm(v, f, args)
+    end
+    return v
+end
 inorder!(x) = x
 
 get_numbers(term::Average) = get_numbers(arguments(term)[1])
-get_numbers(term::QMul) = unique(vcat(get_numbers.(term.args_nc)))
-get_numbers(x::NumberedOperator) = x.numb
-get_numbers(x) = 0
+get_numbers(term::QMul) = unique(vcat(get_numbers.(term.args_nc)...))
+get_numbers(x::NumberedOperator) = [x.numb]
+get_numbers(x::Vector) = unique(vcat(get_numbers.(x)...))
+get_numbers(x) = []
 
 
 """
@@ -158,40 +182,16 @@ function subst_reds_scale(me::AbstractMeanfieldEquations;kwargs...)
     return IndexedMeanfieldEquations(eqs,me.operator_equations,me.states,me.operators,me.hamiltonian,me.jumps,me.jumps_dagger,me.rates,me.iv,me.varmap,me.order)
 end
 function subst_reds_scale(term::SymbolicUtils.BasicSymbolic;kwargs...)
-    avrgs = getAvrgs(term);
-    len = length(avrgs)
-    for i = 1:len
-        y = avrgs[i]
-        ind_ = findfirst(x -> QuantumCumulants.isscaleequal(y,x) && !isequal(y,x),avrgs)
+    avrgs = unique(getAvrgs(term))
+    D = Dict{Average,Average}()
+    for i = 1:length(avrgs)
+        ind_ = findfirst(x -> isscaleequal(avrgs[i],x;kwargs...) && !isequal(avrgs[i],x),avrgs)
         if !=(ind_,nothing)
-            avrgs[ind_] = nothing
+            push!(D,avrgs[i] => avrgs[ind_])
+            avrgs[i] = nothing
         end
     end
-    filter(x -> !=(x,nothing),avrgs)
-    return _subst_reds(term,avrgs;kwargs...)
-end
-
-function _subst_reds(v::Average,states::Vector;kwargs...)
-    v in states && return v
-    ind_ = findfirst(x -> isscaleequal(v,x;kwargs...),states)
-    if !=(ind_,nothing)
-        return states[ind_]
-    else
-        ind_ = findfirst(x -> isscaleequal(_inconj(v),x;kwargs...),states)
-        if !=(ind_,nothing)
-            return states[ind_]
-        end
-    end
-    return v
-end
-function _subst_reds(t,states::Vector;kwargs...)
-    if SymbolicUtils.istree(t)
-        f = SymbolicUtils.operation(t)
-        args = [_subst_reds(arg,states;kwargs...) for arg∈SymbolicUtils.arguments(t)]
-        return SymbolicUtils.similarterm(t, f, args)
-    else
-        return t
-    end
+    return inorder!(substitute(term,D;kwargs...))
 end
 
 #function that checks if 2 averages are the same, if they would get scaled
@@ -230,7 +230,19 @@ function isscaleequal(a::IndexedOperator,b::IndexedOperator;h=nothing,kwargs...)
         return isequal(a.op,b.op)
     end
 end
-isscaleequal(a,b;kwargs...) = isequal(a,b)
+function isscaleequal(t1,t2;kwargs...)
+    if SymbolicUtils.istree(t1) && SymbolicUtils.istree(t2)
+        args1 = arguments(t1)
+        args2 = arguments(t2)
+        isequal(operation(t1),operation(t2)) || return false
+        length(args1) != length(args2) && return false
+        for i = 1:length(args1)
+            isscaleequal(args1[i],args2[i];kwargs...) || return false
+        end
+        return true
+    end
+    return isequal(t1,t2)
+end
 function has_same(vec1::Vector,vec2::Vector)
     length(vec1) != length(vec2) && return false
     return isequal(counter.(vec1),counter.(vec2))

@@ -577,6 +577,9 @@ end
 function checkAndChange(missed_,sum,extras,states,checking,scaling;kwargs...)
     meta = SymbolicUtils.metadata(sum)[IndexedAverageSum]
     avrgs = getAvrgs(sum) #get vector of all avrgs in the sum
+    if avrgs isa Average
+        avrgs = [avrgs]
+    end
     for avr in avrgs
         changed_ = nothing
         avrg_inds = get_indices(avr)

@@ -1,11 +1,22 @@
-function _new_operator(op::IndexedOperator,h,aon=acts_on(op)) 
-    if op.ind.hilb != h
-        return IndexedOperator(_new_operator(op.op,h,aon),Index(h,op.ind.name,op.ind.range,op.ind.aon))
+function _new_operator(op::IndexedOperator,h,aon=nothing;kwargs...) 
+    if !=(aon,nothing)
+        if op.ind.hilb != h
+            return IndexedOperator(_new_operator(op.op,h,aon; kwargs...),Index(h,op.ind.name,op.ind.range,aon))
+        end
+        return IndexedOperator(_new_operator(op.op,h,aon; kwargs...),op.ind)
     end
-    return IndexedOperator(_new_operator(op.op,h,aon),op.ind)
+    if op.ind.hilb != h
+        return IndexedOperator(_new_operator(op.op,h; kwargs...),Index(h,op.ind.name,op.ind.range,op.ind.aon))
+    end
+    return IndexedOperator(_new_operator(op.op,h; kwargs...),op.ind)
 end
-_new_operator(nOp::NumberedOperator,h,aon=acts_on(nOp)) = NumberedOperator(_new_operator(op.op,h,aon),nOp.numb)
-function _new_operator(sum::SingleSum,h) 
+function _new_operator(nOp::NumberedOperator,h,aon=nothing;kwargs...) 
+    if !=(aon,nothing)
+        return NumberedOperator(_new_operator(nOp.op,h,aon;kwargs...),nOp.numb)
+    end
+    return NumberedOperator(_new_operator(nOp.op,h;kwargs...),nOp.numb)
+end
+function _new_operator(sum::SingleSum,h,aon=nothing;kwargs...) 
     newsum_index = sum.sum_index
     if sum.sum_index.hilb != h
         newsum_index = Index(h,sum.sum_index.name,sum.sum_index.range,sum.sum_index.aon)
@@ -16,9 +27,9 @@ function _new_operator(sum::SingleSum,h)
             push!(newSumNonEquals,Index(h,ind.name,ind.range,ind.aon))
         end
     end
-    return SingleSum(_new_operator(sum.term,h),newsum_index,newSumNonEquals)
+    return SingleSum(_new_operator(sum.term,h,aon;kwargs...),newsum_index,newSumNonEquals)
 end
-function _new_operator(sum::DoubleSum,h) 
+function _new_operator(sum::DoubleSum,h,aon=nothing;kwargs...) 
     newsum_index = sum.sum_index
     if sum.sum_index.hilb != h
         newsum_index = Index(h,sum.sum_index.name,sum.sum_index.range,sum.sum_index.aon)
@@ -29,10 +40,10 @@ function _new_operator(sum::DoubleSum,h)
             push!(newSumNonEquals,Index(h,ind.name,ind.range,ind.aon))
         end
     end
-    inner = _new_operator(sum.innerSum,h)
+    inner = _new_operator(sum.innerSum,h,aon;kwargs...)
     return DoubleSum(inner,newsum_index,newSumNonEquals)
 end
-function _new_operator(sum::IndexedAverageSum,h;kwargs...)
+function _new_operator(sum::IndexedAverageSum,h,aon=nothing;kwargs...)
     newsum_index = sum.sum_index
     if sum.sum_index.hilb != h
         newsum_index = Index(h,sum.sum_index.name,sum.sum_index.range,sum.sum_index.aon)
@@ -43,17 +54,11 @@ function _new_operator(sum::IndexedAverageSum,h;kwargs...)
             push!(newSumNonEquals,Index(h,ind.name,ind.range,ind.aon))
         end
     end
-    return IndexedAverageSum(_new_operator(sum.term,h),newsum_index,newSumNonEquals)
+    return IndexedAverageSum(_new_operator(sum.term,h,aon;kwargs...),newsum_index,newSumNonEquals)
 end
-_new_operator(sym::BasicSymbolic{IndexedAverageSum},h;kwargs...) = _new_operator(SymbolicUtils.metadata(sym)[IndexedAverageSum],h;kwargs...)
-function _new_indices(Inds::Vector,h)
-    Inds_ = deepcopy(Inds)
-    for i=1:length(Inds)
-        Inds_[i] = Index(h,Inds[i].name,Inds[i].range,Inds[i].aon)
-    end
-    return Inds_
-end
-function _new_operator(sum::IndexedAverageDoubleSum,h;kwargs...)
+_new_operator(sym::BasicSymbolic{IndexedAverageSum},h,aon=nothing;kwargs...) = _new_operator(SymbolicUtils.metadata(sym)[IndexedAverageSum],h,aon;kwargs...)
+
+function _new_operator(sum::IndexedAverageDoubleSum,h,aon=nothing;kwargs...)
     newsum_index = sum.sum_index
     if sum.sum_index.hilb != h
         newsum_index = Index(h,sum.sum_index.name,sum.sum_index.range,sum.sum_index.aon)
@@ -64,19 +69,18 @@ function _new_operator(sum::IndexedAverageDoubleSum,h;kwargs...)
             push!(newSumNonEquals,Index(h,ind.name,ind.range,ind.aon))
         end
     end
-    inner = _new_operator(sum.innerSum,h;kwargs...)
+    inner = _new_operator(sum.innerSum,h,aon;kwargs...)
     return IndexedAverageDoubleSum(inner,newsum_index,newSumNonEquals)
 end
-_new_operator(sym::BasicSymbolic{IndexedAverageDoubleSum},h;kwargs...) = _new_operator(SymbolicUtils.metadata(sym)[IndexedAvergeDoubleSum],h;kwargs...)
-_new_operator(sym::BasicSymbolic{IndexedVariable},h;kwargs...) = _new_operator(SymbolicUtils.metadata(sym)[IndexedVariable],h;kwargs...)
-_new_operator(sym::BasicSymbolic{DoubleIndexedVariable},h;kwargs...) = _new_operator(SymbolicUtils.metadata(sym)[DoubleIndexedVariable],h;kwargs...)
-function _new_operator(sym::IndexedVariable,h;kwargs...)
-    if sym.ind.hilb != h
-        newInd = Index(h,sym.ind.name,sym.ind.range,sym.ind.aon)
-    end
-    return IndexedVariable(sym.name,newInd)
+_new_operator(sym::BasicSymbolic{IndexedAverageDoubleSum},h,aon=nothing;kwargs...) = _new_operator(SymbolicUtils.metadata(sym)[IndexedAvergeDoubleSum],h,aon;kwargs...)
+_new_operator(sym::BasicSymbolic{IndexedVariable},h,aon=nothing;kwargs...) = _new_operator(SymbolicUtils.metadata(sym)[IndexedVariable],h,aon;kwargs...)
+_new_operator(sym::BasicSymbolic{DoubleIndexedVariable},h,aon=nothing;kwargs...) = _new_operator(SymbolicUtils.metadata(sym)[DoubleIndexedVariable],h,aon;kwargs...)
+_new_operator(sym::BasicSymbolic{SpecialIndexedAverage},h,aon=nothing;kwargs...) = _new_operator(SymbolicUtils.metadata(sym)[SpecialIndexedAverage],h,aon;kwargs...)
+function _new_operator(sym::SpecialIndexedAverage,h,aon=nothing;kwargs...) 
+    indexMap = [(_new_index(f,h,aon),_new_index(l,h,aon)) for (f,l) in sym.indexMapping]
+    return SpecialIndexedAverage(_new_operator(sym.term,h,aon;kwargs...),indexMap)
 end
-function _new_operator(sym::DoubleIndexedVariable,h;kwargs...)
+function _new_operator(sym::DoubleIndexedVariable,h,aon=nothing;kwargs...)
     if sym.ind1.hilb != h
         newInd1 = Index(h,sym.ind1.name,sym.ind1.range,sym.ind1.aon)
     end
@@ -85,7 +89,27 @@ function _new_operator(sym::DoubleIndexedVariable,h;kwargs...)
     end
     return DoubleIndexedVariable(sym.name,newInd1,newInd2)
 end
-_new_operator(x::Vector,h;kwargs...) = _new_operator.(x,h;kwargs...)
+_new_operator(x::Vector,h,aon=nothing;kwargs...) = _new_operator.(x,h,aon;kwargs...)
+function _new_operator(sym::IndexedVariable,h,aon=nothing;kwargs...)
+    if sym.ind.hilb != h
+        newInd = Index(h,sym.ind.name,sym.ind.range,sym.ind.aon)
+    end
+    return IndexedVariable(sym.name,newInd)
+end
+
+function _new_index(ind::Index,h,aon=nothing) 
+    if isnothing(aon)
+        return Index(h,ind.name,ind.range,ind.aon)
+    end
+    return Index(h,ind.name,ind.range,aon)
+end
+function _new_indices(Inds::Vector,h)
+    Inds_ = deepcopy(Inds)
+    for i=1:length(Inds)
+        Inds_[i] = Index(h,Inds[i].name,Inds[i].range,Inds[i].aon)
+    end
+    return Inds_
+end
 
 """
     IndexedCorrelationFunction(op1,op2,de0;steady_state=false,add_subscript=0,mix_choice=maximum)
@@ -178,21 +202,44 @@ function scale(corr::CorrelationFunction;kwargs...)
     de = scaleME(corr.de;kwargs...)
     de0 = scale(corr.de0;kwargs...)
     de_ = substituteIntoCorrelation(de,de0;scaling=true,kwargs...)
-    return CorrelationFunction(corr.op1, corr.op2, corr.op2_0, de0, de_, corr.steady_state)
+    op1_sc = scaleTerm(corr.op1)
+    op2_sc = scaleTerm(corr.op2)
+    op2_0_sc = scaleTerm(corr.op2_0)
+    return CorrelationFunction(op1_sc, op2_sc, op2_0_sc, de0, de_, corr.steady_state)
 end
-function evaluate(corr::CorrelationFunction;limits=nothing,kwargs...)
+function evaluate(corr::CorrelationFunction; op1_aon=1, op2_aon=2, limits=nothing,kwargs...)
+    me = corr.de
+    # eqs = [Symbolics.Equation(insert_index(insert_index(eq.lhs,corr.op1.ind,op1_aon),corr.op2.ind,op2_aon),
+    #             insert_index(insert_index(eq.rhs,corr.op1.ind,op1_aon),corr.op2.ind,op2_aon))
+    #                 for eq in (me.equations)]
+    if !isempty(get_indices(corr.op2))
+        eqs = [Symbolics.Equation(insert_index(eq.lhs,corr.op2.ind,op2_aon),
+                insert_index(eq.rhs,corr.op2.ind,op2_aon))
+                    for eq in (me.equations)]
+    else
+        eqs = me.equations
+    end
+    
+    op1_eval = isempty(get_indices(corr.op1)) ? corr.op1 : insert_index(corr.op1,corr.op1.ind,op1_aon)
+    op2_eval = isempty(get_indices(corr.op2)) ? corr.op2 : insert_index(corr.op2,corr.op2.ind,op2_aon)
+    op2_0_eval = isempty(get_indices(corr.op2_0)) ? corr.op2_0 : insert_index(corr.op2_0,corr.op2_0.ind,op2_aon)
     if !=(limits,nothing) && limits isa Pair
-        limits_ = Dict{BasicSymbolic,Int64}(first(limits) => last(limits));
+        limits_ = Dict{SymbolicUtils.BasicSymbolic,Int64}(first(limits) => last(limits));
         limits = limits_
     end
     if limits === nothing
-        limits =  Dict{BasicSymbolic,Int64}();
+        limits =  Dict{SymbolicUtils.BasicSymbolic,Int64}();
     end
-    de = evalME(corr.de;limits=limits,kwargs...)
     de0 = evaluate(corr.de0;limits=limits,kwargs...)
-    de_ = substituteIntoCorrelation(de,de0;scaling=false,kwargs...)
-    return CorrelationFunction(corr.op1, corr.op2, corr.op2_0, de0, de_, corr.steady_state)
+    states = getLHS.(eqs)
+    operats = undo_average.(states)
+    varmap = make_varmap(states, me.iv)
+    de =  IndexedMeanfieldEquations(eqs,me.operator_equations,states,operats,me.hamiltonian,me.jumps,me.jumps_dagger,me.rates,me.iv,varmap,me.order)
+    de_ = evalME(de;limits=limits,kwargs...)
+    de_ = substituteIntoCorrelation(de_,de0;scaling=false,kwargs...)
+    return CorrelationFunction(op1_eval, op2_eval, op2_0_eval, de0, de_, corr.steady_state)
 end
+evaluate(corr::CorrelationFunction, op1_ao, op2_ao; kwargs...) = evaluate(corr; op1_aon=op1_ao, op2_aon=op2_ao, kwargs...)
 
 #this function is almost similar to the subst_reds function -> maybe merge together?
 function substituteIntoCorrelation(me,de0;scaling::Bool=false,kwargs...)
@@ -222,11 +269,21 @@ function substituteIntoCorrelation(me,de0;scaling::Bool=false,kwargs...)
             deleteat!(to_insert,counter)
             deleteat!(to_sub,counter)
         end
-    else  
-        to_insert = conj(_inconj.(to_sub))
+    else
+        counter = 1
+        while counter <= length(to_sub)
+            elem = to_sub[counter]
+            if _inconj(elem) in de_states
+                to_insert[counter] = conj(_inconj(to_sub[counter]))
+                counter = counter + 1
+            else
+                to_insert[counter] = 0
+                counter = counter + 1
+            end
+        end
     end
     subs = Dict(to_sub .=> to_insert)
-    eqs = [substitute(eq,subs) for eq in me.equations]
+    eqs = [Symbolics.Equation(inorder!(substitute(eq.lhs,subs)),inorder!(substitute(eq.rhs,subs))) for eq in me.equations]
     return IndexedMeanfieldEquations(eqs,me.operator_equations,me.states,me.operators,me.hamiltonian,me.jumps,me.jumps_dagger,me.rates,me.iv,me.varmap,me.order)
 end
 

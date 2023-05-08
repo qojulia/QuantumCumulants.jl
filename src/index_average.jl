@@ -1,19 +1,6 @@
 #Main file for manipulating indexed averages and sums over averages.
 using ModelingToolkit
 
-struct EvaledMeanfieldEquations <: AbstractMeanfieldEquations
-    equations::Vector{Symbolics.Equation}
-    operator_equations::Vector{Symbolics.Equation}
-    states::Vector
-    operators::Vector{QNumber}
-    hamiltonian::QNumber
-    jumps::Vector
-    jumps_dagger
-    rates::Vector
-    iv::SymbolicUtils.BasicSymbolic
-    varmap::Vector{Pair}
-    order::Union{Int,Vector{<:Int},Nothing}
-end
 function Base.show(io::IO,de::EvaledMeanfieldEquations)
     write(io,"Evaluated Meanfield equations with: ")
     write(io, "$(length(de.equations))")
@@ -623,6 +610,9 @@ function evalME(me::AbstractMeanfieldEquations;limits=Dict{SymbolicUtils.BasicSy
     for i = 1:length(vs)
         inds = get_indices(vs[i])
         eq = me.equations[i]
+        if !=(h,nothing)
+            filter!(x->x.aon in h,inds)
+        end
         if isempty(inds)
             eval = evalEq(eq;limits=limits,h=h,kwargs...)
             if (eval.lhs ∉ states) && (_inconj(eval.lhs) ∉ states)
@@ -640,9 +630,12 @@ function evalME(me::AbstractMeanfieldEquations;limits=Dict{SymbolicUtils.BasicSy
             end
             arr = create_index_arrays(inds,ranges_)
             for j=1:length(arr)
+                if !isempty(get_numbers(eq.lhs)) && !(check_arr(eq.lhs,arr[j]))
+                    continue
+                end
                 dict = Dict{Index,Int}(inds .=> arr[j])
                 eq_lhs = insert_indices_lhs(eq.lhs,dict)
-                if !(eq_lhs in states || _inconj(eq_lhs) in states)
+                if (eq_lhs ∉ states) && (_inconj(eq_lhs) ∉ states)
                     eq_rhs = insert_indices(eq,dict;limits=limits,h=h,kwargs...)    
                     states[counter] = eq_lhs
                     if SymbolicUtils._iszero(eq_rhs)
@@ -656,9 +649,10 @@ function evalME(me::AbstractMeanfieldEquations;limits=Dict{SymbolicUtils.BasicSy
         end
     end 
     states = states[1:(counter-1)]
+    operats = undo_average.(states)
     newEqs = newEqs[1:(counter-1)]
     varmap = make_varmap(states, me.iv)
-    return EvaledMeanfieldEquations(newEqs,me.operator_equations,states,me.operators,me.hamiltonian,me.jumps,me.jumps_dagger,me.rates,me.iv,varmap,me.order)
+    return EvaledMeanfieldEquations(newEqs,me.operator_equations,states,operats,me.hamiltonian,me.jumps,me.jumps_dagger,me.rates,me.iv,varmap,me.order)
  end
  # function that counts how many equations are needed for a given set of states
  function count_eq_number(vs;limits=Dict(),h=nothing,kwargs...)
@@ -901,6 +895,31 @@ function get_not_allowed(ind_vec)
     return not_allowed
 end
 get_spec_hilb(ind::Index) = ind.aon
+
+function check_arr(lhs,arr)
+    numbs = get_numbers(lhs)
+    inds = get_indices(lhs)
+    D = Dict(inds.=>arr)
+    args_ = arguments(lhs)[1]
+    if args_ isa QMul
+        args = args_.args_nc
+    else
+        args = [args_]
+    end
+    for i = 1:length(hilbert(args[1]).spaces)
+        as = filter(x->isequal(acts_on(x),i),args)
+        isempty(get_numbers(as)) && continue
+        isempty(get_indices(as)) && continue
+        inds_ = get_indices(as)
+        numbs = get_numbers(as)
+        for i in inds_
+            if D[i] in numbs
+                return false
+            end
+        end
+    end
+    return true
+end
 
 getAvrgs(sum::BasicSymbolic{SpecialIndexedAverage}) = getAvrgs(SymbolicUtils.metadata(sum)[SpecialIndexedAverage].term)
 getAvrgs(sum::BasicSymbolic{IndexedAverageSum}) = getAvrgs(SymbolicUtils.metadata(sum)[IndexedAverageSum].term)
