@@ -230,22 +230,10 @@ function indexed_complete!(de::AbstractMeanfieldEquations;
         filter!(x -> x ∉ allInds,extra_indices)
     end
 
-    if de.order isa Vector 
-        order_max = maximum(de.order)
-    else
-        order_max = de.order
-    end
-
-    if order_max > maxNumb && order_max - maxNumb > length(extra_indices)
-        error("Too few extra_indices provided! Please make sure that for higher orders of cumulant expansion, 
-            you also use the extra_indices argument to provide additional indices for calculation. The Number of
-            extra_indices provided should be at least $(order_max - maxNumb).
-        ")
-    end
-
     vs = de.states
     order_lhs = maximum(get_order.(vs))
     order_rhs = 0
+
     for i=1:length(de.equations)
         k = get_order(de.equations[i].rhs)
         k > order_rhs && (order_rhs = k)
@@ -255,6 +243,26 @@ function indexed_complete!(de::AbstractMeanfieldEquations;
     else
         order_ = order
     end
+
+    if order isa Vector 
+        order_max = maximum(order)
+    else
+        if order === nothing
+            order_max = order_
+        else
+            order_max = order
+        end
+    end
+
+    if order_max > maxNumb && order_max - maxNumb > length(extra_indices)
+        error("Too few extra_indices provided! Please make sure that for higher orders of cumulant expansion, 
+            you also use the extra_indices argument to provide additional indices for calculation. The Number of
+            extra_indices provided should be at least $(order_max - maxNumb).
+        ")
+    end
+
+    
+    
     maximum(order_) >= order_lhs || error("Cannot form cumulant expansion of derivative; you may want to use a higher order!")
 
     if order_ != de.order
