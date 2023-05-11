@@ -261,7 +261,7 @@ function get_ops_of_aons(qmul::QMul; h=nothing, kwargs...)
     noAonVec = []
     for op in qmul.args_nc
         if acts_on(op) in aons
-            if op isa NumberedOperator || op isa IndexedOperator
+            if (op isa NumberedOperator || op isa IndexedOperator) && op.op isa Transition
                 push!(dic[acts_on(op)],op.op)
             else
                 push!(dic[acts_on(op)],op)
@@ -292,7 +292,7 @@ function isNotIn(avrg::Average,states::Vector,scaling;kwargs...)
     _avg = inorder!(avrg)
     if scaling
         for state in states
-            if isscaleequal(avrg,state;kwargs...)
+            if isscaleequal(avrg,state;kwargs...) || isscaleequal(_inconj(avrg),state;kwargs...)
                 return false
             end
         end

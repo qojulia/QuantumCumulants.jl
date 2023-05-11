@@ -47,6 +47,32 @@ eqs_com2 = qc.complete(eqs_2);
 s_1 = scale(eqs_com; h=2)
 s_2 = scale(eqs_com; h=1)
 
+# test scaling keyword in complete
+    eqs_com_2 = qc.complete(eqs_2;scaling=true,h=1)
+    eqs_sc_2 = scale(eqs_com2;h=1)
+
+    st = scale_term.(eqs_com_2.states;h=1)
+
+    @test isequal(length(eqs_com_2.states),length(eqs_sc_2.states))
+    @test isequal(st,eqs_sc_2.states)
+
+    eqs_com_2_2 = qc.complete(eqs_2;scaling=true,h=2)
+    eqs_sc_2_2 = scale(eqs_com2;h=2)
+
+    st_2 = scale_term.(eqs_com_2_2.states;h=2)
+
+    @test isequal(length(eqs_com_2_2.states),length(eqs_sc_2_2.states))
+    @test isequal(st_2,eqs_sc_2_2.states)
+
+    eqs_com_2_3 = qc.complete(eqs_2;scaling=true)
+    eqs_sc_2_3 = scale(eqs_com2)
+
+    st_3 = scale_term.(eqs_com_2_3.states)
+
+    @test isequal(length(eqs_com_2_3.states),length(eqs_sc_2_3.states))
+    @test isequal(st_3,eqs_sc_2_3.states)
+#
+
 # @test length(s_1) == length(s_2)
 @test !(s_1.equations == s_2.equations)
 @test !(s_1.states == s_2.states)
