@@ -43,11 +43,23 @@ function indexed_meanfield(a::Vector,H,J;Jdagger::Vector=adjoint.(J),rates=ones(
     simplify::Bool=true,
     order=nothing,
     mix_choice=maximum,
-    iv=SymbolicUtils.Sym{Real}(:t))
+    iv=SymbolicUtils.Sym{Real}(:t),
+    kwargs...)
+
+    ind_J = []
+    for j in J
+        ind = get_indices(j)
+        if ind ∉ ind_J
+            push!(ind_J,ind)
+        end
+    end
 
     for ind in get_indices(a)
         if ind in get_indices(H)
             error("Index $(ind.name) in operator-vector is already used in H!")
+        end
+        if ind in ind_J
+            error("Index $(ind.name) in operator-vector is already used in J!")
         end
     end
 
@@ -208,6 +220,7 @@ function indexed_complete!(de::AbstractMeanfieldEquations;
     mix_choice=maximum,
     simplify=true,
     extra_indices::Vector=[:i,:j,:k,:l,:m,:n,:p,:q,:r,:s,:t],
+    scaling=false,
     kwargs...)
 
     maxNumb = maximum(length.(get_indices.(de.operators)))
@@ -230,22 +243,10 @@ function indexed_complete!(de::AbstractMeanfieldEquations;
         filter!(x -> x ∉ allInds,extra_indices)
     end
 
-    if de.order isa Vector 
-        order_max = maximum(de.order)
-    else
-        order_max = de.order
-    end
-
-    if order_max > maxNumb && order_max - maxNumb > length(extra_indices)
-        error("Too few extra_indices provided! Please make sure that for higher orders of cumulant expansion, 
-            you also use the extra_indices argument to provide additional indices for calculation. The Number of
-            extra_indices provided should be at least $(order_max - maxNumb).
-        ")
-    end
-
     vs = de.states
     order_lhs = maximum(get_order.(vs))
     order_rhs = 0
+
     for i=1:length(de.equations)
         k = get_order(de.equations[i].rhs)
         k > order_rhs && (order_rhs = k)
@@ -255,6 +256,26 @@ function indexed_complete!(de::AbstractMeanfieldEquations;
     else
         order_ = order
     end
+
+    if order isa Vector 
+        order_max = maximum(order)
+    else
+        if order === nothing
+            order_max = order_
+        else
+            order_max = order
+        end
+    end
+
+    if order_max > maxNumb && order_max - maxNumb > length(extra_indices)
+        error("Too few extra_indices provided! Please make sure that for higher orders of cumulant expansion, 
+            you also use the extra_indices argument to provide additional indices for calculation. The Number of
+            extra_indices provided should be at least $(order_max - maxNumb).
+        ")
+    end
+
+    
+    
     maximum(order_) >= order_lhs || error("Cannot form cumulant expansion of derivative; you may want to use a higher order!")
 
     if order_ != de.order
@@ -337,7 +358,7 @@ function indexed_complete!(de::AbstractMeanfieldEquations;
     filter!(x -> (x isa Average),missed)
     isnothing(filter_func) || filter!(filter_func, missed) # User-defined filter
 
-    filter!(x -> filterComplete(x,de.states,false;kwargs...), missed) # filterComplete does for whatever reason interfere with the order in the averages...
+    filter!(x -> filterComplete(x,de.states,scaling;kwargs...), missed) # filterComplete does for whatever reason interfere with the order in the averages...
     missed = inorder!.(missed)   # ...thats why we resort here the missed again
 
     for i = 1:length(missed)
@@ -388,7 +409,7 @@ function indexed_complete!(de::AbstractMeanfieldEquations;
         filter!(x -> (x isa Average),missed)
         isnothing(filter_func) || filter!(filter_func, missed) # User-defined filter
     
-        filter!(x -> filterComplete(x,de.states,false;kwargs...), missed)
+        filter!(x -> filterComplete(x,de.states,scaling;kwargs...), missed)
         missed = inorder!.(missed)
 
         for i = 1:length(missed)
@@ -412,11 +433,12 @@ function indexed_complete!(de::AbstractMeanfieldEquations;
                 end
             end
         end
-    
-        filter!(x -> filterComplete(x,de.states,false;kwargs...), missed)
+
         missed = inorder!.(missed)
         missed = unique(missed)
-        missed = elimRed!(missed;kwargs...)
+        missed = filter!(x -> filterComplete(x,de.states,scaling;kwargs...), missed)
+        missed = inorder!.(missed)
+        missed = elimRed!(missed;scaling=scaling,kwargs...)
         
     end
 
@@ -711,28 +733,25 @@ end
 function elimRed!(missed::Vector;scaling::Bool=false,kwargs...)
     counter = 2
     while counter <= length(missed)
+        deleted = false
         for j=1:(counter-1)
             if scaling
                 if isscaleequal(missed[counter],missed[j];kwargs...) || isscaleequal(inorder!(_inconj(missed[counter])),missed[j];kwargs...)
                     deleteat!(missed,counter)
-                    if counter > length(missed)
-                        break
-                    else 
-                        j = 1
-                    end
+                    deleted = true
+                    break
                 end
             else
                 if isequal(missed[counter],missed[j]) || isequal(inorder!(_inconj(missed[counter])),missed[j])
                     deleteat!(missed,counter)
-                    if counter > length(missed)
-                        break
-                    else 
-                        j = 1
-                    end
+                    deleted = true
+                    break
                 end
             end
         end
-        counter = counter + 1
+        if !(deleted)
+            counter = counter + 1
+        end
     end
     return missed
 end

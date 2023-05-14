@@ -77,6 +77,12 @@ eqs_2 = evaluate(eqs_comp2)
 
 @test length(eqs_) == 18
 
+eqs_ord = meanfield(ops,H,J;rates=rates)
+@test eqs_ord.order === nothing
+eqs_ord_c = complete(eqs_ord)
+eqs_ord_c2 = complete(eqs_ord;order=2)
+@test isequal(eqs_ord_c.states,eqs_ord_c2.states)
+
 @named sys = ODESystem(eqs_);
 
 u0 = zeros(ComplexF64, length(eqs_))
@@ -263,5 +269,63 @@ P = value_map(ps,p;limits=(N=>3));
 prob = ODEProblem(sys,u0,(0.0, 10.0), P);
 sol = solve(prob,Tsit5());
 @test sol isa ODESolution
+
+#another test case
+
+# Hilbertspace
+hc = FockSpace(:cavity)
+ha = NLevelSpace(:atom,2)
+h = hc ⊗ ha
+# operators
+@qnumbers a::Destroy(h)
+σ(α,β,i) = IndexedOperator(Transition(h, :σ, α, β),i)
+@cnumbers N Δ κ Γ R ν
+g(i) = IndexedVariable(:g, i)
+i = Index(h,:i,N,ha)
+j = Index(h,:j,N,ha)
+# Hamiltonian
+H = -Δ*a'a + Σ(g(i)*( a'*σ(1,2,i) + a*σ(2,1,i) ),i)
+# Jump operators wth corresponding rates
+J = [a, σ(1,2,i), σ(2,1,i), σ(2,2,i)]
+rates = [κ, Γ, R, ν]
+# Derive equations
+ops = [a, σ(2,2,j)]
+eqs_i = meanfield(ops,H,J;rates=rates)
+
+# Hilbertspace
+hc = FockSpace(:cavity)
+ha = ⊗([NLevelSpace(:atom,2) for i = 1:3]...)
+h = hc ⊗ ha
+# operators
+@qnumbers a::Destroy(h)
+σ(α,β,k) = Transition(h, Symbol("σ$(k)"), α, β, k+1)
+@cnumbers N Δ κ Γ R ν g
+# Hamiltonian
+H = -Δ*a'a + sum(g*( a'*σ(1,2,i) + a*σ(2,1,i) ) for i = 1:3)
+# Jump operators wth corresponding rates
+J = [a; [σ(1,2,i) for i =1:3]; [σ(2,1,i) for i = 1:3]; [σ(2,2,i) for i = 1:3]]
+rates = [κ; [Γ for i = 1:3]; [R for i = 1:3]; [ν for i = 1:3]]
+# Derive equations
+ops = [a, σ(2,2,1)]
+eqs_os = meanfield(ops,H,J;rates=rates)
+
+eqs_i_c = complete(eqs_i)
+eqs_i_c2 = complete(eqs_i;order=2)
+eqs_os_c = complete(eqs_os)
+eqs_os_c2 = complete(eqs_os;order=2)
+
+@test eqs_i_c.order === nothing
+@test eqs_i_c2.order === nothing
+@test eqs_os_c.order === nothing
+@test eqs_os_c2.order === nothing
+@test isequal(eqs_i_c.states,eqs_i_c2.states)
+@test isequal(eqs_os_c.states,eqs_os_c2.states)
+eqs_i_ev = evaluate(eqs_i_c;limits=(N=>3))
+eqs_i_ev2 = evaluate(eqs_i_c2;limits=(N=>3))
+@test isequal(length(eqs_i_ev.states),length(eqs_os_c.states))
+@test isequal(length(eqs_i_ev2.states),length(eqs_os_c2.states))
+
+@test_throws MethodError complete(eqs_i;order=1)
+@test_throws MethodError complete(eqs_os;order=1)
 
 end

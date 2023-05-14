@@ -34,7 +34,7 @@ export HilbertSpace, ProductSpace, ⊗, tensor,
         scale,
         transition_superscript,
         Index, reorder, IndexedOperator, SingleSum, IndexedVariable, DoubleIndexedVariable,
-        DoubleSum, indexed_complete, IndexedCorrelationFunction,
+        DoubleSum, indexed_complete, IndexedCorrelationFunction, scale_term,
         scaleME, evalME, indexed_complete!, indexed_meanfield, subst_reds, AvgSums, plotME,
         IndexedAverageSum, IndexedAverageDoubleSum, SpecialIndexedTerm, find_missing_sums, Σ, ∑,
         evaluate, value_map, NumberedOperator, change_index, order_by_index, split_sums, insert_index, eval_term

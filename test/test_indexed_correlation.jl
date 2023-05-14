@@ -247,8 +247,8 @@ for arg in valmap
     @test arg in map_
 end
 
-@test isequal(qc.scaleTerm(σ(1,2,k)), σn(1,2,1))
-@test isequal(qc.scaleTerm(σ(2,1,k)*σ(1,2,j)), σn(2,1,1)*σn(1,2,2))
+@test isequal(qc.scale_term(σ(1,2,k)), σn(1,2,1))
+@test isequal(qc.scale_term(σ(2,1,k)*σ(1,2,j)), σn(2,1,1)*σn(1,2,2))
 
 sum_ = average(Σ(σ(2,1,i)*σ(1,2,j),i))
 
