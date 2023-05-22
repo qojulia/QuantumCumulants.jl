@@ -114,7 +114,7 @@ nothing # hide
 
 
 
-As mentioned before, we assume that all atoms behave identical. This means that e.g. the excited state population is equal for all atoms, hence we only need to calculate it for the first $\langle \sigma^{22}_1 \rangle = \langle \sigma^{22}_j \rangle$. Furthermore, it is clear that a sum over $N$ identical objects can be replaced by $N$ times the object. The function $\texttt{scale()}$ uses these rules to simplify the equations.
+As mentioned before, we assume that all atoms behave identically. This means that e.g. the excited state population is equal for all atoms, hence we only need to calculate it for the first $\langle \sigma^{22}_1 \rangle = \langle \sigma^{22}_j \rangle$. Furthermore, it is clear that a sum over $N$ identical objects can be replaced by $N$ times the object. The function $\texttt{scale()}$ uses these rules to simplify the equations.
 
 
 ```@example superradiant_laser_indexed
