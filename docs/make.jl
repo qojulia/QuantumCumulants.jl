@@ -21,6 +21,7 @@ pages = [
             "examples/superradiant_laser_indexed.md"
             "examples/cavity_antiresonance_indexed.md"
             "examples/filter-cavity_indexed.md"
+            "examples/unique_squeezing.md"
             "examples/superradiant-laser.md"
             ]
     ]
