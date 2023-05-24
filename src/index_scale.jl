@@ -35,7 +35,8 @@ function scale_term(sum::IndexedAverageSum; h=nothing, kwargs...)
             return IndexedAverageSum(scale_term(sum.term; h=h, kwargs...),sum.sum_index,sum.non_equal_indices)
         end
     end
-    NEI = filter(x->x in get_indices(sum.term),sum.non_equal_indices)
+    NEI = sum.non_equal_indices
+    # NEI = filter(x->x in get_indices(sum.term),sum.non_equal_indices)
     prefact = sum.sum_index.range - length(NEI)
     term_ = scale_term(sum.term; h=h, kwargs...)
     return prefact*term_
@@ -50,7 +51,8 @@ function scale_term(sum::IndexedAverageDoubleSum; h=nothing, kwargs...)
             return IndexedAverageDoubleSum(scale_term(sum.innerSum; h=h, kwargs...),sum.sum_index,sum.non_equal_indices)
         end
     end
-    NEI = filter(x->x in get_indices(sum.innerSum),sum.non_equal_indices)
+    NEI = sum.non_equal_indices
+    # NEI = filter(x->x in get_indices(sum.innerSum),sum.non_equal_indices)
     prefact = sum.sum_index.range - length(NEI)
     term_ = scale_term(sum.innerSum; h=h, kwargs...)
     return prefact*term_
