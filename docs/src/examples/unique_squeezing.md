@@ -139,7 +139,7 @@ N_ls = [1,2,10,100]
 for N_ in N_ls
     p0_ = [ω_, Ω_, ωd_, g_, η_, κ_, γ_, N_]
     prob = ODEProblem(sys,u0,(0.0, 4π/ωd_), ps.=>p0_)
-    sol = solve(prob,Tsit5(),reltol=1e-10,abstol=1e-10)
+    sol = solve(prob,Tsit5(); saveat=4π/200ωd_, reltol=1e-10,abstol=1e-10)
     push!(sol_ls,sol)
 end
 ```

@@ -133,4 +133,16 @@ Sz2 = average(Sz_(i2)*Sz_(j2))
 @test QuantumCumulants.isscaleequal(scale(Sz2),average(N*average(σ2(3,3,1)) + N*σ2(2,2,1)) + (-1+N)^2*average(σ2(2,2,1)*σ2(2,2,2)) +
     (-1+N)^2*average(σ2(3,3,1)*σ2(3,3,2)) -2*(-1+N)^2*average(σ2(2,2,1)*σ2(3,3,2)))
 
+# issue #169
+@cnumbers N
+h= NLevelSpace(:s,2)
+i1 = Index(h,:i1,N,h)
+i2 = Index(h,:i2,N,h)
+s(α,β,i) = IndexedOperator(Transition(h, :σ, α, β),i)
+
+@test isequal(scale(average(Σ(s(1,2,i1)*s(2,2,i2),i1,[i2]))), (N-1)*average(s(1,2,1)*s(2,2,2)))
+@test isequal(scale(average(Σ(s(1,2,i1),i1,[i2]))), (N-1)*average(s(1,2,1))) 
+@test isequal(scale(average(Σ(s(1,2,i1),i1))), N*average(s(1,2,1)))
+
 end
+
