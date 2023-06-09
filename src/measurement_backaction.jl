@@ -15,18 +15,6 @@ struct MeanfieldNoiseEquations <: AbstractMeanfieldEquations
     order::Union{Int,Vector{<:Int},Nothing}
 end
 
-function meanfield_measurement(a::Vector,H,J;kwargs...)
-    inds = vcat(get_indices(a),get_indices(H),get_indices(J))
-    if isempty(inds)
-        return _meanfield_measurement(a,H,J;kwargs...)
-    else
-        error("Not implemented")
-    end
-end
-
-meanfield_measurement(a::QNumber,args...;kwargs...) = meanfield_measurement([a],args...;kwargs...)
-meanfield_measurement(a::Vector,H;kwargs...) = meanfield_measurement(a,H,[];Jdagger=[],kwargs...)
-
 function _master_noise(a_,J,Jdagger,rates)
     args = Any[]
     for k=1:length(J)
@@ -61,13 +49,13 @@ function scale(he::MeanfieldNoiseEquations; kwargs...)
     return merge(scale(determ), scale(noise))
 end
 
-function _meanfield_measurement(a::Vector,H,J;Jdagger::Vector=adjoint.(J),rates=ones(Int,length(J)),
-                                efficiencies=zeros(Int,length(J)),
-                                multithread=false,
-                                simplify=true,
-                                order=nothing,
-                                mix_choice=maximum,
-                                iv=SymbolicUtils.Sym{Real}(:t)) # this creates with Symbolics v5.0 a BasicSymbolic, not a Sym anymore
+function _meanfield_backaction(a::Vector,H,J;Jdagger::Vector=adjoint.(J),rates=ones(Int,length(J)),
+    efficiencies=zeros(Int,length(J)),
+    multithread=false,
+    simplify=true,
+    order=nothing,
+    mix_choice=maximum,
+    iv=SymbolicUtils.Sym{Real}(:t)) # this creates with Symbolics v5.0 a BasicSymbolic, not a Sym anymore
 
     if rates isa Matrix
         J = [J]; Jdagger = [Jdagger]; rates = [rates]
@@ -205,7 +193,7 @@ function complete!(de::MeanfieldNoiseEquations; order=de.order, multithread=fals
 
     while !isempty(missed)
         ops_ = [SymbolicUtils.arguments(m)[1] for m in missed]
-        he = _meanfield_measurement(ops_,de.hamiltonian,de.jumps; Jdagger=de.jumps_dagger, rates=de.rates,efficiencies=de.efficiencies,simplify=simplify,multithread=multithread,order=order,mix_choice=mix_choice,iv=de.iv,kwargs...)
+        he = _meanfield_backaction(ops_,de.hamiltonian,de.jumps; Jdagger=de.jumps_dagger, rates=de.rates,efficiencies=de.efficiencies,simplify=simplify,multithread=multithread,order=order,mix_choice=mix_choice,iv=de.iv,kwargs...)
         _append!(de, he)
         missed = missing_variables(de, de.equations, order, multithread, filter_func, mix_choice, simplify)
         missed_noise = missing_variables(de, de.noise_equations, order, multithread, filter_func, mix_choice, simplify)
