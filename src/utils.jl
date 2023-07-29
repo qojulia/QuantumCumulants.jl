@@ -386,8 +386,7 @@ function to_numeric(op::QTerm, b::QuantumOpticsBase.Basis; kwargs...)
 end
 
 function to_numeric(x::Number, b::QuantumOpticsBase.Basis; kwargs...)
-    op = one(b)
-    rmul!(op, x)
+    op = one(b)*x
     return op
 end
 
