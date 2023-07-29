@@ -163,6 +163,22 @@ fundamental_operators
 transition_superscript
 ```
 
+```@docs
+to_numeric
+```
+
+```@docs
+numeric_average
+```
+
+```@docs
+initial_values
+```
+
+```@docs
+get_solution
+```
+
 ## [Symbolic Summations](@id API: Sums)
 
 ```@docs
