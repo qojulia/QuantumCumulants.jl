@@ -5,10 +5,9 @@ using OrdinaryDiffEq
 using Test
 using Random
 using SteadyStateDiffEq
-
 const qc = QuantumCumulants
 
-@testset "indexed_meanfield" begin
+# @testset "indexed_meanfield" begin
 
 order = 2
 @cnumbers Δc η Δa κ
@@ -223,15 +222,14 @@ s2_ = evaluate(eqs_com; h=[2],limits=(N=>5))
 @test s1.states == s2.states
 
 # test for linear combinations in jump operators
-
 ha = NLevelSpace(:atoms,2)
 hc = FockSpace(:cavity)
 h = hc ⊗ ha
 
-@cnumbers N Δ κ γ ν χ 
-
+@cnumbers N Δ κ γ ν χ gg 
 i = Index(h,:i,N,ha)
 j = Index(h,:j,N,ha)
+N_ = 3
 
 @qnumbers b_::Destroy(h)
 σ(x,y,z) = IndexedOperator(Transition(h,:σ,x,y),z)
@@ -240,38 +238,69 @@ gi = IndexedVariable(:g,i)
 H = Δ*b_'*b_ + ∑(gi*(b_*σ(2,1,i) + b_'*σ(1,2,i)),i)
 ops = [b_'b_, σ(2,2,j)]
 
-J = [b_, σ(1,2,i), σ(2,1,i), σ(2,2,i) - σ(1,1,i)]
+J = [b_, σ(1,2,i), σ(2,1,i), σ(2,2,i)]
 rates = [κ, γ, ν, χ]
 
 eqs = meanfield(ops,H,J;rates=rates,order=2)
 eqs_c = complete(eqs);
 
 #test with scale
+abstol=1e-10
+reltol=1e-10
 eqs_sc = scale(eqs_c);
 @named sys_sc = ODESystem(eqs_sc);
 u0 = zeros(ComplexF64, length(eqs_sc))
 u0[1] = 2 # initial value for ⟨b'*b⟩
 ps_sc = [IndexedVariable(:g,1),N,Δ, κ, γ, ν, χ]
-p_sc = [0.5, 3, 0.0, 1.0, 1.0, 0.5, 2.0]
+p_sc = [0.5, N_, 0.0, 1.0, 1.0, 0.5, 2.0]
 P_sc = value_map(ps_sc,p_sc);
 prob_sc = ODEProblem(sys_sc,u0,(0.0, 10.0), P_sc);
-sol_sc = solve(prob_sc,Tsit5());
+sol_sc = solve(prob_sc,Tsit5(); abstol, reltol);
 @test sol_sc isa ODESolution
 
 #test with evaluate
-eqs_eval = evaluate(eqs_c;limits=(N=>3));
+eqs_eval = evaluate(eqs_c;limits=(N=>N_));
 @named sys = ODESystem(eqs_eval);
 u0 = zeros(ComplexF64, length(eqs_eval))
 u0[1] = 2
 ps = [gi,Δ, κ, γ, ν, χ]
-p = [[0.5,1.0,1.5],0.0, 1.0, 1.0, 0.5, 2.0]
-P = value_map(ps,p;limits=(N=>3));
+p = [[0.5,0.5,0.5],0.0, 1.0, 1.0, 0.5, 2.0]
+P = value_map(ps,p;limits=(N=>N_));
 prob = ODEProblem(sys,u0,(0.0, 10.0), P);
-sol = solve(prob,Tsit5());
+sol = solve(prob,Tsit5(); abstol, reltol);
 @test sol isa ODESolution
 
-#another test case
+#test comparison straight forward (without indexing)
+ha_(i) = NLevelSpace(Symbol(:atoms,i),2)
+ha = tensor([ha_(i) for i=1:N_]...)
+hc = FockSpace(:cavity)
+hh = hc ⊗ ha
 
+@qnumbers b2::Destroy(hh)
+s(x,y,i) = Transition(hh, Symbol(:s,i),x,y,i+1)
+s_ls(x,y) = [s(x,y,i) for i=1:N_]
+
+H_ = Δ*b2'*b2 + sum(gg*(b2*s(2,1,i) + b2'*s(1,2,i)) for i=1:N_)
+ops_ = [b2'b2]
+J_ = [b2; s_ls(1,2); s_ls(2,1); s_ls(2,2)]
+rates_ = [κ; [γ for i=1:N_]; [ν for i=1:N_]; [χ for i=1:N_]]
+eqs_ = meanfield(ops_,H_,J_;rates=rates_,order=2)
+eqs_c_ = complete(eqs_);
+
+@named sys_ = ODESystem(eqs_c_)
+u0_ = zeros(ComplexF64, length(eqs_c_))
+u0_[1] = 2
+ps_ = [gg, Δ, κ, γ, ν, χ]
+p_ = [0.5, 0.0, 1.0, 1.0, 0.5, 2.0]
+prob_ = ODEProblem(sys_, u0_, (0,10.0), ps_.=>p_)
+sol_ = solve(prob_,Tsit5(); abstol, reltol)
+
+@test sol_sc[b_'b_][end] ≈ sol[b_'b_][end] ≈ sol_[b2'b2][end]
+@test sol_sc[σ(1,2,1)][end] ≈ sol[σ(1,2,1)][end] ≈ sol_[s(1,2,1)][end]
+@test sol_sc[b_'σ(1,2,1)][end] ≈ sol[b_'σ(1,2,1)][end] ≈ sol_[b2's(1,2,1)][end]
+@test sol_sc[σ(2,2,1)][end] ≈ sol[σ(2,2,1)][end] ≈ sol_[s(2,2,1)][end]
+
+### another test case
 # Hilbertspace
 hc = FockSpace(:cavity)
 ha = NLevelSpace(:atom,2)
@@ -299,9 +328,9 @@ h = hc ⊗ ha
 # operators
 @qnumbers a::Destroy(h)
 σ(α,β,k) = Transition(h, Symbol("σ$(k)"), α, β, k+1)
-@cnumbers N Δ κ Γ R ν g
+@cnumbers N Δ κ Γ R ν gg
 # Hamiltonian
-H = -Δ*a'a + sum(g*( a'*σ(1,2,i) + a*σ(2,1,i) ) for i = 1:3)
+H = -Δ*a'a + sum(gg*( a'*σ(1,2,i) + a*σ(2,1,i) ) for i = 1:3)
 # Jump operators wth corresponding rates
 J = [a; [σ(1,2,i) for i =1:3]; [σ(2,1,i) for i = 1:3]; [σ(2,2,i) for i = 1:3]]
 rates = [κ; [Γ for i = 1:3]; [R for i = 1:3]; [ν for i = 1:3]]
@@ -328,4 +357,4 @@ eqs_i_ev2 = evaluate(eqs_i_c2;limits=(N=>3))
 @test_throws MethodError complete(eqs_i;order=1)
 @test_throws MethodError complete(eqs_os;order=1)
 
-end
+# end
