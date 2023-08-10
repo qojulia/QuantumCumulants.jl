@@ -7,7 +7,7 @@ using Random
 using SteadyStateDiffEq
 const qc = QuantumCumulants
 
-# @testset "indexed_meanfield" begin
+@testset "indexed_meanfield" begin
 
 order = 2
 @cnumbers Δc η Δa κ
@@ -357,4 +357,4 @@ eqs_i_ev2 = evaluate(eqs_i_c2;limits=(N=>3))
 @test_throws MethodError complete(eqs_i;order=1)
 @test_throws MethodError complete(eqs_os;order=1)
 
-# end
+end
