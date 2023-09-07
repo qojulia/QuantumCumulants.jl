@@ -165,7 +165,6 @@ for i=1:length(N_ls)
     plot!(p2,t_,real.(2s22 .- 1),color=c_ls[i],label=nothing)
 end
 plot(p1, p2, layout=(1,2), size=(700,250),bottom_margin=5*Plots.mm, left_margin=5*Plots.mm)
-savefig("squeezing_full.svg") # hide
 ```
 
 ## Effective model
@@ -238,5 +237,4 @@ plot!(p,t_,-real.(sqy),label="P - Full model",ls=:dash)
 plot!(p,t_a,real.(sqx_a),label="X - Effective model") 
 plot!(p,t_a,-real.(sqy_a),label="P - Effective model",ls=:dash)
 plot(p, size=(500,200))
-savefig("squeezing_eff.svg") # hide
 ```
