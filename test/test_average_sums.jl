@@ -72,9 +72,6 @@ pind = Index(h,:p,5,ha)
 @test isequal(4*a,Σ(a,pind,[ind(:i)]))
 @test isequal(average(Σ(σ(1,2,ind(:i)),ind(:i))),qc.IndexedAverageSum(average(σ(1,2,ind(:i))),ind(:i),[]))
 
-#this test does not really make any sense
-#@test isequal(0,qc.IndexedAverageSum(average(σ(2,1,ind(:i))*σ(2,1,ind(:i))),ind(:i),[]))
-
 avrgTerm = average(Σ(σ(2,1,ind(:i))*σ(1,2,ind(:j)),ind(:i)))
 @test avrgTerm isa SymbolicUtils.BasicSymbolic && operation(avrgTerm) === +
 ADsum1 = qc.IndexedAverageDoubleSum(avrgTerm,ind(:j),[ind(:i)])
@@ -100,7 +97,8 @@ qc.SpecialIndexedAverage(average(σ(1,2,ind(:i))) + average(σ(2,1,ind(:j))),[(i
 specAvrg = qc.SpecialIndexedAverage(average(σ(2,1,ind(:i))*σ(1,2,ind(:j))),[(ind(:i),ind(:j))])
 
 @test isequal("(i≠1)",qc.writeNeqs([(ind(:i),1)]))
-@test isequal(SymbolicUtils.arguments(SymbolicUtils.arguments(ADsum1)[1]),SymbolicUtils.arguments(avrgTerm)[1])
+@test (isequal(SymbolicUtils.arguments(SymbolicUtils.arguments(ADsum1)[1]),SymbolicUtils.arguments(avrgTerm)[1]) || isequal(SymbolicUtils.arguments(SymbolicUtils.arguments(ADsum1)[1]),SymbolicUtils.arguments(avrgTerm)[2]) )
+# SymbolicUtilsv1.4.0 argument order changed 
 @test isequal(SymbolicUtils.arguments(SymbolicUtils.arguments(SymbolicUtils.arguments(ADsum1)[1])),SymbolicUtils.arguments(average(σ(2,1,ind(:i))*σ(1,2,ind(:j)))))
 @test isequal(SymbolicUtils.arguments(specAvrg),SymbolicUtils.arguments(average(σ(2,1,ind(:i))*σ(1,2,ind(:j)))))
 
@@ -113,9 +111,9 @@ push!(dict,(qc.SingleNumberedVariable(:g,2) => 2))
 @test isequal(dict_,dict)
 
 @test isequal(qc.getAvrgs(specAvrg),average(σ(2,1,ind(:i))*σ(1,2,ind(:j))))
-@test isequal(qc.getAvrgs(SymbolicUtils.arguments(avrgTerm)[1]),average(σ(2,1,ind(:i))*σ(1,2,ind(:j))))
+@test (isequal(qc.getAvrgs(SymbolicUtils.arguments(avrgTerm)[1]),average(σ(2,1,ind(:i))*σ(1,2,ind(:j)))) || isequal(qc.getAvrgs(SymbolicUtils.arguments(avrgTerm)[2]),average(σ(2,1,ind(:i))*σ(1,2,ind(:j)))))
+# SymbolicUtilsv1.4.0 argument order changed 
 
-#@test isequal(ind(:i).range * 5, qc.IndexedAverageSum(5,ind(:i),[]))
 @test isequal(qc.IndexedAverageSum(g(ind(:i)),ind(:i),[]),average(Σ(g(ind(:i)),ind(:i),[])))
 @test qc.IndexedAverageSum(g(ind(:i)),ind(:i),[]) isa SymbolicUtils.BasicSymbolic{qc.IndexedAverageSum}
 

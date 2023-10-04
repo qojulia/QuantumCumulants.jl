@@ -2,6 +2,8 @@ using Test
 using QuantumCumulants
 using SymbolicUtils
 using Symbolics
+using OrdinaryDiffEq
+using ModelingToolkit
 
 const qc = QuantumCumulants
 
@@ -129,8 +131,8 @@ j2 = Index(h_,:j,N,ha_);
 Sz_(i) = ∑(σ2(2,2,i) - σ2(3,3,i),i)
 Sz2 = average(Sz_(i2)*Sz_(j2))
 
-@test QuantumCumulants.isscaleequal(scale(Sz2),average(N*average(σ2(3,3,1)) + N*σ2(2,2,1)) + (-1+N)^2*average(σ2(2,2,1)*σ2(2,2,2)) +
-    (-1+N)^2*average(σ2(3,3,1)*σ2(3,3,2)) -2*(-1+N)^2*average(σ2(2,2,1)*σ2(3,3,2)))
+@test QuantumCumulants.isscaleequal(simplify(scale(Sz2)),simplify(average(N*average(σ2(3,3,1)) + N*σ2(2,2,1)) + (-1+N)^2*average(σ2(2,2,1)*σ2(2,2,2)) +
+    (-1+N)^2*average(σ2(3,3,1)*σ2(3,3,2)) -2*(-1+N)^2*average(σ2(2,2,1)*σ2(3,3,2))))
 
 # issue #169 #interacting two level systems
 @cnumbers N
