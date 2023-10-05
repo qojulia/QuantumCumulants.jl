@@ -130,4 +130,29 @@ j = Index(h,:j,N,ha)
 @test !isequal(Γ(i,i),0)
 @test !isequal(Γ(2,2),0)
 
+# complete and get_indices
+h=NLevelSpace(:spin,2)
+@cnumbers N
+i1 = Index(h,:i1,N,h)
+i2 = Index(h,:i2,N,h)
+i = Index(h,:i,N,h)
+s(α,β,i) = IndexedOperator(Transition(h, :S, α, β, 1),i)
+Hint = Σ(s(2,1,i1) * s(1,2,i2) + s(1,2,i1) * s(2,1,i2),i1,i2) - Σ(s(2,1,i1) * s(1,2,i1) + s(1,2,i1) * s(2,1,i1),i1)
+#
+mf = meanfield([s(1,2,i)],Hint,order=2)
+mf_c = complete(mf)
+length(mf_c.states) == 7
+#
+Ω(i,j) = IndexedVariable(:Ω,i,j)
+Hint2 = Σ(Ω(i1,i2)*(s(2,1,i1) * s(1,2,i1) + s(1,2,i1) * s(2,1,i2)),i1,i2)
+mf2 = meanfield([s(1,2,i)],Hint,order=2)
+mf2_c = complete(mf)
+isequal(mf2_c.states, mf_c.states)
+#
+s1 = Σ(Ω(i1,i2),i1,i2)
+isequal(sort(qc.get_indices(Hint)), sort([i2, i1]))
+g(i) = IndexedVariable(:g, i)
+s2 = Σ(g(i1),i1)
+isequal(qc.get_indices(s2),[i1])
+
 end

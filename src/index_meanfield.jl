@@ -412,27 +412,45 @@ function indexed_complete!(de::AbstractMeanfieldEquations;
         filter!(x -> filterComplete(x,de.states,scaling;kwargs...), missed)
         missed = inorder!.(missed)
 
+        # for i = 1:length(missed)
+        #     minds = get_indices(missed[i])
+        #     newMinds = copy(minds)
+        #     for ind1 in minds
+        #         extras_=filterExtras(ind1,extras)
+        #         for k = 1:length(extras_)
+        #             if ind1 ∉ extras_ #this check might be redundant ?
+        #                 missed[i] = change_index(missed[i],ind1,extras_[1])
+        #                 newMinds = get_indices(missed[i])
+        #                 break
+        #             end
+        #             if findall(x->isequal(x,ind1),extras_)[1] > k && extras_[k] ∉ newMinds #this might go somewhat easier, maybe delete ind2 out of extras after each replacement somehow
+        #                 missed[i] = change_index(missed[i],ind1,extras_[k])
+        #                 newMinds = get_indices(missed[i])
+        #                 break
+        #             elseif findall(x->isequal(x,ind1),extras_)[1] <= k
+        #                 break
+        #             end
+        #         end
+        #     end
+        # end
         for i = 1:length(missed)
             minds = get_indices(missed[i])
             newMinds = copy(minds)
             for ind1 in minds
                 extras_=filterExtras(ind1,extras)
                 for k = 1:length(extras_)
-                    if ind1 ∉ extras_ #this check might be redundant ?
-                        missed[i] = change_index(missed[i],ind1,extras_[1])
-                        newMinds = get_indices(missed[i])
-                        break
-                    end
-                    if findall(x->isequal(x,ind1),extras_)[1] > k && extras_[k] ∉ newMinds #this might go somewhat easier, maybe delete ind2 out of extras after each replacement somehow
+                    ind1_inds = findall(x->isequal(x,ind1),extras_)
+                    if (isempty(ind1_inds) || findall(x->isequal(x,ind1),extras_)[1] > k) && extras_[k] ∉ newMinds #this might go somewhat easier, maybe delete ind2 out of extras after each replacement somehow
                         missed[i] = change_index(missed[i],ind1,extras_[k])
                         newMinds = get_indices(missed[i])
                         break
-                    elseif findall(x->isequal(x,ind1),extras_)[1] <= k
+                    elseif !isempty(ind1_inds) && findall(x->isequal(x,ind1),extras_)[1] <= k
                         break
                     end
                 end
             end
         end
+    
 
         missed = inorder!.(missed)
         missed = unique(missed)

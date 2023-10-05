@@ -13,7 +13,9 @@ function get_indices(a::BasicSymbolic{DoubleIndexedVariable})
 end
 get_indices(a::BasicSymbolic{IndexedVariable}) = [SymbolicUtils.metadata(a)[IndexedVariable].ind]
 const Sums = Union{SingleSum,DoubleSum}
-get_indices(x::Sums) = unique(get_indices(arguments(x)))
+# get_indices(x::Sums) = unique(get_indices(arguments(x)))
+get_indices(x::SingleSum) = get_indices(x.term)
+get_indices(x::DoubleSum) = get_indices(x.innerSum.term)
 get_indices(x::Number) = []
 get_indices(term) = istree(term) ? get_indices(arguments(term)) : []
 
