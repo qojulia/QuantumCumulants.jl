@@ -38,8 +38,8 @@ export HilbertSpace, ProductSpace, ⊗, tensor,
         scaleME, evalME, indexed_complete!, indexed_meanfield, subst_reds, AvgSums, plotME,
         IndexedAverageSum, IndexedAverageDoubleSum, SpecialIndexedTerm, find_missing_sums, Σ, ∑,
         evaluate, value_map, NumberedOperator, change_index, order_by_index, split_sums, insert_index, eval_term,
-        MeanfieldNoiseEquations, meanfield_measurement,
-        indexed_arithmetic, indexed_noise, IndexedMeanfieldNoiseEquations, indexed_noise_meanfield, simplified_indexed_complete!
+        MeanfieldNoiseEquations, 
+        indexed_arithmetic, indexed_noise, IndexedMeanfieldNoiseEquations, simplified_indexed_complete!
 
 const NO_METADATA = SymbolicUtils.NO_METADATA
 
