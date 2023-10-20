@@ -34,7 +34,7 @@ we derive
 \begin{align*}
 \dot{a} &= i\Delta a - ig \sigma^{ge},
 \\
-\dot{\sigma}^{ge} &= ig a\sigma^{ee},
+\dot{\sigma}^{ge} &= 2ig a \sigma^{ee} - ig a,
 \\
 \dot{\sigma^{ee}} &= ig\left(a^\dagger\sigma^{ge} - a\sigma^{eg}\right).
 \end{align*}
@@ -46,7 +46,7 @@ Since ``\dot{a}`` couples to ``\sigma^{ge}``, and ``\dot{\sigma}^{ge}`` to ``\si
 \begin{align*}
 \langle\dot{a}\rangle &= i\Delta \langle a\rangle - ig \langle\sigma^{ge}\rangle,
 \\
-\langle\dot{\sigma}^{ge}\rangle &= ig \langle a\sigma^{ee}\rangle,
+\langle\dot{\sigma}^{ge}\rangle &= 2ig \langle a\sigma^{ee}\rangle - ig \langle a \rangle,
 \\
 \langle \dot{\sigma^{ee}}\rangle &= -2g\text{Im}\left\{\langle a^\dagger\sigma^{ge}\rangle\right\}.
 \end{align*}
@@ -97,7 +97,7 @@ Returning to the example of the Jaynes-Cummings Hamiltonian, we could use the cu
 \begin{align*}
 \langle\dot{a}\rangle &= i\Delta \langle a\rangle - ig \langle\sigma^{ge}\rangle,
 \\
-\langle\dot{\sigma}^{ge}\rangle &= ig \langle a\rangle\langle\sigma^{ee}\rangle,
+\langle\dot{\sigma}^{ge}\rangle &= 2ig \langle a\rangle\langle\sigma^{ee}\rangle - ig \langle a \rangle,
 \\
 \langle \dot{\sigma^{ee}}\rangle &= -2g\text{Im}\left\{\langle a^\dagger\rangle\langle\sigma^{ge}\rangle\right\}.
 \end{align*}

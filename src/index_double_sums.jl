@@ -109,7 +109,6 @@ hilbert(elem::DoubleSum) = hilbert(elem.sum_index)
 *(sum::DoubleSum,elem::SNuN) = DoubleSum(sum.innerSum*elem,sum.sum_index,sum.NEI)
 *(sum::DoubleSum,qmul::QMul) = qmul.arg_c*(*(sum,qmul.args_nc...))
 function *(qmul::QMul,sum::DoubleSum)
-
     sum_ = sum
     for i = length(qmul.args_nc):-1:1
         sum_ = qmul.args_nc[i] * sum_
@@ -118,31 +117,51 @@ function *(qmul::QMul,sum::DoubleSum)
 end
 
 function *(elem::IndexedObSym,sum::DoubleSum)
-
     NEI = copy(sum.NEI)
     if elem.ind != sum.sum_index && elem.ind ∉ NEI
-        if ((sum.sum_index.aon != sum.innerSum.sum_index.aon) && isequal(elem.ind.aon,sum.sum_index.aon))
-            push!(NEI,elem.ind)
-            addterm = SingleSum(elem*change_index(sum.innerSum.term,sum.sum_index,elem.ind),sum.innerSum.sum_index,sum.innerSum.non_equal_indices)
-            return DoubleSum(elem*sum.innerSum,sum.sum_index,NEI) + addterm
+        if (sum.sum_index.aon != sum.innerSum.sum_index.aon) # indices for different ops
+            if isequal(elem.ind.aon,sum.sum_index.aon) 
+                push!(NEI,elem.ind)
+                addterm = SingleSum(elem*change_index(sum.innerSum.term,sum.sum_index,elem.ind),sum.innerSum.sum_index,sum.innerSum.non_equal_indices)
+                return DoubleSum(elem*sum.innerSum,sum.sum_index,NEI) + addterm
+            end
+            return DoubleSum(elem*sum.innerSum,sum.sum_index,NEI)
         end
+        NEI_ = [NEI...,elem.ind] # issue #169 (scaling of double sum)
+        ds_term = DoubleSum(SingleSum(elem*sum.innerSum.term,sum.innerSum.sum_index,[sum.innerSum.non_equal_indices...,elem.ind]),sum.sum_index,NEI_)
+        new_non_equal_indices1 = replace(sum.NEI, sum.innerSum.sum_index => elem.ind)
+        ss_term1 = SingleSum(elem*change_index(sum.innerSum.term,sum.innerSum.sum_index,elem.ind),sum.sum_index,new_non_equal_indices1)
+        new_non_equal_indices2 = replace(sum.innerSum.non_equal_indices, sum.sum_index => elem.ind) 
+        ss_term2 = SingleSum(elem*change_index(sum.innerSum.term,sum.sum_index,elem.ind),sum.innerSum.sum_index,new_non_equal_indices2)
+        return ds_term + ss_term1 + ss_term2
     end
     return DoubleSum(elem*sum.innerSum,sum.sum_index,NEI)
 end
 function *(sum::DoubleSum,elem::IndexedObSym)
     NEI = copy(sum.NEI)
     if elem.ind != sum.sum_index && elem.ind ∉ NEI
-        if ((sum.sum_index.aon != sum.innerSum.sum_index.aon) && isequal(elem.ind.aon,sum.sum_index.aon))
-            push!(NEI,elem.ind)
-            addterm = SingleSum(change_index(sum.innerSum.term,sum.sum_index,elem.ind)*elem,sum.innerSum.sum_index,sum.innerSum.non_equal_indices)
-            return DoubleSum(sum.innerSum*elem,sum.sum_index,NEI) + addterm
+        if (sum.sum_index.aon != sum.innerSum.sum_index.aon) # indices for different ops
+            if isequal(elem.ind.aon,sum.sum_index.aon) 
+                push!(NEI,elem.ind)
+                addterm = SingleSum(change_index(sum.innerSum.term,sum.sum_index,elem.ind)*elem,sum.innerSum.sum_index,sum.innerSum.non_equal_indices)
+                return DoubleSum(sum.innerSum*elem,sum.sum_index,NEI) + addterm
+            end
+            return DoubleSum(sum.innerSum*elem,sum.sum_index,NEI)
         end
-    end
+        NEI_ = [NEI...,elem.ind] # issue #169 (scaling of double sum)
+        ds_term = DoubleSum(SingleSum(sum.innerSum.term*elem,sum.innerSum.sum_index,[sum.innerSum.non_equal_indices...,elem.ind]),sum.sum_index,NEI_)
+        new_non_equal_indices1 = replace(sum.NEI, sum.innerSum.sum_index => elem.ind)
+        ss_term1 = SingleSum(change_index(sum.innerSum.term,sum.innerSum.sum_index,elem.ind)*elem,sum.sum_index,new_non_equal_indices1)
+        new_non_equal_indices2 = replace(sum.innerSum.non_equal_indices, sum.sum_index => elem.ind) 
+        ss_term2 = SingleSum(change_index(sum.innerSum.term,sum.sum_index,elem.ind)*elem,sum.innerSum.sum_index,new_non_equal_indices2)
+        return ds_term + ss_term1 + ss_term2
+    end #with else it does not work?
     return DoubleSum(sum.innerSum*elem,sum.sum_index,NEI)
+
 end
+
 *(sum::DoubleSum,x) = DoubleSum(sum.innerSum*x,sum.sum_index,sum.NEI)
 *(x,sum::DoubleSum) = DoubleSum(x*sum.innerSum,sum.sum_index,sum.NEI)
-
 
 SymbolicUtils.istree(a::DoubleSum) = false
 SymbolicUtils.arguments(a::DoubleSum) = SymbolicUtils.arguments(a.innerSum)
@@ -176,3 +195,4 @@ function *(sum1::SingleSum,sum2::SingleSum; ind=nothing)
 
     end
 end
+

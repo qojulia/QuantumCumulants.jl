@@ -386,8 +386,7 @@ function to_numeric(op::QTerm, b::QuantumOpticsBase.Basis; kwargs...)
 end
 
 function to_numeric(x::Number, b::QuantumOpticsBase.Basis; kwargs...)
-    op = one(b)
-    rmul!(op, x)
+    op = one(b)*x
     return op
 end
 
@@ -422,7 +421,6 @@ state can either be of type `QuantumOpticsBase.StateVector` or `QuantumOpticsBas
 
 See also: [`to_numeric`](@ref), [`numeric_average`](@ref)
 """
-
 function initial_values(de::MeanfieldEquations, state; kwargs...)
     vs = de.states
     vals = eltype(state)[]
@@ -488,8 +486,8 @@ _adjoint(s::SymbolicUtils.Symbolic{<:Number}) = _conj(s)
 _adjoint(x) = adjoint(x)
 
 """
-    get_solution(sol::QTerm, op)
-    get_solution(sol::QNumber, op)
+    get_solution(sol, op::QTerm)
+    get_solution(sol, op::QNumber)
 
 Returns the result for the average of the operator expression `op` in the solution
 `sol` of an ODE- or SteadyStateProblem, similar to `sol[op]`. It can also be used

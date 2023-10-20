@@ -54,7 +54,7 @@ We define the Hamiltonian using symbolic sums and define the individual dissipat
 # Hamiltonian
 H = -Δ*a'a + Σ(g(i)*( a'*σ(1,2,i) + a*σ(2,1,i) ),i)
 
-# Jump operators wth corresponding rates
+# Jump operators with corresponding rates
 J = [a, σ(1,2,i), σ(2,1,i), σ(2,2,i)]
 rates = [κ, Γ, R, ν]
 nothing # hide
@@ -183,7 +183,7 @@ plot(p1, p2, layout=(1,2), size=(700,300))
 
 ## Spectrum
 
-We calculate the spectrum here with the Laplace transform of the two-time corelation function. This is implemented with the function $\texttt{Spectrum}$.
+We calculate the spectrum here with the Laplace transform of the two-time correlation function. This is implemented with the function $\texttt{Spectrum}$.
 
 
 ```@example superradiant_laser_indexed

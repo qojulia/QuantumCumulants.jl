@@ -506,6 +506,16 @@ function insert_index(term_::BasicSymbolic{DoubleIndexedVariable},ind::Index,val
     return term_
 end
 function insert_index(term::BasicSymbolic{DoubleNumberedVariable},ind::Index,value::Int64)
+    if istree(term)
+        op = operation(term)
+        if op === *
+            return prod(insert_index(arg,ind,value) for arg in arguments(term))
+        elseif op === +
+            return sum(insert_index(arg,ind,value) for arg in arguments(term))
+        elseif op === ^
+            return insert_index(arguments(term)[1],ind,value)^(arguments(term)[2])
+        end
+    end
     data = SymbolicUtils.metadata(term)[DoubleNumberedVariable]
     if data.numb1 isa Index && data.numb1 == ind
         return DoubleNumberedVariable(data.name,value,data.numb2)
