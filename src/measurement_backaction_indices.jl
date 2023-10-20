@@ -81,7 +81,8 @@ end
 
 function indexed_noise(a_,J,Jdagger,rates,efficiencies)
     out = nothing
-    noise_arithmetic(a, J, Jdagger,rate) = sqrt(0.5*rate)*Jdagger*(a-average(a)) + sqrt(0.5*rate)*(a-average(a))*J
+    noise_arithmetic(a, J, Jdagger,rate) = sqrt(0.5*rate)*(Jdagger*a-average(Jdagger)*a) + sqrt(0.5*rate)*(a*J-a*average(J))
+
 
     for k=1:length(J)
         if isequal(efficiencies[k], 0) continue end
@@ -639,19 +640,102 @@ where indices have been inserted and sums evaluated, regarding the same relation
 with oparators using a [`ClusterSpace`](@ref).
 
 # Arguments
-*`me::MeanfieldEquations`: A [`IndexedMeanfieldNoiseEquations`](@ref) entity, which shall be evaluated.
+*`me::IndexedMeanfieldNoiseEquations`: A [`IndexedMeanfieldNoiseEquations`](@ref) entity, which shall be evaluated.
 
 """
-function scaleMe(me::IndexedMeanfieldNoiseEquations, kwargs...)
-    newEqs = scale_equations(me.equations, kwargs...)
-    newNoiseEqs = scale_equations(me.noise_equations, kwargs...)
+function scaleME(me::IndexedMeanfieldNoiseEquations; kwargs...)
+    newEqs = scale_equations(me.equations; kwargs...)
+    newNoiseEqs = scale_equations(me.noise_equations; kwargs...)
     vs = getLHS.(newEqs)
     varmap = make_varmap(vs, me.iv)
     ops = undo_average.(vs)
-    return IndexedMeanfieldEquations(newEqs,me.operator_equations,newNoiseEqs,me.operator_noise_equations,vs,ops,me.hamiltonian,me.jumps,me.jumps_dagger,me.rates,me.iv,varmap,me.order)
+    return IndexedMeanfieldNoiseEquations(newEqs,me.operator_equations,newNoiseEqs,me.operator_noise_equations,vs,ops,me.hamiltonian,me.jumps,me.jumps_dagger,me.rates,me.efficiencies,me.iv,varmap,me.order)
 end
 
-function Base.show(io::IO,de::IndexedMeanfieldNoiseEquations)
+# substitute redundant operators in scaled equations
+function subst_reds_scale_equation(states, eqs;kwargs...)
+
+    #states = me.states
+    vhash = map(hash, states)
+    states′ = map(_inconj, states)
+    vs′hash = map(hash, states′)
+    missed = find_missing(eqs, vhash, vs′hash; get_adjoints=false)
+    inorder!.(missed)
+
+    to_sub = missed
+    filter!(x->x ∉ states,to_sub)
+
+    to_insert = Vector{Any}(nothing,length(to_sub))
+
+    counter = 1
+    while counter <= length(to_sub)
+        elem = to_sub[counter]
+        ind_ = findfirst(x -> isscaleequal(elem,x;kwargs...),states)
+        if !=(ind_,nothing)
+            to_insert[counter] = states[ind_]
+            counter = counter + 1
+        else
+            ind_ = findfirst(x -> isscaleequal(inorder!(_inconj(elem)),x;kwargs...),states)
+            if !=(ind_,nothing)
+                to_insert[counter] = conj(states[ind_])
+                counter = counter + 1
+            else
+                deleteat!(to_insert,counter) # these deletes are for consistancy only -> it is possible that not all terms are fully evaluated
+                deleteat!(to_sub,counter)   # yet in the system -> leftovers in the find_missing
+            end
+        end
+    end
+
+    subs = Dict(to_sub .=> to_insert)
+    return [substitute(eq,subs) for eq in eqs]
+end
+
+function scale(eqs::IndexedMeanfieldNoiseEquations;h=nothing,kwargs...)
+    hilb = hilbert(arguments(eqs[1].lhs)[1]) #hilbertspace of the whole system
+    if !=(h,nothing)
+        if !(h isa Vector)
+            h=[h]
+        end
+        h_ = Vector{Any}(nothing,length(h))
+        for i = 1:length(h)
+            if h[i] isa HilbertSpace
+                h_[i] = findfirst(x->isequal(x,h[i]),hilb.spaces)
+            else
+                h_[i] = h[i]
+            end
+        end
+        h = h_
+    end    
+
+    me = scaleME(eqs;h=h,kwargs...)
+    newEqs = subst_reds_scale_equation(me.states,me.equations;h=h,kwargs...)
+    newNoiseEqs = subst_reds_scale_equation(me.states,me.noise_equations;h=h,kwargs...)
+    return IndexedMeanfieldNoiseEquations(newEqs,me.operator_equations,newNoiseEqs,me.operator_noise_equations,me.states,me.operators,me.hamiltonian,me.jumps,me.jumps_dagger,me.rates,me.efficiencies,me.iv,me.varmap,me.order)
+end
+
+function split(eqin::IndexedMeanfieldNoiseEquations)::Tuple{IndexedMeanfieldEquations, IndexedMeanfieldEquations}
+    determ = IndexedMeanfieldEquations(eqin.equations,eqin.operator_equations,eqin.states,eqin.operators,eqin.hamiltonian,eqin.jumps,eqin.jumps_dagger,eqin.rates,eqin.iv,eqin.varmap,eqin.order)
+    noise = IndexedMeanfieldEquations(eqin.noise_equations,eqin.operator_noise_equations,eqin.states,eqin.operators,eqin.hamiltonian,eqin.jumps,eqin.jumps_dagger,eqin.efficiencies,eqin.iv,eqin.varmap,eqin.order)
+    return determ, noise
+end
+
+function merge(determ::IndexedMeanfieldEquations, noise::IndexedMeanfieldEquations)::IndexedMeanfieldNoiseEquations
+    return IndexedMeanfieldNoiseEquations(determ.equations,determ.operator_equations,noise.equations,noise.operator_equations,determ.states,determ.operators,determ.hamiltonian,determ.jumps,determ.jumps_dagger,determ.rates,noise.rates,determ.iv,determ.varmap,determ.order)
+end
+
+function MTK.SDESystem(de::Union{MeanfieldNoiseEquations, IndexedMeanfieldNoiseEquations}, p, iv=de.iv; kwargs...)
+    determ, noise = split(de)
+    eqs = MTK.equations(determ)
+    neqs = MTK.equations(noise)
+    return MTK.SDESystem(eqs, map(x->x.rhs,neqs), iv, map(x->x[2], de.varmap), p; kwargs...)
+end
+
+function MTK.ODESystem(de::Union{MeanfieldNoiseEquations, IndexedMeanfieldNoiseEquations}, iv=de.iv; kwargs...)
+    determ, noise = split(de)
+    return MTK.ODESystem(determ, iv; kwargs...)
+end
+
+function Base.show(io::IO,de::Union{MeanfieldNoiseEquations, IndexedMeanfieldNoiseEquations})
     for i=1:length(de.equations)
         write(io, "∂ₜ(")
         show(io, de.equations[i].lhs)

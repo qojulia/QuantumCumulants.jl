@@ -20,8 +20,8 @@ function _master_noise(a_,J,Jdagger,rates)
     for k=1:length(J)
         if isequal(rates[k], 0) continue end
         if isa(rates[k],SymbolicUtils.Symbolic) || isa(rates[k],Number) || isa(rates[k],Function)
-            c1 = sqrt(0.5*rates[k])*Jdagger[k]*(a_-average(a_))
-            c2 = sqrt(0.5*rates[k])*(a_-average(a_))*J[k]
+            c1 = sqrt(0.5*rates[k])*(Jdagger[k]*a_-average(Jdagger[k])*average(a_))
+            c2 = sqrt(0.5*rates[k])*(a_*J[k]-average(a_)*average(J[k]))
             push_or_append_nz_args!(args, c1)
             push_or_append_nz_args!(args, c2)
         elseif isa(rates[k],Matrix)
@@ -212,30 +212,4 @@ function complete(de::MeanfieldNoiseEquations;kwargs...)
     de_ = deepcopy(de)
     complete!(de_;kwargs...)
     return de_
-end
-
-function MTK.SDESystem(de::MeanfieldNoiseEquations, p, iv=de.iv; kwargs...)
-    determ, noise = split(de)
-    eqs = MTK.equations(determ)
-    neqs = MTK.equations(noise)
-    return MTK.SDESystem(eqs, map(x->x.rhs,neqs), iv, map(x->x[2], de.varmap), p; kwargs...)
-    #return MTK.SDESystem(MTK.ODESystem(eqs, iv; kwargs...), neqs; kwargs...)
-end
-
-function MTK.ODESystem(de::MeanfieldNoiseEquations, iv=de.iv; kwargs...)
-    determ, noise = split(de)
-    return MTK.ODESystem(determ, iv; kwargs...)
-end
-
-function Base.show(io::IO,de::MeanfieldNoiseEquations)
-    for i=1:length(de.equations)
-        write(io, "∂ₜ(")
-        show(io, de.equations[i].lhs)
-        write(io, ") = ")
-        show(io, de.equations[i].rhs)
-        write(io, " + dW(t)/dt[")
-        show(io, de.noise_equations[i].rhs)
-        write(io, "]")
-        write(io, "\n")
-    end
 end

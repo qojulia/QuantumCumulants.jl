@@ -155,7 +155,7 @@ function indexed_master_lindblad(a_,J,Jdagger,rates)
                     c1 = Jdagger[k][1]*commutator(a_,J[k][2])
                     c2 = commutator(Jdagger[k][1],a_)*J[k][2]
                     c = 0.5*rates[k]*(c1+c2)
-                    push!(args,∑(c,J[k][1].ind,J[k][2].ind))
+                    push!(args,∑(c,ind_1,ind_2))
                 end
             elseif isa(rates[k],SymbolicUtils.Symbolic) || isa(rates[k],Number) || isa(rates[k],Function)
                 c1 = 0.5*rates[k]*Jdagger[k]*commutator(a_,J[k])
