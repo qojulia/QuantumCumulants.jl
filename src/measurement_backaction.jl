@@ -34,19 +34,19 @@ function _master_noise(a_,J,Jdagger,rates)
     return QAdd(args)
 end
 
-function split(eqin::MeanfieldNoiseEquations)::Tuple{MeanfieldEquations, MeanfieldEquations}
+function split_equations(eqin::MeanfieldNoiseEquations)::Tuple{MeanfieldEquations, MeanfieldEquations}
     determ = MeanfieldEquations(eqin.equations,eqin.operator_equations,eqin.states,eqin.operators,eqin.hamiltonian,eqin.jumps,eqin.jumps_dagger,eqin.rates,eqin.iv,eqin.varmap,eqin.order)
     noise = MeanfieldEquations(eqin.noise_equations,eqin.operator_noise_equations,eqin.states,eqin.operators,eqin.hamiltonian,eqin.jumps,eqin.jumps_dagger,eqin.efficiencies,eqin.iv,eqin.varmap,eqin.order)
     return determ, noise
 end
 
-function merge(determ::MeanfieldEquations, noise::MeanfieldEquations)::MeanfieldNoiseEquations
+function merge_equations(determ::MeanfieldEquations, noise::MeanfieldEquations)::MeanfieldNoiseEquations
     return MeanfieldNoiseEquations(determ.equations,determ.operator_equations,noise.equations,noise.operator_equations,determ.states,determ.operators,determ.hamiltonian,determ.jumps,determ.jumps_dagger,determ.rates,noise.rates,determ.iv,determ.varmap,determ.order)
 end
 
 function scale(he::MeanfieldNoiseEquations; kwargs...)
-    determ, noise = split(he)
-    return merge(scale(determ), scale(noise))
+    determ, noise = split_equations(he)
+    return merge_equations(scale(determ), scale(noise))
 end
 
 function _meanfield_backaction(a::Vector,H,J;Jdagger::Vector=adjoint.(J),rates=ones(Int,length(J)),
@@ -203,8 +203,8 @@ function complete!(de::MeanfieldNoiseEquations; order=de.order, multithread=fals
 end
 
 function cumulant_expansion(de::MeanfieldNoiseEquations,order;multithread=false,mix_choice=maximum,kwargs...)
-    determ, noise = split(de)
-    return merge(cumulant_expansion(determ, order; multithread, mix_choice, kwargs...), cumulant_expansion(noise, order; multithread, mix_choice, kwargs...))
+    determ, noise = split_equations(de)
+    return merge_equations(cumulant_expansion(determ, order; multithread, mix_choice, kwargs...), cumulant_expansion(noise, order; multithread, mix_choice, kwargs...))
 end
 
 

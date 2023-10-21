@@ -713,25 +713,25 @@ function scale(eqs::IndexedMeanfieldNoiseEquations;h=nothing,kwargs...)
     return IndexedMeanfieldNoiseEquations(newEqs,me.operator_equations,newNoiseEqs,me.operator_noise_equations,me.states,me.operators,me.hamiltonian,me.jumps,me.jumps_dagger,me.rates,me.efficiencies,me.iv,me.varmap,me.order)
 end
 
-function split(eqin::IndexedMeanfieldNoiseEquations)::Tuple{IndexedMeanfieldEquations, IndexedMeanfieldEquations}
+function split_equations(eqin::IndexedMeanfieldNoiseEquations)::Tuple{IndexedMeanfieldEquations, IndexedMeanfieldEquations}
     determ = IndexedMeanfieldEquations(eqin.equations,eqin.operator_equations,eqin.states,eqin.operators,eqin.hamiltonian,eqin.jumps,eqin.jumps_dagger,eqin.rates,eqin.iv,eqin.varmap,eqin.order)
     noise = IndexedMeanfieldEquations(eqin.noise_equations,eqin.operator_noise_equations,eqin.states,eqin.operators,eqin.hamiltonian,eqin.jumps,eqin.jumps_dagger,eqin.efficiencies,eqin.iv,eqin.varmap,eqin.order)
     return determ, noise
 end
 
-function merge(determ::IndexedMeanfieldEquations, noise::IndexedMeanfieldEquations)::IndexedMeanfieldNoiseEquations
+function merge_equations(determ::IndexedMeanfieldEquations, noise::IndexedMeanfieldEquations)::IndexedMeanfieldNoiseEquations
     return IndexedMeanfieldNoiseEquations(determ.equations,determ.operator_equations,noise.equations,noise.operator_equations,determ.states,determ.operators,determ.hamiltonian,determ.jumps,determ.jumps_dagger,determ.rates,noise.rates,determ.iv,determ.varmap,determ.order)
 end
 
 function MTK.SDESystem(de::Union{MeanfieldNoiseEquations, IndexedMeanfieldNoiseEquations}, p, iv=de.iv; kwargs...)
-    determ, noise = split(de)
+    determ, noise = split_equations(de)
     eqs = MTK.equations(determ)
     neqs = MTK.equations(noise)
     return MTK.SDESystem(eqs, map(x->x.rhs,neqs), iv, map(x->x[2], de.varmap), p; kwargs...)
 end
 
 function MTK.ODESystem(de::Union{MeanfieldNoiseEquations, IndexedMeanfieldNoiseEquations}, iv=de.iv; kwargs...)
-    determ, noise = split(de)
+    determ, noise = split_equations(de)
     return MTK.ODESystem(determ, iv; kwargs...)
 end
 
