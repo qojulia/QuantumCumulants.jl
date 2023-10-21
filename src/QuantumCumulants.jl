@@ -60,6 +60,8 @@ include("diffeq.jl")
 include("correlation.jl")
 include("cluster.jl")
 include("scale.jl")
+include("measurement_backaction.jl")
+include("measurement_backaction_indices.jl")
 include("latexify_recipes.jl")
 include("printing.jl")
 include("indexing.jl")
@@ -69,8 +71,7 @@ include("index_meanfield.jl")
 include("index_scale.jl")
 include("index_correlation.jl")
 include("index_utils.jl")
-include("measurement_backaction.jl")
-include("measurement_backaction_indices.jl")
+
 
 @deprecate heisenberg(args...; kwargs...) meanfield(args...; kwargs...)
 

@@ -112,6 +112,19 @@ end
     return lhs, rhs
 end
 
+@latexrecipe function f(de::Union{MeanfieldNoiseEquations,IndexedMeanfieldNoiseEquations})
+    # Options
+    env --> :align
+    cdot --> false
+
+    lhs = getfield.(de.equations, :lhs)
+    rhs = getfield.(de.equations, :rhs)
+    rhs_noise = getfield.(de.noise_equations, :rhs)
+    npr = cnumbers("dW/dt")
+    lhs, rhs = QuantumCumulants._latexify(lhs, rhs.+npr.*rhs_noise, de.iv)
+    return lhs, rhs
+end
+
 function _latexify(lhs_, rhs_, t)
 
     # Convert eqs to Exprs
