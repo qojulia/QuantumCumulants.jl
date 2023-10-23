@@ -13,7 +13,7 @@ using Symbolics
     eqs = meanfield(a, ω * a'* a, [a]; rates = [κ], efficiencies = [η])
     test_eqn = sqrt(0.5*κ*η)*(average(a'*a+a * a)-average(a')*average(a)-average(a) ^ 2)
     
-    @test isequal(simplify(test_eqn-eqs.noise_equations[1].rhs), 0)
+    @test isequal(simplify(test_eqn-eqs.noise_equations[1].rhs,expand=true), 0)
     @test isequal(eqs[1].lhs,average(a))
 
     @cnumbers ω κ η γ ωa

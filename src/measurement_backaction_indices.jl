@@ -723,10 +723,23 @@ function merge_equations(determ::IndexedMeanfieldEquations, noise::IndexedMeanfi
     return IndexedMeanfieldNoiseEquations(determ.equations,determ.operator_equations,noise.equations,noise.operator_equations,determ.states,determ.operators,determ.hamiltonian,determ.jumps,determ.jumps_dagger,determ.rates,noise.rates,determ.iv,determ.varmap,determ.order)
 end
 
-function MTK.SDESystem(de::Union{MeanfieldNoiseEquations, IndexedMeanfieldNoiseEquations}, p, iv=de.iv; kwargs...)
+function mtk_generate_meta(eqs; ps = MTK.OrderedSet())
+    allstates = MTK.OrderedSet()
+    iv = nothing
+
+    for eq in eqs
+        MTK.collect_vars!(allstates, ps, eq.lhs, iv)
+        MTK.collect_vars!(allstates, ps, eq.rhs, iv)
+    end
+
+    return ps
+end
+
+function MTK.SDESystem(de::Union{MeanfieldNoiseEquations, IndexedMeanfieldNoiseEquations}, iv=de.iv; kwargs...)
     determ, noise = split_equations(de)
     eqs = MTK.equations(determ)
     neqs = MTK.equations(noise)
+    p =  mtk_generate_meta(vcat(eqs...,neqs...))
     return MTK.SDESystem(eqs, map(x->x.rhs,neqs), iv, map(x->x[2], de.varmap), p; kwargs...)
 end
 
