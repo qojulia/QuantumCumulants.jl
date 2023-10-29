@@ -116,12 +116,19 @@ function indexed_master_lindblad(a_,J,Jdagger,rates)
     args = Any[]
     for k=1:length(J)
         if !isempty(get_indices(J[k])) && !(rates[k] isa BasicSymbolic{DoubleIndexedVariable})
-            inds = get_indices(J[k])
-            length(inds) != 1 && error("Jump operators with multiple different indices are not supported!")
-            c1 = 0.5*rates[k]*Jdagger[k]*commutator(a_,J[k])
-            c2 = 0.5*rates[k]*commutator(Jdagger[k],a_)*J[k]
-            c = c1 + c2
-            !SymbolicUtils._iszero(c) && push!(args, SingleSum(c,inds[1],Index[]))
+            if J[k] isa Sums
+                c1 = 0.5*rates[k]*Jdagger[k]*commutator(a_,J[k])
+                c2 = 0.5*rates[k]*commutator(Jdagger[k],a_)*J[k]
+                c = c1 + c2
+                push!(args, c)
+            else #J[k] indexed variable
+                inds = get_indices(J[k])
+                length(inds) != 1 && error("Jump operators with multiple different indices are not supported!")
+                c1 = 0.5*rates[k]*Jdagger[k]*commutator(a_,J[k])
+                c2 = 0.5*rates[k]*commutator(Jdagger[k],a_)*J[k]
+                c = c1 + c2
+                !SymbolicUtils._iszero(c) && push!(args, SingleSum(c,inds[1],Index[]))
+            end
         else
             if rates[k] isa BasicSymbolic{DoubleIndexedVariable}
                 meta = SymbolicUtils.metadata(rates[k])[DoubleIndexedVariable]
