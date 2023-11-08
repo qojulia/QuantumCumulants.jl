@@ -49,7 +49,7 @@ for (eq_stoch, eq_det) in zip(stoch_eqs.equations, det_eqs.equations)
     @test isequal(simplify(eq_stoch.rhs - eq_det.rhs),0)
 end
 
-test_mf = QuantumCumulants.IndexedMeanfieldEquations(full_stoch_eqs.noise_equations, full_stoch_eqs.states, full_stoch_eqs.operators, full_stoch_eqs.hamiltonian,full_stoch_eqs.jumps, full_stoch_eqs.jumps_dagger, full_stoch_eqs.rates, full_stoch_eqs.iv, full_stoch_eqs.varmap, 4)
+test_mf = QuantumCumulants.IndexedMeanfieldEquations(full_stoch_eqs.noise_equations, full_stoch_eqs.operator_equations, full_stoch_eqs.states, full_stoch_eqs.operators, full_stoch_eqs.hamiltonian,full_stoch_eqs.jumps, full_stoch_eqs.jumps_dagger, full_stoch_eqs.rates, full_stoch_eqs.iv, full_stoch_eqs.varmap, 4)
 test_mf = QuantumCumulants.cumulant_expansion(test_mf,2)
 
 for (lhs, rhs) in zip(stoch_eqs_complete.noise_equations, test_mf.equations)
@@ -66,7 +66,7 @@ for (lhs, rhs) in zip(stoch_eqs_scaled.equations, det_eqs_scaled.equations)
     @test isequal(simplify(lhs.rhs - rhs.rhs),0)
 end
 
-test_mf = QuantumCumulants.IndexedMeanfieldEquations(stoch_eqs.noise_equations, stoch_eqs.states, stoch_eqs.operators, stoch_eqs.hamiltonian,stoch_eqs.jumps, stoch_eqs.jumps_dagger, stoch_eqs.rates, stoch_eqs.iv, stoch_eqs.varmap, 2)
+test_mf = QuantumCumulants.IndexedMeanfieldEquations(stoch_eqs.noise_equations, stoch_eqs.operator_equations, stoch_eqs.states, stoch_eqs.operators, stoch_eqs.hamiltonian,stoch_eqs.jumps, stoch_eqs.jumps_dagger, stoch_eqs.rates, stoch_eqs.iv, stoch_eqs.varmap, 2)
 test_mf_scaled = scale(test_mf)
 
 for (lhs, rhs) in zip(stoch_eqs_scaled.noise_equations, test_mf_scaled.equations)
