@@ -2,7 +2,7 @@ struct MeanfieldNoiseEquations <: AbstractMeanfieldEquations
     equations::Vector{Symbolics.Equation}
     operator_equations::Vector{Symbolics.Equation}
     noise_equations::Vector{Symbolics.Equation}
-    operator_noise_equations::Vector{Symbolics.Equation}
+    operator_noise_equations::Vector{Symbolics.Equation} # useless but needed to create eqs
     states::Vector
     operators::Vector{QNumber}
     hamiltonian::QNumber
@@ -20,8 +20,8 @@ function _master_noise(a_,J,Jdagger,rates)
     for k=1:length(J)
         if isequal(rates[k], 0) continue end
         if isa(rates[k],SymbolicUtils.Symbolic) || isa(rates[k],Number) || isa(rates[k],Function)
-            c1 = sqrt(0.5*rates[k])*(Jdagger[k]*a_-average(Jdagger[k])*average(a_))
-            c2 = sqrt(0.5*rates[k])*(a_*J[k]-average(a_)*average(J[k]))
+            c1 = sqrt(rates[k])*(Jdagger[k]*a_-average(Jdagger[k])*average(a_))
+            c2 = sqrt(rates[k])*(a_*J[k]-average(a_)*average(J[k]))
             push_or_append_nz_args!(args, c1)
             push_or_append_nz_args!(args, c2)
         elseif isa(rates[k],Matrix)
@@ -134,17 +134,7 @@ function calculate_order(de::AbstractMeanfieldEquations, eqns, order)
     maximum(order_) >= order_lhs || error("Cannot form cumulant expansion of derivative; you may want to use a higher order!")
     return order_
 end
-
-function cumulant_expand_equations!(eqns, order=de.order, multithread=false, filter_func=nothing, mix_choice=maximum, simplify=true)
-    for i=1:length(eqns)
-        lhs = eqns[i].lhs
-        rhs = cumulant_expansion(eqns.rhs,order;
-                                    mix_choice=mix_choice,
-                                    simplify=simplify)
-        eqns[i] = Symbolics.Equation(lhs, rhs)
-    end
-end
-
+ 
 
 function missing_variables(de::AbstractMeanfieldEquations, eqns, order=de.order, multithread=false, filter_func=nothing, mix_choice=maximum, simplify=true)
     vs = de.states
