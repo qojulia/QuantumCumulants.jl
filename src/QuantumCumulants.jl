@@ -9,7 +9,7 @@ import TermInterface
 import SciMLBase
 
 import ModelingToolkit
-import ModelingToolkit: complete
+import ModelingToolkit: complete, complete!
 const MTK = ModelingToolkit
 
 using Combinatorics: partitions, combinations, levicivita
@@ -39,7 +39,7 @@ export HilbertSpace, ProductSpace, ⊗, tensor,
         IndexedAverageSum, IndexedAverageDoubleSum, SpecialIndexedTerm, find_missing_sums, Σ, ∑,
         evaluate, value_map, NumberedOperator, change_index, order_by_index, split_sums, insert_index, eval_term,
         MeanfieldNoiseEquations, 
-        indexed_arithmetic, indexed_noise, IndexedMeanfieldNoiseEquations, simplified_indexed_complete!
+        IndexedMeanfieldNoiseEquations#, indexed_arithmetic, indexed_noise, simplified_indexed_complete!
 
 const NO_METADATA = SymbolicUtils.NO_METADATA
 

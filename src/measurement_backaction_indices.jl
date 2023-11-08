@@ -1,17 +1,14 @@
-"""
-    indexed_arithmetic(a_,J,Jdagger,rate, arithmetic)
-    
-    This function tries to perform a summation over some arithmetic expression
-    given three operators a_, J and Jdagger and numbers/symbols/a matrix rate.
+# indexed_arithmetic(a_,J,Jdagger,rate, arithmetic)
 
-    #Example
-    The terms that occur due to a single jump operator J in the master equation can
-    be generated with (for the equation of motion for operator a_)
+# This function tries to perform a summation over some arithmetic expression
+# given three operators a_, J and Jdagger and numbers/symbols/a matrix rate.
 
-    master_arithmetic = (a, J, Jdagger,rate) -> 0.5*rate*Jdagger*commutator(a,J)+0.5*rate*commutator(Jdagger,a)*J
-    indexed_arithmetic(a_, Jloc, Jdaggerloc,rate, master_arithmetic)
-    
-"""
+# #Example
+# The terms that occur due to a single jump operator J in the master equation can
+# be generated with (for the equation of motion for operator a_)
+
+# master_arithmetic = (a, J, Jdagger,rate) -> 0.5*rate*Jdagger*commutator(a,J)+0.5*rate*commutator(Jdagger,a)*J
+# indexed_arithmetic(a_, Jloc, Jdaggerloc,rate, master_arithmetic)
 function indexed_arithmetic(a_,J,Jdagger,rate, arithmetic)
     inds1 = get_indices(J)
     inds2 = get_indices(Jdagger)
@@ -81,8 +78,7 @@ end
 
 function indexed_noise(a_,J,Jdagger,rates,efficiencies)
     out = nothing
-    noise_arithmetic(a, J, Jdagger,rate) = sqrt(0.5*rate)*(Jdagger*a-average(Jdagger)*a) + sqrt(0.5*rate)*(a*J-a*average(J))
-
+    noise_arithmetic(a, J, Jdagger,rate) = sqrt(rate)*(Jdagger*a-average(Jdagger)*a) + sqrt(rate)*(a*J-a*average(J))
 
     for k=1:length(J)
         if isequal(efficiencies[k], 0) continue end
@@ -100,10 +96,8 @@ function indexed_noise(a_,J,Jdagger,rates,efficiencies)
     return out
 end
 
-"""
-    This function generates a self mapping of indices onto itself without the diagonal, i.e.
-    (i,j,k) would yield the map [(i,j), (i,k),(j,i),(j,k),(k,i),(k,j)]
-"""
+# This function generates a self mapping of indices onto itself without the diagonal, i.e.
+# (i,j,k) would yield the map [(i,j), (i,k),(j,i),(j,k),(k,i),(k,j)]
 function generate_index_self_mapping(indices)
     mapping = Tuple{Index,Index}[]
     for j = 1:length(indices)
@@ -169,7 +163,7 @@ end
 
 """
 indexed_meanfield_backaction(ops::Vector,H::QNumber,J::Vector;
-Jdagger::Vector=adjoint.(J),rates=ones(length(J)),efficiencies=zeros(Int,length(J)))
+    Jdagger::Vector=adjoint.(J),rates=ones(length(J)),efficiencies=zeros(Int,length(J)))
 
 Compute the set of equations for the indexed-operators [`IndexedOperator`](@ref) in `ops` under the Hamiltonian
 `H` and with loss operators contained in `J` and measurement backaction due to detectors with efficiencies 'efficiencies'.
@@ -540,8 +534,9 @@ function simplified_indexed_complete!(de::AbstractMeanfieldEquations;
     return de
 end
 
+
 """
-    indexed_complete(de::MeanfieldEquations)
+    indexed_complete(de::IndexedMeanfieldNoiseEquations)
 
 From a set of differential equation of averages, find all averages that are missing
 and derive the corresponding equations of motion. Uses [`find_missing`](@ref)
@@ -563,6 +558,17 @@ Optional arguments
     simplification.
 
 see also: [`find_missing`](@ref), [`indexed_meanfield`](@ref), [`meanfield`](@ref), [`find_missing_sums`](@ref)
+"""
+function indexed_complete(de::IndexedMeanfieldNoiseEquations;kwargs...)
+    de_ = deepcopy(de)
+    indexed_complete!(de_;kwargs...)
+    return de_
+end
+
+"""
+    indexed_complete!(de::MeanfieldEquations)
+
+In-place version of [`indexed_complete`](@ref)
 """
 function indexed_complete!(de::IndexedMeanfieldNoiseEquations;
     order=de.order,
@@ -617,6 +623,10 @@ function indexed_complete!(de::IndexedMeanfieldNoiseEquations;
 
     return de
 end
+
+complete(eqs::IndexedMeanfieldNoiseEquations;kwargs...) = indexed_complete(eqs;kwargs...)
+complete!(eqs::IndexedMeanfieldNoiseEquations;kwargs...) = indexed_complete!(eqs;kwargs...) 
+
 
 function scale_equations(eqs; kwargs...)
     newEqs = []
