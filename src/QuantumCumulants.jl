@@ -25,7 +25,7 @@ export HilbertSpace, ProductSpace, ⊗, tensor,
         SpinSpace, Sigma,
         MeanfieldEquations,
         meanfield, commutator, acts_on,
-        CNumber, Parameter, @cnumbers, cnumbers, cnumber,
+        CNumber, Parameter, @cnumbers, cnumbers, cnumber, RNumber, RealParameter, @rnumbers, rnumbers, rnumber,
         Average, average, cumulant_expansion, get_order, cumulant,
         find_missing, complete, complete!, find_operators, fundamental_operators,
             unique_ops, unique_ops!, to_numeric, numeric_average, initial_values, get_solution, get_scale_solution,
@@ -40,6 +40,7 @@ export HilbertSpace, ProductSpace, ⊗, tensor,
         evaluate, value_map, NumberedOperator, change_index, order_by_index, split_sums, insert_index, eval_term,
         MeanfieldNoiseEquations, 
         IndexedMeanfieldNoiseEquations#, indexed_arithmetic, indexed_noise, simplified_indexed_complete!
+
 
 const NO_METADATA = SymbolicUtils.NO_METADATA
 

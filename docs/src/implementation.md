@@ -109,6 +109,17 @@ H = ω*a'*a + η*(a + a')
 nothing # hide
 ```
 
+Real numbers (*r*-numbers) are similar to *c*-numbers, except that they are their own complex conjugate. They can be defined with the [`rnumbers`](@ref) function or the corresponding macro [`@rnumbers`](@ref). 
+
+```@example r-numbers
+using QuantumCumulants # hide
+@rnumbers ω η
+ω' # ω 
+exp(1im*η)*(exp(1im*η))' # 1
+nothing # hide
+```
+
+
 ## Operator expressions and commutation relations
 
 The equations of motion of *q*-numbers are determined by evaluating commutators. This can be done by using fundamental commutation relations, which are immediately applied whenever operators are combined in an algebraic expression.

@@ -134,7 +134,7 @@ function calculate_order(de::AbstractMeanfieldEquations, eqns, order)
     maximum(order_) >= order_lhs || error("Cannot form cumulant expansion of derivative; you may want to use a higher order!")
     return order_
 end
-
+ 
 
 function missing_variables(de::AbstractMeanfieldEquations, eqns, order=de.order, multithread=false, filter_func=nothing, mix_choice=maximum, simplify=true)
     vs = de.states

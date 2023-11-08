@@ -199,4 +199,99 @@ sol_ = solve(prob_,RK4())
 @test sol_ev[s(1,2,1)][end] ≈ sol_[σ(1,2,1)][end] ≈ sol_sc[s(1,2,1)][end]
 @test sol_ev[s(2,2,1)][end] ≈ sol_[σ(2,2,1)][end] ≈ sol_sc[s(2,2,1)][end]
 
+########################################################
+### waveguide - collective decay (DoubleSum-scaling) ###
+# TODO: evaluate() does not work "avg not defined"
+# TODO: test with DoubleIndexedVariable (rates)
+# Hilbert space
+M = 2 # number of clusters
+ha(i) = NLevelSpace(Symbol(:atom,i),2)
+h = tensor([ha(i)  for i=1:M]...)
+σ(x,y,cluster,index) = IndexedOperator(Transition(h,Symbol(:σ,cluster,:_),x,y,cluster),index)
+# Parameter
+Ω(cluster1,cluster2) = cnumber(Symbol(:Ω,cluster1,cluster2))
+Γ(cluster1,cluster2) = cnumber(Symbol(:Γ,cluster1,cluster2))
+Δ(cluster) = cnumber(Symbol(:Δ,cluster))
+η(cluster) = cnumber(Symbol(:η,cluster))
+N(cluster) = cnumber(Symbol(:N,cluster))
+# Indices
+i(cluster) = Index(h,Symbol(:i_,cluster),N(cluster),cluster)
+j(cluster) = Index(h,Symbol(:j_,cluster),N(cluster),cluster)
+k(cluster) = Index(h,Symbol(:k_,cluster),N(cluster),cluster)
+l(cluster) = Index(h,Symbol(:l_,cluster),N(cluster),cluster)
+# Hamiltonian
+Ha = sum( Δ(c)*∑(σ(2,2,c,i(c)),i(c)) for c=1:M)
+Hd = sum( η(c)*∑(σ(2,1,c,i(c)) + σ(1,2,c,i(c)),i(c)) for c=1:M)
+Hi = sum( c1≠c2 && Ω(c1,c2)*∑(σ(2,1,c1,i(c1)),i(c1)) * ∑(σ(1,2,c2,i(c2)),i(c2)) for c1=1:M for c2=1:M)
+H = Ha + Hd + Hi
+# Jump operators & and rates
+J = [∑(σ(1,2,c1,i(c1)),i(c1)) for c1=1:M for c2=1:M]
+Jd = [∑(σ(2,1,c2,j(c2)),j(c2)) for c1=1:M for c2=1:M]
+rates = [Γ(c1,c2) for c1=1:M for c2=1:M]
+#
+order = 2 # set cumulant order
+ops = [[σ(2,2,c,k(c)) for c=1:M]; [σ(2,2,c1,k(c1))*σ(2,2,c2,l(c2)) for c1=1:M for c2=1:M]]
+eqs = meanfield(ops,H,J;Jdagger=Jd,rates=rates,order=order)
+complete!(eqs)
+eqs_sc = scale(eqs)
+@named sys = ODESystem(eqs_sc)
+# Numerics
+u0 = zeros(ComplexF64, length(eqs_sc))
+Γ0 = 1.0
+η0 = 0.12
+Ω0 = 0.012#0.043
+Δ0 = 0.01
+Ω_(c1,c2) = (c1≠c2)*Ω0
+Γ_(c1,c2) = Γ0
+Δ_(c) = Δ0
+η_(c) = (c<=1) * η0/2 
+N1 = 3 #TODO: For N1=3, N2=3 numerics fail?! For N1=N2 in general. (2nd-order not enough)
+N2 = 2 
+N_(c) = [N1, N2][c] 
+ps = [[Ω(c1,c2) for c1=1:M for c2=1:M]; 
+    [Γ(c1,c2) for c1=1:M for c2=1:M]; 
+    [Δ(c) for c=1:M]; [η(c) for c=1:M]; [N(c) for c=1:M]]
+pn = [[Ω_(c1,c2) for c1=1:M for c2=1:M]; 
+    [Γ_(c1,c2) for c1=1:M for c2=1:M]; 
+    [Δ_(c) for c=1:M]; [η_(c) for c=1:M]; [N_(c) for c=1:M]]
+prob = ODEProblem(sys,u0,(0.0, 4*2π/η0), ps.=>pn)
+sol = solve(prob,Tsit5(),reltol=1e-10, abstol=1e-10, maxiters=1e7)
+t_ = sol.t
+s22(c) = sol[σ(2,2,c,1)]
+s12(c) = sol[σ(1,2,c,1)]
+s21_12(c1,c2) = sol[σ(2,1,c1,1)*σ(1,2,c2,1)]
+### straight-forward approach ###
+N_a = N1+N2 # number of atoms
+h_a = tensor([ha(i)  for i=1:N_a]...)
+s(x,y,aon) = Transition(h_a,Symbol(:σ,aon,:_),x,y,aon)
+S(x,y,c) = [sum(s(x,y,aon) for aon=1:N1), sum(s(x,y,aon) for aon=N1+1:N_a)][c]
+# Hamiltonian
+Ha_a = sum( Δ(c)*S(2,2,c) for c=1:M)
+Hd_a = sum( η(c)*( S(2,1,c) + S(1,2,c) ) for c=1:M)
+Hi_a = sum( c1≠c2 && Ω(c1,c2)*S(2,1,c1) * S(1,2,c2) for c1=1:M for c2=1:M)
+H_a = Ha_a + Hd_a + Hi_a
+# Jump operators & and rates
+J_a = [S(1,2,c1) for c1=1:M for c2=1:M]
+Jd_a = [S(2,1,c2) for c1=1:M for c2=1:M]
+rates_a = [Γ(c1,c2) for c1=1:M for c2=1:M]
+ops_a = [s(2,2,aon) for aon=1:N_a]
+eqs_a = meanfield(ops_a,H_a,J_a;Jdagger=Jd_a,rates=rates_a,order=order)
+complete!(eqs_a)
+@named sys_a = ODESystem(eqs_a)
+# Numerics
+u0_a = zeros(ComplexF64, length(eqs_a))
+prob_a = ODEProblem(sys_a,u0_a,(0.0, 4*2π/η0), ps.=>pn)
+sol_a = solve(prob_a,Tsit5(),reltol=1e-10, abstol=1e-10, maxiters=1e7)
+t_a = sol_a.t
+s22_a(c) = sol_a[s(2,2,c)]
+s12_a(c) = sol_a[s(1,2,c)]
+s21_12_a(c1,c2) = sol_a[s(2,1,c1)*s(1,2,c2)]
+#
+@test round(s22(1)[end],digits=6) == round(s22_a(1)[end],digits=6)
+@test round(s22(2)[end],digits=6) == round(s22_a(N1+1)[end],digits=6)
+@test round(s12(1)[end],digits=6) == round(s12_a(1)[end],digits=6)
+@test round(s12(2)[end],digits=6) == round(s12_a(N1+1)[end],digits=6)
+@test round(s21_12(1,2)[end],digits=6) == round(s21_12_a(1,N1+1)[end],digits=6)
+@test round(s21_12(1,1)[end],digits=6) == round(s21_12_a(1,1)[end],digits=6)
+
 end

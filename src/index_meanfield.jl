@@ -116,12 +116,19 @@ function indexed_master_lindblad(a_,J,Jdagger,rates)
     args = Any[]
     for k=1:length(J)
         if !isempty(get_indices(J[k])) && !(rates[k] isa BasicSymbolic{DoubleIndexedVariable})
-            inds = get_indices(J[k])
-            length(inds) != 1 && error("Jump operators with multiple different indices are not supported!")
-            c1 = 0.5*rates[k]*Jdagger[k]*commutator(a_,J[k])
-            c2 = 0.5*rates[k]*commutator(Jdagger[k],a_)*J[k]
-            c = c1 + c2
-            !SymbolicUtils._iszero(c) && push!(args, SingleSum(c,inds[1],Index[]))
+            if J[k] isa Sums
+                c1 = 0.5*rates[k]*Jdagger[k]*commutator(a_,J[k])
+                c2 = 0.5*rates[k]*commutator(Jdagger[k],a_)*J[k]
+                c = c1 + c2
+                push!(args, c)
+            else #J[k] indexed variable
+                inds = get_indices(J[k])
+                length(inds) != 1 && error("Jump operators with multiple different indices are not supported!")
+                c1 = 0.5*rates[k]*Jdagger[k]*commutator(a_,J[k])
+                c2 = 0.5*rates[k]*commutator(Jdagger[k],a_)*J[k]
+                c = c1 + c2
+                !SymbolicUtils._iszero(c) && push!(args, SingleSum(c,inds[1],Index[]))
+            end
         else
             if rates[k] isa BasicSymbolic{DoubleIndexedVariable}
                 meta = SymbolicUtils.metadata(rates[k])[DoubleIndexedVariable]
@@ -223,11 +230,9 @@ function indexed_complete!(de::AbstractMeanfieldEquations;
     scaling=false,
     kwargs...)
 
-    maxNumb = maximum(length.(get_indices.(de.operators)))
-
-    if isempty(extra_indices)
-        error("can not complete equations with empty extra_indices!")
-    end
+    ops_indices = get_indices(de.operators)
+    extra_indices = copy(extra_indices) # otherwise the global variable will be overwritten
+    isempty(extra_indices) && error("can not complete equations with empty extra_indices!")
 
     for ind in extra_indices
         if typeof(ind) != typeof(extra_indices[1])
@@ -267,14 +272,14 @@ function indexed_complete!(de::AbstractMeanfieldEquations;
         end
     end
 
-    if order_max > maxNumb && order_max - maxNumb > length(extra_indices)
+    num_inds =  length(unique([ops_indices;extra_indices]))
+    num_ind_hilbert = length(unique([ind.aon for ind in get_indices([de.hamiltonian,de.jumps, de.jumps_dagger])]))
+
+    if order_max*num_ind_hilbert > num_inds
         error("Too few extra_indices provided! Please make sure that for higher orders of cumulant expansion, 
             you also use the extra_indices argument to provide additional indices for calculation. The Number of
-            extra_indices provided should be at least $(order_max - maxNumb).
-        ")
+            extra_indices provided should be at least $(order_max - num_inds).")
     end
-
-    
     
     maximum(order_) >= order_lhs || error("Cannot form cumulant expansion of derivative; you may want to use a higher order!")
 
@@ -345,7 +350,6 @@ function indexed_complete!(de::AbstractMeanfieldEquations;
     #at this point extras is a list of extra_indices, sorted by their priority 
     # (meaning that indices that were used in the ops of in indexed_meanfield come first)
 
-
     vhash = map(hash, vs)
     vs′ = map(_inconj, vs)
     vs′hash = map(hash, vs′)
@@ -412,27 +416,6 @@ function indexed_complete!(de::AbstractMeanfieldEquations;
         filter!(x -> filterComplete(x,de.states,scaling;kwargs...), missed)
         missed = inorder!.(missed)
 
-        # for i = 1:length(missed)
-        #     minds = get_indices(missed[i])
-        #     newMinds = copy(minds)
-        #     for ind1 in minds
-        #         extras_=filterExtras(ind1,extras)
-        #         for k = 1:length(extras_)
-        #             if ind1 ∉ extras_ #this check might be redundant ?
-        #                 missed[i] = change_index(missed[i],ind1,extras_[1])
-        #                 newMinds = get_indices(missed[i])
-        #                 break
-        #             end
-        #             if findall(x->isequal(x,ind1),extras_)[1] > k && extras_[k] ∉ newMinds #this might go somewhat easier, maybe delete ind2 out of extras after each replacement somehow
-        #                 missed[i] = change_index(missed[i],ind1,extras_[k])
-        #                 newMinds = get_indices(missed[i])
-        #                 break
-        #             elseif findall(x->isequal(x,ind1),extras_)[1] <= k
-        #                 break
-        #             end
-        #         end
-        #     end
-        # end
         for i = 1:length(missed)
             minds = get_indices(missed[i])
             newMinds = copy(minds)
@@ -451,7 +434,6 @@ function indexed_complete!(de::AbstractMeanfieldEquations;
             end
         end
     
-
         missed = inorder!.(missed)
         missed = unique(missed)
         missed = filter!(x -> filterComplete(x,de.states,scaling;kwargs...), missed)
