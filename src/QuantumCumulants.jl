@@ -9,7 +9,7 @@ import TermInterface
 import SciMLBase
 
 import ModelingToolkit
-import ModelingToolkit: complete
+import ModelingToolkit: complete, complete!
 const MTK = ModelingToolkit
 
 using Combinatorics: partitions, combinations, levicivita
