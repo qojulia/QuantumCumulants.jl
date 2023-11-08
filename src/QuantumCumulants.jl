@@ -37,7 +37,9 @@ export HilbertSpace, ProductSpace, ⊗, tensor,
         DoubleSum, indexed_complete, IndexedCorrelationFunction, scale_term,
         scaleME, evalME, indexed_complete!, indexed_meanfield, subst_reds, AvgSums, plotME,
         IndexedAverageSum, IndexedAverageDoubleSum, SpecialIndexedTerm, find_missing_sums, Σ, ∑,
-        evaluate, value_map, NumberedOperator, change_index, order_by_index, split_sums, insert_index, eval_term
+        evaluate, value_map, NumberedOperator, change_index, order_by_index, split_sums, insert_index, eval_term,
+        MeanfieldNoiseEquations, 
+        indexed_arithmetic, indexed_noise, IndexedMeanfieldNoiseEquations, simplified_indexed_complete!
 
 const NO_METADATA = SymbolicUtils.NO_METADATA
 
@@ -58,6 +60,8 @@ include("diffeq.jl")
 include("correlation.jl")
 include("cluster.jl")
 include("scale.jl")
+include("measurement_backaction.jl")
+include("measurement_backaction_indices.jl")
 include("latexify_recipes.jl")
 include("printing.jl")
 include("indexing.jl")
@@ -67,6 +71,7 @@ include("index_meanfield.jl")
 include("index_scale.jl")
 include("index_correlation.jl")
 include("index_utils.jl")
+
 
 @deprecate heisenberg(args...; kwargs...) meanfield(args...; kwargs...)
 

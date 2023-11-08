@@ -36,8 +36,10 @@ equivalent to the Quantum-Langevin equation where noise is neglected.
 function meanfield(a::Vector,H,J;kwargs...)
     inds = vcat(get_indices(a),get_indices(H),get_indices(J))
     if isempty(inds)
+        if :efficiencies in keys(kwargs) return _meanfield_backaction(a,H,J;kwargs...) end
         return _meanfield(a,H,J;kwargs...)
     else
+        if :efficiencies in keys(kwargs) return indexed_meanfield_backaction(a,H,J;kwargs...) end
         return indexed_meanfield(a,H,J;kwargs...)
     end
 end

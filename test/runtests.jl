@@ -22,6 +22,9 @@ names = [
     "test_indexed_scale.jl"
     "test_indexed_filter_cavity.jl"
     "test_indexed_mixed_order.jl"
+    "test_measurement_backaction_indices_comparison.jl"
+    "test_measurement_backaction_indices.jl"
+    "test_measurement_backaction.jl"
 ]
 
 detected_tests = filter(
