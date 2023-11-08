@@ -90,7 +90,31 @@ cnumbers
 ```
 
 ```@docs
+cnumber
+```
+
+```@docs
 @cnumbers
+```
+
+```@docs
+RNumber
+```
+
+```@docs
+RealParameter
+```
+
+```@docs
+rnumbers
+```
+
+```@docs
+rnumber
+```
+
+```@docs
+@rnumbers
 ```
 
 ## [Average](@id API: Average)

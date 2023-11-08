@@ -2,6 +2,7 @@ using QuantumCumulants
 using OrdinaryDiffEq
 using ModelingToolkit
 using Test
+using SymbolicUtils
 
 @testset "v-level" begin
 
@@ -11,8 +12,24 @@ ha = NLevelSpace(:atom, 3)
 h = hf⊗ha
 
 # Parameters
-@cnumbers κ g
-Δc, Γ2, Γ3, Δ2, Δ3, Ω2, Ω3 = cnumbers("Δ_c Γ_2 Γ_3 Δ_2 Δ_3 Ω_2 Ω_3")
+@cnumbers g
+Δ2, Δ3, Ω2, Ω3 = cnumbers("Δ_2 Δ_3 Ω_2 Ω_3")
+Δc, Γ2 = rnumbers("Δ_c Γ_2") 
+Γ3 = rnumber(:Γ3)
+Γ3 = rnumber("Γ3")
+@rnumbers κ
+
+@test isequal(κ', κ)
+@test isequal(conj(Γ3), Γ3)
+@test isequal(adjoint(κ), κ)
+#
+@test typeof(Δ2*(Γ3 + 1)) == SymbolicUtils.BasicSymbolic{CNumber}
+@test typeof(κ*(Γ3 + 1)) == SymbolicUtils.BasicSymbolic{RNumber}
+@test typeof(1im*κ*(Γ3 + 1)) == SymbolicUtils.BasicSymbolic{Complex{RNumber}}
+@test isequal((Δ2*(Γ3 + 1))', (conj(Δ2)*(Γ3 + 1)))
+@test isequal(κ*(Γ3 + 1)', κ*(Γ3 + 1))
+@test isequal((1im*κ*(Γ3 + 1))', -1im*κ*(Γ3 + 1))
+@test isequal(simplify(exp(1im*κ)*(exp(1im*κ))'), 1)
 
 # Operators
 @qnumbers a::Destroy(h) σ::Transition(h)

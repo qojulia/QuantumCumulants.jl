@@ -9,7 +9,8 @@ N = 10
 Δ = cnumbers((Symbol(:Δ_, i) for i=1:N)...)
 g = cnumbers((Symbol(:g_, i) for i=1:N)...)
 γ = cnumbers((Symbol(:γ_, i) for i=1:N)...)
-ν = cnumbers((Symbol(:ν_, i) for i=1:N)...)
+# ν = cnumbers((Symbol(:ν_, i) for i=1:N)...)
+ν = rnumbers((Symbol(:ν_, i) for i=1:N)...)
 @cnumbers κ
 
 h_cavity = FockSpace(:cavity)
