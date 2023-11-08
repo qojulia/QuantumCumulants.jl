@@ -9,7 +9,7 @@ import TermInterface
 import SciMLBase
 
 import ModelingToolkit
-import ModelingToolkit: complete
+import ModelingToolkit: complete, complete!
 const MTK = ModelingToolkit
 
 using Combinatorics: partitions, combinations, levicivita
@@ -25,7 +25,7 @@ export HilbertSpace, ProductSpace, ⊗, tensor,
         SpinSpace, Sigma,
         MeanfieldEquations,
         meanfield, commutator, acts_on,
-        CNumber, Parameter, @cnumbers, cnumbers, cnumber,
+        CNumber, Parameter, @cnumbers, cnumbers, cnumber, RNumber, RealParameter, @rnumbers, rnumbers, rnumber,
         Average, average, cumulant_expansion, get_order, cumulant,
         find_missing, complete, complete!, find_operators, fundamental_operators,
             unique_ops, unique_ops!, to_numeric, numeric_average, initial_values, get_solution, get_scale_solution,

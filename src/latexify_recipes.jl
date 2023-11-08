@@ -206,3 +206,5 @@ function _to_expression(s::SymbolicUtils.Symbolic)
         return nameof(s)
     end
 end
+
+_to_expression(p::RealParameter) = p.name
