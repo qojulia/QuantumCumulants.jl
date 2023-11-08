@@ -537,8 +537,7 @@ end
 
 """
     indexed_complete(de::IndexedMeanfieldNoiseEquations)
-=======
-"""
+
 From a set of differential equation of averages, find all averages that are missing
 and derive the corresponding equations of motion. Uses [`find_missing`](@ref)
 and [`indexed_meanfield`](@ref) to do so. Implementation for IndexedMeanfieldNoiseEquations.
