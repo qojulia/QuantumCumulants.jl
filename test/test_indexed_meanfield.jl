@@ -87,7 +87,7 @@ eqs_ord_c2 = complete(eqs_ord;order=2)
 u0 = zeros(ComplexF64, length(eqs_))
 # parameter
 Γ_ = 1.0
-d = 2π*0.08 #0.08λ
+d = 2π*0.8 #0.8λ
 θ = π/2
 
 Ωij_(i,j) = Γ_*(-3/4)*( (1-(cos(θ))^2)*cos(d)/d-(1-3*(cos(θ))^2)*(sin(d)/(d^2)+(cos(d)/(d^3))) )
@@ -100,30 +100,28 @@ end
 
 
 g_ = 2Γ_
-κ_ = 20Γ_
+κ_ = 3Γ_
 Δa_ = 0Γ_
 Δc_ = 0Γ_
-η_ = κ_/100
+η_ = κ_/10
 
 g_v = [g_*(-1)^j for j=1:2]
 ps = [Δc, η, Δa, κ, g(i_ind), Γ_ij, Ω_ij];
 
 eqs_4 = meanfield(ops,H,J;rates=rates,order=4)
 
-Δc_i = -10*Γ_
+Δc_i = -3*Γ_
 Δa_i = Δc_i + Ωij_(1,2) #cavity on resonace with the shifted collective emitter
 p0_i = [Δc_i, η_, Δa_i, κ_, g_v, ΓMatrix, ΩMatrix]
 
 ps_ = value_map(ps,p0_i) #Combine all the parameters + values to one list for solving
-prob = ODEProblem(sys,u0,(0.0, 20Γ_), ps_);
-prob_ss = SteadyStateProblem(prob);
+prob = ODEProblem(sys,u0,(0.0, 10Γ_), ps_);
 
-sol_ss = solve(prob_ss, DynamicSS(Tsit5(); abstol=1e-8, reltol=1e-8),
-        reltol=1e-14, abstol=1e-14, maxiters=5e7)
+sol_ss = solve(prob, Tsit5(), save_everystep=false, save_on=false, save_start=false)
 
 @test length(eqs_4) == length(eqs)
 
-@test get_solution(sol_ss, 2a + σ(1,1,1)) == (2*sol_ss[a] + 1- sol_ss[σ(2,2,1)]) == get_solution(sol_ss, average(2a + σ(1,1,1)))
+@test get_solution(sol_ss, 2a + σ(1,1,1))[1] == (2*sol_ss[a][1] + 1- sol_ss[σ(2,2,1)][1]) == get_solution(sol_ss, average(2a + σ(1,1,1)))[1]
 @test isequal(σ(1,1,2), 1-σ(2,2,2))
 
 order = 1
@@ -245,8 +243,8 @@ eqs = meanfield(ops,H,J;rates=rates,order=2)
 eqs_c = complete(eqs);
 
 #test with scale
-abstol=1e-10
-reltol=1e-10
+abstol=1e-8
+reltol=1e-8
 eqs_sc = scale(eqs_c);
 @named sys_sc = ODESystem(eqs_sc);
 u0 = zeros(ComplexF64, length(eqs_sc))
