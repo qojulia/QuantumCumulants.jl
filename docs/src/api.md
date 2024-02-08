@@ -30,6 +30,14 @@ ClusterSpace
 tensor
 ```
 
+```@docs
+SpinSpace
+```
+
+```@docs
+Sigma
+```
+
 ## [q-Numbers](@id API: Operators)
 
 ```@docs
@@ -267,4 +275,52 @@ scale
 
 ```@docs
 value_map
+```
+
+```@docs
+indexed_complete
+```
+
+```@docs
+indexed_complete
+```
+
+```@docs
+split_sums
+```
+
+```@docs
+find_missing_sums
+```
+
+```@docs
+IndexedCorrelationFunction
+```
+
+```@docs
+indexed_complete!
+```
+
+```@docs
+indexed_complete!
+```
+
+```@docs
+evalME
+```
+
+```@docs
+scaleME
+```
+
+```@docs
+scaleME
+```
+
+```@docs
+indexed_meanfield
+```
+
+```@docs
+subst_reds
 ```
