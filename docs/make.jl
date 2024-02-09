@@ -23,7 +23,7 @@ pages = [
             "examples/filter-cavity_indexed.md"
             "examples/unique_squeezing.md"
             "examples/superradiant-laser.md"
-            "examples/heterodyne_detection.md"
+            # "examples/heterodyne_detection.md"
             ]
     ]
 
@@ -34,7 +34,10 @@ makedocs(
     checkdocs=:exports,
     format = Documenter.HTML(
                             mathengine=MathJax(),
-                            footer="[**Back to GitHub**](https://github.com/qojulia/QuantumCumulants.jl)"
+                            footer="[**Back to GitHub**](https://github.com/qojulia/QuantumCumulants.jl)",
+                            example_size_threshold = 800 * 2^10,
+                            size_threshold_warn = 400 * 2^10,
+                            size_threshold = 500 * 2^10,
                             )
     )
 

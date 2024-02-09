@@ -282,10 +282,6 @@ indexed_complete
 ```
 
 ```@docs
-indexed_complete
-```
-
-```@docs
 split_sums
 ```
 
@@ -302,15 +298,7 @@ indexed_complete!
 ```
 
 ```@docs
-indexed_complete!
-```
-
-```@docs
 evalME
-```
-
-```@docs
-scaleME
 ```
 
 ```@docs
@@ -323,4 +311,15 @@ indexed_meanfield
 
 ```@docs
 subst_reds
+```
+
+
+## [Measurement Backaction](@id API: Measurement Backaction)
+
+```@docs
+MeanfieldNoiseEquations
+```
+
+```@docs
+IndexedMeanfieldNoiseEquations
 ```
