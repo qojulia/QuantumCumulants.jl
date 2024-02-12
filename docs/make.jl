@@ -37,7 +37,7 @@ makedocs(
                             footer="[**Back to GitHub**](https://github.com/qojulia/QuantumCumulants.jl)",
                             example_size_threshold = 800 * 2^10,
                             size_threshold_warn = 400 * 2^10,
-                            size_threshold = 500 * 2^10,
+                            size_threshold = 600 * 2^10,
                             )
     )
 
