@@ -49,7 +49,7 @@ pe = getindex.(sol.u,2)
 @test all(1.0 .>= real.(pe) .>= 0.0)
 
 prob_ss = SteadyStateProblem(prob)
-sol_ss = solve(prob_ss, DynamicSS(Tsit5(), abstol=1e-5, reltol=1e-5), abstol=1e-6, reltol=1e-6)
+sol_ss = solve(prob_ss, DynamicSS(Tsit5()), abstol=1e-6, reltol=1e-6)
 
 @test isapprox(sol_ss[a'*a], sol[a'a][end], atol=1e-4)
 

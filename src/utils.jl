@@ -443,17 +443,20 @@ end
 # Overload getindex to obtain solutions with averages
 for T ∈ [:AbstractTimeseriesSolution,:AbstractNoTimeSolution]
     @eval function Base.getindex(sol::SciMLBase.$(T), avg::Average)
-        tsym = sol.prob.f.indepsym # This is a bit hacky
-        t = SymbolicUtils.Sym{Real}(tsym)
-        syms = SciMLBase.getsyms(sol)
+        ode_func = sol.prob.f
+        t = MTK.get_iv(ode_func.sys)
+        vars = SciMLBase.getsyms(sol)
         var = make_var(avg, t)
-        sym = Symbolics.tosymbol(var)
-        if sym∈syms
+        
+        if any(isequal(var), vars)
+            # sucess, we found the symbol
             return getindex(sol, var)
-        else
-            var_ = make_var(_conj(avg), t)
-            return map(conj, getindex(sol, var_))
         end
+
+        # couldn't find the symbol, so let's assume we have a conjugate here
+        var = make_var(_conj(avg), t)
+        !any(isequal(var), vars) && throw(ArgumentError("The average $avg isn't part of the system!"))
+        return map(conj, getindex(sol, var))
     end
     @eval Base.getindex(sol::SciMLBase.$(T), op::QNumber) = getindex(sol, average(op))
 end

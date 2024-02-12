@@ -134,6 +134,11 @@ function take_function_averages(rhs, simplify)
     return rhs_avg, map(undo_average, rhs_avg)
 end
 
+"""
+    IndexedMeanfieldNoiseEquations
+
+Like a [`MeanfieldNoiseEquations`](@ref), but with symbolic indices.
+"""
 struct IndexedMeanfieldNoiseEquations <: AbstractMeanfieldEquations 
     equations::Vector{Symbolics.Equation}
     operator_equations::Vector{Symbolics.Equation}
