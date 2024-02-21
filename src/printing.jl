@@ -15,6 +15,7 @@ Base.show(io::IO,x::QSym) = write(io, x.name)
 Base.show(io::IO,x::Create) = write(io, string(x.name, "′"))
 Base.show(io::IO,x::Transition) = write(io, Symbol(x.name,x.i,x.j))
 Base.show(io::IO,x::Sigma) = write(io, Symbol(x.name,xyz_sym[x.axis]))
+Base.show(io::IO,x::CollectiveSigma) = write(io, Symbol(x.name,xyz_sym[x.axis]))
 
 show_brackets = Ref(true)
 function Base.show(io::IO,x::QTerm)

@@ -34,6 +34,9 @@ function _postwalk_func(x)
     elseif MacroTools.@capture(x, Sigma(arg_,i_,))
         s = "{$(arg)}$(transition_idx_script[]){{$(i)}}"
         return s
+    elseif MacroTools.@capture(x, CollectiveSigma(arg_,i_,))
+        s = "{$(arg)}$(transition_idx_script[]){{$(i)}}"
+        return s
     elseif MacroTools.@capture(x,IndexedVariable(name_,ind_))
         s = "{$name}$(:_){$(ind)}"
         return s
@@ -192,6 +195,7 @@ _to_expression(op::Create) = :(dagger($(op.name)))
 _to_expression(op::Transition) = :(Transition($(op.name),$(op.i),$(op.j)) )
 xyz_sym=[:x,:y,:z]
 _to_expression(op::Sigma) = :(Sigma($(op.name),$(xyz_sym[op.axis])))
+_to_expression(op::CollectiveSigma) = :(CollectiveSigma($(op.name),$(xyz_sym[op.axis])))
 function _to_expression(t::QMul)
     args = if SymbolicUtils._isone(t.arg_c)
         t.args_nc

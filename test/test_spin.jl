@@ -113,3 +113,44 @@ s1xs2y_ = sol_[σ1(1)*σ2(2)][end]
 @test isapprox(s1xs2y, s1xs2y_; atol=1e-5)
 
 end # testset
+
+### collective spin ###
+hcs1 = CollectiveSpinSpace(:Spin1)
+hcs2 = CollectiveSpinSpace(:Spin2)
+h = hcs1 ⊗ hcs2
+
+S(axis) = CollectiveSigma(hcs1, :S, axis) # axis ∈ [1,2,3] → [x,y,z]
+
+S(1)==S(:x)
+S(2)==S(:Y)
+S(:z)==S(:Z)
+S(1)≠S(2)
+
+isequal(simplify(S(:x)*S(:y) - S(:y)*S(:x)), 1im*S(:z))
+isequal(simplify(S(:x)*S(:z) - S(:z)*S(:x)), -1im*S(:y))
+isequal(simplify(S(:y)*S(:z) - S(:z)*S(:y)), 1im*S(:1))
+
+isequal(S(:x)*S(:y), 1*S(:x)*S(:y))
+!isequal(S(:x)*S(:y), S(:x)*S(:z))
+isequal(S(1)*S(1), (S(1))^2)
+isequal(simplify(S(1) + S(2)), simplify(S(2) + S(1)))
+
+# error
+2*S(1)*S(2)*S(3)
+S(1)*S(3)*S(2)
+((5*S(1))*S(2) +1)*S(3)
+
+S(i, axis) = CollectiveSigma(h,Symbol(:S_,i), axis, i)
+Sx(i) = S(i, 1)
+Sy(i) = S(i, 2)
+Sz(i) = S(i, 3)
+
+isequal(Sx(2)*Sx(1), Sx(1)*Sx(2))
+isequal(Sy(2)*Sx(1), Sx(1)*Sy(2))
+isequal(Sz(2)*Sz(1), Sz(1)*Sz(2))
+isequal(simplify(Sy(1)Sz(2)Sx(1)), Sx(1)Sy(1)Sz(2) - 1im*Sz(1)*Sz(2))
+
+### TODO: 
+# time evolution: simple example, superradiant decay, farokh paper, Ramsey paper
+# compare with indexing
+# initial state
