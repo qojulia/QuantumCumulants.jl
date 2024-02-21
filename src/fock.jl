@@ -76,24 +76,22 @@ end
 Base.adjoint(op::Destroy) = Create(op.hilbert,op.name,acts_on(op); op.metadata)
 Base.adjoint(op::Create) = Destroy(op.hilbert,op.name,acts_on(op); op.metadata)
 
-# # Commutation relation in simplification
-# function *(a::Destroy,b::Create)
-#     check_hilbert(a,b)
-#     aon_a = acts_on(a)
-#     aon_b = acts_on(b)
-#     if aon_a == aon_b
-#         return b*a + 1
-#     elseif aon_a < aon_b
-#         return QMul(1, [a,b])
-#     else
-#         return QMul(1, [b,a])
-#     end
-# end
+# Commutation relation in simplification
+function *(a::Destroy,b::Create)
+    check_hilbert(a,b)
+    aon_a = acts_on(a)
+    aon_b = acts_on(b)
+    if aon_a == aon_b
+        return b*a + 1
+    elseif aon_a < aon_b
+        return QMul(1, [a,b])
+    else
+        return QMul(1, [b,a])
+    end
+end
 # ismergeable(::Destroy,::Create) = true
 
-
-
-# TODO: test id faster, delete if, elseif in *-function above
+# TODO: test if faster; delete if and elseif in *-function above?
 function ismergeable(a::Destroy,b::Create)
     aon_a = acts_on(a)
     aon_b = acts_on(b)
