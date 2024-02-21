@@ -51,7 +51,7 @@ function to_numeric(op::NumberedOperator,b::QuantumOpticsBase.CompositeBasis; ra
         end
     end
     start = 0
-    if !=(h,nothing) #this is fine here since there are assertions above
+    if h !== nothing #this is fine here since there are assertions above
         aon_ = acts_on(op)
         for i = 1:(aon_ - 1)
             start = start + ranges[i]
@@ -64,7 +64,7 @@ function to_numeric(op::NumberedOperator,b::QuantumOpticsBase.CompositeBasis; ra
         aon = op.numb + start
     end
     op_ = _to_numeric(op.op,b.bases[aon];kwargs...)
-    return QuantumOpticsBase.embed(b,aon,op_)
+    return QuantumOpticsBase.LazyTensor(b,[aon],(op_,))
 end
 #function that returns the conjugate of an average, but also preserving the correct ordering
 function _inconj(v::Average)

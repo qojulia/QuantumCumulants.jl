@@ -375,19 +375,46 @@ function to_numeric(op::QSym, b::QuantumOpticsBase.CompositeBasis; kwargs...)
     check_basis_match(op.hilbert, b; kwargs...)
     aon = acts_on(op)
     op_num = _to_numeric(op, b.bases[aon]; kwargs...)
-    return QuantumOpticsBase.embed(b, aon, op_num)
+    return QuantumOpticsBase.LazyTensor(b, aon, op_num)
 end
 
 # Symbolic expressions
 function to_numeric(op::QTerm, b::QuantumOpticsBase.Basis; kwargs...)
     f = SymbolicUtils.operation(op)
+    return _to_numeric_term(f, op, b; kwargs...)
+end
+
+function _to_numeric_term(f::Function, op, b; kwargs...)
     args = SymbolicUtils.arguments(op)
     return f((to_numeric(arg, b; kwargs...) for arg in args)...)
 end
 
+function _to_numeric_term(::typeof(*), op::QTerm, b::QuantumOpticsBase.Basis; kwargs...)
+    args = SymbolicUtils.arguments(op)
+    factor = 1
+    args_num = Any[]
+    for arg in args
+        if arg isa Number
+            factor *= arg
+        else
+            push!(args_num, to_numeric(arg, b; kwargs...))
+        end
+    end
+
+    if length(args_num) == 0
+        return factor * one(b)
+    end
+
+    return *(factor, args_num...)
+end
+
 function to_numeric(x::Number, b::QuantumOpticsBase.Basis; kwargs...)
-    op = one(b)*x
+    op = _lazy_one(b)*x
     return op
+end
+_lazy_one(b::QuantumOpticsBase.Basis) = one(b)
+function _lazy_one(b::QuantumOpticsBase.CompositeBasis)
+    LazyTensor(b, [1:length(b.bases);], Tuple(one(b_) for b_ in b.bases))
 end
 
 
