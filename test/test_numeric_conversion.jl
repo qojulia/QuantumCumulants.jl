@@ -57,7 +57,7 @@ op2_num = to_numeric(a'*σprod(1, 1), bprod)
 @test op2_num isa LazySum
 @test sparse(op2_num) == create(bfock) ⊗ transition(bnlevel, 1, 1)
 
-@test to_numeric(a'*a, bprod) == LazyTensor(bprod, [1,2], (create(bfock) * destroy(bfock), one(bnlevel)))
+@test to_numeric(a'*a, bprod) == LazyTensor(bprod, [1], (create(bfock) * destroy(bfock),))
 
 # Composite basis with symbolic levels
 σsym_prod(i,j) = Transition(hfock ⊗ hnlevel_sym, :σ, i, j)

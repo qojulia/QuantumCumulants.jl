@@ -235,6 +235,124 @@ nothing # hide
 Now, the state of the system at each time-step is stored in `sol.u`. To access one specific solution, you can simply type e.g. `sol[average(a)]` to obtain the time evolution of the expectation value ``\langle a \rangle``.
 
 
+### Calculating the initial state
+
+When trying to solve a system of equations numerically, it can sometimes become tricky to find the correct initial state.
+In the above, we simply did `u0 = zeros(ComplexF64, length(me))`, since that was a viable initial state.
+However, things become more involved when you have, say, a superposition of two coherent states in a harmonic oscillator as starting point,
+
+```math
+|\psi_0\rangle = \frac{1}{\sqrt{2}} \left( |\alpha\rangle + |\beta\rangle \right),
+```
+
+where $\alpha, \beta \in \mathbb{C}$ are the respective complex amplitudes.
+While computing the first-order expectation values such as `\langle \psi_0 | a |\psi_0\rangle` is still simple enough, things become more tricky in higher orders and when mixing in another Hilbert space (e.g. an atom in a cavity).
+Since the system of equations can become quite large, this may result in quite some manual effort when trying to calculate all initial values.
+And we hate manual effort.
+
+These expectations values are, however, only difficult to calculate symbolically, yet are easy enough to compute numerically.
+QuantumCumulants therefore offers a convenient integration to [QuantumOpticsBase.jl](https://github.com/qojulia/QuantumOpticsBase.jl), which allows you to quickly calculate the initial expectation values of a system of equations from a given numerical initial state.
+The function is called [`initial_values`](@ref).
+For example, we could use it in the above example to compute a coherent initial states
+
+```@example meanfield
+using QuantumOpticsBase
+b = FockBasis(10)
+alpha = 0.3 + 0.4im
+psi_0 = coherentstate(b, alpha)
+u0 = initial_values(me, psi_0)
+nothing # hide
+```
+
+Note that you can also compute initial values for mixed states.
+You simply have to use a density operator in the function call.
+
+```@example meanfield
+u0 = initial_values(me, dm(psi_0))
+nothing # hide
+```
+
+#### Mapping levels for `NLevelSpace`
+
+The conversion to a numeric representation between [`FockSpace`](@ref) and `FockBasis` is always uniquely defined.
+However, there is some freedom of choice when it comes to [`NLevelSpace`](@ref) and the equivalent of `NLevelBasis`, specifically when using symbolic levels.
+While it is clear that a symbolic [`Transition`](@ref) operator should map to a numeric `transition`, the choice of which level represents maps to which basis state in the `NLevelBasis` is not fixed.
+
+When using numeric level representations, the [`initial_values`](@ref) and [`to_numeric`](@ref) methods default to using the same numbered basis state:
+
+```@example levelmap
+using QuantumCumulants, QuantumOpticsBase
+h = NLevelSpace(:TwoLevelAtom, (1, 2))
+b = NLevelBasis(2)
+s = Transition(h, :s, 1, 2)
+@assert to_numeric(s, b) == transition(b, 1, 2)
+nothing # hide
+```
+
+The order here can be overridden using the `level_map` keyword.
+When using symbolic levels, the `level_map` keyword is required.
+
+```@example levelmap2
+using QuantumCumulants, QuantumOpticsBase
+h = NLevelSpace(:TwoLevelAtom, (:g, :e))
+b = NLevelBasis(2)
+s = Transition(h, :s, :g, :e)
+level_map = Dict(:g => 1, :e => 2)
+@assert to_numeric(s, b; level_map=level_map) == transition(b, 1, 2)
+nothing # hide
+```
+
+#### Numeric averages and conversion
+
+While the examples so far were relatively simple and would have been easy to calculate by hand, things quickly become more difficult whenever product spaces and higher-order products are involved.
+
+Behind the scenes, [`initial_values`](@ref) just uses the [`numeric_average`](@ref) method in order to compute the numeric expectation value for the given operators and states.
+This method in turn calls into the numeric conversion [`to_numeric`](@ref) and then uses `QuantumOpticsBase.expect` on the result in order to calculate the respective expectation values for the given state and operators numerically.
+Should you need to compute numerical averages from a symbolic one for a given numerical state you can also call [`numeric_average`](@ref) directly.
+
+```@example tonumeric
+using QuantumCumulants, QuantumOpticsBase
+hfock = FockSpace(:cavity)
+hnlevel = NLevelSpace(:ThreeLevelAtom, (:a, :b, :c))
+h = hfock ⊗ hnlevel
+a = Destroy(h, :a)
+s = Transition(h, :s, :a, :c)
+levelmap = Dict(
+    :a => 3,
+    :b => 2,
+    :c => 1,
+)
+
+bfock = FockBasis(10)
+bnlevel = NLevelBasis(3)
+psi = coherentstate(bfock, 0.3) ⊗ (nlevelstate(bnlevel, 1) + nlevelstate(bnlevel, 3)) / sqrt(2)
+
+avg = average(a' * s)
+avg_num = numeric_average(avg, psi; level_map=levelmap)
+nothing # hide
+```
+
+Similarly, you can also just obtain the numerical representation of an operator by directly calling [`to_numeric`](@ref) and a given basis.
+
+```@example tonumeric
+b = bfock ⊗ bnlevel
+a_num = to_numeric(a, b)
+nothing # hide
+```
+
+Note that [`to_numeric`](@ref) returns a `SparseOperator` for single operators, but a `LazyTensor` operator whenever a product space is involved.
+Lazy evaluation of tensor products is incredibly useful here, as symbolically easy to treat systems can become quite large numerically.
+
+When a large number of Hilbert spaces is involved, it can even become tricky to store a single `Ket`.
+In order to overcome this limitation, QuantumOpticsBase also offers lazy evaluation of state products, allowing you to compute expectation values and initial states for very large product states.
+
+```@example tonumeric
+psi_lazy = LazyKet(b, (coherentstate(bfock, 0.3), (nlevelstate(bnlevel, 1) + nlevelstate(bnlevel, 3)) / sqrt(2)),)
+avg_num_lazy = numeric_average(avg, psi_lazy; level_map=levelmap)
+@assert isapprox(avg_num, avg_num_lazy)
+```
+
+
 ## [The *q*-number interface](@id interface)
 
 While there are currently only two different Hilbert spaces and two different types of fundamental operators implemented, their implementations are somewhat generic. This means that one can implement custom operator types along with some commutation relations for rewriting. The requirements for that are:
@@ -287,10 +405,9 @@ Now, for methods we simply need:
 
 ```@example custom-operators
 QuantumCumulants.ismergeable(::Position,::Momentum) = true
-Base.:*(x::Position,p::Momentum) = im + p*x
-for T in (:Position, :Momentum)
-    @eval Base.isequal(a::$T, b::$T) = isequal(a.hilbert, b.hilbert) && isequal(a.name, b.name) && isequal(a.aon, b.aon)
-end
+Base.:*(x::Position, p::Momentum) = im + p*x
+Base.isequal(a::Position, b::Position) = isequal(a.hilbert, b.hilbert) && isequal(a.name, b.name) && isequal(a.aon, b.aon)
+Base.isequal(a::Momentum, b::Momentum) = isequal(a.hilbert, b.hilbert) && isequal(a.name, b.name) && isequal(a.aon, b.aon)
 ```
 
 The `Base.isequal` methods do not compare metadata fields. Note that if your subtypes of 
