@@ -234,7 +234,11 @@ eqs_sc = scale(eqs_c)
 @test_throws ArgumentError initial_values(eqs_sc, ψ)
 
 u0 = initial_values(eqs_sc, ψ; ranges=ranges)
-@test u0 ≈ initial_values(eqs_sc, ψlazy; ranges=ranges)
+
+if isdefined(QuantumOpticsBase, :LazyKet)
+    ψlazy = LazyKet(b, (ψc, (ψa for i=1:order)...,))
+    @test u0 ≈ initial_values(eqs_sc, ψlazy; ranges=ranges)
+end
 
 N_ = 2e5
 Γ_ = 1.0 #Γ=1mHz
