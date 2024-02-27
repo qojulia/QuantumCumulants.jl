@@ -245,16 +245,14 @@ j1 = Index(h_,:j1,N_f,hfock)
 ai(i) = IndexedOperator(Destroy(h_,:a),i)
 σi(i,j,k) = IndexedOperator(Transition(h_,:σ,i,j),k)
 
-@test to_numeric(ai(1),b_;ranges=ranges) isa Operator
-@test to_numeric(ai(1),b_;ranges=ranges) == QuantumOpticsBase.embed(b_,5,destroy(bfock))
-@test to_numeric(ai(2),b_;ranges=ranges) == QuantumOpticsBase.embed(b_,6,destroy(bfock))
-@test to_numeric(σi(1,2,4),b_;ranges=ranges) isa Operator
-@test to_numeric(σi(1,2,4),b_;ranges=ranges) == QuantumOpticsBase.embed(b_,4,transition(bnlevel,1,2))
+@test to_numeric(ai(1),b_;ranges=ranges) == LazyTensor(b_, [5], (destroy(bfock),))
+@test to_numeric(ai(2),b_;ranges=ranges) == LazyTensor(b_, [6], (destroy(bfock),))
+@test to_numeric(σi(1,2,4),b_;ranges=ranges) == LazyTensor(b_, [4], (transition(bnlevel,1,2),))
 @test_throws MethodError to_numeric(σi(1,2,5),b_;ranges=ranges)
 
 ai2(i) = IndexedOperator(Destroy(hfock,:a),i)
-@test to_numeric(ai2(1),b_2;ranges=[2]) isa Operator
-@test to_numeric(ai2(2),b_2;ranges=[2]) isa Operator
+@test to_numeric(ai2(1),b_2;ranges=[2]) isa LazyTensor
+@test to_numeric(ai2(2),b_2;ranges=[2]) isa LazyTensor
 @test_throws BoundsError to_numeric(ai2(3),b_2;ranges=[2])
 
 # Indices and only one HilbertSpace
