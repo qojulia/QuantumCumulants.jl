@@ -46,7 +46,7 @@ eqs2_c = complete(eqs2, order=2)
 @test length(eqs2_c) == 14
 
 # Time evolution driven Dicke model
-@cnumbers Δ g κ η
+@cnumbers Δ_ g κ η
 hf = FockSpace(:cavity)
 ha1 = NLevelSpace(:atom1,2)
 ha2 = NLevelSpace(:atom2,2)
@@ -54,13 +54,13 @@ h = hf ⊗ ha1 ⊗ ha2
 a = Destroy(h,:a)
 s1(i,j) = Transition(h,:s1,i,j,2)
 s2(i,j) = Transition(h,:s2,i,j,3)
-H = Δ*a'*a + g*(a' + a)*(s1(2,1) + s1(1,2) + s2(2,1) + s2(1,2)) + η*(a' + a)
+H = Δ_*a'*a + g*(a' + a)*(s1(2,1) + s1(1,2) + s2(2,1) + s2(1,2)) + η*(a' + a)
 J = [a]
 rates = [κ]
 #
 eq = meanfield(a'a,H,J;rates=rates,order=2)
 eqs = complete(eq)
-ps = [Δ, g, κ, η]
+ps = [Δ_, g, κ, η]
 @named sys = ODESystem(eqs)
 u0 = zeros(ComplexF64, length(eqs))
 p0 = [0.5, 1.0, 1.25, 0.85]
@@ -81,14 +81,14 @@ h_ = hf ⊗ hs1 ⊗ hs2
 a2 = Destroy(h_,:a2)
 σ1(axis) = Sigma(h_,:σ1,axis,2)
 σ2(axis) = Sigma(h_,:σ2,axis,3)
-H = Δ*a2'*a2 + g*(a2' + a2)*(σ1(1) + σ2(1)) + η*(a2' + a2)
+H = Δ_*a2'*a2 + g*(a2' + a2)*(σ1(1) + σ2(1)) + η*(a2' + a2)
 J = [a2]
 rates = [κ]
 #
 eq_ = meanfield([σ1(3), σ2(3), σ1(3)*σ2(3)],H,J;rates=rates,order=2)
 eqs_ = complete(eq_)
 eqs_.states
-ps = [Δ, g, κ, η]
+ps = [Δ_, g, κ, η]
 @named sys_ = ODESystem(eqs_)
 u0_ = zeros(ComplexF64, length(eqs_))
 u0_[1] = u0_[2] = -1

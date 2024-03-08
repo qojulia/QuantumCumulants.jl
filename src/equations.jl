@@ -35,7 +35,7 @@ struct MeanfieldEquations <: AbstractMeanfieldEquations
     jumps::Vector
     jumps_dagger
     rates::Vector
-    iv::SymbolicUtils.BasicSymbolic
+    iv::MTK.Num
     varmap::Vector{Pair}
     order::Union{Int,Vector{<:Int},Nothing}
 end
@@ -73,7 +73,7 @@ struct IndexedMeanfieldEquations <: AbstractMeanfieldEquations #these are for ea
     jumps::Vector
     jumps_dagger
     rates::Vector
-    iv::SymbolicUtils.BasicSymbolic
+    iv::MTK.Num
     varmap::Vector{Pair}
     order::Union{Int,Vector{<:Int},Nothing}
 end
@@ -111,7 +111,7 @@ struct EvaledMeanfieldEquations <: AbstractMeanfieldEquations
     jumps::Vector
     jumps_dagger
     rates::Vector
-    iv::SymbolicUtils.BasicSymbolic
+    iv::MTK.Num
     varmap::Vector{Pair}
     order::Union{Int,Vector{<:Int},Nothing}
 end
@@ -198,7 +198,7 @@ struct ScaledMeanfieldEquations <: AbstractMeanfieldEquations
     jumps::Vector
     jumps_dagger
     rates::Vector
-    iv::SymbolicUtils.BasicSymbolic
+    iv::MTK.Num
     varmap::Vector{Pair}
     order::Union{Int,Vector{<:Int},Nothing}
     scale_aons

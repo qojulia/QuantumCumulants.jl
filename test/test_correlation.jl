@@ -28,7 +28,7 @@ ps = (Δ, g, γ, κ, ν)
 # Numerical solution
 # p0 = [0.0,0.5,1.0,0.1,0.9]
 p0 = ps .=> ComplexF64[1, 1.5, 0.25, 1, 4]
-u0 = states(sys) .=> zeros(ComplexF64,length(he_comp))
+u0 = unknowns(sys) .=> zeros(ComplexF64,length(he_comp))
 tmax = 10.0
 
 prob = ODEProblem(sys,u0,(0.0,tmax),p0)
@@ -153,7 +153,7 @@ ps = (ωc,κ)
 @named sys = ODESystem(he)
 n0 = 20.0
 u0 = [n0]
-p0 = (1 + 0im, 1 + 0im)
+p0 = (ωc => 1 + 0im, κ => 1 + 0im)
 prob = ODEProblem(sys,u0,(0.0,10.0),p0)
 sol = solve(prob,RK4())
 
@@ -166,7 +166,7 @@ sol_c = solve(prob_c,RK4(),save_idxs=1)
 # plot(sol_c.t,real.(sol_c.u), label="Re(g) -- numeric")
 # plot(sol_c.t,imag.(sol_c.u), label="Im(g) -- numeric")
 
-gfunc(τ) = @. sol.u[idx] * exp((im*p0[1]-0.5p0[2])*τ)
+gfunc(τ) = @. sol.u[idx] * exp((im*p0[1][2]-0.5p0[2][2])*τ)
 # plot(sol_c.t, real.(gfunc(sol_c.t)), ls="dashed", label="Re(g) -- analytic")
 # plot(sol_c.t, imag.(gfunc(sol_c.t)), ls="dashed", label="Re(g) -- analyitc")
 # legend()

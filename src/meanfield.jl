@@ -31,7 +31,7 @@ equivalent to the Quantum-Langevin equation where noise is neglected.
     If `nothing`, this step is skipped.
 *`mix_choice=maximum`: If the provided `order` is a `Vector`, `mix_choice` determines
     which `order` to prefer on terms that act on multiple Hilbert spaces.
-*`iv=SymbolicUtils.Sym{Real}(:t)`: The independent variable (time parameter) of the system.
+*`iv=ModelingToolkit.t`: The independent variable (time parameter) of the system.
 """
 function meanfield(a::Vector,H,J;kwargs...)
     inds = vcat(get_indices(a),get_indices(H),get_indices(J))
@@ -50,7 +50,8 @@ function _meanfield(a::Vector,H,J;Jdagger::Vector=adjoint.(J),rates=ones(Int,len
                     simplify=true,
                     order=nothing,
                     mix_choice=maximum,
-                    iv=SymbolicUtils.Sym{Real}(:t)) # this creates with Symbolics v5.0 a BasicSymbolic, not a Sym anymore
+                    iv=MTK.t_nounits
+                    )
 
     if rates isa Matrix
         J = [J]; Jdagger = [Jdagger]; rates = [rates]

@@ -16,7 +16,7 @@ struct MeanfieldNoiseEquations <: AbstractMeanfieldEquations
     jumps_dagger
     rates::Vector
     efficiencies::Vector
-    iv::SymbolicUtils.BasicSymbolic
+    iv::MTK.Num
     varmap::Vector{Pair}
     order::Union{Int,Vector{<:Int},Nothing}
 end
@@ -61,7 +61,8 @@ function _meanfield_backaction(a::Vector,H,J;Jdagger::Vector=adjoint.(J),rates=o
     simplify=true,
     order=nothing,
     mix_choice=maximum,
-    iv=SymbolicUtils.Sym{Real}(:t)) # this creates with Symbolics v5.0 a BasicSymbolic, not a Sym anymore
+    iv=MTK.t_nounits
+    )
 
     if rates isa Matrix
         J = [J]; Jdagger = [Jdagger]; rates = [rates]

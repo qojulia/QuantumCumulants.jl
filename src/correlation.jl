@@ -206,6 +206,7 @@ function Spectrum(c::CorrelationFunction, ps=[]; w=Parameter(:ω), kwargs...)
     lhs = getfield.(de.equations, :lhs)
     rhs = getfield.(de.equations, :rhs)
     lhs0 = getfield.(de0.equations, :lhs)
+    ps_ = _unpack_parameters(ps)
     A,b,c_,Afunc,bfunc,cfunc = _build_spec_func(w, lhs, rhs, c.op2_0, c.op2, lhs0, ps; kwargs...)
     return Spectrum(c, Afunc, bfunc, cfunc, A, b, c_)
 end
@@ -271,7 +272,7 @@ function (s::Spectrum)(ω_ls,usteady,ps=[];wtol=0)
 end
 
 # Convert to ODESystem
-function MTK.ODESystem(c::CorrelationFunction; kwargs...)
+function MTK.ODESystem(c::CorrelationFunction; complete_sys = true, kwargs...)
     τ = MTK.get_iv(c.de)
 
     ps = []
@@ -343,7 +344,8 @@ function MTK.ODESystem(c::CorrelationFunction; kwargs...)
     end
 
     eqs = MTK.equations(de_)
-    return MTK.ODESystem(eqs, τ; kwargs...)
+    sys = MTK.ODESystem(eqs, τ; kwargs...)
+    return complete_sys ? complete(sys) : sys
 end
 
 substitute(c::CorrelationFunction, args...; kwargs...) =

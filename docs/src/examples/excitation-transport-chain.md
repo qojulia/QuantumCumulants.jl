@@ -133,7 +133,7 @@ tspan = range(0.0, sol.t[end], length=101)
 pops_avg = zeros(length(tspan), N)
 for i=1:N, j=1:trajectories
     sol_ = sim.u[j].(tspan)  # interpolate solution
-    p_idx = findfirst(isequal(average(σ(:e,:e,i))), states(eqs))
+    p_idx = findfirst(isequal(average(σ(:e,:e,i))), unknowns(eqs))
     pop = [u[p_idx] for u ∈ sol_]
     @. pops_avg[:,i] += pop / trajectories
 end

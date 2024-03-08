@@ -151,7 +151,7 @@ struct IndexedMeanfieldNoiseEquations <: AbstractMeanfieldEquations
     jumps_dagger
     rates::Vector
     efficiencies::Vector
-    iv::SymbolicUtils.BasicSymbolic
+    iv::MTK.Num
     varmap::Vector{Pair}
     order::Union{Int,Vector{<:Int},Nothing}
 end
@@ -198,7 +198,7 @@ See also: [`indexed_meanfield`](@ref).
     If `nothing`, this step is skipped.
 *`mix_choice=maximum`: If the provided `order` is a `Vector`, `mix_choice` determines
     which `order` to prefer on terms that act on multiple Hilbert spaces.
-*`iv=SymbolicUtils.Sym{Real}(:t)`: The independent variable (time parameter) of the system.
+*`iv=ModelingToolkit.t`: The independent variable (time parameter) of the system.
 """
 function indexed_meanfield_backaction(a::Vector,H,J;Jdagger::Vector=adjoint.(J),
     rates=ones(Int,length(J)), 
@@ -207,7 +207,7 @@ function indexed_meanfield_backaction(a::Vector,H,J;Jdagger::Vector=adjoint.(J),
     simplify::Bool=true,
     order=nothing,
     mix_choice=maximum,
-    iv=SymbolicUtils.Sym{Real}(:t),
+    iv=MTK.t_nounits,
     kwargs...)
 
     check_index_collision(a, H, J)

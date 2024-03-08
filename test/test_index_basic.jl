@@ -247,7 +247,7 @@ ai(i) = IndexedOperator(Destroy(h_,:a),i)
 
 @test to_numeric(ai(1),b_;ranges=ranges) == LazyTensor(b_, [5], (destroy(bfock),))
 @test to_numeric(ai(2),b_;ranges=ranges) == LazyTensor(b_, [6], (destroy(bfock),))
-@test to_numeric(σi(1,2,4),b_;ranges=ranges) == LazyTensor(b_, [4], (transition(bnlevel,1,2),))
+@test to_numeric(σi(1,2,4),b_;ranges=ranges) == LazyTensor(b_, [4], (QuantumOpticsBase.transition(bnlevel,1,2),))
 @test_throws MethodError to_numeric(σi(1,2,5),b_;ranges=ranges)
 
 ai2(i) = IndexedOperator(Destroy(hfock,:a),i)
