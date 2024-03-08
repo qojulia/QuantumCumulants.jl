@@ -144,13 +144,65 @@ S(i, axis) = CollectiveSigma(h,Symbol(:S_,i), axis, i)
 Sx(i) = S(i, 1)
 Sy(i) = S(i, 2)
 Sz(i) = S(i, 3)
+Sm(i) = Sx(i) - 1im*Sy(i)
+Sp(i) = Sx(i) + 1im*Sy(i)
 
 isequal(Sx(2)*Sx(1), Sx(1)*Sx(2))
 isequal(Sy(2)*Sx(1), Sx(1)*Sy(2))
 isequal(Sz(2)*Sz(1), Sz(1)*Sz(2))
 isequal(simplify(Sy(1)Sz(2)Sx(1)), Sx(1)Sy(1)Sz(2) - 1im*Sz(1)*Sz(2))
 
+
+### simple time evolution 
+@cnumbers δcs Ωcs gcs Γcs
+Hcs1 = δcs/2*Sz(1)
+Jcs1 = [Sm(1)]
+Rcs1 = [Γcs]
+
+ops_cs1 = [Sx(1), Sy(1), Sz(1)]
+eqs_cs1 = meanfield(ops_cs1,Hcs1,Jcs1;rates=Rcs1,order=2)
+eqs_cs1_c = complete(eqs_cs1)
+@named sys_cs1 = ODESystem(eqs_cs1_c)
+
+eqs_cs1_c.states
+u0_cs1 = zeros(ComplexF64, length(eqs_cs1_c))
+# TODO: automate the following via QO.jl
+Ncs1 = 20
+Ncs1_ = Ncs1/2
+u0_cs1[3] = Ncs1_ # z
+u0_cs1[6] = u0_cs1[7] = Ncs1_ # xx, yy
+u0_cs1[8] = 1im*Ncs1_ # xy
+u0_cs1[9] = Ncs1_*Ncs1_ # zz
+
+ps_cs1 = [δcs, Γcs]
+p0_cs1 = [0, 1]
+prob_cs1 = ODEProblem(sys_cs1,u0_cs1,(0.0, 1.0), ps_cs1.=>p0_cs1)
+sol_cs1 = solve(prob_cs1,Tsit5(),abstol=1e-8,reltol=1e-8)
+
+# TODO: write test 
+
+# using PyPlot; pygui(true)
+# plot(sol_cs1.t, getindex.(sol_cs1.u,3))
+# sol_cs1[Sz(1)] # TODO: error
+
+
+# ### collective spin definition (factor 1/2 in sum of atoms?)
+# Ncs1_ = 200
+# using QuantumOptics
+# b = SpinBasis(Ncs1_/2)
+# ψ0 = spinup(b)
+# expect(sigmax(b)/2, ψ0)
+# expect(sigmay(b)/2, ψ0)
+# expect(sigmaz(b)/2, ψ0)
+# expect(sigmax(b)/2*sigmax(b)/2, ψ0)
+# expect(sigmay(b)/2*sigmay(b)/2, ψ0)
+# expect(sigmax(b)/2*sigmay(b)/2, ψ0)
+# expect(sigmax(b)/2*sigmaz(b)/2, ψ0)
+# expect(sigmaz(b)/2*sigmaz(b)/2, ψ0)
+
 ### TODO: 
-# time evolution: simple example, superradiant decay, farokh paper, Ramsey paper
+# time evolution: simple example, superradiant decay, farokh paper, 
+#   Ramsey paper, Martin paper with coherent coupling
 # compare with indexing
 # initial state
+# first order with initial seed
