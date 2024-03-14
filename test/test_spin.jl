@@ -186,19 +186,23 @@ sol_cs1 = solve(prob_cs1,Tsit5(),abstol=1e-8,reltol=1e-8)
 # sol_cs1[Sz(1)] # TODO: error
 
 
-# ### collective spin definition (factor 1/2 in sum of atoms?)
-# Ncs1_ = 200
-# using QuantumOptics
-# b = SpinBasis(Ncs1_/2)
-# ψ0 = spinup(b)
-# expect(sigmax(b)/2, ψ0)
-# expect(sigmay(b)/2, ψ0)
-# expect(sigmaz(b)/2, ψ0)
-# expect(sigmax(b)/2*sigmax(b)/2, ψ0)
-# expect(sigmay(b)/2*sigmay(b)/2, ψ0)
-# expect(sigmax(b)/2*sigmay(b)/2, ψ0)
-# expect(sigmax(b)/2*sigmaz(b)/2, ψ0)
-# expect(sigmaz(b)/2*sigmaz(b)/2, ψ0)
+### collective spin definition (factor 1/2 in sum of atoms?)
+Ncs1_ = 200
+using QuantumOptics
+b = SpinBasis(Ncs1_/2)
+ψ0 = spinup(b)
+expect(sigmax(b)/2, ψ0)
+expect(sigmay(b)/2, ψ0)
+expect(sigmaz(b)/2, ψ0)
+expect(sigmax(b)/2*sigmax(b)/2, ψ0)
+expect(sigmay(b)/2*sigmay(b)/2, ψ0)
+expect(sigmax(b)/2*sigmay(b)/2, ψ0)
+expect(sigmax(b)/2*sigmaz(b)/2, ψ0)
+expect(sigmaz(b)/2*sigmaz(b)/2, ψ0)
+expect(sigmaz(b)/2*sigmaz(b)/2*sigmaz(b)/2, ψ0)
+expect(sigmax(b)/2*sigmax(b)/2*sigmaz(b)/2, ψ0)
+expect(sigmax(b)/2*sigmax(b)/2*sigmax(b)/2, ψ0)
+
 
 ### TODO: 
 # time evolution: simple example, superradiant decay, farokh paper, 
