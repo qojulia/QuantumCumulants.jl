@@ -674,6 +674,14 @@ function change_index(term::BasicSymbolic{<:CNumber},from::Index,to::Index)
     end
     return term
 end
+# issue 196: TODO:test
+function change_index(S::SingleSum, i::Index, j::Index) 
+    (j ∈ S.non_equal_indices) && error("Index $(j) is in the non-equal index list.")
+    if S.sum_index == i
+        return SingleSum(change_index(S.term,i,j), j, replace(S.non_equal_indices, i=>j), S.metadata)
+    end        
+    return S
+end
 change_index(x,from::Index,to::Index) = x
 
 ismergeable(a::IndexedOperator,b::IndexedOperator) = isequal(a.ind,b.ind) ? ismergeable(a.op,b.op) : false
