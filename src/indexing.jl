@@ -661,7 +661,15 @@ function change_index(term::BasicSymbolic{<:CNumber},from::Index,to::Index)
         end
         if op === ^
             args = arguments(term)
-            return change_index(args[1],from,to)^args[2]
+            return change_index(args[1],from,to)^change_index(args[2],from,to)
+        end
+        # issue 198
+        if op === /
+            args = arguments(term)
+            return change_index(args[1],from,to)/change_index(args[2],from,to)
+        end
+        if length(arguments(term)) == 1 # exp, sin, cos, ln, ...
+            return op(change_index(arguments(term)[1],from,to))
         end
     end
     return term
