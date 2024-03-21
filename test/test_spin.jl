@@ -32,8 +32,8 @@ sx(1) == σx(1)
 @test isequal(σz(2)*σz(1), σz(1)*σz(2))
 
 @cnumbers J
-Δ(i) = cnumber(Symbol(:Δ_,i))
-H = Δ(1)*σz(1) + Δ(2)*σz(2) + J*σx(1)*σx(2)
+Δi(i) = cnumber(Symbol(:Δ_,i))
+H = Δi(1)*σz(1) + Δi(2)*σz(2) + J*σx(1)*σx(2)
 
 ops = [σz(1)]
 eqs = meanfield(ops, H)
