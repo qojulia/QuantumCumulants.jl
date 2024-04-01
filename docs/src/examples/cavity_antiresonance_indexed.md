@@ -156,8 +156,8 @@ for i=1:length(Δ_ls)
 
     # create new SteadyStateProblem
     prob_ss_ = remake(prob_ss, p=p0_[p_idx])
-    sol_ss = solve(prob_ss_, DynamicSS(Tsit5(); abstol=1e-8, reltol=1e-8),
-        reltol=1e-14, abstol=1e-14, maxiters=5e7)
+    sol_ss = solve(prob_ss_, DynamicSS(Tsit5(); abstol=1e-6, reltol=1e-6),
+        reltol=1e-12, abstol=1e-12, maxiters=1e7)
     n_ls[i] = abs2(sol_ss[a])
 end
 nothing #hide
