@@ -111,12 +111,8 @@ function prob_func(prob,i,repeat)
     # Define the new set of parameters
     x_ = x0 .+ s.*randn(N)
     p_ = [γ => 1.0; Δ => 0.0; Ω => 2.0; J0 => 1.25; x .=> x_;]
-
-    # Convert to numeric values only
-    pnum = ModelingToolkit.varmap_to_vars(p_,parameters(sys))
-
     # Return new ODEProblem
-    return remake(prob, p=pnum)
+    return remake(prob, p=p_)
 end
 
 trajectories = 50
