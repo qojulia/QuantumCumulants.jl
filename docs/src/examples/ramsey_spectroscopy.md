@@ -22,7 +22,7 @@ Beside defining the symbolic parameters we additionally need to [register](https
 ```@example ramsey
 @cnumbers Δ Ω Γ ν
 @syms t::Real
-@register f(t)
+@register_symbolic f(t)
 ```
 
 After defining the Hilbert space and the operator of the two-level atom we construct the time dependent Hamiltonian as well as the jump operator list with the corresponding rates.
