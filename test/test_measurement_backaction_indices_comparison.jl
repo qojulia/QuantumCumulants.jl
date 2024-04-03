@@ -7,7 +7,7 @@ using Symbolics
 
 @cnumbers N ωa γ η χ ωc κ g ξ ωl
 @syms t::Real
-@register pulse(t)
+@register_symbolic pulse(t)
 
 hc = FockSpace(:resonator)
 ha = NLevelSpace(:atom,2)

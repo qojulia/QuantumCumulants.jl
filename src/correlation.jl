@@ -271,7 +271,7 @@ function (s::Spectrum)(ω_ls,usteady,ps=[];wtol=0)
 end
 
 # Convert to ODESystem
-function MTK.ODESystem(c::CorrelationFunction; kwargs...)
+function MTK.ODESystem(c::CorrelationFunction; complete_sys = true, kwargs...)
     τ = MTK.get_iv(c.de)
 
     ps = []
@@ -343,7 +343,8 @@ function MTK.ODESystem(c::CorrelationFunction; kwargs...)
     end
 
     eqs = MTK.equations(de_)
-    return MTK.ODESystem(eqs, τ; kwargs...)
+    sys = MTK.ODESystem(eqs, τ; kwargs...)
+    return complete_sys ? complete(sys) : sys
 end
 
 substitute(c::CorrelationFunction, args...; kwargs...) =

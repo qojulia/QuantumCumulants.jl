@@ -54,7 +54,7 @@ using ModelingToolkit, OrdinaryDiffEq
 @named sys = ODESystem(me)
 n0 = 20.0 # Initial number of photons in the cavity
 u0 = [n0]
-p0 = (1,1)
+p0 = (ωc => 1, κ => 1)
 prob = ODEProblem(sys,u0,(0.0,2.0),p0) # End time not in steady state
 sol = solve(prob,RK4())
 nothing # hide
@@ -70,7 +70,7 @@ nothing # hide
 Finally, lets check our numerical solution against the analytic one obtained above:
 ```@example correlation
 using Test # hide
-g_analytic(τ) = @. sol.u[end] * exp((im*p0[1]-0.5p0[2])*τ)
+g_analytic(τ) = @. sol.u[end] * exp((im*p0[1][2]-0.5p0[2][2])*τ)
 @test isapprox(sol_c.u, g_analytic(sol_c.t), rtol=1e-4)
 ```
 
@@ -128,7 +128,7 @@ nothing # hide
 The above performs the Laplace transform on a symbolic level (i.e. it derives the matrix ``A``). To actually compute the spectrum, we can do
 
 ```@example correlation
-s = S(ω,sol.u[end],p0)
+s = S(ω,sol.u[end],getindex.(p0, 2))
 nothing # hide
 ```
 

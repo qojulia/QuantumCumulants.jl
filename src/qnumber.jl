@@ -41,7 +41,7 @@ Base.isless(a::QSym, b::QSym) = a.name < b.name
 
 ## Interface for SymbolicUtils
 
-TermInterface.exprhead(::QNumber) = :call
+TermInterface.head(::QNumber) = :call
 SymbolicUtils.istree(::QSym) = false
 SymbolicUtils.istree(::QTerm) = true
 SymbolicUtils.istree(::Type{T}) where {T<:QTerm} = true
