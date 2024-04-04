@@ -17,7 +17,7 @@ We start by loading the packages.
 
 ```@example filter_cavity_indexed
 using QuantumCumulants
-using OrdinaryDiffEq, SteadyStateDiffEq, ModelingToolkit
+using OrdinaryDiffEq, ModelingToolkit
 using Plots
 ```
 
@@ -42,6 +42,7 @@ j = Index(h,:j,N,ha)
 @qnumbers a::Destroy(h,1)
 b(k) = IndexedOperator(Destroy(h,:b,2), k)
 σ(α,β,k) = IndexedOperator(Transition(h,:σ,α,β,3), k)
+nothing # hide
 ```
 
 We define the Hamiltonian using symbolic sums and define the individual dissipative processes. For an indexed jump operator the (symbolic) sum is build in the Liouvillian, in this case corresponding to individual decay processes.

@@ -111,7 +111,8 @@ struct IndexedOperator <: QSym
     end
 end
 
-const Summable = Union{<:QNumber,<:CNumber,<:BasicSymbolic{IndexedVariable},<:BasicSymbolic{DoubleIndexedVariable}}
+# const Summable = Union{<:QNumber,<:CNumber,<:BasicSymbolic{IndexedVariable},<:BasicSymbolic{DoubleIndexedVariable}}
+const Summable = Union{<:QNumber,<:CNumber,<:BasicSymbolic{IndexedVariable},<:BasicSymbolic{DoubleIndexedVariable},<:BasicSymbolic{CNumber}}
 
 """
     SingleSum <: QTerm
@@ -185,6 +186,8 @@ function SingleSum(term::IndexedAdd, sum_index, non_equal_indices;metadata=NO_ME
         args = arguments(term)
         if op === +
             return sum([SingleSum(arg,sum_index,non_equal_indices;metadata=NO_METADATA) for arg in args])
+        elseif (op === *) && (sum_index ∈ get_indices(term)) #issue 188
+            return SingleSum(term,sum_index,non_equal_indices,metadata)
         else
             return (sum_index.range - length(non_equal_indices))*term
         end
@@ -661,10 +664,26 @@ function change_index(term::BasicSymbolic{<:CNumber},from::Index,to::Index)
         end
         if op === ^
             args = arguments(term)
-            return change_index(args[1],from,to)^args[2]
+            return change_index(args[1],from,to)^change_index(args[2],from,to)
+        end
+        # issue 198
+        if op === /
+            args = arguments(term)
+            return change_index(args[1],from,to)/change_index(args[2],from,to)
+        end
+        if length(arguments(term)) == 1 # exp, sin, cos, ln, ...
+            return op(change_index(arguments(term)[1],from,to))
         end
     end
     return term
+end
+# issue 196: TODO:test
+function change_index(S::SingleSum, i::Index, j::Index) 
+    (j ∈ S.non_equal_indices) && error("Index $(j) is in the non-equal index list.")
+    if S.sum_index == i
+        return SingleSum(change_index(S.term,i,j), j, replace(S.non_equal_indices, i=>j), S.metadata)
+    end        
+    return S
 end
 change_index(x,from::Index,to::Index) = x
 

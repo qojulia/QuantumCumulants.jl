@@ -111,12 +111,8 @@ function prob_func(prob,i,repeat)
     # Define the new set of parameters
     x_ = x0 .+ s.*randn(N)
     p_ = [γ => 1.0; Δ => 0.0; Ω => 2.0; J0 => 1.25; x .=> x_;]
-
-    # Convert to numeric values only
-    pnum = ModelingToolkit.varmap_to_vars(p_,parameters(sys))
-
     # Return new ODEProblem
-    return remake(prob, p=pnum)
+    return remake(prob, p=p_)
 end
 
 trajectories = 50
@@ -133,7 +129,7 @@ tspan = range(0.0, sol.t[end], length=101)
 pops_avg = zeros(length(tspan), N)
 for i=1:N, j=1:trajectories
     sol_ = sim.u[j].(tspan)  # interpolate solution
-    p_idx = findfirst(isequal(average(σ(:e,:e,i))), states(eqs))
+    p_idx = findfirst(isequal(average(σ(:e,:e,i))), unknowns(eqs))
     pop = [u[p_idx] for u ∈ sol_]
     @. pops_avg[:,i] += pop / trajectories
 end

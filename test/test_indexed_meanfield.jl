@@ -121,7 +121,7 @@ sol_ss = solve(prob, Tsit5(), save_everystep=false, save_on=false, save_start=fa
 
 @test length(eqs_4) == length(eqs)
 
-@test get_solution(sol_ss, 2a + σ(1,1,1))[1] == (2*sol_ss[a][1] + 1- sol_ss[σ(2,2,1)][1]) == get_solution(sol_ss, average(2a + σ(1,1,1)))[1]
+@test get_solution(sol_ss, 2a + σ(1,1,1))[1] ≈ (2*sol_ss[a][1] + 1- sol_ss[σ(2,2,1)][1]) ≈ get_solution(sol_ss, average(2a + σ(1,1,1)))[1]
 @test isequal(σ(1,1,2), 1-σ(2,2,2))
 
 order = 1

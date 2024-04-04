@@ -14,9 +14,9 @@ Symbolics = "0c5d862f-8b57-4792-8d23-62f2024744c7"
 
 [compat]
 Documenter = "1"
-Latexify = "0.14, 0.15"
+Latexify = "0.13, 0.14, 0.15, 0.16"
 MacroTools = "0.5"
-ModelingToolkit = "8"
+ModelingToolkit = "9"
 OrdinaryDiffEq = "6"
 Plots = "1"
 QuantumOptics = "1"

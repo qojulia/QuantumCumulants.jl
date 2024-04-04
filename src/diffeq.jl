@@ -1,11 +1,11 @@
 # Relevant parts of ODESystem interface
 MTK.get_iv(me::AbstractMeanfieldEquations) = me.iv
-MTK.states(me::AbstractMeanfieldEquations) = me.states
+MTK.unknowns(me::AbstractMeanfieldEquations) = me.states
 
 function MTK.equations(me::AbstractMeanfieldEquations)
     # Get the MTK variables
     varmap = me.varmap
-    vs = MTK.states(me)
+    vs = MTK.unknowns(me)
     vhash = map(hash, vs)
 
     # Substitute conjugate variables by explicit conj
@@ -53,22 +53,28 @@ function substitute_conj(t,vs′,vs′hash)
     end
 end
 
-function MTK.ODESystem(me::AbstractMeanfieldEquations, iv=me.iv; kwargs...)
+function MTK.ODESystem(me::AbstractMeanfieldEquations, iv=me.iv;
+        complete_sys = true,
+        kwargs...)
     eqs = MTK.equations(me)
-    return MTK.ODESystem(eqs, iv; kwargs...)
+    sys = MTK.ODESystem(eqs, iv; kwargs...)
+    return complete_sys ? complete(sys) : sys
 end
 
 const AbstractIndexedMeanfieldEquations = Union{IndexedMeanfieldEquations,EvaledMeanfieldEquations}
 
-function MTK.ODESystem(me::AbstractIndexedMeanfieldEquations, iv=me.iv; kwargs...)
+function MTK.ODESystem(me::AbstractIndexedMeanfieldEquations, iv=me.iv;
+        complete_sys = true,
+        kwargs...)
     eqs = MTK.equations(me)
-    return MTK.ODESystem(eqs, iv; kwargs...)
+    sys = MTK.ODESystem(eqs, iv; kwargs...)
+    return complete_sys ? complete(sys) : sys
 end
 
 function MTK.equations(me::AbstractIndexedMeanfieldEquations)
     # Get the MTK variables
     varmap = me.varmap
-    vs = MTK.states(me)
+    vs = MTK.unknowns(me)
     vhash = map(hash, vs)
 
     # Substitute conjugate variables by explicit conj

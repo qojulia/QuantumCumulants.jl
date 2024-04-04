@@ -65,6 +65,7 @@ k_ind = indT(:k)
 @test(isequal(change_index(Γij,j_ind,k_ind), DoubleIndexedVariable(:Γ,i_ind,k_ind)))
 @test(isequal(change_index(σ(1,2,j_ind)*σ(1,2,i_ind),j_ind,i_ind),0))
 @test(isequal(change_index(g(k_ind),k_ind,j_ind),g(j_ind)))
+@test isequal(change_index(∑(2g(i_ind),i_ind), i_ind, j_ind), ∑(2g(j_ind),j_ind))
 
 @test(isequal(
     order_by_index(σ(1,2,k_ind)*σ(1,2,j_ind)*σ(1,2,i_ind),[i_ind]), σ(1,2,i_ind)*σ(1,2,k_ind)*σ(1,2,j_ind)
@@ -247,7 +248,7 @@ ai(i) = IndexedOperator(Destroy(h_,:a),i)
 
 @test to_numeric(ai(1),b_;ranges=ranges) == LazyTensor(b_, [5], (destroy(bfock),))
 @test to_numeric(ai(2),b_;ranges=ranges) == LazyTensor(b_, [6], (destroy(bfock),))
-@test to_numeric(σi(1,2,4),b_;ranges=ranges) == LazyTensor(b_, [4], (transition(bnlevel,1,2),))
+@test to_numeric(σi(1,2,4),b_;ranges=ranges) == LazyTensor(b_, [4], (QuantumOpticsBase.transition(bnlevel,1,2),))
 @test_throws MethodError to_numeric(σi(1,2,5),b_;ranges=ranges)
 
 ai2(i) = IndexedOperator(Destroy(hfock,:a),i)
@@ -267,7 +268,7 @@ i.hilb
 hc = NLevelSpace(:cavity, 3)
 ha = NLevelSpace(:atom,2)
 h = hc ⊗ ha
-@cnumbers N
+@cnumbers N α
 i = Index(h,:i,N,ha)
 S(x,y) = Transition(h,:S,x,y,1)
 σ(x,y,k) = IndexedOperator(Transition(h,:σ,x,y,2),k)
@@ -292,5 +293,11 @@ arr = qc.create_index_arrays([i],[1:10])
 @test isequal(qc._inconj(average(σ(2,1,1)*σ(2,2,2)*σ(1,2,1))),(average(σ(2,2,1)*σ(2,2,2))))
 @test qc.ismergeable(σ(2,1,5),σ(1,2,5))
 
+# issue 188
+gi = IndexedVariable(:g, i)
+@test isa(∑(5gi,i), SingleSum)
+@test isa(∑(gi*α,i), SingleSum)
+@test isequal(∑(α,i), N*α)
+@test isequal(∑(5α,i), 5*N*α)
 
 end

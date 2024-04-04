@@ -1,6 +1,6 @@
 using QuantumCumulants
 using QuantumOpticsBase
-using ModelingToolkit
+using ModelingToolkit: ODESystem
 using OrdinaryDiffEq
 using Test
 using Random; Random.seed!(0)
@@ -20,7 +20,7 @@ hnlevel = NLevelSpace(:nlevel, 3)
 bnlevel = NLevelBasis(3)
 for i=1:3, j=1:3
     op = σ(i,j)
-    @test to_numeric(op, bnlevel) == transition(bnlevel, i, j)
+    @test to_numeric(op, bnlevel) == QuantumOpticsBase.transition(bnlevel, i, j)
 end
 
 # with symbolic levels
@@ -33,7 +33,7 @@ for i=1:3, j=1:3
     lvl1 = levels[i]
     lvl2 = levels[j]
     op = σ_sym(lvl1, lvl2)
-    @test to_numeric(op, bnlevel; level_map=level_map) == transition(bnlevel, i, j)
+    @test to_numeric(op, bnlevel; level_map=level_map) == QuantumOpticsBase.transition(bnlevel, i, j)
 end
 
 # On composite bases
@@ -45,17 +45,17 @@ for i=1:3, j=1:3
     i == j == 1 && continue  # rewritten as sum, see below
     op1 = a*σprod(i,j)
     op2 = a'*σprod(i,j)
-    @test to_numeric(op1, bprod) == LazyTensor(bprod, [1, 2], (destroy(bfock), transition(bnlevel, i, j)))
-    @test to_numeric(op2, bprod) == LazyTensor(bprod, [1, 2], (create(bfock), transition(bnlevel, i, j)))
+    @test to_numeric(op1, bprod) == LazyTensor(bprod, [1, 2], (destroy(bfock), QuantumOpticsBase.transition(bnlevel, i, j)))
+    @test to_numeric(op2, bprod) == LazyTensor(bprod, [1, 2], (create(bfock), QuantumOpticsBase.transition(bnlevel, i, j)))
 end
 
 op1_num = to_numeric(a*σprod(1, 1), bprod)
 @test op1_num isa LazySum
-@test sparse(op1_num) == destroy(bfock) ⊗ transition(bnlevel, 1, 1)
+@test sparse(op1_num) == destroy(bfock) ⊗ QuantumOpticsBase.transition(bnlevel, 1, 1)
 
 op2_num = to_numeric(a'*σprod(1, 1), bprod)
 @test op2_num isa LazySum
-@test sparse(op2_num) == create(bfock) ⊗ transition(bnlevel, 1, 1)
+@test sparse(op2_num) == create(bfock) ⊗ QuantumOpticsBase.transition(bnlevel, 1, 1)
 
 @test to_numeric(a'*a, bprod) == LazyTensor(bprod, [1], (create(bfock) * destroy(bfock),))
 
@@ -67,17 +67,17 @@ for i=1:3, j=1:3
     i == j == 1 && continue  # see below
     op1 = a*σsym_prod(levels[i],levels[j])
     op2 = a'*σsym_prod(levels[i],levels[j])
-    @test to_numeric(op1, bprod; level_map=level_map) == LazyTensor(bprod, [1,2], (destroy(bfock), transition(bnlevel, i, j)))
-    @test to_numeric(op2, bprod; level_map=level_map) == LazyTensor(bprod, [1,2], (create(bfock), transition(bnlevel, i, j)))
+    @test to_numeric(op1, bprod; level_map=level_map) == LazyTensor(bprod, [1,2], (destroy(bfock), QuantumOpticsBase.transition(bnlevel, i, j)))
+    @test to_numeric(op2, bprod; level_map=level_map) == LazyTensor(bprod, [1,2], (create(bfock), QuantumOpticsBase.transition(bnlevel, i, j)))
 end
 
 op1_num = to_numeric(a*σsym_prod(:g, :g), bprod; level_map=level_map)
 @test op1_num isa LazySum
-@test sparse(op1_num) == destroy(bfock) ⊗ transition(bnlevel, 1, 1)
+@test sparse(op1_num) == destroy(bfock) ⊗ QuantumOpticsBase.transition(bnlevel, 1, 1)
 
 op2_num = to_numeric(a'*σsym_prod(:g, :g), bprod; level_map=level_map)
 @test op2_num isa LazySum
-@test sparse(op2_num) == create(bfock) ⊗ transition(bnlevel, 1, 1)
+@test sparse(op2_num) == create(bfock) ⊗ QuantumOpticsBase.transition(bnlevel, 1, 1)
 
 # composite basis with a "gap"
 hprod_gap = hfock ⊗ hnlevel ⊗ hnlevel
@@ -88,17 +88,17 @@ for i=1:3, j=1:3
     i == j == 1 && continue
     op1 = a*σprod_gap(i,j)
     op2 = a'*σprod_gap(i,j)
-    @test to_numeric(op1, bprod_gap) == LazyTensor(bprod_gap, [1,3], (destroy(bfock), transition(bnlevel, i, j)))
-    @test to_numeric(op2, bprod_gap) == LazyTensor(bprod_gap, [1,3], (create(bfock), transition(bnlevel, i, j)))
+    @test to_numeric(op1, bprod_gap) == LazyTensor(bprod_gap, [1,3], (destroy(bfock), QuantumOpticsBase.transition(bnlevel, i, j)))
+    @test to_numeric(op2, bprod_gap) == LazyTensor(bprod_gap, [1,3], (create(bfock), QuantumOpticsBase.transition(bnlevel, i, j)))
 end
 
 op1_num = to_numeric(a*σprod_gap(1, 1), bprod_gap)
 @test op1_num isa LazySum
-@test sparse(op1_num) == destroy(bfock) ⊗ one(bnlevel) ⊗ transition(bnlevel, 1, 1)
+@test sparse(op1_num) == destroy(bfock) ⊗ one(bnlevel) ⊗ QuantumOpticsBase.transition(bnlevel, 1, 1)
 
 op2_num = to_numeric(a'*σprod_gap(1, 1), bprod_gap)
 @test op2_num isa LazySum
-@test sparse(op2_num) == create(bfock) ⊗ one(bnlevel) ⊗ transition(bnlevel, 1, 1)
+@test sparse(op2_num) == create(bfock) ⊗ one(bnlevel) ⊗ QuantumOpticsBase.transition(bnlevel, 1, 1)
 
 
 # Numeric average values
@@ -114,7 +114,7 @@ idfock = one(bfock)
 for i=1:3, j=1:3
     op = σprod(i, j)
     op_sym = σsym_prod(levels[i],levels[j])
-    op_num = idfock ⊗ transition(bnlevel, i, j)
+    op_num = idfock ⊗ QuantumOpticsBase.transition(bnlevel, i, j)
     @test numeric_average(op, ψprod) ≈ expect(op_num, ψprod)
     @test numeric_average(op_sym, ψprod; level_map=level_map) ≈ expect(op_num, ψprod)
 end
@@ -126,7 +126,7 @@ if isdefined(QuantumOpticsBase, :LazyKet)
     for i=1:3, j=1:3
         op = σprod(i, j)
         op_sym = σsym_prod(levels[i],levels[j])
-        op_num = LazyTensor(bprod, [2], (transition(bnlevel, i, j),))
+        op_num = LazyTensor(bprod, [2], (QuantumOpticsBase.transition(bnlevel, i, j),))
         @test numeric_average(op, ψlazy) ≈ expect(op_num, ψlazy)
         @test numeric_average(op_sym, ψlazy; level_map=level_map) ≈ expect(op_num, ψlazy)
     end
@@ -153,10 +153,10 @@ level_map = Dict((levels .=> [1,2])...)
 u0 = initial_values(eqs, ψ0; level_map=level_map)
 
 @test u0[1] ≈ expect(destroy(bcav) ⊗ one(batom), ψ0)
-@test u0[2] ≈ expect(one(bcav) ⊗ transition(batom, 1, 2), ψ0)
+@test u0[2] ≈ expect(one(bcav) ⊗ QuantumOpticsBase.transition(batom, 1, 2), ψ0)
 @test u0[3] ≈ expect(number(bcav) ⊗ one(batom), ψ0)
-@test u0[4] ≈ expect(one(bcav) ⊗ transition(batom, 2, 2), ψ0)
-@test u0[5] ≈ expect(create(bcav) ⊗ transition(batom, 1, 2), ψ0)
+@test u0[4] ≈ expect(one(bcav) ⊗ QuantumOpticsBase.transition(batom, 2, 2), ψ0)
+@test u0[5] ≈ expect(create(bcav) ⊗ QuantumOpticsBase.transition(batom, 1, 2), ψ0)
 
 
 if isdefined(QuantumOpticsBase, :LazyKet)
@@ -165,10 +165,10 @@ if isdefined(QuantumOpticsBase, :LazyKet)
     u0 = initial_values(eqs, ψlazy; level_map=level_map)
 
     @test u0[1] ≈ expect(destroy(bcav) ⊗ one(batom), ψfull)
-    @test u0[2] ≈ expect(one(bcav) ⊗ transition(batom, 1, 2), ψfull)
+    @test u0[2] ≈ expect(one(bcav) ⊗ QuantumOpticsBase.transition(batom, 1, 2), ψfull)
     @test u0[3] ≈ expect(number(bcav) ⊗ one(batom), ψfull)
-    @test u0[4] ≈ expect(one(bcav) ⊗ transition(batom, 2, 2), ψfull)
-    @test u0[5] ≈ expect(create(bcav) ⊗ transition(batom, 1, 2), ψfull)
+    @test u0[4] ≈ expect(one(bcav) ⊗ QuantumOpticsBase.transition(batom, 2, 2), ψfull)
+    @test u0[5] ≈ expect(create(bcav) ⊗ QuantumOpticsBase.transition(batom, 1, 2), ψfull)
 end
 
 # Test sufficiently large hilbert space; from issue #109
@@ -201,7 +201,7 @@ b = tensor(bc, [ba for i=1:order]...)
 ψa = normalize(nlevelstate(ba,1) + nlevelstate(ba,2))
 ψ = tensor(ψc, [ψa for i=1:order]...)
 a_ = LazyTensor(b, [1], (destroy(bc),))
-σ_(i,j,k) = LazyTensor(b,[1+k],(transition(ba,i,j),))
+σ_(i,j,k) = LazyTensor(b,[1+k],(QuantumOpticsBase.transition(ba,i,j),))
 ranges=[1,2]
 @test to_numeric(σ(1,2,1),b; ranges=ranges) == σ_(1,2,1)
 @test to_numeric(σ(2,2,2),b; ranges=ranges) == σ_(2,2,2)

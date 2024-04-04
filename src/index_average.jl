@@ -482,7 +482,12 @@ function insert_index(term::BasicSymbolic{<:CNumber},ind::Index,value::Int64)
         elseif op === +
             return sum(insert_index(arg,ind,value) for arg in arguments(term))
         elseif op === ^
-            return insert_index(arguments(term)[1],ind,value)^(arguments(term)[2])
+            return insert_index(arguments(term)[1],ind,value)^insert_index(arguments(term)[2],ind,value)
+        # issue 198
+        elseif op === /
+            return insert_index(arguments(term)[1],ind,value)/insert_index(arguments(term)[2],ind,value)
+        elseif length(arguments(term)) == 1 # exp, sin, cos, ln, ... #TODO: write tests
+            return op(insert_index(arguments(term)[1],ind,value))
         end
     end
     return term
@@ -744,6 +749,19 @@ function eval_term(term::BasicSymbolic{<:CNumber};kwargs...)
         end
         if op === *
             return prod(eval_term(arg;kwargs...) for arg in arguments(term))
+        end
+        # issue 198 #TODO: tests
+        if op === ^
+            args = arguments(term)
+            return eval_term(args[1];kwargs...)^eval_term(args[2];kwargs...)
+        end
+        if op === /
+            args = arguments(term)
+            return eval_term(args[1];kwargs...)/eval_term(args[2];kwargs...)
+        end
+        
+        if length(arguments(term)) == 1 # exp, sin, cos, ln, ...
+            return op(eval_term(arguments(term)[1];kwargs...))
         end
     end
     return term
