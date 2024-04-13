@@ -5,11 +5,11 @@ using Test
 
 @testset "spin" begin
 
-hs1 = SpinSpace(:Spin1)
-hs2 = SpinSpace(:Spin2)
+hs1 = PauliSpace(:Spin1)
+hs2 = PauliSpace(:Spin2)
 h = hs1 ⊗ hs2
 
-s(axis) = Sigma(hs1, :σ, axis) # axis ∈ [1,2,3] → [x,y,z]
+s(axis) = Pauli(hs1, :σ, axis) # axis ∈ [1,2,3] → [x,y,z]
 @test isequal(s(1)*s(2),1im*s(3))
 @test !isequal(s(1)*s(2),1im*s(2))
 @test isequal(s(1)*s(3),-1im*s(2))
@@ -17,7 +17,7 @@ s(axis) = Sigma(hs1, :σ, axis) # axis ∈ [1,2,3] → [x,y,z]
 @test isequal(s(3)*s(1),1im*s(2))
 @test isequal(s(1)*s(2)*s(3),1im)
 
-σ(i, axis) = Sigma(h,Symbol(:σ_,i), axis, i)
+σ(i, axis) = Pauli(h,Symbol(:σ_,i), axis, i)
 σx(i) = σ(i, 1)
 σy(i) = σ(i, 2)
 σz(i) = σ(i, 3)
@@ -75,12 +75,12 @@ s1zs2z = get_solution(sol, (s1(2,2) - s1(1,1))*(s2(2,2) - s2(1,1)))[end]
 s1xs2y = get_solution(sol, (s1(2,1) + s1(1,2))*1im*(s2(1,2) - s2(2,1)))[end]
 
 ### Spin description
-hs1 = SpinSpace(:spin1)
-hs2 = SpinSpace(:spin2)
+hs1 = PauliSpace(:spin1)
+hs2 = PauliSpace(:spin2)
 h_ = hf ⊗ hs1 ⊗ hs2
 a2 = Destroy(h_,:a2)
-σ1(axis) = Sigma(h_,:σ1,axis,2)
-σ2(axis) = Sigma(h_,:σ2,axis,3)
+σ1(axis) = Pauli(h_,:σ1,axis,2)
+σ2(axis) = Pauli(h_,:σ2,axis,3)
 H = Δ_*a2'*a2 + g*(a2' + a2)*(σ1(1) + σ2(1)) + η*(a2' + a2)
 J = [a2]
 rates = [κ]
@@ -115,11 +115,11 @@ s1xs2y_ = sol_[σ1(1)*σ2(2)][end]
 end # testset
 
 ### collective spin ###
-hcs1 = CollectiveSpinSpace(:Spin1)
-hcs2 = CollectiveSpinSpace(:Spin2)
+hcs1 = SpinSpace(:Spin1)
+hcs2 = SpinSpace(:Spin2)
 h = hcs1 ⊗ hcs2
 
-S(axis) = CollectiveSigma(hcs1, :S, axis) # axis ∈ [1,2,3] → [x,y,z]
+S(axis) = Spin(hcs1, :S, axis) # axis ∈ [1,2,3] → [x,y,z]
 
 S(1)==S(:x)
 S(2)==S(:Y)
@@ -140,7 +140,7 @@ isequal(simplify(S(1) + S(2)), simplify(S(2) + S(1)))
 S(1)*S(3)*S(2)
 ((5*S(1))*S(2) +1)*S(3)
 
-S(i, axis) = CollectiveSigma(h,Symbol(:S_,i), axis, i)
+S(i, axis) = Spin(h,Symbol(:S_,i), axis, i)
 Sx(i) = S(i, 1)
 Sy(i) = S(i, 2)
 Sz(i) = S(i, 3)

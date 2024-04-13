@@ -31,11 +31,11 @@ tensor
 ```
 
 ```@docs
-SpinSpace
+PauliSpace
 ```
 
 ```@docs
-Sigma
+Pauli
 ```
 
 ## [q-Numbers](@id API: Operators)

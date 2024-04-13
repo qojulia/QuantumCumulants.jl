@@ -326,7 +326,18 @@ end
 
 _to_numeric(op::Destroy, b::QuantumOpticsBase.FockBasis; kwargs...) = QuantumOpticsBase.destroy(b)
 _to_numeric(op::Create, b::QuantumOpticsBase.FockBasis; kwargs...) = QuantumOpticsBase.create(b)
-function _to_numeric(op::CollectiveSigma, b::QuantumOpticsBase.SpinBasis; kwargs...)
+function _to_numeric(op::Pauli, b::QuantumOpticsBase.SpinBasis; kwargs...) #TODO: test
+    b.spinnumber == 1/2 && error("The SpinBasis needs to be Spin-1/2!")
+    axis = op.axis
+    if axis == 1 # σx
+        QuantumOpticsBase.sigmax(b)
+    elseif axis == 2 # σy
+        QuantumOpticsBase.sigmay(b)
+    elseif axis == 3 # σz
+        QuantumOpticsBase.sigmaz(b)
+    end
+end
+function _to_numeric(op::Spin, b::QuantumOpticsBase.SpinBasis; kwargs...)
     axis = op.axis
     if axis == 1 # Sx
         QuantumOpticsBase.sigmax(b)*0.5
@@ -357,7 +368,8 @@ end
 
 check_basis_match(h, b; kwargs...) = throw(ArgumentError("Hilbert space $h and basis $b are incompatible!"))
 check_basis_match(::FockSpace, ::QuantumOpticsBase.FockBasis; kwargs...) = nothing
-check_basis_match(::CollectiveSpinSpace, ::QuantumOpticsBase.SpinBasis; kwargs...) = nothing
+check_basis_match(::PauliSpace, ::QuantumOpticsBase.SpinBasis; kwargs...) = nothing
+check_basis_match(::SpinSpace, ::QuantumOpticsBase.SpinBasis; kwargs...) = nothing
 function check_basis_match(h::NLevelSpace, b::QuantumOpticsBase.NLevelBasis; kwargs...)
     if length(h.levels) != length(b)
         throw(ArgumentError("Hilbert space $h and basis $b have incompatible levels!"))

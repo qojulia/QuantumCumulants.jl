@@ -81,7 +81,7 @@ nothing #hide
 \underset{i}{\overset{N}{\sum}} {σ}_{i}^{{22}}
 ```
 
-As can be seen above, a sum with a single running-index can be created using the **∑** (\sum) command. Other equivalent functions are **Σ** (\Sigma) and the **SingleSum()** constructor. These constructors can also take a third optional argument specifying a set of indices, which are non equivalent to the summation index.
+As can be seen above, a sum with a single running-index can be created using the **∑** (\sum) command. Other equivalent functions are **Σ** (\Pauli) and the **SingleSum()** constructor. These constructors can also take a third optional argument specifying a set of indices, which are non equivalent to the summation index.
 
 
 ```@example symbolic_sums
