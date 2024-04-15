@@ -105,8 +105,7 @@ b = b_field ⊗ bp1 ⊗ bp2
 ψ2 = spindown(bp2)
 ψ_ = ψf ⊗ ψ1 ⊗ ψ2
 u0_pauli = initial_values(eqs_, ψ_)
-@test all(u0_test .≈ u0_cs1)
-
+@test all(u0_pauli .≈ u0_)
 
 p0 = [0.5, 1.0, 1.25, 0.85]
 prob_ = ODEProblem(sys_,u0_,(0.0,0.5),ps.=>p0)
@@ -126,8 +125,6 @@ s1xs2y_ = sol_[σ1(1)*σ2(2)][end]
 @test isapprox(n, n_; atol=1e-5)
 @test isapprox(s1zs2z, s1zs2z_; atol=1e-5)
 @test isapprox(s1xs2y, s1xs2y_; atol=1e-5)
-
-end # testset
 
 ### collective spin ###
 hcs1 = SpinSpace(:Spin1)
@@ -208,3 +205,5 @@ sol_cs1 = solve(prob_cs1,Tsit5(),abstol=1e-8,reltol=1e-8)
 @test sol_cs1[Sz(1)][1] == 10.0
 @test real.(sol_cs1[Sz(1)][end]) < 0
 @test abs(imag.(sol_cs1[Sz(1)][end])) < 0.01
+
+end # testset

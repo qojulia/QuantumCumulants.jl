@@ -38,6 +38,14 @@ PauliSpace
 Pauli
 ```
 
+```@docs
+SpinSpace
+```
+
+```@docs
+Spin
+```
+
 ## [q-Numbers](@id API: Operators)
 
 ```@docs

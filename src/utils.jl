@@ -326,7 +326,7 @@ end
 
 _to_numeric(op::Destroy, b::QuantumOpticsBase.FockBasis; kwargs...) = QuantumOpticsBase.destroy(b)
 _to_numeric(op::Create, b::QuantumOpticsBase.FockBasis; kwargs...) = QuantumOpticsBase.create(b)
-function _to_numeric(op::Pauli, b::QuantumOpticsBase.SpinBasis; kwargs...) #TODO: test
+function _to_numeric(op::Pauli, b::QuantumOpticsBase.SpinBasis; kwargs...) 
     (b.spinnumber ≠ 1/2) && error("The SpinBasis needs to be Spin-1/2!")
     axis = op.axis
     if axis == 1 # σx
