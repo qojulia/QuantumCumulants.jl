@@ -252,4 +252,6 @@ prob = ODEProblem(sys,u0,(0.0, 1e-4/Γ_), ps.=>p0)
 sol = solve(prob, Tsit5(); save_on=false, save_everystep=false)
 @test sol.retcode == ReturnCode.Success
 
+# Pauli and Spin in tes_spin.jl
+
 end # testset

@@ -1,6 +1,7 @@
 using QuantumCumulants
 using ModelingToolkit
 using OrdinaryDiffEq
+using QuantumOpticsBase
 using Test
 
 @testset "spin" begin
@@ -93,6 +94,20 @@ ps = [Δ_, g, κ, η]
 u0_ = zeros(ComplexF64, length(eqs_))
 u0_[1] = u0_[2] = -1
 u0_[3] = 1
+
+# initial state: numeric conversion
+b_field = FockBasis(4)
+bp1 = SpinBasis(1/2) 
+bp2 = SpinBasis(1/2)
+b = b_field ⊗ bp1 ⊗ bp2 
+ψf = fockstate(b_field,0)
+ψ1 = spindown(bp1)
+ψ2 = spindown(bp2)
+ψ_ = ψf ⊗ ψ1 ⊗ ψ2
+u0_pauli = initial_values(eqs_, ψ_)
+@test all(u0_test .≈ u0_cs1)
+
+
 p0 = [0.5, 1.0, 1.25, 0.85]
 prob_ = ODEProblem(sys_,u0_,(0.0,0.5),ps.=>p0)
 sol_ = solve(prob_,RK4())
@@ -136,9 +151,7 @@ isequal(S(1)*S(1), (S(1))^2)
 isequal(simplify(S(1) + S(2)), simplify(S(2) + S(1)))
 
 # error
-2*S(1)*S(2)*S(3)
-S(1)*S(3)*S(2)
-((5*S(1))*S(2) +1)*S(3)
+isequal(2*S(1)*S(2)*S(3), S(1)*S(2)*S(3)*2)
 
 S(i, axis) = Spin(h,Symbol(:S_,i), axis, i)
 Sx(i) = S(i, 1)
@@ -162,51 +175,36 @@ Rcs1 = [Γcs]
 ops_cs1 = [Sx(1), Sy(1), Sz(1)]
 eqs_cs1 = meanfield(ops_cs1,Hcs1,Jcs1;rates=Rcs1,order=2)
 eqs_cs1_c = complete(eqs_cs1)
-@named sys_cs1 = ODESystem(eqs_cs1_c)
+@named sys_cs1 = ODESystem(eqs_cs1_c);
 
 eqs_cs1_c.states
 u0_cs1 = zeros(ComplexF64, length(eqs_cs1_c))
-# TODO: automate the following via QO.jl
+# full exciation 
 Ncs1 = 20
 Ncs1_ = Ncs1/2
+Ncs2 = 8
+Ncs2_ = Ncs2/2
+
 u0_cs1[3] = Ncs1_ # z
-u0_cs1[6] = u0_cs1[7] = Ncs1_ # xx, yy
-u0_cs1[8] = 1im*Ncs1_ # xy
+u0_cs1[6] = u0_cs1[7] = Ncs1/4 # xx, yy
+u0_cs1[8] = 1im*Ncs1/4 # xy
 u0_cs1[9] = Ncs1_*Ncs1_ # zz
+
+# initial state: numeric conversion
+bs1 = SpinBasis(Ncs1_) 
+bs2 = SpinBasis(Ncs2_) # random
+b = bs1 ⊗ bs2 # used space is prodcut space, but second space is not used
+ψ1 = spinup(bs1)
+ψ2 = spinup(bs2)
+ψ = ψ1 ⊗ ψ2
+u0_test = initial_values(eqs_cs1_c, ψ)
+@test all(u0_test .≈ u0_cs1)
 
 ps_cs1 = [δcs, Γcs]
 p0_cs1 = [0, 1]
-prob_cs1 = ODEProblem(sys_cs1,u0_cs1,(0.0, 1.0), ps_cs1.=>p0_cs1)
+prob_cs1 = ODEProblem(sys_cs1,u0_cs1,(0.0, 0.2), ps_cs1.=>p0_cs1)
 sol_cs1 = solve(prob_cs1,Tsit5(),abstol=1e-8,reltol=1e-8)
 
-# TODO: write test 
-
-# using PyPlot; pygui(true)
-# plot(sol_cs1.t, getindex.(sol_cs1.u,3))
-# sol_cs1[Sz(1)] # TODO: error
-
-
-### collective spin definition (factor 1/2 in sum of atoms?)
-Ncs1_ = 200
-using QuantumOptics
-b = SpinBasis(Ncs1_/2)
-ψ0 = spinup(b)
-expect(sigmax(b)/2, ψ0)
-expect(sigmay(b)/2, ψ0)
-expect(sigmaz(b)/2, ψ0)
-expect(sigmax(b)/2*sigmax(b)/2, ψ0)
-expect(sigmay(b)/2*sigmay(b)/2, ψ0)
-expect(sigmax(b)/2*sigmay(b)/2, ψ0)
-expect(sigmax(b)/2*sigmaz(b)/2, ψ0)
-expect(sigmaz(b)/2*sigmaz(b)/2, ψ0)
-expect(sigmaz(b)/2*sigmaz(b)/2*sigmaz(b)/2, ψ0)
-expect(sigmax(b)/2*sigmax(b)/2*sigmaz(b)/2, ψ0)
-expect(sigmax(b)/2*sigmax(b)/2*sigmax(b)/2, ψ0)
-
-
-### TODO: 
-# time evolution: simple example, superradiant decay, farokh paper, 
-#   Ramsey paper, Martin paper with coherent coupling
-# compare with indexing
-# initial state
-# first order with initial seed
+@test sol_cs1[Sz(1)][1] == 10.0
+@test real.(sol_cs1[Sz(1)][end]) < 0
+@test abs(imag.(sol_cs1[Sz(1)][end])) < 0.01
