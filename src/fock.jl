@@ -89,4 +89,11 @@ function *(a::Destroy,b::Create)
         return QMul(1, [b,a])
     end
 end
-ismergeable(::Destroy,::Create) = true
+# ismergeable(::Destroy,::Create) = true
+
+# TODO: test if faster; delete if and elseif in *-function above?
+function ismergeable(a::Destroy,b::Create)
+    aon_a = acts_on(a)
+    aon_b = acts_on(b)
+    return aon_a == aon_b
+end
