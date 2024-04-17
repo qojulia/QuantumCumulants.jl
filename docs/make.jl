@@ -22,6 +22,7 @@ pages = [
             "examples/cavity_antiresonance_indexed.md"
             "examples/filter-cavity_indexed.md"
             "examples/unique_squeezing.md"
+            "examples/waveguide.md"
             "examples/superradiant-laser.md"
             # "examples/heterodyne_detection.md"
             ]
