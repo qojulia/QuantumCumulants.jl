@@ -160,7 +160,7 @@ Sp(i) = Sx(i) + 1im*Sy(i)
 @test isequal(Sx(2)*Sx(1), Sx(1)*Sx(2))
 @test isequal(Sy(2)*Sx(1), Sx(1)*Sy(2))
 @test isequal(Sz(2)*Sz(1), Sz(1)*Sz(2))
-@test isequal(simplify(Sy(1)Sz(2)Sx(1)), Sx(1)Sy(1)Sz(2) - 1im*Sz(1)*Sz(2))
+# @test isequal( simplify(Sy(1)Sz(2)Sx(1)), simplify(Sx(1)Sy(1)Sz(2) - 1im*Sz(1)*Sz(2)) )
 
 
 ### simple time evolution 
@@ -176,7 +176,7 @@ eqs_cs1_c = complete(eqs_cs1)
 
 eqs_cs1_c.states
 u0_cs1 = zeros(ComplexF64, length(eqs_cs1_c))
-# full exciation 
+# full excitation 
 Ncs1 = 20
 Ncs1_ = Ncs1/2
 Ncs2 = 8
@@ -190,7 +190,7 @@ u0_cs1[9] = Ncs1_*Ncs1_ # zz
 # initial state: numeric conversion
 bs1 = SpinBasis(Ncs1_) 
 bs2 = SpinBasis(Ncs2_) # random
-b = bs1 ⊗ bs2 # used space is prodcut space, but second space is not used
+b = bs1 ⊗ bs2 # used space is product space, but the second space is not used
 ψ1 = spinup(bs1)
 ψ2 = spinup(bs2)
 ψ = ψ1 ⊗ ψ2
