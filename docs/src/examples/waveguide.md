@@ -1,4 +1,4 @@
-# Waveguide Superradiant Energy Transfer
+# Waveguide Energy Transfer
 
 In this example, we investigate the collective behaviour of atomic ensembles coupled to a waveguide. The waveguide-mediated dipole-dipole Hamiltonian is
 ```math

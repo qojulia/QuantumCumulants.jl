@@ -138,17 +138,17 @@ S(2)==S(:Y)
 S(:z)==S(:Z)
 S(1)≠S(2)
 
-isequal(simplify(S(:x)*S(:y) - S(:y)*S(:x)), 1im*S(:z))
-isequal(simplify(S(:x)*S(:z) - S(:z)*S(:x)), -1im*S(:y))
-isequal(simplify(S(:y)*S(:z) - S(:z)*S(:y)), 1im*S(:1))
+@test isequal(simplify(S(:x)*S(:y) - S(:y)*S(:x)), 1im*S(:z))
+@test isequal(simplify(S(:x)*S(:z) - S(:z)*S(:x)), -1im*S(:y))
+@test isequal(simplify(S(:y)*S(:z) - S(:z)*S(:y)), 1im*S(:1))
 
-isequal(S(:x)*S(:y), 1*S(:x)*S(:y))
-!isequal(S(:x)*S(:y), S(:x)*S(:z))
-isequal(S(1)*S(1), (S(1))^2)
-isequal(simplify(S(1) + S(2)), simplify(S(2) + S(1)))
+@test isequal(S(:x)*S(:y), 1*S(:x)*S(:y))
+@test !isequal(S(:x)*S(:y), S(:x)*S(:z))
+@test isequal(S(1)*S(1), (S(1))^2)
+@test isequal(simplify(S(1) + S(2)), simplify(S(2) + S(1)))
 
 # error
-isequal(2*S(1)*S(2)*S(3), S(1)*S(2)*S(3)*2)
+@test isequal(2*S(1)*S(2)*S(3), S(1)*S(2)*S(3)*2)
 
 S(i, axis) = Spin(h,Symbol(:S_,i), axis, i)
 Sx(i) = S(i, 1)
@@ -157,10 +157,10 @@ Sz(i) = S(i, 3)
 Sm(i) = Sx(i) - 1im*Sy(i)
 Sp(i) = Sx(i) + 1im*Sy(i)
 
-isequal(Sx(2)*Sx(1), Sx(1)*Sx(2))
-isequal(Sy(2)*Sx(1), Sx(1)*Sy(2))
-isequal(Sz(2)*Sz(1), Sz(1)*Sz(2))
-isequal(simplify(Sy(1)Sz(2)Sx(1)), Sx(1)Sy(1)Sz(2) - 1im*Sz(1)*Sz(2))
+@test isequal(Sx(2)*Sx(1), Sx(1)*Sx(2))
+@test isequal(Sy(2)*Sx(1), Sx(1)*Sy(2))
+@test isequal(Sz(2)*Sz(1), Sz(1)*Sz(2))
+@test isequal(simplify(Sy(1)Sz(2)Sx(1)), Sx(1)Sy(1)Sz(2) - 1im*Sz(1)*Sz(2))
 
 
 ### simple time evolution 
@@ -169,7 +169,7 @@ Hcs1 = δcs/2*Sz(1)
 Jcs1 = [Sm(1)]
 Rcs1 = [Γcs]
 
-ops_cs1 = [Sx(1), Sy(1), Sz(1)]
+ops_cs1 = [Sx(1), Sy(1), Sz(1), Sx(1)*Sx(1), Sx(1)*Sy(1), Sx(1)*Sz(1), Sy(1)*Sy(1), Sy(1)*Sz(1), Sz(1)*Sz(1)]
 eqs_cs1 = meanfield(ops_cs1,Hcs1,Jcs1;rates=Rcs1,order=2)
 eqs_cs1_c = complete(eqs_cs1)
 @named sys_cs1 = ODESystem(eqs_cs1_c);
@@ -183,8 +183,8 @@ Ncs2 = 8
 Ncs2_ = Ncs2/2
 
 u0_cs1[3] = Ncs1_ # z
-u0_cs1[6] = u0_cs1[7] = Ncs1/4 # xx, yy
-u0_cs1[8] = 1im*Ncs1/4 # xy
+u0_cs1[4] = u0_cs1[7] = Ncs1/4 # xx, yy
+u0_cs1[5] = 1im*Ncs1/4 # xy
 u0_cs1[9] = Ncs1_*Ncs1_ # zz
 
 # initial state: numeric conversion
