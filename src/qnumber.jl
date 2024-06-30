@@ -62,10 +62,10 @@ function SymbolicUtils.simplify(x::QNumber;kwargs...)
     return undo_average(avg_)
 end
 
-function Symbolics.expand(x::QTerm;kwargs...)
+function Symbolics.expand(x::QNumber;kwargs...)
     expansion = average(x)
-    expansion_ = SymbolicUtils.expand(exp_;kwargs...)
-    return undo_average(exp_)
+    expansion_ = SymbolicUtils.expand(expansion; kwargs...)
+    return undo_average(expansion_)
 end
 
 ## End of interface
