@@ -55,11 +55,17 @@ SymbolicUtils.promote_symtype(f,T::Type{<:QNumber},S::Type{<:QNumber}) = promote
 
 SymbolicUtils.symtype(x::T) where T<:QNumber = T
 
-# Standard simplify
+# Standard simplify and expand functions
 function SymbolicUtils.simplify(x::QNumber;kwargs...)
     avg = average(x)
     avg_ = SymbolicUtils.simplify(avg;kwargs...)
     return undo_average(avg_)
+end
+
+function Symbolics.expand(x::QNumber;kwargs...)
+    expansion = average(x)
+    expansion_ = SymbolicUtils.expand(expansion; kwargs...)
+    return undo_average(expansion_)
 end
 
 ## End of interface
