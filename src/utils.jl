@@ -36,7 +36,7 @@ function find_missing(me::AbstractMeanfieldEquations; vs_adj=nothing, get_adjoin
 end
 
 function find_missing!(missed, missed_hashes, r::SymbolicUtils.Symbolic, vhash, vs′hash; get_adjoints=true)
-    if SymbolicUtils.istree(r)
+    if SymbolicUtils.iscall(r)
         for arg∈SymbolicUtils.arguments(r)
             find_missing!(missed, missed_hashes, arg, vhash, vs′hash; get_adjoints=get_adjoints)
         end
@@ -524,7 +524,7 @@ function _conj(v::Average)
     end
 end
 function _conj(v::SymbolicUtils.Symbolic)
-    if SymbolicUtils.istree(v)
+    if SymbolicUtils.iscall(v)
         f = SymbolicUtils.operation(v)
         args = map(_conj, SymbolicUtils.arguments(v))
         return SymbolicUtils.similarterm(v, f, args)

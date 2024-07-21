@@ -71,7 +71,7 @@ function DoubleSum(innerSum::SingleSum,sum_index::Index,NEI::Vector;metadata=NO_
         end
 end
 function DoubleSum(innerSum::IndexedAdd,sum_index::Index,NEI::Vector;metadata=NO_METADATA)
-    if istree(innerSum)
+    if iscall(innerSum)
         op = operation(innerSum)
         if op === +
             sums = [DoubleSum(arg,sum_index,NEI;metadata=metadata) for arg in arguments(innerSum)]
@@ -120,7 +120,7 @@ function *(elem::IndexedObSym,sum::DoubleSum)
     NEI = copy(sum.NEI)
     if elem.ind != sum.sum_index && elem.ind ∉ NEI
         if (sum.sum_index.aon != sum.innerSum.sum_index.aon) # indices for different ops
-            if isequal(elem.ind.aon,sum.sum_index.aon) 
+            if isequal(elem.ind.aon,sum.sum_index.aon)
                 push!(NEI,elem.ind)
                 addterm = SingleSum(elem*change_index(sum.innerSum.term,sum.sum_index,elem.ind),sum.innerSum.sum_index,sum.innerSum.non_equal_indices)
                 return DoubleSum(elem*sum.innerSum,sum.sum_index,NEI) + addterm
@@ -131,7 +131,7 @@ function *(elem::IndexedObSym,sum::DoubleSum)
         ds_term = DoubleSum(SingleSum(elem*sum.innerSum.term,sum.innerSum.sum_index,[sum.innerSum.non_equal_indices...,elem.ind]),sum.sum_index,NEI_)
         new_non_equal_indices1 = replace(sum.NEI, sum.innerSum.sum_index => elem.ind)
         ss_term1 = SingleSum(elem*change_index(sum.innerSum.term,sum.innerSum.sum_index,elem.ind),sum.sum_index,new_non_equal_indices1)
-        new_non_equal_indices2 = replace(sum.innerSum.non_equal_indices, sum.sum_index => elem.ind) 
+        new_non_equal_indices2 = replace(sum.innerSum.non_equal_indices, sum.sum_index => elem.ind)
         ss_term2 = SingleSum(elem*change_index(sum.innerSum.term,sum.sum_index,elem.ind),sum.innerSum.sum_index,new_non_equal_indices2)
         return ds_term + ss_term1 + ss_term2
     end
@@ -141,7 +141,7 @@ function *(sum::DoubleSum,elem::IndexedObSym)
     NEI = copy(sum.NEI)
     if elem.ind != sum.sum_index && elem.ind ∉ NEI
         if (sum.sum_index.aon != sum.innerSum.sum_index.aon) # indices for different ops
-            if isequal(elem.ind.aon,sum.sum_index.aon) 
+            if isequal(elem.ind.aon,sum.sum_index.aon)
                 push!(NEI,elem.ind)
                 addterm = SingleSum(change_index(sum.innerSum.term,sum.sum_index,elem.ind)*elem,sum.innerSum.sum_index,sum.innerSum.non_equal_indices)
                 return DoubleSum(sum.innerSum*elem,sum.sum_index,NEI) + addterm
@@ -152,7 +152,7 @@ function *(sum::DoubleSum,elem::IndexedObSym)
         ds_term = DoubleSum(SingleSum(sum.innerSum.term*elem,sum.innerSum.sum_index,[sum.innerSum.non_equal_indices...,elem.ind]),sum.sum_index,NEI_)
         new_non_equal_indices1 = replace(sum.NEI, sum.innerSum.sum_index => elem.ind)
         ss_term1 = SingleSum(change_index(sum.innerSum.term,sum.innerSum.sum_index,elem.ind)*elem,sum.sum_index,new_non_equal_indices1)
-        new_non_equal_indices2 = replace(sum.innerSum.non_equal_indices, sum.sum_index => elem.ind) 
+        new_non_equal_indices2 = replace(sum.innerSum.non_equal_indices, sum.sum_index => elem.ind)
         ss_term2 = SingleSum(change_index(sum.innerSum.term,sum.sum_index,elem.ind)*elem,sum.innerSum.sum_index,new_non_equal_indices2)
         return ds_term + ss_term1 + ss_term2
     end #with else it does not work?
@@ -163,7 +163,7 @@ end
 *(sum::DoubleSum,x) = DoubleSum(sum.innerSum*x,sum.sum_index,sum.NEI)
 *(x,sum::DoubleSum) = DoubleSum(x*sum.innerSum,sum.sum_index,sum.NEI)
 
-SymbolicUtils.istree(a::DoubleSum) = false
+SymbolicUtils.iscall(a::DoubleSum) = false
 SymbolicUtils.arguments(a::DoubleSum) = SymbolicUtils.arguments(a.innerSum)
 checkInnerSums(sum1::DoubleSum, sum2::DoubleSum) = ((sum1.innerSum + sum2.innerSum) == 0)
 reorder(dsum::DoubleSum,indexMapping::Vector{Tuple{Index,Index}}) = DoubleSum(reorder(dsum.innerSum,indexMapping),dsum.sum_index,dsum.NEI)
@@ -195,4 +195,3 @@ function *(sum1::SingleSum,sum2::SingleSum; ind=nothing)
 
     end
 end
-

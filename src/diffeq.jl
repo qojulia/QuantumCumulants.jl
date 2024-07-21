@@ -35,7 +35,7 @@ end
 
 # Substitute conjugate variables
 function substitute_conj(t,vs′,vs′hash)
-    if SymbolicUtils.istree(t)
+    if SymbolicUtils.iscall(t)
         if t isa Average
             if hash(t)∈vs′hash
                 t′ = _conj(t)
@@ -104,7 +104,7 @@ end
 
 # Substitute conjugate variables for indexed equations
 function substitute_conj_ind(t,vs′,vs′hash)
-    if SymbolicUtils.istree(t)
+    if SymbolicUtils.iscall(t)
         if t isa Average
             if hash(t)∈vs′hash
                 t′ = _inconj(t)

@@ -76,8 +76,8 @@ avrgTerm = average(Σ(σ(2,1,ind(:i))*σ(1,2,ind(:j)),ind(:i)))
 @test avrgTerm isa SymbolicUtils.BasicSymbolic && operation(avrgTerm) === +
 ADsum1 = qc.IndexedAverageDoubleSum(avrgTerm,ind(:j),[ind(:i)])
 @test ADsum1 isa SymbolicUtils.BasicSymbolic && operation(ADsum1) === +
-@test SymbolicUtils.metadata(arguments(ADsum1)[1])[qc.IndexedAverageDoubleSum] isa qc.IndexedAverageDoubleSum  
-@test SymbolicUtils.metadata(arguments(ADsum1)[2])[qc.IndexedAverageSum] isa qc.IndexedAverageSum  
+@test SymbolicUtils.metadata(arguments(ADsum1)[1])[qc.IndexedAverageDoubleSum] isa qc.IndexedAverageDoubleSum
+@test SymbolicUtils.metadata(arguments(ADsum1)[2])[qc.IndexedAverageSum] isa qc.IndexedAverageSum
 
 @test isequal(qc.SpecialIndexedAverage(average(σ(1,2,ind(:i))),[(ind(:i),ind(:j))])+qc.SpecialIndexedAverage(average(σ(2,1,ind(:j))),[(ind(:i),ind(:j))]),
 qc.SpecialIndexedAverage(average(σ(1,2,ind(:i))) + average(σ(2,1,ind(:j))),[(ind(:i),ind(:j))]))
@@ -91,14 +91,14 @@ qc.SpecialIndexedAverage(average(σ(1,2,ind(:i))) + average(σ(2,1,ind(:j))),[(i
 @test σ(1,2,ind(:i))*σ(2,1,ind(:j))*σn(2,2,3) isa qc.QMul
 @test σn(2,2,3)*σ(1,2,ind(:i))*σ(2,1,ind(:j)) isa qc.QMul
 
-# @test SymbolicUtils.istree(sum_A.metadata) == false
+# @test SymbolicUtils.iscall(sum_A.metadata) == false
 @test qc.IndexedAverageSum(1) == 1
 
 specAvrg = qc.SpecialIndexedAverage(average(σ(2,1,ind(:i))*σ(1,2,ind(:j))),[(ind(:i),ind(:j))])
 
 @test isequal("(i≠1)",qc.writeNeqs([(ind(:i),1)]))
 @test (isequal(SymbolicUtils.arguments(SymbolicUtils.arguments(ADsum1)[1]),SymbolicUtils.arguments(avrgTerm)[1]) || isequal(SymbolicUtils.arguments(SymbolicUtils.arguments(ADsum1)[1]),SymbolicUtils.arguments(avrgTerm)[2]) )
-# SymbolicUtilsv1.4.0 argument order changed 
+# SymbolicUtilsv1.4.0 argument order changed
 @test isequal(SymbolicUtils.arguments(SymbolicUtils.arguments(SymbolicUtils.arguments(ADsum1)[1])),SymbolicUtils.arguments(average(σ(2,1,ind(:i))*σ(1,2,ind(:j)))))
 @test isequal(SymbolicUtils.arguments(specAvrg),SymbolicUtils.arguments(average(σ(2,1,ind(:i))*σ(1,2,ind(:j)))))
 
@@ -112,14 +112,14 @@ push!(dict,(qc.SingleNumberedVariable(:g,2) => 2))
 
 @test isequal(qc.getAvrgs(specAvrg),average(σ(2,1,ind(:i))*σ(1,2,ind(:j))))
 @test (isequal(qc.getAvrgs(SymbolicUtils.arguments(avrgTerm)[1]),average(σ(2,1,ind(:i))*σ(1,2,ind(:j)))) || isequal(qc.getAvrgs(SymbolicUtils.arguments(avrgTerm)[2]),average(σ(2,1,ind(:i))*σ(1,2,ind(:j)))))
-# SymbolicUtilsv1.4.0 argument order changed 
+# SymbolicUtilsv1.4.0 argument order changed
 
 @test isequal(qc.IndexedAverageSum(g(ind(:i)),ind(:i),[]),average(Σ(g(ind(:i)),ind(:i),[])))
 @test qc.IndexedAverageSum(g(ind(:i)),ind(:i),[]) isa SymbolicUtils.BasicSymbolic{qc.IndexedAverageSum}
 
 @test ind(:i) ∈ qc.get_indices(g(ind(:i)))
 
-@cnumbers N_ 
+@cnumbers N_
 ind2(i) = Index(h,i,N_,ha)
 
 N_n = 10
@@ -140,4 +140,3 @@ eva = qc.eval_term(sum3_B;limits=map2)
 @test !(qc.containsIndexedOps(average(a'*a)))
 
 end
-

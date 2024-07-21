@@ -60,7 +60,7 @@ function IndexedAverageSum(term::symbolics_terms,sum_index::Index,non_equal_indi
         return (sum_index.range - length(non_equal_indices)) * term
     end
     prefact = 1.0
-    if istree(term)
+    if iscall(term)
         op = operation(term)
         args = arguments(term)
         # move numbers outside of sum
@@ -73,7 +73,7 @@ function IndexedAverageSum(term::symbolics_terms,sum_index::Index,non_equal_indi
                 else
                     term = *(args_nc...)
                 end
-            end 
+            end
         end
         if op === +
             return sum(IndexedAverageSum(arg,sum_index,non_equal_indices;metadata=metadata) for arg in arguments(term))
@@ -117,7 +117,7 @@ struct IndexedAverageDoubleSum <: CNumber
     end
 end
 function IndexedAverageDoubleSum(term::symbolics_terms,sum_index::Index,non_equal_indices)
-    if istree(term)
+    if iscall(term)
         op = operation(term)
         args = arguments(term)
         param = 1.0
@@ -161,7 +161,7 @@ struct NumberedOperator <:QSym
 end
 function NumberedOperator(op,numb::Int64)
     (op isa SNuN) && return op
-    if SymbolicUtils.istree(op)
+    if SymbolicUtils.iscall(op)
         f = SymbolicUtils.operation(op)
         args = [NumberedOperator(arg,numb) for arg in SymbolicUtils.arguments(op)]
         isempty(args) && return 0
@@ -243,10 +243,10 @@ struct SpecialIndexedAverage <: CNumber #An average-Term with special condition,
     end
 end
 function SpecialIndexedAverage(term::symbolics_terms,indexMapping)
-    if istree(term)
+    if iscall(term)
         op = operation(term)
         args = arguments(term)
-        if op === * 
+        if op === *
             prefac = 1
             if args[1] isa Number
                 prefac = args[1]
@@ -335,10 +335,10 @@ end
 SymbolicUtils._iszero(a::IndexedAverageSum) = SymbolicUtils._iszero(a.term)
 SymbolicUtils._isone(a::IndexedAverageSum) = SymbolicUtils._isone(a.term)
 
-SymbolicUtils.istree(a::IndexedAverageSum) = false
-SymbolicUtils.istree(a::BasicSymbolic{SpecialIndexedAverage}) = false
-SymbolicUtils.istree(a::IndexedAverageDoubleSum) = false
-SymbolicUtils.istree(a::BasicSymbolic{IndexedAverageDoubleSum}) = false
+SymbolicUtils.iscall(a::IndexedAverageSum) = false
+SymbolicUtils.iscall(a::BasicSymbolic{SpecialIndexedAverage}) = false
+SymbolicUtils.iscall(a::IndexedAverageDoubleSum) = false
+SymbolicUtils.iscall(a::BasicSymbolic{IndexedAverageDoubleSum}) = false
 
 
 average(x::NumberedOperator) = _average(x)
@@ -392,7 +392,7 @@ function Base.hash(a::NumberedOperator,h::UInt)
 end
 Base.isequal(x::NumberedOperator,y::NumberedOperator) = isequal(x.op,y.op) && isequal(x.numb,y.numb)
 Base.isless(a::IndexedAverageSum,b::IndexedAverageSum) = a.sum_index < b.sum_index
-function Base.isequal(a::BasicSymbolic{IndexedAverageSum},b::BasicSymbolic{IndexedAverageSum}) 
+function Base.isequal(a::BasicSymbolic{IndexedAverageSum},b::BasicSymbolic{IndexedAverageSum})
     a_meta = SymbolicUtils.metadata(a)[IndexedAverageSum]
     b_meta = SymbolicUtils.metadata(b)[IndexedAverageSum]
     return isequal(a_meta,b_meta)
@@ -403,7 +403,7 @@ function Base.isequal(a::IndexedAverageSum, b::IndexedAverageSum)
     isequal(a.non_equal_indices,b.non_equal_indices) || return false
     return true
 end
-function Base.isequal(a::BasicSymbolic{SpecialIndexedAverage},b::BasicSymbolic{SpecialIndexedAverage}) 
+function Base.isequal(a::BasicSymbolic{SpecialIndexedAverage},b::BasicSymbolic{SpecialIndexedAverage})
     a_meta = SymbolicUtils.metadata(a)[SpecialIndexedAverage]
     b_meta = SymbolicUtils.metadata(b)[SpecialIndexedAverage]
     return isequal(a_meta.term,b_meta.term) && isequal(a_meta.indexMapping,b_meta.indexMapping)
@@ -475,7 +475,7 @@ function insert_index(sum::BasicSymbolic{IndexedAverageDoubleSum}, ind::Index,va
     return IndexedAverageDoubleSum(inner,meta.sum_index,meta.non_equal_indices)
 end
 function insert_index(term::BasicSymbolic{<:CNumber},ind::Index,value::Int64)
-    if istree(term)
+    if iscall(term)
         op = operation(term)
         if op === *
             return prod(insert_index(arg,ind,value) for arg in arguments(term))
@@ -511,7 +511,7 @@ function insert_index(term_::BasicSymbolic{DoubleIndexedVariable},ind::Index,val
     return term_
 end
 function insert_index(term::BasicSymbolic{DoubleNumberedVariable},ind::Index,value::Int64)
-    if istree(term)
+    if iscall(term)
         op = operation(term)
         if op === *
             return prod(insert_index(arg,ind,value) for arg in arguments(term))
@@ -596,7 +596,7 @@ function insert_indices_lhs(term::Average,map::Dict{Index,Int64};kwargs...)
         inorder!(lhs)
     end
     return lhs
-end 
+end
 """
     evalME(me::MeanfieldEquations;limits::Dict{SymbolicUtils.BasicSymbolic,Int64}=Dict{SymbolicUtils.BasicSymbolic,Int64}())
 
@@ -651,7 +651,7 @@ function evalME(me::AbstractMeanfieldEquations;limits=Dict{SymbolicUtils.BasicSy
                 dict = Dict{Index,Int}(inds .=> arr[j])
                 eq_lhs = insert_indices_lhs(eq.lhs,dict)
                 if (eq_lhs ∉ states) && (_inconj(eq_lhs) ∉ states)
-                    eq_rhs = insert_indices(eq,dict;limits=limits,h=h,kwargs...)    
+                    eq_rhs = insert_indices(eq,dict;limits=limits,h=h,kwargs...)
                     states[counter] = eq_lhs
                     if SymbolicUtils._iszero(eq_rhs)
                         newEqs[counter] = Symbolics.Equation(eq_lhs,0)
@@ -662,7 +662,7 @@ function evalME(me::AbstractMeanfieldEquations;limits=Dict{SymbolicUtils.BasicSy
                 end
             end
         end
-    end 
+    end
     states = states[1:(counter-1)]
     operats = undo_average.(states)
     newEqs = newEqs[1:(counter-1)]
@@ -684,7 +684,7 @@ function evalME(me::AbstractMeanfieldEquations;limits=Dict{SymbolicUtils.BasicSy
             counter = counter + 1
         else
             ranges = get_range.(inds)
-            counter = counter + prod(ranges) 
+            counter = counter + prod(ranges)
         end
     end
     return substitute(counter,limits)
@@ -702,7 +702,7 @@ function eval_term(sum_::BasicSymbolic{IndexedAverageSum};limits=Dict{SymbolicUt
         rangeEval = limits[meta.sum_index.range]
     else
         if meta.sum_index.range isa BasicSymbolic{<:CNumber}
-            if istree(meta.sum_index.range)
+            if iscall(meta.sum_index.range)
                 args = arguments(meta.sum_index.range)
                 args_ = Vector{Any}(nothing,length(args))
                 for i=1:length(args)
@@ -742,7 +742,7 @@ function eval_term(sum::BasicSymbolic{IndexedAverageDoubleSum};kwargs...)
     return eval_term(IndexedAverageDoubleSum(eval_term(meta.innerSum;kwargs...),meta.sum_index,meta.non_equal_indices);kwargs...)
 end
 function eval_term(term::BasicSymbolic{<:CNumber};kwargs...)
-    if istree(term)
+    if iscall(term)
         op = operation(term)
         if op === +
             return sum(eval_term(arg;kwargs...) for arg in arguments(term))
@@ -759,7 +759,7 @@ function eval_term(term::BasicSymbolic{<:CNumber};kwargs...)
             args = arguments(term)
             return eval_term(args[1];kwargs...)/eval_term(args[2];kwargs...)
         end
-        
+
         if length(arguments(term)) == 1 # exp, sin, cos, ln, ...
             return op(eval_term(arguments(term)[1];kwargs...))
         end
@@ -771,7 +771,7 @@ function eval_term(x;kwargs...)
     inorder!(x)
     return x
 end
-function evalEq(eq::Symbolics.Equation;kwargs...) 
+function evalEq(eq::Symbolics.Equation;kwargs...)
     rhs_ = eval_term(eq.rhs;kwargs...)
     if SymbolicUtils._iszero(rhs_)
         return Symbolics.Equation(eq.lhs,0)
@@ -889,7 +889,7 @@ function containsIndexedOps(term::Average)
 end
 containsIndex(term::Average,ind::Index) = ind ∈ get_indices(term)
 
-function SymbolicUtils.simplify(sym::BasicSymbolic{SpecialIndexedAverage}) 
+function SymbolicUtils.simplify(sym::BasicSymbolic{SpecialIndexedAverage})
     meta = SymbolicUtils.metadata(sym)[SpecialIndexedAverage]
     SpecialIndexedAverage(SymbolicUtils.simplify(meta.term),meta.indexMapping)
 end
@@ -952,8 +952,8 @@ end
 getAvrgs(sum::BasicSymbolic{SpecialIndexedAverage}) = getAvrgs(SymbolicUtils.metadata(sum)[SpecialIndexedAverage].term)
 getAvrgs(sum::BasicSymbolic{IndexedAverageSum}) = getAvrgs(SymbolicUtils.metadata(sum)[IndexedAverageSum].term)
 getAvrgs(Dsum::BasicSymbolic{IndexedAverageDoubleSum}) = getAvrgs(SymbolicUtils.metadata(Dsum)[IndexedAverageDoubleSum].innerSum)
-function getAvrgs(term::BasicSymbolic{<:CNumber}) 
-    if istree(term)
+function getAvrgs(term::BasicSymbolic{<:CNumber})
+    if iscall(term)
         return  vcat(filter(x->!=(x,nothing),[getAvrgs(arg) for arg in arguments(term)])...)
     else
         return nothing
@@ -1006,11 +1006,11 @@ function _to_expression(x::NumberedOperator)
     x.op isa Destroy && return :(NumberedDestroy($(x.op.name),$(x.numb)))
     x.op isa Create && return :(dagger(NumberedDestroy($(x.op.name),$(x.numb))))
 end
-function _to_expression(x::BasicSymbolic{IndexedAverageSum}) 
+function _to_expression(x::BasicSymbolic{IndexedAverageSum})
     meta = SymbolicUtils.metadata(x)[IndexedAverageSum]
     return :( IndexedAverageSum($(_to_expression(meta.term)),$(meta.sum_index.name),$(meta.sum_index.range),$(writeNEIs(meta.non_equal_indices))) )
 end
-function _to_expression(x::BasicSymbolic{SpecialIndexedAverage}) 
+function _to_expression(x::BasicSymbolic{SpecialIndexedAverage})
     meta = SymbolicUtils.metadata(x)[SpecialIndexedAverage]
     return _to_expression(meta.term)
 end
@@ -1036,9 +1036,9 @@ end
 #simplify functions not "really" needed, they are nice to have, since equation creation of Symbolics sometimes does not simplify certain terms
 #function to reduce multiplication of numbers with a sum into just a sum of multiplication
 function simplifyMultiplication(term::BasicSymbolic{<:CNumber})
-    if istree(term) && operation(term) === *
+    if iscall(term) && operation(term) === *
         args = arguments(term)
-        ind = findfirst(x-> (istree(x) && operation(x) === +),args)
+        ind = findfirst(x-> (iscall(x) && operation(x) === +),args)
         (ind === nothing) && return term #no add-terms were found inside the multiplication
 
         args_ = arguments(args[ind]) # arguments of the addition
@@ -1053,37 +1053,37 @@ end
 simplifyMultiplication(x) = x
 
 
-function +(a::BasicSymbolic{SpecialIndexedAverage},b::BasicSymbolic{SpecialIndexedAverage}) 
+function +(a::BasicSymbolic{SpecialIndexedAverage},b::BasicSymbolic{SpecialIndexedAverage})
     if isequal(a,b)
         return SymbolicUtils.Add(CNumber,0,Dict(a=>2))
     end
     return SymbolicUtils.Add(CNumber,0,Dict(a=>1,b=>1))
 end
-function +(a::BasicSymbolic{IndexedAverageDoubleSum},b::BasicSymbolic{IndexedAverageDoubleSum}) 
+function +(a::BasicSymbolic{IndexedAverageDoubleSum},b::BasicSymbolic{IndexedAverageDoubleSum})
     if isequal(a,b)
         return SymbolicUtils.Add(CNumber,0,Dict(a=>2))
     end
     return SymbolicUtils.Add(CNumber,0,Dict(a=>1,b=>1))
 end
-function +(a::BasicSymbolic{IndexedAverageSum},b::BasicSymbolic{IndexedAverageSum}) 
+function +(a::BasicSymbolic{IndexedAverageSum},b::BasicSymbolic{IndexedAverageSum})
     if isequal(a,b)
         return SymbolicUtils.Add(CNumber,0,Dict(a=>2))
     end
     return SymbolicUtils.Add(CNumber,0,Dict(a=>1,b=>1))
 end
-function *(a::BasicSymbolic{SpecialIndexedAverage},b::BasicSymbolic{SpecialIndexedAverage}) 
+function *(a::BasicSymbolic{SpecialIndexedAverage},b::BasicSymbolic{SpecialIndexedAverage})
     if isequal(a,b)
         return SymbolicUtils.Mul(CNumber,1,Dict(a=>2))
     end
     return SymbolicUtils.Mul(CNumber,1,Dict(a=>1,b=>1))
 end
-function +(a::BasicSymbolic{IndexedVariable},b::BasicSymbolic{IndexedVariable}) 
+function +(a::BasicSymbolic{IndexedVariable},b::BasicSymbolic{IndexedVariable})
     if isequal(a,b)
         return SymbolicUtils.Add(CNumber,0,Dict(a=>2))
     end
     return SymbolicUtils.Add(CNumber,0,Dict(a=>1,b=>1))
 end
-function +(a::BasicSymbolic{DoubleIndexedVariable},b::BasicSymbolic{DoubleIndexedVariable}) 
+function +(a::BasicSymbolic{DoubleIndexedVariable},b::BasicSymbolic{DoubleIndexedVariable})
     if isequal(a,b)
         return SymbolicUtils.Add(CNumber,0,Dict(a=>2))
     end
