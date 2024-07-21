@@ -326,7 +326,7 @@ end
 
 _to_numeric(op::Destroy, b::QuantumOpticsBase.FockBasis; kwargs...) = QuantumOpticsBase.destroy(b)
 _to_numeric(op::Create, b::QuantumOpticsBase.FockBasis; kwargs...) = QuantumOpticsBase.create(b)
-function _to_numeric(op::Pauli, b::QuantumOpticsBase.SpinBasis; kwargs...) 
+function _to_numeric(op::Pauli, b::QuantumOpticsBase.SpinBasis; kwargs...)
     (b.spinnumber ≠ 1/2) && error("The SpinBasis needs to be Spin-1/2!")
     axis = op.axis
     if axis == 1 # σx
@@ -497,7 +497,7 @@ for T ∈ [:AbstractTimeseriesSolution,:AbstractNoTimeSolution]
         t = MTK.get_iv(ode_func.sys)
         vars = SciMLBase.getsyms(sol)
         var = make_var(avg, t)
-        
+
         if any(isequal(var), vars)
             # sucess, we found the symbol
             return getindex(sol, var)
@@ -548,7 +548,7 @@ for linear combinations of operators, which is not possible with `sol[op]`.
 """
 get_solution(sol, op::QNumber) = sol[op]
 function get_solution(sol, x)
-    if length(sol[1]) == 1 #SteadyStateProblem
+    if length(sol[:,1]) == 1 #SteadyStateProblem
         return x
     else
         return x*ones(length(sol))
