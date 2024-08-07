@@ -46,7 +46,7 @@ function substitute_conj(t,vs′,vs′hash)
         else
             _f = x->substitute_conj(x,vs′,vs′hash)
             args = map(_f, SymbolicUtils.arguments(t))
-            return SymbolicUtils.maketerm(typeof(t), SymbolicUtils.operation(t), args, SymbolicUtils.promote_symtype(f, args...), TermInterface.metadata(t))
+            return SymbolicUtils.maketerm(typeof(t), SymbolicUtils.operation(t), args, SymbolicUtils.promote_symtype(_f, args...), TermInterface.metadata(t))
         end
     else
         return t
