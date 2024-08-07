@@ -46,7 +46,7 @@ function substitute_conj(t,vs′,vs′hash)
         else
             _f = x->substitute_conj(x,vs′,vs′hash)
             args = map(_f, SymbolicUtils.arguments(t))
-            return SymbolicUtils.similarterm(t, SymbolicUtils.operation(t), args)
+            return SymbolicUtils.maketerm(typeof(t), SymbolicUtils.operation(t), args, SymbolicUtils.promote_symtype(f, args...), TermInterface.metadata(t))
         end
     else
         return t
@@ -115,7 +115,8 @@ function substitute_conj_ind(t,vs′,vs′hash)
         else
             _f = x->substitute_conj_ind(x,vs′,vs′hash)
             args = map(_f, SymbolicUtils.arguments(t))
-            return SymbolicUtils.similarterm(t, SymbolicUtils.operation(t), args)
+            f = SymbolicUtils.operation(t)
+            return SymbolicUtils.maketerm(typeof(t), f, args, SymbolicUtils.promote_symtype(f, args...), TermInterface.metadata(t))
         end
     else
         return t

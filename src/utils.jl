@@ -527,7 +527,7 @@ function _conj(v::SymbolicUtils.Symbolic)
     if SymbolicUtils.iscall(v)
         f = SymbolicUtils.operation(v)
         args = map(_conj, SymbolicUtils.arguments(v))
-        return SymbolicUtils.similarterm(v, f, args)
+        return SymbolicUtils.maketerm(typeof(v), f, args, SymbolicUtils.promote_symtype(f, args...), TermInterface.metadata(v))
     else
         return conj(v)
     end

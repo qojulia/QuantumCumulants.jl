@@ -80,7 +80,7 @@ function _inconj(v::SymbolicUtils.BasicSymbolic)
     if SymbolicUtils.iscall(v)
         f = SymbolicUtils.operation(v)
         args = map(_inconj, SymbolicUtils.arguments(v))
-        return SymbolicUtils.similarterm(v, f, args)
+        return SymbolicUtils.maketerm(typeof(v), f, args, SymbolicUtils.promote_symtype(f, args...), TermInterface.metadata(v))
     else
         return conj(v)
     end
@@ -113,7 +113,7 @@ function inorder!(v::SymbolicUtils.BasicSymbolic)
     if SymbolicUtils.iscall(v)
         f = SymbolicUtils.operation(v)
         args = map(inorder!, SymbolicUtils.arguments(v))
-        return SymbolicUtils.similarterm(v, f, args)
+        return SymbolicUtils.maketerm(typeof(v), f, args, SymbolicUtils.promote_symtype(f, args...), TermInterface.metadata(v))
     end
     return v
 end
