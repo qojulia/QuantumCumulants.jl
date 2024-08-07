@@ -392,7 +392,7 @@ function _new_operator(t::Transition, h, aon=t.aon; add_subscript=nothing)
 end
 _new_operator(x::Number, h, aon=nothing; kwargs...) = x
 function _new_operator(t, h, aon=nothing; kwargs...)
-    if SymbolicUtils.istree(t)
+    if SymbolicUtils.iscall(t)
         args = []
         if isnothing(aon)
             for arg in SymbolicUtils.arguments(t)
@@ -553,7 +553,7 @@ function _build_spec_func(ω, lhs, rhs, a1, a0, steady_vals, ps=[])
 end
 
 function _substitute_vars(t::SymbolicUtils.Symbolic)
-    if SymbolicUtils.istree(t)
+    if SymbolicUtils.iscall(t)
         f = SymbolicUtils.operation(t)
         if f === sym_average
             sym = Symbol(string(t))
@@ -561,7 +561,7 @@ function _substitute_vars(t::SymbolicUtils.Symbolic)
                 Symbolics.VariableSource, (:_substitute_vars, sym))
         else
             args = [_substitute_vars(arg) for arg∈SymbolicUtils.arguments(t)]
-            return SymbolicUtils.similarterm(t, f, args)
+            return SymbolicUtils.maketerm(typeof(t), f, args, SymbolicUtils.promote_symtype(f, args...), TermInterface.metadata(t))
         end
     else
         return t
