@@ -250,7 +250,7 @@ function substitute_redundants(he::MeanfieldEquations,scale_aons::Vector{<:Vecto
     return MeanfieldEquations(lhs, rhs, he.hamiltonian, he.jumps, he.jumps_dagger, he.rates)
 end
 
-function substitute_redundants(t::SymbolicUtils.Symbolic,scale_aons::Vector{<:Vector},names)
+function substitute_redundants(t::T,scale_aons::Vector{<:Vector},names) where T <: SymbolicUtils.Symbolic
     if SymbolicUtils.iscall(t)
         f = SymbolicUtils.operation(t)
         if f === sym_average
@@ -264,7 +264,7 @@ function substitute_redundants(t::SymbolicUtils.Symbolic,scale_aons::Vector{<:Ve
             for arg in SymbolicUtils.arguments(t)
                 push!(args, substitute_redundants(arg,scale_aons,names))
             end
-            return SymbolicUtils.maketerm(typeof(t), f, args, SymbolicUtils.promote_symtype(f, args...), TermInterface.metadata(t))
+            return SymbolicUtils.maketerm(T, f, args, SymbolicUtils.promote_symtype(f, args...), TermInterface.metadata(t))
         end
     else
         return t

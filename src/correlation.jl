@@ -552,7 +552,7 @@ function _build_spec_func(ω, lhs, rhs, a1, a0, steady_vals, ps=[])
     return A, b, c, Afunc, bfunc, cfunc
 end
 
-function _substitute_vars(t::SymbolicUtils.Symbolic)
+function _substitute_vars(t::T) where T <: SymbolicUtils.Symbolic
     if SymbolicUtils.iscall(t)
         f = SymbolicUtils.operation(t)
         if f === sym_average
@@ -561,7 +561,7 @@ function _substitute_vars(t::SymbolicUtils.Symbolic)
                 Symbolics.VariableSource, (:_substitute_vars, sym))
         else
             args = [_substitute_vars(arg) for arg∈SymbolicUtils.arguments(t)]
-            return SymbolicUtils.maketerm(typeof(t), f, args, SymbolicUtils.promote_symtype(f, args...), TermInterface.metadata(t))
+            return SymbolicUtils.maketerm(T, f, args, SymbolicUtils.promote_symtype(f, args...), TermInterface.metadata(t))
         end
     else
         return t
