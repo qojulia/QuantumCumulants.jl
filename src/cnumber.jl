@@ -27,8 +27,6 @@ Base.one(::Type{Parameter}) = 1
 Base.zero(::Type{Parameter}) = 0
 Base.adjoint(x::SymbolicUtils.Symbolic{<:CNumber}) = conj(x)
 
-# TODO: this doesn't work with just setting Complex for some reason; am I doing this right?
-SymbolicUtils.symtype(::Symbolics.BasicSymbolic{T}) where T <: CNumber = ComplexF64
 
 """
     @cnumbers(ps...)
@@ -133,7 +131,6 @@ Base.adjoint(x::SymbolicUtils.Symbolic{<:RNumber}) = x
 Base.adjoint(x::RNumber) = x
 Base.conj(x::RNumber) = x
 
-SymbolicUtils.symtype(::Symbolics.BasicSymbolic{T}) where T<:RNumber = Real
 
 """
     @rnumbers(ps...)
