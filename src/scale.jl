@@ -264,7 +264,7 @@ function substitute_redundants(t::T,scale_aons::Vector{<:Vector},names) where T 
             for arg in SymbolicUtils.arguments(t)
                 push!(args, substitute_redundants(arg,scale_aons,names))
             end
-            return SymbolicUtils.maketerm(T, f, args, SymbolicUtils.promote_symtype(f, args...), TermInterface.metadata(t))
+            return SymbolicUtils.maketerm(T, f, args, TermInterface.metadata(t))
         end
     else
         return t

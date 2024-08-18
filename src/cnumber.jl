@@ -13,7 +13,7 @@ a parameter.
 """
 struct Parameter <: CNumber
     function Parameter(name; metadata=source_metadata(:Parameter, name))
-        s = SymbolicUtils.Sym{Parameter}(name)
+        s = SymbolicUtils.Sym{ComplexF64}(name)
         s = SymbolicUtils.setmetadata(s, MTK.VariableSource, (:Parameter, name))
         return SymbolicUtils.setmetadata(s,MTK.MTKVariableTypeCtx,MTK.PARAMETER)
     end
@@ -115,7 +115,7 @@ a real parameter.
 """
 struct RealParameter <: RNumber
     function RealParameter(name; metadata=source_metadata(:RealParameter, name))
-        s = SymbolicUtils.Sym{RealParameter}(name)
+        s = SymbolicUtils.Sym{Real}(name)
         s = SymbolicUtils.setmetadata(s, MTK.VariableSource, (:RealParameter, name))
         return SymbolicUtils.setmetadata(s,MTK.MTKVariableTypeCtx,MTK.PARAMETER)
     end

@@ -19,7 +19,7 @@ end
 SymbolicUtils.promote_symtype(::typeof(sym_average), ::Type{<:QNumber}) = AvgSym
 
 # needs a specific symtype overload, otherwise we build the wrong expressions with maketerm
-TermInterface.symtype(::T) where T <: Average = QuantumCumulants.AvgSym
+SymbolicUtils.symtype(::T) where T <: Average = QuantumCumulants.AvgSym
 
 # Direct construction of average symbolic expression
 function _average(operator)

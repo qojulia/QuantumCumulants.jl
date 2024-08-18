@@ -109,7 +109,7 @@ Base.hash(q::QMul, h::UInt) = hash(QMul, hash(q.arg_c, SymbolicUtils.hashvec(q.a
 SymbolicUtils.operation(::QMul) = (*)
 SymbolicUtils.arguments(a::QMul) = vcat(a.arg_c, a.args_nc)
 
-function SymbolicUtils.maketerm(::Type{<:QMul}, ::typeof(*), args, type, metadata)
+function SymbolicUtils.maketerm(::Type{<:QMul}, ::typeof(*), args, metadata)
     args_c = filter(x->!(x isa QNumber), args)
     args_nc = filter(x->x isa QNumber, args)
     arg_c = *(args_c...)
@@ -234,7 +234,7 @@ end
 
 SymbolicUtils.operation(::QAdd) = (+)
 SymbolicUtils.arguments(a::QAdd) = a.arguments
-SymbolicUtils.maketerm(::Type{<:QAdd}, ::typeof(+), args, type, metadata) = QAdd(args; metadata)
+SymbolicUtils.maketerm(::Type{<:QAdd}, ::typeof(+), args, metadata) = QAdd(args; metadata)
 
 SymbolicUtils.metadata(q::QAdd) = q.metadata
 
