@@ -104,7 +104,10 @@ split2 = split_sums(avrgSum,k,M)
 @test isequal(M,arguments(split2)[1])
 @test isequal(N/M,arguments(split2)[2].metadata[qc.IndexedAverageSum].sum_index.range)
 
-avrgSum2 = arguments(arguments(eqs_c[3].rhs)[1])[2]
+# avrgSum2 = arguments(arguments(eqs_c[3].rhs)[1])[2] # order of arguments changed!
+args_ = (arguments(eqs_c[3].rhs))
+it_ = findfirst(x->typeof(arguments(x)[2]) == SymbolicUtils.BasicSymbolic{IndexedAverageSum}, args_)
+avrgSum2 = arguments(arguments(eqs_c[3].rhs)[1it_])[2]
 
 _split0 = split_sums(avrgSum2,l,15)
 

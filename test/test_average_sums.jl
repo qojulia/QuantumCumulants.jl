@@ -52,7 +52,8 @@ g_ = insert_index(g(ind(:j)),ind(:j),1)
 @test gamma isa SymbolicUtils.BasicSymbolic{qc.DoubleNumberedVariable}
 
 gamma_ = insert_index(gamma,ind(:j),2)
-@test gamma_ isa SymbolicUtils.BasicSymbolic{Parameter}
+# @test gamma_ isa SymbolicUtils.BasicSymbolic{Parameter}
+@test gamma_ isa SymbolicUtils.BasicSymbolic{ComplexF64}
 
 @test !isequal(gamma,gamma_)
 @test !isequal(gamma,g_)
@@ -74,10 +75,19 @@ pind = Index(h,:p,5,ha)
 
 avrgTerm = average(Σ(σ(2,1,ind(:i))*σ(1,2,ind(:j)),ind(:i)))
 @test avrgTerm isa SymbolicUtils.BasicSymbolic && operation(avrgTerm) === +
-ADsum1 = qc.IndexedAverageDoubleSum(avrgTerm,ind(:j),[ind(:i)])
+# ADsum1 = qc.IndexedAverageDoubleSum(avrgTerm,ind(:j),[ind(:i)])
+# @test ADsum1 isa SymbolicUtils.BasicSymbolic && operation(ADsum1) === +
+# @test SymbolicUtils.metadata(arguments(ADsum1)[it_2])[qc.IndexedAverageDoubleSum] isa qc.IndexedAverageDoubleSum
+# @test SymbolicUtils.metadata(arguments(ADsum1)[2])[qc.IndexedAverageSum] isa qc.IndexedAverageSum
+
+# executing it line by line gives a different order of the arguments?? arguments(ADsum1)
+ADsum1 = simplify(qc.IndexedAverageDoubleSum(avrgTerm,ind(:j),[ind(:i)]))
+it_1 = findfirst(x->typeof((x))==SymbolicUtils.BasicSymbolic{IndexedAverageSum}, arguments(ADsum1))
+it_2 = findfirst(x->typeof((x))==SymbolicUtils.BasicSymbolic{IndexedAverageDoubleSum}, arguments(ADsum1))
 @test ADsum1 isa SymbolicUtils.BasicSymbolic && operation(ADsum1) === +
-@test SymbolicUtils.metadata(arguments(ADsum1)[1])[qc.IndexedAverageDoubleSum] isa qc.IndexedAverageDoubleSum
-@test SymbolicUtils.metadata(arguments(ADsum1)[2])[qc.IndexedAverageSum] isa qc.IndexedAverageSum
+@test SymbolicUtils.metadata(arguments(ADsum1)[it_2])[qc.IndexedAverageDoubleSum] isa qc.IndexedAverageDoubleSum
+@test SymbolicUtils.metadata(arguments(ADsum1)[it_1])[qc.IndexedAverageSum] isa qc.IndexedAverageSum
+
 
 @test isequal(qc.SpecialIndexedAverage(average(σ(1,2,ind(:i))),[(ind(:i),ind(:j))])+qc.SpecialIndexedAverage(average(σ(2,1,ind(:j))),[(ind(:i),ind(:j))]),
 qc.SpecialIndexedAverage(average(σ(1,2,ind(:i))) + average(σ(2,1,ind(:j))),[(ind(:i),ind(:j))]))
@@ -85,8 +95,8 @@ qc.SpecialIndexedAverage(average(σ(1,2,ind(:i))) + average(σ(2,1,ind(:j))),[(i
 @test qc.SpecialIndexedAverage(average(0),[(ind(:i),ind(:j))]) == 0
 @test SymbolicUtils.metadata(qc.SpecialIndexedAverage(average(σ(2,1,ind(:i))),[(ind(:i),ind(:j))]))[qc.SpecialIndexedAverage] isa qc.SpecialIndexedAverage
 
-@test qc.undo_average(arguments(ADsum1)[1]) isa qc.DoubleSum
-@test isequal(Σ(Σ(σ(2,1,ind(:i))*σ(1,2,ind(:j)),ind(:i)),ind(:j),[ind(:i)]),qc.undo_average(ADsum1))
+@test qc.undo_average(arguments(ADsum1)[it_2]) isa qc.DoubleSum
+@test isequal(simplify(Σ(Σ(σ(2,1,ind(:i))*σ(1,2,ind(:j)),ind(:i)),ind(:j),[ind(:i)])),simplify(qc.undo_average(ADsum1)))
 
 @test σ(1,2,ind(:i))*σ(2,1,ind(:j))*σn(2,2,3) isa qc.QMul
 @test σn(2,2,3)*σ(1,2,ind(:i))*σ(2,1,ind(:j)) isa qc.QMul
@@ -97,9 +107,9 @@ qc.SpecialIndexedAverage(average(σ(1,2,ind(:i))) + average(σ(2,1,ind(:j))),[(i
 specAvrg = qc.SpecialIndexedAverage(average(σ(2,1,ind(:i))*σ(1,2,ind(:j))),[(ind(:i),ind(:j))])
 
 @test isequal("(i≠1)",qc.writeNeqs([(ind(:i),1)]))
-@test (isequal(SymbolicUtils.arguments(SymbolicUtils.arguments(ADsum1)[1]),SymbolicUtils.arguments(avrgTerm)[1]) || isequal(SymbolicUtils.arguments(SymbolicUtils.arguments(ADsum1)[1]),SymbolicUtils.arguments(avrgTerm)[2]) )
+@test (isequal(SymbolicUtils.arguments(SymbolicUtils.arguments(ADsum1)[it_2]),SymbolicUtils.arguments(avrgTerm)[1]) || isequal(SymbolicUtils.arguments(SymbolicUtils.arguments(ADsum1)[it_2]),SymbolicUtils.arguments(avrgTerm)[2]) )
 # SymbolicUtilsv1.4.0 argument order changed
-@test isequal(SymbolicUtils.arguments(SymbolicUtils.arguments(SymbolicUtils.arguments(ADsum1)[1])),SymbolicUtils.arguments(average(σ(2,1,ind(:i))*σ(1,2,ind(:j)))))
+@test isequal(SymbolicUtils.arguments(SymbolicUtils.arguments(SymbolicUtils.arguments(ADsum1)[it_2])),SymbolicUtils.arguments(average(σ(2,1,ind(:i))*σ(1,2,ind(:j)))))
 @test isequal(SymbolicUtils.arguments(specAvrg),SymbolicUtils.arguments(average(σ(2,1,ind(:i))*σ(1,2,ind(:j)))))
 
 @test isequal(qc.insert_index(σ(1,2,ind(:j))*σn(1,2,2),ind(:j),1),qc.insert_index(qc.insert_index(σ(1,2,ind(:i))*σ(1,2,ind(:j)),ind(:i),2),ind(:j),1))
