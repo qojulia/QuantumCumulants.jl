@@ -193,8 +193,7 @@ To ensure we are in the steady state we use a steady solver to calculate it. To 
 
 ```@example superradiant-laser
 prob_ss = SteadyStateProblem(prob)
-sol_ss = solve(prob_ss, DynamicSS(Tsit5(); abstol=1e-6, reltol=1e-6),
-    reltol=1e-12, abstol=1e-12, maxiters=1e7)
+sol_ss = solve(prob_ss, SSRootfind())
 nothing # hide
 ```
 

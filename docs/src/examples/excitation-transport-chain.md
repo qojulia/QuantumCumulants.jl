@@ -112,7 +112,7 @@ function prob_func(prob,i,repeat)
     x_ = x0 .+ s.*randn(N)
     p_ = [γ => 1.0; Δ => 0.0; Ω => 2.0; J0 => 1.25; x .=> x_;]
     # Return new ODEProblem
-    return remake(prob, p=p_)
+    return ODEProblem(sys,u0,(0.0,15.0),p_)
 end
 
 trajectories = 50
