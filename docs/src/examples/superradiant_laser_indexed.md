@@ -216,7 +216,7 @@ To ensure we are in the steady state we use a steady solver to calculate it. To 
 
 
 ```@example superradiant_laser_indexed
-prob_ss = SteadyStateProblem(prob)
+prob_ss = SteadyStateProblem(sys,sol.u[end],ps.=>p0)
 sol_ss = solve(prob_ss, SSRootfind())
 nothing # hide
 ```

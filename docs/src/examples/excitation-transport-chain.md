@@ -115,7 +115,7 @@ function prob_func(prob,i,repeat)
     return ODEProblem(sys,u0,(0.0,15.0),p_)
 end
 
-trajectories = 50
+trajectories = 20
 eprob = EnsembleProblem(prob,prob_func=prob_func)
 sim = solve(eprob,RK4(),trajectories=trajectories)
 nothing # hide
