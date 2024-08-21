@@ -191,8 +191,3 @@ function Base.:*(si::Spin,sj::Spin)
         return QMul(1, [sj,si])
     end
 end
-
-# axis(s::Spin) = s.axis
-# function Base.isless(si::Spin, sj::Spin)
-#     isless(acts_on(si), acts_on(sj)) || isless(axis(si), axis(sj))
-# end

@@ -29,7 +29,7 @@ h = hf⊗ha
 @test isequal((Δ2*(Γ3 + 1))', (conj(Δ2*(Γ3 + 1))))
 @test isequal(κ*(Γ3 + 1)', κ*(Γ3 + 1))
 @test isequal((1im*κ*(Γ3 + 1))', conj(1im*κ*(Γ3 + 1)))
-# @test isequal(simplify(exp(1im*κ)*(exp(1im*κ))'), 1)
+@test_broken isequal(simplify(exp(1im*κ)*(exp(1im*κ))'), 1)
 
 # Operators
 @qnumbers a::Destroy(h) σ::Transition(h)
