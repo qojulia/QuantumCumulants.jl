@@ -118,6 +118,7 @@ n_ = sol_[a2'a2][end]
 s1zs2z_ = sol_[σ1(3)*σ2(3)][end]
 s1xs2y_ = sol_[σ1(1)*σ2(2)][end]
 
+@test isequal(simplify(σ1(1) + a2), simplify(a2 + σ1(1)))
 @test isapprox(s1y, s1y_; atol=1e-5)
 @test isapprox(s2x, s2x_; atol=1e-5)
 @test isapprox(s1z, s1z_; atol=1e-5)
@@ -145,7 +146,8 @@ S(1)≠S(2)
 @test isequal(S(:x)*S(:y), 1*S(:x)*S(:y))
 @test !isequal(S(:x)*S(:y), S(:x)*S(:z))
 @test isequal(S(1)*S(1), (S(1))^2)
-@test isequal(simplify(S(1) + S(2)), simplify(S(2) + S(1)))
+@test isequal(average(S(1) + S(2)), average(S(2) + S(1)))
+@test isequal(simplify(S(2) + S(2)), 2S(2))
 
 # error
 @test isequal(2*S(1)*S(2)*S(3), S(1)*S(2)*S(3)*2)

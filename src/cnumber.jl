@@ -26,7 +26,8 @@ Base.promote_rule(::Type{<:CNumber},::Type{<:Number}) = CNumber
 Base.one(::Type{Parameter}) = 1
 Base.zero(::Type{Parameter}) = 0
 Base.adjoint(x::SymbolicUtils.Symbolic{<:CNumber}) = conj(x)
-Base.adjoint(x::SymbolicUtils.BasicSymbolic{Complex{Real}}) = _conj(x)
+# Base.adjoint(x::SymbolicUtils.BasicSymbolic{Complex{Real}}) = _conj(x)
+Base.adjoint(s::SymbolicUtils.Symbolic{<:Number}) = conj(s) # type piracy; TODO:delete after SU.jl PR is merged
 
 
 """
@@ -131,8 +132,7 @@ Base.zero(::Type{RealParameter}) = 0
 Base.adjoint(x::SymbolicUtils.Symbolic{<:RNumber}) = x
 Base.adjoint(x::RNumber) = x
 Base.conj(x::RNumber) = x
-Base.adjoint(x::SymbolicUtils.Symbolic{<:Real}) = conj(x)
-
+# Base.adjoint(x::SymbolicUtils.Symbolic{<:Real}) = conj(x)
 
 """
     @rnumbers(ps...)
