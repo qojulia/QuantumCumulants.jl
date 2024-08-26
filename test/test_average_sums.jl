@@ -53,7 +53,7 @@ g_ = insert_index(g(ind(:j)),ind(:j),1)
 
 gamma_ = insert_index(gamma,ind(:j),2)
 # @test gamma_ isa SymbolicUtils.BasicSymbolic{Parameter}
-@test gamma_ isa SymbolicUtils.BasicSymbolic{ComplexF64}
+@test gamma_ isa SymbolicUtils.BasicSymbolic{Complex{Real}}
 
 @test !isequal(gamma,gamma_)
 @test !isequal(gamma,g_)

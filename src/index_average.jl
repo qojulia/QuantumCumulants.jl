@@ -701,7 +701,7 @@ function eval_term(sum_::BasicSymbolic{IndexedAverageSum};limits=Dict{SymbolicUt
     if meta.sum_index.range in keys(limits)
         rangeEval = limits[meta.sum_index.range]
     else
-        if meta.sum_index.range isa BasicSymbolic{ComplexF64}
+        if meta.sum_index.range isa BasicSymbolic{<:Complex{<:Real}}
         # if meta.sum_index.range isa BasicSymbolic{<:CNumber}
             if iscall(meta.sum_index.range)
                 args = arguments(meta.sum_index.range)

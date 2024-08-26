@@ -557,7 +557,7 @@ function _substitute_vars(t::T) where T <: SymbolicUtils.Symbolic
         f = SymbolicUtils.operation(t)
         if f === sym_average
             sym = Symbol(string(t))
-            return SymbolicUtils.setmetadata(SymbolicUtils.Sym{Complex}(sym),
+            return SymbolicUtils.setmetadata(SymbolicUtils.Sym{Complex{Real}}(sym),
                 Symbolics.VariableSource, (:_substitute_vars, sym))
         else
             args = [_substitute_vars(arg) for arg∈SymbolicUtils.arguments(t)]

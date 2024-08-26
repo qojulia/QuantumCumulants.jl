@@ -13,7 +13,7 @@ a parameter.
 """
 struct Parameter <: CNumber
     function Parameter(name; metadata=source_metadata(:Parameter, name))
-        s = SymbolicUtils.Sym{ComplexF64}(name)
+        s = SymbolicUtils.Sym{Complex{Real}}(name)
         s = SymbolicUtils.setmetadata(s, MTK.VariableSource, (:Parameter, name))
         return SymbolicUtils.setmetadata(s,MTK.MTKVariableTypeCtx,MTK.PARAMETER)
     end
