@@ -166,7 +166,7 @@ const IndexedAdd = Union{QAdd, BasicSymbolic{<:CNumber}}
 const IndexedObSym = Union{IndexedOperator,BasicSymbolic{IndexedVariable},BasicSymbolic{DoubleIndexedVariable}}
 
 function SpecialIndexedTerm(term::IndexedAdd,indexMapping)
-    if istree(term)
+    if iscall(term)
         op = operation(term)
         args = arguments(term)
         return op([reorder(arg,indexMapping) for arg in args]...)
@@ -181,7 +181,7 @@ function SingleSum(term::IndexedObSym,sum_index::Index,non_equal_indices;metadat
     return SingleSum(term,sum_index,non_equal_indices,metadata)
 end
 function SingleSum(term::IndexedAdd, sum_index, non_equal_indices;metadata=NO_METADATA)
-    if istree(term)
+    if iscall(term)
         op = operation(term)
         args = arguments(term)
         if op === +
@@ -274,7 +274,14 @@ SingleSum(ops::QMul,ind::Index;metadata=NO_METADATA) = SingleSum(ops,ind,Index[]
 SingleSum(ops::QAdd,ind::Index;metadata=NO_METADATA) = SingleSum(ops,ind,Index[];metadata=metadata)
 SingleSum(op::QNumber,ind::Index;metadata=NO_METADATA) = SingleSum(op,ind,Index[];metadata=metadata)
 SingleSum(ops::Number,ind::Index,NEI::Vector;metadata=NO_METADATA) = (ind.range - length(NEI))*ops
-SingleSum(term, sum_index, non_equal_indices;metadata=NO_METADATA) = (sum_index.range - length(non_equal_indices)) * term
+# SingleSum(term, sum_index, non_equal_indices;metadata=NO_METADATA) = (sum_index.range - length(non_equal_indices)) * term
+function SingleSum(term, sum_index, non_equal_indices;metadata=NO_METADATA) 
+    if (sum_index ∉ get_indices(term)) # saver way to avoid wrong simplification
+        return (sum_index.range - length(non_equal_indices)) * term
+    else
+        return SingleSum(term,sum_index,non_equal_indices,metadata)
+    end
+end
 
 function IndexedOperator(op::QMul,ind::Index)
     arg_c = op.arg_c
@@ -645,8 +652,8 @@ function change_index(op::BasicSymbolic{DoubleIndexedVariable},from::Index,to::I
         end
     end
 end
-function change_index(term::BasicSymbolic{<:CNumber},from::Index,to::Index) 
-    if istree(term)
+function change_index(term::BasicSymbolic{<:CNumber},from::Index,to::Index)
+    if iscall(term)
         op = operation(term)
         if op === +
             args = arguments(term)
@@ -678,11 +685,11 @@ function change_index(term::BasicSymbolic{<:CNumber},from::Index,to::Index)
     return term
 end
 # issue 196: TODO:test
-function change_index(S::SingleSum, i::Index, j::Index) 
+function change_index(S::SingleSum, i::Index, j::Index)
     (j ∈ S.non_equal_indices) && error("Index $(j) is in the non-equal index list.")
     if S.sum_index == i
         return SingleSum(change_index(S.term,i,j), j, replace(S.non_equal_indices, i=>j), S.metadata)
-    end        
+    end
     return S
 end
 change_index(x,from::Index,to::Index) = x
@@ -693,7 +700,7 @@ getIndName(op::IndexedOperator) = op.ind.name
 getIndName(ind::Index) = ind.name
 getIndName(x) = Symbol()
 
-SymbolicUtils.istree(a::SingleSum) = false
+SymbolicUtils.iscall(a::SingleSum) = false
 SymbolicUtils.arguments(a::SingleSum) = SymbolicUtils.arguments(a.term)
 SymbolicUtils.arguments(a::IndexedOperator) = [a]
 

@@ -18,18 +18,21 @@ end
 # Type promotion -- average(::QNumber)::Number
 SymbolicUtils.promote_symtype(::typeof(sym_average), ::Type{<:QNumber}) = AvgSym
 
+# needs a specific symtype overload, otherwise we build the wrong expressions with maketerm
+SymbolicUtils.symtype(::T) where T <: Average = QuantumCumulants.AvgSym
+
 # Direct construction of average symbolic expression
 function _average(operator)
     return SymbolicUtils.Term{AvgSym}(sym_average, [operator])
 end
 # ensure that BasicSymbolic{<:AvgSym} are only single averages
-function *(a::Average,b::Average) 
+function *(a::Average,b::Average)
     if isequal(a,b)
         return SymbolicUtils.Mul(CNumber,1,Dict(a=>2))
     end
     return SymbolicUtils.Mul(CNumber,1,Dict(a=>1,b=>1))
 end
-function +(a::Average,b::Average) 
+function +(a::Average,b::Average)
     if isequal(a,b)
         return SymbolicUtils.Add(CNumber,0,Dict(a=>2))
     end
@@ -37,7 +40,7 @@ function +(a::Average,b::Average)
 end
 
 function acts_on(s::SymbolicUtils.Symbolic)
-    if SymbolicUtils.istree(s)
+    if SymbolicUtils.iscall(s)
         f = SymbolicUtils.operation(s)
         if f === sym_average
             return acts_on(SymbolicUtils.arguments(s)[1])
@@ -82,7 +85,7 @@ average(x::SNuN) = x
 average(x,order;kwargs...) = cumulant_expansion(average(x),order;kwargs...)
 
 function undo_average(t)
-    if SymbolicUtils.istree(t)
+    if SymbolicUtils.iscall(t)
         f = SymbolicUtils.operation(t)
         if isequal(f,sym_average) # "===" results in false sometimes in Symbolics version > 5
             return SymbolicUtils.arguments(t)[1]
@@ -133,7 +136,7 @@ Optional arguments
 *kwargs...: Further keyword arguments being passed to simplification.
 """
 function cumulant_expansion(x::SymbolicUtils.Symbolic,order::Integer;simplify=true,kwargs...)
-    if SymbolicUtils.istree(x)
+    if SymbolicUtils.iscall(x)
         get_order(x) <= order && return x
         f = SymbolicUtils.operation(x)
         if f===sym_average
@@ -158,7 +161,7 @@ end
 cumulant_expansion(x::Number,order;kwargs...) = x
 
 function cumulant_expansion(x::SymbolicUtils.Symbolic,order;mix_choice=maximum,simplify=true,kwargs...)
-    if SymbolicUtils.istree(x)
+    if SymbolicUtils.iscall(x)
         f = SymbolicUtils.operation(x)
         args = SymbolicUtils.arguments(x)
         cumulants = [cumulant_expansion(arg,order;simplify=simplify,mix_choice=mix_choice) for arg in args]
@@ -319,7 +322,7 @@ julia> get_order(1)
 """
 get_order(avg::Average) = get_order(SymbolicUtils.arguments(avg)[1])
 function get_order(t::SymbolicUtils.Symbolic)
-    if SymbolicUtils.istree(t)
+    if SymbolicUtils.iscall(t)
         return maximum(map(get_order, SymbolicUtils.arguments(t)))
     else
         return 0

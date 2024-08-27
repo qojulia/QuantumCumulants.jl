@@ -158,7 +158,6 @@ function Spin(hilbert::HilbertSpace,name,axis::Symbol; kwargs...)
         Spin(hilbert,name,3; kwargs...)
     end
 end
-# CallablePauli not possible, due to acts_on convenience (same number of arguments)
 
 Base.hash(s::Spin, h::UInt) = hash(s.hilbert, hash(s.name, hash(s.axis, hash(s.aon, h))))
 Base.adjoint(s::Spin) = s

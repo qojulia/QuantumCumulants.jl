@@ -5,7 +5,7 @@
 Function, that evaluates a given [`MeanfieldEquations`](@ref) or [`CorrelationFunction`](@ref) entity and returns again equations,
 where indices have been inserted and sums evaluated, regarding the same relations, as done when calculating
 with oparators using a [`ClusterSpace`](@ref). For this it is considered that all entities in the given
-(sub)system are acting on the system equivalently. 
+(sub)system are acting on the system equivalently.
 
 # Arguments
 *`me::IndexedMeanfieldEquations`: A [`MeanfieldEquations`](@ref) entity, which shall be scaled.
@@ -29,7 +29,7 @@ function scale(eqs::IndexedMeanfieldEquations;h=nothing,kwargs...)
             end
         end
         h = h_
-    end    
+    end
     return subst_reds_scale(scaleME(eqs;h=h,kwargs...);h=h,kwargs...)
 end
 function scale(he::AbstractMeanfieldEquations; kwargs...)
@@ -250,8 +250,8 @@ function substitute_redundants(he::MeanfieldEquations,scale_aons::Vector{<:Vecto
     return MeanfieldEquations(lhs, rhs, he.hamiltonian, he.jumps, he.jumps_dagger, he.rates)
 end
 
-function substitute_redundants(t::SymbolicUtils.Symbolic,scale_aons::Vector{<:Vector},names)
-    if SymbolicUtils.istree(t)
+function substitute_redundants(t::T,scale_aons::Vector{<:Vector},names) where T <: SymbolicUtils.Symbolic
+    if SymbolicUtils.iscall(t)
         f = SymbolicUtils.operation(t)
         if f === sym_average
             op = deepcopy(SymbolicUtils.arguments(t)[1])
@@ -264,7 +264,7 @@ function substitute_redundants(t::SymbolicUtils.Symbolic,scale_aons::Vector{<:Ve
             for arg in SymbolicUtils.arguments(t)
                 push!(args, substitute_redundants(arg,scale_aons,names))
             end
-            return SymbolicUtils.similarterm(t, f, args)
+            return SymbolicUtils.maketerm(T, f, args, TermInterface.metadata(t))
         end
     else
         return t

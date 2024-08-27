@@ -42,9 +42,10 @@ Base.isless(a::QSym, b::QSym) = a.name < b.name
 ## Interface for SymbolicUtils
 
 TermInterface.head(::QNumber) = :call
-SymbolicUtils.istree(::QSym) = false
-SymbolicUtils.istree(::QTerm) = true
-SymbolicUtils.istree(::Type{T}) where {T<:QTerm} = true
+SymbolicUtils.iscall(::QSym) = false
+SymbolicUtils.iscall(::QTerm) = true
+SymbolicUtils.iscall(::Type{T}) where {T<:QTerm} = true
+TermInterface.metadata(x::QNumber) = x.metadata
 
 # Symbolic type promotion
 SymbolicUtils.promote_symtype(f, Ts::Type{<:QNumber}...) = promote_type(Ts...)
@@ -108,7 +109,7 @@ Base.hash(q::QMul, h::UInt) = hash(QMul, hash(q.arg_c, SymbolicUtils.hashvec(q.a
 SymbolicUtils.operation(::QMul) = (*)
 SymbolicUtils.arguments(a::QMul) = vcat(a.arg_c, a.args_nc)
 
-function SymbolicUtils.similarterm(::QMul, ::typeof(*), args, symtype=nothing; metadata=NO_METADATA, exprhead=nothing)
+function SymbolicUtils.maketerm(::Type{<:QMul}, ::typeof(*), args, metadata)
     args_c = filter(x->!(x isa QNumber), args)
     args_nc = filter(x->x isa QNumber, args)
     arg_c = *(args_c...)
@@ -233,7 +234,7 @@ end
 
 SymbolicUtils.operation(::QAdd) = (+)
 SymbolicUtils.arguments(a::QAdd) = a.arguments
-SymbolicUtils.similarterm(::QAdd, ::typeof(+), args; metadata=NO_METADATA, exprhead=nothing) = QAdd(args; metadata)
+SymbolicUtils.maketerm(::Type{<:QAdd}, ::typeof(+), args, metadata) = QAdd(args; metadata)
 
 SymbolicUtils.metadata(q::QAdd) = q.metadata
 

@@ -62,7 +62,7 @@ function scale_term(pow::SymbolicUtils.Pow; kwargs...)
     return scale_term(args[1]; kwargs...)^(args[2])
 end
 function scale_term(add::BasicSymbolic{<:CNumber}; h=nothing, kwargs...)
-    if istree(add)
+    if iscall(add)
         op = operation(add)
         if op === +
             args = arguments(add)
@@ -71,7 +71,7 @@ function scale_term(add::BasicSymbolic{<:CNumber}; h=nothing, kwargs...)
                 adds[i] = scale_term(args[i]; h=h, kwargs...)
             end
             return sum(adds)
-        elseif op === * 
+        elseif op === *
             mul = add
             mults = []
             for arg in arguments(mul)
@@ -238,7 +238,7 @@ function split_sums(term::SymbolicUtils.BasicSymbolic,ind::Index,amount::Union{<
     if term isa Average
         return term
     end
-    if SymbolicUtils.istree(term)
+    if SymbolicUtils.iscall(term)
         args = []
         op = SymbolicUtils.operation(term)
         for i = 1:length(arguments(term))
@@ -296,6 +296,6 @@ function split_sums(me::AbstractMeanfieldEquations,ind::Index,amount)
 end
 split_sums(x,ind,amount) = x
 
-function scale(args...; kwargs...) 
+function scale(args...; kwargs...)
     return subst_reds_scale(scale_term(args...; kwargs...);kwargs...)
 end

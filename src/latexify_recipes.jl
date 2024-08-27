@@ -208,7 +208,7 @@ _to_expression(t::QAdd) = :( +($(_to_expression.(t.arguments)...)) )
 
 _to_expression(p::Parameter) = p.name
 function _to_expression(s::SymbolicUtils.Symbolic)
-    if SymbolicUtils.istree(s)
+    if SymbolicUtils.iscall(s)
         f = SymbolicUtils.operation(s)
         fsym = if isequal(f,sym_average) # "===" results in false for symbolics version 5
             :AVG

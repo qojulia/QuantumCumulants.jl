@@ -28,9 +28,16 @@ system of equations.
 function CorrelationFunction(op1,op2,de0::AbstractMeanfieldEquations;
                             steady_state=false, add_subscript=0,
                             filter_func=nothing, mix_choice=maximum,
-                            iv=SymbolicUtils.Sym{Real}(:τ),
+                            iv=nothing,
                             order=nothing,
                             simplify=true, kwargs...)
+    if iv === nothing
+        iv_ = SymbolicUtils.Sym{Real}(:τ)
+        iv_ = SymbolicUtils.setmetadata(iv_, MTK.VariableSource, (:parameters, :τ))
+        iv_ = SymbolicUtils.setmetadata(iv_, MTK.MTKVariableTypeCtx,MTK.PARAMETER)
+    else
+        iv_ = iv
+    end
     h1 = hilbert(op1)
     h2 = _new_hilbert(hilbert(op2), acts_on(op2))
     h = h1⊗h2
@@ -62,7 +69,7 @@ function CorrelationFunction(op1,op2,de0::AbstractMeanfieldEquations;
     op_ = op1_*op2_
     @assert get_order(op_) <= order_
 
-    de = meanfield(op_,H,J;Jdagger=Jd,rates=de0.rates,iv=iv,order=order_)
+    de = meanfield(op_,H,J;Jdagger=Jd,rates=de0.rates,iv=iv_,order=order_)
     _complete_corr!(de, length(h.spaces), lhs_new, order_, steady_state;
                             filter_func=filter_func,
                             mix_choice=mix_choice,
@@ -392,7 +399,7 @@ function _new_operator(t::Transition, h, aon=t.aon; add_subscript=nothing)
 end
 _new_operator(x::Number, h, aon=nothing; kwargs...) = x
 function _new_operator(t, h, aon=nothing; kwargs...)
-    if SymbolicUtils.istree(t)
+    if SymbolicUtils.iscall(t)
         args = []
         if isnothing(aon)
             for arg in SymbolicUtils.arguments(t)
@@ -552,16 +559,16 @@ function _build_spec_func(ω, lhs, rhs, a1, a0, steady_vals, ps=[])
     return A, b, c, Afunc, bfunc, cfunc
 end
 
-function _substitute_vars(t::SymbolicUtils.Symbolic)
-    if SymbolicUtils.istree(t)
+function _substitute_vars(t::T) where T <: SymbolicUtils.Symbolic
+    if SymbolicUtils.iscall(t)
         f = SymbolicUtils.operation(t)
         if f === sym_average
             sym = Symbol(string(t))
-            return SymbolicUtils.setmetadata(SymbolicUtils.Sym{Complex}(sym),
+            return SymbolicUtils.setmetadata(SymbolicUtils.Sym{Complex{Real}}(sym),
                 Symbolics.VariableSource, (:_substitute_vars, sym))
         else
             args = [_substitute_vars(arg) for arg∈SymbolicUtils.arguments(t)]
-            return SymbolicUtils.similarterm(t, f, args)
+            return SymbolicUtils.maketerm(T, f, args, TermInterface.metadata(t))
         end
     else
         return t

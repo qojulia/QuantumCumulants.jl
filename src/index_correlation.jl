@@ -131,12 +131,19 @@ when the original system `de0` contains any types of [`Index`](@ref) entities.
 See also: [`CorrelationFunction`](@ref)
 """
 function IndexedCorrelationFunction(op1,op2,de0::AbstractMeanfieldEquations;
-    steady_state=false, add_subscript=0,
-    filter_func=nothing, mix_choice=maximum,
-    iv=SymbolicUtils.Sym{Real}(:τ),
-    order=nothing,
-    extra_indices::Vector=[:i,:j,:k,:l,:m,:n,:p,:q,:r,:s,:t],
-    simplify=true, kwargs...)
+            steady_state=false, add_subscript=0,
+            filter_func=nothing, mix_choice=maximum,
+            iv=nothing,
+            order=nothing,
+            extra_indices::Vector=[:i,:j,:k,:l,:m,:n,:p,:q,:r,:s,:t],
+            simplify=true, kwargs...)
+    if iv === nothing
+        iv_ = SymbolicUtils.Sym{Real}(:τ)
+        iv_ = SymbolicUtils.setmetadata(iv_, MTK.VariableSource, (:parameters, :τ))
+        iv_ = SymbolicUtils.setmetadata(iv_, MTK.MTKVariableTypeCtx,MTK.PARAMETER)
+    else
+        iv_ = iv
+    end
     h1 = hilbert(op1)
     h2 = _new_hilbert(hilbert(op2), acts_on(op2))
     h = h1⊗h2
@@ -188,7 +195,7 @@ function IndexedCorrelationFunction(op1,op2,de0::AbstractMeanfieldEquations;
         IndexedMeanfieldEquations(eqs,eqs_op,lhs_new,ops,H,J,Jd,rates_,de0.iv,varmap,order_)
     end
 
-    de = indexed_meanfield([op_],H,J;Jdagger=Jd,rates=rates_,iv=iv,order=order_)
+    de = indexed_meanfield([op_],H,J;Jdagger=Jd,rates=rates_,iv=iv_,order=order_)
     indexed_complete_corr!(de, length(h.spaces), lhs_new, order_, steady_state, de0_;
             filter_func=filter_func,
             mix_choice=mix_choice,

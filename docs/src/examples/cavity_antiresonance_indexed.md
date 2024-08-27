@@ -144,7 +144,7 @@ nothing # hide
 n_ls = zeros(length(Δ_ls))
 
 # definitions for fast replacement of numerical parameter
-prob = ODEProblem(sys,u0,(0.0, 20Γ_), ps.=>p0)
+prob = ODEProblem(sys,u0,(0.0, 20), ps.=>p0)
 prob_ss = SteadyStateProblem(prob)
 
 for i=1:length(Δ_ls)
@@ -152,10 +152,9 @@ for i=1:length(Δ_ls)
     Δa_i = Δc_i + Ωij(1,2) # cavity on resonace with the shifted collective emitter
     p0_ = [Δc_i; η_; Δa_i; κ_; gi_; Γij_; Ωij_]
 
-    # create new SteadyStateProblem
-    prob_ss_ = remake(prob_ss, p=(ps.=>p0_))
-    sol_ss = solve(prob_ss_, DynamicSS(Tsit5(); abstol=1e-6, reltol=1e-6),
-        reltol=1e-12, abstol=1e-12, maxiters=1e7)
+    # create (remake) new SteadyStateProblem
+    prob_ss_ = SteadyStateProblem(sys,u0,ps.=>p0_)
+    sol_ss = solve(prob_ss_, SSRootfind())
     n_ls[i] = abs2(sol_ss[a])
 end
 nothing #hide

@@ -7,7 +7,7 @@ function get_indices(term::QMul)
 end
 get_indices(a::IndexedOperator) = [a.ind]
 get_indices(vec::Vector) = unique(vcat(get_indices.(vec)...))
-function get_indices(a::BasicSymbolic{DoubleIndexedVariable}) 
+function get_indices(a::BasicSymbolic{DoubleIndexedVariable})
     meta = SymbolicUtils.metadata(a)[DoubleIndexedVariable]
     return unique([meta.ind1,meta.ind2])
 end
@@ -17,7 +17,7 @@ const Sums = Union{SingleSum,DoubleSum}
 get_indices(x::SingleSum) = get_indices(x.term)
 get_indices(x::DoubleSum) = get_indices(x.innerSum.term)
 get_indices(x::Number) = []
-get_indices(term) = istree(term) ? get_indices(arguments(term)) : []
+get_indices(term) = iscall(term) ? get_indices(arguments(term)) : []
 
 #Usability functions:
 Σ(a,b) = DoubleSum(a,b)  #Double-Sum here, because if variable a is not a single sum it will create a single sum anyway
@@ -76,11 +76,11 @@ function _inconj(v::Average)
     adj_arg = inadjoint(arg)
     return _average(adj_arg)
 end
-function _inconj(v::SymbolicUtils.BasicSymbolic)
-    if SymbolicUtils.istree(v)
+function _inconj(v::T) where T <: SymbolicUtils.BasicSymbolic
+    if SymbolicUtils.iscall(v)
         f = SymbolicUtils.operation(v)
         args = map(_inconj, SymbolicUtils.arguments(v))
-        return SymbolicUtils.similarterm(v, f, args)
+        return SymbolicUtils.maketerm(T, f, args, TermInterface.metadata(v))
     else
         return conj(v)
     end
@@ -109,11 +109,11 @@ function inorder!(q::QMul)
     sort!(q.args_nc, by=acts_on)
     return merge_commutators(q.arg_c,q.args_nc)
 end
-function inorder!(v::SymbolicUtils.BasicSymbolic)
-    if SymbolicUtils.istree(v)
+function inorder!(v::T) where T <: SymbolicUtils.BasicSymbolic
+    if SymbolicUtils.iscall(v)
         f = SymbolicUtils.operation(v)
         args = map(inorder!, SymbolicUtils.arguments(v))
-        return SymbolicUtils.similarterm(v, f, args)
+        return SymbolicUtils.maketerm(T, f, args, TermInterface.metadata(v))
     end
     return v
 end
@@ -233,7 +233,7 @@ function isscaleequal(a::IndexedOperator,b::IndexedOperator;h=nothing,kwargs...)
     end
 end
 function isscaleequal(t1,t2;kwargs...)
-    if SymbolicUtils.istree(t1) && SymbolicUtils.istree(t2)
+    if SymbolicUtils.iscall(t1) && SymbolicUtils.iscall(t2)
         args1 = arguments(t1)
         args2 = arguments(t2)
         isequal(operation(t1),operation(t2)) || return false

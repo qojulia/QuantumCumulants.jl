@@ -13,7 +13,7 @@ a parameter.
 """
 struct Parameter <: CNumber
     function Parameter(name; metadata=source_metadata(:Parameter, name))
-        s = SymbolicUtils.Sym{Parameter}(name)
+        s = SymbolicUtils.Sym{Complex{Real}}(name)
         s = SymbolicUtils.setmetadata(s, MTK.VariableSource, (:Parameter, name))
         return SymbolicUtils.setmetadata(s,MTK.MTKVariableTypeCtx,MTK.PARAMETER)
     end
@@ -26,9 +26,9 @@ Base.promote_rule(::Type{<:CNumber},::Type{<:Number}) = CNumber
 Base.one(::Type{Parameter}) = 1
 Base.zero(::Type{Parameter}) = 0
 Base.adjoint(x::SymbolicUtils.Symbolic{<:CNumber}) = conj(x)
+# Base.adjoint(x::SymbolicUtils.BasicSymbolic{Complex{Real}}) = _conj(x)
+Base.adjoint(s::SymbolicUtils.Symbolic{<:Number}) = conj(s) # type piracy; TODO:delete after SU.jl PR is merged
 
-# TODO: this doesn't work with just setting Complex for some reason; am I doing this right?
-MTK.concrete_symtype(::Symbolics.BasicSymbolic{T}) where T <: CNumber = ComplexF64
 
 """
     @cnumbers(ps...)
@@ -117,7 +117,7 @@ a real parameter.
 """
 struct RealParameter <: RNumber
     function RealParameter(name; metadata=source_metadata(:RealParameter, name))
-        s = SymbolicUtils.Sym{RealParameter}(name)
+        s = SymbolicUtils.Sym{Real}(name)
         s = SymbolicUtils.setmetadata(s, MTK.VariableSource, (:RealParameter, name))
         return SymbolicUtils.setmetadata(s,MTK.MTKVariableTypeCtx,MTK.PARAMETER)
     end
@@ -132,8 +132,7 @@ Base.zero(::Type{RealParameter}) = 0
 Base.adjoint(x::SymbolicUtils.Symbolic{<:RNumber}) = x
 Base.adjoint(x::RNumber) = x
 Base.conj(x::RNumber) = x
-
-MTK.concrete_symtype(::Symbolics.BasicSymbolic{T}) where T<:RNumber = Real
+# Base.adjoint(x::SymbolicUtils.Symbolic{<:Real}) = conj(x)
 
 """
     @rnumbers(ps...)
