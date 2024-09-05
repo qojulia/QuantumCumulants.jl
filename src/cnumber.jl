@@ -15,19 +15,18 @@ struct Parameter <: CNumber
     function Parameter(name; metadata=source_metadata(:Parameter, name))
         s = SymbolicUtils.Sym{Complex{Real}}(name)
         s = SymbolicUtils.setmetadata(s, MTK.VariableSource, (:Parameter, name))
-        return SymbolicUtils.setmetadata(s,MTK.MTKVariableTypeCtx,MTK.PARAMETER)
+        return SymbolicUtils.setmetadata(s, MTK.MTKVariableTypeCtx, MTK.PARAMETER)
     end
 end
 
 # Promoting to CNumber ensures we own the symtype; could be used to dispatch
 # on Base methods (e.g. latex printing)
-Base.promote_rule(::Type{<:CNumber},::Type{<:Number}) = CNumber
+Base.promote_rule(::Type{<:CNumber}, ::Type{<:Number}) = CNumber
 
 Base.one(::Type{Parameter}) = 1
 Base.zero(::Type{Parameter}) = 0
 Base.adjoint(x::SymbolicUtils.Symbolic{<:CNumber}) = conj(x)
 # Base.adjoint(x::SymbolicUtils.BasicSymbolic{Complex{Real}}) = _conj(x)
-Base.adjoint(s::SymbolicUtils.Symbolic{<:Number}) = conj(s) # type piracy; TODO:delete after SU.jl PR is merged
 
 
 """
@@ -119,13 +118,13 @@ struct RealParameter <: RNumber
     function RealParameter(name; metadata=source_metadata(:RealParameter, name))
         s = SymbolicUtils.Sym{Real}(name)
         s = SymbolicUtils.setmetadata(s, MTK.VariableSource, (:RealParameter, name))
-        return SymbolicUtils.setmetadata(s,MTK.MTKVariableTypeCtx,MTK.PARAMETER)
+        return SymbolicUtils.setmetadata(s, MTK.MTKVariableTypeCtx, MTK.PARAMETER)
     end
 end
 
 # Promoting to RNumber ensures we own the symtype; could be used to dispatch
 # on Base methods (e.g. latex printing)
-Base.promote_rule(::Type{<:RNumber},::Type{<:Real}) = RNumber
+Base.promote_rule(::Type{<:RNumber}, ::Type{<:Real}) = RNumber
 
 Base.one(::Type{RealParameter}) = 1
 Base.zero(::Type{RealParameter}) = 0
@@ -227,6 +226,6 @@ function Base.conj(x::SymbolicUtils.BasicSymbolic{CNumber})
 end
 
 
-const AbstractQCParameter = Union{CNumber, RNumber}
+const AbstractQCParameter = Union{CNumber,RNumber}
 
 # TODO: real IndexedVariables
