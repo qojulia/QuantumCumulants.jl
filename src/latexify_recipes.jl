@@ -190,6 +190,16 @@ function _to_expression(x::Complex) # For brackets when using latexify
         return :( $(real(x)) + $(imag(x))*im )
     end
 end
+function _to_expression(x::Complex{Symbolics.Num}) # forward complex Nums to Symbolics recipes
+    iszero(x) && return x
+    if iszero(real(x))
+        :( $(Symbolics.recipe(imag(x))) * $im )
+    elseif iszero(imag(x))
+        return :( $(Symbolics.recipe(real(x))) )
+    else
+        return :( $(Symbolics.recipe(real(x))) + $(Symbolics.recipe(imag(x))) * $im )
+    end
+end
 _to_expression(op::QSym) = op.name
 _to_expression(op::Create) = :(dagger($(op.name)))
 _to_expression(op::Transition) = :(Transition($(op.name),$(op.i),$(op.j)) )
