@@ -49,6 +49,18 @@ a(k) = IndexedOperator(Destroy(h,:a),k)
 Ssum1 = Σ(g_ik*a(k_ind)*σ(2,1,i_ind),i_ind)
 Ssum2 = Σ(g_ik*a(k_ind)'*σ(1,2,i_ind),i_ind)
 
+### issue 221 (DoubleSum)
+@cnumbers c1 N1
+i_ind2 = Index(h,:i,N1,ha)
+j_ind2 = Index(h,:j,N1,ha)
+@test isequal(simplify(Σ(-σ(2,2,i_ind),i_ind,j_ind)),simplify(Σ(-σ(2,2,i_ind),i_ind)*4))
+@test isequal(simplify(Σ(3*σ(2,2,i_ind),i_ind,j_ind)),simplify(Σ(3*σ(2,2,i_ind),i_ind)*4))
+@test isequal(simplify(Σ(c1*σ(2,2,i_ind),i_ind,j_ind)),simplify(Σ(c1*σ(2,2,i_ind),i_ind)*4))
+@test isequal(simplify(Σ(-σ(2,2,i_ind2),i_ind2,j_ind2)),simplify(Σ( (1-N1)*σ(2,2,i_ind2) ,i_ind2)) - Σ( σ(2,2,i_ind2), i_ind2))
+@test isequal(simplify(Σ(3*σ(2,2,i_ind2),i_ind2,j_ind2)), simplify(Σ( 3*(N1-1)*σ(2,2,i_ind2) ,i_ind2)) + 3*Σ( σ(2,2,i_ind2), i_ind2))
+@test isequal(simplify(Σ(c1*σ(2,2,i_ind2),i_ind2,j_ind2)),simplify(c1*Σ( σ(2,2,i_ind2), i_ind2) + Σ( c1*(N1-1)*σ(2,2,i_ind2) ,i_ind2)) )
+###
+
 @test isequal(Σ(conj(g_ik)*a(k_ind)'*σ(1,2,i_ind),i_ind),Ssum1')
 
 @test isequal(Σ(Σ(g_ik*(a(k_ind)*σ(2,1,i_ind) + a(k_ind)'*σ(1,2,i_ind)),i_ind),k_ind),
