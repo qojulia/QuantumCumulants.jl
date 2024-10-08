@@ -119,7 +119,7 @@ end
 function IndexedAverageDoubleSum(term::symbolics_terms,sum_index::Index,non_equal_indices)
     if iscall(term)
         op = operation(term)
-        args = arguments(term)
+        args = copy(arguments(term))
         param = 1.0
         if op === *
             if args[1] isa Number #put numbers out in front
