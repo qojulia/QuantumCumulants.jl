@@ -117,6 +117,10 @@ function *(qmul::QMul,sum::DoubleSum)
 end
 
 function *(elem::IndexedObSym,sum::DoubleSum)
+    sum_ = simplify(sum)
+    if !(sum_ isa DoubleSum) # issue 223
+        return elem*sum_
+    end
     NEI = copy(sum.NEI)
     if elem.ind != sum.sum_index && elem.ind ∉ NEI
         if (sum.sum_index.aon != sum.innerSum.sum_index.aon) # indices for different ops
@@ -128,16 +132,23 @@ function *(elem::IndexedObSym,sum::DoubleSum)
             return DoubleSum(elem*sum.innerSum,sum.sum_index,NEI)
         end
         NEI_ = [NEI...,elem.ind] # issue #169 (scaling of double sum)
-        ds_term = DoubleSum(SingleSum(elem*sum.innerSum.term,sum.innerSum.sum_index,[sum.innerSum.non_equal_indices...,elem.ind]),sum.sum_index,NEI_)
+        ds_term = DoubleSum(SingleSum(elem*sum.innerSum.term,sum.innerSum.sum_index,
+            [sum.innerSum.non_equal_indices...,elem.ind]),sum.sum_index,NEI_)
         new_non_equal_indices1 = replace(sum.NEI, sum.innerSum.sum_index => elem.ind)
-        ss_term1 = SingleSum(elem*change_index(sum.innerSum.term,sum.innerSum.sum_index,elem.ind),sum.sum_index,new_non_equal_indices1)
-        new_non_equal_indices2 = replace(sum.innerSum.non_equal_indices, sum.sum_index => elem.ind)
-        ss_term2 = SingleSum(elem*change_index(sum.innerSum.term,sum.sum_index,elem.ind),sum.innerSum.sum_index,new_non_equal_indices2)
+        ss_term1 = SingleSum(elem*change_index(sum.innerSum.term,sum.innerSum.sum_index,elem.ind),
+            sum.sum_index,new_non_equal_indices1)
+        new_non_equal_indices2 = unique([replace(sum.innerSum.non_equal_indices, sum.sum_index => elem.ind)..., elem.ind]) #issue #223
+        ss_term2 = SingleSum(elem*change_index(sum.innerSum.term,sum.sum_index,elem.ind),
+            sum.innerSum.sum_index,new_non_equal_indices2)
         return ds_term + ss_term1 + ss_term2
     end
     return DoubleSum(elem*sum.innerSum,sum.sum_index,NEI)
 end
 function *(sum::DoubleSum,elem::IndexedObSym)
+    sum_ = simplify(sum)
+    if !(sum_ isa DoubleSum) # issue 223
+        return sum_*elem
+    end
     NEI = copy(sum.NEI)
     if elem.ind != sum.sum_index && elem.ind ∉ NEI
         if (sum.sum_index.aon != sum.innerSum.sum_index.aon) # indices for different ops
@@ -149,11 +160,15 @@ function *(sum::DoubleSum,elem::IndexedObSym)
             return DoubleSum(sum.innerSum*elem,sum.sum_index,NEI)
         end
         NEI_ = [NEI...,elem.ind] # issue #169 (scaling of double sum)
-        ds_term = DoubleSum(SingleSum(sum.innerSum.term*elem,sum.innerSum.sum_index,[sum.innerSum.non_equal_indices...,elem.ind]),sum.sum_index,NEI_)
+        ds_term = DoubleSum(SingleSum(sum.innerSum.term*elem,sum.innerSum.sum_index,
+            [sum.innerSum.non_equal_indices...,elem.ind]),sum.sum_index,NEI_)
         new_non_equal_indices1 = replace(sum.NEI, sum.innerSum.sum_index => elem.ind)
-        ss_term1 = SingleSum(change_index(sum.innerSum.term,sum.innerSum.sum_index,elem.ind)*elem,sum.sum_index,new_non_equal_indices1)
-        new_non_equal_indices2 = replace(sum.innerSum.non_equal_indices, sum.sum_index => elem.ind)
-        ss_term2 = SingleSum(change_index(sum.innerSum.term,sum.sum_index,elem.ind)*elem,sum.innerSum.sum_index,new_non_equal_indices2)
+        ss_term1 = SingleSum(change_index(sum.innerSum.term,sum.innerSum.sum_index,elem.ind)*elem,
+            sum.sum_index,new_non_equal_indices1)
+        # new_non_equal_indices2 = replace(sum.innerSum.non_equal_indices, sum.sum_index => elem.ind)
+        new_non_equal_indices2 = unique([replace(sum.innerSum.non_equal_indices, sum.sum_index => elem.ind)..., elem.ind]) #issue #223 
+        ss_term2 = SingleSum(change_index(sum.innerSum.term,sum.sum_index,elem.ind)*elem,
+            sum.innerSum.sum_index,new_non_equal_indices2)
         return ds_term + ss_term1 + ss_term2
     end #with else it does not work?
     return DoubleSum(sum.innerSum*elem,sum.sum_index,NEI)
@@ -192,6 +207,5 @@ function *(sum1::SingleSum,sum2::SingleSum; ind=nothing)
         end
         term2 = change_index(sum2.term,sum2.sum_index,ind)
         return DoubleSum(SingleSum(sum1.term*term2,sum1.sum_index,sum1.non_equal_indices),ind,sum1.non_equal_indices)
-
     end
 end

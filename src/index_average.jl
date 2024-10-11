@@ -245,7 +245,7 @@ end
 function SpecialIndexedAverage(term::symbolics_terms,indexMapping)
     if iscall(term)
         op = operation(term)
-        args = arguments(term)
+        args = copy(arguments(term))
         if op === *
             prefac = 1
             if args[1] isa Number

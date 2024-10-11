@@ -167,4 +167,37 @@ g(i) = IndexedVariable(:g, i)
 s2 = Σ(g(i1),i1)
 isequal(qc.get_indices(s2),[i1])
 
+
+### issue 223
+ha = NLevelSpace(:atom,2)
+σ(α,β,i) = IndexedOperator(Transition(ha, :σ, α, β),i)
+@cnumbers N g
+i = Index(ha,:i,N,1)
+j = Index(ha,:j,N,1)
+k = Index(ha,:k,N,1)
+#
+H = Σ(2*σ(2,2,j),i,j)
+H_ji = Σ(2*σ(2,2,j),j,i)
+H_s = simplify(H)
+H_g = Σ(g*σ(2,2,j),i,j)
+H_ji_g = Σ(g*σ(2,2,j),j,i)
+H_ji_g_s = simplify(Σ(g*σ(2,2,j),j,i))
+
+dict_N = Dict(N => 10)
+sub_dict(x) = simplify(substitute(x, dict_N))
+#
+@test isequal(sub_dict(simplify(commutator(H,σ(2,1,k)))), 20*σ(2,1,k))
+@test isequal(sub_dict(simplify(commutator(H_s,σ(2,1,k)))), 20*σ(2,1,k))
+#
+@test isequal(sub_dict(simplify(commutator(H,σ(1,2,k)))), -20*σ(1,2,k))
+@test isequal(sub_dict(simplify(commutator(H_s,σ(1,2,k)))), -20*σ(1,2,k))
+
+@test isequal(sub_dict(simplify(commutator(H_g,σ(2,1,k)))), 10*g*σ(2,1,k))
+@test isequal(sub_dict(simplify(commutator(H_ji_g,σ(2,1,k)))), 10*g*σ(2,1,k))
+@test isequal(sub_dict(simplify(commutator(H_ji_g_s,σ(2,1,k)))), 10*g*σ(2,1,k))
+#
+@test isequal(sub_dict(simplify(commutator(H_g,σ(1,2,k)))), -10g*σ(1,2,k))
+@test isequal(sub_dict(simplify(commutator(H_ji_g,σ(1,2,k)))), -10g*σ(1,2,k))
+@test isequal(sub_dict(simplify(commutator(H_ji_g_s,σ(1,2,k)))), -10g*σ(1,2,k))
+
 end
