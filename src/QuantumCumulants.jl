@@ -20,7 +20,7 @@ import QuantumOpticsBase: ⊗, tensor
 
 export HilbertSpace, ProductSpace, ⊗, tensor,
         QSym, QTerm, @qnumbers,
-        FockSpace, Destroy, Create,
+        FockSpace, Destroy, Create, GroundStateProjection,
         NLevelSpace, Transition,
         PauliSpace, Pauli, SpinSpace, Spin,
         MeanfieldEquations,

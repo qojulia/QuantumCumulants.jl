@@ -43,11 +43,31 @@ struct Create{H<:HilbertSpace,S,A,M} <: QSym
     end
 end
 
-for T in (:Create, :Destroy)
+"""
+    GroundStateProjection <: QSym
+
+Bosonic operator on a [`FockSpace`](@ref) representing the quantum harmonic
+oscillator ground state projection.
+
+Warning: The ground state projection is not meant to be used in the cumulant
+ expansion.
+"""
+struct GroundStateProjection{H<:HilbertSpace,S,A,M} <: QSym
+    hilbert::H
+    name::S
+    aon::A
+    metadata::M
+    function GroundStateProjection{H,S,A,M}(hilbert::H, name::S, aon::A, metadata::M) where {H,S,A,M}
+        @assert has_hilbert(FockSpace,hilbert,aon)
+        new(hilbert,name,aon,metadata)
+    end
+end
+
+for T in (:Create, :Destroy, :GroundStateProjection)
     @eval Base.isequal(a::$T, b::$T) = isequal(a.hilbert, b.hilbert) && isequal(a.name, b.name) && isequal(a.aon, b.aon)
 end
 
-for f in [:Destroy,:Create]
+for f in [:Destroy,:Create, :GroundStateProjection]
     @eval $(f)(hilbert::H, name::S, aon::A; metadata::M=NO_METADATA) where {H,S,A,M} = $(f){H,S,A,M}(hilbert,name,aon,metadata)
     @eval $(f)(hilbert::FockSpace, name; metadata=NO_METADATA) = $(f)(hilbert,name,1; metadata)
     @eval function $(f)(hilbert::H, name::S, aon::A; metadata::M=NO_METADATA) where {H<:ProductSpace,S,A<:Int,M}
@@ -75,6 +95,7 @@ end
 
 Base.adjoint(op::Destroy) = Create(op.hilbert,op.name,acts_on(op); op.metadata)
 Base.adjoint(op::Create) = Destroy(op.hilbert,op.name,acts_on(op); op.metadata)
+Base.adjoint(op::GroundStateProjection) = op
 
 # Commutation relation in simplification
 function *(a::Destroy,b::Create)
@@ -89,11 +110,43 @@ function *(a::Destroy,b::Create)
         return QMul(1, [b,a])
     end
 end
-# ismergeable(::Destroy,::Create) = true
 
-# TODO: test if faster; delete if and elseif in *-function above?
-function ismergeable(a::Destroy,b::Create)
+function *(a::GroundStateProjection,b::GroundStateProjection)
+    check_hilbert(a,b)
     aon_a = acts_on(a)
     aon_b = acts_on(b)
-    return aon_a == aon_b
+    if aon_a == aon_b
+        return a
+    elseif aon_a < aon_b
+        return QMul(1, [a,b])
+    else
+        return QMul(1, [b,a])
+    end
+end
+
+for (T1,T2) in ((:Destroy, :GroundStateProjection), (:GroundStateProjection, :Create))
+    @eval function *(a::$T1,b::$T2)
+        check_hilbert(a,b)
+        aon_a = acts_on(a)
+        aon_b = acts_on(b)
+        if aon_a == aon_b
+            return 0
+        elseif aon_a < aon_b
+            return QMul(1, [a,b])
+        else
+            return QMul(1, [b,a])
+        end
+    end
+end
+
+for T1 in (:Destroy, :GroundStateProjection)
+    for T2 in (:Create, :GroundStateProjection)
+        # ismergeable(::$T1,::$T2) = true
+        # TODO: test if faster; delete if and elseif in *-function above?
+        @eval function ismergeable(a::$T1,b::$T2)
+            aon_a = acts_on(a)
+            aon_b = acts_on(b)
+            return aon_a == aon_b
+        end
+    end
 end
