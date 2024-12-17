@@ -16,7 +16,7 @@ Fields:
 
 * hilb: The whole [`HilbertSpace`](@ref), the index will be defined on.
 * name: A Symbol, which defines the name of the index, and how product-terms of [`IndexedOperator`](@ref) are ordered (alphabetical)
-* range: The upper bound limit of the index. This can be a SymbolicUitls.Symbolic or any Number.
+* range: The upper bound limit of the index. This can be a SymbolicUtils.Symbolic or any Number.
 * aon: Number specifying the specific [`HilbertSpace`](@ref), where the Index acts on.
 
 """
@@ -101,24 +101,6 @@ struct DoubleIndexedVariable <: CNumber #just a symbol, that can be manipulated 
         return sym
     end
 end
-
-# # TODO: actually using a Kronecker delta implementation is unnecessary
-# # if Index was implemented as a proper Symbolic, we could just do i == j instead
-# # For now, however, this way has the least breaking changes
-# """
-#     KroneckerDelta(i, j)
-
-# Symbolically represent the condition i == j for indexes, that are not necessarily symbolic objects.
-# """
-# struct KroneckerDelta <: SymbolicUtils.Term
-# function KroneckerDelta(
-#         i::Index,
-#         j::Index
-#     )
-#     i_ = SymbolicUtils.Sym{CNumber}(i.name)
-#     j_ = SymbolicUtils.Sym{CNumber}(j.name)
-#     return i_ == j_
-# end
 
 """
     IndexedOperator <: QSym
@@ -235,9 +217,6 @@ end
 
 #acts on
 acts_on(op::IndexedOperator) = acts_on(op.op)
-
-# get_order(x::SingleSum) = get_order(x.term)
-# acts_on(indSum::SingleSum) = acts_on(indSum.term)
 
 #extra commutators
 #Indexed operators, evaluate the commutator directly, if 2 indexed ops have the same index
