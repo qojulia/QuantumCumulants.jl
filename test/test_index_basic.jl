@@ -4,49 +4,67 @@ using QuantumOpticsBase
 using SymbolicUtils
 using Symbolics
 using OrdinaryDiffEq
+using UUIDs
 
 const qc=QuantumCumulants
 
 @testset "index_basic" begin
 
-N = 10
-ha = NLevelSpace(Symbol(:atom),2)
-hf = FockSpace(:cavity)
-h = hf⊗ha
+    N = 10
+    ha = NLevelSpace(Symbol(:atom),2)
+    hf = FockSpace(:cavity)
+    h = hf⊗ha
 
-indT(i) = Index(h,i,N,ha) #transition index
-indF(i) = Index(h,i,N,hf) #fock index
-i_ind = indT(:i)
-j_ind = indT(:j)
+    indT(i) = Index(h,i,N,ha) #transition index
+    indF(i) = Index(h,i,N,hf) #fock index
+    i_ind = indT(:i)
+    j_ind = indT(:j)
 
-ind(a) = indT(a)
+    ind(a) = indT(a)
 
-@test(!isequal(indT(:i),indT(:j)))
-@test(!isequal(indT(:i),indF(:j)))
-@test(!isequal(indT(:i),indF(:i)))
+    @test(!isequal(indT(:i),indT(:j)))
+    @test(!isequal(indT(:i),indF(:j)))
+    @test(!isequal(indT(:i),indF(:i)))
 
-@test(isequal(indT(:i),Index(h,:i,10,ha)))
+    @test(isequal(indT(:i),Index(h,:i,10,ha)))
 
-g(k) = IndexedVariable(:g,k)
-@test(!isequal(g(indT(:i)),g(indT(:j))))
-@test(isequal(g(indT(:i)),g(Index(h,:i,10,ha))))
+    g(k) = IndexedVariable(:g,k)
+    @test(!isequal(g(indT(:i)),g(indT(:j))))
+    @test(isequal(g(indT(:i)),g(Index(h,:i,10,ha))))
 
-σ(i,j,k) = IndexedOperator(Transition(h,:σ,i,j),k)
-σ12i = σ(1,2,indT(:i))
-@test(isequal(σ12i,σ(1,2,i_ind)))
-@test(!isequal(σ12i,σ(2,2,i_ind)))
-@test(!isequal(σ12i,σ(1,2,j_ind)))
+    σ(i,j,k) = IndexedOperator(Transition(h,:σ,i,j),k)
+    σ12i = σ(1,2,indT(:i))
+    @test(isequal(σ12i,σ(1,2,i_ind)))
+    @test(!isequal(σ12i,σ(2,2,i_ind)))
+    @test(!isequal(σ12i,σ(1,2,j_ind)))
 
-@test(isequal(0,σ12i*σ(1,2,i_ind)))
-@test(isequal(σ(2,2,i_ind),σ(2,1,i_ind)*σ12i))
+    @test(isequal(0,σ12i*σ(1,2,i_ind)))
+    @test(isequal(σ(2,2,i_ind),σ(2,1,i_ind)*σ12i))
 
-#@test(isequal(σ(2,2,i_ind)+σ(1,2,j_ind),σ(1,2,j_ind)+σ(2,2,i_ind)))
-#apperently QAdd isequal function is dependant in order of terms inside the addition (?)
+    @test isequal(simplify(σ(2,2,i_ind)+σ(1,2,j_ind)),simplify(σ(1,2,j_ind)+σ(2,2,i_ind)))
+    @test(isequal(adjoint(σ(1,2,i_ind)),σ(2,1,i_ind)))
 
-@test(isequal(adjoint(σ(1,2,i_ind)),σ(2,1,i_ind)))
+    @test isequal(σ(2,1,i_ind)*σ(1,2,i_ind), σ(2,2, i_ind))
+
+    ex = σ(2,1,i_ind)*σ(1,2,j_ind)
+    s1 = σ(2,1,i_ind)
+    s2 = σ(1,2,j_ind)
+    id = uuid4()
+    push!(s1.merge_events, id)
+    push!(s2.merge_events, id)
+    @test isequal(ex, σ(2,2,i_ind)*(i_ind == j_ind) + (1 - i_ind==j_ind) * s1*s2)
+
+    a = Destroy(h,:a)
+    a_indexed(i) = IndexedOperator(a, i)
+    r_ind = indF(:r)
+    s_ind = indF(:s)
+    @test isequal(a_indexed(r_ind) * a_indexed(r_ind)', a_indexed(r_ind)' * a_indexed(r_ind) + 1)
+    @test isequal(a_indexed(r_ind) * a_indexed(s_ind)', a_indexed(r_ind)' * a_indexed(r_ind) + r_ind == j_ind)
+
+end
 
 
-a = Destroy(h,:a)
+@testset "sums" begin
 sum1 = SingleSum(σ(1,2,i_ind)*a',i_ind)
 sum2 = SingleSum(σ(2,1,i_ind)*a,i_ind)
 @test(isequal(adjoint(sum1),sum2))
