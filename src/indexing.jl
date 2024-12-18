@@ -309,77 +309,56 @@ Examples
 
 
 """
-function change_index(term::QMul, from::Index, to::Index)
-    arg_c = change_index(term.arg_c,from,to)
-    args_nc = [change_index(arg,from,to) for arg in copy(term.args_nc)]
-    return arg_c*prod(args_nc)
-end
-change_index(term::Average, from::Index,to::Index) = average(change_index(arguments(term)[1],from,to))
-change_index(op::IndexedOperator,from::Index,to::Index) = isequal(op.ind,from) ? IndexedOperator(op.op,to) : op
-
-function change_index(op::BasicSymbolic{IndexedVariable},from::Index,to::Index)
-    if SymbolicUtils.hasmetadata(op,IndexedVariable)
-        meta = SymbolicUtils.metadata(op)[IndexedVariable]
-        return isequal(meta.ind,from) ? IndexedVariable(meta.name,to) : op
-    end
-end
-function change_index(op::BasicSymbolic{DoubleIndexedVariable},from::Index,to::Index)
-    if SymbolicUtils.hasmetadata(op,DoubleIndexedVariable)
-        meta = SymbolicUtils.metadata(op)[DoubleIndexedVariable]
-        if meta.ind1 == from
-            if meta.ind1 == meta.ind2 && meta.identical
-                return DoubleIndexedVariable(meta.name,to,to;identical=meta.identical)
-            elseif meta.ind1 == meta.ind2
-                return 0
-            else
-                return DoubleIndexedVariable(meta.name,to,meta.ind2;identical=meta.identical)
-            end
-        elseif meta.ind2 == from
-            return DoubleIndexedVariable(meta.name,meta.ind1,to;identical=meta.identical)
-        end
-    end
-end
-function change_index(term::BasicSymbolic{<:CNumber},from::Index,to::Index)
-    if iscall(term)
-        op = operation(term)
-        if op === +
-            args = arguments(term)
-            if length(args) == 1
-                return change_index(args[1],from,to)
-            end
-            return op([change_index(arg,from,to) for arg in args]...)
-        end
-        if op === *
-            args = arguments(term)
-            if length(args) == 1
-                return change_index(args[1],from,to)
-            end
-            return op([change_index(arg,from,to) for arg in args]...)
-        end
-        if op === ^
-            args = arguments(term)
-            return change_index(args[1],from,to)^change_index(args[2],from,to)
-        end
-        # issue 198
-        if op === /
-            args = arguments(term)
-            return change_index(args[1],from,to)/change_index(args[2],from,to)
-        end
-        if length(arguments(term)) == 1 # exp, sin, cos, ln, ...
-            return op(change_index(arguments(term)[1],from,to))
-        end
-    end
-    return term
-end
-# # issue 196: TODO:test
-# function change_index(S::SingleSum, i::Index, j::Index)
-#     (j ∈ S.non_equal_indices) && error("Index $(j) is in the non-equal index list.")
-#     if S.sum_index == i
-#         return SingleSum(change_index(S.term,i,j), j, replace(S.non_equal_indices, i=>j), S.metadata)
-#     end
-#     return S
-# end
 change_index(x,from::Index,to::Index) = x
+
+function change_index(a::IndexedOperator, from::Index, to::Index)
+    if !isequal(a.ind, from)
+        return a
+    end
+
+    return IndexedOperator(a.op, to)
+end
+
+function change_index(v::IndexedVariable, from::Index, to::Index)
+    if !isequal(v.ind, from)
+        return v
+    end
+    return IndexedVariable(v.name, to)
+end
+
+function change_index(v::DoubleIndexedVariable, from::Index, to::Index)
+    if isequal(v.ind1, from) && isequal(v.ind2, from)
+        return DoubleIndexedVariable(v.name, to, to; identical=v.identical)
+    elseif isequal(v.ind1, from)
+        return DoubleIndexedVariable(v.name, to, v.ind2; identical=v.identical)
+    elseif isequal(v.ind2, from)
+        return DoubleIndexedVariable(v.name, v.ind1, to; identical=v.identical)
+    end
+    return v
+end
+
+function change_index(t::SymbolicUtils.Symbolic, from::Index, to::Index)
+    isequal(from, to) && return t
+    
+    if !TermInterface.iscall(t)
+        metadata = TermInterface.metadata(t)
+        metadata_ = change_index(metadata.value, from, to)
+        t_ = deepcopy(t)
+        t_ = SymbolicUtils.setmetadata(t_, typeof(metadata_), metadata_)
+        return t_
+    end
+
+    f = SymbolicUtils.operation(t)
+    args = SymbolicUtils.arguments(t)
+    return f(change_index(args, from, to))
+end
+
+function change_index(args::Vector, from::Index, to::Index)
+    isequal(from, to) && return args
+
+    return [change_index(arg, from, to) for arg in args]
+end
+
 
 getIndName(op::IndexedOperator) = op.ind.name
 getIndName(ind::Index) = ind.name
