@@ -70,6 +70,8 @@ struct IndexedVariable <: CNumber #just a symbol, that can be manipulated via th
     end
 end
 
+# TODO: deprecate IndexedVariable and DoubelIndexedVariable
+
 """
     DoubleIndexedVariable <: CNumber
     DoubleIndexedVariable(name::Symbol,ind1::Index,ind2::Index;identical::Bool)
@@ -92,7 +94,7 @@ struct DoubleIndexedVariable <: CNumber #just a symbol, that can be manipulated 
     ind2::Index
     identical::Bool
     function DoubleIndexedVariable(name,ind1,ind2;identical::Bool=true)
-        if !(identical) && (ind1 == ind2)
+        if !(identical) && isequal(ind1, ind2)
             return 0
         end
         metadata = new(name,ind1,ind2,identical)
@@ -101,6 +103,43 @@ struct DoubleIndexedVariable <: CNumber #just a symbol, that can be manipulated 
         return sym
     end
 end
+
+struct IndexedParameterSym <: CNumber end
+const SymbolicIndexedParameter = SymbolicUtils.BasicSymbolic{<:IndexedParameterSym}
+const sym_idx_parameter = begin
+    T = SymbolicUtils.FnType{Tuple{Complex{Real}, Vector{<:Index}}, IndexedParameterSym}
+    SymbolicUtils.Sym{T}(:getindex_parameter)
+end
+SymbolicUtils.symtype(::T) where T <: SymbolicIndexedParameter = IndexedParameterSym
+
+function IndexedParameter(name::Symbol, indices::Vector{Index})
+    return SymbolicUtils.Term{IndexedParameterSym}(sym_idx_parameter, [Parameter(name), indices])
+end
+IndexedParameter(name::Symbol, index::Index) = IndexedParameter(name, [index])
+IndexedParameter(name::Symbol, indices::Index...) = IndexedParameter(name, [indices...])
+IndexedParameter(name::Symbol) = (args...) -> IndexedParameter(name, args...)
+
+# TermInterface
+# TermInterface.iscall(::IndexedParameter) = true
+# TermInterface.arguments(x::IndexedParameter) = x.indices
+# TermInterface.operation(x::IndexedParameter) = IndexedParameter(x.name)
+# TermInterface.maketerm(::Type{<:IndexedParameter}, ::typeof(IndexedParameter), args, metadata) = IndexedParameter(args..., metadata)
+
+# function Base.isequal(pi::IndexedParameter, pj::IndexedParameter)
+#     if !isequal(pi.name, pj.name)
+#         return false
+#     end
+
+#     if !isequal(length(pi.indices), length(pj.indices))
+#         return false
+#     end
+
+#     for (i, j) in zip(pi.indices, pj.indices)
+#         isequal(i, j) || return false
+#     end
+
+#     return true
+# end
 
 """
     IndexedOperator <: QSym
@@ -188,7 +227,7 @@ function Base.:*(a::IndexedOperator{<:Transition}, b::IndexedOperator{<:Transiti
             else
                 t2 = QMul(1, [a_copy, b_copy])
             end
-            return t1 * (i == j) + (1 - i == j) * t2
+            return t1 * (i == j) + (1 - (i == j)) * t2
         end
     elseif aon_a < aon_b
         return QMul(1, [a,b])
@@ -309,7 +348,15 @@ Examples
 
 
 """
-change_index(x,from::Index,to::Index) = x
+change_index(x, from::Index, to::Index) = x
+
+function change_index(t::SymbolicUtils.Symbolic, from::Index, to::Index)
+    isequal(from, to) || !TermInterface.iscall(t) && return t
+
+    f = SymbolicUtils.operation(t)
+    args = SymbolicUtils.arguments(t)
+    return f(change_index(args, from, to)...)
+end
 
 function change_index(a::IndexedOperator, from::Index, to::Index)
     if !isequal(a.ind, from)
@@ -337,21 +384,16 @@ function change_index(v::DoubleIndexedVariable, from::Index, to::Index)
     return v
 end
 
-function change_index(t::SymbolicUtils.Symbolic, from::Index, to::Index)
-    isequal(from, to) && return t
-    
-    if !TermInterface.iscall(t)
-        metadata = TermInterface.metadata(t)
-        metadata_ = change_index(metadata.value, from, to)
-        t_ = deepcopy(t)
-        t_ = SymbolicUtils.setmetadata(t_, typeof(metadata_), metadata_)
-        return t_
-    end
+# function change_index(p::IndexedParameter, from::Index, to::Index)
+#     p_ = deepcopy(p)
+#     for i=1:length(p.indices)
+#         if isequal(p_.indices[i], from)
+#             p_.indices[i] = to
+#         end
+#     end
+#     return p_
+# end
 
-    f = SymbolicUtils.operation(t)
-    args = SymbolicUtils.arguments(t)
-    return f(change_index(args, from, to))
-end
 
 function change_index(args::Vector, from::Index, to::Index)
     isequal(from, to) && return args
@@ -359,108 +401,116 @@ function change_index(args::Vector, from::Index, to::Index)
     return [change_index(arg, from, to) for arg in args]
 end
 
-
-getIndName(op::IndexedOperator) = op.ind.name
-getIndName(ind::Index) = ind.name
-getIndName(x) = Symbol()
-
-# SymbolicUtils.iscall(a::SingleSum) = false
-# SymbolicUtils.arguments(a::SingleSum) = SymbolicUtils.arguments(a.term)
-# SymbolicUtils.arguments(a::IndexedOperator) = [a]
-
-get_order(::IndexedOperator) = 1
-#It is assumed that the term for which this operation is done already commutes with indices inside the indices-Vector
-function order_by_index(vec::Vector,indices::Vector{Index})
-    vec_ = copy(vec)
-    frontfront = filter(x -> !(typeof(x) == IndexedOperator),vec_)
-    front = filter(x -> typeof(x) == IndexedOperator && x.ind in indices,vec_)
-    back = filter(x -> typeof(x) == IndexedOperator && x.ind ∉ indices,vec_)
-    sort!(front,by=getIndName)
-    return vcat(frontfront,front,back)
-end
-order_by_index(qmul::QMul,inds::Vector{Index}) = qmul.arg_c*prod(order_by_index(qmul.args_nc,inds))
-order_by_index(avrg::Average,inds::Vector{Index}) = order_by_index(arguments(avrg)[1],inds)
-order_by_index(x,inds) = x
-
-#Reorder function: given a tuple vector of indices meaning for each tuple: first ≠ second
-#-> go through the term given and exchange 2 ops when the second has "lower" (i.e. its name is first in the alphabet) index than the first one
-#-> results in a term, ordered by its commutating indices
-"""
-    reorder(param,indexMapping)
-
-Reorders a given term (param) regarding to a given indexMapping, which specifies, which [`Index`](@ref) entities can not be equal
-inside the given term. reorder() creates a [`SpecialIndexedTerm`](@ref) as a result.
-
-Examples
-========
-
-    reorder(σⱼ²¹ * σᵢ²¹,[(i,j)]) = σᵢ²¹ * σⱼ²¹
-
-    reorder(σⱼ²¹ * σᵢ²¹ * σⱼ¹²,[(i,j)]) = σᵢ²¹ * σⱼ²²
-
-"""
-function reorder(param::QMul,indexMapping::Vector{Tuple{Index,Index}})
-    term = copy(param.args_nc)
-    carg = param.arg_c
-    indOps = []
-    others = []
-    for i = 1:length(term) #Split into indexed ops and non indexed ops
-        if term[i] isa IndexedOperator
-            push!(indOps,term[i])
-        else
-            push!(others,term[i])
-        end
-    end
-    if isequal(carg,0) || (0 in term)
-        return 0
-    end
-    finish = false
-    while !(finish) #go over all ops ind indexed ops -> order by
-        finish = true
-        for i = 1:(length(indOps)-1)
-            if ((indOps[i].ind,indOps[i+1].ind) in indexMapping || (indOps[i+1].ind,indOps[i].ind) in indexMapping) && (indOps[i+1].ind < indOps[i].ind)
-                temp = indOps[i+1]
-                indOps[i+1] = indOps[i]
-                indOps[i] = temp
-                finish = false
-            end
-        end
-    end
-    args = vcat(others,indOps)
-    qmul = carg*prod(args)
-
-    if qmul isa QMul
-        mapping_ = orderMapping(indexMapping)
-        return SpecialIndexedTerm(qmul,mapping_)
+function change_index(i::Index, from::Index, to::Index)
+    if isequal(i, from)
+        return to
     else
-        return reorder(qmul,indexMapping)
+        return i
     end
 end
-# reorder(sum::SingleSum,indexMapping::Vector{Tuple{Index,Index}}) = SingleSum(reorder(sum.term,indexMapping),sum.sum_index,sum.non_equal_indices)
-function reorder(term::QAdd,indexMapping::Vector{Tuple{Index,Index}})
-    args = []
-    for arg in arguments(term)
-        push!(args,reorder(arg,indexMapping))
-    end
-    if length(args) == 0
-        return 0
-    end
-    if length(args) == 1
-        return args[1]
-    end
-    return +(args...)
-end
-reorder(x::IndexedOperator,indexMapping::Vector{Tuple{Index,Index}}) = SpecialIndexedTerm(x,indexMapping)
-reorder(x,indMap) = x
 
-function orderMapping(mapping::Vector{Tuple{Index,Index}})
-    mapping_ = Vector{Union{Missing,Tuple{Index,Index}}}(missing,length(mapping))
-    for i = 1:length(mapping)
-        sort_ = sort([first(mapping[i]),last(mapping[i])],by=getIndName)
-        mapping_[i] = (sort_[1],sort_[2])
-    end
-    return mapping_
-end
+
+# getIndName(op::IndexedOperator) = op.ind.name
+# getIndName(ind::Index) = ind.name
+# getIndName(x) = Symbol()
+
+# # SymbolicUtils.iscall(a::SingleSum) = false
+# # SymbolicUtils.arguments(a::SingleSum) = SymbolicUtils.arguments(a.term)
+# # SymbolicUtils.arguments(a::IndexedOperator) = [a]
+
+# get_order(::IndexedOperator) = 1
+# #It is assumed that the term for which this operation is done already commutes with indices inside the indices-Vector
+# function order_by_index(vec::Vector,indices::Vector{Index})
+#     vec_ = copy(vec)
+#     frontfront = filter(x -> !(typeof(x) == IndexedOperator),vec_)
+#     front = filter(x -> typeof(x) == IndexedOperator && x.ind in indices,vec_)
+#     back = filter(x -> typeof(x) == IndexedOperator && x.ind ∉ indices,vec_)
+#     sort!(front,by=getIndName)
+#     return vcat(frontfront,front,back)
+# end
+# order_by_index(qmul::QMul,inds::Vector{Index}) = qmul.arg_c*prod(order_by_index(qmul.args_nc,inds))
+# order_by_index(avrg::Average,inds::Vector{Index}) = order_by_index(arguments(avrg)[1],inds)
+# order_by_index(x,inds) = x
+
+# #Reorder function: given a tuple vector of indices meaning for each tuple: first ≠ second
+# #-> go through the term given and exchange 2 ops when the second has "lower" (i.e. its name is first in the alphabet) index than the first one
+# #-> results in a term, ordered by its commutating indices
+# """
+#     reorder(param,indexMapping)
+
+# Reorders a given term (param) regarding to a given indexMapping, which specifies, which [`Index`](@ref) entities can not be equal
+# inside the given term. reorder() creates a [`SpecialIndexedTerm`](@ref) as a result.
+
+# Examples
+# ========
+
+#     reorder(σⱼ²¹ * σᵢ²¹,[(i,j)]) = σᵢ²¹ * σⱼ²¹
+
+#     reorder(σⱼ²¹ * σᵢ²¹ * σⱼ¹²,[(i,j)]) = σᵢ²¹ * σⱼ²²
+
+# """
+# function reorder(param::QMul,indexMapping::Vector{Tuple{Index,Index}})
+#     term = copy(param.args_nc)
+#     carg = param.arg_c
+#     indOps = []
+#     others = []
+#     for i = 1:length(term) #Split into indexed ops and non indexed ops
+#         if term[i] isa IndexedOperator
+#             push!(indOps,term[i])
+#         else
+#             push!(others,term[i])
+#         end
+#     end
+#     if isequal(carg,0) || (0 in term)
+#         return 0
+#     end
+#     finish = false
+#     while !(finish) #go over all ops ind indexed ops -> order by
+#         finish = true
+#         for i = 1:(length(indOps)-1)
+#             if ((indOps[i].ind,indOps[i+1].ind) in indexMapping || (indOps[i+1].ind,indOps[i].ind) in indexMapping) && (indOps[i+1].ind < indOps[i].ind)
+#                 temp = indOps[i+1]
+#                 indOps[i+1] = indOps[i]
+#                 indOps[i] = temp
+#                 finish = false
+#             end
+#         end
+#     end
+#     args = vcat(others,indOps)
+#     qmul = carg*prod(args)
+
+#     if qmul isa QMul
+#         mapping_ = orderMapping(indexMapping)
+#         return SpecialIndexedTerm(qmul,mapping_)
+#     else
+#         return reorder(qmul,indexMapping)
+#     end
+# end
+# # reorder(sum::SingleSum,indexMapping::Vector{Tuple{Index,Index}}) = SingleSum(reorder(sum.term,indexMapping),sum.sum_index,sum.non_equal_indices)
+# function reorder(term::QAdd,indexMapping::Vector{Tuple{Index,Index}})
+#     args = []
+#     for arg in arguments(term)
+#         push!(args,reorder(arg,indexMapping))
+#     end
+#     if length(args) == 0
+#         return 0
+#     end
+#     if length(args) == 1
+#         return args[1]
+#     end
+#     return +(args...)
+# end
+# reorder(x::IndexedOperator,indexMapping::Vector{Tuple{Index,Index}}) = SpecialIndexedTerm(x,indexMapping)
+# reorder(x,indMap) = x
+
+# function orderMapping(mapping::Vector{Tuple{Index,Index}})
+#     mapping_ = Vector{Union{Missing,Tuple{Index,Index}}}(missing,length(mapping))
+#     for i = 1:length(mapping)
+#         sort_ = sort([first(mapping[i]),last(mapping[i])],by=getIndName)
+#         mapping_[i] = (sort_[1],sort_[2])
+#     end
+#     return mapping_
+# end
 
 #Show functions
 Base.show(io::IO, index::Index) = write(io, index.name)

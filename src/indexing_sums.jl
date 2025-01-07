@@ -33,8 +33,7 @@ has_index(s::Sum, i::Index) = isequal(s.index, i) || has_index(s.term, i)
 
 function has_index(t::SymbolicUtils.Symbolic, i::Index)
     if !TermInterface.iscall(t)
-        metadata = TermInterface.metadata(t)
-        return has_index(metadata.value, i)
+        return false
     end
 
     return has_index(SymbolicUtils.arguments(t), i)

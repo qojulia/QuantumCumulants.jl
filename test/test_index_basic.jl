@@ -52,7 +52,7 @@ const qc=QuantumCumulants
     id = uuid4()
     push!(s1.merge_events, id)
     push!(s2.merge_events, id)
-    @test isequal(ex, σ(2,2,i_ind)*(i_ind == j_ind) + (1 - i_ind==j_ind) * s1*s2)
+    @test isequal(ex, σ(2,2,i_ind)*(i_ind == j_ind) + (1 - (i_ind==j_ind)) * s1*s2)
 
     a = Destroy(h,:a)
     a_indexed(i) = IndexedOperator(a, i)
@@ -95,12 +95,13 @@ sum3 = Sum(a'*σ(1,2,i_ind) + a*σ(2,1,i_ind),i_ind)
 @test isequal(0,Σ(σ(2,1,i_ind)*σ(2,1,i_ind),i_ind))
 
 k_ind = indT(:k)
-Γij = DoubleIndexedVariable(:Γ,i_ind,j_ind)
+Γij = IndexedParameter(:Γ,i_ind,j_ind)
+g = IndexedParameter(:g)
 
-@test(isequal(change_index(Γij,j_ind,k_ind), DoubleIndexedVariable(:Γ,i_ind,k_ind)))
+@test(isequal(change_index(Γij,j_ind,k_ind), IndexedParameter(:Γ,i_ind,k_ind)))
 @test(isequal(change_index(σ(1,2,j_ind)*σ(1,2,i_ind),j_ind,i_ind),0))
 @test(isequal(change_index(g(k_ind),k_ind,j_ind),g(j_ind)))
-@test isequal(change_index(∑(2g(i_ind),i_ind), i_ind, j_ind), ∑(2g(j_ind),j_ind))
+@test isequal(change_index(Σ(2g(i_ind),i_ind), i_ind, j_ind), Σ(2g(j_ind),j_ind))
 
 @test(isequal(
     order_by_index(σ(1,2,k_ind)*σ(1,2,j_ind)*σ(1,2,i_ind),[i_ind]), σ(1,2,i_ind)*σ(1,2,k_ind)*σ(1,2,j_ind)
