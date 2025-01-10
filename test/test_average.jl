@@ -53,4 +53,28 @@ d = Destroy(h,:d,4)
             average(b)*average(a*c) - average(c)*average(a*b))))
 @test isequal(simplify(average(a*b*c*d) - cumulant(a*b*c*d)), cumulant_expansion(average(a*b*c*d),3))
 
+# cumulant expansion test with function of moments
+# https://en.wikipedia.org/wiki/Cumulant#First_several_cumulants_as_functions_of_the_moments
+hf1 = FockSpace(:c1)
+hf2 = FockSpace(:c2)
+hf3 = FockSpace(:c3)
+hf4 = FockSpace(:c4)
+hf_all = hf1⊗hf2⊗hf3⊗hf4
+
+a1 = Destroy(hf_all,:a1,1)
+a2 = Destroy(hf_all,:a2,2)
+a3 = Destroy(hf_all,:a3,3)
+a4 = Destroy(hf_all,:a4,4)
+
+Δa1 = a1 - average(a1)
+Δa2 = a2 - average(a2)
+Δa3 = a3 - average(a3)
+Δa4 = a4 - average(a4)
+
+@test isequal(average(Δa1*Δa2), average(a1*a2) - average(a1)*average(a2))
+@test isequal(average(Δa1*Δa2*Δa3), cumulant(a1*a2*a3))
+@test iszero(average(Δa1*Δa2*Δa3)-cumulant(a1*a2*a3))
+@test iszero(expand(cumulant(a1^4) - ( average(Δa1^4) - 3*(average(Δa1^2))^2 ) ))
+@test iszero(expand(cumulant(a1*a2*a3*a4) - ( average(Δa1*Δa2*Δa3*Δa4) - ( average(Δa1*Δa2)*average(Δa3*Δa4) + average(Δa1*Δa3)*average(Δa2*Δa4) + average(Δa1*Δa4)*average(Δa3*Δa2) ) ) ))
+
 end # testset

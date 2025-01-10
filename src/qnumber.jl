@@ -240,10 +240,10 @@ SymbolicUtils.metadata(q::QAdd) = q.metadata
 
 Base.adjoint(q::QAdd) = QAdd(map(adjoint, q.arguments))
 
--(a::QNumber) = -1*a
--(a,b::QNumber) = a + (-b)
--(a::QNumber,b) = a + (-b)
--(a::QNumber,b::QNumber) = a + (-b)
+-(a::QNumber) = (-1)*a
+-(a,b::QNumber) = a + (-1)*b
+-(a::QNumber,b) = a + (-1)*b
+-(a::QNumber,b::QNumber) = a + (-1)*b
 
 function +(a::QNumber, b::SNuN)
     SymbolicUtils._iszero(b) && return a
