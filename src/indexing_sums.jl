@@ -44,6 +44,7 @@ end
 
 
 const Σ = Sum
+const ∑ = Sum
 
 # Basic methods
 Base.isequal(s1::Sum, s2::Sum) = isequal(s1.index, s2.index) && isequal(s1.term, s2.term)

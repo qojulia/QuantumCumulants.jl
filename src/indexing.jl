@@ -60,17 +60,18 @@ a IndexedVariable using two different [`Index`](@ref) objects one can create [`D
 See also: [`value_map`](@ref)
 """
 struct IndexedVariable <: CNumber #just a symbol, that can be manipulated via the metadata field
-    name::Symbol
-    ind::Index
-    function IndexedVariable(name::Symbol,ind::Index)
-        metadata = new(name,ind)
-        sym = SymbolicUtils.Sym{IndexedVariable}(Symbol("$(name)$(ind.name)"))
-        sym = SymbolicUtils.setmetadata(sym,typeof(metadata),metadata)
-        return sym
-    end
+    # name::Symbol
+    # ind::Index
+    # function IndexedVariable(name::Symbol,ind::Index)
+    #     metadata = new(name,ind)
+    #     sym = SymbolicUtils.Sym{IndexedVariable}(Symbol("$(name)$(ind.name)"))
+    #     sym = SymbolicUtils.setmetadata(sym,typeof(metadata),metadata)
+    #     return sym
+    # end
 end
 
-# TODO: deprecate IndexedVariable and DoubelIndexedVariable
+Base.@deprecate IndexedVariable(name::Symbol, ind::Index) IndexedParameter(name, ind)
+
 
 """
     DoubleIndexedVariable <: CNumber
@@ -89,20 +90,22 @@ Fields:
 
 """
 struct DoubleIndexedVariable <: CNumber #just a symbol, that can be manipulated via the metadata field
-    name::Symbol
-    ind1::Index
-    ind2::Index
-    identical::Bool
-    function DoubleIndexedVariable(name,ind1,ind2;identical::Bool=true)
-        if !(identical) && isequal(ind1, ind2)
-            return 0
-        end
-        metadata = new(name,ind1,ind2,identical)
-        sym = SymbolicUtils.Sym{DoubleIndexedVariable}(Symbol("$(name)$(ind1.name)$(ind2.name)"))
-        sym = SymbolicUtils.setmetadata(sym,typeof(metadata),metadata)
-        return sym
-    end
+    # name::Symbol
+    # ind1::Index
+    # ind2::Index
+    # identical::Bool
+    # function DoubleIndexedVariable(name,ind1,ind2;identical::Bool=true)
+    #     if !(identical) && isequal(ind1, ind2)
+    #         return 0
+    #     end
+    #     metadata = new(name,ind1,ind2,identical)
+    #     sym = SymbolicUtils.Sym{DoubleIndexedVariable}(Symbol("$(name)$(ind1.name)$(ind2.name)"))
+    #     sym = SymbolicUtils.setmetadata(sym,typeof(metadata),metadata)
+    #     return sym
+    # end
 end
+
+Base.@deprecate DoubleIndexedVariable(name::Symbol, ind1::Index, ind2::Index; identical::Bool = true) IndexedParameter(name, ind1, ind2)
 
 # TODO: deprecate IndexedVariable in favor of IndexedParameter
 struct IndexedParameterSym <: CNumber end
