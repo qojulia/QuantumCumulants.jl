@@ -104,6 +104,7 @@ struct DoubleIndexedVariable <: CNumber #just a symbol, that can be manipulated 
     end
 end
 
+# TODO: deprecate IndexedVariable in favor of IndexedParameter
 struct IndexedParameterSym <: CNumber end
 const SymbolicIndexedParameter = SymbolicUtils.BasicSymbolic{<:IndexedParameterSym}
 const sym_idx_parameter = begin
@@ -175,6 +176,8 @@ hilbert(var::IndexedVariable) = var.ind.hilb
 #Basic functions for indexed Operators
 import Base: *, +, -
 
+Base.:(==)(op1::IndexedOperator, op2::IndexedOperator) = isequal(op1, op2)
+
 #Multiplications
 function Base.:*(a::IndexedOperator{<:Destroy}, b::IndexedOperator{<:Create})
     check_hilbert(a,b)
@@ -209,7 +212,7 @@ function Base.:*(a::IndexedOperator{<:Transition}, b::IndexedOperator{<:Transiti
         i = a.ind
         j = b.ind
         op_ = a.op * b.op
-        t1 = iszero(op_) ? 0 : IndexedOperator(a.op * b.op, i)
+        t1 = iszero(op_) ? 0 : _make_indexed_operator(op_, i)
         if isequal(i, j)
             return t1
         else
@@ -227,7 +230,7 @@ function Base.:*(a::IndexedOperator{<:Transition}, b::IndexedOperator{<:Transiti
             else
                 t2 = QMul(1, [a_copy, b_copy])
             end
-            return t1 * (i == j) + (1 - (i == j)) * t2
+            return t1 * (i == j) + t2 - (i == j) * t2
         end
     elseif aon_a < aon_b
         return QMul(1, [a,b])
@@ -235,6 +238,14 @@ function Base.:*(a::IndexedOperator{<:Transition}, b::IndexedOperator{<:Transiti
         return QMul(1, [b,a])
     end
 end
+
+_make_indexed_operator(op::QNumber, i::Index) = IndexedOperator(op, i)
+_make_indexed_operator(x, i::Index) = x
+function _make_indexed_operator(op::QTerm, i::Index)
+    args = [_make_indexed_operator(arg, i) for arg in SymbolicUtils.arguments(op)]
+    return SymbolicUtils.operation(op)(args...)
+end
+
 
 ismergeable(a::IndexedOperator{<:Destroy}, b::IndexedOperator{<:Create}) = true
 function ismergeable(a::IndexedOperator{<:Transition}, b::IndexedOperator{<:Transition})
@@ -260,7 +271,7 @@ acts_on(op::IndexedOperator) = acts_on(op.op)
 #extra commutators
 #Indexed operators, evaluate the commutator directly, if 2 indexed ops have the same index
 function commutator(op1::IndexedOperator,op2::IndexedOperator)
-    commutated_op = IndexedOperator(commutator(op1.op,op2.op),op1.ind)
+    commutated_op = _make_indexed_operator(commutator(op1.op,op2.op),op1.ind)
     if isequal(op1.ind, op2.ind)
         return commutated_op
     else
@@ -348,15 +359,15 @@ Examples
 
 
 """
-change_index(x, from::Index, to::Index) = x
-
-function change_index(t::SymbolicUtils.Symbolic, from::Index, to::Index)
+function change_index(t, from::Index, to::Index)
     isequal(from, to) || !TermInterface.iscall(t) && return t
 
     f = SymbolicUtils.operation(t)
     args = SymbolicUtils.arguments(t)
     return f(change_index(args, from, to)...)
 end
+# TODO: we should be able to just use substitute(x, from, to) here since
+# now all indices are just arguments in the AST
 
 function change_index(a::IndexedOperator, from::Index, to::Index)
     if !isequal(a.ind, from)

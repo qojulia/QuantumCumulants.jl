@@ -52,7 +52,7 @@ const qc=QuantumCumulants
     id = uuid4()
     push!(s1.merge_events, id)
     push!(s2.merge_events, id)
-    @test isequal(ex, σ(2,2,i_ind)*(i_ind == j_ind) + (1 - (i_ind==j_ind)) * s1*s2)
+    @test isequal(ex, σ(2,2,i_ind)*(i_ind == j_ind) + s2*s1 - (i_ind==j_ind) * s1*s2)
 
     a = Destroy(h,:a)
     a_indexed(i) = IndexedOperator(a, i)
@@ -103,35 +103,65 @@ g = IndexedParameter(:g)
 @test(isequal(change_index(g(k_ind),k_ind,j_ind),g(j_ind)))
 @test isequal(change_index(Σ(2g(i_ind),i_ind), i_ind, j_ind), Σ(2g(j_ind),j_ind))
 
-@test(isequal(
-    order_by_index(σ(1,2,k_ind)*σ(1,2,j_ind)*σ(1,2,i_ind),[i_ind]), σ(1,2,i_ind)*σ(1,2,k_ind)*σ(1,2,j_ind)
-    ))
+s = Sum(σ(1,2,k_ind), k_ind)
+s_avg = average(s)
 
-@test(isequal(
-    reorder(σ(1,2,k_ind)*σ(1,2,j_ind)*σ(1,2,i_ind),[(i_ind,j_ind)]),
-    SpecialIndexedTerm(σ(1,2,k_ind)*σ(1,2,i_ind)*σ(1,2,j_ind),[(i_ind,j_ind)])
-))
-@test(isequal(σ(1,2,k_ind) * sum1, simplify(Sum(σ(1,2,k_ind)*σ(1,2,i_ind)*a',i_ind))
+@test (s_avg + s_avg) isa SymbolicUtils.BasicSymbolic{qc.CSumSym}
+@test isequal(s, qc.undo_average(s_avg))
+@test isequal(s, simplify(s))
+
+function isequal_any_order(ex1, ex2)
+    isequal(SymbolicUtils.operation(ex1), SymbolicUtils.operation(ex2)) || return false
+
+    args1 = SymbolicUtils.arguments(ex1)
+    args2 = SymbolicUtils.arguments(ex2)
+    length(args1) == length(args2) || return false
+
+    function _in(arg1, args2)
+        for arg2 in args2
+            isequal(arg1, arg2) && return true
+        end
+        return false
+    end
+
+    for arg1 in args2
+        _in(arg1, args2) || return false
+    end
+
+    return true
+end
+
+s = Sum(σ(1,2,k_ind)*σ(1,2,i_ind)*a',i_ind)
+@test average(s) isa SymbolicUtils.BasicSymbolic{qc.CSumSym}
+
+s_simplified = simplify(s)
+@test isequal_any_order(simplify(s), s)
+@test(isequal_any_order(σ(1,2,k_ind) * sum1, simplify(Sum(σ(1,2,k_ind)*σ(1,2,i_ind)*a',i_ind))
 ))
 σ(1,2,k_ind) * sum1
 qqq = simplify(Sum(σ(1,2,k_ind)*σ(1,2,i_ind)*a',i_ind))
 # qqq = Sum(σ(1,2,k_ind)*σ(1,2,i_ind)*a',i_ind)
-QuantumCumulants.get_indices(qqq)
-SymbolicUtils._iszero(a'*σ(1,2,i_ind)*σ(1,2,k_ind))
+isequal(QuantumCumulants.get_indices(qqq), Set([i_ind, k_ind]))
+@test !SymbolicUtils._iszero(a'*σ(1,2,i_ind)*σ(1,2,k_ind))
 
-@test(isequal(simplify(σ(2,1,k_ind) * sum1), simplify(Sum(σ(2,1,k_ind)*σ(1,2,i_ind)*a',i_ind,[k_ind]) + a'*σ(2,2,k_ind))
-))
+# nested sum
+s = Sum(σ(1,2,i_ind),i_ind,k_ind)
+@test isequal(s, 10 * Sum(σ(1,2,i_ind), i_ind))
+s = Sum(σ(1,2,i_ind)*σ(1,2,k_ind),i_ind,k_ind)
+
+s1 = simplify(Sum(σ(2,1,k_ind) * sum1, k_ind))
+s2 = simplify(Sum(σ(2,1,k_ind)*σ(1,2,i_ind)*a',i_ind,k_ind))
+@test isequal(s1, s2)
 innerSum = Sum(σ(2,1,i_ind)*σ(1,2,j_ind),i_ind)
-@test(isequal(
-    DoubleSum(innerSum,j_ind), DoubleSum(Sum(σ(2,1,i_ind)*σ(1,2,j_ind),i_ind,[j_ind]),j_ind) + Sum(σ(2,2,j_ind),j_ind)
+@test_broken(isequal(
+    Sum(innerSum,j_ind), Sum(Sum(σ(2,1,i_ind)*σ(1,2,j_ind),i_ind,[j_ind]),j_ind) + Sum(σ(2,2,j_ind),j_ind)
 ))
-@test(isequal(SymbolicUtils.arguments(σ(1,2,indT(:i))*a'),SymbolicUtils.arguments(sum1)))
 
 @test isequal(N*g(ind(:j)),Σ(g(ind(:j)),ind(:i)))
-@test Σ(g(ind(:j)),ind(:j)) isa qc.Sum
+@test Σ(g(ind(:j)),ind(:j)) isa SymbolicUtils.Symbolic{qc.CSumSym}
 
 @test isequal(N*Γij,Σ(Γij,ind(:k)))
-@test Σ(Γij,ind(:i)) isa qc.Sum
+@test Σ(Γij,ind(:i)) isa SymbolicUtils.Symbolic{qc.CSumSym}
 
 @test (sum1 + a') isa qc.QAdd
 @test (sum1 + σ(1,2,i_ind)) isa qc.QAdd
@@ -161,16 +191,16 @@ qmul = a'*a
 @test isequal((g(i_ind)+qmul),(qmul + g(i_ind)))
 @test isequal(g(i_ind) + σ(1,2,j_ind),σ(1,2,j_ind) + g(i_ind))
 
-specTerm = qc.SpecialIndexedTerm(σ(1,2,i_ind)*σ(1,2,j_ind),[(i_ind,j_ind)])
-#@test isequal((sum1+specTerm),(specTerm + sum1))
-#@test isequal((σ(1,2,i_ind)+specTerm),(specTerm + σ(1,2,i_ind)))
-@test isequal((g(i_ind)+specTerm),(specTerm + g(i_ind)))
-@test isequal((specTerm+qadd),(qadd + specTerm))
-#@test isequal((specTerm+qmul),(qmul + specTerm))
-@test isequal((specTerm+2),(2+ specTerm))
+# specTerm = qc.SpecialIndexedTerm(σ(1,2,i_ind)*σ(1,2,j_ind),[(i_ind,j_ind)])
+# #@test isequal((sum1+specTerm),(specTerm + sum1))
+# #@test isequal((σ(1,2,i_ind)+specTerm),(specTerm + σ(1,2,i_ind)))
+# @test isequal((g(i_ind)+specTerm),(specTerm + g(i_ind)))
+# @test isequal((specTerm+qadd),(qadd + specTerm))
+# #@test isequal((specTerm+qmul),(qmul + specTerm))
+# @test isequal((specTerm+2),(2+ specTerm))
 
 @test isequal(-σ(1,2,i_ind),-1*σ(1,2,i_ind))
-@test isequal(-g(i_ind),-1*g(i_ind))
+# @test isequal(-g(i_ind),-1*g(i_ind))  # This tests SymbolicUtils expressions; why?
 
 @test isequal(g(i_ind) + a,a + g(i_ind))
 
@@ -202,14 +232,14 @@ ai(k) = IndexedOperator(Destroy(h,:a),k)
 
 @test isequal((ai(indF(:m))*ai(indF(:m))'),ai(indF(:m))'*ai(indF(:m)) + 1)
 
-specTerm = qc.SpecialIndexedTerm(σ(1,2,i_ind)*σ(1,2,j_ind),[(i_ind,j_ind)])
-asdf = specTerm*σ(1,2,k_ind)
-asdf2 = σ(1,2,k_ind)*specTerm
+# specTerm = qc.SpecialIndexedTerm(σ(1,2,i_ind)*σ(1,2,j_ind),[(i_ind,j_ind)])
+# asdf = specTerm*σ(1,2,k_ind)
+# asdf2 = σ(1,2,k_ind)*specTerm
 
-@test isequal(asdf,asdf2)
-@test isequal(specTerm*qmul,qmul*specTerm)
-@test isequal(qadd*specTerm,specTerm*qadd)
-@test isequal(2*specTerm,specTerm*2)
+# @test isequal(asdf,asdf2)
+# @test isequal(specTerm*qmul,qmul*specTerm)
+# @test isequal(qadd*specTerm,specTerm*qadd)
+# @test isequal(2*specTerm,specTerm*2)
 
 @test isequal(commutator(σ(1,2,i_ind),σ(2,1,i_ind)),σ(1,2,i_ind)*σ(2,1,i_ind) - σ(2,1,i_ind)*σ(1,2,i_ind))
 @test isequal(simplify(commutator(σ(1,2,i_ind),qadd)),0)

@@ -89,6 +89,9 @@ function undo_average(t)
         f = SymbolicUtils.operation(t)
         if isequal(f,sym_average) # "===" results in false sometimes in Symbolics version > 5
             return SymbolicUtils.arguments(t)[1]
+        elseif isequal(f, sym_csum)  # TODO: is this clean?
+            args = map(undo_average, SymbolicUtils.arguments(t))
+            return Sum(args...)
         else
             args = map(undo_average, SymbolicUtils.arguments(t))
             return f(args...)

@@ -1,10 +1,47 @@
 import Base: sum
 
-struct Sum{T,I,M} <: QTerm
+# QNumber sums
+struct Sum{T<:QNumber,I,M} <: QTerm
     term::T
     index::I
     metadata::M
 end
+
+# constructor for nested sums
+function Sum(term::QNumber, index1::Index, index2::Index, remaining_indices::Index...)
+    s_inner = Sum(term, index1)
+    return Sum(s_inner, index2, remaining_indices...)
+end
+
+hilbert(s::Sum) = hilbert(s.term)
+
+# Summation over CNumbers needs to be a SymbolicUtils.Symbolic{<:CNumber}
+struct CSumSym <: CNumber end
+const SymbolicCSum = SymbolicUtils.BasicSymbolic{<:CSumSym}
+const sym_csum = begin
+    T = SymbolicUtils.FnType{Tuple{Number, Integer}, CSumSym}
+    SymbolicUtils.Sym{T}(:cnumber_sum)
+end
+SymbolicUtils.symtype(::T) where T <: SymbolicCSum = CSumSym
+# SymbolicUtils.operation(::T) where T <: SymbolicCSum = Sum
+SymbolicUtils.promote_symtype(::typeof(sym_csum), ::Type{<:CNumber}) = CSumSym
+
+# function SymbolicUtils.maketerm(::Type{<:CSumSym}, ::typeof(sym_csum), args, metadata)
+#     println("Here")
+#     return Sum(args...)
+# end
+
+
+function Sum(term::SymbolicUtils.Symbolic{<:Number}, index::Index; metadata = nothing)
+    # TODO: don't ignore metadata here
+    # TODO: printing for CNumber sums
+    if !has_index(term, index)
+        return index.range * term
+    end
+
+    return SymbolicUtils.Term{CSumSym}(sym_csum, [term, index])
+end
+
 
 const Σ = Sum
 
@@ -13,6 +50,7 @@ Base.isequal(s1::Sum, s2::Sum) = isequal(s1.index, s2.index) && isequal(s1.term,
 Base.adjoint(s::Sum) = Sum(adjoint(s.term), s.index, s.metadata)
 
 # Symbolics interface
+TermInterface.iscall(::Sum) = true
 SymbolicUtils.operation(::Sum) = Sum
 SymbolicUtils.arguments(s::Sum) = [s.term, s.index]
 SymbolicUtils.maketerm(::Type{<:Sum}, ::typeof(Sum), args, metadata) = Sum(args...; metadata)
@@ -28,6 +66,7 @@ has_index(x, i::Index) = false
 has_index(v::IndexedVariable, i::Index) = isequal(v.ind, i)
 has_index(v::DoubleIndexedVariable, i::Index) = isequal(v.ind1, i) || isequal(v.ind2, i)
 has_index(op::IndexedOperator, i::Index) = isequal(op.ind, i)
+has_index(i::Index, j::Index) = isequal(i, j)
 
 has_index(s::Sum, i::Index) = isequal(s.index, i) || has_index(s.term, i)
 
@@ -51,6 +90,22 @@ function has_index(args::Vector, i::Index)
 end
 
 
+function get_indices(x)
+    indices = Set{Index}()
+    get_indices!(indices, x)
+end
+
+function get_indices!(indices, x)
+    !TermInterface.iscall(x) && return indices
+
+    for arg in SymbolicUtils.arguments(x)
+        get_indices!(indices, arg)
+    end
+    return indices
+end
+
+get_indices!(indices, i::Index) = push!(indices, i)
+get_indices!(indices, op::IndexedOperator) = push!(indices, op.ind)
 
 # Construction of sums with QSyms -- order should be QSym < QMul < Sum < QAdd
 Sum(a::QSym, index::Index) = index.range * a
@@ -68,10 +123,17 @@ function Sum(t::T, index::I) where {T<:QMul, I<:Index}
     end
 
     if !has_index(t.args_nc, index)
-        return Sum(*(t.args_c...), index) * *(t.args_nc...)
+        return Sum(t.arg_c, index) * *(t.args_nc...)
     end
 
     return Sum(t, index, nothing)
+end
+
+function Sum(s::Sum, index::Index)
+    if !has_index(s, index)
+        return index.range * s
+    end
+    return Sum(s, index, nothing)
 end
 
 function Sum(t::QAdd, index::Index)
@@ -89,15 +151,15 @@ end
 Sum(t::Number, index::Index) = index.range * t
 
 # Basic algebra
-function +(s1::Sum, s2::Sum)
-    return QAdd([s1, s2])
-end
-function +(s1::QNumber, s2::Sum)
-    return QAdd([s1, s2])
-end
-function +(s1::Sum, s2::QNumber)
-    return QAdd([s1, s2])
-end
+# function +(s1::Sum, s2::Sum)
+#     return QAdd([s1, s2])
+# end
+# function +(s1::QNumber, s2::Sum)
+#     return QAdd([s1, s2])
+# end
+# function +(s1::Sum, s2::QNumber)
+#     return QAdd([s1, s2])
+# end
 
 function *(s1::Sum, s2::Sum)
     if isequal(s1.index, s2.index)
@@ -116,16 +178,16 @@ function *(s::Sum, a::QSym)
 end
 
 function *(a::IndexedOperator, s::Sum)
-    if isequal(a.index, s.index)
-        new_index = Index(a.index.hilb, gensym(a.index.name), a.index.range, a.index.aon)
-        return change_index(a, a.index, new_index) * s
+    if isequal(a.ind, s.index)
+        new_index = Index(a.ind.hilb, gensym(a.ind.name), a.ind.range, a.ind.aon)
+        return change_index(a, a.ind, new_index) * s
     end
     return Sum(a * s.term, s.index)
 end
 function *(s::Sum, a::IndexedOperator)
-    if isequal(a.index, s.index)
-        new_index = Index(a.index.hilb, gensym(a.index.name), a.index.range, a.index.aon)
-        return s * change_index(a, a.index, new_index)
+    if isequal(a.ind, s.index)
+        new_index = Index(a.ind.hilb, gensym(a.ind.name), a.ind.range, a.ind.aon)
+        return s * change_index(a, a.ind, new_index)
     end
     return Sum(s.term * a, s.index)
 end
