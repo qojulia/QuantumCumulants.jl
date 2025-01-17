@@ -38,12 +38,29 @@ end
 acts_on(i::Index) = i.aon
 
 function Base.:(==)(i::Index, j::Index)
+    if isequal(i, j)
+        return true
+    end
+
     if acts_on(i) != acts_on(j) || hilbert(i) != hilbert(j)
         return false
     end
 
     return TermInterface.maketerm(SymbolicUtils.BasicSymbolic{Bool}, ==, [i, j], nothing)
 end
+
+function Base.:(!=)(i::Index, j::Index)
+    if isequal(i, j)
+        return false
+    end
+
+    if acts_on(i) != acts_on(j) || hilbert(i) != hilbert(j)
+        return true
+    end
+
+    return TermInterface.maketerm(SymbolicUtils.BasicSymbolic{Bool}, !=, [i, j], nothing)
+end
+
 
 # TermInterface for Index
 TermInterface.iscall(::Index) = false
@@ -234,7 +251,7 @@ function Base.:*(a::IndexedOperator{<:Transition}, b::IndexedOperator{<:Transiti
             else
                 t2 = QMul(1, [a_copy, b_copy])
             end
-            return t1 * (i == j) + t2 - (i == j) * t2
+            return (i == j) * t1 + (i != j) * t2
         end
     elseif aon_a < aon_b
         return QMul(1, [a,b])

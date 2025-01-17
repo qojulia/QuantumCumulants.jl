@@ -28,6 +28,14 @@ const qc=QuantumCumulants
 
     @test(isequal(indT(:i),Index(h,:i,10,ha)))
 
+    # symbolic equalities
+    @test i_ind == i_ind
+    @test (i_ind == j_ind) isa SymbolicUtils.Symbolic{Bool}
+    @test SymbolicUtils.operation(i_ind == j_ind) === (==)
+    @test !(i_ind != i_ind)
+    @test (i_ind != j_ind) isa SymbolicUtils.Symbolic{Bool}
+    @test SymbolicUtils.operation(i_ind != j_ind) === (!=)
+
     g(k) = IndexedVariable(:g,k)
     @test(!isequal(g(indT(:i)),g(indT(:j))))
     @test(isequal(g(indT(:i)),g(Index(h,:i,10,ha))))
@@ -52,7 +60,7 @@ const qc=QuantumCumulants
     id = uuid4()
     push!(s1.merge_events, id)
     push!(s2.merge_events, id)
-    @test isequal(ex, σ(2,2,i_ind)*(i_ind == j_ind) + s2*s1 - (i_ind==j_ind) * s1*s2)
+    @test isequal(ex, σ(2,2,i_ind)*(i_ind == j_ind) + s2*s1 * (i_ind != j_ind))
 
     a = Destroy(h,:a)
     a_indexed(i) = IndexedOperator(a, i)
