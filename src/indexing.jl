@@ -71,6 +71,7 @@ struct IndexedVariable <: CNumber #just a symbol, that can be manipulated via th
 end
 
 Base.@deprecate IndexedVariable(name::Symbol, ind::Index) IndexedParameter(name, ind)
+Base.@deprecate IndexedVariable(name::Symbol, ind1::Index, ind2::Index) IndexedParameter(name, ind1, ind2)
 
 
 """
