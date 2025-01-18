@@ -75,3 +75,51 @@ Base.show(io::IO, c::CallableTransition) = write(io, c.name)
 const T_LATEX = Union{<:QNumber,<:AbstractMeanfieldEquations, <:SymbolicUtils.Symbolic{<:CNumber},
         <:CorrelationFunction,<:Spectrum}
 Base.show(io::IO, ::MIME"text/latex", x::T_LATEX) = write(io, latexify(x))
+
+
+function Base.show(io::IO, s::Sum)
+    write(io, "Σ(")
+    show(io, s.term)
+    write(io, ", ")
+    show(io, s.index)
+    write(io, ")")
+end
+
+function SymbolicUtils.show_term(io::IO, s::SymbolicUtils.Symbolic{<:CSumSym})
+    write(io, "Σ(")
+    term, index = SymbolicUtils.arguments(s)
+    show(io, term)
+    write(io, ", ")
+    show(io, index)
+    write(io, ")")
+end
+
+function SymbolicUtils.show_term(io::IO, p::SymbolicUtils.Symbolic{<:IndexedParameterSym})
+    args = SymbolicUtils.arguments(p)
+    show(io, args[1])
+    write(io, "[")
+    for i=2:length(args) - 1
+        show(io, args[i])
+        write(io, ", ")
+    end
+    if length(args) > 2
+        show(io, args[end])
+    end
+    write(io, "]")
+end
+
+
+Base.show(io::IO, index::Index) = write(io, index.name)
+
+function Base.show(io::IO,op::IndexedOperator)
+    op_ = op.op
+    if typeof(op_) <:Transition
+        write(io,Symbol(op_.name,op_.i,op_.j,op.ind.name))
+    elseif op_ isa Destroy
+        write(io,Symbol(op_.name,op.ind.name))
+    elseif op_ isa Create
+        write(io,Symbol(op_.name,op.ind.name,"'"))
+    else
+        write(io,op_.name)
+    end
+end

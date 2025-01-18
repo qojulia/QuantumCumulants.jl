@@ -273,15 +273,6 @@ average(s::Sum) = Sum(average(s.term), s.index)
 average(s::Sum, order) = Sum(average(s.term, order), s.index)
 
 
-function Base.show(io::IO, s::Sum)
-    write(io, "Σ(")
-    show(io, s.term)
-    write(io, ", ")
-    show(io, s.index)
-    write(io, ")")
-end
-
-
 # TODO: move this somewhere else where it makes more sense
 function _push_lindblad_term!(args::Vector, a::QNumber, rate::SymbolicUtils.Symbolic{<:IndexedParameterSym}, J::QNumber, Jdagger::QNumber)
     indices = get_indices(rate)
