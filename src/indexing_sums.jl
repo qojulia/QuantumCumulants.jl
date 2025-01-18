@@ -8,16 +8,25 @@ struct Sum{T<:QNumber,I,M} <: QTerm
 end
 
 # constructor for nested sums
-function Sum(term, index1::Index, index2::Index, remaining_indices::Index...)
-    s_inner = Sum(term, index1)
-    return Sum(s_inner, index2, remaining_indices...)
+function Sum(term, indices::Index...)
+    # sort indices to make sure we always construct nested sums in the same order
+    sorted_indices = sort!([indices...], by=i -> i.name)
+    return _nested_sum(term, sorted_indices...)
 end
 
 # this method is required to avoid ambiguity even though it's the exact same as above
-function Sum(term::QNumber, index1::Index, index2::Index, remaining_indices::Index...)
-    s_inner = Sum(term, index1)
-    return Sum(s_inner, index2, remaining_indices...)
+function Sum(term::QNumber, indices::Index...)
+    # sort indices to make sure we always construct nested sums in the same order
+    sorted_indices = sort!([indices...], by=i -> i.name)
+    return _nested_sum(term, sorted_indices...)
 end
+
+function _nested_sum(term, index1::Index, index2::Index, remaining_indices...)
+    s_inner = Sum(term, index1)
+    return _nested_sum(s_inner, index2, remaining_indices...)
+end
+_nested_sum(s, index::Index) = Sum(s, index)
+
 
 hilbert(s::Sum) = hilbert(s.term)
 

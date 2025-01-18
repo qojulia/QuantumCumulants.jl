@@ -157,6 +157,10 @@ end
     @test isequal(s, 10 * Sum(σ(1,2,i_ind), i_ind))
     s = Sum(σ(1,2,i_ind)*σ(1,2,k_ind),i_ind,k_ind)
 
+    s1 = Sum(σ(2,1,i_ind)*σ(1,2,k_ind),i_ind,k_ind)
+    s2 = Sum(σ(2,1,i_ind)*σ(1,2,k_ind),k_ind,i_ind)
+    @test isequal(s1, s2)
+
     s1 = simplify(Sum(σ(2,1,k_ind) * sum1, k_ind))
     s2 = simplify(Sum(σ(2,1,k_ind)*σ(1,2,i_ind)*a',i_ind,k_ind))
     @test isequal(s1, s2)
