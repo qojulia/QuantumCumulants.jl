@@ -123,6 +123,12 @@ end
 
 get_indices!(indices, i::Index) = push!(indices, i)
 get_indices!(indices, op::IndexedOperator) = push!(indices, op.ind)
+get_indices!(indices, eqs::AbstractMeanfieldEquations) = get_indices!(indices, eqs.equations)
+function get_indices!(indices, eq::Symbolics.Equation)
+    get_indices!(indices, eq.lhs)
+    get_indices!(indices, eq.rhs)
+    return indices
+end
 
 # find_equality_for_index --  checks for occurrence of expressions such as i == j
 # which allows to e.g. simplify sums

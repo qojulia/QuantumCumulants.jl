@@ -102,7 +102,7 @@ function SymbolicUtils.show_term(io::IO, p::SymbolicUtils.Symbolic{<:IndexedPara
         show(io, args[i])
         write(io, ", ")
     end
-    if length(args) > 2
+    if length(args) >= 2
         show(io, args[end])
     end
     write(io, "]")

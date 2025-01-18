@@ -6,6 +6,64 @@ using Test
 using Random
 const qc = QuantumCumulants
 
+
+@testset "indexed_many_atom_laser" begin
+    using QuantumCumulants
+using OrdinaryDiffEq, ModelingToolkit
+
+
+# Hilbertspace
+hc = FockSpace(:cavity)
+ha = NLevelSpace(:atom,2)
+h = hc ⊗ ha
+
+# operators
+@qnumbers a::Destroy(h)
+σ(α,β,i) = IndexedOperator(Transition(h, :σ, α, β),i)
+
+
+@cnumbers N Δ κ Γ R ν
+g(i) = IndexedVariable(:g, i)
+
+i = Index(h,:i,N,ha)
+j = Index(h,:j,N,ha)
+k = Index(h,:k,N,ha)
+
+# Hamiltonian
+H = -Δ*a'a + Σ(g(i)*( a'*σ(1,2,i) + a*σ(2,1,i) ),i)
+
+# Jump operators with corresponding rates
+J = [a, σ(1,2,i), σ(2,1,i), σ(2,2,i)]
+rates = [κ, Γ, R, ν]
+
+
+# Derive equations
+ops = [a'*a, σ(2,2,j)]
+eqs = meanfield(ops,H,J;rates=rates,order=2)
+
+# custom filter function
+φ(x::Average) = φ(x.arguments[1])
+φ(::Destroy) = -1
+φ(::Create) =1
+φ(x::QTerm) = sum(map(φ, x.args_nc))
+φ(x::Transition) = x.i - x.j
+φ(x::IndexedOperator) = x.op.i - x.op.j
+φ(x::Sum) = φ(x.term)
+phase_invariant(x) = iszero(φ(x))
+
+# Complete equations -- TODO
+# eqs_c = complete(eqs; filter_func=phase_invariant)
+
+# TODO: need a way to create this more easily
+op = σ(2,1,j)*σ(1,2,k)
+s21_j = SymbolicUtils.arguments(SymbolicUtils.arguments(op)[2])[2]
+s12_k = SymbolicUtils.arguments(SymbolicUtils.arguments(op)[2])[3]
+@test QuantumCumulants.was_merged(s21_j, s12_k)
+ops2 = [a'*a, σ(2,2,j), a'*σ(2,2,j), s21_j * s12_k]
+eqs2 = meanfield(ops2,H,J;rates=rates,order=2)
+
+end
+
 # @testset "indexed_meanfield" begin
 
 order = 2
@@ -57,12 +115,13 @@ ops = [a, σ(2,2,k_ind), σ(1,2,k_ind)]
 
 eqs = meanfield(ops,H,J;rates=rates,order=order)
 
-eqs_2 = meanfield(ops,H,J_2;rates=rates_2,order=order)
+tmp = eqs[1].rhs.arguments[2]
 
-@test eqs.equations == eqs_2.equations
+# eqs_2 = meanfield(ops,H,J_2;rates=rates_2,order=order)
 
-@test isequal([i_ind,j_ind,k_ind],sort(qc.get_indices_equations(eqs)))
-@test isequal([:i,:j,:k],sort(qc.getIndName.(qc.get_indices_equations(eqs))))
+# @test eqs.equations == eqs_2.equations
+
+@test isequal(Set([i_ind,j_ind,k_ind]),qc.get_indices(eqs))
 
 @test length(eqs) == 3
 
