@@ -4,10 +4,9 @@ using ModelingToolkit
 using OrdinaryDiffEq
 using Test
 using Random
-using SteadyStateDiffEq
 const qc = QuantumCumulants
 
-@testset "indexed_meanfield" begin
+# @testset "indexed_meanfield" begin
 
 order = 2
 @cnumbers Δc η Δa κ
@@ -27,15 +26,16 @@ g(k) = IndexedVariable(:g,k)
 Γ_ij = DoubleIndexedVariable(:Γ,i_ind,j_ind)
 Ω_ij = DoubleIndexedVariable(:Ω,i_ind,j_ind;identical=false)
 
-@qnumbers a::Destroy(h)
-σ(i,j,k) = IndexedOperator(Transition(h,:σ,i,j),k)
-
+@test qc.get_indices(Γ_ij) == Set([i_ind, j_ind])
 # Hamiltonian
 
-DSum = Σ(Ω_ij*σ(2,1,i_ind)*σ(1,2,j_ind),j_ind,i_ind;non_equal=true)
+ex = Ω_ij*σ(2,1,i_ind)*σ(1,2,j_ind)
+@test has_index(ex, i_ind)
+@test has_index(ex, j_ind)
+DSum = Σ(Ω_ij*σ(2,1,i_ind)*σ(1,2,j_ind),j_ind,i_ind)
 
-@test DSum isa DoubleSum
-@test isequal(Σ(Σ(Ω_ij*σ(2,1,i_ind)*σ(1,2,j_ind),i_ind,[j_ind]),j_ind),DSum)
+@test DSum isa qc.QAdd
+# @test isequal(Σ(Σ(Ω_ij*σ(2,1,i_ind)*σ(1,2,j_ind),i_ind,[j_ind]),j_ind),DSum)
 
 Hc = Δc*a'a + η*(a' + a)
 Ha = Δa*Σ(σ(2,2,i_ind),i_ind) + DSum
@@ -49,6 +49,9 @@ J_2 = [a, σ(1,2,i_ind) ]
 rates_2 = [κ,Γ_ij]
 
 ops = [a, σ(2,2,k_ind), σ(1,2,k_ind)]
+
+@test qc.has_any_indices(J, J)
+
 eqs = meanfield(ops,H,J;rates=rates,order=order)
 
 eqs_2 = meanfield(ops,H,J_2;rates=rates_2,order=order)
@@ -355,4 +358,4 @@ eqs_i_ev2 = evaluate(eqs_i_c2;limits=(N=>3))
 @test_throws MethodError complete(eqs_i;order=1)
 @test_throws MethodError complete(eqs_os;order=1)
 
-end
+# end

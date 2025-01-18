@@ -8,7 +8,7 @@ struct Sum{T<:QNumber,I,M} <: QTerm
 end
 
 # constructor for nested sums
-function Sum(term::QNumber, index1::Index, index2::Index, remaining_indices::Index...)
+function Sum(term, index1::Index, index2::Index, remaining_indices::Index...)
     s_inner = Sum(term, index1)
     return Sum(s_inner, index2, remaining_indices...)
 end
@@ -37,6 +37,11 @@ function Sum(term::SymbolicUtils.Symbolic{<:Number}, index::Index; metadata = no
     # TODO: printing for CNumber sums
     if !has_index(term, index)
         return index.range * term
+    end
+
+    has_equality_for_index, to_index = find_equality_for_index(term, index)
+    if has_equality_for_index
+        return change_index(term, index, to_index)
     end
 
     return SymbolicUtils.Term{CSumSym}(sym_csum, [term, index])
@@ -99,7 +104,12 @@ end
 function get_indices!(indices, x)
     !TermInterface.iscall(x) && return indices
 
-    for arg in SymbolicUtils.arguments(x)
+    get_indices!(indices, SymbolicUtils.arguments(x))
+    return indices
+end
+
+function get_indices!(indices, x::Vector)
+    for arg in x
         get_indices!(indices, arg)
     end
     return indices
@@ -107,6 +117,36 @@ end
 
 get_indices!(indices, i::Index) = push!(indices, i)
 get_indices!(indices, op::IndexedOperator) = push!(indices, op.ind)
+
+# find_equality_for_index --  checks for occurrence of expressions such as i == j
+# which allows to e.g. simplify sums
+function find_equality_for_index(t, index::Index)
+    if !TermInterface.iscall(t)
+        return false, nothing
+    end
+
+    args = SymbolicUtils.arguments(t)
+    if (TermInterface.operation(t) === (==)) && any(isequal(index), args)
+        if length(args) != 2
+            throw(error("Equality with more than two arguments encountered! Please report this issue!"))
+        end
+
+        element_index = findfirst(!isequal(index), args)
+        to_index = args[element_index]
+        return true, to_index
+    end
+
+    for arg in args
+        has_equality_for_index, to_index = find_equality_for_index(arg, index)
+        if has_equality_for_index
+            return true, to_index
+        end
+    end
+
+    return false, nothing
+end
+
+
 
 # Construction of sums with QSyms -- order should be QSym < QMul < Sum < QAdd
 Sum(a::QSym, index::Index) = index.range * a
@@ -123,8 +163,22 @@ function Sum(t::T, index::I) where {T<:QMul, I<:Index}
         return index.range * t
     end
 
+    has_equality_for_index, to_index = find_equality_for_index(t, index)
+    if has_equality_for_index
+        return change_index(t, index, to_index)
+    end
+
     if !has_index(t.args_nc, index)
-        return Sum(t.arg_c, index) * *(t.args_nc...)
+        # NOTE: this check here is only valid since we resolve i == j above
+        # otherwise the condition here is not specific enough to treat e.g. Sum((i == j) * σᵢ, j)
+        # appropriately;
+        # TODO: make sure this actually works; if it gives us trouble, we can skip this "simplification"
+        # here since averaging should then lead to similar simplifications for CNumbers only anyway
+        if length(t.args_nc) == 1
+            return Sum(t.arg_c, index) * t.args_nc[1]
+        else
+            return Sum(t.arg_c, index) * *(t.args_nc...)
+        end
     end
 
     return Sum(t, index, nothing)
@@ -228,4 +282,29 @@ function Base.show(io::IO, s::Sum)
     write(io, ", ")
     show(io, s.index)
     write(io, ")")
+end
+
+
+# TODO: move this somewhere else where it makes more sense
+function _push_lindblad_term!(args::Vector, a::QNumber, rate::SymbolicUtils.Symbolic{<:IndexedParameterSym}, J::QNumber, Jdagger::QNumber)
+    indices = get_indices(rate)
+    @assert length(indices) == 1
+    i = indices[1]
+    c1 = 0.5*rate*Jdagger*commutator(a,J)
+    c2 = 0.5*rate*commutator(Jdagger,a)*J
+    push_or_append_nz_args!(args, Sum(c1, i))
+    push_or_append_nz_args!(args, Sum(c2, i))
+    return nothing
+end
+
+
+function _push_lindblad_term!(args::Vector, a::QNumber, rate::SymbolicUtils.Symbolic{<:IndexedParameterSym}, J::Vector, Jdagger::Vector)
+    c1 = 0.5*rate*Jdagger[1]*commutator(a,J[2])
+    c2 = 0.5*rate*commutator(Jdagger[2],a)*J[1]
+
+    indices = get_indices(rate)
+    push_or_append_nz_args!(args, Sum(c1, indices...))
+    push_or_append_nz_args!(args, Sum(c2, indices...))
+
+    return nothing
 end

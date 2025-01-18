@@ -594,3 +594,18 @@ function get_scale_solution(sol,op::Average,eqs;kwargs...)
     end
     return sol[op]
 end
+
+
+function check_indices(a::Vector, args...)
+    inds_a = union!(map(get_indices, a)...)
+    inds_b = union!(map(get_indices, args)...)
+
+    inds_rem = intersect(inds_a, inds_b)
+
+    if isempty(inds_rem)
+        return nothing
+    end
+
+    throw(error("The following indices are already in use in the Hamiltonian, collapse operators or rates: $(inds_rem)"))
+
+end

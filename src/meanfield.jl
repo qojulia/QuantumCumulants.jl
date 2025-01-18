@@ -33,19 +33,9 @@ equivalent to the Quantum-Langevin equation where noise is neglected.
     which `order` to prefer on terms that act on multiple Hilbert spaces.
 *`iv=ModelingToolkit.t`: The independent variable (time parameter) of the system.
 """
-function meanfield(a::Vector,H,J;kwargs...)
-    inds = vcat(get_indices(a),get_indices(H),get_indices(J))
-    if isempty(inds)
-        if :efficiencies in keys(kwargs) return _meanfield_backaction(a,H,J;kwargs...) end
-        return _meanfield(a,H,J;kwargs...)
-    else
-        if :efficiencies in keys(kwargs) return indexed_meanfield_backaction(a,H,J;kwargs...) end
-        return indexed_meanfield(a,H,J;kwargs...)
-    end
-end
 meanfield(a::QNumber,args...;kwargs...) = meanfield([a],args...;kwargs...)
 meanfield(a::Vector,H;kwargs...) = meanfield(a,H,[];Jdagger=[],kwargs...)
-function _meanfield(a::Vector,H,J;Jdagger::Vector=adjoint.(J),rates=ones(Int,length(J)),
+function meanfield(a::Vector,H,J;Jdagger::Vector=recursive_adjoint(J),rates=ones(Int,length(J)),
                     multithread=false,
                     simplify=true,
                     order=nothing,
@@ -53,10 +43,20 @@ function _meanfield(a::Vector,H,J;Jdagger::Vector=adjoint.(J),rates=ones(Int,len
                     iv=MTK.t_nounits
                     )
 
+
+    # TODO: backaction stuff
+
+    check_indices(a, H, J, Jdagger, rates)
+                    
     if rates isa Matrix
         J = [J]; Jdagger = [Jdagger]; rates = [rates]
     end
-    J_, Jdagger_, rates_ = _expand_clusters(J,Jdagger,rates)
+
+    if !has_any_indices(J, Jdagger, rates)
+        J_, Jdagger_, rates_ = _expand_clusters(J,Jdagger,rates)
+    else
+        J_, Jdagger_, rates_ = J, Jdagger, rates
+    end
     # Derive operator equations
     rhs = Vector{Any}(undef, length(a))
     imH = im*H
@@ -98,28 +98,35 @@ function _meanfield(a::Vector,H,J;Jdagger::Vector=adjoint.(J),rates=ones(Int,len
     end
 end
 
-function _master_lindblad(a_,J,Jdagger,rates)
+function _master_lindblad(a,J,Jdagger,rates)
     args = Any[]
     for k=1:length(J)
-        if isa(rates[k],SymbolicUtils.Symbolic) || isa(rates[k],Number) || isa(rates[k],Function)
-            c1 = 0.5*rates[k]*Jdagger[k]*commutator(a_,J[k])
-            c2 = 0.5*rates[k]*commutator(Jdagger[k],a_)*J[k]
-            push_or_append_nz_args!(args, c1)
-            push_or_append_nz_args!(args, c2)
-        elseif isa(rates[k],Matrix)
-            for i=1:length(J[k]), j=1:length(J[k])
-                c1 = 0.5*rates[k][i,j]*Jdagger[k][i]*commutator(a_,J[k][j])
-                c2 = 0.5*rates[k][i,j]*commutator(Jdagger[k][i],a_)*J[k][j]
-                push_or_append_nz_args!(args, c1)
-                push_or_append_nz_args!(args, c2)
-            end
-        else
-            error("Unknown rates type!")
-        end
+        _push_lindblad_term!(args::Vector, a, rates[k], J[k], Jdagger[k])
     end
     isempty(args) && return 0
     return QAdd(args)
 end
+
+function _push_lindblad_term!(args::Vector, a::QNumber, rate::T, J::QNumber, Jdagger::QNumber) where T <: Union{Number, Function, SymbolicUtils.Symbolic}
+    c1 = 0.5*rate*Jdagger*commutator(a,J)
+    c2 = 0.5*rate*commutator(Jdagger,a)*J
+    push_or_append_nz_args!(args, c1)
+    push_or_append_nz_args!(args, c2)
+    return nothing
+end
+
+function _push_lindblad_term!(args::Vector, a::QNumber, rates::Matrix, J, Jdagger)
+    for i=1:length(J), j=1:length(J)
+        c1 = 0.5*rates[i,j]*Jdagger[i]*commutator(a,J[j])
+        c2 = 0.5*rates[i,j]*commutator(Jdagger[i],a)*J[j]
+        push_or_append_nz_args!(args, c1)
+        push_or_append_nz_args!(args, c2)
+    end
+    return nothing
+end
+
+recursive_adjoint(J::Vector) = map(recursive_adjoint, J)
+recursive_adjoint(J::QNumber) = adjoint(J)
 
 
 ## Commutator methods

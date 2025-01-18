@@ -650,3 +650,24 @@ get_range(i::Index) = i.range
 get_aon(i::Index) = i.aon
 
 -(a::BasicSymbolic{IndexedVariable}) = -1*a
+
+
+
+has_any_indices(args...) = has_any_indices([args...])
+function has_any_indices(args::Vector)
+    for arg in args
+        has_any_indices(arg) && return true
+    end
+    return false
+end
+
+function has_any_indices(t)
+    if !TermInterface.iscall(t)
+        return false
+    end
+
+    return has_any_indices(SymbolicUtils.arguments(t))
+end
+
+has_any_indices(::IndexedOperator) = true
+has_any_indices(::Index) = true
