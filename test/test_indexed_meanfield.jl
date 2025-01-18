@@ -29,6 +29,9 @@ g(k) = IndexedVariable(:g,k)
 @test qc.get_indices(Γ_ij) == Set([i_ind, j_ind])
 # Hamiltonian
 
+@qnumbers a::Destroy(h)
+σ(i,j,k) = IndexedOperator(Transition(h,:σ,i,j),k)
+
 ex = Ω_ij*σ(2,1,i_ind)*σ(1,2,j_ind)
 @test has_index(ex, i_ind)
 @test has_index(ex, j_ind)

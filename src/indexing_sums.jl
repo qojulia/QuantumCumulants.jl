@@ -26,6 +26,9 @@ struct CSumSym <: CNumber end
 
 csum(args...) = Sum(args...)
 
+# SymbolicUtils.maketerm(::Type{T}, ::typeof(csum), args, metadata) where T = csum(args...)
+# SymbolicUtils.maketerm(::Type{<:SymbolicUtils.BasicSymbolic}, ::typeof(csum), args, metadata) = csum(args...)
+
 function Sum(term::SymbolicUtils.Symbolic{<:Number}, index::Index; metadata = nothing)
     # TODO: don't ignore metadata here
     # TODO: printing for CNumber sums

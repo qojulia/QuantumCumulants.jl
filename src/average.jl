@@ -89,9 +89,6 @@ function undo_average(t)
         f = SymbolicUtils.operation(t)
         if isequal(f,sym_average) # "===" results in false sometimes in Symbolics version > 5
             return SymbolicUtils.arguments(t)[1]
-        elseif isequal(f, sym_csum)  # TODO: is this clean?
-            args = map(undo_average, SymbolicUtils.arguments(t))
-            return Sum(args...)
         else
             args = map(undo_average, SymbolicUtils.arguments(t))
             return f(args...)
@@ -150,8 +147,6 @@ function cumulant_expansion(x::SymbolicUtils.Symbolic,order::Integer;simplify=tr
             cumulants = [cumulant_expansion(arg,order;kwargs...) for arg in args]
             return f(cumulants...)
         end
-    elseif x isa AvgSums
-        return _cumulant_expansion(x,order;simplify,kwargs...) # basically just another cumulant_expansion dispatch
     else
         return x
     end
