@@ -13,24 +13,18 @@ function Sum(term, index1::Index, index2::Index, remaining_indices::Index...)
     return Sum(s_inner, index2, remaining_indices...)
 end
 
+# this method is required to avoid ambiguity even though it's the exact same as above
+function Sum(term::QNumber, index1::Index, index2::Index, remaining_indices::Index...)
+    s_inner = Sum(term, index1)
+    return Sum(s_inner, index2, remaining_indices...)
+end
+
 hilbert(s::Sum) = hilbert(s.term)
 
 # Summation over CNumbers needs to be a SymbolicUtils.Symbolic{<:CNumber}
 struct CSumSym <: CNumber end
-const SymbolicCSum = SymbolicUtils.BasicSymbolic{<:CSumSym}
-const sym_csum = begin
-    T = SymbolicUtils.FnType{Tuple{Number, Integer}, CSumSym}
-    SymbolicUtils.Sym{T}(:cnumber_sum)
-end
-SymbolicUtils.symtype(::T) where T <: SymbolicCSum = CSumSym
-# SymbolicUtils.operation(::T) where T <: SymbolicCSum = Sum
-SymbolicUtils.promote_symtype(::typeof(sym_csum), ::Type{<:CNumber}) = CSumSym
 
-# function SymbolicUtils.maketerm(::Type{<:CSumSym}, ::typeof(sym_csum), args, metadata)
-#     println("Here")
-#     return Sum(args...)
-# end
-
+csum(args...) = Sum(args...)
 
 function Sum(term::SymbolicUtils.Symbolic{<:Number}, index::Index; metadata = nothing)
     # TODO: don't ignore metadata here
@@ -44,7 +38,7 @@ function Sum(term::SymbolicUtils.Symbolic{<:Number}, index::Index; metadata = no
         return change_index(term, index, to_index)
     end
 
-    return SymbolicUtils.Term{CSumSym}(sym_csum, [term, index])
+    return SymbolicUtils.Term{CSumSym}(csum, [term, index])
 end
 
 

@@ -125,20 +125,16 @@ end
 
 Base.@deprecate DoubleIndexedVariable(name::Symbol, ind1::Index, ind2::Index; identical::Bool = true) IndexedParameter(name, ind1, ind2)
 
-# TODO: deprecate IndexedVariable in favor of IndexedParameter
-struct IndexedParameterSym <: CNumber end
-const SymbolicIndexedParameter = SymbolicUtils.BasicSymbolic{<:IndexedParameterSym}
-const sym_idx_parameter = begin
-    T = SymbolicUtils.FnType{Tuple{Complex{Real}, Vector{<:Index}}, IndexedParameterSym}
-    SymbolicUtils.Sym{T}(:getindex_parameter)
-end
-SymbolicUtils.symtype(::T) where T <: SymbolicIndexedParameter = IndexedParameterSym
 
-function IndexedParameter(name::Symbol, indices::Vector{Index})
-    return SymbolicUtils.Term{IndexedParameterSym}(sym_idx_parameter, [Parameter(name), indices])
+struct IndexedParameterSym <: CNumber end
+
+getindex_parameter(args...) = SymbolicUtils.Term{IndexedParameterSym}(getindex_parameter, Any[args...])
+
+function IndexedParameter(name::Symbol, indices::T...) where T <: Union{Index, Integer}
+    return SymbolicUtils.Term{IndexedParameterSym}(getindex_parameter, [Parameter(name), indices...])
 end
-IndexedParameter(name::Symbol, index::Index) = IndexedParameter(name, [index])
-IndexedParameter(name::Symbol, indices::Index...) = IndexedParameter(name, [indices...])
+
+# TODO: can we avoid boxing here?
 IndexedParameter(name::Symbol) = (args...) -> IndexedParameter(name, args...)
 
 # TermInterface
