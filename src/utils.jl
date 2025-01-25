@@ -16,13 +16,13 @@ see also: [`complete`](@ref), [`complete!`](@ref)
 """
 function find_missing(me::AbstractMeanfieldEquations; vs_adj=nothing, get_adjoints=true)
     vs = me.states
-    vhash = map(hash, vs)
+    vhash = map(index_invariant_hash, vs)
     vs′ = if vs_adj===nothing
         map(_conj, vs)
     else
         vs_adj
     end
-    vs′hash = map(hash, vs′)
+    vs′hash = map(index_invariant_hash, vs′)
     filter!(!in(vhash), vs′hash)
 
     missed = []
@@ -44,7 +44,7 @@ function find_missing!(missed, missed_hashes, r::SymbolicUtils.Symbolic, vhash, 
     return missed
 end
 function find_missing!(missed, missed_hashes, r::Average, vhash, vs′hash; get_adjoints=true)
-    rhash = hash(r)
+    rhash = index_invariant_hash(r)
     if !(rhash ∈ vhash) && !(rhash ∈ vs′hash) && !(rhash ∈ missed_hashes)
         push!(missed, r)
         push!(missed_hashes, rhash)
@@ -52,7 +52,7 @@ function find_missing!(missed, missed_hashes, r::Average, vhash, vs′hash; get_
             # To avoid collecting adjoints as missing variables,
             # collect the hash of the adjoint right away
             r′ = _conj(r)
-            r′hash = hash(r′)
+            r′hash = index_invariant_hash(r′)
             if !(r′hash ∈ missed_hashes)
                 push!(missed_hashes, r′hash)
             end
@@ -70,6 +70,10 @@ function find_missing(eqs::Vector, vhash::Vector{UInt}, vs′hash::Vector{UInt};
     end
     return missed
 end
+
+# generic fallback
+index_invariant_hash(x) = index_invariant_hash(x, zero(UInt))
+index_invariant_hash(x, h0::UInt) = hash(x, h0)
 
 """
     complete(de::MeanfieldEquations)
@@ -137,9 +141,9 @@ function complete!(de::AbstractMeanfieldEquations;
         end
     end
 
-    vhash = map(hash, vs)
+    vhash = map(index_invariant_hash, vs)
     vs′ = map(_conj, vs)
-    vs′hash = map(hash, vs′)
+    vs′hash = map(index_invariant_hash, vs′)
     filter!(!in(vhash), vs′hash)
     missed = find_missing(de.equations, vhash, vs′hash; get_adjoints=false)
     isnothing(filter_func) || filter!(filter_func, missed) # User-defined filter
@@ -278,8 +282,8 @@ end
 In-place version of [`unique_ops`](@ref).
 """
 function unique_ops!(ops)
-    hashes = map(hash, ops)
-    hashes′ = map(hash, map(_adjoint, ops))
+    hashes = map(index_invariant_hash, ops)
+    hashes′ = map(index_invariant_hash, map(_adjoint, ops))
     seen_hashes = UInt[]
     i = 1
     while i <= length(ops)

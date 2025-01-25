@@ -7,7 +7,7 @@ using Random
 const qc = QuantumCumulants
 
 
-@testset "indexed_many_atom_laser" begin
+# @testset "indexed_many_atom_laser" begin
     using QuantumCumulants
 using OrdinaryDiffEq, ModelingToolkit
 
@@ -29,6 +29,45 @@ i = Index(h,:i,N,ha)
 j = Index(h,:j,N,ha)
 k = Index(h,:k,N,ha)
 
+# test index invariant hashing
+@test qc.index_invariant_hash(i) == qc.index_invariant_hash(j) == qc.index_invariant_hash(k)
+@test qc.index_invariant_hash(g(i)) == qc.index_invariant_hash(g(j)) == qc.index_invariant_hash(g(k))
+@test qc.index_invariant_hash(g(i)) != qc.index_invariant_hash(σ(1,2,i))
+
+@test qc.index_invariant_hash(σ(1,2,i)) == qc.index_invariant_hash(σ(1,2,j))
+@test qc.index_invariant_hash(σ(1,2,i) * σ(1,2,j)) == qc.index_invariant_hash(σ(1,2,k) * σ(1,2,i))
+
+@test qc.index_invariant_hash(σ(1,2,i) * σ(1,2,j)) != qc.index_invariant_hash(σ(1,2,i) + σ(1,2,j))
+@test qc.index_invariant_hash(σ(1,2,i) * σ(1,2,j)) != qc.index_invariant_hash(σ(1,2,i) * σ(1,2,i))
+@test qc.index_invariant_hash(σ(1,2,i) * σ(1,2,j)) != qc.index_invariant_hash(σ(1,2,i) * σ(2,1,j))
+
+# with averages
+@test qc.index_invariant_hash(average(σ(1,2,i))) == qc.index_invariant_hash(average(σ(1,2,j)))
+@test qc.index_invariant_hash(average(σ(1,2,i) * σ(1,2,j))) == qc.index_invariant_hash(average(σ(1,2,k) * σ(1,2,i)))
+
+@test qc.index_invariant_hash(average(σ(1,2,i) * σ(1,2,j))) != qc.index_invariant_hash(average(σ(1,2,i) + σ(1,2,j)))
+@test qc.index_invariant_hash(average(σ(1,2,i) * σ(1,2,j))) != qc.index_invariant_hash(average(σ(1,2,i) * σ(1,2,i)))
+@test qc.index_invariant_hash(average(σ(1,2,i) * σ(1,2,j))) != qc.index_invariant_hash(average(σ(1,2,i) * σ(2,1,j)))
+
+@test qc.index_invariant_hash(a) != qc.index_invariant_hash(a')
+@test qc.index_invariant_hash(average(a')) == qc.index_invariant_hash(qc._conj(average(a)))
+
+@test qc.index_invariant_hash(a'*σ(1,2,i)) == qc.index_invariant_hash(a'*σ(1,2,j))
+
+ex1 = qc.@index_not_equal σ(1,2,i) * σ(2,1,j)
+ex2 = qc.@index_not_equal σ(2,1,i) * σ(1,2,j)
+@test qc.index_invariant_hash(ex1) == qc.index_invariant_hash(ex2)
+
+ex1 = qc.@index_not_equal σ(1,2,i) * σ(2,1,j)
+ex2 = qc.@index_not_equal σ(1,2,j) * σ(2,1,i)
+@test qc.index_invariant_hash(ex1) == qc.index_invariant_hash(ex2)
+
+ex1 = average(a'*σ(1,2,i))
+ex2 = average(a*σ(2,1,i))
+
+@test qc.index_invariant_hash(ex1) != qc.index_invariant_hash(ex2)
+@test qc.index_invariant_hash(ex1) == qc.index_invariant_hash(qc._conj(ex2))
+
 # Hamiltonian
 H = -Δ*a'a + Σ(g(i)*( a'*σ(1,2,i) + a*σ(2,1,i) ),i)
 
@@ -41,6 +80,13 @@ rates = [κ, Γ, R, ν]
 ops = [a'*a, σ(2,2,j)]
 eqs = meanfield(ops,H,J;rates=rates,order=2)
 
+m = find_missing(eqs; get_adjoints=false)
+missing_hashes = Set(map(qc.index_invariant_hash, m))
+@test length(missing_hashes) == length(m)
+
+avg_hashes = Set(map(qc.index_invariant_hash, eqs.states))
+@test isdisjoint(missing_hashes, avg_hashes)
+
 # custom filter function
 φ(x::Average) = φ(x.arguments[1])
 φ(::Destroy) = -1
@@ -51,8 +97,10 @@ eqs = meanfield(ops,H,J;rates=rates,order=2)
 φ(x::Sum) = φ(x.term)
 phase_invariant(x) = iszero(φ(x))
 
-# Complete equations -- TODO
-# eqs_c = complete(eqs; filter_func=phase_invariant)
+m_filtered = filter(phase_invariant, m)
+
+# Complete equations
+eqs_c = complete(eqs; filter_func=phase_invariant)
 
 # TODO: need a way to create this more easily
 op = σ(2,1,j)*σ(1,2,k)
@@ -62,7 +110,7 @@ s12_k = SymbolicUtils.arguments(SymbolicUtils.arguments(op)[2])[3]
 ops2 = [a'*a, σ(2,2,j), a'*σ(2,2,j), s21_j * s12_k]
 eqs2 = meanfield(ops2,H,J;rates=rates,order=2)
 
-end
+# end
 
 # @testset "indexed_meanfield" begin
 

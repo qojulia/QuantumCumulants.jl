@@ -190,6 +190,9 @@ hilbert(ind::Index) = ind.hilb
 hilbert(op::IndexedOperator) = op.ind.hilb
 hilbert(var::IndexedVariable) = var.ind.hilb
 
+# levels
+levels(op::IndexedOperator) = levels(op.op.hilbert, acts_on(op))
+
 #Basic functions for indexed Operators
 import Base: *, +, -
 
@@ -213,6 +216,8 @@ function Base.:*(a::IndexedOperator{<:Destroy}, b::IndexedOperator{<:Create})
         return QMul(1, [b,a])
     end
 end
+
+const INDEX_NOT_EQUAL_MACRO = Ref(false)
 
 function Base.:*(a::IndexedOperator{<:Transition}, b::IndexedOperator{<:Transition})
     if was_merged(a, b)
@@ -240,6 +245,11 @@ function Base.:*(a::IndexedOperator{<:Transition}, b::IndexedOperator{<:Transiti
             id = uuid4()
             push!(a_copy.merge_events, id)
             push!(b_copy.merge_events, id)
+
+            if INDEX_NOT_EQUAL_MACRO[]
+                # TODO: should this include i != j as factor in front?
+                return a_copy * b_copy
+            end
 
             # the operator with more merge events goes right
             if length(a_copy.merge_events) > length(b_copy.merge_events)
@@ -280,6 +290,15 @@ function was_merged(a::IndexedOperator, b::IndexedOperator)
     # if they were merged, then a unique id (UUID4) was added to the merge events vector of each of the operators
     # hence, we can just check if they share any common element
     return !isdisjoint(a.merge_events, b.merge_events)
+end
+
+macro index_not_equal(ex)
+    return quote
+        INDEX_NOT_EQUAL_MACRO.x = true
+        local val = $(esc(ex))
+        INDEX_NOT_EQUAL_MACRO.x = false
+        val
+    end
 end
 
 #acts on
