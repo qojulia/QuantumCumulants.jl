@@ -75,7 +75,7 @@ end
 index_invariant_hash(x) = index_invariant_hash(x, zero(UInt))
 index_invariant_hash(x, h0::UInt) = hash(x, h0)
 
-function find_missing_and_switch_indices(de; extra_indices=nothing, filter_func=filter_func)
+function find_missing_and_switch_indices(de; extra_indices=nothing, filter_func=nothing)
     vs = de.states
     vhash = map(index_invariant_hash, vs)
     vs′ = map(_conj, vs)
@@ -176,7 +176,6 @@ function complete!(de::AbstractMeanfieldEquations;
     missed = find_missing_and_switch_indices(de; extra_indices=extra_indices, filter_func=filter_func)
 
     while !isempty(missed)
-        println(missed)
         ops_ = [SymbolicUtils.arguments(m)[1] for m in missed]
         me = meanfield(ops_,de.hamiltonian,de.jumps;
                                 Jdagger=de.jumps_dagger,
@@ -196,18 +195,14 @@ function complete!(de::AbstractMeanfieldEquations;
     if !isnothing(filter_func)
         # Find missing values that are filtered by the custom filter function,
         # but still occur on the RHS; set those to 0
-        vs = de.states
-        vhash = map(index_invariant_hash, vs)
-        vs′ = map(_conj, vs)
-        vs′hash = map(index_invariant_hash, vs′)
-        filter!(!in(vhash), vs′hash)
-        missed = find_missing(de.equations, vhash, vs′hash; get_adjoints=false)
-        filter!(!filter_func, missed)
-        missed_adj = map(_adjoint, missed)
-        subs = Dict(vcat(missed, missed_adj) .=> 0)
-        for i=1:length(de.equations)
-            de.equations[i] = substitute(de.equations[i], subs)
-            de.states[i] = de.equations[i].lhs
+        missed = find_missing(de; get_adjoints=true)
+        while !isempty(missed) # TODO: why is this necessary??? Debug this properly! One substitution should account for ALL missed values; why aren't all found or substituted??
+            subs = Dict(missed .=> 0)
+            for i=1:length(de.equations)
+                de.equations[i] = substitute(de.equations[i], subs)
+                # de.states[i] = de.equations[i].lhs
+            end
+            missed = find_missing(de; get_adjoints=true)
         end
     end
     return de

@@ -111,8 +111,8 @@ avg2 = qc.change_index(avg, i, k)
 
 # Complete equations
 eqs_c = complete(eqs; filter_func=phase_invariant)
-# @test isempty(find_missing(eqs_c))  # TODO: make this switch indices
-
+@test isempty(qc.find_missing_and_switch_indices(eqs_c; filter_func=phase_invariant))
+@test isempty(find_missing(eqs_c))
 
 # end
 
