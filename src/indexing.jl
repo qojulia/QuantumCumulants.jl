@@ -175,14 +175,14 @@ Fields:
 struct IndexedOperator{T,I} <: QSym
     op::T
     ind::I  # TODO: why not spell out index here?
-    merge_events::Vector{UUID}
-    function IndexedOperator(op::T,ind::I) where {T<:QSym,I}
-        if I <: Index
-            @assert isequal(ind.hilb,hilbert(op))
-        end
-        isa(ind.hilb, ProductSpace) && (@assert isequal(acts_on(op),ind.aon))
-        return new{T,I}(op,ind,UUID[])
+    merge_events::Vector{UUID}  # TODO: this could be a Set{UUID}
+end
+function IndexedOperator(op::T,ind::I) where {T<:QSym,I}
+    if I <: Index
+        @assert isequal(ind.hilb,hilbert(op))
     end
+    isa(ind.hilb, ProductSpace) && (@assert isequal(acts_on(op),ind.aon))
+    return IndexedOperator{T,I}(op,ind,UUID[])
 end
 
 #hilberts
@@ -234,7 +234,7 @@ function Base.:*(a::IndexedOperator{<:Transition}, b::IndexedOperator{<:Transiti
         i = a.ind
         j = b.ind
         op_ = a.op * b.op
-        t1 = iszero(op_) ? 0 : _make_indexed_operator(op_, i)
+        t1 = iszero(op_) ? 0 : _make_indexed_operator(op_, i, unique!([a.merge_events; b.merge_events]))
         if isequal(i, j)
             return t1
         else
@@ -266,10 +266,10 @@ function Base.:*(a::IndexedOperator{<:Transition}, b::IndexedOperator{<:Transiti
     end
 end
 
-_make_indexed_operator(op::QNumber, i::Index) = IndexedOperator(op, i)
-_make_indexed_operator(x, i::Index) = x
-function _make_indexed_operator(op::QTerm, i::Index)
-    args = [_make_indexed_operator(arg, i) for arg in SymbolicUtils.arguments(op)]
+_make_indexed_operator(op::QNumber, i::Index, merge_events=UUID[]) = IndexedOperator(op, i, merge_events)
+_make_indexed_operator(x, i::Index, merge_events=UUID[]) = x
+function _make_indexed_operator(op::QTerm, i::Index, merge_events=UUID[])
+    args = [_make_indexed_operator(arg, i, merge_events) for arg in SymbolicUtils.arguments(op)]
     return SymbolicUtils.operation(op)(args...)
 end
 
@@ -307,7 +307,7 @@ acts_on(op::IndexedOperator) = acts_on(op.op)
 #extra commutators
 #Indexed operators, evaluate the commutator directly, if 2 indexed ops have the same index
 function commutator(op1::IndexedOperator,op2::IndexedOperator)
-    commutated_op = _make_indexed_operator(commutator(op1.op,op2.op),op1.ind)
+    commutated_op = _make_indexed_operator(commutator(op1.op,op2.op),op1.ind,unique!([op1.merge_events;op2.merge_events]))
     if isequal(op1.ind, op2.ind)
         return commutated_op
     else
@@ -410,7 +410,7 @@ function change_index(a::IndexedOperator, from::Index, to::Index)
         return a
     end
 
-    return IndexedOperator(a.op, to)
+    return IndexedOperator(a.op, to, copy(a.merge_events))
 end
 
 function change_index(v::IndexedVariable, from::Index, to::Index)

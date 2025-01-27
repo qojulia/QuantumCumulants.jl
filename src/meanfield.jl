@@ -57,6 +57,7 @@ function meanfield(a::Vector,H,J;Jdagger::Vector=recursive_adjoint(J),rates=ones
     else
         J_, Jdagger_, rates_ = J, Jdagger, rates
     end
+    
     # Derive operator equations
     rhs = Vector{Any}(undef, length(a))
     imH = im*H

@@ -205,6 +205,9 @@ end
 
 function Sum(t::QAdd, index::Index)
     args = [Sum(arg, index) for arg in SymbolicUtils.arguments(t)]
+    if length(args) == 1
+        return args[1]
+    end
     return +(args...)
 end
 

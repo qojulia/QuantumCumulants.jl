@@ -5,6 +5,7 @@ using SymbolicUtils
 using Symbolics
 using OrdinaryDiffEq
 using UUIDs
+using TermInterface
 
 const qc=QuantumCumulants
 
@@ -19,6 +20,10 @@ const qc=QuantumCumulants
     indF(i) = Index(h,i,N,hf) #fock index
     i_ind = indT(:i)
     j_ind = indT(:j)
+
+    ex = (i_ind == j_ind) * (i_ind != j_ind)
+    r = @acrule((~x == ~y) * (~x != ~y) => 0)
+    @test iszero(simplify(ex, rewriter=SymbolicUtils.Chain([r])))
 
     ind(a) = indT(a)
 
@@ -71,6 +76,56 @@ const qc=QuantumCumulants
 
 end
 
+@testset "transition-merging" begin
+
+    N = 10
+    ha = NLevelSpace(Symbol(:atom),2)
+    hf = FockSpace(:cavity)
+    h = hf⊗ha
+
+    index(name) = Index(h,name,N,ha)
+
+    i,j,k,l = index.([:i,:j,:k,:l])
+
+    σ(α,β,i) = IndexedOperator(Transition(h,:σ,α,β), i)
+
+    ex1 = σ(2,1,i)*σ(1,2,j)
+    ex2 = σ(2,1,k)*σ(1,2,l)
+
+    long_product = ex1 * ex2
+
+
+    function check_was_merged(t)
+        if !TermInterface.iscall(t)
+            return true
+        end
+
+        args = SymbolicUtils.arguments(t)
+        for arg in args
+            check_was_merged(arg) || return false
+        end
+
+        return true
+    end
+
+    function check_was_merged(t::qc.QMul)
+        if length(t.args_nc) < 2
+            return true
+        end
+
+        args = t.args_nc
+        for arg1 in args
+            for arg2 in args
+                isequal(arg1, arg2) && continue
+                qc.was_merged(arg1,arg2) || return false
+            end
+        end
+        return true
+    end
+
+    @test check_was_merged(long_product)
+
+end
 
 @testset "sums" begin
 

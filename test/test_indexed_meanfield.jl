@@ -99,16 +99,20 @@ phase_invariant(x) = iszero(φ(x))
 
 m_filtered = filter(phase_invariant, m)
 
+@test length(m_filtered) == 2
+
+ex = qc.@index_not_equal σ(2,1,i) * σ(1,2,j)
+ex2 = qc.change_index(ex, i, k)
+@test ex2 isa qc.QMul
+
+avg = average(ex)
+avg2 = qc.change_index(avg, i, k)
+
+
 # Complete equations
 eqs_c = complete(eqs; filter_func=phase_invariant)
+# @test isempty(find_missing(eqs_c))  # TODO: make this switch indices
 
-# TODO: need a way to create this more easily
-op = σ(2,1,j)*σ(1,2,k)
-s21_j = SymbolicUtils.arguments(SymbolicUtils.arguments(op)[2])[2]
-s12_k = SymbolicUtils.arguments(SymbolicUtils.arguments(op)[2])[3]
-@test QuantumCumulants.was_merged(s21_j, s12_k)
-ops2 = [a'*a, σ(2,2,j), a'*σ(2,2,j), s21_j * s12_k]
-eqs2 = meanfield(ops2,H,J;rates=rates,order=2)
 
 # end
 

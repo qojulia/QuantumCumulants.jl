@@ -75,6 +75,37 @@ end
 index_invariant_hash(x) = index_invariant_hash(x, zero(UInt))
 index_invariant_hash(x, h0::UInt) = hash(x, h0)
 
+function find_missing_and_switch_indices(de; extra_indices=nothing, filter_func=filter_func)
+    vs = de.states
+    vhash = map(index_invariant_hash, vs)
+    vs′ = map(_conj, vs)
+    vs′hash = map(index_invariant_hash, vs′)
+    filter!(!in(vhash), vs′hash)
+    missed = find_missing(de.equations, vhash, vs′hash; get_adjoints=false)
+    isnothing(filter_func) || filter!(filter_func, missed) # User-defined filter
+
+    # TODO: finding these indices can be moved out of the function since they don't change
+    indices_in_use = Set{Index}([])
+    get_indices!(indices_in_use, de.hamiltonian)
+    get_indices!(indices_in_use, de.jumps)
+    get_indices!(indices_in_use, de.jumps_dagger)
+    get_indices!(indices_in_use, de.rates)
+
+    if isempty(indices_in_use)
+        return missed
+    end
+
+    indices_in_use_names = [i.name for i in indices_in_use]
+    index_names = filter!(!in(indices_in_use_names), [:i,:j,:k,:l,:m,:n,:p,:q,:r,:s,:t])
+    if extra_indices === nothing
+        i1 = first(indices_in_use)
+        extra_indices = [Index(i1.hilb, name, i1.range, i1.aon) for name in index_names]
+    end
+    switch_to_extra_indices!(missed, indices_in_use, extra_indices)
+
+    return missed
+end
+
 """
     complete(de::MeanfieldEquations)
 
@@ -116,6 +147,7 @@ function complete!(de::AbstractMeanfieldEquations;
                                 filter_func=nothing,
                                 mix_choice=maximum,
                                 simplify=true,
+                                extra_indices=nothing,
                                 kwargs...)
     vs = de.states
     order_lhs = maximum(get_order.(vs))
@@ -141,14 +173,10 @@ function complete!(de::AbstractMeanfieldEquations;
         end
     end
 
-    vhash = map(index_invariant_hash, vs)
-    vs′ = map(_conj, vs)
-    vs′hash = map(index_invariant_hash, vs′)
-    filter!(!in(vhash), vs′hash)
-    missed = find_missing(de.equations, vhash, vs′hash; get_adjoints=false)
-    isnothing(filter_func) || filter!(filter_func, missed) # User-defined filter
+    missed = find_missing_and_switch_indices(de; extra_indices=extra_indices, filter_func=filter_func)
 
     while !isempty(missed)
+        println(missed)
         ops_ = [SymbolicUtils.arguments(m)[1] for m in missed]
         me = meanfield(ops_,de.hamiltonian,de.jumps;
                                 Jdagger=de.jumps_dagger,
@@ -162,20 +190,17 @@ function complete!(de::AbstractMeanfieldEquations;
 
         _append!(de, me)
 
-        vhash_ = hash.(me.states)
-        vs′hash_ = hash.(_conj.(me.states))
-        append!(vhash, vhash_)
-        for i=1:length(vhash_)
-            vs′hash_[i] ∈ vhash_ || push!(vs′hash, vs′hash_[i])
-        end
-
-        missed = find_missing(me.equations, vhash, vs′hash; get_adjoints=false)
-        isnothing(filter_func) || filter!(filter_func, missed) # User-defined filter
+        missed = find_missing_and_switch_indices(de; extra_indices=extra_indices, filter_func=filter_func)
     end
 
     if !isnothing(filter_func)
         # Find missing values that are filtered by the custom filter function,
         # but still occur on the RHS; set those to 0
+        vs = de.states
+        vhash = map(index_invariant_hash, vs)
+        vs′ = map(_conj, vs)
+        vs′hash = map(index_invariant_hash, vs′)
+        filter!(!in(vhash), vs′hash)
         missed = find_missing(de.equations, vhash, vs′hash; get_adjoints=false)
         filter!(!filter_func, missed)
         missed_adj = map(_adjoint, missed)

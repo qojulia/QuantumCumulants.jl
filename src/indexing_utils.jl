@@ -1,3 +1,16 @@
+# TODO: move this function
+function SymbolicUtils.sorted_arguments(t::SymbolicUtils.BasicSymbolic{<:CNumber})
+    f = SymbolicUtils.operation(t)
+    args = SymbolicUtils.arguments(t)
+
+    if f in (*, +)
+        # commutative for numbers, we may sort
+        sort!(args, by=x -> nameof(SymbolicUtils.symtype(x)))
+    end
+
+    return args
+end
+
 index_invariant_hash(t::SymbolicUtils.Symbolic, h0::UInt) = _index_invariant_hash(t, h0)
 index_invariant_hash(t::QNumber, h0::UInt) = _index_invariant_hash(t, h0)
 
@@ -11,8 +24,9 @@ function _index_invariant_hash(t, h0::UInt)
         return hash(t, h0)
     end
 
-    args = SymbolicUtils.sorted_arguments(t)
     f = SymbolicUtils.operation(t)
+    args = SymbolicUtils.sorted_arguments(t)
+
     h = index_invariant_hash(f, h0)
     for arg in args
         h = index_invariant_hash(arg, h)
@@ -67,4 +81,38 @@ function _transition_levels(op::IndexedOperator{<:Transition})
     i = op.op.i
     j = op.op.j
     return i, j
+end
+
+
+function switch_to_extra_indices!(vs, indices_in_use, extra_indices)
+    # change all indices that are already in use in e.g. the Hamiltonian
+    # in an expression so that we can derive equations for it
+    # the conditions for a valid replacement are:
+    # * the index is not in use in the Hamiltonian (indices_in_use)
+    # * the index is not in use in the current expression
+    # * the index is not used as a replacement for another index
+    for i=1:length(vs)
+        inds = get_indices(vs[i])
+        inds_to_switch = filter(in(indices_in_use), inds)
+        isempty(inds_to_switch) && continue
+
+        # build mapping for all indices
+        # need to make sure indices are not re-used
+        # the conditions for an index 
+        to_index = Index[]
+        for from in inds_to_switch
+            to_position = findfirst(k -> !(k in indices_in_use) && !(k in to_index) && !(k in inds), extra_indices)
+            
+            (to_position === nothing) && throw("Not enough extra indices provided!")
+
+            to = extra_indices[to_position]
+            push!(to_index, to)
+        end
+
+        for (from, to) in zip(inds_to_switch, to_index)
+            vs[i] = change_index(vs[i], from, to)
+        end
+    end
+
+    return vs
 end
