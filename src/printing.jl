@@ -113,12 +113,13 @@ Base.show(io::IO, index::Index) = write(io, index.name)
 
 function Base.show(io::IO,op::IndexedOperator)
     op_ = op.op
-    if typeof(op_) <:Transition
-        write(io,Symbol(op_.name,op_.i,op_.j,op.ind.name))
+    ind_name = op.ind isa Index ? op.ind.name : op.ind
+    if typeof(op_) <: Transition
+        write(io,Symbol(op_.name,op_.i,op_.j,ind_name))
     elseif op_ isa Destroy
-        write(io,Symbol(op_.name,op.ind.name))
+        write(io,Symbol(op_.name,ind_name))
     elseif op_ isa Create
-        write(io,Symbol(op_.name,op.ind.name,"'"))
+        write(io,Symbol(op_.name,ind_name,"'"))
     else
         write(io,op_.name)
     end

@@ -87,8 +87,8 @@ struct IndexedVariable <: CNumber #just a symbol, that can be manipulated via th
     # end
 end
 
-Base.@deprecate IndexedVariable(name::Symbol, ind::Index) IndexedParameter(name, ind)
-Base.@deprecate IndexedVariable(name::Symbol, ind1::Index, ind2::Index) IndexedParameter(name, ind1, ind2)
+Base.@deprecate IndexedVariable(name::Symbol, ind::Union{Integer,Index}) IndexedParameter(name, ind)
+Base.@deprecate IndexedVariable(name::Symbol, ind1::Union{Integer,Index}, ind2::Union{Index,Integer}) IndexedParameter(name, ind1, ind2)
 
 
 """
@@ -123,7 +123,7 @@ struct DoubleIndexedVariable <: CNumber #just a symbol, that can be manipulated 
     # end
 end
 
-Base.@deprecate DoubleIndexedVariable(name::Symbol, ind1::Index, ind2::Index; identical::Bool = true) IndexedParameter(name, ind1, ind2)
+Base.@deprecate DoubleIndexedVariable(name::Symbol, ind1::Union{Integer,Index}, ind2::Union{Index,Integer}; identical::Bool = true) IndexedParameter(name, ind1, ind2)
 
 
 struct IndexedParameterSym <: CNumber end
@@ -180,15 +180,15 @@ end
 function IndexedOperator(op::T,ind::I) where {T<:QSym,I}
     if I <: Index
         @assert isequal(ind.hilb,hilbert(op))
+        isa(ind.hilb, ProductSpace) && (@assert isequal(acts_on(op),ind.aon))
     end
-    isa(ind.hilb, ProductSpace) && (@assert isequal(acts_on(op),ind.aon))
     return IndexedOperator{T,I}(op,ind,UUID[])
 end
 
 #hilberts
 hilbert(ind::Index) = ind.hilb
-hilbert(op::IndexedOperator) = op.ind.hilb
-hilbert(var::IndexedVariable) = var.ind.hilb
+hilbert(op::IndexedOperator) = hilbert(op.op)
+#hilbert(var::IndexedVariable) = var.ind.hilb
 
 # levels
 levels(op::IndexedOperator) = levels(op.op.hilbert, acts_on(op))
@@ -382,7 +382,7 @@ Base.isequal(op1::IndexedOperator,op2::IndexedOperator) = isequal(op1.op,op2.op)
 #used for evaluating the extra terms when multiplying a sum with an operator with different index
 #return a new QMul with indices swapped: from -> to index
 """
-    change_index(term,from::Index,to::Index)
+    change_index(term,from::Index,to)
 
 Exchanges all occurring indices inside the given term, that are equal to the `from` to the `to` index.
 
@@ -395,7 +395,7 @@ Examples
 
 
 """
-function change_index(t, from::Index, to::Index)
+function change_index(t, from::Index, to)
     isequal(from, to) || !TermInterface.iscall(t) && return t
 
     f = SymbolicUtils.operation(t)
@@ -405,7 +405,7 @@ end
 # TODO: we should be able to just use substitute(x, from, to) here since
 # now all indices are just arguments in the AST
 
-function change_index(a::IndexedOperator, from::Index, to::Index)
+function change_index(a::IndexedOperator, from::Index, to)
     if !isequal(a.ind, from)
         return a
     end
@@ -413,14 +413,14 @@ function change_index(a::IndexedOperator, from::Index, to::Index)
     return IndexedOperator(a.op, to, copy(a.merge_events))
 end
 
-function change_index(v::IndexedVariable, from::Index, to::Index)
+function change_index(v::IndexedVariable, from::Index, to)
     if !isequal(v.ind, from)
         return v
     end
     return IndexedVariable(v.name, to)
 end
 
-function change_index(v::DoubleIndexedVariable, from::Index, to::Index)
+function change_index(v::DoubleIndexedVariable, from::Index, to)
     if isequal(v.ind1, from) && isequal(v.ind2, from)
         return DoubleIndexedVariable(v.name, to, to; identical=v.identical)
     elseif isequal(v.ind1, from)
@@ -431,7 +431,7 @@ function change_index(v::DoubleIndexedVariable, from::Index, to::Index)
     return v
 end
 
-# function change_index(p::IndexedParameter, from::Index, to::Index)
+# function change_index(p::IndexedParameter, from::Index, to)
 #     p_ = deepcopy(p)
 #     for i=1:length(p.indices)
 #         if isequal(p_.indices[i], from)
@@ -442,13 +442,13 @@ end
 # end
 
 
-function change_index(args::Vector, from::Index, to::Index)
+function change_index(args::Vector, from::Index, to)
     isequal(from, to) && return args
 
     return [change_index(arg, from, to) for arg in args]
 end
 
-function change_index(i::Index, from::Index, to::Index)
+function change_index(i::Index, from::Index, to)
     if isequal(i, from)
         return to
     else

@@ -82,8 +82,8 @@ ex2 = average(a*σ(2,1,i))
 H = -Δ*a'a + Σ(g(i)*( a'*σ(1,2,i) + a*σ(2,1,i) ),i)
 
 # Jump operators with corresponding rates
-J = [a, σ(1,2,i), σ(2,1,i), σ(2,2,i)]
-rates = [κ, Γ, R, ν]
+J = [a, σ(1,2,i), σ(2,1,i)]#, σ(2,2,i)]
+rates = [κ, Γ, R]#, ν]
 
 
 # Derive equations
@@ -171,6 +171,23 @@ function has_nested_sum(de::qc.MeanfieldEquations)
 end
 
 @test !has_nested_sum(eqs_c)
+
+N0 = 2
+eqs_eval = evaluate(eqs_c; limits=Dict(N => N0))
+@named sys = ODESystem(eqs_eval)
+
+u0 = zeros(ComplexF64, length(eqs_eval))
+gmap = [g(i) for i=1:N0] .=> [0.5 for i=1:N0]
+ps = [
+    Δ => 0.0;
+    gmap;
+    κ => 1.0;
+    Γ => 0.1;
+    R => 0.9;
+    ν => 0.0
+]
+
+prob = ODEProblem(sys, u0, (0.0, 10.0), ps)
 
 # end
 

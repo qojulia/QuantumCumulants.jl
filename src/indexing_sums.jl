@@ -109,7 +109,8 @@ end
 
 
 function get_indices(x)
-    indices = Set{Index}()
+    # TODO: can we improve the typing of the set here?
+    indices = Set{Union{Index, Int}}()
     get_indices!(indices, x)
 end
 
@@ -230,6 +231,7 @@ Sum(t::Number, index::Index) = index.range * t
 
 # Basic algebra
 function +(s1::Sum, s2::Sum)
+    # TODO: check for range of indices as well!
     if isequal(s1.index, s2.index)
         term = s1.term + s2.term
         index = s1.index

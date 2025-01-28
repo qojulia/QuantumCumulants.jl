@@ -116,3 +116,104 @@ function switch_to_extra_indices!(vs, indices_in_use, extra_indices)
 
     return vs
 end
+
+
+
+function evaluate(de::MeanfieldEquations; limits=Dict{Any,Int}())
+    indices = get_indices(de)
+    isempty(indices) && return de
+
+    # First, we generate indices that have actual integer upper bounds
+    new_indices = _substitute_limits(indices, limits)
+    index_map = Dict(indices .=> new_indices)
+
+    # Next, we substitute the original indices in the equations with the ones that now have integer limits
+    equations_with_actual_limits = MTK.Equation[]
+    for eq in de.equations
+        lhs = deepcopy(eq.lhs)
+        rhs = deepcopy(eq.rhs)
+        for (from, to) in index_map
+            lhs = change_index(lhs, from, to)
+            rhs = change_index(rhs, from, to)
+        end
+
+        push!(equations_with_actual_limits, MTK.Equation(lhs, rhs))
+    end
+
+    # At this point, all indices that occur have an actual upper bound that is an integer
+    # So, now we only need to replace each index by 1:N in all expressions and expand the sums as well
+    expanded_equations = MTK.Equation[]
+    for eq in equations_with_actual_limits
+        lhs_original_indices = get_indices(eq.lhs)
+        lhs = _expand_lhs_to_index_limits(eq.lhs, lhs_original_indices)
+        for l in lhs
+            lhs_integer_indices = get_indices(l)
+            lhs_index_map = Dict(lhs_original_indices .=> lhs_integer_indices)
+            r = deepcopy(eq.rhs)
+            for (from, to) in lhs_index_map
+                r = change_index(r, from, to)
+            end
+            r = _expand_sums(r)  # TODO: this is stupid and slow; should just generate actual sum(term for i=1:N) expressions later on
+            push!(expanded_equations, MTK.Equation(l, r))
+        end
+    end
+
+    # TODO: this can probably be skipped -- also, it's probably wrong since we already did the cumulant expansion
+    operators = map(undo_average, [eq.lhs for eq in expanded_equations])
+    op_rhs = map(undo_average, [eq.rhs for eq in expanded_equations])
+    operator_equations = [MTK.Equation(l, r) for (l, r) in zip(operators, op_rhs)]
+
+    vs = [eq.lhs for eq in expanded_equations]
+    varmap = make_varmap(vs, de.iv)
+
+    return MeanfieldEquations(
+        expanded_equations,
+        operator_equations,
+        vs,
+        operators,
+        de.hamiltonian,
+        de.jumps,
+        de.jumps_dagger,
+        de.rates,
+        de.iv,
+        varmap,
+        de.order
+    )
+end
+
+_substitute_limits(indices::Set, limits) = [_substitute_limits(index, limits) for index in indices]
+function _substitute_limits(index::Index, limits)
+    N = limits[index.range]
+    return Index(index.hilb, index.name, N, index.aon)
+end
+
+function _expand_lhs_to_index_limits(lhs, indices)
+    new_lhs = []
+    iterators = [1:(index.range) for index in indices]
+
+    for to_indices in Iterators.product(iterators...)
+        new_lhs_ = deepcopy(lhs)
+        for (from, to) in zip(indices, to_indices)
+            new_lhs_ = change_index(new_lhs_, from, to)
+        end
+        push!(new_lhs, new_lhs_)
+    end
+
+    return new_lhs
+end
+
+function _expand_sums(t)
+    if !TermInterface.iscall(t)
+        return t
+    end
+
+    f = SymbolicUtils.operation(t)
+    args = [_expand_sums(arg) for arg in SymbolicUtils.arguments(t)]
+    return f(args...)
+end
+
+function _expand_sums(s::SymbolicUtils.BasicSymbolic{<:CSumSym})
+    term, index = SymbolicUtils.arguments(s)
+    args = [change_index(term, index, i) for i=1:index.range]
+    return +(args...)
+end

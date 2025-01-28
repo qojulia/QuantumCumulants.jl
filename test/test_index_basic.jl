@@ -74,6 +74,9 @@ const qc=QuantumCumulants
     @test isequal(a_indexed(r_ind) * a_indexed(r_ind)', a_indexed(r_ind)' * a_indexed(r_ind) + 1)
     @test isequal(a_indexed(r_ind) * a_indexed(s_ind)', a_indexed(r_ind)' * a_indexed(r_ind) + r_ind == j_ind)
 
+    @test isequal(σ(2,1,i_ind), change_index(σ(2,1,j_ind), j_ind, i_ind))
+    @test isequal(σ(2,1,1), change_index(σ(2,1,i_ind), i_ind, 1))
+
 end
 
 @testset "transition-merging" begin
