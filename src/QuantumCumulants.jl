@@ -2,6 +2,7 @@ module QuantumCumulants
 
 import SymbolicUtils
 import SymbolicUtils: substitute, BasicSymbolic
+using SymbolicUtils: @rule
 
 import Symbolics
 import TermInterface

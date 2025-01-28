@@ -68,6 +68,15 @@ ex2 = average(a*σ(2,1,i))
 @test qc.index_invariant_hash(ex1) != qc.index_invariant_hash(ex2)
 @test qc.index_invariant_hash(ex1) == qc.index_invariant_hash(qc._conj(ex2))
 
+
+@test iszero(SymbolicUtils.simplify((i == j) * (i != j); rewriter=qc.qc_simplifier))
+@test iszero(SymbolicUtils.simplify(2a*(i == j) * (i != j); rewriter=qc.qc_simplifier))
+@test iszero(SymbolicUtils.simplify(2σ(1,2,i)*(i == j) * (i != j); rewriter=qc.qc_simplifier))
+
+@test isequal(2, SymbolicUtils.simplify(2 + (i == j) * (i != j); rewriter=qc.qc_simplifier))
+@test isequal(a, SymbolicUtils.simplify(a + 2σ(1,2,i)*(i == j) * (i != j); rewriter=qc.qc_simplifier))
+
+
 # Hamiltonian
 H = -Δ*a'a + Σ(g(i)*( a'*σ(1,2,i) + a*σ(2,1,i) ),i)
 
@@ -99,7 +108,7 @@ phase_invariant(x) = iszero(φ(x))
 
 m_filtered = filter(phase_invariant, m)
 
-@test length(m_filtered) == 2
+@test length(m_filtered) == 1
 
 ex = qc.@index_not_equal σ(2,1,i) * σ(1,2,j)
 ex2 = qc.change_index(ex, i, k)

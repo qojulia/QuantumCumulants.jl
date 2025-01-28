@@ -79,7 +79,7 @@ function meanfield(a::Vector,H,J;Jdagger::Vector=recursive_adjoint(J),rates=ones
     vs = map(average, a)
     rhs_avg = map(average, rhs)
     if simplify
-        rhs_avg = map(SymbolicUtils.simplify, rhs_avg)
+        rhs_avg = [SymbolicUtils.simplify(r; rewriter=qc_simplifier) for r in rhs_avg]
     end
     rhs = map(undo_average, rhs_avg)
 
@@ -99,6 +99,22 @@ function meanfield(a::Vector,H,J;Jdagger::Vector=recursive_adjoint(J),rates=ones
     end
 end
 
+let
+    additional_rule_for_indices = SymbolicUtils.@acrule((~x == ~y) * (~x != ~y) => 0)
+    
+    # TODO: more efficient combination here?
+    global qc_simplifier
+    qc_simplifier = SymbolicUtils.If(TermInterface.iscall,
+        SymbolicUtils.Fixpoint(
+            SymbolicUtils.Chain([
+                SymbolicUtils.Postwalk(SymbolicUtils.Chain([additional_rule_for_indices])),
+                SymbolicUtils.default_simplifier()
+                ]
+            )
+        )
+    )
+end
+
 function _master_lindblad(a,J,Jdagger,rates)
     args = Any[]
     for k=1:length(J)
@@ -111,13 +127,21 @@ end
 function _push_lindblad_term!(args::Vector, a::QNumber, rate::T, J::QNumber, Jdagger::QNumber) where T <: Union{Number, Function, SymbolicUtils.Symbolic}
     c1 = 0.5*rate*Jdagger*commutator(a,J)
     c2 = 0.5*rate*commutator(Jdagger,a)*J
-    push_or_append_nz_args!(args, c1)
-    push_or_append_nz_args!(args, c2)
-    return nothing
+    inds = get_indices(J)
+    get_indices!(inds, Jdagger)
+    
+    if isempty(inds)
+        push_or_append_nz_args!(args, c1)
+        push_or_append_nz_args!(args, c2)
+    else
+        push_or_append_nz_args!(args, Sum(c1, inds...))
+        push_or_append_nz_args!(args, Sum(c2, inds...))
+    end
 end
 
 function _push_lindblad_term!(args::Vector, a::QNumber, rates::Matrix, J, Jdagger)
     for i=1:length(J), j=1:length(J)
+        throw(error("TODO: summation over indices here"))
         c1 = 0.5*rates[i,j]*Jdagger[i]*commutator(a,J[j])
         c2 = 0.5*rates[i,j]*commutator(Jdagger[i],a)*J[j]
         push_or_append_nz_args!(args, c1)
