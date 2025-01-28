@@ -169,7 +169,7 @@ end
     s = Sum(σ(1,2,k_ind), k_ind)
     s_avg = average(s)
 
-    @test (s_avg + s_avg) isa SymbolicUtils.BasicSymbolic{qc.CSumSym}
+    @test (s_avg + s_avg) isa SymbolicUtils.BasicSymbolic{qc.CNumber}
     @test isequal(s, qc.undo_average(s_avg))
     @test isequal(s, simplify(s))
 
@@ -337,6 +337,17 @@ end
     #
     # @test isequal(g(1.1),qc.SingleNumberedVariable(:g,1))
     # @test isequal(IndexedVariable(:Ω,1.1,2.1),qc.DoubleNumberedVariable(:Ω,1,2))
+
+    s1 = Sum(g(i_ind)*σ(1,2,i_ind), i_ind)
+    s2 = Sum(-1*g(i_ind)*σ(1,2,i_ind), i_ind)
+
+    @test iszero(simplify(s1 + s2))
+    
+    s1_avg = average(s1)
+    s2_avg = average(s2)
+
+    @test_broken iszero(simplify(s1_avg + s2_avg))
+
 
 end # testset
 

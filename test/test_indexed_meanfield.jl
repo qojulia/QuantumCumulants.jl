@@ -4,6 +4,7 @@ using ModelingToolkit
 using OrdinaryDiffEq
 using Test
 using Random
+using TermInterface
 const qc = QuantumCumulants
 
 
@@ -108,7 +109,7 @@ phase_invariant(x) = iszero(φ(x))
 
 m_filtered = filter(phase_invariant, m)
 
-@test length(m_filtered) == 1
+@test length(m_filtered) == 2
 
 ex = qc.@index_not_equal σ(2,1,i) * σ(1,2,j)
 ex2 = qc.change_index(ex, i, k)
@@ -122,6 +123,54 @@ avg2 = qc.change_index(avg, i, k)
 eqs_c = complete(eqs; filter_func=phase_invariant)
 @test isempty(qc.find_missing_and_switch_indices(eqs_c; filter_func=phase_invariant))
 @test isempty(find_missing(eqs_c))
+
+@test_broken length(eqs_c) == 4
+
+function has_nested_sum(t)
+    if !TermInterface.iscall(t)
+        return false
+    end
+
+    for arg in SymbolicUtils.arguments(t)
+        has_nested_sum(arg) && return true
+    end
+
+    return false
+end
+function has_nested_sum(t::SymbolicUtils.Symbolic{<:qc.CSumSym})
+    for arg in SymbolicUtils.arguments(t)
+        has_sum(arg) && return true
+    end
+    return false
+end
+
+function has_sum(t)
+    if !TermInterface.iscall(t)
+        return false
+    end
+
+    for arg in SymbolicUtils.arguments(t)
+        has_sum(arg) && return true
+    end
+
+    return false
+end
+has_sum(t::SymbolicUtils.Symbolic{<:qc.CSumSym}) = true
+
+@test has_sum(average(H))
+@test !has_nested_sum(average(H))
+
+@test has_nested_sum(average(Sum(g(j)*H, j)))
+@test !has_nested_sum(average(Sum(H, j)))
+
+function has_nested_sum(de::qc.MeanfieldEquations)
+    for eq in de.equations
+        has_nested_sum(eq.rhs) && return true
+    end
+    return false
+end
+
+@test !has_nested_sum(eqs_c)
 
 # end
 

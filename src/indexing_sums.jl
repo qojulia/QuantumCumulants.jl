@@ -38,6 +38,10 @@ csum(args...) = Sum(args...)
 # SymbolicUtils.maketerm(::Type{T}, ::typeof(csum), args, metadata) where T = csum(args...)
 # SymbolicUtils.maketerm(::Type{<:SymbolicUtils.BasicSymbolic}, ::typeof(csum), args, metadata) = csum(args...)
 
+for f in [:*, :+, :-]
+    @eval SymbolicUtils.promote_symtype(::typeof($f), ::Type{CSumSym}, ::Type{CSumSym}) = CNumber
+end
+
 function Sum(term::SymbolicUtils.Symbolic{<:Number}, index::Index; metadata = nothing)
     # TODO: don't ignore metadata here
     # TODO: printing for CNumber sums
@@ -45,9 +49,11 @@ function Sum(term::SymbolicUtils.Symbolic{<:Number}, index::Index; metadata = no
         return index.range * term
     end
 
-    has_equality_for_index, to_index = find_equality_for_index(term, index)
-    if has_equality_for_index
-        return change_index(term, index, to_index)
+    if SymbolicUtils.is_operation(*)(term)
+        has_equality_for_index, to_index = find_equality_for_index(term, index)
+        if has_equality_for_index
+            return change_index(term, index, to_index)
+        end
     end
 
     return SymbolicUtils.Term{CSumSym}(csum, [term, index])
@@ -160,7 +166,7 @@ end
 
 
 
-# Construction of sums with QSyms -- order should be QSym < QMul < Sum < QAdd
+# Construction of sums with QSyms -- order should be QSym < QMul < QAdd < Sum
 Sum(a::QSym, index::Index) = index.range * a
 
 function Sum(a::IndexedOperator, index::Index)
@@ -203,13 +209,15 @@ function Sum(s::Sum, index::Index)
     return Sum(s, index, nothing)
 end
 
-function Sum(t::QAdd, index::Index)
-    args = [Sum(arg, index) for arg in SymbolicUtils.arguments(t)]
-    if length(args) == 1
-        return args[1]
-    end
-    return +(args...)
-end
+Sum(t::QAdd, index::Index) = Sum(t, index, nothing)
+
+# function Sum(t::QAdd, index::Index)
+#     args = [Sum(arg, index) for arg in SymbolicUtils.arguments(t)]
+#     if length(args) == 1
+#         return args[1]
+#     end
+#     return +(args...)
+# end
 
 # CNumbers
 function Sum(t::SymbolicUtils.Symbolic, index::Index)
@@ -221,9 +229,23 @@ end
 Sum(t::Number, index::Index) = index.range * t
 
 # Basic algebra
-# function +(s1::Sum, s2::Sum)
-#     return QAdd([s1, s2])
-# end
+function +(s1::Sum, s2::Sum)
+    if isequal(s1.index, s2.index)
+        term = s1.term + s2.term
+        index = s1.index
+    elseif !has_index(s2.term, s1.index)
+        term = s1.term + change_index(s2.term, s2.index, s1.index)
+        index = s1.index
+    elseif !has_index(s1.term, s2.index)
+        term = change_index(s1.term, s1.index, s2.index)
+        index = s2.index
+    else
+        throw(error("David was lazy"))
+    end
+
+    Sum(term, index)
+end
+
 # function +(s1::QNumber, s2::Sum)
 #     return QAdd([s1, s2])
 # end

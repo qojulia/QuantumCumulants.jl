@@ -103,6 +103,8 @@ let
     additional_rule_for_indices = SymbolicUtils.@acrule((~x == ~y) * (~x != ~y) => 0)
     
     # TODO: more efficient combination here?
+    # TODO: remove if we decide to go with (1 - i==j) instead of (i != j) since then we get
+    # the simplification here for free via addition
     global qc_simplifier
     qc_simplifier = SymbolicUtils.If(TermInterface.iscall,
         SymbolicUtils.Fixpoint(
