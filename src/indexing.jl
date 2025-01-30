@@ -126,12 +126,69 @@ end
 Base.@deprecate DoubleIndexedVariable(name::Symbol, ind1::Union{Integer,Index}, ind2::Union{Index,Integer}; identical::Bool = true) IndexedParameter(name, ind1, ind2)
 
 
+struct ArrayParameter <: CNumber
+    function ArrayParameter(name, indices; metadata=nothing)
+        dims = length(indices)
+        s = SymbolicUtils.Sym{Array{Complex{Real}, dims}}(name)
+        s = SymbolicUtils.setmetadata(s, MTK.VariableSource, (:ArrayParameter, name, indices))
+        s = SymbolicUtils.setmetadata(s,MTK.MTKVariableTypeCtx,MTK.PARAMETER)
+        ranges = [i isa Index ? i.range : nothing for i in indices]
+        s = update_shape_metadata(s, ranges)
+        return s
+    end
+end
+
+update_shape_metadata(s, ranges) = s
+
+# TODO: setting the shape here is weird, I don't like it
+function update_shape_metadata(s, ranges::Vector{T}) where T <: Integer
+    # we're looking at an IndexedParameter with actual sizing info
+    s = SymbolicUtils.setmetadata(s, Symbolics.ArrayShapeCtx, Tuple(1:r for r in ranges))
+    return s
+end
+
+update_shape_metadata!(t::QNumber) = t
+function update_shape_metadata!(t)
+    t = _update_shape_metadata(t)
+
+    if !TermInterface.iscall(t)
+        return t
+    end
+
+    f = SymbolicUtils.operation(t)
+    args = SymbolicUtils.arguments(t)
+    new_args = []
+    for arg in args
+        push!(new_args, update_shape_metadata!(arg))
+    end
+    return f(new_args...)
+end
+
+_update_shape_metadata(t::Number) = t
+function _update_shape_metadata(t)
+    if !SymbolicUtils.hasmetadata(t, MTK.VariableSource)
+        return t
+    end
+
+    src_meta = SymbolicUtils.getmetadata(t, MTK.VariableSource)
+    if src_meta[1] !== :ArrayParameter
+        return t
+    end
+
+    indices = src_meta[3]
+    ranges = [i isa Index ? i.range : nothing for i in indices]
+    t = update_shape_metadata(t, ranges)
+
+    return t
+end
+
 struct IndexedParameterSym <: CNumber end
 
-getindex_parameter(args...) = SymbolicUtils.Term{IndexedParameterSym}(getindex_parameter, Any[args...])
+# getindex_parameter(args...) = SymbolicUtils.Term{IndexedParameterSym}(getindex_parameter, Any[args...])
+# getindex_parameter(x, inds...) = getindex(x, inds...)
 
 function IndexedParameter(name::Symbol, indices::T...) where T <: Union{Index, Integer}
-    return SymbolicUtils.Term{IndexedParameterSym}(getindex_parameter, [Parameter(name), indices...])
+    return SymbolicUtils.Term{IndexedParameterSym}(getindex, [ArrayParameter(name, indices), indices...])
 end
 
 # TODO: can we avoid boxing here?
@@ -400,7 +457,19 @@ function change_index(t, from::Index, to)
 
     f = SymbolicUtils.operation(t)
     args = SymbolicUtils.arguments(t)
-    return f(change_index(args, from, to)...)
+    new_args = []
+    for arg in args
+        new_arg = change_index(arg, from, to)
+        new_arg = change_index_metadata(new_arg, from, to)
+        new_arg = update_shape_metadata!(new_arg)
+        push!(new_args, new_arg)
+    end
+        
+    ex = f(new_args...)
+    ex = change_index_metadata(ex, from, to)
+
+    ex = update_shape_metadata!(ex)  # TODO: this is probably not very efficient
+    return ex
 end
 # TODO: we should be able to just use substitute(x, from, to) here since
 # now all indices are just arguments in the AST
@@ -430,6 +499,42 @@ function change_index(v::DoubleIndexedVariable, from::Index, to)
     end
     return v
 end
+
+change_index_metadata(ex::QNumber, from::Index, to) = ex
+function change_index_metadata(ex, from::Index, to)
+    ex = _change_index_metadata(ex, from, to)
+
+    if !TermInterface.iscall(ex)
+        return ex
+    end
+
+    f = SymbolicUtils.operation(ex)
+    new_args = []
+    for arg in SymbolicUtils.arguments(ex)
+        push!(new_args, change_index_metadata(arg, from, to))
+    end
+
+    return f(new_args...)
+end
+
+_change_index_metadata(ex::Number, from::Index, to) = ex
+function _change_index_metadata(ex, from::Index, to)
+    if !SymbolicUtils.hasmetadata(ex, MTK.VariableSource)
+        return ex
+    end
+
+    src_meta = SymbolicUtils.getmetadata(ex, MTK.VariableSource)
+    if src_meta[1] !== :ArrayParameter
+        return ex
+    end
+
+    indices = src_meta[3]
+    new_indices = Tuple(change_index(i, from, to) for i in indices)
+    new_metadata = (src_meta[1], src_meta[2], new_indices)
+    ex = SymbolicUtils.setmetadata(ex, MTK.VariableSource, new_metadata)
+    return ex
+end
+
 
 # function change_index(p::IndexedParameter, from::Index, to)
 #     p_ = deepcopy(p)

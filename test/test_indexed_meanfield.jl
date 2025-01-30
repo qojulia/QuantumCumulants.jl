@@ -77,6 +77,12 @@ ex2 = average(a*σ(2,1,i))
 @test isequal(2, SymbolicUtils.simplify(2 + (i == j) * (i != j); rewriter=qc.qc_simplifier))
 @test isequal(a, SymbolicUtils.simplify(a + 2σ(1,2,i)*(i == j) * (i != j); rewriter=qc.qc_simplifier))
 
+i_with_range = Index(i.hilb, i.name, 10, i.aon)
+g10 = g(i_with_range)
+@test SymbolicUtils.hasmetadata(g10.arguments[1], Symbolics.ArrayShapeCtx)
+
+g10 = qc.change_index(g(j), j, i_with_range)
+@test SymbolicUtils.hasmetadata(g10.arguments[1], Symbolics.ArrayShapeCtx)
 
 # Hamiltonian
 H = -Δ*a'a + Σ(g(i)*( a'*σ(1,2,i) + a*σ(2,1,i) ),i)
@@ -177,10 +183,10 @@ eqs_eval = evaluate(eqs_c; limits=Dict(N => N0))
 @named sys = ODESystem(eqs_eval)
 
 u0 = zeros(ComplexF64, length(eqs_eval))
-gmap = [g(i) for i=1:N0] .=> [0.5 for i=1:N0]
+g_ = g(i).arguments[1]  # TODO: this is awkward; need a clean way to define the Array that is g without any indices
 ps = [
     Δ => 0.0;
-    gmap;
+    g_ => [0.5 for i=1:N0];
     κ => 1.0;
     Γ => 0.1;
     R => 0.9;
@@ -188,6 +194,7 @@ ps = [
 ]
 
 prob = ODEProblem(sys, u0, (0.0, 10.0), ps)
+sol = solve(prob, Tsit5())
 
 # end
 
