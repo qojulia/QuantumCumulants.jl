@@ -210,7 +210,34 @@ function Sum(s::Sum, index::Index)
     return Sum(s, index, nothing)
 end
 
-Sum(t::QAdd, index::Index) = Sum(t, index, nothing)
+function Sum(t::QAdd, index::Index)
+    args = SymbolicUtils.arguments(t)
+
+    # check for delta_ij terms
+    for (i, arg) in enumerate(args)
+        has_equality_for_index, to_index = find_equality_for_index(arg, index)
+        if has_equality_for_index
+            new_arg = change_index(arg, index, to_index)
+            new_args = vcat(args[1:i-1], new_arg, args[i+1:end])
+            return Sum(+(new_args...), index)
+        end
+    end
+
+    # check if any arguments don't have the summation index
+    for (i, arg) in enumerate(args)
+        if !has_index(arg, index)
+            new_arg = index.range * arg
+            remaining_args = vcat(args[1:i-1], args[i+1:end])
+            isempty(remaining_args) && return new_arg
+            return new_arg + Sum(+(remaining_args...), index)
+        end
+    end
+
+    return Sum(t, index, nothing)
+end
+
+
+
 
 # function Sum(t::QAdd, index::Index)
 #     args = [Sum(arg, index) for arg in SymbolicUtils.arguments(t)]
@@ -309,6 +336,8 @@ function *(v::SNuN, s::Sum)
     return Sum(v * s.term, s.index)
 end
 *(s::Sum, v::SNuN) = v * s
+
++(s::Sum) = s
 
 # averaging
 average(s::Sum) = Sum(average(s.term), s.index)

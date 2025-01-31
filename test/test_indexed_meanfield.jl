@@ -84,6 +84,68 @@ g10 = g(i_with_range)
 g10 = qc.change_index(g(j), j, i_with_range)
 @test SymbolicUtils.hasmetadata(g10.arguments[1], Symbolics.ArrayShapeCtx)
 
+avg = average(σ(1,2,2) * σ(1,2,1))
+qc.sort_by_integer_indices!(avg)
+@test isequal(avg, average(σ(1,2,1) * σ(1,2,2)))
+
+avg = average(a*σ(1,2,2) * σ(1,2,1))
+qc.sort_by_integer_indices!(avg)
+@test isequal(avg, average(a*σ(1,2,1) * σ(1,2,2)))
+
+
+avg = average(a*σ(1,2,2) * σ(1,2,1) * σ(1,2,3))
+qc.sort_by_integer_indices!(avg)
+q = qc.undo_average(avg)
+for i=2:length(q.args_nc)
+    @test q.args_nc[i].ind == i - 1
+end
+
+avg = 2 + R*average(σ(1,2,2) * σ(1,2,1))
+qc.sort_by_integer_indices!(avg)
+avg
+
+op = σ(2,1,1) * σ(2,1,2)
+@test isequal(op', σ(1,2,1) * σ(1,2,2))
+
+avg = average(op)
+@test isequal(qc._conj(avg), average(σ(1,2,1) * σ(1,2,2)))
+
+op = σ(1,2,i) * σ(1,2,j)
+@test iszero(change_index(change_index(op, i, 1), j, 1))
+
+avg = average(op)
+@test iszero(change_index(change_index(avg, i, 1), j, 1))
+
+op = a*σ(1,2,i) * σ(1,2,j)
+@test iszero(change_index(change_index(op, i, 1), j, 1))
+
+avg = average(op)
+@test iszero(change_index(change_index(avg, i, 1), j, 1))
+
+op = 2*a*σ(1,2,i) * σ(1,2,j)
+@test iszero(change_index(change_index(op, i, 1), j, 1))
+
+avg = average(op)
+@test iszero(change_index(change_index(avg, i, 1), j, 1))
+
+
+op = 2*g(i)*a*σ(1,2,i) * σ(1,2,j)
+@test iszero(change_index(change_index(op, i, 1), j, 1))
+
+avg = average(op)
+@test iszero(change_index(change_index(avg, i, 1), j, 1))
+
+op = g(i)*op + op
+@test iszero(change_index(change_index(op, i, 1), j, 1))
+avg = average(op)
+@test iszero(change_index(change_index(avg, i, 1), j, 1))
+
+op = σ(2,2,i) * σ(2,2,k)
+@test isequal(σ(2,2,1), change_index(change_index(op, i, 1), k, 1))
+
+op = qc.@index_not_equal σ(2,2,i) * σ(2,2,k)
+@test isequal(σ(2,2,1), change_index(change_index(op, i, 1), k, 1))
+
 # Hamiltonian
 H = -Δ*a'a + Σ(g(i)*( a'*σ(1,2,i) + a*σ(2,1,i) ),i)
 
@@ -115,7 +177,7 @@ phase_invariant(x) = iszero(φ(x))
 
 m_filtered = filter(phase_invariant, m)
 
-@test length(m_filtered) == 2
+@test length(m_filtered) == 1
 
 ex = qc.@index_not_equal σ(2,1,i) * σ(1,2,j)
 ex2 = qc.change_index(ex, i, k)
@@ -180,6 +242,9 @@ end
 
 N0 = 2
 eqs_eval = evaluate(eqs_c; limits=Dict(N => N0))
+
+@test length(eqs_eval.states) == length(eqs_eval.varmap) == length(eqs_eval.equations)
+
 @named sys = ODESystem(eqs_eval)
 
 u0 = zeros(ComplexF64, length(eqs_eval))
@@ -190,11 +255,59 @@ ps = [
     κ => 1.0;
     Γ => 0.1;
     R => 0.9;
-    ν => 0.0
+    ν => 0.0;
+    N => N0;
 ]
 
 prob = ODEProblem(sys, u0, (0.0, 10.0), ps)
 sol = solve(prob, Tsit5())
+
+using PyPlot; pygui(true)
+plot(sol.t, sol[a'*a])
+
+
+ops = qc.@index_not_equal [σ(1,2,j) * σ(2,1,k)]
+tmp = meanfield(ops, H, J; rates=rates)
+
+function brute_force(N0)
+    hc = FockSpace(:cavity)
+    ha = [NLevelSpace(Symbol(:atom, i),2) for i=1:N0]
+    h = hc ⊗ ⊗(ha...)
+
+    @qnumbers a::Destroy(h)
+    σ(α,β,i) = Transition(h, Symbol(:σ, i), α, β, i+1)
+
+    @cnumbers Δ κ Γ R ν g0
+
+    H = -Δ*a'a + sum(g0*( a'*σ(1,2,i) + a*σ(2,1,i) ) for i=1:N0)
+
+    # Jump operators with corresponding rates
+    J = [a; [σ(1,2,i) for i=1:N0]; [σ(2,1,i) for i=1:N0]]#, σ(2,2,i)]
+    rates = [κ; [Γ for i=1:N0]; [R for i=1:N0];]#, ν]
+
+    # Derive equations
+    ops = [a'*a, σ(2,2,1)]
+    eqs = meanfield(ops,H,J;rates=rates,order=2)
+    eqs_c = complete(eqs; filter_func=phase_invariant)
+
+    @named sys = ODESystem(eqs_c)
+
+    ps = [
+        Δ => 0.0;
+        g0 => 0.5;
+        κ => 1.0;
+        Γ => 0.1;
+        R => 0.9;
+        ν => 0.0;
+    ]
+
+    u0 = zeros(ComplexF64, length(eqs_c))
+    prob = ODEProblem(sys, u0, (0.0, 10.0), ps)
+    return solve(prob, Tsit5())
+end
+
+sol_brute_force = brute_force(N0)
+plot(sol_brute_force.t, sol_brute_force[a'*a])
 
 # end
 

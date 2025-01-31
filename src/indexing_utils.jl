@@ -38,7 +38,7 @@ end
 function _index_invariant_hash(q::QMul, h0::UInt)
     inds = get_indices(q)
     if isempty(inds)
-        return hash(t, h0)
+        return hash(q, h0)
     end
 
     h = hash((*), h0)
@@ -143,10 +143,17 @@ function evaluate(de::MeanfieldEquations; limits=Dict{Any,Int}())
     # At this point, all indices that occur have an actual upper bound that is an integer
     # So, now we only need to replace each index by 1:N in all expressions and expand the sums as well
     expanded_equations = MTK.Equation[]
+    expanded_lhs = []
     for eq in equations_with_actual_limits
         lhs_original_indices = get_indices(eq.lhs)
         lhs = _expand_lhs_to_index_limits(eq.lhs, lhs_original_indices)
         for l in lhs
+            if any(isequal(l), expanded_lhs)
+                # dirty if here -- skip duplicates
+                # TODO: check for adjoints as well
+                continue
+            end
+
             lhs_integer_indices = get_indices(l)
             lhs_index_map = Dict(lhs_original_indices .=> lhs_integer_indices)
             r = deepcopy(eq.rhs)
@@ -154,8 +161,10 @@ function evaluate(de::MeanfieldEquations; limits=Dict{Any,Int}())
                 r = change_index(r, from, to)
             end
             r = _expand_sums(r)  # TODO: this is stupid and slow; should just generate actual sum(term for i=1:N) expressions later on
+            sort_by_integer_indices!(r)
             push!(expanded_equations, MTK.Equation(l, r))
         end
+        append!(expanded_lhs, lhs)
     end
 
     # TODO: this can probably be skipped -- also, it's probably wrong since we already did the cumulant expansion
@@ -188,6 +197,8 @@ function _substitute_limits(index::Index, limits)
 end
 
 function _expand_lhs_to_index_limits(lhs, indices)
+    isempty(indices) && return [lhs]
+
     new_lhs = []
     iterators = [1:(index.range) for index in indices]
 
@@ -199,8 +210,73 @@ function _expand_lhs_to_index_limits(lhs, indices)
         push!(new_lhs, new_lhs_)
     end
 
+    for l in new_lhs
+        sort_by_integer_indices!(l)
+    end
+
+    # TODO: this is only needed because we loop over the full range for all indices, so end up generating
+    # e.g. s_1*s_2 and s_2*s_1 from products such as s_i*s_j; need to be smarter here
+    unique_ops!(new_lhs)
+
     return new_lhs
 end
+
+function sort_by_integer_indices!(t)
+    if !TermInterface.iscall(t)
+        return nothing
+    end
+
+    for arg in SymbolicUtils.arguments(t)
+        sort_by_integer_indices!(arg)
+    end
+
+    return nothing
+end
+
+function sort_by_integer_indices!(t::QMul)
+    args_nc = split_by_aon(t.args_nc)
+
+    for arg_vec in args_nc
+        sort_by_integer_indices!(arg_vec)
+    end
+
+    new_args_nc = vcat(args_nc...)
+    for i=1:length(t.args_nc)
+        t.args_nc[i] = new_args_nc[i]
+    end
+
+    return nothing
+end
+
+function split_by_aon(args::Vector)
+    all_args = []
+    aon = acts_on(args[1])
+
+    chunk_index = findfirst(x -> acts_on(x) > aon, args)
+    previous_chunk_index = 1
+    while chunk_index !== nothing
+        chunk = args[previous_chunk_index:chunk_index-1]
+        push!(all_args, chunk)
+
+        previous_chunk_index = copy(chunk_index)
+        aon = acts_on(args[chunk_index])
+        chunk_index = findfirst(x -> acts_on(x) > aon, args)
+    end
+
+    # add the last chunk
+    push!(all_args, args[previous_chunk_index:end])
+
+    return all_args
+end
+    
+function sort_by_integer_indices!(args::Vector)
+    _get_index(arg) = 0
+    _get_index(arg::IndexedOperator{T,I}) where {T, I<:Integer} = arg.ind
+    sort!(args, by=_get_index)
+    return nothing
+end
+
+
 
 function _expand_sums(t)
     if !TermInterface.iscall(t)

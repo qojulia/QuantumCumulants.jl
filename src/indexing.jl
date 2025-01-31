@@ -279,9 +279,9 @@ const INDEX_NOT_EQUAL_MACRO = Ref(false)
 function Base.:*(a::IndexedOperator{<:Transition}, b::IndexedOperator{<:Transition})
     if was_merged(a, b)
         # case when they have been merged, but weren't sorted
-        # due to the check in ismergeable, this can only mean that a has more merge events
-        # and hence should be moved to the right
-        return QMul(1, [b,a])
+        # due to the check in ismergeable, this means that either a has more merge events or that 
+        # the integer indices aren't sorted properly
+        return _sorted_transition_qmul(a, b)
     end
 
     check_hilbert(a, b)
@@ -295,26 +295,7 @@ function Base.:*(a::IndexedOperator{<:Transition}, b::IndexedOperator{<:Transiti
         if isequal(i, j)
             return t1
         else
-            a_copy = deepcopy(a)
-            b_copy = deepcopy(b)
-
-            # assign a unique id to signal that these have been merged already in the same "merge event"
-            id = uuid4()
-            push!(a_copy.merge_events, id)
-            push!(b_copy.merge_events, id)
-
-            if INDEX_NOT_EQUAL_MACRO[]
-                # TODO: should this include i != j as factor in front?
-                return a_copy * b_copy
-            end
-
-            # the operator with more merge events goes right
-            if length(a_copy.merge_events) > length(b_copy.merge_events)
-                t2 = QMul(1, [b_copy, a_copy])
-            else
-                t2 = QMul(1, [a_copy, b_copy])
-            end
-            return (i == j) * t1 + (i != j) * t2
+            return _transition_merge_term(t1, i, j, a, b)
         end
     elseif aon_a < aon_b
         return QMul(1, [a,b])
@@ -323,9 +304,57 @@ function Base.:*(a::IndexedOperator{<:Transition}, b::IndexedOperator{<:Transiti
     end
 end
 
-_make_indexed_operator(op::QNumber, i::Index, merge_events=UUID[]) = IndexedOperator(op, i, merge_events)
-_make_indexed_operator(x, i::Index, merge_events=UUID[]) = x
-function _make_indexed_operator(op::QTerm, i::Index, merge_events=UUID[])
+function _transition_merge_term(t1, i, j, a, b)
+    a_copy = deepcopy(a)
+    b_copy = deepcopy(b)
+
+    # assign a unique id to signal that these have been merged already in the same "merge event"
+    id = uuid4()
+    push!(a_copy.merge_events, id)
+    push!(b_copy.merge_events, id)
+
+    if INDEX_NOT_EQUAL_MACRO[]
+        # TODO: should this include i != j as factor in front?
+        return a_copy * b_copy
+    end
+
+    # the operator with more merge events goes right
+    t2 = _sorted_transition_qmul(a_copy, b_copy)
+
+    # make sure we always set a specific order for δ_ij to make pattern matching easier
+    if i.name > j.name
+        delta_ij = (j == i)
+        one_minus_delta_ij = (j != i)
+    else
+        delta_ij = (i == j)
+        one_minus_delta_ij = (i != j)
+    end
+
+    return delta_ij * t1 + one_minus_delta_ij * t2
+end
+
+# specialize on integer indices
+function _transition_merge_term(t1, i::Integer, j::Integer, a, b)
+    # the operator with lower integer index goes left
+    t2 = _sorted_transition_qmul(a, b)
+
+    # in this case, we know that i!=j
+    return t2
+end
+
+_sorted_transition_qmul(a, b) = QMul(1, [b, a])  # More merge events go right
+function _sorted_transition_qmul(a::IndexedOperator{<:Transition,<:Integer}, b::IndexedOperator{<:Transition,<:Integer})
+    if a.ind > b.ind
+        return QMul(1, [b, a])
+    else
+        return QMul(1, [a, b])
+    end
+end
+
+
+_make_indexed_operator(op::QNumber, i, merge_events=UUID[]) = IndexedOperator(op, i, merge_events)
+_make_indexed_operator(x, i, merge_events=UUID[]) = x
+function _make_indexed_operator(op::QTerm, i, merge_events=UUID[])
     args = [_make_indexed_operator(arg, i, merge_events) for arg in SymbolicUtils.arguments(op)]
     return SymbolicUtils.operation(op)(args...)
 end
@@ -343,11 +372,22 @@ function ismergeable(a::IndexedOperator{<:Transition}, b::IndexedOperator{<:Tran
     return !was_merged(a, b)
 end
 
+# actual integer indices should always be merged explicitly, because products where they are not equal cannot exist
+function ismergeable(a::IndexedOperator{T,I}, b::IndexedOperator{S,J}) where {T<:Transition,S<:Transition,I<:Integer,J<:Integer}
+    # if we have two transition with equal indices, we should merge them;
+    # otherwise, they should be sorted by index
+    a.ind >= b.ind
+end
+
+
 function was_merged(a::IndexedOperator, b::IndexedOperator)
     # if they were merged, then a unique id (UUID4) was added to the merge events vector of each of the operators
     # hence, we can just check if they share any common element
     return !isdisjoint(a.merge_events, b.merge_events)
 end
+
+# actual integer indices should always be merged explicitly, because products where they are not equal cannot exist
+was_merged(a::IndexedOperator{T,I}, b::IndexedOperator{S,J}) where {T,S,I<:Integer,J<:Integer} = a.ind < b.ind
 
 macro index_not_equal(ex)
     return quote
@@ -464,7 +504,12 @@ function change_index(t, from::Index, to)
         new_arg = update_shape_metadata!(new_arg)
         push!(new_args, new_arg)
     end
-        
+
+    if length(new_args) == 1 && iszero(new_args[1])
+        # TODO: this check seems pretty unclean
+        return 0
+    end
+
     ex = f(new_args...)
     ex = change_index_metadata(ex, from, to)
 
