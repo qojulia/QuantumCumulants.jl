@@ -337,8 +337,6 @@ function *(v::SNuN, s::Sum)
 end
 *(s::Sum, v::SNuN) = v * s
 
-+(s::Sum) = s
-
 # averaging
 average(s::Sum) = Sum(average(s.term), s.index)
 average(s::Sum, order) = Sum(average(s.term, order), s.index)

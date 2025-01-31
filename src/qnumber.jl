@@ -246,6 +246,7 @@ Base.adjoint(q::QAdd) = QAdd(map(adjoint, q.arguments))
 -(a::QNumber,b) = a + (-b)
 -(a::QNumber,b::QNumber) = a + (-b)
 
++(a::QNumber) = a
 function +(a::QNumber, b::SNuN)
     SymbolicUtils._iszero(b) && return a
     return QAdd([a,b])
