@@ -46,7 +46,14 @@ function Base.:(==)(i::Index, j::Index)
         return false
     end
 
-    return TermInterface.maketerm(SymbolicUtils.BasicSymbolic{Bool}, ==, [i, j], nothing)
+    # make sure to use the same order to make pattern matching easier
+    if i.name > j.name
+        args = [j, i]
+    else
+        args = [i, j]
+    end
+
+    return TermInterface.maketerm(SymbolicUtils.BasicSymbolic{Bool}, ==, args, nothing)
 end
 
 function Base.:(!=)(i::Index, j::Index)
@@ -58,7 +65,14 @@ function Base.:(!=)(i::Index, j::Index)
         return true
     end
 
-    return TermInterface.maketerm(SymbolicUtils.BasicSymbolic{Bool}, !=, [i, j], nothing)
+    # make sure to use the same order to make pattern matching easier
+    if i.name > j.name
+        args = [j, i]
+    else
+        args = [i, j]
+    end
+
+    return TermInterface.maketerm(SymbolicUtils.BasicSymbolic{Bool}, !=, args, nothing)
 end
 
 
@@ -321,16 +335,7 @@ function _transition_merge_term(t1, i, j, a, b)
     # the operator with more merge events goes right
     t2 = _sorted_transition_qmul(a_copy, b_copy)
 
-    # make sure we always set a specific order for δ_ij to make pattern matching easier
-    if i.name > j.name
-        delta_ij = (j == i)
-        one_minus_delta_ij = (j != i)
-    else
-        delta_ij = (i == j)
-        one_minus_delta_ij = (i != j)
-    end
-
-    return delta_ij * t1 + one_minus_delta_ij * t2
+    return (i == j) * t1 + (i != j) * t2
 end
 
 # specialize on integer indices
@@ -494,7 +499,10 @@ Examples
 """
 function change_index(t, from::Index, to)
     isequal(from, to) || !TermInterface.iscall(t) && return t
+    return _change_index(t, from, to)
+end
 
+function _change_index(t, from::Index, to)
     f = SymbolicUtils.operation(t)
     args = SymbolicUtils.arguments(t)
     new_args = []
@@ -518,6 +526,16 @@ function change_index(t, from::Index, to)
 end
 # TODO: we should be able to just use substitute(x, from, to) here since
 # now all indices are just arguments in the AST
+
+function change_index(t::QMul, from::Index, to)
+    isequal(from, to) && return t
+
+    if has_merged_indices(t, from, to)
+        return 0
+    end
+
+    return _change_index(t, from, to)
+end
 
 function change_index(a::IndexedOperator, from::Index, to)
     if !isequal(a.ind, from)
@@ -604,6 +622,42 @@ function change_index(i::Index, from::Index, to)
     else
         return i
     end
+end
+
+has_merged_indices(t, from, to) = false
+function has_merged_indices(t::QMul, from, to)
+    for i=1:length(t.args_nc)
+        arg1 = t.args_nc[i]
+        for j=i+1:length(t.args_nc)
+            arg2 = t.args_nc[j]
+            if (has_index(arg1, from) && has_index(arg2, to)) || (has_index(arg1, to) && has_index(arg2, from))
+                was_merged(arg1, arg2) && return true
+            end
+        end
+    end
+
+    return false
+end
+
+
+_get_index_inequality(t) = 1
+_get_index_inequality(t::Average) = _get_index_inequality(undo_average(t))
+function _get_index_inequality(t::QMul)
+    inds = get_indices(t)
+    length(inds) < 2 && return 1
+
+    inequality = 1
+    inds_vec = [inds...]
+    for i=1:length(inds_vec)
+        for j=i+1:length(inds_vec)
+            index1 = inds_vec[i]
+            index2 = inds_vec[j]
+            if has_merged_indices(t, index1, index2)
+                inequality *= (index1 != index2)
+            end
+        end
+    end
+    return inequality
 end
 
 

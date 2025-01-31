@@ -144,7 +144,27 @@ op = σ(2,2,i) * σ(2,2,k)
 @test isequal(σ(2,2,1), change_index(change_index(op, i, 1), k, 1))
 
 op = qc.@index_not_equal σ(2,2,i) * σ(2,2,k)
-@test isequal(σ(2,2,1), change_index(change_index(op, i, 1), k, 1))
+@test isequal(0, change_index(change_index(op, i, 1), k, 1))
+
+op = qc.@index_not_equal σ(2,1,i) * σ(1,2,j)
+@test iszero(change_index(op, i, j))
+
+function has_sym(t, N)
+    if !TermInterface.iscall(t)
+        return isequal(t, N)
+    end
+
+    for arg in SymbolicUtils.arguments(t)
+        has_sym(arg, N) && return true
+    end
+
+    return false
+end
+
+op = σ(2,1,k) * σ(1,2,j)
+ex = (i == j) * op
+s = Sum(ex, i)
+@test !has_sym(s, N)
 
 # Hamiltonian
 H = -Δ*a'a + Σ(g(i)*( a'*σ(1,2,i) + a*σ(2,1,i) ),i)
@@ -153,6 +173,11 @@ H = -Δ*a'a + Σ(g(i)*( a'*σ(1,2,i) + a*σ(2,1,i) ),i)
 J = [a, σ(1,2,i), σ(2,1,i)]#, σ(2,2,i)]
 rates = [κ, Γ, R]#, ν]
 
+
+op = qc.@index_not_equal σ(2,1,j) * σ(1,2,k)
+eqs1 = meanfield([op], a'*a, [σ(2,1,i)]; order=2)
+m = find_missing(eqs1)
+m_filtered = filter(phase_invariant, m)
 
 # Derive equations
 ops = [a'*a, σ(2,2,j)]
@@ -192,7 +217,7 @@ eqs_c = complete(eqs; filter_func=phase_invariant)
 @test isempty(qc.find_missing_and_switch_indices(eqs_c; filter_func=phase_invariant))
 @test isempty(find_missing(eqs_c))
 
-@test_broken length(eqs_c) == 4
+@test length(eqs_c) == 4
 
 function has_nested_sum(t)
     if !TermInterface.iscall(t)
@@ -243,7 +268,7 @@ end
 N0 = 2
 eqs_eval = evaluate(eqs_c; limits=Dict(N => N0))
 
-@test length(eqs_eval.states) == length(eqs_eval.varmap) == length(eqs_eval.equations)
+@test length(eqs_eval.states) == length(eqs_eval.varmap) == length(eqs_eval.equations) == 6
 
 @named sys = ODESystem(eqs_eval)
 
@@ -308,6 +333,9 @@ end
 
 sol_brute_force = brute_force(N0)
 plot(sol_brute_force.t, sol_brute_force[a'*a])
+
+@test abs(sol_brute_force[a'*a][end] - sol[a'*a][end]) < 1e-14
+
 
 # end
 

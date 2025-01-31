@@ -75,20 +75,22 @@ SymbolicUtils.maketerm(::Type{<:Sum}, ::typeof(Sum), args, metadata) = Sum(args.
 
 # has_index
 """
-    has_index(expr, i::Index)
+    has_index(expr, i)
 
 Check if an expression has a specific index.
 
 """
-has_index(x, i::Index) = false
-has_index(v::IndexedVariable, i::Index) = isequal(v.ind, i)
-has_index(v::DoubleIndexedVariable, i::Index) = isequal(v.ind1, i) || isequal(v.ind2, i)
-has_index(op::IndexedOperator, i::Index) = isequal(op.ind, i)
+has_index(x, i) = false
+has_index(op::IndexedOperator, i) = isequal(op.ind, i)
+
 has_index(i::Index, j::Index) = isequal(i, j)
+has_index(i::Index, j::Integer) = false
+has_index(i::Integer, j::Index) = false
+has_index(i::Integer, j::Integer) = isequal(i, j)
 
-has_index(s::Sum, i::Index) = isequal(s.index, i) || has_index(s.term, i)
+has_index(s::Sum, i) = isequal(s.index, i) || has_index(s.term, i)
 
-function has_index(t::SymbolicUtils.Symbolic, i::Index)
+function has_index(t::SymbolicUtils.Symbolic, i)
     if !TermInterface.iscall(t)
         return false
     end
@@ -96,9 +98,9 @@ function has_index(t::SymbolicUtils.Symbolic, i::Index)
     return has_index(SymbolicUtils.arguments(t), i)
 end
 # TODO: specialization for QAdd, QMul, etc.
-has_index(t::QTerm, i::Index) = has_index(SymbolicUtils.arguments(t), i)
+has_index(t::QTerm, i) = has_index(SymbolicUtils.arguments(t), i)
 
-function has_index(args::Vector, i::Index)
+function has_index(args::Vector, i)
     for arg in args
         if has_index(arg, i)
             return true
@@ -217,9 +219,11 @@ function Sum(t::QAdd, index::Index)
     for (i, arg) in enumerate(args)
         has_equality_for_index, to_index = find_equality_for_index(arg, index)
         if has_equality_for_index
+            # resolving a delta_ij here -- this term should no longer be summed over
             new_arg = change_index(arg, index, to_index)
-            new_args = vcat(args[1:i-1], new_arg, args[i+1:end])
-            return Sum(+(new_args...), index)
+            remaining_args = vcat(args[1:i-1], args[i+1:end])
+            isempty(remaining_args) && return new_arg
+            return new_arg + Sum(+(remaining_args...), index)
         end
     end
 

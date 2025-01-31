@@ -65,13 +65,15 @@ function meanfield(a::Vector,H,J;Jdagger::Vector=recursive_adjoint(J),rates=ones
         Threads.@threads for i=1:length(a)
             rhs_ = commutator(imH,a[i])
             rhs_diss = _master_lindblad(a[i],J_,Jdagger_,rates_)
-            rhs[i] = rhs_ + rhs_diss
+            index_inequality = _get_index_inequality(a[i])
+            rhs[i] = index_inequality * rhs_ + index_inequality * rhs_diss
         end
     else
         for i=1:length(a)
             rhs_ = commutator(imH,a[i])
             rhs_diss = _master_lindblad(a[i],J_,Jdagger_,rates_)
-            rhs[i] = rhs_ + rhs_diss
+            index_inequality = _get_index_inequality(a[i])
+            rhs[i] = index_inequality * rhs_ + index_inequality * rhs_diss
         end
     end
 
@@ -100,7 +102,12 @@ function meanfield(a::Vector,H,J;Jdagger::Vector=recursive_adjoint(J),rates=ones
 end
 
 let
-    additional_rule_for_indices = SymbolicUtils.@acrule((~x == ~y) * (~x != ~y) => 0)
+    additional_rules_for_indices = [
+        SymbolicUtils.@acrule((~x == ~y) * (~x != ~y) => 0),
+        SymbolicUtils.@acrule((~x == ~y) * (~y != ~x) => 0),
+        SymbolicUtils.@acrule((~x == ~y) ^ (~n::(!SymbolicUtils._iszero)) => (~x == ~y)),
+        SymbolicUtils.@acrule((~x != ~y) ^ (~n::(!SymbolicUtils._iszero)) => (~x != ~y)),
+    ]
     
     # TODO: more efficient combination here?
     # TODO: remove if we decide to go with (1 - i==j) instead of (i != j) since then we get
@@ -109,7 +116,7 @@ let
     qc_simplifier = SymbolicUtils.If(TermInterface.iscall,
         SymbolicUtils.Fixpoint(
             SymbolicUtils.Chain([
-                SymbolicUtils.Postwalk(SymbolicUtils.Chain([additional_rule_for_indices])),
+                SymbolicUtils.Postwalk(SymbolicUtils.Chain(additional_rules_for_indices)),
                 SymbolicUtils.default_simplifier()
                 ]
             )

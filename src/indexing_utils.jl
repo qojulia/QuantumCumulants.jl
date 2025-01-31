@@ -207,7 +207,7 @@ function _expand_lhs_to_index_limits(lhs, indices)
         for (from, to) in zip(indices, to_indices)
             new_lhs_ = change_index(new_lhs_, from, to)
         end
-        push!(new_lhs, new_lhs_)
+        SymbolicUtils._iszero(new_lhs_) || push!(new_lhs, new_lhs_)
     end
 
     for l in new_lhs
