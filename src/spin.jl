@@ -147,6 +147,10 @@ function Spin(hilbert::HilbertSpace,name,axis::Symbol,aon; kwargs...)
         Spin(hilbert,name,2,aon; kwargs...)
     elseif axis in [:z,:Z]
         Spin(hilbert,name,3,aon; kwargs...)
+    elseif axis in [:+]
+        Spin(hilbert,name,4,aon; kwargs...)
+    elseif axis in [:-]
+        Spin(hilbert,name,5,aon; kwargs...)
     end
 end
 function Spin(hilbert::HilbertSpace,name,axis::Symbol; kwargs...)
@@ -156,6 +160,10 @@ function Spin(hilbert::HilbertSpace,name,axis::Symbol; kwargs...)
         Spin(hilbert,name,2; kwargs...)
     elseif axis in [:z,:Z]
         Spin(hilbert,name,3; kwargs...)
+    elseif axis in [:+]
+        Spin(hilbert,name,4; kwargs...)
+    elseif axis in [:-]
+        Spin(hilbert,name,5; kwargs...)
     end
 end
 
@@ -181,7 +189,13 @@ function Base.:*(si::Spin,sj::Spin)
             SiSj = sj*si - 1im*Spin(si.hilbert, si.name, 1, aon_si)
         elseif i==3 && j==1 #SySx
             SiSj = sj*si + 1im*Spin(si.hilbert, si.name, 2, aon_si)
-        else # SxSx, SySy, SzSz, SxSy, Sx,Sz, SySz
+        elseif i==5 && j==4 #SmSp
+            SiSj = sj*si - 2*Spin(si.hilbert, si.name, 3, aon_si)
+        elseif i==4 && j==3 #SpSz
+            SiSj = sj*si - Spin(si.hilbert, si.name, 4, aon_si)
+        elseif i==5 && j==3 #SmSz
+            SiSj = sj*si + Spin(si.hilbert, si.name, 5, aon_si)
+        else # SxSx, SySy, SzSz, SxSy, Sx,Sz, SySz; 
             SiSj = QMul(1, [si,sj])
         end
         return SiSj

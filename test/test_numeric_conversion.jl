@@ -102,7 +102,7 @@ op2_num = to_numeric(a'*σprod_gap(1, 1), bprod_gap)
 
 
 # Numeric average values
-α = 0.1 + 0.2im
+α = 0.2 + 0.2im
 ψ = coherentstate(bfock, α)
 a = Destroy(hfock, :a)
 @test numeric_average(a, ψ) ≈ numeric_average(average(a), ψ) ≈ α

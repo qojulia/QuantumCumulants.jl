@@ -203,7 +203,7 @@ end
 _to_expression(op::QSym) = op.name
 _to_expression(op::Create) = :(dagger($(op.name)))
 _to_expression(op::Transition) = :(Transition($(op.name),$(op.i),$(op.j)) )
-xyz_sym=[:x,:y,:z]
+xyz_sym=[:x,:y,:z,:+,:-]
 _to_expression(op::Pauli) = :(Pauli($(op.name),$(xyz_sym[op.axis])))
 _to_expression(op::Spin) = :(Spin($(op.name),$(xyz_sym[op.axis])))
 function _to_expression(t::QMul)

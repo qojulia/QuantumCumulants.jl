@@ -149,6 +149,15 @@ S(1)≠S(2)
 @test isequal(average(S(1) + S(2)), average(S(2) + S(1)))
 @test isequal(simplify(S(2) + S(2)), 2S(2))
 
+### S+, S- # TODO: 
+@test S(:+) == S(:4)
+@test S(:-) == S(:5)
+@test S(:-) ≠ S(:4)
+
+@test isequal(simplify(S(:-)*S(:+) - S(:+)*S(:-)), -2*S(:z))
+@test isequal(simplify(S(:z)*S(:+) - S(:+)*S(:z)), S(:+))
+@test isequal(simplify(S(:z)*S(:-) - S(:-)*S(:z)), -S(:-))
+
 # error
 @test isequal(2*S(1)*S(2)*S(3), S(1)*S(2)*S(3)*2)
 
