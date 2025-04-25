@@ -15,7 +15,7 @@ We start by loading the packages.
 
 ```@example superradiant_laser_indexed
 using QuantumCumulants
-using OrdinaryDiffEq, SteadyStateDiffEq, ModelingToolkit
+using OrdinaryDiffEq, ModelingToolkit
 using Plots
 ```
 
@@ -211,22 +211,12 @@ nothing # hide
 ```
 
 
-
-To ensure we are in the steady state we use a steady solver to calculate it. To this end we need to define the $\texttt{SteadyStateProblem}$ and specify the desired method. We also need to increase the $\texttt{maxiters}$ and the solver accuracy to handle this numerically involved problem.
-
-
-```@example superradiant_laser_indexed
-prob_ss = SteadyStateProblem(sys,sol.u[end],ps.=>p0)
-sol_ss = solve(prob_ss, SSRootfind())
-nothing # hide
-```
-
 The spectrum is then calculated with
 
 
 ```@example superradiant_laser_indexed
 ω = [-10:0.01:10;]Γ_
-spec = S(ω,sol_ss.u,p0)
+spec = S(ω,sol.u[end],p0)
 spec_n = spec ./ maximum(spec)
 δ = abs(ω[(findmax(spec)[2])])
 nothing # hide
