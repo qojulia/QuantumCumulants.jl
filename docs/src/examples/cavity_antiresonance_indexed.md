@@ -20,7 +20,7 @@ We start by loading the packages.
 
 ```@example antiresonance_indexed
 using QuantumCumulants
-using OrdinaryDiffEq, SteadyStateDiffEq, ModelingToolkit
+using OrdinaryDiffEq, ModelingToolkit
 using Plots
 ```
 
@@ -143,19 +143,15 @@ nothing # hide
 Δ_ls = [-10:0.05:10;]Γ_
 n_ls = zeros(length(Δ_ls))
 
-# definitions for fast replacement of numerical parameter
-prob = ODEProblem(sys,u0,(0.0, 20), ps.=>p0)
-prob_ss = SteadyStateProblem(prob)
-
 for i=1:length(Δ_ls)
-    Δc_i = Δ_ls[i]
-    Δa_i = Δc_i + Ωij(1,2) # cavity on resonace with the shifted collective emitter
-    p0_ = [Δc_i; η_; Δa_i; κ_; gi_; Γij_; Ωij_]
-
-    # create (remake) new SteadyStateProblem
-    prob_ss_ = SteadyStateProblem(sys,u0,ps.=>p0_)
-    sol_ss = solve(prob_ss_, SSRootfind())
-    n_ls[i] = abs2(sol_ss[a])
+    Δc_ = Δ_ls[i]
+    Δa_ = Δc_ + Ωij(1,2) # cavity on resonace with the shifted collective emitter
+    p0_ = [Δc_; η_; Δa_; κ_; gi_; Γij_; Ωij_]
+    
+    # create (remake) new ODEProblem
+    prob_  = ODEProblem(sys,u0,(0.0, 20),ps.=>p0_)
+    sol_ = solve(prob_, Tsit5())
+    n_ls[i] = abs2(sol_[a][end])
 end
 nothing #hide
 ```
