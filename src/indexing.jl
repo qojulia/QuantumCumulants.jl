@@ -16,11 +16,11 @@ Fields:
 
 * hilb: The whole [`HilbertSpace`](@ref), the index will be defined on.
 * name: A Symbol, which defines the name of the index, and how product-terms of [`IndexedOperator`](@ref) are ordered (alphabetical)
-* range: The upper bound limit of the index. This can be a SymbolicUitls.Symbolic or any Number.
+* range: The upper bound limit of the index. This can be a SymbolicUtils.Symbolic or any Number.
 * aon: Number specifying the specific [`HilbertSpace`](@ref), where the Index acts on.
 
 """
-struct Index #main tool
+struct Index <: SymbolicUtils.Symbolic{Int}
     hilb::HilbertSpace
     name::Symbol
     range::Ranges
@@ -35,7 +35,52 @@ function Index(hilb::HilbertSpace,name::Symbol,range::Ranges,specHilb::HilbertSp
     end
 end
 
-const IndexInt = Union{<:Index,<:Int64}
+acts_on(i::Index) = i.aon
+
+function Base.:(==)(i::Index, j::Index)
+    if isequal(i, j)
+        return true
+    end
+
+    if acts_on(i) != acts_on(j) || hilbert(i) != hilbert(j)
+        return false
+    end
+
+    # make sure to use the same order to make pattern matching easier
+    if i.name > j.name
+        args = [j, i]
+    else
+        args = [i, j]
+    end
+
+    return TermInterface.maketerm(SymbolicUtils.BasicSymbolic{Bool}, ==, args, nothing)
+end
+
+function Base.:(!=)(i::Index, j::Index)
+    if isequal(i, j)
+        return false
+    end
+
+    if acts_on(i) != acts_on(j) || hilbert(i) != hilbert(j)
+        return true
+    end
+
+    # make sure to use the same order to make pattern matching easier
+    if i.name > j.name
+        args = [j, i]
+    else
+        args = [i, j]
+    end
+
+    return TermInterface.maketerm(SymbolicUtils.BasicSymbolic{Bool}, !=, args, nothing)
+end
+
+
+# TermInterface for Index
+TermInterface.iscall(::Index) = false
+TermInterface.metadata(::Index) = nothing
+
+# const IndexInt = Union{<:Index,<:Int64}
 """
     IndexedVariable <: CNumber
     IndexedVariable(name::Symbol,ind::Index)
@@ -46,15 +91,19 @@ a IndexedVariable using two different [`Index`](@ref) objects one can create [`D
 See also: [`value_map`](@ref)
 """
 struct IndexedVariable <: CNumber #just a symbol, that can be manipulated via the metadata field
-    name::Symbol
-    ind::Index
-    function IndexedVariable(name::Symbol,ind::Index)
-        metadata = new(name,ind)
-        sym = SymbolicUtils.Sym{IndexedVariable}(Symbol("$(name)$(ind.name)"))
-        sym = SymbolicUtils.setmetadata(sym,typeof(metadata),metadata)
-        return sym
-    end
+    # name::Symbol
+    # ind::Index
+    # function IndexedVariable(name::Symbol,ind::Index)
+    #     metadata = new(name,ind)
+    #     sym = SymbolicUtils.Sym{IndexedVariable}(Symbol("$(name)$(ind.name)"))
+    #     sym = SymbolicUtils.setmetadata(sym,typeof(metadata),metadata)
+    #     return sym
+    # end
 end
+
+Base.@deprecate IndexedVariable(name::Symbol, ind::Union{Integer,Index}) IndexedParameter(name, ind)
+Base.@deprecate IndexedVariable(name::Symbol, ind1::Union{Integer,Index}, ind2::Union{Index,Integer}) IndexedParameter(name, ind1, ind2)
+
 
 """
     DoubleIndexedVariable <: CNumber
@@ -73,20 +122,113 @@ Fields:
 
 """
 struct DoubleIndexedVariable <: CNumber #just a symbol, that can be manipulated via the metadata field
-    name::Symbol
-    ind1::Index
-    ind2::Index
-    identical::Bool
-    function DoubleIndexedVariable(name,ind1,ind2;identical::Bool=true)
-        if !(identical) && (ind1 == ind2)
-            return 0
-        end
-        metadata = new(name,ind1,ind2,identical)
-        sym = SymbolicUtils.Sym{DoubleIndexedVariable}(Symbol("$(name)$(ind1.name)$(ind2.name)"))
-        sym = SymbolicUtils.setmetadata(sym,typeof(metadata),metadata)
-        return sym
+    # name::Symbol
+    # ind1::Index
+    # ind2::Index
+    # identical::Bool
+    # function DoubleIndexedVariable(name,ind1,ind2;identical::Bool=true)
+    #     if !(identical) && isequal(ind1, ind2)
+    #         return 0
+    #     end
+    #     metadata = new(name,ind1,ind2,identical)
+    #     sym = SymbolicUtils.Sym{DoubleIndexedVariable}(Symbol("$(name)$(ind1.name)$(ind2.name)"))
+    #     sym = SymbolicUtils.setmetadata(sym,typeof(metadata),metadata)
+    #     return sym
+    # end
+end
+
+Base.@deprecate DoubleIndexedVariable(name::Symbol, ind1::Union{Integer,Index}, ind2::Union{Index,Integer}; identical::Bool = true) IndexedParameter(name, ind1, ind2)
+
+
+struct ArrayParameter <: CNumber
+    function ArrayParameter(name, indices; metadata=nothing)
+        dims = length(indices)
+        s = SymbolicUtils.Sym{Array{Complex{Real}, dims}}(name)
+        s = SymbolicUtils.setmetadata(s, MTK.VariableSource, (:ArrayParameter, name, indices))
+        s = SymbolicUtils.setmetadata(s,MTK.MTKVariableTypeCtx,MTK.PARAMETER)
+        ranges = [i isa Index ? i.range : nothing for i in indices]
+        s = update_shape_metadata(s, ranges)
+        return s
     end
 end
+
+update_shape_metadata(s, ranges) = s
+
+# TODO: setting the shape here is weird, I don't like it
+function update_shape_metadata(s, ranges::Vector{T}) where T <: Integer
+    # we're looking at an IndexedParameter with actual sizing info
+    s = SymbolicUtils.setmetadata(s, Symbolics.ArrayShapeCtx, Tuple(1:r for r in ranges))
+    return s
+end
+
+update_shape_metadata!(t::QNumber) = t
+function update_shape_metadata!(t)
+    t = _update_shape_metadata(t)
+
+    if !TermInterface.iscall(t)
+        return t
+    end
+
+    f = SymbolicUtils.operation(t)
+    args = SymbolicUtils.arguments(t)
+    new_args = []
+    for arg in args
+        push!(new_args, update_shape_metadata!(arg))
+    end
+    return f(new_args...)
+end
+
+_update_shape_metadata(t::Number) = t
+function _update_shape_metadata(t)
+    if !SymbolicUtils.hasmetadata(t, MTK.VariableSource)
+        return t
+    end
+
+    src_meta = SymbolicUtils.getmetadata(t, MTK.VariableSource)
+    if src_meta[1] !== :ArrayParameter
+        return t
+    end
+
+    indices = src_meta[3]
+    ranges = [i isa Index ? i.range : nothing for i in indices]
+    t = update_shape_metadata(t, ranges)
+
+    return t
+end
+
+struct IndexedParameterSym <: CNumber end
+
+# getindex_parameter(args...) = SymbolicUtils.Term{IndexedParameterSym}(getindex_parameter, Any[args...])
+# getindex_parameter(x, inds...) = getindex(x, inds...)
+
+function IndexedParameter(name::Symbol, indices::T...) where T <: Union{Index, Integer}
+    return SymbolicUtils.Term{IndexedParameterSym}(getindex, [ArrayParameter(name, indices), indices...])
+end
+
+# TODO: can we avoid boxing here?
+IndexedParameter(name::Symbol) = (args...) -> IndexedParameter(name, args...)
+
+# TermInterface
+# TermInterface.iscall(::IndexedParameter) = true
+# TermInterface.arguments(x::IndexedParameter) = x.indices
+# TermInterface.operation(x::IndexedParameter) = IndexedParameter(x.name)
+# TermInterface.maketerm(::Type{<:IndexedParameter}, ::typeof(IndexedParameter), args, metadata) = IndexedParameter(args..., metadata)
+
+# function Base.isequal(pi::IndexedParameter, pj::IndexedParameter)
+#     if !isequal(pi.name, pj.name)
+#         return false
+#     end
+
+#     if !isequal(length(pi.indices), length(pj.indices))
+#         return false
+#     end
+
+#     for (i, j) in zip(pi.indices, pj.indices)
+#         isequal(i, j) || return false
+#     end
+
+#     return true
+# end
 
 """
     IndexedOperator <: QSym
@@ -101,423 +243,179 @@ Fields:
 * ind: The index, the operator will be associated with.
 
 """
-struct IndexedOperator <: QSym
-    op::IndexableOps
-    ind::Index
-    function IndexedOperator(op::IndexableOps,ind::Index)
+struct IndexedOperator{T,I} <: QSym
+    op::T
+    ind::I  # TODO: why not spell out index here?
+    merge_events::Vector{UUID}  # TODO: this could be a Set{UUID}
+end
+function IndexedOperator(op::T,ind::I) where {T<:QSym,I}
+    if I <: Index
         @assert isequal(ind.hilb,hilbert(op))
         isa(ind.hilb, ProductSpace) && (@assert isequal(acts_on(op),ind.aon))
-        return new(op,ind)
     end
+    return IndexedOperator{T,I}(op,ind,UUID[])
 end
-
-# const Summable = Union{<:QNumber,<:CNumber,<:BasicSymbolic{IndexedVariable},<:BasicSymbolic{DoubleIndexedVariable}}
-const Summable = Union{<:QNumber,<:CNumber,<:BasicSymbolic{IndexedVariable},<:BasicSymbolic{DoubleIndexedVariable},<:BasicSymbolic{CNumber}}
-
-"""
-    SingleSum <: QTerm
-
-Defines a symbolic summation over a term, using one [`Index`](@ref) entity.
-
-Fields:
-======
-
-* term: A multiplication of q-number terms. When the multiplication contains any [`IndexedOperator`](@ref) with the same index as the summation-index, a symbolic sum will be created.
-* sum_index: The index, for which the summation will go over.
-* non_equal_indices: (optional) A vector of indices, for which the summation-index can not be equal with.
-
-"""
-struct SingleSum{M} <: QTerm #Sum with an index, the term inside the sum must be a multiplication, either a QMul or a Symbolic one
-    term::Summable
-    sum_index::Index
-    non_equal_indices::Vector{IndexInt}  #indices not equal to the summation index
-    metadata::M
-    function SingleSum(term::Summable,sum_index::Index,non_equal_indices::Vector,metadata)
-        SymbolicUtils._iszero(term) ? 0 : new{typeof(metadata)}(term,sum_index,sort(non_equal_indices,by=getIndName),metadata)
-    end
-end
-
-"""
-    SpecialIndexedTerm <: QTerm
-
-A multiplication of [`IndexedOperator`](@ref) entities, with special constraint on the index-values. For example σᵢ²² * σⱼ²² with the constraint i ≠ j
-
-Fields:
-======
-
-* term: A multiplication of q-number terms.
-* indexMapping: A Vector of [`Index`](@ref) tuples, specifying the contraints for the term. Each Tuple is considered to one constraint. e.g: (i,j) -> i ≠ j
-
-"""
-struct SpecialIndexedTerm <: QTerm    #A term, not in a sum, that has a condition on the indices, for example σⱼ*σₖ with condition j≠k
-    term::Summable
-    indexMapping::Vector{Tuple{Index,Index}}    #The conditions on indices are given via this tuple-vector, each tuple representing one condition (not to be confused with the numbered ones in averages)
-    function SpecialIndexedTerm(term,indexMapping)
-        if length(indexMapping) == 0
-            return term
-        elseif SymbolicUtils._iszero(term)
-            return 0
-        else
-            return new(term,indexMapping)
-        end
-    end
-end
-const IndexedAdd = Union{QAdd, BasicSymbolic{<:CNumber}}
-const IndexedObSym = Union{IndexedOperator,BasicSymbolic{IndexedVariable},BasicSymbolic{DoubleIndexedVariable}}
-
-function SpecialIndexedTerm(term::IndexedAdd,indexMapping)
-    if iscall(term)
-        op = operation(term)
-        args = arguments(term)
-        return op([reorder(arg,indexMapping) for arg in args]...)
-    else
-        return term
-    end
-end
-
-function SingleSum(term::IndexedObSym,sum_index::Index,non_equal_indices;metadata=NO_METADATA)
-    inds = get_indices(term)
-    sum_index in inds || return (sum_index.range - length(non_equal_indices)) * term
-    return SingleSum(term,sum_index,non_equal_indices,metadata)
-end
-function SingleSum(term::IndexedAdd, sum_index, non_equal_indices;metadata=NO_METADATA)
-    if iscall(term)
-        op = operation(term)
-        args = arguments(term)
-        if op === +
-            return sum([SingleSum(arg,sum_index,non_equal_indices;metadata=NO_METADATA) for arg in args])
-        elseif (op === *) && (sum_index ∈ get_indices(term)) #issue 188
-            return SingleSum(term,sum_index,non_equal_indices,metadata)
-        else
-            return (sum_index.range - length(non_equal_indices))*term
-        end
-    else
-        return (sum_index.range - length(non_equal_indices))*term
-    end
-    # sum(SingleSum(arg,sum_index,non_equal_indices;metadata=metadata) for arg in arguments(term))
-end
-function SingleSum(term::QMul, sum_index, non_equal_indices;metadata=NO_METADATA)
-    SymbolicUtils._iszero(term) && return 0
-    NEI = Index[]
-    NEI_ = copy(non_equal_indices)
-    for arg in term.args_nc
-        if typeof(arg) == IndexedOperator || typeof(arg) == IndexedVariable
-            if arg.ind == sum_index || arg.ind in NEI_ || sum_index.aon != arg.ind.aon
-                continue
-            else
-                push!(NEI,arg.ind)
-                push!(NEI_,arg.ind)
-            end
-        end
-    end
-    if length(NEI) == 0 #NEI are newly found indices of all operators that do not have the summation index, or are not already in the non equals list
-        #in this if-condition all operators always commute with the summation index (since there are no other indices left)
-        args = copy(term.args_nc)
-        args_ = order_by_index(args,[sum_index]) #here all operators in the sum comute with operators indexed with the summation index -> push them in front
-        term_ = 0
-        if length(args_) == 1
-            term_ = *(term.arg_c,args_[1])
-        else
-            term_ = *(term.arg_c,args_...) #merge operators again, since their order in the sum has changed
-        end
-        if term_ == 0 || SymbolicUtils._iszero(term_)
-            return 0
-        end
-        return SingleSum(term_,sum_index,NEI_,metadata)
-    end
-    addTerms = []
-    for i = 1:length(NEI) #NEI are the newly found Indices of all the ops that do not have the summation index
-        ind = NEI[i]
-        #when adding a new index to the list of non equals, all the following insertions for the summation index have the
-        #condition, that they now can no longer be equal to any of the already inserted indices
-        #for example: in first iteration i -> j => i ≠ j
-        #second iteration i ≠ j, i -> k => i ≠ k (in sum); j ≠ k (for the extra term)
-        if length(addTerms) > 0
-            indexMapping = Tuple{Index,Index}[]
-            for j = 1:i
-                if i != j
-                    push!(indexMapping,(NEI[j],NEI[i]))
-                end
-            end
-            push!(addTerms, reorder(change_index(term,sum_index,ind),indexMapping))
-        else
-            push!(addTerms,change_index(term,sum_index,ind))
-        end
-    end
-    args = copy(term.args_nc)
-    args_ = order_by_index(args,[sum_index]) #here all operators in the sum comute with operators indexed with the summation index -> push them in front
-    if length(args_) == 1
-        term_ = *(term.arg_c,args_[1])
-    else
-        term_ = *(term.arg_c,args_...) #merge operators again, since their order in the sum has changed
-    end
-    sort!(NEI_,by=getIndName)
-    return +(SingleSum(term_,sum_index,NEI_;metadata=metadata),addTerms...)
-end
-function SingleSum(term::SpecialIndexedTerm,ind::Index,NEI;metadata=NO_METADATA)
-    if length(term.indexMapping) == 0
-        return SingleSum(term.term,ind,NEI)
-    else
-        NEI_ = copy(NEI)
-        for tuple in term.indexMapping
-            if first(tuple) == ind && last(tuple) ∉ NEI_
-                push!(NEI_, last(tuple))
-            elseif last(tuple) == ind && first(tuple) ∉ NEI_
-                push!(NEI_, first(tuple))
-            end
-        end
-        return SingleSum(term.term,ind,NEI_;metadata=metadata)
-    end
-end
-SingleSum(ops::Vector{Any},ind::Index,NEI::Vector;metadata=NO_METADATA) = SingleSum(*(1,ops...),ind,NEI;metadata=metadata)
-SingleSum(ops::QMul,ind::Index;metadata=NO_METADATA) = SingleSum(ops,ind,Index[];metadata=metadata)
-SingleSum(ops::QAdd,ind::Index;metadata=NO_METADATA) = SingleSum(ops,ind,Index[];metadata=metadata)
-SingleSum(op::QNumber,ind::Index;metadata=NO_METADATA) = SingleSum(op,ind,Index[];metadata=metadata)
-SingleSum(ops::Number,ind::Index,NEI::Vector;metadata=NO_METADATA) = (ind.range - length(NEI))*ops
-# SingleSum(term, sum_index, non_equal_indices;metadata=NO_METADATA) = (sum_index.range - length(non_equal_indices)) * term
-function SingleSum(term, sum_index, non_equal_indices;metadata=NO_METADATA) 
-    if (sum_index ∉ get_indices(term)) # saver way to avoid wrong simplification
-        return (sum_index.range - length(non_equal_indices)) * term
-    else
-        return SingleSum(term,sum_index,non_equal_indices,metadata)
-    end
-end
-
-function IndexedOperator(op::QMul,ind::Index)
-    arg_c = op.arg_c
-    ops_nc = []
-    for op_ in op.args_nc
-        op_ind = IndexedOperator(op_,ind)
-        push!(ops_nc,op_ind)
-    end
-    return *(arg_c,ops_nc...)
-end
-function IndexedOperator(qadd::QAdd,ind::Index)
-    terms = []
-    for elem in qadd.arguments
-        push!(terms,IndexedOperator(elem,ind))
-    end
-    return QAdd(terms)
-end
-IndexedOperator(op::SNuN,ind::Index) = op     #This is just declared, so one can ignore type-checking on numbers
 
 #hilberts
 hilbert(ind::Index) = ind.hilb
-hilbert(op::IndexedOperator) = op.ind.hilb
-hilbert(var::IndexedVariable) = var.ind.hilb
-hilbert(indSum::SingleSum) = indSum.sum_index.hilb
-hilbert(x::SpecialIndexedTerm) = hilbert(x.term)
+hilbert(op::IndexedOperator) = hilbert(op.op)
+#hilbert(var::IndexedVariable) = var.ind.hilb
+
+# levels
+levels(op::IndexedOperator) = levels(op.op.hilbert, acts_on(op))
 
 #Basic functions for indexed Operators
 import Base: *, +, -
 
+Base.:(==)(op1::IndexedOperator, op2::IndexedOperator) = isequal(op1, op2)
+
 #Multiplications
-#Sums
-*(sum::SingleSum,qmul::QMul) = qmul.arg_c*(*(sum,qmul.args_nc...))
-function *(qmul::QMul,sum::SingleSum)
-    sum_ = sum
-    for i = length(qmul.args_nc):-1:1
-        sum_ = qmul.args_nc[i] * sum_
-    end
-    return qmul.arg_c*sum_
-end
-
-function *(sum::SingleSum,elem::IndexedObSym)
-    NEIds = copy(sum.non_equal_indices)
-    if !(elem.ind == sum.sum_index) && (elem.ind ∉ NEIds) && (sum.sum_index.aon == elem.ind.aon)
-        qaddterm = nothing
-        term = sum.term
-        if length(NEIds) == 0
-            extraterm = change_index(term,sum.sum_index,elem.ind)
-            qaddterm = extraterm*elem
+function Base.:*(a::IndexedOperator{<:Destroy}, b::IndexedOperator{<:Create})
+    check_hilbert(a,b)
+    aon_a = acts_on(a)
+    aon_b = acts_on(b)
+    if aon_a == aon_b
+        if isequal(a.ind, b.ind)
+            # shortcut simplification here
+            return b*a + 1
         else
-            specNEIs = Tuple{Index,Index}[]
-            for ind in NEIds
-                tuple = (elem.ind,ind)
-                push!(specNEIs,tuple)
-            end
-            extraterm_ = change_index(term,sum.sum_index,elem.ind)
-            qaddterm = reorder(extraterm_*elem,specNEIs)
+            return b*a + a.ind == b.ind
         end
-        push!(NEIds,elem.ind)
-        qmul = sum.term*elem
-        if qmul isa QMul
-            qmul = order_by_index(qmul,[sum.sum_index])
-        end
-        if (qmul isa QMul && (isequal(qmul.arg_c,0) || SymbolicUtils._iszero(qmul.args_nc)))
-            return 0
-        end
-        sort!(NEIds,by=getIndName)
-        newsum = SingleSum(qmul,sum.sum_index,NEIds)
-
-        if SymbolicUtils._iszero(newsum)
-            return qaddterm
-        elseif SymbolicUtils._iszero(qaddterm)
-            return newsum
-        end
-
-        return QAdd([newsum,qaddterm])
+    elseif aon_a < aon_b
+        return QMul(1, [a,b])
     else
-        qmul = sum.term*elem
-        if qmul isa QMul
-            qmul = order_by_index(qmul,[sum.sum_index])
-        end
-        qmul isa QMul && (isequal(qmul.arg_c,0) || SymbolicUtils._iszero(qmul.args_nc)) && return 0
-        return SingleSum(qmul,sum.sum_index,NEIds)
-    end
-end
-function *(elem::IndexedObSym,sum::SingleSum)
-    NEIds = copy(sum.non_equal_indices)
-    if !(elem.ind == sum.sum_index) && (elem.ind ∉ NEIds) && (sum.sum_index.aon == elem.ind.aon)
-        qaddterm = nothing
-        term = sum.term
-        if length(NEIds) == 0
-            extraterm = change_index(term,sum.sum_index,elem.ind)
-            qaddterm = elem*extraterm
-        else
-            specNEIs = Tuple{Index,Index}[]
-            for ind in NEIds
-                tuple = (elem.ind,ind)
-                push!(specNEIs,tuple)
-            end
-            extraterm_ = change_index(term,sum.sum_index,elem.ind)
-            qaddterm = reorder(elem*extraterm_,specNEIs)
-        end
-        push!(NEIds,elem.ind)
-        qmul = elem*sum.term
-        if qmul isa QMul
-            qmul = order_by_index(qmul,[sum.sum_index])
-        end
-        if (qmul isa QMul && (isequal(qmul.arg_c,0) || SymbolicUtils._iszero(qmul.args_nc)))
-            return 0
-        end
-        sort!(NEIds,by=getIndName)
-        newsum = SingleSum(qmul,sum.sum_index,NEIds)
-
-        if SymbolicUtils._iszero(newsum)
-            return qaddterm
-        elseif SymbolicUtils._iszero(qaddterm)
-            return newsum
-        end
-
-        return QAdd([newsum,qaddterm])
-    else
-        qmul = elem*sum.term
-        if qmul isa QMul
-            qmul = order_by_index(qmul,[sum.sum_index])
-        end
-        qmul isa QMul && (isequal(qmul.arg_c,0) || SymbolicUtils._iszero(qmul.args_nc)) && return 0
-        return SingleSum(qmul,sum.sum_index,NEIds)
-    end
-end
-function *(sum::SingleSum,elem::QSym)
-    NEIds = copy(sum.non_equal_indices)
-    qmul = sum.term*elem
-    if qmul isa QMul
-        qmul = order_by_index(qmul,[sum.sum_index])
-    end
-    qmul isa QMul && (isequal(qmul.arg_c,0) || SymbolicUtils._iszero(qmul.args_nc)) && return 0
-    return SingleSum(qmul,sum.sum_index,NEIds)
-end
-function *(elem::QSym,sum::SingleSum)
-    NEIds = copy(sum.non_equal_indices)
-    qmul = elem*sum.term
-    if qmul isa QMul
-        qmul = order_by_index(qmul,[sum.sum_index])
-    end
-    qmul isa QMul && (isequal(qmul.arg_c,0) || SymbolicUtils._iszero(qmul.args_nc)) && return 0
-    return SingleSum(qmul,sum.sum_index,NEIds)
-end
-
-
-*(elem::SNuN,sum::SingleSum) = SingleSum(elem*sum.term,sum.sum_index,sum.non_equal_indices) #put elements from outside into sum
-*(sum::SingleSum,elem::SNuN) = *(elem,sum)
-
--(sum::SingleSum,sum2::SingleSum) = sum + -1*sum2
--(sum::SingleSum,op::QNumber) = sum + -1*op
--(op::QNumber,sum::SingleSum) = -1*sum + op
--(op::Any,sum::SingleSum) = -1*sum + op
--(sum::SingleSum, op::Any) = -1*op + sum
-
-function *(op1::IndexedOperator,op2::IndexedOperator)
-    if isequal(op1.ind, op2.ind)
-        if op1.op isa Transition
-            return IndexedOperator(op1.op*op2.op,op1.ind)
-        end
-        if op1.op isa Destroy && op2.op isa Create
-            return op2*op1 + 1
-        else
-            return QMul(1,[op1,op2])
-        end
-    else
-        return QMul(1,[op1,op2])
+        return QMul(1, [b,a])
     end
 end
 
-# Special terms
-*(a::SNuN,b::SpecialIndexedTerm) = reorder(a*b.term,b.indexMapping)
-*(b::SpecialIndexedTerm,a::SNuN) = a*b
-*(a::SpecialIndexedTerm,b) = reorder(a.term*b,a.indexMapping)
-*(a,b::SpecialIndexedTerm) = reorder(a*b.term,b.indexMapping)
+const INDEX_NOT_EQUAL_MACRO = Ref(false)
 
-function *(a::QAdd,b::SpecialIndexedTerm)
+function Base.:*(a::IndexedOperator{<:Transition}, b::IndexedOperator{<:Transition})
+    if was_merged(a, b)
+        # case when they have been merged, but weren't sorted
+        # due to the check in ismergeable, this means that either a has more merge events or that 
+        # the integer indices aren't sorted properly
+        return _sorted_transition_qmul(a, b)
+    end
+
     check_hilbert(a, b)
-    args = Any[a_ * b for a_ ∈ a.arguments]
-    flatten_adds!(args)
-    isempty(args) && return 0
-    q = QAdd(args)
-    return q
-end
-function *(a::SpecialIndexedTerm, b::QAdd)
-    check_hilbert(a, b)
-    args = Any[a * b_ for b_ ∈ b.arguments]
-    flatten_adds!(args)
-    isempty(args) && return 0
-    q = QAdd(args)
-    return q
+    aon_a = acts_on(a)
+    aon_b = acts_on(b)
+    if aon_a == aon_b
+        i = a.ind
+        j = b.ind
+        op_ = a.op * b.op
+        t1 = iszero(op_) ? 0 : _make_indexed_operator(op_, i, unique!([a.merge_events; b.merge_events]))
+        if isequal(i, j)
+            return t1
+        else
+            return _transition_merge_term(t1, i, j, a, b)
+        end
+    elseif aon_a < aon_b
+        return QMul(1, [a,b])
+    else
+        return QMul(1, [b,a])
+    end
 end
 
-function *(x::IndexedObSym, term::SpecialIndexedTerm)
-    map = term.indexMapping
-    if x.ind ∉ first.(map) && x.ind ∉ last.(map)
-        indices = get_indices(term.term)
-        for ind in indices
-            push!(map,(ind,x.ind))
-        end
+function _transition_merge_term(t1, i, j, a, b)
+    a_copy = deepcopy(a)
+    b_copy = deepcopy(b)
+
+    # assign a unique id to signal that these have been merged already in the same "merge event"
+    id = uuid4()
+    push!(a_copy.merge_events, id)
+    push!(b_copy.merge_events, id)
+
+    if INDEX_NOT_EQUAL_MACRO[]
+        # TODO: should this include i != j as factor in front?
+        return a_copy * b_copy
     end
-    return reorder(x*term.term,map)
+
+    # the operator with more merge events goes right
+    t2 = _sorted_transition_qmul(a_copy, b_copy)
+
+    return (i == j) * t1 + (i != j) * t2
 end
-function *(term::SpecialIndexedTerm,x::IndexedObSym)
-    map = term.indexMapping
-    if x.ind ∉ first.(map) && x.ind ∉ last.(map)
-        indices = get_indices(term.term)
-        for ind in indices
-            push!(map,(ind,x.ind))
-        end
+
+# specialize on integer indices
+function _transition_merge_term(t1, i::Integer, j::Integer, a, b)
+    # the operator with lower integer index goes left
+    t2 = _sorted_transition_qmul(a, b)
+
+    # in this case, we know that i!=j
+    return t2
+end
+
+_sorted_transition_qmul(a, b) = QMul(1, [b, a])  # More merge events go right
+function _sorted_transition_qmul(a::IndexedOperator{<:Transition,<:Integer}, b::IndexedOperator{<:Transition,<:Integer})
+    if a.ind > b.ind
+        return QMul(1, [b, a])
+    else
+        return QMul(1, [a, b])
     end
-    return reorder(term.term*x,map)
+end
+
+
+_make_indexed_operator(op::QNumber, i, merge_events=UUID[]) = IndexedOperator(op, i, merge_events)
+_make_indexed_operator(x, i, merge_events=UUID[]) = x
+function _make_indexed_operator(op::QTerm, i, merge_events=UUID[])
+    args = [_make_indexed_operator(arg, i, merge_events) for arg in SymbolicUtils.arguments(op)]
+    return SymbolicUtils.operation(op)(args...)
+end
+
+
+ismergeable(a::IndexedOperator{<:Destroy}, b::IndexedOperator{<:Create}) = true
+function ismergeable(a::IndexedOperator{<:Transition}, b::IndexedOperator{<:Transition})
+    if length(a.merge_events) > length(b.merge_events)
+        # hop into the merge function if the expression is not yet sorted by length of merge events
+        # this is so that operators with fewer merge events go left
+        # that's required to ensure every operator will be combined with any other operator in longer products
+        return true
+    end
+
+    return !was_merged(a, b)
+end
+
+# actual integer indices should always be merged explicitly, because products where they are not equal cannot exist
+function ismergeable(a::IndexedOperator{T,I}, b::IndexedOperator{S,J}) where {T<:Transition,S<:Transition,I<:Integer,J<:Integer}
+    # if we have two transition with equal indices, we should merge them;
+    # otherwise, they should be sorted by index
+    a.ind >= b.ind
+end
+
+
+function was_merged(a::IndexedOperator, b::IndexedOperator)
+    # if they were merged, then a unique id (UUID4) was added to the merge events vector of each of the operators
+    # hence, we can just check if they share any common element
+    return !isdisjoint(a.merge_events, b.merge_events)
+end
+
+# actual integer indices should always be merged explicitly, because products where they are not equal cannot exist
+was_merged(a::IndexedOperator{T,I}, b::IndexedOperator{S,J}) where {T,S,I<:Integer,J<:Integer} = a.ind < b.ind
+
+macro index_not_equal(ex)
+    return quote
+        INDEX_NOT_EQUAL_MACRO.x = true
+        local val = $(esc(ex))
+        INDEX_NOT_EQUAL_MACRO.x = false
+        val
+    end
 end
 
 #acts on
 acts_on(op::IndexedOperator) = acts_on(op.op)
-acts_on(var::SpecialIndexedTerm) = acts_on(var.term)
-
-get_order(x::SingleSum) = get_order(x.term)
-get_order(x::SpecialIndexedTerm) = get_order(x.term)
-
-acts_on(indSum::SingleSum) = acts_on(indSum.term)
 
 #extra commutators
 #Indexed operators, evaluate the commutator directly, if 2 indexed ops have the same index
 function commutator(op1::IndexedOperator,op2::IndexedOperator)
-    if (op1.ind == op2.ind)
-        return IndexedOperator(commutator(op1.op,op2.op),op1.ind)
+    commutated_op = _make_indexed_operator(commutator(op1.op,op2.op),op1.ind,unique!([op1.merge_events;op2.merge_events]))
+    if isequal(op1.ind, op2.ind)
+        return commutated_op
     else
-        return op1*op2 - op2*op1
+        return (op1.ind == op2.ind) * commutated_op
     end
 end
-commutator(op1::IndexedOperator,var::IndexedVariable) = 0
-commutator(op1::IndexedOperator,b::SNuN) = 0
 function commutator(a::IndexedOperator,b::QAdd)
     args = []
     for b_∈b.arguments
@@ -531,7 +429,6 @@ end
 
 #adjoint
 Base.adjoint(op::IndexedOperator) = IndexedOperator(Base.adjoint(op.op),op.ind)
-Base.adjoint(op::SingleSum) = SingleSum(Base.adjoint(op.term),op.sum_index,op.non_equal_indices)
 
 #Base Functionalities
 #Hashing
@@ -569,49 +466,27 @@ function Base.hash(ind::Index, h::UInt)
 end
 
 #Ordering of indices
-Base.isless(a::IndexedOperator, b::IndexedOperator) = a.op.name < b.op.name
-Base.isless(a::QMul, b::QMul) = isless(a.args_nc, b.args_nc)
-Base.isless(a::IndexedOperator,b::QSym) = a.op.name < b.name
-Base.isless(a::QSym,b::IndexedOperator) = a.name < b.op.name
-Base.isless(nothing,b::Symbol) = true
-Base.isless(b::Symbol,nothing) = false
+# Base.isless(a::IndexedOperator, b::IndexedOperator) = a.op.name < b.op.name
+# Base.isless(a::QMul, b::QMul) = isless(a.args_nc, b.args_nc)
+# Base.isless(a::IndexedOperator,b::QSym) = a.op.name < b.name
+# Base.isless(a::QSym,b::IndexedOperator) = a.name < b.op.name
+# Base.isless(nothing,b::Symbol) = true
+# Base.isless(b::Symbol,nothing) = false
 
-Base.isless(a::Index,b::Index) = a.name < b.name
-Base.isless(a::SingleSum,b::SingleSum) = Base.isless(a.sum_index,b.sum_index)
+# Base.isless(a::Index,b::Index) = a.name < b.name
+# Base.isless(a::SingleSum,b::SingleSum) = Base.isless(a.sum_index,b.sum_index)
 
-Base.isequal(ind1::Index,ind2::Index) = (ind1.name == ind2.name) && isequal(ind1.range,ind2.range) && (ind1.hilb == ind2.hilb) && isequal(ind1.aon,ind2.aon)
+Base.isequal(ind1::Index,ind2::Index) = (ind1.name === ind2.name) && isequal(ind1.range,ind2.range) && (ind1.hilb == ind2.hilb) && isequal(ind1.aon,ind2.aon)
 
 Base.isequal(op1::IndexedOperator,op2::IndexedOperator) = isequal(op1.op,op2.op) && isequal(op1.ind,op2.ind)
-Base.:(==)(ind1::Index,ind2::Index) = isequal(ind1,ind2)
-function Base.isequal(a::SpecialIndexedTerm,b::SpecialIndexedTerm)
-    isequal(a.term, b.term) || return false
-    isequal(length(a.indexMapping),length(b.indexMapping)) || return false
-    for tuple in a.indexMapping
-        if tuple ∉ b.indexMapping && (last(tuple),first(tuple)) ∉ b.indexMapping
-            return false
-        end
-    end
-    return true
-end
-
-function Base.isequal(a::SingleSum, b::SingleSum)
-    if isequal(a.sum_index,b.sum_index)
-        typeof(a.term) == typeof(b.term) || return false
-        isequal(a.term,b.term) || return false
-    elseif isequal(a.sum_index.aon,b.sum_index.aon)
-        typeof(a.term) == typeof(b.term) || return false
-        isequal(a.term,change_index(b.term,b.sum_index,a.sum_index)) || return false
-    end
-    return isequal(a.non_equal_indices,b.non_equal_indices)
-end
 
 #Function that changes the index of a sum term into a different indexed term
 #used for evaluating the extra terms when multiplying a sum with an operator with different index
 #return a new QMul with indices swapped: from -> to index
 """
-    change_index(term,from::Index,to::Index)
+    change_index(term,from::Index,to)
 
-Exchanges all occuring indices inside the given term, that are equal to the `from` to the `to` index.
+Exchanges all occurring indices inside the given term, that are equal to the `from` to the `to` index.
 
 Examples
 ========
@@ -622,249 +497,271 @@ Examples
 
 
 """
-function change_index(term::QMul, from::Index, to::Index)
-    arg_c = change_index(term.arg_c,from,to)
-    args_nc = [change_index(arg,from,to) for arg in copy(term.args_nc)]
-    return arg_c*prod(args_nc)
+function change_index(t, from::Index, to)
+    isequal(from, to) || !TermInterface.iscall(t) && return t
+    return _change_index(t, from, to)
 end
-change_index(term::Average, from::Index,to::Index) = average(change_index(arguments(term)[1],from,to))
-change_index(op::IndexedOperator,from::Index,to::Index) = isequal(op.ind,from) ? IndexedOperator(op.op,to) : op
 
-function change_index(op::BasicSymbolic{IndexedVariable},from::Index,to::Index)
-    if SymbolicUtils.hasmetadata(op,IndexedVariable)
-        meta = SymbolicUtils.metadata(op)[IndexedVariable]
-        return isequal(meta.ind,from) ? IndexedVariable(meta.name,to) : op
+function _change_index(t, from::Index, to)
+    f = SymbolicUtils.operation(t)
+    args = SymbolicUtils.arguments(t)
+    new_args = []
+    for arg in args
+        new_arg = change_index(arg, from, to)
+        new_arg = change_index_metadata(new_arg, from, to)
+        new_arg = update_shape_metadata!(new_arg)
+        push!(new_args, new_arg)
     end
-end
-function change_index(op::BasicSymbolic{DoubleIndexedVariable},from::Index,to::Index)
-    if SymbolicUtils.hasmetadata(op,DoubleIndexedVariable)
-        meta = SymbolicUtils.metadata(op)[DoubleIndexedVariable]
-        if meta.ind1 == from
-            if meta.ind1 == meta.ind2 && meta.identical
-                return DoubleIndexedVariable(meta.name,to,to;identical=meta.identical)
-            elseif meta.ind1 == meta.ind2
-                return 0
-            else
-                return DoubleIndexedVariable(meta.name,to,meta.ind2;identical=meta.identical)
-            end
-        elseif meta.ind2 == from
-            return DoubleIndexedVariable(meta.name,meta.ind1,to;identical=meta.identical)
-        end
-    end
-end
-function change_index(term::BasicSymbolic{<:CNumber},from::Index,to::Index)
-    if iscall(term)
-        op = operation(term)
-        if op === +
-            args = arguments(term)
-            if length(args) == 1
-                return change_index(args[1],from,to)
-            end
-            return op([change_index(arg,from,to) for arg in args]...)
-        end
-        if op === *
-            args = arguments(term)
-            if length(args) == 1
-                return change_index(args[1],from,to)
-            end
-            return op([change_index(arg,from,to) for arg in args]...)
-        end
-        if op === ^
-            args = arguments(term)
-            return change_index(args[1],from,to)^change_index(args[2],from,to)
-        end
-        # issue 198
-        if op === /
-            args = arguments(term)
-            return change_index(args[1],from,to)/change_index(args[2],from,to)
-        end
-        if length(arguments(term)) == 1 # exp, sin, cos, ln, ...
-            return op(change_index(arguments(term)[1],from,to))
-        end
-    end
-    return term
-end
-# issue 196: TODO:test
-function change_index(S::SingleSum, i::Index, j::Index)
-    (j ∈ S.non_equal_indices) && error("Index $(j) is in the non-equal index list.")
-    if S.sum_index == i
-        return SingleSum(change_index(S.term,i,j), j, replace(S.non_equal_indices, i=>j), S.metadata)
-    end
-    return S
-end
-change_index(x,from::Index,to::Index) = x
 
-ismergeable(a::IndexedOperator,b::IndexedOperator) = isequal(a.ind,b.ind) ? ismergeable(a.op,b.op) : false
-
-getIndName(op::IndexedOperator) = op.ind.name
-getIndName(ind::Index) = ind.name
-getIndName(x) = Symbol()
-
-SymbolicUtils.iscall(a::SingleSum) = false
-SymbolicUtils.arguments(a::SingleSum) = SymbolicUtils.arguments(a.term)
-SymbolicUtils.arguments(a::IndexedOperator) = [a]
-
-get_order(::IndexedOperator) = 1
-#It is assumed that the term for which this operation is done already commutes with indices inside the indices-Vector
-function order_by_index(vec::Vector,indices::Vector{Index})
-    vec_ = copy(vec)
-    frontfront = filter(x -> !(typeof(x) == IndexedOperator),vec_)
-    front = filter(x -> typeof(x) == IndexedOperator && x.ind in indices,vec_)
-    back = filter(x -> typeof(x) == IndexedOperator && x.ind ∉ indices,vec_)
-    sort!(front,by=getIndName)
-    return vcat(frontfront,front,back)
-end
-order_by_index(qmul::QMul,inds::Vector{Index}) = qmul.arg_c*prod(order_by_index(qmul.args_nc,inds))
-order_by_index(avrg::Average,inds::Vector{Index}) = order_by_index(arguments(avrg)[1],inds)
-order_by_index(x,inds) = x
-
-#Reorder function: given a tuple vector of indices meaning for each tuple: first ≠ second
-#-> go through the term given and exchange 2 ops when the second has "lower" (i.e. its name is first in the alphabet) index than the first one
-#-> results in a term, ordered by its commutating indices
-"""
-    reorder(param,indexMapping)
-
-Reorders a given term (param) regarding to a given indexMapping, which specifies, which [`Index`](@ref) entities can not be equal
-inside the given term. reorder() creates a [`SpecialIndexedTerm`](@ref) as a result.
-
-Examples
-========
-
-    reorder(σⱼ²¹ * σᵢ²¹,[(i,j)]) = σᵢ²¹ * σⱼ²¹
-
-    reorder(σⱼ²¹ * σᵢ²¹ * σⱼ¹²,[(i,j)]) = σᵢ²¹ * σⱼ²²
-
-"""
-function reorder(param::QMul,indexMapping::Vector{Tuple{Index,Index}})
-    term = copy(param.args_nc)
-    carg = param.arg_c
-    indOps = []
-    others = []
-    for i = 1:length(term) #Split into indexed ops and non indexed ops
-        if term[i] isa IndexedOperator
-            push!(indOps,term[i])
-        else
-            push!(others,term[i])
-        end
-    end
-    if isequal(carg,0) || (0 in term)
+    if length(new_args) == 1 && iszero(new_args[1])
+        # TODO: this check seems pretty unclean
         return 0
     end
-    finish = false
-    while !(finish) #go over all ops ind indexed ops -> order by
-        finish = true
-        for i = 1:(length(indOps)-1)
-            if ((indOps[i].ind,indOps[i+1].ind) in indexMapping || (indOps[i+1].ind,indOps[i].ind) in indexMapping) && (indOps[i+1].ind < indOps[i].ind)
-                temp = indOps[i+1]
-                indOps[i+1] = indOps[i]
-                indOps[i] = temp
-                finish = false
-            end
-        end
-    end
-    args = vcat(others,indOps)
-    qmul = carg*prod(args)
 
-    if qmul isa QMul
-        mapping_ = orderMapping(indexMapping)
-        return SpecialIndexedTerm(qmul,mapping_)
-    else
-        return reorder(qmul,indexMapping)
-    end
+    ex = f(new_args...)
+    ex = change_index_metadata(ex, from, to)
+
+    ex = update_shape_metadata!(ex)  # TODO: this is probably not very efficient
+    return ex
 end
-reorder(sum::SingleSum,indexMapping::Vector{Tuple{Index,Index}}) = SingleSum(reorder(sum.term,indexMapping),sum.sum_index,sum.non_equal_indices)
-reorder(op::SpecialIndexedTerm) = reorder(op.term,op.indexMapping)
-function reorder(term::QAdd,indexMapping::Vector{Tuple{Index,Index}})
-    args = []
-    for arg in arguments(term)
-        push!(args,reorder(arg,indexMapping))
-    end
-    if length(args) == 0
+# TODO: we should be able to just use substitute(x, from, to) here since
+# now all indices are just arguments in the AST
+
+function change_index(t::QMul, from::Index, to)
+    isequal(from, to) && return t
+
+    if has_merged_indices(t, from, to)
         return 0
     end
-    if length(args) == 1
-        return args[1]
-    end
-    return +(args...)
-end
-reorder(x::IndexedOperator,indexMapping::Vector{Tuple{Index,Index}}) = SpecialIndexedTerm(x,indexMapping)
-reorder(x::SpecialIndexedTerm,indexMapping::Vector) = reorder(x.term,indexMapping)
-reorder(x,indMap) = x
 
-function orderMapping(mapping::Vector{Tuple{Index,Index}})
-    mapping_ = Vector{Union{Missing,Tuple{Index,Index}}}(missing,length(mapping))
-    for i = 1:length(mapping)
-        sort_ = sort([first(mapping[i]),last(mapping[i])],by=getIndName)
-        mapping_[i] = (sort_[1],sort_[2])
-    end
-    return mapping_
+    return _change_index(t, from, to)
 end
 
-#Show functions
-function Base.show(io::IO,op::IndexedOperator)
-    op_ = op.op
-    if typeof(op_) <:Transition
-        write(io,Symbol(op_.name,op_.i,op_.j,op.ind.name))
-    elseif op_ isa Destroy
-        write(io,Symbol(op_.name,op.ind.name))
-    elseif op_ isa Create
-        write(io,Symbol(op_.name,op.ind.name,"'"))
+function change_index(a::IndexedOperator, from::Index, to)
+    if !isequal(a.ind, from)
+        return a
+    end
+
+    return IndexedOperator(a.op, to, copy(a.merge_events))
+end
+
+function change_index(v::IndexedVariable, from::Index, to)
+    if !isequal(v.ind, from)
+        return v
+    end
+    return IndexedVariable(v.name, to)
+end
+
+function change_index(v::DoubleIndexedVariable, from::Index, to)
+    if isequal(v.ind1, from) && isequal(v.ind2, from)
+        return DoubleIndexedVariable(v.name, to, to; identical=v.identical)
+    elseif isequal(v.ind1, from)
+        return DoubleIndexedVariable(v.name, to, v.ind2; identical=v.identical)
+    elseif isequal(v.ind2, from)
+        return DoubleIndexedVariable(v.name, v.ind1, to; identical=v.identical)
+    end
+    return v
+end
+
+change_index_metadata(ex::QNumber, from::Index, to) = ex
+function change_index_metadata(ex, from::Index, to)
+    ex = _change_index_metadata(ex, from, to)
+
+    if !TermInterface.iscall(ex)
+        return ex
+    end
+
+    f = SymbolicUtils.operation(ex)
+    new_args = []
+    for arg in SymbolicUtils.arguments(ex)
+        push!(new_args, change_index_metadata(arg, from, to))
+    end
+
+    return f(new_args...)
+end
+
+_change_index_metadata(ex::Number, from::Index, to) = ex
+function _change_index_metadata(ex, from::Index, to)
+    if !SymbolicUtils.hasmetadata(ex, MTK.VariableSource)
+        return ex
+    end
+
+    src_meta = SymbolicUtils.getmetadata(ex, MTK.VariableSource)
+    if src_meta[1] !== :ArrayParameter
+        return ex
+    end
+
+    indices = src_meta[3]
+    new_indices = Tuple(change_index(i, from, to) for i in indices)
+    new_metadata = (src_meta[1], src_meta[2], new_indices)
+    ex = SymbolicUtils.setmetadata(ex, MTK.VariableSource, new_metadata)
+    return ex
+end
+
+
+# function change_index(p::IndexedParameter, from::Index, to)
+#     p_ = deepcopy(p)
+#     for i=1:length(p.indices)
+#         if isequal(p_.indices[i], from)
+#             p_.indices[i] = to
+#         end
+#     end
+#     return p_
+# end
+
+
+function change_index(args::Vector, from::Index, to)
+    isequal(from, to) && return args
+
+    return [change_index(arg, from, to) for arg in args]
+end
+
+function change_index(i::Index, from::Index, to)
+    if isequal(i, from)
+        return to
     else
-        write(io,op_.name)
+        return i
     end
 end
-function Base.show(io::IO,indSum::SingleSum)
-    write(io, "Σ", "($(indSum.sum_index.name)", "=1:$(indSum.sum_index.range))",)
-    if !(isempty(indSum.non_equal_indices))
-        write(io,"($(indSum.sum_index.name)≠")
-        for i = 1:length(indSum.non_equal_indices)
-            write(io, "$(indSum.non_equal_indices[i].name)")
-            if i == length(indSum.non_equal_indices)
-                write(io,")")
-            else
-                write(io,",")
+
+has_merged_indices(t, from, to) = false
+function has_merged_indices(t::QMul, from, to)
+    for i=1:length(t.args_nc)
+        arg1 = t.args_nc[i]
+        for j=i+1:length(t.args_nc)
+            arg2 = t.args_nc[j]
+            if (has_index(arg1, from) && has_index(arg2, to)) || (has_index(arg1, to) && has_index(arg2, from))
+                was_merged(arg1, arg2) && return true
             end
         end
     end
-    Base.show(io,indSum.term)
+
+    return false
 end
-function Base.show(io::IO,op::SpecialIndexedTerm)
-    if !isempty(op.indexMapping)
-        Base.write(io,"(")
-    end
-    for i = 1:length(op.indexMapping)
-        Base.write(io,first(op.indexMapping[i]).name)
-        Base.write(io,"≠")
-        Base.write(io,last(op.indexMapping[i]).name)
-        if i != length(op.indexMapping)
-            Base.write(io,";")
-        else
-            Base.write(io,")")
+
+
+_get_index_inequality(t) = 1
+_get_index_inequality(t::Average) = _get_index_inequality(undo_average(t))
+function _get_index_inequality(t::QMul)
+    inds = get_indices(t)
+    length(inds) < 2 && return 1
+
+    inequality = 1
+    inds_vec = [inds...]
+    for i=1:length(inds_vec)
+        for j=i+1:length(inds_vec)
+            index1 = inds_vec[i]
+            index2 = inds_vec[j]
+            if has_merged_indices(t, index1, index2)
+                inequality *= (index1 != index2)
+            end
         end
     end
-    Base.show(io,op.term)
+    return inequality
 end
-#Functions for easier symbol creation in Constructor
-function writeNEIs(neis::Vector{IndexInt})
-    syms = ""
-    for i = 1:length(neis)
-        syms = typeof(neis[i]) == Index ? join([syms,neis[i].name]) : join([syms,neis[i]])
-        if i != length(neis)
-            syms = join([syms,","])
-        end
-    end
-    return syms
-end
-function writeNEIs(neis::Vector{Index})
-    syms = ""
-    for i = 1:length(neis)
-        syms = join([syms,neis[i].name])
-        if i != length(neis)
-            syms = join([syms,","])
-        end
-    end
-    return syms
-end
+
+
+# getIndName(op::IndexedOperator) = op.ind.name
+# getIndName(ind::Index) = ind.name
+# getIndName(x) = Symbol()
+
+# # SymbolicUtils.iscall(a::SingleSum) = false
+# # SymbolicUtils.arguments(a::SingleSum) = SymbolicUtils.arguments(a.term)
+# # SymbolicUtils.arguments(a::IndexedOperator) = [a]
+
+# get_order(::IndexedOperator) = 1
+# #It is assumed that the term for which this operation is done already commutes with indices inside the indices-Vector
+# function order_by_index(vec::Vector,indices::Vector{Index})
+#     vec_ = copy(vec)
+#     frontfront = filter(x -> !(typeof(x) == IndexedOperator),vec_)
+#     front = filter(x -> typeof(x) == IndexedOperator && x.ind in indices,vec_)
+#     back = filter(x -> typeof(x) == IndexedOperator && x.ind ∉ indices,vec_)
+#     sort!(front,by=getIndName)
+#     return vcat(frontfront,front,back)
+# end
+# order_by_index(qmul::QMul,inds::Vector{Index}) = qmul.arg_c*prod(order_by_index(qmul.args_nc,inds))
+# order_by_index(avrg::Average,inds::Vector{Index}) = order_by_index(arguments(avrg)[1],inds)
+# order_by_index(x,inds) = x
+
+# #Reorder function: given a tuple vector of indices meaning for each tuple: first ≠ second
+# #-> go through the term given and exchange 2 ops when the second has "lower" (i.e. its name is first in the alphabet) index than the first one
+# #-> results in a term, ordered by its commutating indices
+# """
+#     reorder(param,indexMapping)
+
+# Reorders a given term (param) regarding to a given indexMapping, which specifies, which [`Index`](@ref) entities can not be equal
+# inside the given term. reorder() creates a [`SpecialIndexedTerm`](@ref) as a result.
+
+# Examples
+# ========
+
+#     reorder(σⱼ²¹ * σᵢ²¹,[(i,j)]) = σᵢ²¹ * σⱼ²¹
+
+#     reorder(σⱼ²¹ * σᵢ²¹ * σⱼ¹²,[(i,j)]) = σᵢ²¹ * σⱼ²²
+
+# """
+# function reorder(param::QMul,indexMapping::Vector{Tuple{Index,Index}})
+#     term = copy(param.args_nc)
+#     carg = param.arg_c
+#     indOps = []
+#     others = []
+#     for i = 1:length(term) #Split into indexed ops and non indexed ops
+#         if term[i] isa IndexedOperator
+#             push!(indOps,term[i])
+#         else
+#             push!(others,term[i])
+#         end
+#     end
+#     if isequal(carg,0) || (0 in term)
+#         return 0
+#     end
+#     finish = false
+#     while !(finish) #go over all ops ind indexed ops -> order by
+#         finish = true
+#         for i = 1:(length(indOps)-1)
+#             if ((indOps[i].ind,indOps[i+1].ind) in indexMapping || (indOps[i+1].ind,indOps[i].ind) in indexMapping) && (indOps[i+1].ind < indOps[i].ind)
+#                 temp = indOps[i+1]
+#                 indOps[i+1] = indOps[i]
+#                 indOps[i] = temp
+#                 finish = false
+#             end
+#         end
+#     end
+#     args = vcat(others,indOps)
+#     qmul = carg*prod(args)
+
+#     if qmul isa QMul
+#         mapping_ = orderMapping(indexMapping)
+#         return SpecialIndexedTerm(qmul,mapping_)
+#     else
+#         return reorder(qmul,indexMapping)
+#     end
+# end
+# # reorder(sum::SingleSum,indexMapping::Vector{Tuple{Index,Index}}) = SingleSum(reorder(sum.term,indexMapping),sum.sum_index,sum.non_equal_indices)
+# function reorder(term::QAdd,indexMapping::Vector{Tuple{Index,Index}})
+#     args = []
+#     for arg in arguments(term)
+#         push!(args,reorder(arg,indexMapping))
+#     end
+#     if length(args) == 0
+#         return 0
+#     end
+#     if length(args) == 1
+#         return args[1]
+#     end
+#     return +(args...)
+# end
+# reorder(x::IndexedOperator,indexMapping::Vector{Tuple{Index,Index}}) = SpecialIndexedTerm(x,indexMapping)
+# reorder(x,indMap) = x
+
+# function orderMapping(mapping::Vector{Tuple{Index,Index}})
+#     mapping_ = Vector{Union{Missing,Tuple{Index,Index}}}(missing,length(mapping))
+#     for i = 1:length(mapping)
+#         sort_ = sort([first(mapping[i]),last(mapping[i])],by=getIndName)
+#         mapping_[i] = (sort_[1],sort_[2])
+#     end
+#     return mapping_
+# end
 
 _to_expression(ind::Index) = ind.name
 function _to_expression(x::IndexedOperator)
@@ -872,7 +769,7 @@ function _to_expression(x::IndexedOperator)
     x.op isa Destroy && return :(IndexedDestroy($(x.op.name),$(x.ind.name)))
     x.op isa Create && return :(dagger(IndexedDestroy($(x.op.name),$(x.ind.name))))
 end
-_to_expression(s::SingleSum) = :( SingleSum($(_to_expression(s.term)),$(s.sum_index.name),$(s.sum_index.range),$(writeNEIs(s.non_equal_indices))))
+# _to_expression(s::SingleSum) = :( SingleSum($(_to_expression(s.term)),$(s.sum_index.name),$(s.sum_index.range),$(writeNEIs(s.non_equal_indices))))
 _to_expression(a::IndexedVariable) = :(IndexedVariable($(a.name),$(a.ind.name)))
 _to_expression(a::DoubleIndexedVariable) = :(DoubleIndexedVariable($(a.name),$(a.ind1.name),$(a.ind2.name)))
 function _to_expression(a::BasicSymbolic{IndexedVariable})
@@ -888,20 +785,40 @@ function _to_expression(a::BasicSymbolic{DoubleIndexedVariable})
     end
 end
 
-@latexrecipe function f(s::SingleSum)
-    neis = writeNEIs(s.non_equal_indices)
+# @latexrecipe function f(s::SingleSum)
+#     neis = writeNEIs(s.non_equal_indices)
 
-    ex = latexify(s.term)
-    sumString = nothing
-    if neis != ""
-        sumString = L"$\underset{%$(s.sum_index.name) ≠%$(neis) }{\overset{%$(s.sum_index.range)}{\sum}}$ %$(ex)"
-    else
-        sumString = L"$\underset{%$(s.sum_index.name)}{\overset{%$(s.sum_index.range)}{\sum}}$ %$(ex)"
-    end
-    return sumString
-end
-SymbolicUtils._iszero(x::SpecialIndexedTerm) = SymbolicUtils._iszero(x.term)
+#     ex = latexify(s.term)
+#     sumString = nothing
+#     if neis != ""
+#         sumString = L"$\underset{%$(s.sum_index.name) ≠%$(neis) }{\overset{%$(s.sum_index.range)}{\sum}}$ %$(ex)"
+#     else
+#         sumString = L"$\underset{%$(s.sum_index.name)}{\overset{%$(s.sum_index.range)}{\sum}}$ %$(ex)"
+#     end
+#     return sumString
+# end
 get_range(i::Index) = i.range
 get_aon(i::Index) = i.aon
 
 -(a::BasicSymbolic{IndexedVariable}) = -1*a
+
+
+
+has_any_indices(args...) = has_any_indices([args...])
+function has_any_indices(args::Vector)
+    for arg in args
+        has_any_indices(arg) && return true
+    end
+    return false
+end
+
+function has_any_indices(t)
+    if !TermInterface.iscall(t)
+        return false
+    end
+
+    return has_any_indices(SymbolicUtils.arguments(t))
+end
+
+has_any_indices(::IndexedOperator) = true
+has_any_indices(::Index) = true

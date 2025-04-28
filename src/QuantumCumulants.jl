@@ -2,6 +2,7 @@ module QuantumCumulants
 
 import SymbolicUtils
 import SymbolicUtils: substitute, BasicSymbolic
+using SymbolicUtils: @rule
 
 import Symbolics
 import TermInterface
@@ -14,6 +15,8 @@ const MTK = ModelingToolkit
 
 using Combinatorics: partitions, combinations, levicivita
 using LinearAlgebra
+
+using UUIDs
 
 using QuantumOpticsBase
 import QuantumOpticsBase: ⊗, tensor
@@ -33,13 +36,14 @@ export HilbertSpace, ProductSpace, ⊗, tensor,
         ClusterSpace,
         scale,
         transition_superscript,
-        Index, reorder, IndexedOperator, SingleSum, IndexedVariable, DoubleIndexedVariable,
-        DoubleSum, indexed_complete, IndexedCorrelationFunction, scale_term,
-        scaleME, evalME, indexed_complete!, indexed_meanfield, subst_reds, AvgSums, plotME,
-        IndexedAverageSum, IndexedAverageDoubleSum, SpecialIndexedTerm, find_missing_sums, Σ, ∑,
-        evaluate, value_map, NumberedOperator, change_index, order_by_index, split_sums, insert_index, eval_term,
-        MeanfieldNoiseEquations, 
-        IndexedMeanfieldNoiseEquations#, indexed_arithmetic, indexed_noise, simplified_indexed_complete!
+        Index, reorder, IndexedOperator, IndexedVariable, DoubleIndexedVariable, IndexedParameter,
+        Sum, Σ, ∑, change_index, has_index, evaluate,
+        # DoubleSum, indexed_complete, IndexedCorrelationFunction, scale_term,
+        # scaleME, evalME, indexed_complete!, indexed_meanfield, subst_reds, AvgSums, plotME,
+        # IndexedAverageSum, IndexedAverageDoubleSum, SpecialIndexedTerm, find_missing_sums, Σ, ∑,
+        # evaluate, value_map, NumberedOperator, change_index, order_by_index, split_sums, insert_index, eval_term,
+        MeanfieldNoiseEquations
+        # IndexedMeanfieldNoiseEquations#, indexed_arithmetic, indexed_noise, simplified_indexed_complete!
 
 
 const NO_METADATA = SymbolicUtils.NO_METADATA
@@ -64,14 +68,16 @@ include("scale.jl")
 include("measurement_backaction.jl")
 include("measurement_backaction_indices.jl")
 include("latexify_recipes.jl")
-include("printing.jl")
 include("indexing.jl")
-include("index_double_sums.jl")
-include("index_average.jl")
-include("index_meanfield.jl")
-include("index_scale.jl")
-include("index_correlation.jl")
-include("index_utils.jl")
+include("indexing_sums.jl")
+include("indexing_utils.jl")
+include("printing.jl")
+# include("index_double_sums.jl")
+# include("index_average.jl")
+# include("index_meanfield.jl")
+# include("index_scale.jl")
+# include("index_correlation.jl")
+# include("index_utils.jl")
 
 
 @deprecate heisenberg(args...; kwargs...) meanfield(args...; kwargs...)

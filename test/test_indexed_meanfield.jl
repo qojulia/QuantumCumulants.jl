@@ -4,10 +4,342 @@ using ModelingToolkit
 using OrdinaryDiffEq
 using Test
 using Random
-using SteadyStateDiffEq
+using TermInterface
 const qc = QuantumCumulants
 
-@testset "indexed_meanfield" begin
+
+# @testset "indexed_many_atom_laser" begin
+    using QuantumCumulants
+using OrdinaryDiffEq, ModelingToolkit
+
+
+# Hilbertspace
+hc = FockSpace(:cavity)
+ha = NLevelSpace(:atom,2)
+h = hc ⊗ ha
+
+# operators
+@qnumbers a::Destroy(h)
+σ(α,β,i) = IndexedOperator(Transition(h, :σ, α, β),i)
+
+
+@cnumbers N Δ κ Γ R ν
+g(i) = IndexedVariable(:g, i)
+
+i = Index(h,:i,N,ha)
+j = Index(h,:j,N,ha)
+k = Index(h,:k,N,ha)
+
+# test index invariant hashing
+@test qc.index_invariant_hash(i) == qc.index_invariant_hash(j) == qc.index_invariant_hash(k)
+@test qc.index_invariant_hash(g(i)) == qc.index_invariant_hash(g(j)) == qc.index_invariant_hash(g(k))
+@test qc.index_invariant_hash(g(i)) != qc.index_invariant_hash(σ(1,2,i))
+
+@test qc.index_invariant_hash(σ(1,2,i)) == qc.index_invariant_hash(σ(1,2,j))
+@test qc.index_invariant_hash(σ(1,2,i) * σ(1,2,j)) == qc.index_invariant_hash(σ(1,2,k) * σ(1,2,i))
+
+@test qc.index_invariant_hash(σ(1,2,i) * σ(1,2,j)) != qc.index_invariant_hash(σ(1,2,i) + σ(1,2,j))
+@test qc.index_invariant_hash(σ(1,2,i) * σ(1,2,j)) != qc.index_invariant_hash(σ(1,2,i) * σ(1,2,i))
+@test qc.index_invariant_hash(σ(1,2,i) * σ(1,2,j)) != qc.index_invariant_hash(σ(1,2,i) * σ(2,1,j))
+
+# with averages
+@test qc.index_invariant_hash(average(σ(1,2,i))) == qc.index_invariant_hash(average(σ(1,2,j)))
+@test qc.index_invariant_hash(average(σ(1,2,i) * σ(1,2,j))) == qc.index_invariant_hash(average(σ(1,2,k) * σ(1,2,i)))
+
+@test qc.index_invariant_hash(average(σ(1,2,i) * σ(1,2,j))) != qc.index_invariant_hash(average(σ(1,2,i) + σ(1,2,j)))
+@test qc.index_invariant_hash(average(σ(1,2,i) * σ(1,2,j))) != qc.index_invariant_hash(average(σ(1,2,i) * σ(1,2,i)))
+@test qc.index_invariant_hash(average(σ(1,2,i) * σ(1,2,j))) != qc.index_invariant_hash(average(σ(1,2,i) * σ(2,1,j)))
+
+@test qc.index_invariant_hash(a) != qc.index_invariant_hash(a')
+@test qc.index_invariant_hash(average(a')) == qc.index_invariant_hash(qc._conj(average(a)))
+
+@test qc.index_invariant_hash(a'*σ(1,2,i)) == qc.index_invariant_hash(a'*σ(1,2,j))
+
+ex1 = qc.@index_not_equal σ(1,2,i) * σ(2,1,j)
+ex2 = qc.@index_not_equal σ(2,1,i) * σ(1,2,j)
+@test qc.index_invariant_hash(ex1) == qc.index_invariant_hash(ex2)
+
+ex1 = qc.@index_not_equal σ(1,2,i) * σ(2,1,j)
+ex2 = qc.@index_not_equal σ(1,2,j) * σ(2,1,i)
+@test qc.index_invariant_hash(ex1) == qc.index_invariant_hash(ex2)
+
+ex1 = average(a'*σ(1,2,i))
+ex2 = average(a*σ(2,1,i))
+
+@test qc.index_invariant_hash(ex1) != qc.index_invariant_hash(ex2)
+@test qc.index_invariant_hash(ex1) == qc.index_invariant_hash(qc._conj(ex2))
+
+
+@test iszero(SymbolicUtils.simplify((i == j) * (i != j); rewriter=qc.qc_simplifier))
+@test iszero(SymbolicUtils.simplify(2a*(i == j) * (i != j); rewriter=qc.qc_simplifier))
+@test iszero(SymbolicUtils.simplify(2σ(1,2,i)*(i == j) * (i != j); rewriter=qc.qc_simplifier))
+
+@test isequal(2, SymbolicUtils.simplify(2 + (i == j) * (i != j); rewriter=qc.qc_simplifier))
+@test isequal(a, SymbolicUtils.simplify(a + 2σ(1,2,i)*(i == j) * (i != j); rewriter=qc.qc_simplifier))
+
+i_with_range = Index(i.hilb, i.name, 10, i.aon)
+g10 = g(i_with_range)
+@test SymbolicUtils.hasmetadata(g10.arguments[1], Symbolics.ArrayShapeCtx)
+
+g10 = qc.change_index(g(j), j, i_with_range)
+@test SymbolicUtils.hasmetadata(g10.arguments[1], Symbolics.ArrayShapeCtx)
+
+avg = average(σ(1,2,2) * σ(1,2,1))
+qc.sort_by_integer_indices!(avg)
+@test isequal(avg, average(σ(1,2,1) * σ(1,2,2)))
+
+avg = average(a*σ(1,2,2) * σ(1,2,1))
+qc.sort_by_integer_indices!(avg)
+@test isequal(avg, average(a*σ(1,2,1) * σ(1,2,2)))
+
+
+avg = average(a*σ(1,2,2) * σ(1,2,1) * σ(1,2,3))
+qc.sort_by_integer_indices!(avg)
+q = qc.undo_average(avg)
+for i=2:length(q.args_nc)
+    @test q.args_nc[i].ind == i - 1
+end
+
+avg = 2 + R*average(σ(1,2,2) * σ(1,2,1))
+qc.sort_by_integer_indices!(avg)
+avg
+
+op = σ(2,1,1) * σ(2,1,2)
+@test isequal(op', σ(1,2,1) * σ(1,2,2))
+
+avg = average(op)
+@test isequal(qc._conj(avg), average(σ(1,2,1) * σ(1,2,2)))
+
+op = σ(1,2,i) * σ(1,2,j)
+@test iszero(change_index(change_index(op, i, 1), j, 1))
+
+avg = average(op)
+@test iszero(change_index(change_index(avg, i, 1), j, 1))
+
+op = a*σ(1,2,i) * σ(1,2,j)
+@test iszero(change_index(change_index(op, i, 1), j, 1))
+
+avg = average(op)
+@test iszero(change_index(change_index(avg, i, 1), j, 1))
+
+op = 2*a*σ(1,2,i) * σ(1,2,j)
+@test iszero(change_index(change_index(op, i, 1), j, 1))
+
+avg = average(op)
+@test iszero(change_index(change_index(avg, i, 1), j, 1))
+
+
+op = 2*g(i)*a*σ(1,2,i) * σ(1,2,j)
+@test iszero(change_index(change_index(op, i, 1), j, 1))
+
+avg = average(op)
+@test iszero(change_index(change_index(avg, i, 1), j, 1))
+
+op = g(i)*op + op
+@test iszero(change_index(change_index(op, i, 1), j, 1))
+avg = average(op)
+@test iszero(change_index(change_index(avg, i, 1), j, 1))
+
+op = σ(2,2,i) * σ(2,2,k)
+@test isequal(σ(2,2,1), change_index(change_index(op, i, 1), k, 1))
+
+op = qc.@index_not_equal σ(2,2,i) * σ(2,2,k)
+@test isequal(0, change_index(change_index(op, i, 1), k, 1))
+
+op = qc.@index_not_equal σ(2,1,i) * σ(1,2,j)
+@test iszero(change_index(op, i, j))
+
+function has_sym(t, N)
+    if !TermInterface.iscall(t)
+        return isequal(t, N)
+    end
+
+    for arg in SymbolicUtils.arguments(t)
+        has_sym(arg, N) && return true
+    end
+
+    return false
+end
+
+op = σ(2,1,k) * σ(1,2,j)
+ex = (i == j) * op
+s = Sum(ex, i)
+@test !has_sym(s, N)
+
+# Hamiltonian
+H = -Δ*a'a + Σ(g(i)*( a'*σ(1,2,i) + a*σ(2,1,i) ),i)
+
+# Jump operators with corresponding rates
+J = [a, σ(1,2,i), σ(2,1,i)]#, σ(2,2,i)]
+rates = [κ, Γ, R]#, ν]
+
+
+op = qc.@index_not_equal σ(2,1,j) * σ(1,2,k)
+eqs1 = meanfield([op], a'*a, [σ(2,1,i)]; order=2)
+m = find_missing(eqs1)
+m_filtered = filter(phase_invariant, m)
+
+# Derive equations
+ops = [a'*a, σ(2,2,j)]
+eqs = meanfield(ops,H,J;rates=rates,order=2)
+
+m = find_missing(eqs; get_adjoints=false)
+missing_hashes = Set(map(qc.index_invariant_hash, m))
+@test length(missing_hashes) == length(m)
+
+avg_hashes = Set(map(qc.index_invariant_hash, eqs.states))
+@test isdisjoint(missing_hashes, avg_hashes)
+
+# custom filter function
+φ(x::Average) = φ(x.arguments[1])
+φ(::Destroy) = -1
+φ(::Create) =1
+φ(x::QTerm) = sum(map(φ, x.args_nc))
+φ(x::Transition) = x.i - x.j
+φ(x::IndexedOperator) = x.op.i - x.op.j
+φ(x::Sum) = φ(x.term)
+phase_invariant(x) = iszero(φ(x))
+
+m_filtered = filter(phase_invariant, m)
+
+@test length(m_filtered) == 1
+
+ex = qc.@index_not_equal σ(2,1,i) * σ(1,2,j)
+ex2 = qc.change_index(ex, i, k)
+@test ex2 isa qc.QMul
+
+avg = average(ex)
+avg2 = qc.change_index(avg, i, k)
+
+
+# Complete equations
+eqs_c = complete(eqs; filter_func=phase_invariant)
+@test isempty(qc.find_missing_and_switch_indices(eqs_c; filter_func=phase_invariant))
+@test isempty(find_missing(eqs_c))
+
+@test length(eqs_c) == 4
+
+function has_nested_sum(t)
+    if !TermInterface.iscall(t)
+        return false
+    end
+
+    for arg in SymbolicUtils.arguments(t)
+        has_nested_sum(arg) && return true
+    end
+
+    return false
+end
+function has_nested_sum(t::SymbolicUtils.Symbolic{<:qc.CSumSym})
+    for arg in SymbolicUtils.arguments(t)
+        has_sum(arg) && return true
+    end
+    return false
+end
+
+function has_sum(t)
+    if !TermInterface.iscall(t)
+        return false
+    end
+
+    for arg in SymbolicUtils.arguments(t)
+        has_sum(arg) && return true
+    end
+
+    return false
+end
+has_sum(t::SymbolicUtils.Symbolic{<:qc.CSumSym}) = true
+
+@test has_sum(average(H))
+@test !has_nested_sum(average(H))
+
+@test has_nested_sum(average(Sum(g(j)*H, j)))
+@test !has_nested_sum(average(Sum(H, j)))
+
+function has_nested_sum(de::qc.MeanfieldEquations)
+    for eq in de.equations
+        has_nested_sum(eq.rhs) && return true
+    end
+    return false
+end
+
+@test !has_nested_sum(eqs_c)
+
+N0 = 2
+eqs_eval = evaluate(eqs_c; limits=Dict(N => N0))
+
+@test length(eqs_eval.states) == length(eqs_eval.varmap) == length(eqs_eval.equations) == 6
+
+@named sys = ODESystem(eqs_eval)
+
+u0 = zeros(ComplexF64, length(eqs_eval))
+g_ = g(i).arguments[1]  # TODO: this is awkward; need a clean way to define the Array that is g without any indices
+ps = [
+    Δ => 0.0;
+    g_ => [0.5 for i=1:N0];
+    κ => 1.0;
+    Γ => 0.1;
+    R => 0.9;
+    ν => 0.0;
+    N => N0;
+]
+
+prob = ODEProblem(sys, u0, (0.0, 10.0), ps)
+sol = solve(prob, Tsit5())
+
+using PyPlot; pygui(true)
+plot(sol.t, sol[a'*a])
+
+
+ops = qc.@index_not_equal [σ(1,2,j) * σ(2,1,k)]
+tmp = meanfield(ops, H, J; rates=rates)
+
+function brute_force(N0)
+    hc = FockSpace(:cavity)
+    ha = [NLevelSpace(Symbol(:atom, i),2) for i=1:N0]
+    h = hc ⊗ ⊗(ha...)
+
+    @qnumbers a::Destroy(h)
+    σ(α,β,i) = Transition(h, Symbol(:σ, i), α, β, i+1)
+
+    @cnumbers Δ κ Γ R ν g0
+
+    H = -Δ*a'a + sum(g0*( a'*σ(1,2,i) + a*σ(2,1,i) ) for i=1:N0)
+
+    # Jump operators with corresponding rates
+    J = [a; [σ(1,2,i) for i=1:N0]; [σ(2,1,i) for i=1:N0]]#, σ(2,2,i)]
+    rates = [κ; [Γ for i=1:N0]; [R for i=1:N0];]#, ν]
+
+    # Derive equations
+    ops = [a'*a, σ(2,2,1)]
+    eqs = meanfield(ops,H,J;rates=rates,order=2)
+    eqs_c = complete(eqs; filter_func=phase_invariant)
+
+    @named sys = ODESystem(eqs_c)
+
+    ps = [
+        Δ => 0.0;
+        g0 => 0.5;
+        κ => 1.0;
+        Γ => 0.1;
+        R => 0.9;
+        ν => 0.0;
+    ]
+
+    u0 = zeros(ComplexF64, length(eqs_c))
+    prob = ODEProblem(sys, u0, (0.0, 10.0), ps)
+    return solve(prob, Tsit5())
+end
+
+sol_brute_force = brute_force(N0)
+plot(sol_brute_force.t, sol_brute_force[a'*a])
+
+@test abs(sol_brute_force[a'*a][end] - sol[a'*a][end]) < 1e-14
+
+
+# end
+
+# @testset "indexed_meanfield" begin
 
 order = 2
 @cnumbers Δc η Δa κ
@@ -27,15 +359,19 @@ g(k) = IndexedVariable(:g,k)
 Γ_ij = DoubleIndexedVariable(:Γ,i_ind,j_ind)
 Ω_ij = DoubleIndexedVariable(:Ω,i_ind,j_ind;identical=false)
 
+@test qc.get_indices(Γ_ij) == Set([i_ind, j_ind])
+# Hamiltonian
+
 @qnumbers a::Destroy(h)
 σ(i,j,k) = IndexedOperator(Transition(h,:σ,i,j),k)
 
-# Hamiltonian
+ex = Ω_ij*σ(2,1,i_ind)*σ(1,2,j_ind)
+@test has_index(ex, i_ind)
+@test has_index(ex, j_ind)
+DSum = Σ(Ω_ij*σ(2,1,i_ind)*σ(1,2,j_ind),j_ind,i_ind)
 
-DSum = Σ(Ω_ij*σ(2,1,i_ind)*σ(1,2,j_ind),j_ind,i_ind;non_equal=true)
-
-@test DSum isa DoubleSum
-@test isequal(Σ(Σ(Ω_ij*σ(2,1,i_ind)*σ(1,2,j_ind),i_ind,[j_ind]),j_ind),DSum)
+@test DSum isa qc.QAdd
+# @test isequal(Σ(Σ(Ω_ij*σ(2,1,i_ind)*σ(1,2,j_ind),i_ind,[j_ind]),j_ind),DSum)
 
 Hc = Δc*a'a + η*(a' + a)
 Ha = Δa*Σ(σ(2,2,i_ind),i_ind) + DSum
@@ -49,14 +385,18 @@ J_2 = [a, σ(1,2,i_ind) ]
 rates_2 = [κ,Γ_ij]
 
 ops = [a, σ(2,2,k_ind), σ(1,2,k_ind)]
+
+@test qc.has_any_indices(J, J)
+
 eqs = meanfield(ops,H,J;rates=rates,order=order)
 
-eqs_2 = meanfield(ops,H,J_2;rates=rates_2,order=order)
+tmp = eqs[1].rhs.arguments[2]
 
-@test eqs.equations == eqs_2.equations
+# eqs_2 = meanfield(ops,H,J_2;rates=rates_2,order=order)
 
-@test isequal([i_ind,j_ind,k_ind],sort(qc.get_indices_equations(eqs)))
-@test isequal([:i,:j,:k],sort(qc.getIndName.(qc.get_indices_equations(eqs))))
+# @test eqs.equations == eqs_2.equations
+
+@test isequal(Set([i_ind,j_ind,k_ind]),qc.get_indices(eqs))
 
 @test length(eqs) == 3
 
@@ -355,4 +695,4 @@ eqs_i_ev2 = evaluate(eqs_i_c2;limits=(N=>3))
 @test_throws MethodError complete(eqs_i;order=1)
 @test_throws MethodError complete(eqs_os;order=1)
 
-end
+# end

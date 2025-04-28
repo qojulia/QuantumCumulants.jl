@@ -20,7 +20,7 @@ equivalent to the Quantum-Langevin equation where noise is neglected.
     ``\\sum_i J_i^\\dagger O J_i - \\frac{1}{2}\\left(J_i^\\dagger J_i O + OJ_i^\\dagger J_i\\right)``
     is added to the Heisenberg equation.
 
-# Optional argumentes
+# Optional arguments
 *`Jdagger::Vector=adjoint.(J)`: Vector containing the hermitian conjugates of
     the collapse operators.
 *`rates=ones(length(J))`: Decay rates corresponding to the collapse operators in `J`.
@@ -33,19 +33,9 @@ equivalent to the Quantum-Langevin equation where noise is neglected.
     which `order` to prefer on terms that act on multiple Hilbert spaces.
 *`iv=ModelingToolkit.t`: The independent variable (time parameter) of the system.
 """
-function meanfield(a::Vector,H,J;kwargs...)
-    inds = vcat(get_indices(a),get_indices(H),get_indices(J))
-    if isempty(inds)
-        if :efficiencies in keys(kwargs) return _meanfield_backaction(a,H,J;kwargs...) end
-        return _meanfield(a,H,J;kwargs...)
-    else
-        if :efficiencies in keys(kwargs) return indexed_meanfield_backaction(a,H,J;kwargs...) end
-        return indexed_meanfield(a,H,J;kwargs...)
-    end
-end
 meanfield(a::QNumber,args...;kwargs...) = meanfield([a],args...;kwargs...)
 meanfield(a::Vector,H;kwargs...) = meanfield(a,H,[];Jdagger=[],kwargs...)
-function _meanfield(a::Vector,H,J;Jdagger::Vector=adjoint.(J),rates=ones(Int,length(J)),
+function meanfield(a::Vector,H,J;Jdagger::Vector=recursive_adjoint(J),rates=ones(Int,length(J)),
                     multithread=false,
                     simplify=true,
                     order=nothing,
@@ -53,10 +43,21 @@ function _meanfield(a::Vector,H,J;Jdagger::Vector=adjoint.(J),rates=ones(Int,len
                     iv=MTK.t_nounits
                     )
 
+
+    # TODO: backaction stuff
+
+    check_indices(a, H, J, Jdagger, rates)
+                    
     if rates isa Matrix
         J = [J]; Jdagger = [Jdagger]; rates = [rates]
     end
-    J_, Jdagger_, rates_ = _expand_clusters(J,Jdagger,rates)
+
+    if !has_any_indices(J, Jdagger, rates)
+        J_, Jdagger_, rates_ = _expand_clusters(J,Jdagger,rates)
+    else
+        J_, Jdagger_, rates_ = J, Jdagger, rates
+    end
+    
     # Derive operator equations
     rhs = Vector{Any}(undef, length(a))
     imH = im*H
@@ -64,13 +65,15 @@ function _meanfield(a::Vector,H,J;Jdagger::Vector=adjoint.(J),rates=ones(Int,len
         Threads.@threads for i=1:length(a)
             rhs_ = commutator(imH,a[i])
             rhs_diss = _master_lindblad(a[i],J_,Jdagger_,rates_)
-            rhs[i] = rhs_ + rhs_diss
+            index_inequality = _get_index_inequality(a[i])
+            rhs[i] = index_inequality * rhs_ + index_inequality * rhs_diss
         end
     else
         for i=1:length(a)
             rhs_ = commutator(imH,a[i])
             rhs_diss = _master_lindblad(a[i],J_,Jdagger_,rates_)
-            rhs[i] = rhs_ + rhs_diss
+            index_inequality = _get_index_inequality(a[i])
+            rhs[i] = index_inequality * rhs_ + index_inequality * rhs_diss
         end
     end
 
@@ -78,7 +81,7 @@ function _meanfield(a::Vector,H,J;Jdagger::Vector=adjoint.(J),rates=ones(Int,len
     vs = map(average, a)
     rhs_avg = map(average, rhs)
     if simplify
-        rhs_avg = map(SymbolicUtils.simplify, rhs_avg)
+        rhs_avg = [SymbolicUtils.simplify(r; rewriter=qc_simplifier) for r in rhs_avg]
     end
     rhs = map(undo_average, rhs_avg)
 
@@ -98,28 +101,66 @@ function _meanfield(a::Vector,H,J;Jdagger::Vector=adjoint.(J),rates=ones(Int,len
     end
 end
 
-function _master_lindblad(a_,J,Jdagger,rates)
+let
+    additional_rules_for_indices = [
+        SymbolicUtils.@acrule((~x == ~y) * (~x != ~y) => 0),
+        SymbolicUtils.@acrule((~x == ~y) * (~y != ~x) => 0),
+        SymbolicUtils.@acrule((~x == ~y) ^ (~n::(!SymbolicUtils._iszero)) => (~x == ~y)),
+        SymbolicUtils.@acrule((~x != ~y) ^ (~n::(!SymbolicUtils._iszero)) => (~x != ~y)),
+    ]
+    
+    # TODO: more efficient combination here?
+    # TODO: remove if we decide to go with (1 - i==j) instead of (i != j) since then we get
+    # the simplification here for free via addition
+    global qc_simplifier
+    qc_simplifier = SymbolicUtils.If(TermInterface.iscall,
+        SymbolicUtils.Fixpoint(
+            SymbolicUtils.Chain([
+                SymbolicUtils.Postwalk(SymbolicUtils.Chain(additional_rules_for_indices)),
+                SymbolicUtils.default_simplifier()
+                ]
+            )
+        )
+    )
+end
+
+function _master_lindblad(a,J,Jdagger,rates)
     args = Any[]
     for k=1:length(J)
-        if isa(rates[k],SymbolicUtils.Symbolic) || isa(rates[k],Number) || isa(rates[k],Function)
-            c1 = 0.5*rates[k]*Jdagger[k]*commutator(a_,J[k])
-            c2 = 0.5*rates[k]*commutator(Jdagger[k],a_)*J[k]
-            push_or_append_nz_args!(args, c1)
-            push_or_append_nz_args!(args, c2)
-        elseif isa(rates[k],Matrix)
-            for i=1:length(J[k]), j=1:length(J[k])
-                c1 = 0.5*rates[k][i,j]*Jdagger[k][i]*commutator(a_,J[k][j])
-                c2 = 0.5*rates[k][i,j]*commutator(Jdagger[k][i],a_)*J[k][j]
-                push_or_append_nz_args!(args, c1)
-                push_or_append_nz_args!(args, c2)
-            end
-        else
-            error("Unknown rates type!")
-        end
+        _push_lindblad_term!(args::Vector, a, rates[k], J[k], Jdagger[k])
     end
     isempty(args) && return 0
     return QAdd(args)
 end
+
+function _push_lindblad_term!(args::Vector, a::QNumber, rate::T, J::QNumber, Jdagger::QNumber) where T <: Union{Number, Function, SymbolicUtils.Symbolic}
+    c1 = 0.5*rate*Jdagger*commutator(a,J)
+    c2 = 0.5*rate*commutator(Jdagger,a)*J
+    inds = get_indices(J)
+    get_indices!(inds, Jdagger)
+    
+    if isempty(inds)
+        push_or_append_nz_args!(args, c1)
+        push_or_append_nz_args!(args, c2)
+    else
+        push_or_append_nz_args!(args, Sum(c1, inds...))
+        push_or_append_nz_args!(args, Sum(c2, inds...))
+    end
+end
+
+function _push_lindblad_term!(args::Vector, a::QNumber, rates::Matrix, J, Jdagger)
+    for i=1:length(J), j=1:length(J)
+        throw(error("TODO: summation over indices here"))
+        c1 = 0.5*rates[i,j]*Jdagger[i]*commutator(a,J[j])
+        c2 = 0.5*rates[i,j]*commutator(Jdagger[i],a)*J[j]
+        push_or_append_nz_args!(args, c1)
+        push_or_append_nz_args!(args, c2)
+    end
+    return nothing
+end
+
+recursive_adjoint(J::Vector) = map(recursive_adjoint, J)
+recursive_adjoint(J::QNumber) = adjoint(J)
 
 
 ## Commutator methods

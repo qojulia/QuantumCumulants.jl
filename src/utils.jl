@@ -16,13 +16,13 @@ see also: [`complete`](@ref), [`complete!`](@ref)
 """
 function find_missing(me::AbstractMeanfieldEquations; vs_adj=nothing, get_adjoints=true)
     vs = me.states
-    vhash = map(hash, vs)
+    vhash = map(index_invariant_hash, vs)
     vs′ = if vs_adj===nothing
         map(_conj, vs)
     else
         vs_adj
     end
-    vs′hash = map(hash, vs′)
+    vs′hash = map(index_invariant_hash, vs′)
     filter!(!in(vhash), vs′hash)
 
     missed = []
@@ -44,7 +44,7 @@ function find_missing!(missed, missed_hashes, r::SymbolicUtils.Symbolic, vhash, 
     return missed
 end
 function find_missing!(missed, missed_hashes, r::Average, vhash, vs′hash; get_adjoints=true)
-    rhash = hash(r)
+    rhash = index_invariant_hash(r)
     if !(rhash ∈ vhash) && !(rhash ∈ vs′hash) && !(rhash ∈ missed_hashes)
         push!(missed, r)
         push!(missed_hashes, rhash)
@@ -52,7 +52,7 @@ function find_missing!(missed, missed_hashes, r::Average, vhash, vs′hash; get_
             # To avoid collecting adjoints as missing variables,
             # collect the hash of the adjoint right away
             r′ = _conj(r)
-            r′hash = hash(r′)
+            r′hash = index_invariant_hash(r′)
             if !(r′hash ∈ missed_hashes)
                 push!(missed_hashes, r′hash)
             end
@@ -68,6 +68,41 @@ function find_missing(eqs::Vector, vhash::Vector{UInt}, vs′hash::Vector{UInt};
     for i=1:length(eqs)
         find_missing!(missed, missed_hashes, eqs[i].rhs, vhash, vs′hash; get_adjoints=get_adjoints)
     end
+    return missed
+end
+
+# generic fallback
+index_invariant_hash(x) = index_invariant_hash(x, zero(UInt))
+index_invariant_hash(x, h0::UInt) = hash(x, h0)
+
+function find_missing_and_switch_indices(de; extra_indices=nothing, filter_func=nothing)
+    vs = de.states
+    vhash = map(index_invariant_hash, vs)
+    vs′ = map(_conj, vs)
+    vs′hash = map(index_invariant_hash, vs′)
+    filter!(!in(vhash), vs′hash)
+    missed = find_missing(de.equations, vhash, vs′hash; get_adjoints=false)
+    isnothing(filter_func) || filter!(filter_func, missed) # User-defined filter
+
+    # TODO: finding these indices can be moved out of the function since they don't change
+    indices_in_use = Set{Index}([])
+    get_indices!(indices_in_use, de.hamiltonian)
+    get_indices!(indices_in_use, de.jumps)
+    get_indices!(indices_in_use, de.jumps_dagger)
+    get_indices!(indices_in_use, de.rates)
+
+    if isempty(indices_in_use)
+        return missed
+    end
+
+    indices_in_use_names = [i.name for i in indices_in_use]
+    index_names = filter!(!in(indices_in_use_names), [:i,:j,:k,:l,:m,:n,:p,:q,:r,:s,:t])
+    if extra_indices === nothing
+        i1 = first(indices_in_use)
+        extra_indices = [Index(i1.hilb, name, i1.range, i1.aon) for name in index_names]
+    end
+    switch_to_extra_indices!(missed, indices_in_use, extra_indices)
+
     return missed
 end
 
@@ -112,6 +147,7 @@ function complete!(de::AbstractMeanfieldEquations;
                                 filter_func=nothing,
                                 mix_choice=maximum,
                                 simplify=true,
+                                extra_indices=nothing,
                                 kwargs...)
     vs = de.states
     order_lhs = maximum(get_order.(vs))
@@ -137,12 +173,7 @@ function complete!(de::AbstractMeanfieldEquations;
         end
     end
 
-    vhash = map(hash, vs)
-    vs′ = map(_conj, vs)
-    vs′hash = map(hash, vs′)
-    filter!(!in(vhash), vs′hash)
-    missed = find_missing(de.equations, vhash, vs′hash; get_adjoints=false)
-    isnothing(filter_func) || filter!(filter_func, missed) # User-defined filter
+    missed = find_missing_and_switch_indices(de; extra_indices=extra_indices, filter_func=filter_func)
 
     while !isempty(missed)
         ops_ = [SymbolicUtils.arguments(m)[1] for m in missed]
@@ -158,27 +189,20 @@ function complete!(de::AbstractMeanfieldEquations;
 
         _append!(de, me)
 
-        vhash_ = hash.(me.states)
-        vs′hash_ = hash.(_conj.(me.states))
-        append!(vhash, vhash_)
-        for i=1:length(vhash_)
-            vs′hash_[i] ∈ vhash_ || push!(vs′hash, vs′hash_[i])
-        end
-
-        missed = find_missing(me.equations, vhash, vs′hash; get_adjoints=false)
-        isnothing(filter_func) || filter!(filter_func, missed) # User-defined filter
+        missed = find_missing_and_switch_indices(de; extra_indices=extra_indices, filter_func=filter_func)
     end
 
     if !isnothing(filter_func)
         # Find missing values that are filtered by the custom filter function,
         # but still occur on the RHS; set those to 0
-        missed = find_missing(de.equations, vhash, vs′hash; get_adjoints=false)
-        filter!(!filter_func, missed)
-        missed_adj = map(_adjoint, missed)
-        subs = Dict(vcat(missed, missed_adj) .=> 0)
-        for i=1:length(de.equations)
-            de.equations[i] = substitute(de.equations[i], subs)
-            de.states[i] = de.equations[i].lhs
+        missed = find_missing(de; get_adjoints=true)
+        while !isempty(missed) # TODO: why is this necessary??? Debug this properly! One substitution should account for ALL missed values; why aren't all found or substituted??
+            subs = Dict(missed .=> 0)
+            for i=1:length(de.equations)
+                de.equations[i] = substitute(de.equations[i], subs)
+                # de.states[i] = de.equations[i].lhs
+            end
+            missed = find_missing(de; get_adjoints=true)
         end
     end
     return de
@@ -278,8 +302,8 @@ end
 In-place version of [`unique_ops`](@ref).
 """
 function unique_ops!(ops)
-    hashes = map(hash, ops)
-    hashes′ = map(hash, map(_adjoint, ops))
+    hashes = map(index_invariant_hash, ops)
+    hashes′ = map(index_invariant_hash, map(_adjoint, ops))
     seen_hashes = UInt[]
     i = 1
     while i <= length(ops)
@@ -593,4 +617,19 @@ function get_scale_solution(sol,op::Average,eqs;kwargs...)
         end
     end
     return sol[op]
+end
+
+
+function check_indices(a::Vector, args...)
+    inds_a = union!(map(get_indices, a)...)
+    inds_b = union!(map(get_indices, args)...)
+
+    inds_rem = intersect(inds_a, inds_b)
+
+    if isempty(inds_rem)
+        return nothing
+    end
+
+    throw(error("The following indices are already in use in the Hamiltonian, collapse operators or rates: $(inds_rem)"))
+
 end

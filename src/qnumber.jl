@@ -123,6 +123,7 @@ function Base.adjoint(q::QMul)
     args_nc = map(adjoint, q.args_nc)
     reverse!(args_nc)
     sort!(args_nc, by=acts_on)
+    sort_by_integer_indices!(args_nc)
     return QMul(conj(q.arg_c), args_nc; q.metadata)
 end
 
@@ -245,6 +246,7 @@ Base.adjoint(q::QAdd) = QAdd(map(adjoint, q.arguments))
 -(a::QNumber,b) = a + (-b)
 -(a::QNumber,b::QNumber) = a + (-b)
 
++(a::QNumber) = a
 function +(a::QNumber, b::SNuN)
     SymbolicUtils._iszero(b) && return a
     return QAdd([a,b])
