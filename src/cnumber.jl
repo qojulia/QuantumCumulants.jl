@@ -14,19 +14,17 @@ a parameter.
 struct Parameter <: CNumber
     function Parameter(name; metadata=source_metadata(:Parameter, name))
         s = SymbolicUtils.Sym{Complex{Real}}(name)
-        s = SymbolicUtils.setmetadata(s, MTK.VariableSource, (:Parameter, name))
-        return SymbolicUtils.setmetadata(s,MTK.MTKVariableTypeCtx,MTK.PARAMETER)
+        s = SymbolicUtils.setmetadata(s, Symbolics.VariableSource, (:Parameter, name))
     end
 end
 
 # Promoting to CNumber ensures we own the symtype; could be used to dispatch
 # on Base methods (e.g. latex printing)
-Base.promote_rule(::Type{<:CNumber},::Type{<:Number}) = CNumber
+Base.promote_rule(::Type{<:CNumber}, ::Type{<:Number}) = CNumber
 
 Base.one(::Type{Parameter}) = 1
 Base.zero(::Type{Parameter}) = 0
 Base.adjoint(x::SymbolicUtils.Symbolic{<:CNumber}) = conj(x)
-
 
 """
     @cnumbers(ps...)
@@ -47,7 +45,11 @@ macro cnumbers(ps...)
         @assert p isa Symbol
         push!(pnames, p)
         d = source_metadata(:cnumbers, p)
-        ex_ = Expr(:(=), esc(p), Expr(:call, :Parameter, Expr(:quote, p), Expr(:kw, :metadata, Expr(:quote, d))))
+        ex_ = Expr(
+            :(=),
+            esc(p),
+            Expr(:call, :Parameter, Expr(:quote, p), Expr(:kw, :metadata, Expr(:quote, d))),
+        )
         push!(ex.args, ex_)
     end
     push!(ex.args, Expr(:tuple, map(esc, pnames)...))
@@ -98,7 +100,6 @@ true
 cnumber(s::Symbol) = Parameter(s; metadata=source_metadata(:cnumbers, s))
 cnumber(s::String) = cnumber(Symbol(s))
 
-
 ### real paramters ###
 """
     RNumber <: Real
@@ -116,14 +117,13 @@ a real parameter.
 struct RealParameter <: RNumber
     function RealParameter(name; metadata=source_metadata(:RealParameter, name))
         s = SymbolicUtils.Sym{Real}(name)
-        s = SymbolicUtils.setmetadata(s, MTK.VariableSource, (:RealParameter, name))
-        return SymbolicUtils.setmetadata(s,MTK.MTKVariableTypeCtx,MTK.PARAMETER)
+        s = SymbolicUtils.setmetadata(s, Symbolics.VariableSource, (:RealParameter, name))
     end
 end
 
 # Promoting to RNumber ensures we own the symtype; could be used to dispatch
 # on Base methods (e.g. latex printing)
-Base.promote_rule(::Type{<:RNumber},::Type{<:Real}) = RNumber
+Base.promote_rule(::Type{<:RNumber}, ::Type{<:Real}) = RNumber
 
 Base.one(::Type{RealParameter}) = 1
 Base.zero(::Type{RealParameter}) = 0
@@ -151,7 +151,16 @@ macro rnumbers(ps...)
         @assert p isa Symbol
         push!(pnames, p)
         d = source_metadata(:rnumbers, p)
-        ex_ = Expr(:(=), esc(p), Expr(:call, :RealParameter, Expr(:quote, p), Expr(:kw, :metadata, Expr(:quote, d))))
+        ex_ = Expr(
+            :(=),
+            esc(p),
+            Expr(
+                :call,
+                :RealParameter,
+                Expr(:quote, p),
+                Expr(:kw, :metadata, Expr(:quote, d)),
+            ),
+        )
         push!(ex.args, ex_)
     end
     push!(ex.args, Expr(:tuple, map(esc, pnames)...))
@@ -224,7 +233,6 @@ function Base.conj(x::SymbolicUtils.BasicSymbolic{CNumber})
     return f(conj.(args)...)
 end
 
-
-const AbstractQCParameter = Union{CNumber, RNumber}
+const AbstractQCParameter = Union{CNumber,RNumber}
 
 # TODO: real IndexedVariables

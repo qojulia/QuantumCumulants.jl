@@ -1,5 +1,5 @@
 using Latexify
-import MacroTools
+using MacroTools: MacroTools
 using LaTeXStrings
 
 const transition_idx_script = Ref(:^)
@@ -28,61 +28,77 @@ function _postwalk_func(x)
     elseif MacroTools.@capture(x, dagger(arg_))
         s = "$(arg)^\\dagger"
         return s
-    elseif MacroTools.@capture(x, Transition(arg_,i_,j_))
+    elseif MacroTools.@capture(x, Transition(arg_, i_, j_))
         s = "{$(arg)}$(transition_idx_script[]){{$(i)$(j)}}"
         return s
-    elseif MacroTools.@capture(x, Pauli(arg_,i_,))
+    elseif MacroTools.@capture(x, Pauli(arg_, i_))
         s = "{$(arg)}$(transition_idx_script[]){{$(i)}}"
         return s
-    elseif MacroTools.@capture(x, Spin(arg_,i_,))
+    elseif MacroTools.@capture(x, Spin(arg_, i_))
         s = "{$(arg)}$(transition_idx_script[]){{$(i)}}"
         return s
-    elseif MacroTools.@capture(x,IndexedVariable(name_,ind_))
+    elseif MacroTools.@capture(x, IndexedVariable(name_, ind_))
         s = "{$name}$(:_){$(ind)}"
         return s
-    elseif MacroTools.@capture(x,DoubleIndexedVariable(name_, ind1_, ind2_))
+    elseif MacroTools.@capture(x, DoubleIndexedVariable(name_, ind1_, ind2_))
         s = "{$name}$(:_){$(ind1),$(ind2)}"
         return s
-    elseif MacroTools.@capture(x, IndexedOperator(op_,in_,i_,j_))
+    elseif MacroTools.@capture(x, IndexedOperator(op_, in_, i_, j_))
         s = "{$(op)}$(:_){$(in)}$(transition_idx_script[]){{$(i)$(j)}}"
         return s
-    elseif MacroTools.@capture(x, IndexedDestroy(op_,in_))
+    elseif MacroTools.@capture(x, IndexedDestroy(op_, in_))
         s = "{$(op)}$(:_){$(in)}"
         return s
-    elseif MacroTools.@capture(x, NumberedDestroy(op_,in_))
+    elseif MacroTools.@capture(x, NumberedDestroy(op_, in_))
         s = "{$(op)}$(:_){$(in)}"
         return s
-    elseif MacroTools.@capture(x, NumberedOperator(op_,num_,i_,j_))
+    elseif MacroTools.@capture(x, NumberedOperator(op_, num_, i_, j_))
         s = "{$(op)}$(:_){$(num)}$(transition_idx_script[]){{$(i)$(j)}}"
         return s
-    elseif MacroTools.@capture(x,SingleSum(term_, sumInd_, range_, NEI_))
-        s = NEI != "" ? "\\underset{$(sumInd)≠$(NEI)}{\\overset{$(range)}{\\sum}} $(_postwalk_func(term))" : "\\underset{$(sumInd)}{\\overset{$(range)}{\\sum}} $(_postwalk_func(term))"
-        s = replace(s,"\\\\" => "\\")
+    elseif MacroTools.@capture(x, SingleSum(term_, sumInd_, range_, NEI_))
+        s = if NEI != ""
+            "\\underset{$(sumInd)≠$(NEI)}{\\overset{$(range)}{\\sum}} $(_postwalk_func(term))"
+        else
+            "\\underset{$(sumInd)}{\\overset{$(range)}{\\sum}} $(_postwalk_func(term))"
+        end
+        s = replace(s, "\\\\" => "\\")
         s = replace(s, "\"" => "")
         s = replace(s, "*" => "")
         return s
-    elseif MacroTools.@capture(x,DoubleSum(term_, sumInd_, range_, NEI_))
-        s = NEI != "" ? "\\underset{$(sumInd)≠$(NEI)}{\\overset{$(range)}{\\sum}} $(_postwalk_func(term))" : "\\underset{$(sumInd)}{\\overset{$(range)}{\\sum}} $(_postwalk_func(term))"
-        s = replace(s,"\\\\" => "\\")
+    elseif MacroTools.@capture(x, DoubleSum(term_, sumInd_, range_, NEI_))
+        s = if NEI != ""
+            "\\underset{$(sumInd)≠$(NEI)}{\\overset{$(range)}{\\sum}} $(_postwalk_func(term))"
+        else
+            "\\underset{$(sumInd)}{\\overset{$(range)}{\\sum}} $(_postwalk_func(term))"
+        end
+        s = replace(s, "\\\\" => "\\")
         s = replace(s, "\"" => "")
         s = replace(s, "*" => "")
         return s
-    elseif MacroTools.@capture(x,IndexedAverageSum(term_, sumInd_, range_, NEI_))
-        term = MacroTools.postwalk(_postwalk_average,term)
-        s = NEI != "" ? "\\underset{$(sumInd)≠$(NEI)}{\\overset{$(range)}{\\sum}} $(term)" : "\\underset{$(sumInd)}{\\overset{$(range)}{\\sum}} $(term)"
-        s = replace(s,"\\\\" => "\\")
+    elseif MacroTools.@capture(x, IndexedAverageSum(term_, sumInd_, range_, NEI_))
+        term = MacroTools.postwalk(_postwalk_average, term)
+        s = if NEI != ""
+            "\\underset{$(sumInd)≠$(NEI)}{\\overset{$(range)}{\\sum}} $(term)"
+        else
+            "\\underset{$(sumInd)}{\\overset{$(range)}{\\sum}} $(term)"
+        end
+        s = replace(s, "\\\\" => "\\")
         s = replace(s, "\"" => "")
         s = replace(s, "*" => "")
         return s
-    elseif MacroTools.@capture(x,IndexedAverageDoubleSum(term_, sumInd_, range_, NEI_))
-        term = MacroTools.postwalk(_postwalk_average,term)
-        s = NEI != "" ? "\\underset{$(sumInd)≠$(NEI)}{\\overset{$(range)}{\\sum}} $(term)" : "\\underset{$(sumInd)}{\\overset{$(range)}{\\sum}} $(term)"
-        s = replace(s,"\\\\" => "\\")
+    elseif MacroTools.@capture(x, IndexedAverageDoubleSum(term_, sumInd_, range_, NEI_))
+        term = MacroTools.postwalk(_postwalk_average, term)
+        s = if NEI != ""
+            "\\underset{$(sumInd)≠$(NEI)}{\\overset{$(range)}{\\sum}} $(term)"
+        else
+            "\\underset{$(sumInd)}{\\overset{$(range)}{\\sum}} $(term)"
+        end
+        s = replace(s, "\\\\" => "\\")
         s = replace(s, "\"" => "")
         s = replace(s, "*" => "")
         return s
-    elseif MacroTools.@capture(x,CONJ(arg_))
-        arg = MacroTools.postwalk(_postwalk_average,arg)
+    elseif MacroTools.@capture(x, CONJ(arg_))
+        arg = MacroTools.postwalk(_postwalk_average, arg)
         s = "{$(arg){^{*}}}"
         return s
     else
@@ -104,48 +120,24 @@ function _postwalk_average(x)
     return x
 end
 
-@latexrecipe function f(de::AbstractMeanfieldEquations)
-    # Options
-    env --> :align
-    cdot --> false
-
-    lhs = getfield.(de.equations, :lhs)
-    rhs = getfield.(de.equations, :rhs)
-    lhs, rhs = _latexify(lhs, rhs, de.iv)
-    return lhs, rhs
-end
-
-@latexrecipe function f(de::Union{MeanfieldNoiseEquations,IndexedMeanfieldNoiseEquations})
-    # Options
-    env --> :align
-    cdot --> false
-
-    lhs = getfield.(de.equations, :lhs)
-    rhs = getfield.(de.equations, :rhs)
-    rhs_noise = getfield.(de.noise_equations, :rhs)
-    npr = cnumbers("dW/dt")
-    lhs, rhs = QuantumCumulants._latexify(lhs, rhs.+npr.*rhs_noise, de.iv)
-    return lhs, rhs
-end
-
 function _latexify(lhs_, rhs_, t)
 
     # Convert eqs to Exprs
     rhs = _to_expression.(rhs_)
-    rhs = [MacroTools.postwalk(_postwalk_func, eq) for eq=rhs]
-    rhs = [MacroTools.postwalk(_postwalk_average, eq) for eq=rhs]
+    rhs = [MacroTools.postwalk(_postwalk_func, eq) for eq in rhs]
+    rhs = [MacroTools.postwalk(_postwalk_average, eq) for eq in rhs]
     lhs = _to_expression.(lhs_)
-    lhs = [MacroTools.postwalk(_postwalk_func, eq) for eq=lhs]
-    lhs = [MacroTools.postwalk(_postwalk_average, eq) for eq=lhs]
+    lhs = [MacroTools.postwalk(_postwalk_func, eq) for eq in lhs]
+    lhs = [MacroTools.postwalk(_postwalk_average, eq) for eq in lhs]
 
     tsym = Symbol(t)
     dt = Symbol(:d, tsym)
     ddt = :(d/$(dt))
-    lhs = [:($ddt * ($l)) for l=lhs]
+    lhs = [:($ddt * ($l)) for l in lhs]
 
     return lhs, rhs
 end
-_latexify(lhs,rhs) = _latexify([lhs],[rhs])
+_latexify(lhs, rhs) = _latexify([lhs], [rhs])
 
 @latexrecipe function f(op::QNumber)
     # Options
@@ -154,7 +146,7 @@ _latexify(lhs,rhs) = _latexify([lhs],[rhs])
     ex = _to_expression(op)
     ex = MacroTools.postwalk(_postwalk_func, ex)
     ex = MacroTools.postwalk(_postwalk_average, ex)
-    ex = isa(ex,String) ? latexstring(ex) : ex
+    ex = isa(ex, String) ? latexstring(ex) : ex
     return ex
 end
 
@@ -165,62 +157,52 @@ end
     ex = _to_expression(s)
     ex = MacroTools.postwalk(_postwalk_func, ex)
     ex = MacroTools.postwalk(_postwalk_average, ex)
-    ex = isa(ex,String) ? latexstring(ex) : ex
+    ex = isa(ex, String) ? latexstring(ex) : ex
     return ex
-end
-
-@latexrecipe function f(c::CorrelationFunction)
-    avg = average(c.op1*c.op2)
-    return latexify(avg)
-end
-
-@latexrecipe function f(S::Spectrum)
-    l = latexstring(L"\mathcal{F}(", latexify(S.corr), L")(\omega)")
-    return l
 end
 
 _to_expression(x::Number) = x
 function _to_expression(x::Complex) # For brackets when using latexify
     iszero(x) && return x
     if iszero(real(x))
-        return :( $(imag(x))*im )
+        return :($(imag(x))*im)
     elseif iszero(imag(x))
         return real(x)
     else
-        return :( $(real(x)) + $(imag(x))*im )
+        return :($(real(x)) + $(imag(x))*im)
     end
 end
 function _to_expression(x::Complex{Symbolics.Num}) # forward complex Nums to Symbolics recipes
     iszero(x) && return x
     if iszero(real(x))
-        :( $(Symbolics.recipe(imag(x))) * $im )
+        :($(Symbolics.recipe(imag(x))) * $im)
     elseif iszero(imag(x))
-        return :( $(Symbolics.recipe(real(x))) )
+        return :($(Symbolics.recipe(real(x))))
     else
-        return :( $(Symbolics.recipe(real(x))) + $(Symbolics.recipe(imag(x))) * $im )
+        return :($(Symbolics.recipe(real(x))) + $(Symbolics.recipe(imag(x))) * $im)
     end
 end
 _to_expression(op::QSym) = op.name
 _to_expression(op::Create) = :(dagger($(op.name)))
-_to_expression(op::Transition) = :(Transition($(op.name),$(op.i),$(op.j)) )
-xyz_sym=[:x,:y,:z]
-_to_expression(op::Pauli) = :(Pauli($(op.name),$(xyz_sym[op.axis])))
-_to_expression(op::Spin) = :(Spin($(op.name),$(xyz_sym[op.axis])))
+_to_expression(op::Transition) = :(Transition($(op.name), $(op.i), $(op.j)))
+xyz_sym=[:x, :y, :z]
+_to_expression(op::Pauli) = :(Pauli($(op.name), $(xyz_sym[op.axis])))
+_to_expression(op::Spin) = :(Spin($(op.name), $(xyz_sym[op.axis])))
 function _to_expression(t::QMul)
     args = if SymbolicUtils._isone(t.arg_c)
         t.args_nc
     else
         SymbolicUtils.arguments(t)
     end
-    return :( *($(_to_expression.(args)...)) )
+    return :(*($(_to_expression.(args)...)))
 end
-_to_expression(t::QAdd) = :( +($(_to_expression.(t.arguments)...)) )
+_to_expression(t::QAdd) = :(+($(_to_expression.(t.arguments)...)))
 
 _to_expression(p::Parameter) = p.name
 function _to_expression(s::SymbolicUtils.Symbolic)
     if SymbolicUtils.iscall(s)
         f = SymbolicUtils.operation(s)
-        fsym = if isequal(f,sym_average) # "===" results in false for symbolics version 5
+        fsym = if isequal(f, sym_average) # "===" results in false for symbolics version 5
             :AVG
         elseif f === conj
             :CONJ
@@ -228,7 +210,7 @@ function _to_expression(s::SymbolicUtils.Symbolic)
             Symbol(f)
         end
         args = map(_to_expression, SymbolicUtils.arguments(s))
-        return :( $(fsym)($(args...)) )
+        return :($(fsym)($(args...)))
     else
         return nameof(s)
     end

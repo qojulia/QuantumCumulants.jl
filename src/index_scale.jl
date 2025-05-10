@@ -1,30 +1,3 @@
-#file for functions regarding scaling
-"""
-    scaleME(me::IndexedMeanfieldEquations)
-
-Function, that evaluates a given [`MeanfieldEquations`](@ref) entity and returns again equations,
-where indices have been inserted and sums evaluated, regarding the same relations, as done when calculating
-with oparators using a [`ClusterSpace`](@ref).
-
-# Arguments
-*`me::MeanfieldEquations`: A [`MeanfieldEquations`](@ref) entity, which shall be evaluated.
-
-"""
-function scaleME(me::IndexedMeanfieldEquations; kwargs...)
-    newEqs = []
-    for eq in me.equations
-        tempEq = scaleEq(eq; kwargs...)
-        if tempEq.lhs in getLHS.(newEqs)
-            continue
-        elseif isNotIn(tempEq.lhs,getLHS.(newEqs),true;kwargs...) && isNotIn(_inconj(tempEq.lhs),getLHS.(newEqs),true;kwargs...)
-            push!(newEqs,tempEq)
-        end
-    end
-    vs = getLHS.(newEqs)
-    varmap = make_varmap(vs, me.iv)
-    ops = undo_average.(vs)
-    return IndexedMeanfieldEquations(newEqs,me.operator_equations,vs,ops,me.hamiltonian,me.jumps,me.jumps_dagger,me.rates,me.iv,varmap,me.order)
-end
 scale_term(sym::BasicSymbolic{IndexedAverageSum}; kwargs...) = scale_term(SymbolicUtils.metadata(sym)[IndexedAverageSum]; kwargs...)
 function scale_term(sum::IndexedAverageSum; h=nothing, kwargs...)
     if !=(h,nothing)
@@ -284,16 +257,6 @@ function split_sums(term::SymbolicUtils.BasicSymbolic,ind::Index,amount::Union{<
     return term
 end
 split_sums(x::Symbolics.Equation,ind::Index,amount) = Symbolics.Equation(x.lhs,split_sums(x.rhs,ind,amount))
-function split_sums(me::AbstractMeanfieldEquations,ind::Index,amount)
-    newEqs = Vector{Union{Missing,Symbolics.Equation}}(missing,length(me.equations))
-    for i=1:length(me.equations)
-        newEqs[i] = split_sums(me.equations[i],ind,amount)
-    end
-    newEqs = filter(x -> !isequal(x,missing), newEqs)
-    vs = getLHS.(newEqs)
-    varmap = make_varmap(vs, me.iv)
-    return IndexedMeanfieldEquations(newEqs,me.operator_equations,vs,me.operators,me.hamiltonian,me.jumps,me.jumps_dagger,me.rates,me.iv,varmap,me.order)
-end
 split_sums(x,ind,amount) = x
 
 function scale(args...; kwargs...)

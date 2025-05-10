@@ -13,7 +13,7 @@ Abstract type representing fundamental operator types.
 abstract type QSym <: QNumber end
 
 # Generic hash fallback for interface -- this will be slow
-function Base.hash(op::T, h::UInt) where T<:QSym
+function Base.hash(op::T, h::UInt) where {T<:QSym}
     n = fieldcount(T)
     if n == 3
         # These three fields need to be defined for any QSym
@@ -21,7 +21,7 @@ function Base.hash(op::T, h::UInt) where T<:QSym
     else
         # If there are more we'll need to iterate through
         h_ = copy(h)
-        for k = n:-1:4
+        for k in n:-1:4
             if fieldname(typeof(op), k) !== :metadata
                 h_ = hash(getfield(op, k), h_)
             end
@@ -50,20 +50,22 @@ TermInterface.metadata(x::QNumber) = x.metadata
 # Symbolic type promotion
 SymbolicUtils.promote_symtype(f, Ts::Type{<:QNumber}...) = promote_type(Ts...)
 SymbolicUtils.promote_symtype(f, T::Type{<:QNumber}, Ts...) = T
-SymbolicUtils.promote_symtype(f,T::Type{<:QNumber},S::Type{<:Number}) = T
-SymbolicUtils.promote_symtype(f,T::Type{<:Number},S::Type{<:QNumber}) = S
-SymbolicUtils.promote_symtype(f,T::Type{<:QNumber},S::Type{<:QNumber}) = promote_type(T,S)
+SymbolicUtils.promote_symtype(f, T::Type{<:QNumber}, S::Type{<:Number}) = T
+SymbolicUtils.promote_symtype(f, T::Type{<:Number}, S::Type{<:QNumber}) = S
+function SymbolicUtils.promote_symtype(f, T::Type{<:QNumber}, S::Type{<:QNumber})
+    promote_type(T, S)
+end
 
-SymbolicUtils.symtype(x::T) where T<:QNumber = T
+SymbolicUtils.symtype(x::T) where {T<:QNumber} = T
 
 # Standard simplify and expand functions
-function SymbolicUtils.simplify(x::QNumber;kwargs...)
+function SymbolicUtils.simplify(x::QNumber; kwargs...)
     avg = average(x)
-    avg_ = SymbolicUtils.simplify(avg;kwargs...)
+    avg_ = SymbolicUtils.simplify(avg; kwargs...)
     return undo_average(avg_)
 end
 
-function Symbolics.expand(x::QNumber;kwargs...)
+function Symbolics.expand(x::QNumber; kwargs...)
     expansion = average(x)
     expansion_ = SymbolicUtils.expand(expansion; kwargs...)
     return undo_average(expansion_)
@@ -73,7 +75,7 @@ end
 
 ## Methods
 import Base: *, +, -
-const SNuN = Union{<:SymbolicUtils.Symbolic{<:Number}, <:Number}
+const SNuN = Union{<:SymbolicUtils.Symbolic{<:Number},<:Number}
 
 Base.:~(a::QNumber, b::QNumber) = Symbolics.Equation(a, b)
 
@@ -96,7 +98,7 @@ struct QMul{M} <: QTerm
     function QMul{M}(arg_c, args_nc, metadata) where {M}
         if SymbolicUtils._isone(arg_c) && length(args_nc)==1
             return args_nc[1]
-        elseif (0 in args_nc) || isequal(arg_c,0)
+        elseif (0 in args_nc) || isequal(arg_c, 0)
             return 0
         else
             return new(arg_c, args_nc, metadata)
@@ -122,31 +124,30 @@ SymbolicUtils.metadata(a::QMul) = a.metadata
 function Base.adjoint(q::QMul)
     args_nc = map(adjoint, q.args_nc)
     reverse!(args_nc)
-    sort!(args_nc, by=acts_on)
+    sort!(args_nc; by=acts_on)
     return QMul(conj(q.arg_c), args_nc; q.metadata)
 end
-
 
 function Base.isequal(a::QMul, b::QMul)
     isequal(a.arg_c, b.arg_c) || return false
     length(a.args_nc)==length(b.args_nc) || return false
-    for (arg_a, arg_b) ∈ zip(a.args_nc, b.args_nc)
-        isequal(arg_a,arg_b) || return false
+    for (arg_a, arg_b) in zip(a.args_nc, b.args_nc)
+        isequal(arg_a, arg_b) || return false
     end
     return true
 end
 
-function *(a::QSym,b::QSym)
+function *(a::QSym, b::QSym)
     check_hilbert(a, b)
-    args = [a,b]
-    sort!(args, by=acts_on)
-    QMul(1,args)
+    args = [a, b]
+    sort!(args; by=acts_on)
+    QMul(1, args)
 end
 
 function *(a::QSym, b::SNuN)
     SymbolicUtils._iszero(b) && return b
     SymbolicUtils._isone(b) && return a
-    return QMul(b,[a])
+    return QMul(b, [a])
 end
 *(b::SNuN, a::QNumber) = a*b
 
@@ -159,37 +160,37 @@ end
 
 function *(a::QSym, b::QMul)
     check_hilbert(a, b)
-    args_nc = vcat(a,b.args_nc)
-    sort!(args_nc, by=acts_on)
-    return merge_commutators(b.arg_c,args_nc)
+    args_nc = vcat(a, b.args_nc)
+    sort!(args_nc; by=acts_on)
+    return merge_commutators(b.arg_c, args_nc)
 end
 function *(a::QMul, b::QSym)
     check_hilbert(a, b)
     args_nc = vcat(a.args_nc, b)
-    sort!(args_nc, by=acts_on)
-    return merge_commutators(a.arg_c,args_nc)
+    sort!(args_nc; by=acts_on)
+    return merge_commutators(a.arg_c, args_nc)
 end
 
 function *(a::QMul, b::QMul)
     check_hilbert(a, b)
     args_nc = vcat(a.args_nc, b.args_nc)
-    sort!(args_nc, by=acts_on)
+    sort!(args_nc; by=acts_on)
     arg_c = a.arg_c*b.arg_c
-    return merge_commutators(arg_c,args_nc)
+    return merge_commutators(arg_c, args_nc)
 end
 
 Base.:/(a::QNumber, b::SNuN) = (1/b) * a
 
-function merge_commutators(arg_c,args_nc)
+function merge_commutators(arg_c, args_nc)
     #Added extra checks for 0 here
-    if isequal(arg_c,0) || 0 in args_nc
+    if isequal(arg_c, 0) || 0 in args_nc
         return 0
     end
     i = 1
     was_merged = false
     while i<length(args_nc)
-        if _ismergeable(args_nc[i], args_nc[i+1])
-            args_nc[i] = *(args_nc[i], args_nc[i+1])
+        if _ismergeable(args_nc[i], args_nc[i + 1])
+            args_nc[i] = *(args_nc[i], args_nc[i + 1])
             iszero(args_nc[i]) && return 0
             deleteat!(args_nc, i+1)
             was_merged = true
@@ -203,14 +204,16 @@ function merge_commutators(arg_c,args_nc)
     end
 end
 
-_ismergeable(a,b) = isequal(acts_on(a),acts_on(b)) && ismergeable(a,b) && isequal(hilbert(a),hilbert(b))
-ismergeable(a,b) = false
+function _ismergeable(a, b)
+    isequal(acts_on(a), acts_on(b)) && ismergeable(a, b) && isequal(hilbert(a), hilbert(b))
+end
+ismergeable(a, b) = false
 
 ## Powers
 function Base.:^(a::QNumber, n::Integer)
     iszero(n) && return 1
     isone(n) && return a
-    return *((a for i=1:n)...)
+    return *((a for i in 1:n)...)
 end
 
 ## Addition
@@ -223,10 +226,10 @@ struct QAdd <: QTerm
     arguments::Vector{Any}
 end
 
-Base.hash(q::T, h::UInt) where T<:QAdd = hash(T, SymbolicUtils.hashvec(q.arguments, h))
-function Base.isequal(a::QAdd,b::QAdd)
+Base.hash(q::T, h::UInt) where {T<:QAdd} = hash(T, SymbolicUtils.hashvec(q.arguments, h))
+function Base.isequal(a::QAdd, b::QAdd)
     length(a.arguments)==length(b.arguments) || return false
-    for (arg_a,arg_b) ∈ zip(a.arguments, b.arguments)
+    for (arg_a, arg_b) in zip(a.arguments, b.arguments)
         isequal(arg_a, arg_b) || return false
     end
     return true
@@ -241,16 +244,16 @@ SymbolicUtils.metadata(q::QAdd) = q.metadata
 Base.adjoint(q::QAdd) = QAdd(map(adjoint, q.arguments))
 
 -(a::QNumber) = -1*a
--(a,b::QNumber) = a + (-b)
--(a::QNumber,b) = a + (-b)
--(a::QNumber,b::QNumber) = a + (-b)
+-(a, b::QNumber) = a + (-b)
+-(a::QNumber, b) = a + (-b)
+-(a::QNumber, b::QNumber) = a + (-b)
 
 function +(a::QNumber, b::SNuN)
     SymbolicUtils._iszero(b) && return a
-    return QAdd([a,b])
+    return QAdd([a, b])
 end
-+(a::SNuN,b::QNumber) = +(b,a)
-function +(a::QAdd,b::SNuN)
++(a::SNuN, b::QNumber) = +(b, a)
+function +(a::QAdd, b::SNuN)
     SymbolicUtils._iszero(b) && return a
     args = vcat(a.arguments, b)
     return QAdd(args)
@@ -258,21 +261,21 @@ end
 
 function +(a::QNumber, b::QNumber)
     check_hilbert(a, b)
-    args = [a,b]
+    args = [a, b]
     return QAdd(args)
 end
 
-function +(a::QAdd,b::QNumber)
+function +(a::QAdd, b::QNumber)
     check_hilbert(a, b)
     args = vcat(a.arguments, b)
     return QAdd(args)
 end
-function +(b::QNumber,a::QAdd)
+function +(b::QNumber, a::QAdd)
     check_hilbert(a, b)
     args = vcat(a.arguments, b)
     return QAdd(args)
 end
-function +(a::QAdd,b::QAdd)
+function +(a::QAdd, b::QAdd)
     check_hilbert(a, b)
     args = vcat(a.arguments, b.arguments)
     return QAdd(args)
@@ -280,7 +283,7 @@ end
 
 function *(a::QAdd, b)
     check_hilbert(a, b)
-    args = Any[a_ * b for a_ ∈ a.arguments]
+    args = Any[a_ * b for a_ in a.arguments]
     flatten_adds!(args)
     isempty(args) && return 0
     q = QAdd(args)
@@ -288,7 +291,7 @@ function *(a::QAdd, b)
 end
 function *(a::QNumber, b::QAdd)
     check_hilbert(a, b)
-    args = Any[a * b_ for b_ ∈ b.arguments]
+    args = Any[a * b_ for b_ in b.arguments]
     flatten_adds!(args)
     isempty(args) && return 0
     q = QAdd(args)
@@ -298,7 +301,7 @@ end
 function *(a::QAdd, b::QAdd)
     check_hilbert(a, b)
     args = []
-    for a_ ∈ a.arguments, b_ ∈ b.arguments
+    for a_ in a.arguments, b_ in b.arguments
         push!(args, a_ * b_)
     end
     flatten_adds!(args)
@@ -311,10 +314,10 @@ function flatten_adds!(args)
     i = 1
     while i <= length(args)
         if args[i] isa QAdd
-            append!(args,args[i].arguments)
+            append!(args, args[i].arguments)
             deleteat!(args, i)
-        elseif SymbolicUtils._iszero(args[i]) || isequal(args[i],0)
-            deleteat!(args,i)
+        elseif SymbolicUtils._iszero(args[i]) || isequal(args[i], 0)
+            deleteat!(args, i)
         else
             i += 1
         end
@@ -322,11 +325,12 @@ function flatten_adds!(args)
     return args
 end
 
-
-
 ## Hilbert space checks
-check_hilbert(a::QNumber,b::QNumber) = (hilbert(a) == hilbert(b)) || error("Incompatible Hilbert spaces $(hilbert(a)) and $(hilbert(b))!")
-check_hilbert(x,y) = nothing
+function check_hilbert(a::QNumber, b::QNumber)
+    (hilbert(a) == hilbert(b)) ||
+        error("Incompatible Hilbert spaces $(hilbert(a)) and $(hilbert(b))!")
+end
+check_hilbert(x, y) = nothing
 
 hilbert(a::QSym) = a.hilbert
 hilbert(a::QMul) = hilbert(a.args_nc[1])
@@ -347,7 +351,7 @@ whose entries specify all subspaces on which the expression acts.
 acts_on(op::QSym) = op.aon
 function acts_on(q::QMul)
     aon = AonType[]
-    for arg ∈ q.args_nc
+    for arg in q.args_nc
         aon_ = acts_on(arg)
         aon_ ∈ aon || push!(aon, aon_)
     end
@@ -355,7 +359,7 @@ function acts_on(q::QMul)
 end
 function acts_on(q::QAdd)
     aon = AonType[]
-    for arg ∈ q.arguments
+    for arg in q.arguments
         append!(aon, acts_on(arg))
     end
     unique!(aon)
@@ -364,10 +368,10 @@ function acts_on(q::QAdd)
 end
 acts_on(x) = Int[]
 
-Base.one(::T) where T<:QNumber = one(T)
+Base.one(::T) where {T<:QNumber} = one(T)
 Base.one(::Type{<:QNumber}) = 1
 Base.isone(::QNumber) = false
-Base.zero(::T) where T<:QNumber = zero(T)
+Base.zero(::T) where {T<:QNumber} = zero(T)
 Base.zero(::Type{<:QNumber}) = 0
 Base.iszero(::QNumber) = false
 
