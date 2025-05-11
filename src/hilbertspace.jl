@@ -4,7 +4,7 @@
 Abstract type for representing Hilbert spaces.
 """
 abstract type HilbertSpace end
-Base.hash(h::T, i::UInt) where {T<:HilbertSpace} = hash(T, hash(h.name, i))
+Base.hash(h::T, i::UInt) where T<:HilbertSpace = hash(T, hash(h.name, i))
 
 abstract type ConcreteHilbertSpace <: HilbertSpace end
 
@@ -17,12 +17,12 @@ Generally created by computing the tensor product [`⊗`](@ref) of subspaces.
 struct ProductSpace{S} <: HilbertSpace
     spaces::S
     hash::UInt
-    function ProductSpace(spaces::S) where {S}
+    function ProductSpace(spaces::S) where S
         h = hash(ProductSpace, hash(spaces, zero(UInt)))
         new{S}(spaces, h)
     end
 end
-Base.:(==)(h1::T, h2::T) where {T<:ProductSpace} = isequal(h1.hash, h2.hash)
+Base.:(==)(h1::T,h2::T) where T<:ProductSpace = isequal(h1.hash, h2.hash)
 function Base.hash(p::ProductSpace, h::UInt)
     iszero(h) && return p.hash
     return hash(hash(p, zero(UInt)), h)
@@ -47,11 +47,11 @@ julia> h = hf⊗ha
 ℋ(f) ⊗ ℋ(a)
 ```
 """
-⊗(a::HilbertSpace, b::HilbertSpace) = ProductSpace([a, b])
-⊗(a::HilbertSpace, b::ProductSpace) = ProductSpace([a; b.spaces])
-⊗(a::ProductSpace, b::HilbertSpace) = ProductSpace([a.spaces; b])
-⊗(a::ProductSpace, b::ProductSpace) = ProductSpace([a.spaces; b.spaces])
-⊗(a::HilbertSpace, b::HilbertSpace, c::HilbertSpace...) = ⊗(a⊗b, c...)
+⊗(a::HilbertSpace,b::HilbertSpace) = ProductSpace([a,b])
+⊗(a::HilbertSpace,b::ProductSpace) = ProductSpace([a;b.spaces])
+⊗(a::ProductSpace,b::HilbertSpace) = ProductSpace([a.spaces;b])
+⊗(a::ProductSpace,b::ProductSpace) = ProductSpace([a.spaces;b.spaces])
+⊗(a::HilbertSpace, b::HilbertSpace, c::HilbertSpace...) = ⊗(a⊗b,c...)
 ⊗(a::HilbertSpace) = a
 
 """
@@ -75,16 +75,9 @@ struct ClusterSpace{H<:ConcreteHilbertSpace,NType,M<:Integer,S} <: HilbertSpace
     order::M
     op_name::S
 end
-function Base.:(==)(h1::T, h2::T) where {T<:ClusterSpace}
-    (
-        h1.original_space==h2.original_space &&
-        isequal(h1.N, h2.N) &&
-        h1.order==h2.order &&
-        isequal(h1.name, h2.name)
-    )
-end
+Base.:(==)(h1::T,h2::T) where T<:ClusterSpace = (h1.original_space==h2.original_space && isequal(h1.N,h2.N) && h1.order==h2.order && isequal(h1.name, h2.name))
 Base.hash(c::ClusterSpace, h::UInt) = hash(c.original_space, hash(c.N, hash(c.order, h)))
-ClusterSpace(h, N, M) = ClusterSpace(h, N, M, Ref(:_NO_NAME))
+ClusterSpace(h,N,M) = ClusterSpace(h,N,M,Ref(:_NO_NAME))
 
 """
     ClusterAon(i,j)
@@ -97,15 +90,15 @@ struct ClusterAon{T<:Integer}
     j::T
 end
 
-Base.isless(h1::HilbertSpace, h2::HilbertSpace) = isless(h1.name, h2.name)
-Base.isless(h1::ProductSpace, h2::ProductSpace) = isless(h1.spaces, h2.spaces)
+Base.isless(h1::HilbertSpace,h2::HilbertSpace) = isless(h1.name,h2.name)
+Base.isless(h1::ProductSpace,h2::ProductSpace) = isless(h1.spaces,h2.spaces)
 
-function Base.copy(h::T) where {T<:HilbertSpace}
+function Base.copy(h::T) where T<:HilbertSpace
     fields = [getfield(h, n) for n in fieldnames(T)]
     return T(fields...)
 end
 
-has_hilbert(::Type{T}, ::T, args...) where {T<:HilbertSpace} = true
-has_hilbert(T::Type{<:HilbertSpace}, h::ProductSpace, aon) = has_hilbert(T, h.spaces[aon])
-has_hilbert(::Type{<:HilbertSpace}, ::HilbertSpace, args...) = false
-has_hilbert(::Type{T}, ::ClusterSpace{<:T}, args...) where {T<:HilbertSpace} = true
+has_hilbert(::Type{T},::T,args...) where T<:HilbertSpace = true
+has_hilbert(T::Type{<:HilbertSpace},h::ProductSpace,aon) = has_hilbert(T,h.spaces[aon])
+has_hilbert(::Type{<:HilbertSpace},::HilbertSpace,args...) = false
+has_hilbert(::Type{T},::ClusterSpace{<:T},args...) where T<:HilbertSpace = true
