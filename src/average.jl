@@ -39,7 +39,7 @@ function +(a::Average,b::Average)
     return SymbolicUtils.Add(CNumber,0,Dict(a=>1,b=>1))
 end
 
-function acts_on(s::SymbolicUtils.Symbolic)
+function QuantumAlgebra.acts_on(s::SymbolicUtils.Symbolic)
     if SymbolicUtils.iscall(s)
         f = SymbolicUtils.operation(s)
         if f === sym_average
@@ -68,10 +68,10 @@ up to that order is computed immediately.
 average(op::QSym) = _average(op)
 function average(op::QTerm)
     f = SymbolicUtils.operation(op)
-    if f===(+) || f===(-) # linearity
+    if f===(Base.:+) || f===(Base.:-) # linearity
         args = map(average, SymbolicUtils.arguments(op))
         return f(args...)
-    elseif f === (*)
+    elseif f === (Base.:*)
         # Move constants out of average
         c = op.arg_c
         op_ = QMul(1,op.args_nc)
@@ -102,4 +102,17 @@ function undo_average(eq::Symbolics.Equation)
     lhs = undo_average(eq.lhs)
     rhs = undo_average(eq.rhs)
     return Symbolics.Equation(lhs,rhs)
+end
+
+# Standard simplify and expand functions
+function SymbolicUtils.simplify(x::QNumber;kwargs...)
+    avg = average(x)
+    avg_ = SymbolicUtils.simplify(avg;kwargs...)
+    return undo_average(avg_)
+end
+
+function Symbolics.expand(x::QNumber;kwargs...)
+    expansion = average(x)
+    expansion_ = SymbolicUtils.expand(expansion; kwargs...)
+    return undo_average(expansion_)
 end

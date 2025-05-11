@@ -1,3 +1,6 @@
+using Latexify
+import MacroTools
+using LaTeXStrings
 
 @latexrecipe function f(de::AbstractMeanfieldEquations)
     # Options

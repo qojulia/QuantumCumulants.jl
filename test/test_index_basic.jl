@@ -65,7 +65,8 @@ k_ind = indT(:k)
 @test(isequal(change_index(Γij,j_ind,k_ind), DoubleIndexedVariable(:Γ,i_ind,k_ind)))
 @test(isequal(change_index(σ(1,2,j_ind)*σ(1,2,i_ind),j_ind,i_ind),0))
 @test(isequal(change_index(g(k_ind),k_ind,j_ind),g(j_ind)))
-@test isequal(change_index(∑(2g(i_ind),i_ind), i_ind, j_ind), ∑(2g(j_ind),j_ind))
+@test isequal(change_index(
+    ∑(2g(i_ind),i_ind), i_ind, j_ind), ∑(2g(j_ind),j_ind))
 
 @test(isequal(
     order_by_index(σ(1,2,k_ind)*σ(1,2,j_ind)*σ(1,2,i_ind),[i_ind]), σ(1,2,i_ind)*σ(1,2,k_ind)*σ(1,2,j_ind)

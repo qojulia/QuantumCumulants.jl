@@ -1,7 +1,3 @@
-using Latexify
-import MacroTools
-using LaTeXStrings
-
 const transition_idx_script = Ref(:^)
 
 """

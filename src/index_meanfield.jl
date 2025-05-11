@@ -116,7 +116,7 @@ function indexed_master_lindblad(a_,J,Jdagger,rates)
     args = Any[]
     for k=1:length(J)
         if !isempty(get_indices(J[k])) && !(rates[k] isa BasicSymbolic{DoubleIndexedVariable})
-            if J[k] isa Sums
+            if J[k] isa QA.Sums
                 c1 = 0.5*rates[k]*Jdagger[k]*commutator(a_,J[k])
                 c2 = 0.5*rates[k]*commutator(Jdagger[k],a_)*J[k]
                 c = c1 + c2
@@ -167,14 +167,14 @@ function indexed_master_lindblad(a_,J,Jdagger,rates)
             elseif isa(rates[k],SymbolicUtils.Symbolic) || isa(rates[k],Number) || isa(rates[k],Function)
                 c1 = 0.5*rates[k]*Jdagger[k]*commutator(a_,J[k])
                 c2 = 0.5*rates[k]*commutator(Jdagger[k],a_)*J[k]
-                push_or_append_nz_args!(args, c1)
-                push_or_append_nz_args!(args, c2)
+                QA.push_or_append_nz_args!(args, c1)
+                QA.push_or_append_nz_args!(args, c2)
             elseif isa(rates[k],Matrix)
                 for i=1:length(J[k]), j=1:length(J[k])
                     c1 = 0.5*rates[k][i,j]*Jdagger[k][i]*commutator(a_,J[k][j])
                     c2 = 0.5*rates[k][i,j]*commutator(Jdagger[k][i],a_)*J[k][j]
-                    push_or_append_nz_args!(args, c1)
-                    push_or_append_nz_args!(args, c2)
+                    QA.push_or_append_nz_args!(args, c1)
+                    QA.push_or_append_nz_args!(args, c2)
                 end
             else
                 error("Unknown rates type!")
@@ -243,7 +243,7 @@ function indexed_complete!(de::AbstractMeanfieldEquations;
     allInds = get_all_indices(de)
 
     if extra_indices[1] isa Symbol
-        filter!(x -> x ∉ getIndName.(allInds),extra_indices)
+        filter!(x -> x ∉ QA.getIndName.(allInds),extra_indices)
     else
         filter!(x -> x ∉ allInds,extra_indices)
     end

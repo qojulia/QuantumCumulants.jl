@@ -117,7 +117,7 @@ function *(qmul::QMul,sum::DoubleSum)
 end
 
 function *(elem::IndexedObSym,sum::DoubleSum)
-    sum_ = simplify(sum)
+    sum_ = SymbolicUtils.simplify(sum)
     if !(sum_ isa DoubleSum) # issue 223
         return elem*sum_
     end
@@ -145,7 +145,7 @@ function *(elem::IndexedObSym,sum::DoubleSum)
     return DoubleSum(elem*sum.innerSum,sum.sum_index,NEI)
 end
 function *(sum::DoubleSum,elem::IndexedObSym)
-    sum_ = simplify(sum)
+    sum_ = SymbolicUtils.simplify(sum)
     if !(sum_ isa DoubleSum) # issue 223
         return sum_*elem
     end
@@ -166,7 +166,7 @@ function *(sum::DoubleSum,elem::IndexedObSym)
         ss_term1 = SingleSum(change_index(sum.innerSum.term,sum.innerSum.sum_index,elem.ind)*elem,
             sum.sum_index,new_non_equal_indices1)
         # new_non_equal_indices2 = replace(sum.innerSum.non_equal_indices, sum.sum_index => elem.ind)
-        new_non_equal_indices2 = unique([replace(sum.innerSum.non_equal_indices, sum.sum_index => elem.ind)..., elem.ind]) #issue #223 
+        new_non_equal_indices2 = unique([replace(sum.innerSum.non_equal_indices, sum.sum_index => elem.ind)..., elem.ind]) #issue #223
         ss_term2 = SingleSum(change_index(sum.innerSum.term,sum.sum_index,elem.ind)*elem,
             sum.innerSum.sum_index,new_non_equal_indices2)
         return ds_term + ss_term1 + ss_term2

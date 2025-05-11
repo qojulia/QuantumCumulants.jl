@@ -14,7 +14,7 @@ function indexed_arithmetic(a_,J,Jdagger,rate, arithmetic)
     inds2 = get_indices(Jdagger)
     rinds = get_indices(rate)
     all_indices = collect(Set(vcat(inds1, inds2, rinds)))
-    
+
     if isnothing(all_indices) || length(all_indices) == 0#No indices
 
     if isa(rate,Matrix)
@@ -69,7 +69,7 @@ function _simplified_indexed_master(a_,J,Jdagger,rates)
             Jloc = vec[2]
             Jdaggerloc = adjoint(vec[1])
         end
-        
+
         res = indexed_arithmetic(a_, Jloc, Jdaggerloc,rate, master_arithmetic)
         if out===nothing out = res else out+=res end
     end
@@ -88,7 +88,7 @@ function indexed_noise(a_,J,Jdagger,rates,efficiencies)
         if !isnothing(all_indices) && !isnothing(get_indices(rate)) && length(get_indices(rate)) > 1
             error("Rates with multiple indices not supported for measurement backaction")
         end
-        
+
         res = indexed_arithmetic(a_, J[k], Jdagger[k],rate, noise_arithmetic)
         if out===nothing out = res else out+=res end
     end
@@ -139,7 +139,7 @@ end
 
 Like a [`MeanfieldNoiseEquations`](@ref), but with symbolic indices.
 """
-struct IndexedMeanfieldNoiseEquations <: AbstractMeanfieldEquations 
+struct IndexedMeanfieldNoiseEquations <: AbstractMeanfieldEquations
     equations::Vector{Symbolics.Equation}
     operator_equations::Vector{Symbolics.Equation}
     noise_equations::Vector{Symbolics.Equation}
@@ -201,7 +201,7 @@ See also: [`indexed_meanfield`](@ref).
 *`iv=ModelingToolkit.t`: The independent variable (time parameter) of the system.
 """
 function indexed_meanfield_backaction(a::Vector,H,J;Jdagger::Vector=adjoint.(J),
-    rates=ones(Int,length(J)), 
+    rates=ones(Int,length(J)),
     efficiencies=zeros(Int,length(J)),
     multithread=false,
     simplify::Bool=true,
@@ -225,7 +225,7 @@ function indexed_meanfield_backaction(a::Vector,H,J;Jdagger::Vector=adjoint.(J),
             if length(indices) > 1 #everything on lhs commutes -> reorder corresponding terms on rhs
                 rhs[i] = reorder(rhs[i],generate_index_self_mapping(indices))
                 rhs_noise[i] = reorder(rhs_noise[i],generate_index_self_mapping(indices))
-            end    
+            end
         catch err
             println("could not calculate meanfield-equations for operator $(a[i])")
             rethrow(err)
@@ -276,7 +276,7 @@ end
 # filters indices from extra_indices which are contained in allInds
 function filer_indices!(extra_indices, allInds)
     if extra_indices[1] isa Symbol
-        filter!(x -> x ∉ getIndName.(allInds),extra_indices)
+        filter!(x -> x ∉ QA.getIndName.(allInds),extra_indices)
     else
         filter!(x -> x ∉ allInds,extra_indices)
     end
@@ -300,7 +300,7 @@ function determine_orders(vs, eqs; order=de.order)
         order_ = order
     end
 
-    if order isa Vector 
+    if order isa Vector
         order_max = maximum(order)
     else
         if order === nothing
@@ -323,7 +323,7 @@ function generate_extras(vs, extra_indices, allInds, order_max)
     if containsMultiple(allInds) && extra_indices[1] isa Symbol
         dic = split_inds(allInds)
         filter!(x->!isempty(last(x)),dic)
-        dic2 = Dict{Int,Any}(i => Any[] for i in keys(dic)) 
+        dic2 = Dict{Int,Any}(i => Any[] for i in keys(dic))
         for k in keys(dic)
             dic2[k] = filter(x->isequal(x.aon,k),indices_lhs)
             ind = allInds[findfirst(x->isequal(x.aon,k),allInds)]
@@ -386,7 +386,7 @@ function find_missing_sums(missed,eqs,vs;extra_indices::Vector=[],checking=true,
             extras_filtered = filterExtras(meta.sum_index,extras) #all the extraIndices, that have the same specific hilbertspace as the sum
             checkAndChange(missed_,sum,extras_filtered,vs,checking,scaling;kwargs...)
         end
-    end 
+    end
     return inorder!.(missed_)
 end
 
@@ -467,7 +467,7 @@ function generate_substitutions(vs, eqs, filter_func, extras)
     missed = find_missing(eqs, vhash, vs′hash; get_adjoints=false)
     missed = find_missing_sums(missed,de;extra_indices=extras,checking=false,kwargs...) #checkin dissabled, since there might be some terms, that are redundant, but also zero -> set them to zero aswell forsa fety
     missed = find_missing_Dsums(missed,de;extra_indices=extras,checking=false,kwargs...)
-    missed = find_missing_sums(missed,de;checking=false,kwargs...) 
+    missed = find_missing_sums(missed,de;checking=false,kwargs...)
     missed = find_missing_Dsums(missed,de;checking=false,kwargs...)
 
     missed = inorder!.(missed) #this one might not be right (?) -> not even needed i think
@@ -508,7 +508,7 @@ function simplified_indexed_complete!(de::AbstractMeanfieldEquations;
     order_, order_max = determine_orders(vs, de.equations; order)
 
     if order_max > maxNumb && order_max - maxNumb > length(extra_indices)
-        error("Too few extra_indices provided! Please make sure that for higher orders of cumulant expansion, 
+        error("Too few extra_indices provided! Please make sure that for higher orders of cumulant expansion,
             you also use the extra_indices argument to provide additional indices for calculation. The Number of
             extra_indices provided should be at least $(order_max - maxNumb).
         ")
@@ -570,7 +570,7 @@ function indexed_complete(de::IndexedMeanfieldNoiseEquations;kwargs...)
     return de_
 end
 
-        
+
 """
     indexed_complete!(de::MeanfieldEquations)
 
@@ -594,7 +594,7 @@ function indexed_complete!(de::IndexedMeanfieldNoiseEquations;
     order_, order_max = determine_orders(vs, vcat(de.equations, de.noise_equations); order)
 
     if order_max > maxNumb && order_max - maxNumb > length(extra_indices)
-        error("Too few extra_indices provided! Please make sure that for higher orders of cumulant expansion, 
+        error("Too few extra_indices provided! Please make sure that for higher orders of cumulant expansion,
             you also use the extra_indices argument to provide additional indices for calculation. The Number of
             extra_indices provided should be at least $(order_max - maxNumb).
         ")
@@ -631,7 +631,7 @@ function indexed_complete!(de::IndexedMeanfieldNoiseEquations;
 end
 
 complete(eqs::IndexedMeanfieldNoiseEquations;kwargs...) = indexed_complete(eqs;kwargs...)
-complete!(eqs::IndexedMeanfieldNoiseEquations;kwargs...) = indexed_complete!(eqs;kwargs...) 
+complete!(eqs::IndexedMeanfieldNoiseEquations;kwargs...) = indexed_complete!(eqs;kwargs...)
 
 
 function scale_equations(eqs; kwargs...)
@@ -721,7 +721,7 @@ function scale(eqs::IndexedMeanfieldNoiseEquations;h=nothing,kwargs...)
             end
         end
         h = h_
-    end    
+    end
 
     me = scaleME(eqs;h=h,kwargs...)
     newEqs = subst_reds_scale_equation(me.states,me.equations;h=h,kwargs...)

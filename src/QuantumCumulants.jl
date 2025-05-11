@@ -18,6 +18,16 @@ using LinearAlgebra
 using QuantumOpticsBase
 import QuantumOpticsBase: ⊗, tensor
 
+include("../lib/QuantumAlgebra/src/QuantumAlgebra.jl")
+using .QuantumAlgebra
+using .QuantumAlgebra: QNumber, SNuN, QMul, QAdd, QSym, QTerm, ClusterAon, CallableTransition, IndexInt
+using .QuantumAlgebra: get_indices, commutator, numeric_average, _conj, find_operators,
+    _adjoint, get_i, hilbert, inorder!, levels, has_cluster, Σ, ∑, ismergeable, inadjoint,
+    IndexedVariable, DoubleIndexedVariable, getIndName
+const QA = QuantumAlgebra
+
+import Base: *, +, -
+
 export HilbertSpace, ProductSpace, ⊗, tensor,
         QSym, QTerm, @qnumbers,
         FockSpace, Destroy, Create,
@@ -38,35 +48,26 @@ export HilbertSpace, ProductSpace, ⊗, tensor,
         scaleME, evalME, indexed_complete!, indexed_meanfield, subst_reds, AvgSums, plotME,
         IndexedAverageSum, IndexedAverageDoubleSum, SpecialIndexedTerm, find_missing_sums, Σ, ∑,
         evaluate, value_map, NumberedOperator, change_index, order_by_index, split_sums, insert_index, eval_term,
-        MeanfieldNoiseEquations, 
+        MeanfieldNoiseEquations,
         IndexedMeanfieldNoiseEquations#, indexed_arithmetic, indexed_noise, simplified_indexed_complete!
 
-
-const NO_METADATA = SymbolicUtils.NO_METADATA
 
 source_metadata(source, name) =
     Base.ImmutableDict{DataType, Any}(Symbolics.VariableSource, (source, name))
 
-include("hilbertspace.jl")
-include("qnumber.jl")
-include("cnumber.jl")
-include("fock.jl")
-include("nlevel.jl")
-include("spin.jl")
+
 include("equations.jl")
 include("meanfield.jl")
 include("average.jl")
 include("utils.jl")
+include("cumulant_expansion.jl")
 include("diffeq.jl")
 include("correlation.jl")
-include("cluster.jl")
 include("scale.jl")
 include("measurement_backaction.jl")
 include("measurement_backaction_indices.jl")
 include("latexify_recipes.jl")
 include("printing.jl")
-include("indexing.jl")
-include("index_double_sums.jl")
 include("index_average.jl")
 include("index_meanfield.jl")
 include("index_scale.jl")

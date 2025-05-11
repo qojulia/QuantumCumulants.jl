@@ -123,7 +123,7 @@ specifies how to map levels of a [`Transition`](@ref) to the ones given
 in an `NLevelBasis`. **Note:** If the levels of a transition are symbolic,
 setting `level_map` is required.
 
-See also: [`numeric_average`](@ref), [`initial_values`](@ref)
+See also: [`numeric_average`](@ref)
 
 Examples
 ========
@@ -251,24 +251,18 @@ function to_numeric(x::Number, b::QuantumOpticsBase.Basis; kwargs...)
 end
 _lazy_one(b::QuantumOpticsBase.Basis) = one(b)
 function _lazy_one(b::QuantumOpticsBase.CompositeBasis)
-    LazyTensor(b, [1:length(b.bases);], Tuple(one(b_) for b_ in b.bases))
+    QuantumOpticsBase.LazyTensor(b, [1:length(b.bases);], Tuple(one(b_) for b_ in b.bases))
 end
 
 
 """
-    numeric_average(avg::Average, state; level_map = nothing)
     numeric_average(q::QNumber, state; level_map = nothing)
 
-From a symbolic average `avg` or operator `q`, compute the corresponding
+From a symbolic operator `q`, compute the corresponding
 numerical average value with the given quantum state `state`. This state
 can either be of type `QuantumOpticsBase.StateVector` or `QuantumOpticsBase.Operator`.
 
-See also: [`initial_values`](@ref), [`to_numeric`](@ref)
 """
-function numeric_average(avg::Average, state; kwargs...)
-    op = undo_average(avg)
-    return numeric_average(op, state; kwargs...)
-end
 to_numeric(op::QNumber, state; kwargs...) = to_numeric(op, QuantumOpticsBase.basis(state); kwargs...)
 
 function numeric_average(op::QNumber, state; kwargs...)
@@ -276,17 +270,7 @@ function numeric_average(op::QNumber, state; kwargs...)
     return QuantumOpticsBase.expect(op_num, state)
 end
 
-function _conj(v::Average)
-    arg = v.arguments[1]
-    adj_arg = adjoint(arg)
-    if has_cluster(arg)
-        aons, N = get_cluster_stuff(hilbert(arg))
-        names = get_names(arg)
-        return substitute_redundants(_average(adj_arg), aons, names)
-    else
-        return _average(adj_arg)
-    end
-end
+
 function _conj(v::T) where T <: SymbolicUtils.Symbolic
     if SymbolicUtils.iscall(v)
         f = SymbolicUtils.operation(v)

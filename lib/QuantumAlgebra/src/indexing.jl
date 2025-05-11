@@ -275,7 +275,7 @@ SingleSum(ops::QAdd,ind::Index;metadata=NO_METADATA) = SingleSum(ops,ind,Index[]
 SingleSum(op::QNumber,ind::Index;metadata=NO_METADATA) = SingleSum(op,ind,Index[];metadata=metadata)
 SingleSum(ops::Number,ind::Index,NEI::Vector;metadata=NO_METADATA) = (ind.range - length(NEI))*ops
 # SingleSum(term, sum_index, non_equal_indices;metadata=NO_METADATA) = (sum_index.range - length(non_equal_indices)) * term
-function SingleSum(term, sum_index, non_equal_indices;metadata=NO_METADATA) 
+function SingleSum(term, sum_index, non_equal_indices;metadata=NO_METADATA)
     if (sum_index ∉ get_indices(term)) # saver way to avoid wrong simplification
         return (sum_index.range - length(non_equal_indices)) * term
     else
@@ -502,9 +502,6 @@ end
 acts_on(op::IndexedOperator) = acts_on(op.op)
 acts_on(var::SpecialIndexedTerm) = acts_on(var.term)
 
-get_order(x::SingleSum) = get_order(x.term)
-get_order(x::SpecialIndexedTerm) = get_order(x.term)
-
 acts_on(indSum::SingleSum) = acts_on(indSum.term)
 
 #extra commutators
@@ -627,7 +624,6 @@ function change_index(term::QMul, from::Index, to::Index)
     args_nc = [change_index(arg,from,to) for arg in copy(term.args_nc)]
     return arg_c*prod(args_nc)
 end
-change_index(term::Average, from::Index,to::Index) = average(change_index(arguments(term)[1],from,to))
 change_index(op::IndexedOperator,from::Index,to::Index) = isequal(op.ind,from) ? IndexedOperator(op.op,to) : op
 
 function change_index(op::BasicSymbolic{IndexedVariable},from::Index,to::Index)
@@ -704,7 +700,6 @@ SymbolicUtils.iscall(a::SingleSum) = false
 SymbolicUtils.arguments(a::SingleSum) = SymbolicUtils.arguments(a.term)
 SymbolicUtils.arguments(a::IndexedOperator) = [a]
 
-get_order(::IndexedOperator) = 1
 #It is assumed that the term for which this operation is done already commutes with indices inside the indices-Vector
 function order_by_index(vec::Vector,indices::Vector{Index})
     vec_ = copy(vec)
@@ -715,7 +710,6 @@ function order_by_index(vec::Vector,indices::Vector{Index})
     return vcat(frontfront,front,back)
 end
 order_by_index(qmul::QMul,inds::Vector{Index}) = qmul.arg_c*prod(order_by_index(qmul.args_nc,inds))
-order_by_index(avrg::Average,inds::Vector{Index}) = order_by_index(arguments(avrg)[1],inds)
 order_by_index(x,inds) = x
 
 #Reorder function: given a tuple vector of indices meaning for each tuple: first ≠ second

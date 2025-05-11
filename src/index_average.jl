@@ -45,7 +45,7 @@ struct IndexedAverageSum <: CNumber
         if !(isempty(non_equal_indices))
             neis_sym = string("(",neis_sym)
             neis_sym = string(neis_sym, "$(sum_index.name)≠")
-            neis_sym = string(neis_sym, writeNEIs(non_equal_indices))
+            neis_sym = string(neis_sym, QA.writeNEIs(non_equal_indices))
             neis_sym = string(neis_sym,")")
         end
         _metadata = new(term,sum_index,non_equal_indices,metadata)
@@ -55,7 +55,7 @@ struct IndexedAverageSum <: CNumber
         return sym
     end
 end
-function IndexedAverageSum(term::symbolics_terms,sum_index::Index,non_equal_indices::Vector;metadata=NO_METADATA)
+function IndexedAverageSum(term::symbolics_terms,sum_index::Index,non_equal_indices::Vector;metadata=QA.NO_METADATA)
     if sum_index ∉ get_indices(term)
         return (sum_index.range - length(non_equal_indices)) * term
     end
@@ -108,7 +108,7 @@ struct IndexedAverageDoubleSum <: CNumber
         if !(isempty(non_equal_indices))
             neis_sym = string("(",neis_sym)
             neis_sym = string(neis_sym, "$(sum_index.name)≠")
-            neis_sym = string(neis_sym, writeNEIs(non_equal_indices))
+            neis_sym = string(neis_sym, QA.writeNEIs(non_equal_indices))
             neis_sym = string(neis_sym,")")
         end
         sym = SymbolicUtils.Sym{IndexedAverageDoubleSum}(Symbol("∑($(sum_index.name):=1:$(sum_index.range))$(neis_sym)$(String(term.name))"))
@@ -136,39 +136,6 @@ function IndexedAverageDoubleSum(term::symbolics_terms,sum_index::Index,non_equa
     return IndexedAverageSum(term,sum_index,non_equal_indices)
 end
 IndexedAverageDoubleSum(x,y,z) = IndexedAverageSum(x,y,z)
-
-#For representing in average terms
-"""
-
-    NumberedOperator <: QSym
-
-Defines an operator, associated with a Number. Commutator-relations are calculated using these numbers, as a sort of a specific index-value.
-
-Fields:
-======
-
-* op: An Operator, either a [`Transition`](@ref), a [`Destroy`](@ref) or a [`Create`](@ref) can be defined.
-* numb: An Integer Number.
-
-"""
-struct NumberedOperator <:QSym
-    op::IndexableOps
-    numb::Int64
-    function NumberedOperator(op::IndexableOps,numb::Int64)
-        (numb <= 0) && error("can not create numbered-operator with negative or 0 number")
-        return new(op,numb)
-    end
-end
-function NumberedOperator(op,numb::Int64)
-    (op isa SNuN) && return op
-    if SymbolicUtils.iscall(op)
-        f = SymbolicUtils.operation(op)
-        args = [NumberedOperator(arg,numb) for arg in SymbolicUtils.arguments(op)]
-        isempty(args) && return 0
-        isequal(length(args),1) && return args[1]
-        return f(args...)
-    end
-end
 
 #Variables
 """
@@ -295,21 +262,21 @@ function undo_average(a::BasicSymbolic{SpecialIndexedAverage})
     end
 end
 
-
-#define calculus for numbered operators -> break it down into QNumber multiplication
-
-ismergeable(a::NumberedOperator,b::NumberedOperator) = isequal(a.numb,b.numb) ? ismergeable(a.op,b.op) : false
-
-*(numOp::NumberedOperator, qmul::QMul) = inorder!(QMul(qmul.arg_c,vcat(numOp,qmul.args_nc)))
-*(qmul::QMul, numOp::NumberedOperator) = inorder!(QMul(qmul.arg_c,vcat(qmul.args_nc,numOp)))
-
-function *(numOp1::NumberedOperator,numOp2::NumberedOperator)
-    if numOp1.op isa Create || numOp1.op isa Destroy || numOp2.op isa Create || numOp2.op isa Destroy
-        return merge_commutators(1,[numOp1,numOp2])
-    end
-    return (numOp1.numb == numOp2.numb && isequal(acts_on(numOp1.op),acts_on(numOp2.op))) ? NumberedOperator(numOp1.op*numOp2.op,numOp1.numb) : QMul(1,sort([numOp1,numOp2],by=get_numbers))
+# variable
+IndexedVariable(x,numb::Int64) = SingleNumberedVariable(x,numb)
+IndexedVariable(x,num1::Int64,num2::Int64;kwargs...) = DoubleNumberedVariable(x,num1,num2;kwargs...)
+IndexedVariable(name::Symbol,ind1::Index,ind2::Index;kwargs...) = DoubleIndexedVariable(name,ind1,ind2;kwargs...)
+DoubleIndexedVariable(x,num1::Int64,num2::Int64;kwargs...) = DoubleNumberedVariable(x,num1,num2;kwargs...)
+function QA.get_indices(a::BasicSymbolic{DoubleIndexedVariable})
+    meta = SymbolicUtils.metadata(a)[DoubleIndexedVariable]
+    return unique([meta.ind1,meta.ind2])
 end
+QA.get_indices(a::BasicSymbolic{IndexedVariable}) = [SymbolicUtils.metadata(a)[IndexedVariable].ind]
+
 #Symbolics functions
+get_order(x::SingleSum) = get_order(x.term)
+get_order(x::SpecialIndexedTerm) = get_order(x.term)
+
 get_order(a::IndexedAverageSum) = get_order(a.term)
 get_order(a::IndexedAverageDoubleSum) = get_order(a.innerSum)
 get_order(a::SpecialIndexedAverage) = get_order(a.term)
@@ -331,6 +298,9 @@ function get_order(a::BasicSymbolic{SpecialIndexedAverage})
         return get_order(meta)
     end
 end
+get_order(x::NumberedOperator) = get_order(x.op)
+get_order(::IndexedOperator) = 1
+
 
 SymbolicUtils._iszero(a::IndexedAverageSum) = SymbolicUtils._iszero(a.term)
 SymbolicUtils._isone(a::IndexedAverageSum) = SymbolicUtils._isone(a.term)
@@ -340,13 +310,6 @@ SymbolicUtils.iscall(a::BasicSymbolic{SpecialIndexedAverage}) = false
 SymbolicUtils.iscall(a::IndexedAverageDoubleSum) = false
 SymbolicUtils.iscall(a::BasicSymbolic{IndexedAverageDoubleSum}) = false
 
-
-average(x::NumberedOperator) = _average(x)
-hilbert(x::NumberedOperator) = hilbert(x.op)
-Base.adjoint(x::NumberedOperator) = NumberedOperator(Base.adjoint(x.op),x.numb)
-has_cluster(x::NumberedOperator) = has_cluster(x.op)
-acts_on(x::NumberedOperator) = acts_on(x.op)
-get_order(x::NumberedOperator) = get_order(x.op)
 
 function writeIndexNEIs(neis::Vector{Tuple{IndexInt,IndexInt}})
     syms = ""
@@ -387,10 +350,7 @@ end
 function Base.hash(a::IndexedAverageSum, h::UInt)
     return hash(IndexedAverageSum, hash(a.term, hash(a.sum_index, hash(a.non_equal_indices,h))))
 end
-function Base.hash(a::NumberedOperator,h::UInt)
-    return hash(NumberedOperator, hash(a.op, hash(a.numb, h)))
-end
-Base.isequal(x::NumberedOperator,y::NumberedOperator) = isequal(x.op,y.op) && isequal(x.numb,y.numb)
+
 Base.isless(a::IndexedAverageSum,b::IndexedAverageSum) = a.sum_index < b.sum_index
 function Base.isequal(a::BasicSymbolic{IndexedAverageSum},b::BasicSymbolic{IndexedAverageSum})
     a_meta = SymbolicUtils.metadata(a)[IndexedAverageSum]
@@ -645,7 +605,7 @@ function evalME(me::AbstractMeanfieldEquations;limits=Dict{SymbolicUtils.BasicSy
             end
             arr = create_index_arrays(inds,ranges_)
             for j=1:length(arr)
-                if !isempty(get_numbers(eq.lhs)) && !(check_arr(eq.lhs,arr[j]))
+                if !isempty(QA.get_numbers(eq.lhs)) && !(check_arr(eq.lhs,arr[j]))
                     continue
                 end
                 dict = Dict{Index,Int}(inds .=> arr[j])
@@ -683,7 +643,7 @@ function evalME(me::AbstractMeanfieldEquations;limits=Dict{SymbolicUtils.BasicSy
         if isempty(inds)
             counter = counter + 1
         else
-            ranges = get_range.(inds)
+            ranges = QA.get_range.(inds)
             counter = counter + prod(ranges)
         end
     end
@@ -926,7 +886,7 @@ end
 get_spec_hilb(ind::Index) = ind.aon
 
 function check_arr(lhs,arr)
-    numbs = get_numbers(lhs)
+    numbs = QA.get_numbers(lhs)
     inds = get_indices(lhs)
     D = Dict(inds.=>arr)
     args_ = arguments(lhs)[1]
@@ -937,10 +897,10 @@ function check_arr(lhs,arr)
     end
     for i = 1:length(hilbert(args[1]).spaces)
         as = filter(x->isequal(acts_on(x),i),args)
-        isempty(get_numbers(as)) && continue
+        isempty(QA.get_numbers(as)) && continue
         isempty(get_indices(as)) && continue
         inds_ = get_indices(as)
-        numbs = get_numbers(as)
+        numbs = QA.get_numbers(as)
         for i in inds_
             if D[i] in numbs
                 return false
@@ -962,10 +922,6 @@ function getAvrgs(term::BasicSymbolic{<:CNumber})
 end
 getAvrgs(avrg::Average) = avrg
 getAvrgs(x) = nothing
-
-getNumber(x::NumberedOperator) = [acts_on(x) + x.numb]
-getNumber(x::QMul) = acts_on(x)
-getNumber(x) = [acts_on(x)] # this is so that, any other operator still behaves the same as before
 
 function Base.show(io::IO,indSum::IndexedAverageSum)
     write(io, "Σ", "($(indSum.sum_index.name)", "=1:$(indSum.sum_index.range))",)
@@ -1009,7 +965,7 @@ function _to_expression(x::NumberedOperator)
 end
 function _to_expression(x::BasicSymbolic{IndexedAverageSum})
     meta = SymbolicUtils.metadata(x)[IndexedAverageSum]
-    return :( IndexedAverageSum($(_to_expression(meta.term)),$(meta.sum_index.name),$(meta.sum_index.range),$(writeNEIs(meta.non_equal_indices))) )
+    return :( IndexedAverageSum($(_to_expression(meta.term)),$(meta.sum_index.name),$(meta.sum_index.range),$(QA.writeNEIs(meta.non_equal_indices))) )
 end
 function _to_expression(x::BasicSymbolic{SpecialIndexedAverage})
     meta = SymbolicUtils.metadata(x)[SpecialIndexedAverage]
@@ -1017,12 +973,12 @@ function _to_expression(x::BasicSymbolic{SpecialIndexedAverage})
 end
 function _to_expression(x::BasicSymbolic{IndexedAverageDoubleSum})
     meta = SymbolicUtils.metadata(x)[IndexedAverageDoubleSum]
-    return :( IndexedAverageDoubleSum($(_to_expression(meta.innerSum)),$(meta.sum_index.name),$(meta.sum_index.range),$(writeNEIs(meta.non_equal_indices))) )
+    return :( IndexedAverageDoubleSum($(_to_expression(meta.innerSum)),$(meta.sum_index.name),$(meta.sum_index.range),$(QA.writeNEIs(meta.non_equal_indices))) )
 end
 
 @latexrecipe function f(s_::BasicSymbolic{IndexedAverageSum})
     s = SymbolicUtils.metadata(s_)[IndexedAverageSum]
-    neis = writeNEIs(s.non_equal_indices)
+    neis = QA.writeNEIs(s.non_equal_indices)
 
     ex = latexify(s.term)
     sumString = nothing
@@ -1090,3 +1046,9 @@ function +(a::BasicSymbolic{DoubleIndexedVariable},b::BasicSymbolic{DoubleIndexe
     end
     return SymbolicUtils.Add(CNumber,0,Dict(a=>1,b=>1))
 end
+
+QA.has_cluster(avg::Average,args...) = QA.has_cluster(undo_average(avg),args...)
+
+QA.change_index(term::Average, from::Index,to::Index) = average(QA.change_index(arguments(term)[1],from,to))
+
+QA.order_by_index(avrg::Average,inds::Vector{Index}) = QA.order_by_index(arguments(avrg)[1],inds)

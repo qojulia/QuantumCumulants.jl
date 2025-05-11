@@ -1,3 +1,4 @@
+using .QuantumAlgebra: show_brackets
 
 function SymbolicUtils.show_term(io::IO, t::Average)
     write(io, "⟨")
