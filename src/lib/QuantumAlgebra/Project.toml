@@ -1,0 +1,40 @@
+name = "QuantumAlgebra"
+uuid = "f7aa4685-e143-4cb6-a7f3-073579757907"
+version = "0.0.1-DEV"
+
+[deps]
+Combinatorics = "861a8166-3701-5b0c-9a16-15d98fcdc6aa"
+LaTeXStrings = "b964fa9f-0449-5b57-a5c2-d3ea65f4040f"
+Latexify = "23fbe1c1-3f47-55db-b15f-69d7ec21a316"
+LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
+MacroTools = "1914dd2f-81c6-5fcd-8719-6d5c9610ff09"
+ModelingToolkit = "961ee093-0014-501f-94e3-6117800e7a78"
+QuantumOpticsBase = "4f57444f-1401-5e15-980d-4471b28d5678"
+SciMLBase = "0bca4576-84f4-4d90-8ffe-ffa030f20462"
+SymbolicUtils = "d1185830-fcd6-423d-90d6-eec64667417b"
+Symbolics = "0c5d862f-8b57-4792-8d23-62f2024744c7"
+TermInterface = "8ea1fca8-c5ef-4a55-8b96-4e9afe9c9a3c"
+
+[compat]
+Combinatorics = "1"
+LaTeXStrings = "1"
+Latexify = "0.13, 0.14, 0.15, 0.16"
+LinearAlgebra = "1.6"
+MacroTools = "0.5"
+QuantumOpticsBase = "0.4, 0.5"
+SciMLBase = "1, 2"
+SymbolicUtils = "3.6.0 - 3.20.0"
+Symbolics = "6"
+TermInterface = "2"
+julia = "1.6"
+
+[extras]
+ModelingToolkit = "961ee093-0014-501f-94e3-6117800e7a78"
+OrdinaryDiffEq = "1dea7af3-3e70-54e6-95c3-0bf5283fa5ed"
+QuantumOptics = "6e0679c1-51ea-5a7c-ac74-d61b76210b0c"
+Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
+SteadyStateDiffEq = "9672c7b4-1e72-59bd-8a11-6ac3964bc41f"
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[targets]
+test = ["OrdinaryDiffEq", "SteadyStateDiffEq", "ModelingToolkit", "QuantumOptics", "Random", "Test"]
