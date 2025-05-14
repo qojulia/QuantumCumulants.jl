@@ -23,7 +23,8 @@ using .QuantumAlgebra
 using .QuantumAlgebra: QNumber, SNuN, QMul, QAdd, QSym, QTerm, ClusterAon, CallableTransition, IndexInt
 using .QuantumAlgebra: get_indices, commutator, numeric_average, _conj, find_operators,
     _adjoint, get_i, hilbert, inorder!, levels, has_cluster, Σ, ∑, ismergeable, inadjoint,
-    IndexedVariable, DoubleIndexedVariable, getIndName
+    IndexedVariable, DoubleIndexedVariable, getIndName, fundamental_operators,
+    _to_expression
 const QA = QuantumAlgebra
 
 import Base: *, +, -

@@ -45,7 +45,6 @@ function *(numOp1::NumberedOperator,numOp2::NumberedOperator)
     return (numOp1.numb == numOp2.numb && isequal(acts_on(numOp1.op),acts_on(numOp2.op))) ? NumberedOperator(numOp1.op*numOp2.op,numOp1.numb) : QMul(1,sort([numOp1,numOp2],by=get_numbers))
 end
 
-average(x::NumberedOperator) = _average(x)
 hilbert(x::NumberedOperator) = hilbert(x.op)
 Base.adjoint(x::NumberedOperator) = NumberedOperator(Base.adjoint(x.op),x.numb)
 has_cluster(x::NumberedOperator) = has_cluster(x.op)

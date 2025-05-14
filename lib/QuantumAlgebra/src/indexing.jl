@@ -43,7 +43,6 @@ const IndexInt = Union{<:Index,<:Int64}
 
 A indexed symbolic variable. The variable can (once equations are calculated) be easily exchanged for numerical values. Calling
 a IndexedVariable using two different [`Index`](@ref) objects one can create [`DoubleIndexedVariable`](@ref) objects.
-See also: [`value_map`](@ref)
 """
 struct IndexedVariable <: CNumber #just a symbol, that can be manipulated via the metadata field
     name::Symbol
@@ -61,7 +60,6 @@ end
     DoubleIndexedVariable(name::Symbol,ind1::Index,ind2::Index;identical::Bool)
 
 A double-indexed symbolic variable. The variable can (once equations are calculated) be easily exchanged for numerical values.
-See also: [`value_map`](@ref)
 
 Fields:
 ======

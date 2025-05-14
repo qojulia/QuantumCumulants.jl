@@ -25,6 +25,7 @@ SymbolicUtils.symtype(::T) where T <: Average = QuantumCumulants.AvgSym
 function _average(operator)
     return SymbolicUtils.Term{AvgSym}(sym_average, [operator])
 end
+
 # ensure that BasicSymbolic{<:AvgSym} are only single averages
 function *(a::Average,b::Average)
     if isequal(a,b)
@@ -83,6 +84,7 @@ end
 
 average(x::SNuN) = x
 average(x,order;kwargs...) = cumulant_expansion(average(x),order;kwargs...)
+average(x::QA.NumberedOperator) = _average(x)
 
 function undo_average(t)
     if SymbolicUtils.iscall(t)

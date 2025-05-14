@@ -958,20 +958,20 @@ function Base.show(io::IO, numbOp::NumberedOperator)
     Base.show(io,numbOp.numb)
 end
 
-function _to_expression(x::NumberedOperator)
+function QuantumAlgebra._to_expression(x::NumberedOperator)
     x.op isa Transition && return :( NumberedOperator($(x.op.name),$(x.numb),$(x.op.i),$(x.op.j)) )
     x.op isa Destroy && return :(NumberedDestroy($(x.op.name),$(x.numb)))
     x.op isa Create && return :(dagger(NumberedDestroy($(x.op.name),$(x.numb))))
 end
-function _to_expression(x::BasicSymbolic{IndexedAverageSum})
+function QuantumAlgebra._to_expression(x::BasicSymbolic{IndexedAverageSum})
     meta = SymbolicUtils.metadata(x)[IndexedAverageSum]
     return :( IndexedAverageSum($(_to_expression(meta.term)),$(meta.sum_index.name),$(meta.sum_index.range),$(QA.writeNEIs(meta.non_equal_indices))) )
 end
-function _to_expression(x::BasicSymbolic{SpecialIndexedAverage})
+function QuantumAlgebra._to_expression(x::BasicSymbolic{SpecialIndexedAverage})
     meta = SymbolicUtils.metadata(x)[SpecialIndexedAverage]
     return _to_expression(meta.term)
 end
-function _to_expression(x::BasicSymbolic{IndexedAverageDoubleSum})
+function QuantumAlgebra._to_expression(x::BasicSymbolic{IndexedAverageDoubleSum})
     meta = SymbolicUtils.metadata(x)[IndexedAverageDoubleSum]
     return :( IndexedAverageDoubleSum($(_to_expression(meta.innerSum)),$(meta.sum_index.name),$(meta.sum_index.range),$(QA.writeNEIs(meta.non_equal_indices))) )
 end
