@@ -1,6 +1,6 @@
-QuantumAlgebra.get_indices(x::AvgSums) = get_indices(arguments(x))
+SQA.get_indices(x::AvgSums) = get_indices(arguments(x))
 
-QuantumAlgebra.get_indices(term::Average) = get_indices(arguments(term)[1])
+SQA.get_indices(term::Average) = get_indices(arguments(term)[1])
 
 #function that returns the conjugate of an average, but also preserving the correct ordering
 function _inconj(v::Average)
@@ -9,7 +9,7 @@ function _inconj(v::Average)
         return _inconj(arguments(v)[1])
     end
     arg = v.arguments[1]
-    adj_arg = QA.inadjoint(arg)
+    adj_arg = SQA.inadjoint(arg)
     return _average(adj_arg)
 end
 function _inconj(v::T) where T <: SymbolicUtils.BasicSymbolic
@@ -23,7 +23,7 @@ function _inconj(v::T) where T <: SymbolicUtils.BasicSymbolic
 end
 _inconj(x::Number) = conj(x)
 
-function QA.inorder!(v::Average)
+function SQA.inorder!(v::Average)
     f = operation(v)
     if f == conj
         return conj(inorder!(arguments(v)[1]))
@@ -31,7 +31,7 @@ function QA.inorder!(v::Average)
     return average(inorder!(arguments(v)[1]))
 end
 
-QA.get_numbers(term::Average) = QA.get_numbers(arguments(term)[1])
+SQA.get_numbers(term::Average) = SQA.get_numbers(arguments(term)[1])
 
 
 """

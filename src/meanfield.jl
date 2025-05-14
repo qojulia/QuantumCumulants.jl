@@ -91,7 +91,7 @@ function _meanfield(a::Vector,H,J;Jdagger::Vector=adjoint.(J),rates=ones(Int,len
     varmap = make_varmap(vs, iv)
 
     me = MeanfieldEquations(eqs_avg,eqs,vs,a,H,J_,Jdagger_,rates_,iv,varmap,order)
-    if QuantumAlgebra.has_cluster(H)
+    if SQA.has_cluster(H)
         return scale(me;simplify=simplify,order=order,mix_choice=mix_choice)
     else
         return me
@@ -104,14 +104,14 @@ function _master_lindblad(a_,J,Jdagger,rates)
         if isa(rates[k],SymbolicUtils.Symbolic) || isa(rates[k],Number) || isa(rates[k],Function)
             c1 = 0.5*rates[k]*Jdagger[k]*commutator(a_,J[k])
             c2 = 0.5*rates[k]*commutator(Jdagger[k],a_)*J[k]
-            QA.push_or_append_nz_args!(args, c1)
-            QA.push_or_append_nz_args!(args, c2)
+            SQA.push_or_append_nz_args!(args, c1)
+            SQA.push_or_append_nz_args!(args, c2)
         elseif isa(rates[k],Matrix)
             for i=1:length(J[k]), j=1:length(J[k])
                 c1 = 0.5*rates[k][i,j]*Jdagger[k][i]*commutator(a_,J[k][j])
                 c2 = 0.5*rates[k][i,j]*commutator(Jdagger[k][i],a_)*J[k][j]
-                QA.push_or_append_nz_args!(args, c1)
-                QA.push_or_append_nz_args!(args, c2)
+                SQA.push_or_append_nz_args!(args, c1)
+                SQA.push_or_append_nz_args!(args, c2)
             end
         else
             error("Unknown rates type!")

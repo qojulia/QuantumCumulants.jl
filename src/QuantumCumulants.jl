@@ -18,14 +18,14 @@ using LinearAlgebra
 using QuantumOpticsBase
 import QuantumOpticsBase: ⊗, tensor
 
-include("../lib/QuantumAlgebra/src/QuantumAlgebra.jl")
-using .QuantumAlgebra
-using .QuantumAlgebra: QNumber, SNuN, QMul, QAdd, QSym, QTerm, ClusterAon, CallableTransition, IndexInt
-using .QuantumAlgebra: get_indices, commutator, numeric_average, _conj, find_operators,
+include("../lib/SecondQuantizedAlgebra/src/SecondQuantizedAlgebra.jl")
+using .SecondQuantizedAlgebra
+using .SecondQuantizedAlgebra: QNumber, SNuN, QMul, QAdd, QSym, QTerm, ClusterAon, CallableTransition, IndexInt
+using .SecondQuantizedAlgebra: get_indices, commutator, numeric_average, _conj, find_operators,
     _adjoint, get_i, hilbert, inorder!, levels, has_cluster, Σ, ∑, ismergeable, inadjoint,
     IndexedVariable, DoubleIndexedVariable, getIndName, fundamental_operators,
     _to_expression
-const QA = QuantumAlgebra
+const SQA = SecondQuantizedAlgebra
 
 import Base: *, +, -
 

@@ -302,15 +302,15 @@ can either be of type `QuantumOpticsBase.StateVector` or `QuantumOpticsBase.Oper
 
 See also: [`initial_values`](@ref), [`to_numeric`](@ref)
 """
-function QA.numeric_average(avg::Average, state; kwargs...)
+function SQA.numeric_average(avg::Average, state; kwargs...)
     op = undo_average(avg)
     return numeric_average(op, state; kwargs...)
 end
 
-function QA._conj(v::Average)
+function SQA._conj(v::Average)
     arg = v.arguments[1]
     adj_arg = adjoint(arg)
-    if QA.has_cluster(arg)
+    if SQA.has_cluster(arg)
         aons, N = get_cluster_stuff(hilbert(arg))
         names = get_names(arg)
         return substitute_redundants(_average(adj_arg), aons, names)

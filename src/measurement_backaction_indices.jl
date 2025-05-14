@@ -276,7 +276,7 @@ end
 # filters indices from extra_indices which are contained in allInds
 function filer_indices!(extra_indices, allInds)
     if extra_indices[1] isa Symbol
-        filter!(x -> x ∉ QA.getIndName.(allInds),extra_indices)
+        filter!(x -> x ∉ SQA.getIndName.(allInds),extra_indices)
     else
         filter!(x -> x ∉ allInds,extra_indices)
     end

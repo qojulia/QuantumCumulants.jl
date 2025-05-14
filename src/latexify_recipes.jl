@@ -30,11 +30,11 @@ function _latexify(lhs_, rhs_, t)
 
     # Convert eqs to Exprs
     rhs = _to_expression.(rhs_)
-    rhs = [MacroTools.postwalk(QA._postwalk_func, eq) for eq=rhs]
-    rhs = [MacroTools.postwalk(QA._postwalk_average, eq) for eq=rhs]
+    rhs = [MacroTools.postwalk(SQA._postwalk_func, eq) for eq=rhs]
+    rhs = [MacroTools.postwalk(SQA._postwalk_average, eq) for eq=rhs]
     lhs = _to_expression.(lhs_)
-    lhs = [MacroTools.postwalk(QA._postwalk_func, eq) for eq=lhs]
-    lhs = [MacroTools.postwalk(QA._postwalk_average, eq) for eq=lhs]
+    lhs = [MacroTools.postwalk(SQA._postwalk_func, eq) for eq=lhs]
+    lhs = [MacroTools.postwalk(SQA._postwalk_average, eq) for eq=lhs]
 
     tsym = Symbol(t)
     dt = Symbol(:d, tsym)
@@ -55,7 +55,7 @@ end
     return l
 end
 
-function QuantumAlgebra._to_expression(s::SymbolicUtils.Symbolic)
+function SQA._to_expression(s::SymbolicUtils.Symbolic)
     if SymbolicUtils.iscall(s)
         f = SymbolicUtils.operation(s)
         fsym = if isequal(f, sym_average) # "===" results in false for symbolics version 5

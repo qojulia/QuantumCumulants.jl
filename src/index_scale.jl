@@ -153,7 +153,7 @@ function scale_term(x::QMul; h=nothing, kwargs...)
 end
 function get_ind_dic(inds)
     dic = Dict()
-    aons = unique(QA.get_aon.(inds))
+    aons = unique(SQA.get_aon.(inds))
     for a in aons
         push!(dic, a => filter(x->isequal(a,x.aon),inds))
     end

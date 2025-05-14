@@ -1,4 +1,4 @@
-module QuantumAlgebra
+module SecondQuantizedAlgebra
 
 using SymbolicUtils: SymbolicUtils
 import SymbolicUtils: substitute, BasicSymbolic, arguments, iscall, operation

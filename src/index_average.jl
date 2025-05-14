@@ -45,7 +45,7 @@ struct IndexedAverageSum <: CNumber
         if !(isempty(non_equal_indices))
             neis_sym = string("(",neis_sym)
             neis_sym = string(neis_sym, "$(sum_index.name)≠")
-            neis_sym = string(neis_sym, QA.writeNEIs(non_equal_indices))
+            neis_sym = string(neis_sym, SQA.writeNEIs(non_equal_indices))
             neis_sym = string(neis_sym,")")
         end
         _metadata = new(term,sum_index,non_equal_indices,metadata)
@@ -55,7 +55,7 @@ struct IndexedAverageSum <: CNumber
         return sym
     end
 end
-function IndexedAverageSum(term::symbolics_terms,sum_index::Index,non_equal_indices::Vector;metadata=QA.NO_METADATA)
+function IndexedAverageSum(term::symbolics_terms,sum_index::Index,non_equal_indices::Vector;metadata=SQA.NO_METADATA)
     if sum_index ∉ get_indices(term)
         return (sum_index.range - length(non_equal_indices)) * term
     end
@@ -108,7 +108,7 @@ struct IndexedAverageDoubleSum <: CNumber
         if !(isempty(non_equal_indices))
             neis_sym = string("(",neis_sym)
             neis_sym = string(neis_sym, "$(sum_index.name)≠")
-            neis_sym = string(neis_sym, QA.writeNEIs(non_equal_indices))
+            neis_sym = string(neis_sym, SQA.writeNEIs(non_equal_indices))
             neis_sym = string(neis_sym,")")
         end
         sym = SymbolicUtils.Sym{IndexedAverageDoubleSum}(Symbol("∑($(sum_index.name):=1:$(sum_index.range))$(neis_sym)$(String(term.name))"))
@@ -267,11 +267,11 @@ IndexedVariable(x,numb::Int64) = SingleNumberedVariable(x,numb)
 IndexedVariable(x,num1::Int64,num2::Int64;kwargs...) = DoubleNumberedVariable(x,num1,num2;kwargs...)
 IndexedVariable(name::Symbol,ind1::Index,ind2::Index;kwargs...) = DoubleIndexedVariable(name,ind1,ind2;kwargs...)
 DoubleIndexedVariable(x,num1::Int64,num2::Int64;kwargs...) = DoubleNumberedVariable(x,num1,num2;kwargs...)
-function QA.get_indices(a::BasicSymbolic{DoubleIndexedVariable})
+function SQA.get_indices(a::BasicSymbolic{DoubleIndexedVariable})
     meta = SymbolicUtils.metadata(a)[DoubleIndexedVariable]
     return unique([meta.ind1,meta.ind2])
 end
-QA.get_indices(a::BasicSymbolic{IndexedVariable}) = [SymbolicUtils.metadata(a)[IndexedVariable].ind]
+SQA.get_indices(a::BasicSymbolic{IndexedVariable}) = [SymbolicUtils.metadata(a)[IndexedVariable].ind]
 
 #Symbolics functions
 get_order(x::SingleSum) = get_order(x.term)
@@ -605,7 +605,7 @@ function evalME(me::AbstractMeanfieldEquations;limits=Dict{SymbolicUtils.BasicSy
             end
             arr = create_index_arrays(inds,ranges_)
             for j=1:length(arr)
-                if !isempty(QA.get_numbers(eq.lhs)) && !(check_arr(eq.lhs,arr[j]))
+                if !isempty(SQA.get_numbers(eq.lhs)) && !(check_arr(eq.lhs,arr[j]))
                     continue
                 end
                 dict = Dict{Index,Int}(inds .=> arr[j])
@@ -643,7 +643,7 @@ function evalME(me::AbstractMeanfieldEquations;limits=Dict{SymbolicUtils.BasicSy
         if isempty(inds)
             counter = counter + 1
         else
-            ranges = QA.get_range.(inds)
+            ranges = SQA.get_range.(inds)
             counter = counter + prod(ranges)
         end
     end
@@ -886,7 +886,7 @@ end
 get_spec_hilb(ind::Index) = ind.aon
 
 function check_arr(lhs,arr)
-    numbs = QA.get_numbers(lhs)
+    numbs = SQA.get_numbers(lhs)
     inds = get_indices(lhs)
     D = Dict(inds.=>arr)
     args_ = arguments(lhs)[1]
@@ -897,10 +897,10 @@ function check_arr(lhs,arr)
     end
     for i = 1:length(hilbert(args[1]).spaces)
         as = filter(x->isequal(acts_on(x),i),args)
-        isempty(QA.get_numbers(as)) && continue
+        isempty(SQA.get_numbers(as)) && continue
         isempty(get_indices(as)) && continue
         inds_ = get_indices(as)
-        numbs = QA.get_numbers(as)
+        numbs = SQA.get_numbers(as)
         for i in inds_
             if D[i] in numbs
                 return false
@@ -958,27 +958,27 @@ function Base.show(io::IO, numbOp::NumberedOperator)
     Base.show(io,numbOp.numb)
 end
 
-function QuantumAlgebra._to_expression(x::NumberedOperator)
+function SQA._to_expression(x::NumberedOperator)
     x.op isa Transition && return :( NumberedOperator($(x.op.name),$(x.numb),$(x.op.i),$(x.op.j)) )
     x.op isa Destroy && return :(NumberedDestroy($(x.op.name),$(x.numb)))
     x.op isa Create && return :(dagger(NumberedDestroy($(x.op.name),$(x.numb))))
 end
-function QuantumAlgebra._to_expression(x::BasicSymbolic{IndexedAverageSum})
+function SQA._to_expression(x::BasicSymbolic{IndexedAverageSum})
     meta = SymbolicUtils.metadata(x)[IndexedAverageSum]
-    return :( IndexedAverageSum($(_to_expression(meta.term)),$(meta.sum_index.name),$(meta.sum_index.range),$(QA.writeNEIs(meta.non_equal_indices))) )
+    return :( IndexedAverageSum($(_to_expression(meta.term)),$(meta.sum_index.name),$(meta.sum_index.range),$(SQA.writeNEIs(meta.non_equal_indices))) )
 end
-function QuantumAlgebra._to_expression(x::BasicSymbolic{SpecialIndexedAverage})
+function SQA._to_expression(x::BasicSymbolic{SpecialIndexedAverage})
     meta = SymbolicUtils.metadata(x)[SpecialIndexedAverage]
     return _to_expression(meta.term)
 end
-function QuantumAlgebra._to_expression(x::BasicSymbolic{IndexedAverageDoubleSum})
+function SQA._to_expression(x::BasicSymbolic{IndexedAverageDoubleSum})
     meta = SymbolicUtils.metadata(x)[IndexedAverageDoubleSum]
-    return :( IndexedAverageDoubleSum($(_to_expression(meta.innerSum)),$(meta.sum_index.name),$(meta.sum_index.range),$(QA.writeNEIs(meta.non_equal_indices))) )
+    return :( IndexedAverageDoubleSum($(_to_expression(meta.innerSum)),$(meta.sum_index.name),$(meta.sum_index.range),$(SQA.writeNEIs(meta.non_equal_indices))) )
 end
 
 @latexrecipe function f(s_::BasicSymbolic{IndexedAverageSum})
     s = SymbolicUtils.metadata(s_)[IndexedAverageSum]
-    neis = QA.writeNEIs(s.non_equal_indices)
+    neis = SQA.writeNEIs(s.non_equal_indices)
 
     ex = latexify(s.term)
     sumString = nothing
@@ -1047,8 +1047,8 @@ function +(a::BasicSymbolic{DoubleIndexedVariable},b::BasicSymbolic{DoubleIndexe
     return SymbolicUtils.Add(CNumber,0,Dict(a=>1,b=>1))
 end
 
-QA.has_cluster(avg::Average,args...) = QA.has_cluster(undo_average(avg),args...)
+SQA.has_cluster(avg::Average,args...) = SQA.has_cluster(undo_average(avg),args...)
 
-QA.change_index(term::Average, from::Index,to::Index) = average(QA.change_index(arguments(term)[1],from,to))
+SQA.change_index(term::Average, from::Index,to::Index) = average(SQA.change_index(arguments(term)[1],from,to))
 
-QA.order_by_index(avrg::Average,inds::Vector{Index}) = QA.order_by_index(arguments(avrg)[1],inds)
+SQA.order_by_index(avrg::Average,inds::Vector{Index}) = SQA.order_by_index(arguments(avrg)[1],inds)

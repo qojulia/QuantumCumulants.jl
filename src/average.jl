@@ -40,7 +40,7 @@ function +(a::Average,b::Average)
     return SymbolicUtils.Add(CNumber,0,Dict(a=>1,b=>1))
 end
 
-function QuantumAlgebra.acts_on(s::SymbolicUtils.Symbolic)
+function SQA.acts_on(s::SymbolicUtils.Symbolic)
     if SymbolicUtils.iscall(s)
         f = SymbolicUtils.operation(s)
         if f === sym_average
@@ -84,7 +84,7 @@ end
 
 average(x::SNuN) = x
 average(x,order;kwargs...) = cumulant_expansion(average(x),order;kwargs...)
-average(x::QA.NumberedOperator) = _average(x)
+average(x::SQA.NumberedOperator) = _average(x)
 
 function undo_average(t)
     if SymbolicUtils.iscall(t)
