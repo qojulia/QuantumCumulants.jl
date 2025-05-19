@@ -39,7 +39,7 @@ include("latexify_recipes.jl")
 include("printing.jl")
 
 include("indexing.jl")
-include("NumberedOperator.jl")
+include("index_numbered_operator.jl")
 include("index_double_sums.jl")
 include("index_utils.jl")
 
