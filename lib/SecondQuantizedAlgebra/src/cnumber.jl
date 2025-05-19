@@ -14,10 +14,8 @@ a parameter.
 struct Parameter <: CNumber
     function Parameter(name; metadata=source_metadata(:Parameter, name))
         s = SymbolicUtils.Sym{Complex{Real}}(name)
-        s = SymbolicUtils.setmetadata(s, Symbolics.VariableSource, (:Parameter, name))
-        s = SymbolicUtils.setmetadata(s,MTK.MTKVariableTypeCtx,MTK.PARAMETER)
-        # ^ not needed, as both VariableSource ar checked upstream
-        return s
+        s = SymbolicUtils.setmetadata(s, MTK.VariableSource, (:Parameter, name))
+        return SymbolicUtils.setmetadata(s,MTK.MTKVariableTypeCtx,MTK.PARAMETER)
     end
 end
 
@@ -119,9 +117,7 @@ struct RealParameter <: RNumber
     function RealParameter(name; metadata=source_metadata(:RealParameter, name))
         s = SymbolicUtils.Sym{Real}(name)
         s = SymbolicUtils.setmetadata(s, MTK.VariableSource, (:RealParameter, name))
-        s = SymbolicUtils.setmetadata(s,MTK.MTKVariableTypeCtx,MTK.PARAMETER)
-        # ^ not needed, as both VariableSource ar checked upstream
-        return s
+        return SymbolicUtils.setmetadata(s,MTK.MTKVariableTypeCtx,MTK.PARAMETER)
     end
 end
 
