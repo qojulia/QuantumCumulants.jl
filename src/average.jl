@@ -69,10 +69,10 @@ up to that order is computed immediately.
 average(op::QSym) = _average(op)
 function average(op::QTerm)
     f = SymbolicUtils.operation(op)
-    if f===(Base.:+) || f===(Base.:-) # linearity
+    if f===(+) || f===(-) # linearity
         args = map(average, SymbolicUtils.arguments(op))
         return f(args...)
-    elseif f === (Base.:*)
+    elseif f === (*)
         # Move constants out of average
         c = op.arg_c
         op_ = QMul(1,op.args_nc)
