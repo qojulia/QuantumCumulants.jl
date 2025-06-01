@@ -847,7 +847,7 @@ function evalME(me::AbstractMeanfieldEquations;limits=Dict{SymbolicUtils.BasicSy
             filter!(x->x.aon in h,inds)
         end
         if isempty(inds)
-            eval = evalEq(eq;limits=limits,h=h,kwargs...)
+            eval = SQA.evalEq(eq;limits=limits,h=h,kwargs...)
             if (eval.lhs ∉ states) && (_inconj(eval.lhs) ∉ states)
                 states[counter] = eval.lhs
                 newEqs[counter] = eval
@@ -887,6 +887,93 @@ function evalME(me::AbstractMeanfieldEquations;limits=Dict{SymbolicUtils.BasicSy
     varmap = make_varmap(states, me.iv)
     return EvaledMeanfieldEquations(newEqs,me.operator_equations,states,operats,me.hamiltonian,me.jumps,me.jumps_dagger,me.rates,me.iv,varmap,me.order)
  end
+
+ # function that counts how many equations are needed for a given set of states
+ function count_eq_number(vs;limits=Dict(),h=nothing,kwargs...)
+    if !=(h,nothing) && !(h isa Vector)
+        h = [h]
+    end
+    counter = 0
+    for state in vs
+        inds = get_indices(state)
+        if !=(h,nothing)
+            filter!(x->x.aon in h, inds)
+        end
+        if isempty(inds)
+            counter = counter + 1
+        else
+            ranges = get_range.(inds)
+            counter = counter + prod(ranges)
+        end
+    end
+    return substitute(counter,limits)
+end
+get_range(i::Index) = i.range
+function check_arr(lhs,arr)
+    numbs = get_numbers(lhs)
+    inds = get_indices(lhs)
+    D = Dict(inds.=>arr)
+    args_ = arguments(lhs)[1]
+    if args_ isa QMul
+        args = args_.args_nc
+    else
+        args = [args_]
+    end
+    for i = 1:length(hilbert(args[1]).spaces)
+        as = filter(x->isequal(acts_on(x),i),args)
+        isempty(get_numbers(as)) && continue
+        isempty(get_indices(as)) && continue
+        inds_ = get_indices(as)
+        numbs = get_numbers(as)
+        for i in inds_
+            if D[i] in numbs
+                return false
+            end
+        end
+    end
+    return true
+end
+
+function insert_indices_lhs(term::Average,map::Dict{Index,Int64};kwargs...)
+    lhs = term
+    map_ = copy(map)
+    while !isempty(map_)
+        pair = first(map_)
+        lhs = insert_index(lhs,first(pair),last(pair))
+        delete!(map_,first(pair))
+        inorder!(lhs)
+    end
+    return lhs
+end
+"""
+    insert_indices(eq::Symbolics.Equation,map::Dict{Index,Int64};limits=Dict{SymbolicUtils.BasicSymbolic,Int64}())
+
+Function, that inserts an integer value for a index in a specified Equation. This function creates Numbered- Variables/Operators/Sums upon calls.
+Mainly used by [`evalEquation`](@ref).
+
+# Arguments
+*`eq::Symbolics.Equation`: The equation for which the indices will be inserted.
+*`map::Dict{Index,Int64}`: A dictionary, which contains specifications for the insertions
+    the entry (i => 5) would result in all `i` indices being replaced with the number 5.
+
+# Optional argumentes
+*`limits::Dict{SymbolicUtils.BasicSymbolic,Int64}=Dict{Symbol,Int64}()`: A seperate dictionary, to
+    specify any symbolic limits used when [`Index`](@ref) entities were defined. This needs
+    to be specified, when the equation contains summations, for which the upper bound is given
+    by a Symbolic.
+
+"""
+function insert_indices(eq::Symbolics.Equation,map::Dict{Index,Int64};limits=Dict{SymbolicUtils.BasicSymbolic,Int64}(),kwargs...)
+    eq_rhs = eq.rhs
+    while !isempty(map)
+        pair = first(map)
+        eq_rhs = insert_index(eq_rhs,first(pair),last(pair))
+        delete!(map,first(pair))
+    end
+    return eval_term(eq_rhs;limits,kwargs...) #return finished equation
+end
+
+
  function Base.show(io::IO,de::EvaledMeanfieldEquations)
     write(io,"Evaluated Meanfield equations with: ")
     write(io, "$(length(de.equations))")

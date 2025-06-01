@@ -415,3 +415,25 @@ function _make_operator(name, T, h, args...)
     d = source_metadata(:qnumbers, name)
     return Expr(:call, T, esc(h), name_, args..., Expr(:kw, :metadata, Expr(:quote, d)))
 end
+
+get_operators(q::QSym) = [q]
+function get_operators(q::QMul)
+    ops = QSym[]
+    seen_hashes = UInt[]
+    for arg ∈ q.args_nc
+        h = hash(arg)
+        if !(h ∈ seen_hashes)
+            push!(seen_hashes, h)
+            push!(ops, arg)
+        end
+    end
+    return ops
+end
+function get_operators(q::QAdd)
+    ops = QSym[]
+    for arg∈q.arguments
+        append!(ops, get_operators(arg))
+    end
+    unique_ops!(ops)
+    return ops
+end

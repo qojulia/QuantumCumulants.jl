@@ -1,5 +1,4 @@
 #Main file for manipulating indexed averages and sums over averages.
-using ModelingToolkit
 
 const symbolics_terms = Union{<:Average,<:BasicSymbolic{<:CNumber}}
 """
@@ -328,32 +327,6 @@ function Base.isequal(a::BasicSymbolic{SpecialIndexedAverage},b::BasicSymbolic{S
     return isequal(a_meta.term,b_meta.term) && isequal(a_meta.indexMapping,b_meta.indexMapping)
 end
 
-function _cumulant_expansion(x::IndexedAverageSum,order;kwargs...)
-    return IndexedAverageSum(simplifyMultiplication(cumulant_expansion(x.term,order;kwargs...)),x.sum_index,x.non_equal_indices)
-end
-function _cumulant_expansion(x::IndexedAverageDoubleSum,order;kwargs...)
-    inner = _cumulant_expansion(x.innerSum,order;kwargs...)
-    return IndexedAverageDoubleSum(inner,x.sum_index,x.non_equal_indices)
-end
-function _cumulant_expansion(a::BasicSymbolic{IndexedAverageSum},order;kwargs...)
-    if SymbolicUtils.hasmetadata(a,IndexedAverageSum)
-        meta = SymbolicUtils.metadata(a)[IndexedAverageSum]
-        return _cumulant_expansion(meta,order;kwargs...)
-    end
-end
-function _cumulant_expansion(a::BasicSymbolic{IndexedAverageDoubleSum},order;kwargs...)
-    if SymbolicUtils.hasmetadata(a,IndexedAverageDoubleSum)
-        meta = SymbolicUtils.metadata(a)[IndexedAverageDoubleSum]
-        return _cumulant_expansion(meta,order;kwargs...)
-    end
-end
-function _cumulant_expansion(a::BasicSymbolic{SpecialIndexedAverage},order;kwargs...)
-    if SymbolicUtils.hasmetadata(a,SpecialIndexedAverage)
-        meta = SymbolicUtils.metadata(a)[SpecialIndexedAverage]
-        return SpecialIndexedAverage(cumulant_expansion(meta.term,order;kwargs...),meta.indexMapping)
-    end
-end
-
 SymbolicUtils.arguments(op::BasicSymbolic{IndexedAverageSum}) = arguments(SymbolicUtils.metadata(op)[IndexedAverageSum])
 SymbolicUtils.arguments(op::IndexedAverageSum) = arguments(op.term)
 SymbolicUtils.arguments(op::BasicSymbolic{IndexedAverageDoubleSum}) = arguments(SymbolicUtils.metadata(op)[IndexedAverageDoubleSum])
@@ -478,65 +451,7 @@ function insert_index(term::BasicSymbolic{IndexedVariable},ind::Index,value::Int
     meta.ind == ind ? SingleNumberedVariable(meta.name,value) : term
 end
 insert_index(x,args...) = x
-"""
-    insert_indices(eq::Symbolics.Equation,map::Dict{Index,Int64};limits=Dict{SymbolicUtils.BasicSymbolic,Int64}())
 
-Function, that inserts an integer value for a index in a specified Equation. This function creates Numbered- Variables/Operators/Sums upon calls.
-Mainly used by [`evalEquation`](@ref).
-
-# Arguments
-*`eq::Symbolics.Equation`: The equation for which the indices will be inserted.
-*`map::Dict{Index,Int64}`: A dictionary, which contains specifications for the insertions
-    the entry (i => 5) would result in all `i` indices being replaced with the number 5.
-
-# Optional argumentes
-*`limits::Dict{SymbolicUtils.BasicSymbolic,Int64}=Dict{Symbol,Int64}()`: A seperate dictionary, to
-    specify any symbolic limits used when [`Index`](@ref) entities were defined. This needs
-    to be specified, when the equation contains summations, for which the upper bound is given
-    by a Symbolic.
-
-"""
-function insert_indices(eq::Symbolics.Equation,map::Dict{Index,Int64};limits=Dict{SymbolicUtils.BasicSymbolic,Int64}(),kwargs...)
-    eq_rhs = eq.rhs
-    while !isempty(map)
-        pair = first(map)
-        eq_rhs = insert_index(eq_rhs,first(pair),last(pair))
-        delete!(map,first(pair))
-    end
-    return eval_term(eq_rhs;limits,kwargs...) #return finished equation
-end
-function insert_indices_lhs(term::Average,map::Dict{Index,Int64};kwargs...)
-    lhs = term
-    map_ = copy(map)
-    while !isempty(map_)
-        pair = first(map_)
-        lhs = insert_index(lhs,first(pair),last(pair))
-        delete!(map_,first(pair))
-        inorder!(lhs)
-    end
-    return lhs
-end
-
- # function that counts how many equations are needed for a given set of states
- function count_eq_number(vs;limits=Dict(),h=nothing,kwargs...)
-    if !=(h,nothing) && !(h isa Vector)
-        h = [h]
-    end
-    counter = 0
-    for state in vs
-        inds = get_indices(state)
-        if !=(h,nothing)
-            filter!(x->x.aon in h, inds)
-        end
-        if isempty(inds)
-            counter = counter + 1
-        else
-            ranges = get_range.(inds)
-            counter = counter + prod(ranges)
-        end
-    end
-    return substitute(counter,limits)
-end
 function eval_term(sum_::BasicSymbolic{IndexedAverageSum};limits=Dict{SymbolicUtils.BasicSymbolic,Int64}(), h=nothing, kwargs...)
     meta = SymbolicUtils.metadata(sum_)[IndexedAverageSum]
     if !=(h,nothing)
@@ -772,31 +687,6 @@ function get_not_allowed(ind_vec)
     return not_allowed
 end
 get_spec_hilb(ind::Index) = ind.aon
-
-function check_arr(lhs,arr)
-    numbs = get_numbers(lhs)
-    inds = get_indices(lhs)
-    D = Dict(inds.=>arr)
-    args_ = arguments(lhs)[1]
-    if args_ isa QMul
-        args = args_.args_nc
-    else
-        args = [args_]
-    end
-    for i = 1:length(hilbert(args[1]).spaces)
-        as = filter(x->isequal(acts_on(x),i),args)
-        isempty(get_numbers(as)) && continue
-        isempty(get_indices(as)) && continue
-        inds_ = get_indices(as)
-        numbs = get_numbers(as)
-        for i in inds_
-            if D[i] in numbs
-                return false
-            end
-        end
-    end
-    return true
-end
 
 getAvrgs(sum::BasicSymbolic{SpecialIndexedAverage}) = getAvrgs(SymbolicUtils.metadata(sum)[SpecialIndexedAverage].term)
 getAvrgs(sum::BasicSymbolic{IndexedAverageSum}) = getAvrgs(SymbolicUtils.metadata(sum)[IndexedAverageSum].term)

@@ -106,7 +106,7 @@ qc.SpecialIndexedAverage(average(σ(1,2,ind(:i))) + average(σ(2,1,ind(:j))),[(i
 
 specAvrg = qc.SpecialIndexedAverage(average(σ(2,1,ind(:i))*σ(1,2,ind(:j))),[(ind(:i),ind(:j))])
 
-@test isequal("(i≠1)",qc.writeNeqs([(ind(:i),1)]))
+@test isequal("(i≠1)",qc.SecondQuantizedAlgebra.writeNeqs([(ind(:i),1)]))
 @test (isequal(SymbolicUtils.arguments(SymbolicUtils.arguments(ADsum1)[it_2]),SymbolicUtils.arguments(avrgTerm)[1]) || isequal(SymbolicUtils.arguments(SymbolicUtils.arguments(ADsum1)[it_2]),SymbolicUtils.arguments(avrgTerm)[2]) )
 # SymbolicUtilsv1.4.0 argument order changed
 @test isequal(SymbolicUtils.arguments(SymbolicUtils.arguments(SymbolicUtils.arguments(ADsum1)[it_2])),SymbolicUtils.arguments(average(σ(2,1,ind(:i))*σ(1,2,ind(:j)))))
@@ -146,7 +146,7 @@ eva = qc.eval_term(sum3_B;limits=map2)
 @test eva isa SymbolicUtils.BasicSymbolic{<:CNumber} && operation(eva) === +
 @test length(arguments(eva)) == 4
 
-@test qc.containsIndexedOps(average(a*σ(2,1,ind(:i))*σ(1,2,ind(:j))))
-@test !(qc.containsIndexedOps(average(a'*a)))
+@test qc.SecondQuantizedAlgebra.containsIndexedOps(average(a*σ(2,1,ind(:i))*σ(1,2,ind(:j))))
+@test !(qc.SecondQuantizedAlgebra.containsIndexedOps(average(a'*a)))
 
 end

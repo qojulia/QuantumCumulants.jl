@@ -23,9 +23,12 @@ using Reexport
 @reexport using .SecondQuantizedAlgebra
 using .SecondQuantizedAlgebra: QNumber, SNuN, QMul, QAdd, ClusterAon, CallableTransition,
     IndexInt, get_indices, commutator, numeric_average, _conj,
-    _adjoint, get_i, hilbert, inorder!, levels, has_cluster, ismergeable, inadjoint, undo_average, _average, sym_average, getAvrgs,
-    IndexedVariable, DoubleIndexedVariable, SpecialIndexedAverage, IndexedAverageSum, _inconj,
-    IndexedAverageDoubleSum, getIndName, _to_expression, AvgSums
+    _adjoint, get_i, hilbert, inorder!, levels, has_cluster, ismergeable, inadjoint,
+    undo_average, _average, sym_average, getAvrgs, IndexedVariable, DoubleIndexedVariable,
+    SpecialIndexedAverage, IndexedAverageSum, _inconj, getLHS, DoubleNumberedVariable,
+    SingleNumberedVariable, create_index_arrays,
+    IndexedAverageDoubleSum, getIndName, _to_expression, AvgSums, simplifyMultiplication,
+    create_value_map, get_numbers
 const SQA = SecondQuantizedAlgebra
 
 import Base: *, +, -

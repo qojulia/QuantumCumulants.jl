@@ -306,3 +306,15 @@ function SQA.numeric_average(avg::Average, state; kwargs...)
     op = undo_average(avg)
     return numeric_average(op, state; kwargs...)
 end
+
+function SQA._conj(v::Average)
+    arg = v.arguments[1]
+    adj_arg = adjoint(arg)
+    if has_cluster(arg)
+        aons, N = SQA.get_cluster_stuff(hilbert(arg))
+        names = get_names(arg)
+        return substitute_redundants(_average(adj_arg), aons, names)
+    else
+        return _average(adj_arg)
+    end
+end

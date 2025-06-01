@@ -61,10 +61,8 @@ end
 
 """
     average(::QNumber)
-    average(::QNumber,order)
 
-Compute the average of an operator. If `order` is given, the [`cumulant_expansion`](@ref)
-up to that order is computed immediately.
+Compute the average of an operator.
 """
 average(op::QSym) = _average(op)
 function average(op::QTerm)

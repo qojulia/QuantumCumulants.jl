@@ -895,7 +895,6 @@ end
     return sumString
 end
 SymbolicUtils._iszero(x::SpecialIndexedTerm) = SymbolicUtils._iszero(x.term)
-get_range(i::Index) = i.range
 get_aon(i::Index) = i.aon
 
 -(a::BasicSymbolic{IndexedVariable}) = -1*a

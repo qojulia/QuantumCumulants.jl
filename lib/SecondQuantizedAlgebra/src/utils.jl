@@ -282,18 +282,6 @@ function _conj(v::T) where T <: SymbolicUtils.Symbolic
 end
 _conj(x::Number) = conj(x)
 
-function _conj(v::Average)
-    arg = v.arguments[1]
-    adj_arg = adjoint(arg)
-    if has_cluster(arg)
-        aons, N = get_cluster_stuff(hilbert(arg))
-        names = get_names(arg)
-        return substitute_redundants(_average(adj_arg), aons, names)
-    else
-        return _average(adj_arg)
-    end
-end
-
 #function that returns the conjugate of an average, but also preserving the correct ordering
 function _inconj(v::Average)
     f = operation(v)
