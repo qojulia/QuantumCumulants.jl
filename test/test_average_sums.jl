@@ -146,7 +146,7 @@ eva = qc.eval_term(sum3_B;limits=map2)
 @test eva isa SymbolicUtils.BasicSymbolic{<:CNumber} && operation(eva) === +
 @test length(arguments(eva)) == 4
 
-@test qc.SecondQuantizedAlgebra.containsIndexedOps(average(a*σ(2,1,ind(:i))*σ(1,2,ind(:j))))
-@test !(qc.SecondQuantizedAlgebra.containsIndexedOps(average(a'*a)))
+@test qc.containsIndexedOps(average(a*σ(2,1,ind(:i))*σ(1,2,ind(:j))))
+@test !(qc.containsIndexedOps(average(a'*a)))
 
 end

@@ -24,11 +24,10 @@ using Reexport
 using .SecondQuantizedAlgebra: QNumber, SNuN, QMul, QAdd, ClusterAon, CallableTransition,
     IndexInt, get_indices, commutator, numeric_average, _conj,
     _adjoint, get_i, hilbert, inorder!, levels, has_cluster, ismergeable, inadjoint,
-    undo_average, _average, sym_average, getAvrgs, IndexedVariable, DoubleIndexedVariable,
-    SpecialIndexedAverage, IndexedAverageSum, _inconj, getLHS, DoubleNumberedVariable,
-    SingleNumberedVariable, create_index_arrays,
-    IndexedAverageDoubleSum, getIndName, _to_expression, AvgSums, simplifyMultiplication,
-    create_value_map, get_numbers
+    undo_average, _average, sym_average, IndexedVariable, DoubleIndexedVariable,
+    SpecialIndexedAverage, IndexedAverageSum, _inconj, DoubleNumberedVariable,
+    SingleNumberedVariable,
+    IndexedAverageDoubleSum, getIndName, _to_expression, AvgSums, get_numbers
 const SQA = SecondQuantizedAlgebra
 
 import Base: *, +, -
@@ -72,6 +71,7 @@ include("measurement_backaction.jl")
 include("measurement_backaction_indices.jl")
 include("latexify_recipes.jl")
 include("printing.jl")
+include("index_average.jl")
 include("index_meanfield.jl")
 include("index_scale.jl")
 include("index_correlation.jl")

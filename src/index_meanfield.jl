@@ -847,7 +847,7 @@ function evalME(me::AbstractMeanfieldEquations;limits=Dict{SymbolicUtils.BasicSy
             filter!(x->x.aon in h,inds)
         end
         if isempty(inds)
-            eval = SQA.evalEq(eq;limits=limits,h=h,kwargs...)
+            eval = evalEq(eq;limits=limits,h=h,kwargs...)
             if (eval.lhs ∉ states) && (_inconj(eval.lhs) ∉ states)
                 states[counter] = eval.lhs
                 newEqs[counter] = eval

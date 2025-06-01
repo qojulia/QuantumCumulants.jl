@@ -101,3 +101,5 @@ function undo_average(eq::Symbolics.Equation)
     rhs = undo_average(eq.rhs)
     return Symbolics.Equation(lhs,rhs)
 end
+
+Base.:(==)(term1::Average,term2::Average) = isequal(arguments(term1), arguments(term2))
