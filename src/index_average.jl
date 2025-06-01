@@ -1,3 +1,18 @@
+ #Main file for manipulating indexed averages and sums over averages.
+
+ function Base.show(io::IO,de::EvaledMeanfieldEquations)
+    write(io,"Evaluated Meanfield equations with: ")
+    write(io, "$(length(de.equations))")
+    write(io, " number of equations")
+end
+@latexrecipe function f(de::EvaledMeanfieldEquations)
+    return de
+end
+function plotME(me::EvaledMeanfieldEquations)
+    return MeanfieldEquations(me.equations,me.operator_equations,me.states,me.operators,me.hamiltonian,me.jumps,me.jumps_dagger,me.rates,me.iv,me.varmap,me.order)
+end
+
+
 #this is the new method, insert values directly into the average before calculating anything, simplifies evaluation afterwards extremely
 #function for inserting index, k -> 1,2,...,N
 """
@@ -115,90 +130,136 @@ function insert_index(term::BasicSymbolic{IndexedVariable},ind::Index,value::Int
     meta.ind == ind ? SingleNumberedVariable(meta.name,value) : term
 end
 insert_index(x,args...) = x
+"""
+    insert_indices(eq::Symbolics.Equation,map::Dict{Index,Int64};limits=Dict{SymbolicUtils.BasicSymbolic,Int64}())
 
+Function, that inserts an integer value for a index in a specified Equation. This function creates Numbered- Variables/Operators/Sums upon calls.
+Mainly used by [`evalEquation`](@ref).
 
-#functions for checking if indices occure in specific terms
-function containsIndexedOps(term::Average)
-    arg_ = arguments(term)
-    if arg_[1] isa QMul
-        for arg in arg_[1].args_nc
-            if arg isa IndexedOperator
-                return true
+# Arguments
+*`eq::Symbolics.Equation`: The equation for which the indices will be inserted.
+*`map::Dict{Index,Int64}`: A dictionary, which contains specifications for the insertions
+    the entry (i => 5) would result in all `i` indices being replaced with the number 5.
+
+# Optional argumentes
+*`limits::Dict{SymbolicUtils.BasicSymbolic,Int64}=Dict{Symbol,Int64}()`: A seperate dictionary, to
+    specify any symbolic limits used when [`Index`](@ref) entities were defined. This needs
+    to be specified, when the equation contains summations, for which the upper bound is given
+    by a Symbolic.
+
+"""
+function insert_indices(eq::Symbolics.Equation,map::Dict{Index,Int64};limits=Dict{SymbolicUtils.BasicSymbolic,Int64}(),kwargs...)
+    eq_rhs = eq.rhs
+    while !isempty(map)
+        pair = first(map)
+        eq_rhs = insert_index(eq_rhs,first(pair),last(pair))
+        delete!(map,first(pair))
+    end
+    return eval_term(eq_rhs;limits,kwargs...) #return finished equation
+end
+function insert_indices_lhs(term::Average,map::Dict{Index,Int64};kwargs...)
+    lhs = term
+    map_ = copy(map)
+    while !isempty(map_)
+        pair = first(map_)
+        lhs = insert_index(lhs,first(pair),last(pair))
+        delete!(map_,first(pair))
+        inorder!(lhs)
+    end
+    return lhs
+end
+"""
+    evalME(me::MeanfieldEquations;limits::Dict{SymbolicUtils.BasicSymbolic,Int64}=Dict{SymbolicUtils.BasicSymbolic,Int64}())
+
+Function, that evaluates a given [`MeanfieldEquations`](@ref) entity and returns again equations,
+where indices have been inserted and sums evaluated.
+
+# Arguments
+*`me::MeanfieldEquations`: A [`MeanfieldEquations`](@ref) entity, which shall be evaluated.
+
+# Optional argumentes
+*`limits=Dict{SymbolicUtils.BasicSymbolic,Int64}()`: A seperate dictionary, to
+    specify any symbolic limits used when [`Index`](@ref) entities were defined. This needs
+    to be specified, when the equations contain summations, for which the upper bound is given
+    by a Symbolic.
+
+"""
+function evalME(me::AbstractMeanfieldEquations;limits=Dict{SymbolicUtils.BasicSymbolic,Int64}(),h=nothing,kwargs...)#this is still pretty slow
+    vs = me.states
+    maxRange = count_eq_number(vs;limits=limits,h=h,kwargs...)
+    if !(maxRange isa Int)
+        error("Not all upper limits of indices are set as a Number! You can do this by using the \"limits\" keyword argument.")
+    end
+    newEqs = Vector{Any}(nothing,maxRange)
+    states = Vector{Any}(nothing,maxRange)
+    counter = 1
+    for i = 1:length(vs)
+        inds = get_indices(vs[i])
+        eq = me.equations[i]
+        if !=(h,nothing)
+            filter!(x->x.aon in h,inds)
+        end
+        if isempty(inds)
+            eval = evalEq(eq;limits=limits,h=h,kwargs...)
+            if (eval.lhs ∉ states) && (_inconj(eval.lhs) ∉ states)
+                states[counter] = eval.lhs
+                newEqs[counter] = eval
+                counter = counter + 1
+            end
+        else
+            if !=(h,nothing)
+                filter!(x->x.aon in h,inds)
+            end
+            ranges_ = Vector{Any}(nothing,length(inds))
+            for i=1:length(inds)
+                ranges_[i] = (inds[i].range in keys(limits)) ? (1:limits[inds[i].range]) : (1:inds[i].range)
+            end
+            arr = create_index_arrays(inds,ranges_)
+            for j=1:length(arr)
+                if !isempty(get_numbers(eq.lhs)) && !(check_arr(eq.lhs,arr[j]))
+                    continue
+                end
+                dict = Dict{Index,Int}(inds .=> arr[j])
+                eq_lhs = insert_indices_lhs(eq.lhs,dict)
+                if (eq_lhs ∉ states) && (_inconj(eq_lhs) ∉ states)
+                    eq_rhs = insert_indices(eq,dict;limits=limits,h=h,kwargs...)
+                    states[counter] = eq_lhs
+                    if SymbolicUtils._iszero(eq_rhs)
+                        newEqs[counter] = Symbolics.Equation(eq_lhs,0)
+                    else
+                        newEqs[counter] = Symbolics.Equation(eq_lhs,eq_rhs)
+                    end
+                    counter = counter + 1
+                end
             end
         end
-    else
-        return arg_[1] isa IndexedOperator
     end
-    return false
-end
-containsIndex(term::Average,ind::Index) = ind ∈ get_indices(term)
-
-
-#function that creates an array consisting of all possible number values for each index given
-#ind_vec should be sorted beforehand
-function create_index_arrays(ind_vec,ranges)
-    if length(ind_vec) == 1
-        return ranges[1]
+    states = states[1:(counter-1)]
+    operats = undo_average.(states)
+    newEqs = newEqs[1:(counter-1)]
+    varmap = make_varmap(states, me.iv)
+    return EvaledMeanfieldEquations(newEqs,me.operator_equations,states,operats,me.hamiltonian,me.jumps,me.jumps_dagger,me.rates,me.iv,varmap,me.order)
+ end
+ # function that counts how many equations are needed for a given set of states
+ function count_eq_number(vs;limits=Dict(),h=nothing,kwargs...)
+    if !=(h,nothing) && !(h isa Vector)
+        h = [h]
     end
-    @assert length(ind_vec) == length(ranges)
-    array = unique(collect(Iterators.product(ranges...)))
-    length(ind_vec) == 1 && return array
-    length(unique(get_spec_hilb.(ind_vec))) == length(ind_vec) && return array #every index has its own specHilb
-    for vec in get_not_allowed(ind_vec)
-        array = array[Bool[all_different(array[i],vec) for i=1:length(array)]]
-    end
-    return collect(array)
-end
-
-
-all_different(x,vec) = length(unique(getindex(x,vec))) == length(getindex(x,vec))
-function get_not_allowed(ind_vec)
-    spec_hilbs = get_spec_hilb.(ind_vec)
-    not_allowed = []
-    for ind in ind_vec
-        indices = findall(x -> isequal(x,ind.aon) ,spec_hilbs)
-        length(indices) == 1 && continue
-        if indices ∉ not_allowed
-            push!(not_allowed,indices)
+    counter = 0
+    for state in vs
+        inds = get_indices(state)
+        if !=(h,nothing)
+            filter!(x->x.aon in h, inds)
+        end
+        if isempty(inds)
+            counter = counter + 1
+        else
+            ranges = SQA.get_range.(inds)
+            counter = counter + prod(ranges)
         end
     end
-    return not_allowed
+    return substitute(counter,limits)
 end
-get_spec_hilb(ind::Index) = ind.aon
-
-
-#simplify functions not "really" needed, they are nice to have, since equation creation of Symbolics sometimes does not simplify certain terms
-#function to reduce multiplication of numbers with a sum into just a sum of multiplication
-function simplifyMultiplication(term::BasicSymbolic{<:CNumber})
-    if iscall(term) && operation(term) === *
-        args = arguments(term)
-        ind = findfirst(x-> (iscall(x) && operation(x) === +),args)
-        (ind === nothing) && return term #no add-terms were found inside the multiplication
-
-        args_ = arguments(args[ind]) # arguments of the addition
-        lefts = isempty(args[1:(ind-1)]) ? 1 : args[1:(ind-1)]
-        rights = isempty(args[(ind+1):end]) ? 1 : args[(ind+1):end]
-        adds = [simplifyMultiplication(prod(lefts)*arg*prod(rights)) for arg in args_]
-
-        return sum(adds)
-    end
-    return term
-end
-simplifyMultiplication(x) = x
-
-getAvrgs(sum::BasicSymbolic{SpecialIndexedAverage}) = getAvrgs(SymbolicUtils.metadata(sum)[SpecialIndexedAverage].term)
-getAvrgs(sum::BasicSymbolic{IndexedAverageSum}) = getAvrgs(SymbolicUtils.metadata(sum)[IndexedAverageSum].term)
-getAvrgs(Dsum::BasicSymbolic{IndexedAverageDoubleSum}) = getAvrgs(SymbolicUtils.metadata(Dsum)[IndexedAverageDoubleSum].innerSum)
-function getAvrgs(term::BasicSymbolic{<:CNumber})
-    if iscall(term)
-        return  vcat(filter(x->!=(x,nothing),[getAvrgs(arg) for arg in arguments(term)])...)
-    else
-        return nothing
-    end
-end
-getAvrgs(avrg::Average) = avrg
-getAvrgs(x) = nothing
-
 function eval_term(sum_::BasicSymbolic{IndexedAverageSum};limits=Dict{SymbolicUtils.BasicSymbolic,Int64}(), h=nothing, kwargs...)
     meta = SymbolicUtils.metadata(sum_)[IndexedAverageSum]
     if !=(h,nothing)
@@ -294,6 +355,7 @@ end
 getLHS(eq::Symbolics.Equation) = eq.lhs
 getLHS(x) = []
 
+
 #Value map creation, for easier inserting into the ODEProblem
 """
     create_value_map(sym::BasicSymbolic{IndexedVariable}, values::Vector;limits::Dict{SymbolicUtils.BasicSymbolic,Int64}=Dict{SymbolicUtils.BasicSymbolic,Int64}())
@@ -381,3 +443,107 @@ function create_value_map(sym::BasicSymbolic{DoubleIndexedVariable},values::Matr
     end
     return dict
 end
+
+#functions for checking if indices occure in specific terms
+function containsIndexedOps(term::Average)
+    arg_ = arguments(term)
+    if arg_[1] isa QMul
+        for arg in arg_[1].args_nc
+            if arg isa IndexedOperator
+                return true
+            end
+        end
+    else
+        return arg_[1] isa IndexedOperator
+    end
+    return false
+end
+containsIndex(term::Average,ind::Index) = ind ∈ get_indices(term)
+
+
+#function that creates an array consisting of all possible number values for each index given
+#ind_vec should be sorted beforehand
+function create_index_arrays(ind_vec,ranges)
+    if length(ind_vec) == 1
+        return ranges[1]
+    end
+    @assert length(ind_vec) == length(ranges)
+    array = unique(collect(Iterators.product(ranges...)))
+    length(ind_vec) == 1 && return array
+    length(unique(get_spec_hilb.(ind_vec))) == length(ind_vec) && return array #every index has its own specHilb
+    for vec in get_not_allowed(ind_vec)
+        array = array[Bool[all_different(array[i],vec) for i=1:length(array)]]
+    end
+    return collect(array)
+end
+all_different(x,vec) = length(unique(getindex(x,vec))) == length(getindex(x,vec))
+function get_not_allowed(ind_vec)
+    spec_hilbs = get_spec_hilb.(ind_vec)
+    not_allowed = []
+    for ind in ind_vec
+        indices = findall(x -> isequal(x,ind.aon) ,spec_hilbs)
+        length(indices) == 1 && continue
+        if indices ∉ not_allowed
+            push!(not_allowed,indices)
+        end
+    end
+    return not_allowed
+end
+get_spec_hilb(ind::Index) = ind.aon
+
+function check_arr(lhs,arr)
+    numbs = get_numbers(lhs)
+    inds = get_indices(lhs)
+    D = Dict(inds.=>arr)
+    args_ = arguments(lhs)[1]
+    if args_ isa QMul
+        args = args_.args_nc
+    else
+        args = [args_]
+    end
+    for i = 1:length(hilbert(args[1]).spaces)
+        as = filter(x->isequal(acts_on(x),i),args)
+        isempty(get_numbers(as)) && continue
+        isempty(get_indices(as)) && continue
+        inds_ = get_indices(as)
+        numbs = get_numbers(as)
+        for i in inds_
+            if D[i] in numbs
+                return false
+            end
+        end
+    end
+    return true
+end
+
+getAvrgs(sum::BasicSymbolic{SpecialIndexedAverage}) = getAvrgs(SymbolicUtils.metadata(sum)[SpecialIndexedAverage].term)
+getAvrgs(sum::BasicSymbolic{IndexedAverageSum}) = getAvrgs(SymbolicUtils.metadata(sum)[IndexedAverageSum].term)
+getAvrgs(Dsum::BasicSymbolic{IndexedAverageDoubleSum}) = getAvrgs(SymbolicUtils.metadata(Dsum)[IndexedAverageDoubleSum].innerSum)
+function getAvrgs(term::BasicSymbolic{<:CNumber})
+    if iscall(term)
+        return  vcat(filter(x->!=(x,nothing),[getAvrgs(arg) for arg in arguments(term)])...)
+    else
+        return nothing
+    end
+end
+getAvrgs(avrg::Average) = avrg
+getAvrgs(x) = nothing
+
+#simplify functions not "really" needed, they are nice to have, since equation creation of Symbolics sometimes does not simplify certain terms
+#function to reduce multiplication of numbers with a sum into just a sum of multiplication
+function simplifyMultiplication(term::BasicSymbolic{<:CNumber})
+    if iscall(term) && operation(term) === *
+        args = arguments(term)
+        ind = findfirst(x-> (iscall(x) && operation(x) === +),args)
+        (ind === nothing) && return term #no add-terms were found inside the multiplication
+
+        args_ = arguments(args[ind]) # arguments of the addition
+        lefts = isempty(args[1:(ind-1)]) ? 1 : args[1:(ind-1)]
+        rights = isempty(args[(ind+1):end]) ? 1 : args[(ind+1):end]
+        adds = [simplifyMultiplication(prod(lefts)*arg*prod(rights)) for arg in args_]
+
+        return sum(adds)
+    end
+    return term
+end
+simplifyMultiplication(x) = x
