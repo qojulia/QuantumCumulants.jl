@@ -622,6 +622,7 @@ function change_index(term::QMul, from::Index, to::Index)
     args_nc = [change_index(arg,from,to) for arg in copy(term.args_nc)]
     return arg_c*prod(args_nc)
 end
+change_index(term::Average, from::Index,to::Index) = average(change_index(arguments(term)[1],from,to))
 change_index(op::IndexedOperator,from::Index,to::Index) = isequal(op.ind,from) ? IndexedOperator(op.op,to) : op
 
 function change_index(op::BasicSymbolic{IndexedVariable},from::Index,to::Index)
@@ -708,6 +709,7 @@ function order_by_index(vec::Vector,indices::Vector{Index})
     return vcat(frontfront,front,back)
 end
 order_by_index(qmul::QMul,inds::Vector{Index}) = qmul.arg_c*prod(order_by_index(qmul.args_nc,inds))
+order_by_index(avrg::Average,inds::Vector{Index}) = order_by_index(arguments(avrg)[1],inds)
 order_by_index(x,inds) = x
 
 #Reorder function: given a tuple vector of indices meaning for each tuple: first ≠ second
@@ -893,7 +895,6 @@ end
     return sumString
 end
 SymbolicUtils._iszero(x::SpecialIndexedTerm) = SymbolicUtils._iszero(x.term)
-get_range(i::Index) = i.range
 get_aon(i::Index) = i.aon
 
 -(a::BasicSymbolic{IndexedVariable}) = -1*a

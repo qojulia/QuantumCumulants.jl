@@ -5,6 +5,9 @@ function get_indices(term::QMul)
 end
 get_indices(a::IndexedOperator) = [a.ind]
 get_indices(vec::Vector) = unique(vcat(get_indices.(vec)...))
+get_indices(x::AvgSums) = get_indices(arguments(x))
+get_indices(term::Average) = get_indices(arguments(term)[1])
+
 
 const Sums = Union{SingleSum,DoubleSum}
 # get_indices(x::Sums) = unique(get_indices(arguments(x)))
@@ -83,7 +86,16 @@ function inorder!(v::T) where T <: SymbolicUtils.BasicSymbolic
 end
 inorder!(x) = x
 
+function inorder!(v::Average)
+    f = operation(v)
+    if f == conj
+        return conj(inorder!(arguments(v)[1]))
+    end
+    return average(inorder!(arguments(v)[1]))
+end
+
 get_numbers(term::QMul) = unique(vcat(get_numbers.(term.args_nc)...))
+get_numbers(term::Average) = get_numbers(arguments(term)[1])
 get_numbers(x::NumberedOperator) = [x.numb]
 get_numbers(x::Vector) = unique(vcat(get_numbers.(x)...))
 get_numbers(x) = []

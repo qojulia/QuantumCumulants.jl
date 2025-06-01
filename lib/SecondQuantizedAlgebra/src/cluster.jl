@@ -13,6 +13,7 @@ function has_cluster(h::ProductSpace)
 end
 has_cluster(h::ProductSpace,aon) = has_cluster(h.spaces[get_i(aon)])
 has_cluster(op::QNumber,args...) = has_cluster(hilbert(op),args...)
+has_cluster(avg::Average,args...) = has_cluster(undo_average(avg),args...)
 
 # ClusterAon methods
 Base.hash(c::T, h::UInt) where T<:ClusterAon = hash(T, hash(c.i, hash(c.j, h)))
@@ -64,3 +65,20 @@ end
 _remake_op(op::Transition, h, name, aon) = Transition(h, name, op.i, op.j, aon)
 _remake_op(op::Destroy, h, name, aon) = Destroy(h, name, aon)
 _remake_op(op::Create, h, name, aon) = Create(h, name, aon)
+
+function get_cluster_stuff(h::ClusterSpace,aon=1)
+    M = h.order
+    aons = [ClusterAon(aon,i) for i=1:M]
+    return [aons], [h.N]
+end
+function get_cluster_stuff(h::ProductSpace)
+    idx = findall(x->isa(x,ClusterSpace),h.spaces)
+    aons = Vector{<:ClusterAon}[]
+    N = []
+    for i∈idx
+        aon_, N_ = get_cluster_stuff(h.spaces[i],i)
+        append!(aons, aon_)
+        append!(N, N_)
+    end
+    return aons, N
+end

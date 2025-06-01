@@ -32,6 +32,7 @@ include("nlevel.jl")
 include("spin.jl")
 include("commutator.jl")
 
+include("average.jl")
 include("utils.jl")
 include("cluster.jl")
 
@@ -41,6 +42,7 @@ include("printing.jl")
 include("indexing.jl")
 include("index_numbered_operator.jl")
 include("index_double_sums.jl")
+include("index_average.jl")
 include("index_utils.jl")
 
 export HilbertSpace, ProductSpace, ⊗, tensor,
@@ -53,7 +55,7 @@ export HilbertSpace, ProductSpace, ⊗, tensor,
     rnumbers, rnumber,
     unique_ops, unique_ops!, to_numeric, numeric_average,
     ClusterSpace, find_operators, fundamental_operators,
-    transition_superscript,
+    transition_superscript, Average, average,
     Index, reorder, IndexedOperator, SingleSum, IndexedVariable, DoubleIndexedVariable,
     DoubleSum, SpecialIndexedTerm, Σ, ∑,
     NumberedOperator, change_index, order_by_index

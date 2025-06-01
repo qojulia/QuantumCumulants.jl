@@ -273,7 +273,7 @@ function get_solution(sol, op::SymbolicUtils.BasicSymbolic{CNumber})
     sol_args = [get_solution(sol, args[i]) for i=1:length(args)]
     (f).(sol_args...)
 end
-function get_solution(sol, op::SymbolicUtils.BasicSymbolic{QuantumCumulants.AvgSym})
+function get_solution(sol, op::SymbolicUtils.BasicSymbolic{SQA.AvgSym})
     sol[op]
 end
 function get_solution(sol, op, dict::Dict)
@@ -310,8 +310,8 @@ end
 function SQA._conj(v::Average)
     arg = v.arguments[1]
     adj_arg = adjoint(arg)
-    if SQA.has_cluster(arg)
-        aons, N = get_cluster_stuff(hilbert(arg))
+    if has_cluster(arg)
+        aons, N = SQA.get_cluster_stuff(hilbert(arg))
         names = get_names(arg)
         return substitute_redundants(_average(adj_arg), aons, names)
     else

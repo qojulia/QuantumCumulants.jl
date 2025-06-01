@@ -56,6 +56,19 @@ SymbolicUtils.promote_symtype(f,T::Type{<:QNumber},S::Type{<:QNumber}) = promote
 
 SymbolicUtils.symtype(x::T) where T<:QNumber = T
 
+# Standard simplify and expand functions
+function SymbolicUtils.simplify(x::QNumber;kwargs...)
+    avg = average(x)
+    avg_ = SymbolicUtils.simplify(avg;kwargs...)
+    return undo_average(avg_)
+end
+
+function Symbolics.expand(x::QNumber;kwargs...)
+    expansion = average(x)
+    expansion_ = SymbolicUtils.expand(expansion; kwargs...)
+    return undo_average(expansion_)
+end
+
 ## End of interface
 
 ## Methods
@@ -401,4 +414,26 @@ function _make_operator(name, T, h, args...)
     name_ = Expr(:quote, name)
     d = source_metadata(:qnumbers, name)
     return Expr(:call, T, esc(h), name_, args..., Expr(:kw, :metadata, Expr(:quote, d)))
+end
+
+get_operators(q::QSym) = [q]
+function get_operators(q::QMul)
+    ops = QSym[]
+    seen_hashes = UInt[]
+    for arg ∈ q.args_nc
+        h = hash(arg)
+        if !(h ∈ seen_hashes)
+            push!(seen_hashes, h)
+            push!(ops, arg)
+        end
+    end
+    return ops
+end
+function get_operators(q::QAdd)
+    ops = QSym[]
+    for arg∈q.arguments
+        append!(ops, get_operators(arg))
+    end
+    unique_ops!(ops)
+    return ops
 end

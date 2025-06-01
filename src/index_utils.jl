@@ -1,39 +1,3 @@
-SQA.get_indices(x::AvgSums) = get_indices(arguments(x))
-
-SQA.get_indices(term::Average) = get_indices(arguments(term)[1])
-
-#function that returns the conjugate of an average, but also preserving the correct ordering
-function _inconj(v::Average)
-    f = operation(v)
-    if f == conj
-        return _inconj(arguments(v)[1])
-    end
-    arg = v.arguments[1]
-    adj_arg = SQA.inadjoint(arg)
-    return _average(adj_arg)
-end
-function _inconj(v::T) where T <: SymbolicUtils.BasicSymbolic
-    if SymbolicUtils.iscall(v)
-        f = SymbolicUtils.operation(v)
-        args = map(_inconj, SymbolicUtils.arguments(v))
-        return SymbolicUtils.maketerm(T, f, args, TermInterface.metadata(v))
-    else
-        return conj(v)
-    end
-end
-_inconj(x::Number) = conj(x)
-
-function SQA.inorder!(v::Average)
-    f = operation(v)
-    if f == conj
-        return conj(inorder!(arguments(v)[1]))
-    end
-    return average(inorder!(arguments(v)[1]))
-end
-
-SQA.get_numbers(term::Average) = SQA.get_numbers(arguments(term)[1])
-
-
 """
     subst_reds(de::AbstractMeanfieldEquations)
 

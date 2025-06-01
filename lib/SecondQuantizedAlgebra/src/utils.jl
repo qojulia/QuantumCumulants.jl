@@ -282,6 +282,27 @@ function _conj(v::T) where T <: SymbolicUtils.Symbolic
 end
 _conj(x::Number) = conj(x)
 
+#function that returns the conjugate of an average, but also preserving the correct ordering
+function _inconj(v::Average)
+    f = operation(v)
+    if f == conj
+        return _inconj(arguments(v)[1])
+    end
+    arg = v.arguments[1]
+    adj_arg = inadjoint(arg)
+    return _average(adj_arg)
+end
+function _inconj(v::T) where T <: SymbolicUtils.BasicSymbolic
+    if SymbolicUtils.iscall(v)
+        f = SymbolicUtils.operation(v)
+        args = map(_inconj, SymbolicUtils.arguments(v))
+        return SymbolicUtils.maketerm(T, f, args, TermInterface.metadata(v))
+    else
+        return conj(v)
+    end
+end
+_inconj(x::Number) = conj(x)
+
 _adjoint(op::QNumber) = adjoint(op)
 _adjoint(s::SymbolicUtils.Symbolic{<:Number}) = _conj(s)
 _adjoint(x) = adjoint(x)

@@ -54,6 +54,14 @@ function cumulant_expansion(avg::Average,order::Vector;mix_choice=maximum,kwargs
 end
 cumulant_expansion(x::Number,order;kwargs...) = x
 
+"""
+    average(::QNumber, order)
+
+Compute the average of an operator. If `order` is given, the [`cumulant_expansion`](@ref)
+up to that order is computed immediately.
+"""
+SQA.average(x,order;kwargs...) = cumulant_expansion(average(x),order;kwargs...)
+
 function cumulant_expansion(x::SymbolicUtils.Symbolic,order;mix_choice=maximum,simplify=true,kwargs...)
     if SymbolicUtils.iscall(x)
         f = SymbolicUtils.operation(x)
@@ -136,6 +144,32 @@ function _cumulant_expansion(args::Vector,order::Int)
         end
     end
     return average(+(args_sum...))
+end
+
+function _cumulant_expansion(x::IndexedAverageSum,order;kwargs...)
+    return IndexedAverageSum(simplifyMultiplication(cumulant_expansion(x.term,order;kwargs...)),x.sum_index,x.non_equal_indices)
+end
+function _cumulant_expansion(x::IndexedAverageDoubleSum,order;kwargs...)
+    inner = _cumulant_expansion(x.innerSum,order;kwargs...)
+    return IndexedAverageDoubleSum(inner,x.sum_index,x.non_equal_indices)
+end
+function _cumulant_expansion(a::BasicSymbolic{IndexedAverageSum},order;kwargs...)
+    if SymbolicUtils.hasmetadata(a,IndexedAverageSum)
+        meta = SymbolicUtils.metadata(a)[IndexedAverageSum]
+        return _cumulant_expansion(meta,order;kwargs...)
+    end
+end
+function _cumulant_expansion(a::BasicSymbolic{IndexedAverageDoubleSum},order;kwargs...)
+    if SymbolicUtils.hasmetadata(a,IndexedAverageDoubleSum)
+        meta = SymbolicUtils.metadata(a)[IndexedAverageDoubleSum]
+        return _cumulant_expansion(meta,order;kwargs...)
+    end
+end
+function _cumulant_expansion(a::BasicSymbolic{SpecialIndexedAverage},order;kwargs...)
+    if SymbolicUtils.hasmetadata(a,SpecialIndexedAverage)
+        meta = SymbolicUtils.metadata(a)[SpecialIndexedAverage]
+        return SpecialIndexedAverage(cumulant_expansion(meta.term,order;kwargs...),meta.indexMapping)
+    end
 end
 
 """
@@ -229,3 +263,31 @@ function get_order(q::QAdd)
     return maximum(order)
 end
 get_order(::QSym) = 1
+
+get_order(::IndexedOperator) = 1
+
+get_order(x::SingleSum) = get_order(x.term)
+get_order(x::SpecialIndexedTerm) = get_order(x.term)
+
+get_order(a::IndexedAverageSum) = get_order(a.term)
+get_order(a::IndexedAverageDoubleSum) = get_order(a.innerSum)
+get_order(a::SpecialIndexedAverage) = get_order(a.term)
+function get_order(a::BasicSymbolic{IndexedAverageSum})
+    if SymbolicUtils.hasmetadata(a,IndexedAverageSum)
+        meta = SymbolicUtils.metadata(a)[IndexedAverageSum]
+        return get_order(meta)
+    end
+end
+function get_order(a::BasicSymbolic{IndexedAverageDoubleSum})
+    if SymbolicUtils.hasmetadata(a,IndexedAverageDoubleSum)
+        meta = SymbolicUtils.metadata(a)[IndexedAverageDoubleSum]
+        return get_order(meta)
+    end
+end
+function get_order(a::BasicSymbolic{SpecialIndexedAverage})
+    if SymbolicUtils.hasmetadata(a,SpecialIndexedAverage)
+        meta = SymbolicUtils.metadata(a)[SpecialIndexedAverage]
+        return get_order(meta)
+    end
+end
+get_order(x::NumberedOperator) = get_order(x.op)

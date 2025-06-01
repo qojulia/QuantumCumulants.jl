@@ -19,7 +19,7 @@ end
 SymbolicUtils.promote_symtype(::typeof(sym_average), ::Type{<:QNumber}) = AvgSym
 
 # needs a specific symtype overload, otherwise we build the wrong expressions with maketerm
-SymbolicUtils.symtype(::T) where T <: Average = QuantumCumulants.AvgSym
+SymbolicUtils.symtype(::T) where T <: Average = AvgSym
 
 # Direct construction of average symbolic expression
 function _average(operator)
@@ -40,7 +40,7 @@ function +(a::Average,b::Average)
     return SymbolicUtils.Add(CNumber,0,Dict(a=>1,b=>1))
 end
 
-function SQA.acts_on(s::SymbolicUtils.Symbolic)
+function acts_on(s::SymbolicUtils.Symbolic)
     if SymbolicUtils.iscall(s)
         f = SymbolicUtils.operation(s)
         if f === sym_average
@@ -61,10 +61,8 @@ end
 
 """
     average(::QNumber)
-    average(::QNumber,order)
 
-Compute the average of an operator. If `order` is given, the [`cumulant_expansion`](@ref)
-up to that order is computed immediately.
+Compute the average of an operator.
 """
 average(op::QSym) = _average(op)
 function average(op::QTerm)
@@ -83,8 +81,6 @@ function average(op::QTerm)
 end
 
 average(x::SNuN) = x
-average(x,order;kwargs...) = cumulant_expansion(average(x),order;kwargs...)
-average(x::SQA.NumberedOperator) = _average(x)
 
 function undo_average(t)
     if SymbolicUtils.iscall(t)
@@ -106,15 +102,4 @@ function undo_average(eq::Symbolics.Equation)
     return Symbolics.Equation(lhs,rhs)
 end
 
-# Standard simplify and expand functions
-function SymbolicUtils.simplify(x::QNumber;kwargs...)
-    avg = average(x)
-    avg_ = SymbolicUtils.simplify(avg;kwargs...)
-    return undo_average(avg_)
-end
-
-function Symbolics.expand(x::QNumber;kwargs...)
-    expansion = average(x)
-    expansion_ = SymbolicUtils.expand(expansion; kwargs...)
-    return undo_average(expansion_)
-end
+Base.:(==)(term1::Average,term2::Average) = isequal(arguments(term1), arguments(term2))
