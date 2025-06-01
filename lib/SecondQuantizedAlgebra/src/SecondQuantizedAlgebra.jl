@@ -44,18 +44,18 @@ include("index_double_sums.jl")
 include("index_utils.jl")
 
 export HilbertSpace, ProductSpace, ⊗, tensor,
-        QSym, QTerm, @qnumbers,
-        FockSpace, Destroy, Create,
-        NLevelSpace, Transition,
-        PauliSpace, Pauli, SpinSpace, Spin,
-        commutator, acts_on,
-        CNumber, Parameter, @cnumbers, cnumbers, cnumber, RNumber, RealParameter, @rnumbers,
-        rnumbers, rnumber,
-        unique_ops, unique_ops!, to_numeric, numeric_average,
-        ClusterSpace,
-        transition_superscript,
-        Index, reorder, IndexedOperator, SingleSum,
-        DoubleSum, SpecialIndexedTerm, Σ, ∑,
-        NumberedOperator, change_index, order_by_index
+    QSym, QTerm, @qnumbers,
+    FockSpace, Destroy, Create,
+    NLevelSpace, Transition,
+    PauliSpace, Pauli, SpinSpace, Spin,
+    commutator, acts_on,
+    CNumber, Parameter, @cnumbers, cnumbers, cnumber, RNumber, RealParameter, @rnumbers,
+    rnumbers, rnumber,
+    unique_ops, unique_ops!, to_numeric, numeric_average,
+    ClusterSpace, find_operators, fundamental_operators,
+    transition_superscript,
+    Index, reorder, IndexedOperator, SingleSum, IndexedVariable, DoubleIndexedVariable,
+    DoubleSum, SpecialIndexedTerm, Σ, ∑,
+    NumberedOperator, change_index, order_by_index
 
 end

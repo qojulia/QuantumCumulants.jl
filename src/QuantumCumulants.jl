@@ -19,12 +19,12 @@ using QuantumOpticsBase
 import QuantumOpticsBase: ⊗, tensor
 
 include("../lib/SecondQuantizedAlgebra/src/SecondQuantizedAlgebra.jl")
-using .SecondQuantizedAlgebra
-using .SecondQuantizedAlgebra: QNumber, SNuN, QMul, QAdd, QSym, QTerm, ClusterAon, CallableTransition, IndexInt
-using .SecondQuantizedAlgebra: get_indices, commutator, numeric_average, _conj, find_operators,
-    _adjoint, get_i, hilbert, inorder!, levels, has_cluster, Σ, ∑, ismergeable, inadjoint,
-    IndexedVariable, DoubleIndexedVariable, getIndName, fundamental_operators,
-    _to_expression
+using Reexport
+@reexport using .SecondQuantizedAlgebra
+using .SecondQuantizedAlgebra: QNumber, SNuN, QMul, QAdd, ClusterAon, CallableTransition,
+    IndexInt, get_indices, commutator, numeric_average, _conj,
+    _adjoint, get_i, hilbert, inorder!, levels, has_cluster, ismergeable, inadjoint,
+    IndexedVariable, DoubleIndexedVariable, getIndName, _to_expression
 const SQA = SecondQuantizedAlgebra
 
 import Base: *, +, -
