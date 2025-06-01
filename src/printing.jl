@@ -1,13 +1,5 @@
 using .SecondQuantizedAlgebra: show_brackets
 
-function SymbolicUtils.show_term(io::IO, t::Average)
-    write(io, "⟨")
-    show_brackets[] = false
-    show(io, SymbolicUtils.arguments(t)[1])
-    show_brackets[] = true
-    write(io, "⟩")
-end
-
 function Base.show(io::IO,de::AbstractMeanfieldEquations)
     for i=1:length(de.equations)
         write(io, "∂ₜ(")

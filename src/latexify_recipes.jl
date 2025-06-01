@@ -54,20 +54,3 @@ end
     l = latexstring(L"\mathcal{F}(", latexify(S.corr), L")(\omega)")
     return l
 end
-
-function SQA._to_expression(s::SymbolicUtils.Symbolic)
-    if SymbolicUtils.iscall(s)
-        f = SymbolicUtils.operation(s)
-        fsym = if isequal(f, sym_average) # "===" results in false for symbolics version 5
-            :AVG
-        elseif f === conj
-            :CONJ
-        else
-            Symbol(f)
-        end
-        args = map(_to_expression, SymbolicUtils.arguments(s))
-        return :( $(fsym)($(args...)) )
-    else
-        return nameof(s)
-    end
-end

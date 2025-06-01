@@ -814,3 +814,87 @@ function evaluate(term;limits=nothing,kwargs...)
     end
     return eval_term(term;limits=limits)
 end
+
+"""
+    evalME(me::MeanfieldEquations;limits::Dict{SymbolicUtils.BasicSymbolic,Int64}=Dict{SymbolicUtils.BasicSymbolic,Int64}())
+
+Function, that evaluates a given [`MeanfieldEquations`](@ref) entity and returns again equations,
+where indices have been inserted and sums evaluated.
+
+# Arguments
+*`me::MeanfieldEquations`: A [`MeanfieldEquations`](@ref) entity, which shall be evaluated.
+
+# Optional argumentes
+*`limits=Dict{SymbolicUtils.BasicSymbolic,Int64}()`: A seperate dictionary, to
+    specify any symbolic limits used when [`Index`](@ref) entities were defined. This needs
+    to be specified, when the equations contain summations, for which the upper bound is given
+    by a Symbolic.
+
+"""
+function evalME(me::AbstractMeanfieldEquations;limits=Dict{SymbolicUtils.BasicSymbolic,Int64}(),h=nothing,kwargs...)#this is still pretty slow
+    vs = me.states
+    maxRange = count_eq_number(vs;limits=limits,h=h,kwargs...)
+    if !(maxRange isa Int)
+        error("Not all upper limits of indices are set as a Number! You can do this by using the \"limits\" keyword argument.")
+    end
+    newEqs = Vector{Any}(nothing,maxRange)
+    states = Vector{Any}(nothing,maxRange)
+    counter = 1
+    for i = 1:length(vs)
+        inds = get_indices(vs[i])
+        eq = me.equations[i]
+        if !=(h,nothing)
+            filter!(x->x.aon in h,inds)
+        end
+        if isempty(inds)
+            eval = evalEq(eq;limits=limits,h=h,kwargs...)
+            if (eval.lhs ∉ states) && (_inconj(eval.lhs) ∉ states)
+                states[counter] = eval.lhs
+                newEqs[counter] = eval
+                counter = counter + 1
+            end
+        else
+            if !=(h,nothing)
+                filter!(x->x.aon in h,inds)
+            end
+            ranges_ = Vector{Any}(nothing,length(inds))
+            for i=1:length(inds)
+                ranges_[i] = (inds[i].range in keys(limits)) ? (1:limits[inds[i].range]) : (1:inds[i].range)
+            end
+            arr = create_index_arrays(inds,ranges_)
+            for j=1:length(arr)
+                if !isempty(get_numbers(eq.lhs)) && !(check_arr(eq.lhs,arr[j]))
+                    continue
+                end
+                dict = Dict{Index,Int}(inds .=> arr[j])
+                eq_lhs = insert_indices_lhs(eq.lhs,dict)
+                if (eq_lhs ∉ states) && (_inconj(eq_lhs) ∉ states)
+                    eq_rhs = insert_indices(eq,dict;limits=limits,h=h,kwargs...)
+                    states[counter] = eq_lhs
+                    if SymbolicUtils._iszero(eq_rhs)
+                        newEqs[counter] = Symbolics.Equation(eq_lhs,0)
+                    else
+                        newEqs[counter] = Symbolics.Equation(eq_lhs,eq_rhs)
+                    end
+                    counter = counter + 1
+                end
+            end
+        end
+    end
+    states = states[1:(counter-1)]
+    operats = undo_average.(states)
+    newEqs = newEqs[1:(counter-1)]
+    varmap = make_varmap(states, me.iv)
+    return EvaledMeanfieldEquations(newEqs,me.operator_equations,states,operats,me.hamiltonian,me.jumps,me.jumps_dagger,me.rates,me.iv,varmap,me.order)
+ end
+ function Base.show(io::IO,de::EvaledMeanfieldEquations)
+    write(io,"Evaluated Meanfield equations with: ")
+    write(io, "$(length(de.equations))")
+    write(io, " number of equations")
+end
+@latexrecipe function f(de::EvaledMeanfieldEquations)
+    return de
+end
+function plotME(me::EvaledMeanfieldEquations)
+    return MeanfieldEquations(me.equations,me.operator_equations,me.states,me.operators,me.hamiltonian,me.jumps,me.jumps_dagger,me.rates,me.iv,me.varmap,me.order)
+end

@@ -54,3 +54,5 @@ function Base.hash(a::NumberedOperator,h::UInt)
     return hash(NumberedOperator, hash(a.op, hash(a.numb, h)))
 end
 Base.isequal(x::NumberedOperator,y::NumberedOperator) = isequal(x.op,y.op) && isequal(x.numb,y.numb)
+
+average(x::NumberedOperator) = _average(x)

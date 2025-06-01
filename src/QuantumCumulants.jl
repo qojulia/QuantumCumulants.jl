@@ -1,7 +1,7 @@
 module QuantumCumulants
 
 import SymbolicUtils
-import SymbolicUtils: substitute, BasicSymbolic
+import SymbolicUtils: substitute, BasicSymbolic, operation, arguments, iscall
 
 import Symbolics
 import TermInterface
@@ -23,8 +23,9 @@ using Reexport
 @reexport using .SecondQuantizedAlgebra
 using .SecondQuantizedAlgebra: QNumber, SNuN, QMul, QAdd, ClusterAon, CallableTransition,
     IndexInt, get_indices, commutator, numeric_average, _conj,
-    _adjoint, get_i, hilbert, inorder!, levels, has_cluster, ismergeable, inadjoint,
-    IndexedVariable, DoubleIndexedVariable, getIndName, _to_expression
+    _adjoint, get_i, hilbert, inorder!, levels, has_cluster, ismergeable, inadjoint, undo_average, _average, sym_average, getAvrgs,
+    IndexedVariable, DoubleIndexedVariable, SpecialIndexedAverage, IndexedAverageSum, _inconj,
+    IndexedAverageDoubleSum, getIndName, _to_expression, AvgSums
 const SQA = SecondQuantizedAlgebra
 
 import Base: *, +, -
@@ -37,7 +38,7 @@ export HilbertSpace, ProductSpace, ⊗, tensor,
         MeanfieldEquations,
         meanfield, commutator, acts_on,
         CNumber, Parameter, @cnumbers, cnumbers, cnumber, RNumber, RealParameter, @rnumbers, rnumbers, rnumber,
-        Average, average, cumulant_expansion, get_order, cumulant,
+        cumulant_expansion, get_order, cumulant,
         find_missing, complete, complete!, find_operators, fundamental_operators,
             unique_ops, unique_ops!, to_numeric, numeric_average, initial_values, get_solution, get_scale_solution,
         CorrelationFunction, Spectrum, correlation_u0, correlation_p0,
@@ -59,7 +60,6 @@ source_metadata(source, name) =
 
 include("equations.jl")
 include("meanfield.jl")
-include("average.jl")
 include("utils.jl")
 include("cumulant_expansion.jl")
 include("diffeq.jl")
@@ -69,7 +69,6 @@ include("measurement_backaction.jl")
 include("measurement_backaction_indices.jl")
 include("latexify_recipes.jl")
 include("printing.jl")
-include("index_average.jl")
 include("index_meanfield.jl")
 include("index_scale.jl")
 include("index_correlation.jl")

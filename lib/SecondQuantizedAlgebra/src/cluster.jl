@@ -13,6 +13,7 @@ function has_cluster(h::ProductSpace)
 end
 has_cluster(h::ProductSpace,aon) = has_cluster(h.spaces[get_i(aon)])
 has_cluster(op::QNumber,args...) = has_cluster(hilbert(op),args...)
+has_cluster(avg::Average,args...) = has_cluster(undo_average(avg),args...)
 
 # ClusterAon methods
 Base.hash(c::T, h::UInt) where T<:ClusterAon = hash(T, hash(c.i, hash(c.j, h)))
