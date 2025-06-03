@@ -292,21 +292,6 @@ function get_scale_solution(sol,op::Average,eqs;kwargs...)
     return sol[op]
 end
 
-"""
-    numeric_average(avg::Average, state; level_map = nothing)
-    numeric_average(q::QNumber, state; level_map = nothing)
-
-From a symbolic average `avg` or operator `q`, compute the corresponding
-numerical average value with the given quantum state `state`. This state
-can either be of type `QuantumOpticsBase.StateVector` or `QuantumOpticsBase.Operator`.
-
-See also: [`initial_values`](@ref), [`to_numeric`](@ref)
-"""
-function SQA.numeric_average(avg::Average, state; kwargs...)
-    op = undo_average(avg)
-    return numeric_average(op, state; kwargs...)
-end
-
 function SQA._conj(v::Average)
     arg = v.arguments[1]
     adj_arg = adjoint(arg)

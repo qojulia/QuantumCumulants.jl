@@ -123,7 +123,7 @@ specifies how to map levels of a [`Transition`](@ref) to the ones given
 in an `NLevelBasis`. **Note:** If the levels of a transition are symbolic,
 setting `level_map` is required.
 
-See also: [`numeric_average`](@ref)
+See also: [`numeric_average`](@ref), [`to_numeric`](@ref)
 
 Examples
 ========
@@ -136,6 +136,10 @@ Operator(dim=11x11)
 function to_numeric(op::QSym, b::QuantumOpticsBase.Basis; kwargs...)
     check_basis_match(op.hilbert, b; kwargs...)
     return _to_numeric(op, b; kwargs...)
+end
+function SQA.numeric_average(avg::Average, state; kwargs...)
+    op = undo_average(avg)
+    return numeric_average(op, state; kwargs...)
 end
 
 _to_numeric(op::Destroy, b::QuantumOpticsBase.FockBasis; kwargs...) = QuantumOpticsBase.destroy(b)
