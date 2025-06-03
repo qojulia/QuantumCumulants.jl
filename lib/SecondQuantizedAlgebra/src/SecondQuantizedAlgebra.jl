@@ -58,6 +58,6 @@ export HilbertSpace, ProductSpace, ⊗, tensor,
     transition_superscript, Average, average,
     Index, reorder, IndexedOperator, SingleSum, IndexedVariable, DoubleIndexedVariable,
     DoubleSum, SpecialIndexedTerm, Σ, ∑,
-    NumberedOperator, change_index, order_by_index
+    NumberedOperator, change_index, order_by_index, insert_index
 
 end

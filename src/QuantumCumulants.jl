@@ -26,7 +26,7 @@ using .SecondQuantizedAlgebra: QNumber, SNuN, QMul, QAdd, ClusterAon, CallableTr
     _adjoint, get_i, hilbert, inorder!, levels, has_cluster, ismergeable, inadjoint,
     undo_average, _average, sym_average, IndexedVariable, DoubleIndexedVariable,
     SpecialIndexedAverage, IndexedAverageSum, _inconj, DoubleNumberedVariable,
-    SingleNumberedVariable,
+    SingleNumberedVariable, create_index_arrays,
     IndexedAverageDoubleSum, getIndName, _to_expression, AvgSums, get_numbers
 const SQA = SecondQuantizedAlgebra
 

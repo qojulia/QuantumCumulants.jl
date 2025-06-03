@@ -10,15 +10,15 @@ function find_operators(h::HilbertSpace, order::Int; names=nothing, kwargs...)
     else
         names_ = names
     end
-    fund_ops = fundamental_operators(h;names=names_, kwargs...)
-    fund_ops = unique([fund_ops;adjoint.(fund_ops)])
+    fund_ops = fundamental_operators(h; names=names_, kwargs...)
+    fund_ops = unique([fund_ops; adjoint.(fund_ops)])
     ops = copy(fund_ops)
-    for i=2:order
-        ops = [ops;fund_ops]
+    for i in 2:order
+        ops = [ops; fund_ops]
     end
 
     all_ops = QNumber[]
-    for i=1:order
+    for i in 1:order
         for c in combinations(ops, i)
             c_ = prod(reverse(c)) # get normal ordering
             iszero(c_) || push!(all_ops, c_)
@@ -29,7 +29,7 @@ function find_operators(h::HilbertSpace, order::Int; names=nothing, kwargs...)
     unique_ops!(all_ops)
     return all_ops
 end
-find_operators(op::QNumber,args...) = find_operators(hilbert(op),args...)
+find_operators(op::QNumber, args...) = find_operators(hilbert(op), args...)
 
 """
     fundamental_operators(::HilbertSpace)
@@ -37,37 +37,37 @@ find_operators(op::QNumber,args...) = find_operators(hilbert(op),args...)
 Return all fundamental operators for a given Hilbertspace. For example,
 a [`FockSpace`](@ref) only has one fundamental operator, `Destroy`.
 """
-function fundamental_operators(h::FockSpace,aon::Int=1;names=nothing)
+function fundamental_operators(h::FockSpace, aon::Int=1; names=nothing)
     name = names isa Nothing ? :a : names[aon]
-    a = Destroy(h,name)
+    a = Destroy(h, name)
     return [a]
 end
-function fundamental_operators(h::NLevelSpace,aon::Int=1;names=nothing)
+function fundamental_operators(h::NLevelSpace, aon::Int=1; names=nothing)
     sigmas = Transition[]
     lvls = levels(h)
     name = names isa Nothing ? :σ : names[aon]
-    for i=1:length(lvls)
-        for j=i:length(lvls)
+    for i in 1:length(lvls)
+        for j in i:length(lvls)
             (i==j) && lvls[i]==ground_state(h) && continue
-            s = Transition(h,name,lvls[i],lvls[j])
-            push!(sigmas,s)
+            s = Transition(h, name, lvls[i], lvls[j])
+            push!(sigmas, s)
         end
     end
     return sigmas
 end
-function fundamental_operators(h::ProductSpace;kwargs...)
+function fundamental_operators(h::ProductSpace; kwargs...)
     ops = []
-    for i=1:length(h.spaces)
-        ops_ = fundamental_operators(h.spaces[i],i;kwargs...)
-        ops_ = [embed(h,o,i) for o in ops_]
-        append!(ops,ops_)
+    for i in 1:length(h.spaces)
+        ops_ = fundamental_operators(h.spaces[i], i; kwargs...)
+        ops_ = [embed(h, o, i) for o in ops_]
+        append!(ops, ops_)
     end
     return ops
 end
 
-for T ∈ [:Destroy,:Create,:Transition]
-    @eval function embed(h::ProductSpace,op::($T),i)
-        fields = [getfield(op, s) for s∈fieldnames($T) if s≠:metadata]
+for T in [:Destroy, :Create, :Transition]
+    @eval function embed(h::ProductSpace, op::($T), i)
+        fields = [getfield(op, s) for s in fieldnames($T) if s≠:metadata]
         fields[1] = h
         fields[end] = i
         return $(T)(fields...)
@@ -110,7 +110,6 @@ function unique_ops!(ops)
     return ops
 end
 
-
 # Conversion to numerics
 
 """
@@ -123,7 +122,7 @@ specifies how to map levels of a [`Transition`](@ref) to the ones given
 in an `NLevelBasis`. **Note:** If the levels of a transition are symbolic,
 setting `level_map` is required.
 
-See also: [`numeric_average`](@ref), [`to_numeric`](@ref)
+See also: [`numeric_average`](@ref)
 
 Examples
 ========
@@ -137,9 +136,16 @@ function to_numeric(op::QSym, b::QuantumOpticsBase.Basis; kwargs...)
     check_basis_match(op.hilbert, b; kwargs...)
     return _to_numeric(op, b; kwargs...)
 end
+function to_numeric(op::QNumber, state; kwargs...)
+    to_numeric(op, QuantumOpticsBase.basis(state); kwargs...)
+end
 
-_to_numeric(op::Destroy, b::QuantumOpticsBase.FockBasis; kwargs...) = QuantumOpticsBase.destroy(b)
-_to_numeric(op::Create, b::QuantumOpticsBase.FockBasis; kwargs...) = QuantumOpticsBase.create(b)
+function _to_numeric(op::Destroy, b::QuantumOpticsBase.FockBasis; kwargs...)
+    QuantumOpticsBase.destroy(b)
+end
+function _to_numeric(op::Create, b::QuantumOpticsBase.FockBasis; kwargs...)
+    QuantumOpticsBase.create(b)
+end
 function _to_numeric(op::Pauli, b::QuantumOpticsBase.SpinBasis; kwargs...)
     (b.spinnumber ≠ 1/2) && error("The SpinBasis needs to be Spin-1/2!")
     axis = op.axis
@@ -166,11 +172,15 @@ function _to_numeric(op::Transition, b::QuantumOpticsBase.NLevelBasis; kwargs...
     return QuantumOpticsBase.transition(b, i, j)
 end
 
-function _convert_levels(op; level_map = nothing)
+function _convert_levels(op; level_map=nothing)
     i, j = op.i, op.j
     if level_map === nothing
         if (!(i isa Number) || !(j isa Number))
-            throw(ArgumentError("Mapping from symbolic levels $(i) and $(j) to NLevelBasis requires kwarg level_map to be set"))
+            throw(
+                ArgumentError(
+                    "Mapping from symbolic levels $(i) and $(j) to NLevelBasis requires kwarg level_map to be set",
+                ),
+            )
         end
         return op.i, op.j  # assume mapping between integers is just equal
     else
@@ -180,7 +190,9 @@ function _convert_levels(op; level_map = nothing)
     end
 end
 
-check_basis_match(h, b; kwargs...) = throw(ArgumentError("Hilbert space $h and basis $b are incompatible!"))
+function check_basis_match(h, b; kwargs...)
+    throw(ArgumentError("Hilbert space $h and basis $b are incompatible!"))
+end
 check_basis_match(::FockSpace, ::QuantumOpticsBase.FockBasis; kwargs...) = nothing
 check_basis_match(::PauliSpace, ::QuantumOpticsBase.SpinBasis; kwargs...) = nothing
 check_basis_match(::SpinSpace, ::QuantumOpticsBase.SpinBasis; kwargs...) = nothing
@@ -190,22 +202,28 @@ function check_basis_match(h::NLevelSpace, b::QuantumOpticsBase.NLevelBasis; kwa
     end
 end
 
-function check_basis_match(h::ProductSpace, b::QuantumOpticsBase.CompositeBasis; ranges=[], kwargs...)
-    if length(h.spaces) != length(b.bases) && (isempty(ranges) || sum(ranges) != length(b.bases))
-        throw(ArgumentError("Hilbert space $h and basis $b don't have the same number of subspaces!
-             If you use indices, specify the `ranges` kwarg."))
+function check_basis_match(
+    h::ProductSpace, b::QuantumOpticsBase.CompositeBasis; ranges=[], kwargs...
+)
+    if length(h.spaces) != length(b.bases) &&
+        (isempty(ranges) || sum(ranges) != length(b.bases))
+        throw(
+            ArgumentError(
+                "Hilbert space $h and basis $b don't have the same number of subspaces!
+ If you use indices, specify the `ranges` kwarg."
+            ),
+        )
     end
     if isempty(ranges)
         inds = [1:1:length(h.spaces);]
     else
-        inds = [sum(ranges[1:i]) for i=1:length(ranges)]
+        inds = [sum(ranges[1:i]) for i in 1:length(ranges)]
     end
     b_r = [b.bases[i] for i in inds]
-    for (h_, b_) ∈ zip(h.spaces, b_r)
+    for (h_, b_) in zip(h.spaces, b_r)
         check_basis_match(h_, b_; ranges=ranges)
     end
 end
-
 
 # Composite bases
 function to_numeric(op::QSym, b::QuantumOpticsBase.CompositeBasis; kwargs...)
@@ -255,7 +273,7 @@ function _lazy_one(b::QuantumOpticsBase.CompositeBasis)
 end
 
 
-to_numeric(op::QNumber, state; kwargs...) = to_numeric(op, QuantumOpticsBase.basis(state); kwargs...)
+
 
 """
     numeric_average(avg::Average, state; level_map = nothing)
@@ -276,11 +294,11 @@ function numeric_average(avg::Average, state; kwargs...)
     return numeric_average(op, state; kwargs...)
 end
 
-function _conj(v::T) where T <: SymbolicUtils.Symbolic
+function _conj(v::T) where {T<:SymbolicUtils.Symbolic}
     if SymbolicUtils.iscall(v)
         f = SymbolicUtils.operation(v)
         args = map(_conj, SymbolicUtils.arguments(v))
-        return SymbolicUtils.maketerm(T, f, args, TermInterface.metadata(v))
+        return TermInterface.maketerm(T, f, args, TermInterface.metadata(v))
     else
         return conj(v)
     end
@@ -297,11 +315,11 @@ function _inconj(v::Average)
     adj_arg = inadjoint(arg)
     return _average(adj_arg)
 end
-function _inconj(v::T) where T <: SymbolicUtils.BasicSymbolic
+function _inconj(v::T) where {T<:SymbolicUtils.BasicSymbolic}
     if SymbolicUtils.iscall(v)
         f = SymbolicUtils.operation(v)
         args = map(_inconj, SymbolicUtils.arguments(v))
-        return SymbolicUtils.maketerm(T, f, args, TermInterface.metadata(v))
+        return TermInterface.maketerm(T, f, args, TermInterface.metadata(v))
     else
         return conj(v)
     end
