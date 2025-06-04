@@ -34,7 +34,7 @@ function scale(eqs::IndexedMeanfieldEquations;h=nothing,kwargs...)
 end
 function scale(he::AbstractMeanfieldEquations; kwargs...)
     h = hilbert(he.hamiltonian)
-    scale_aons, N = get_cluster_stuff(h)
+    scale_aons, N = SQA.get_cluster_stuff(h)
     return scale(he, scale_aons, N; kwargs...)
 end
 function scale(he::MeanfieldEquations, scale_aons::Vector{<:Vector}, N::Vector;
@@ -90,23 +90,6 @@ function scale(he::MeanfieldEquations, scale_aons::Vector{<:Vector}, N::Vector;
     else
         return he_scaled
     end
-end
-
-function get_cluster_stuff(h::ClusterSpace,aon=1)
-    M = h.order
-    aons = [ClusterAon(aon,i) for i=1:M]
-    return [aons], [h.N]
-end
-function get_cluster_stuff(h::ProductSpace)
-    idx = findall(x->isa(x,ClusterSpace),h.spaces)
-    aons = Vector{<:ClusterAon}[]
-    N = []
-    for i∈idx
-        aon_, N_ = get_cluster_stuff(h.spaces[i],i)
-        append!(aons, aon_)
-        append!(N, N_)
-    end
-    return aons, N
 end
 
 function _scale(lhs, rhs, scale_aons, N, M, names)

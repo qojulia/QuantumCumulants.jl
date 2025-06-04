@@ -1,111 +1,5 @@
-function average end
-
-"""
-    AvgSym <: CNumber
-
-Symbolic number representing the average over an operator.
-See also: [`average`](@ref)
-"""
-struct AvgSym <: CNumber end
-
-const Average = SymbolicUtils.BasicSymbolic{<:AvgSym}
-
-const sym_average = begin # Symbolic function for averages
-    T = SymbolicUtils.FnType{Tuple{QNumber}, AvgSym}
-    SymbolicUtils.Sym{T}(:avg)
-end
-
-# Type promotion -- average(::QNumber)::Number
-SymbolicUtils.promote_symtype(::typeof(sym_average), ::Type{<:QNumber}) = AvgSym
-
-# needs a specific symtype overload, otherwise we build the wrong expressions with maketerm
-SymbolicUtils.symtype(::T) where T <: Average = QuantumCumulants.AvgSym
-
-# Direct construction of average symbolic expression
-function _average(operator)
-    return SymbolicUtils.Term{AvgSym}(sym_average, [operator])
-end
-# ensure that BasicSymbolic{<:AvgSym} are only single averages
-function *(a::Average,b::Average)
-    if isequal(a,b)
-        return SymbolicUtils.Mul(CNumber,1,Dict(a=>2))
-    end
-    return SymbolicUtils.Mul(CNumber,1,Dict(a=>1,b=>1))
-end
-function +(a::Average,b::Average)
-    if isequal(a,b)
-        return SymbolicUtils.Add(CNumber,0,Dict(a=>2))
-    end
-    return SymbolicUtils.Add(CNumber,0,Dict(a=>1,b=>1))
-end
-
-function acts_on(s::SymbolicUtils.Symbolic)
-    if SymbolicUtils.iscall(s)
-        f = SymbolicUtils.operation(s)
-        if f === sym_average
-            return acts_on(SymbolicUtils.arguments(s)[1])
-        else
-            aon = []
-            for arg in SymbolicUtils.arguments(s)
-                append!(aon, acts_on(arg))
-            end
-            unique!(aon)
-            sort!(aon)
-            return aon
-        end
-    else
-        return Int[]
-    end
-end
-
-"""
-    average(::QNumber)
-    average(::QNumber,order)
-
-Compute the average of an operator. If `order` is given, the [`cumulant_expansion`](@ref)
-up to that order is computed immediately.
-"""
-average(op::QSym) = _average(op)
-function average(op::QTerm)
-    f = SymbolicUtils.operation(op)
-    if f===(+) || f===(-) # linearity
-        args = map(average, SymbolicUtils.arguments(op))
-        return f(args...)
-    elseif f === (*)
-        # Move constants out of average
-        c = op.arg_c
-        op_ = QMul(1,op.args_nc)
-        return c*_average(op_)
-    else
-        error("Unknown function $f")
-    end
-end
-
-average(x::SNuN) = x
-average(x,order;kwargs...) = cumulant_expansion(average(x),order;kwargs...)
-
-function undo_average(t)
-    if SymbolicUtils.iscall(t)
-        f = SymbolicUtils.operation(t)
-        if isequal(f,sym_average) # "===" results in false sometimes in Symbolics version > 5
-            return SymbolicUtils.arguments(t)[1]
-        else
-            args = map(undo_average, SymbolicUtils.arguments(t))
-            return f(args...)
-        end
-    else
-        return t
-    end
-end
-
-function undo_average(eq::Symbolics.Equation)
-    lhs = undo_average(eq.lhs)
-    rhs = undo_average(eq.rhs)
-    return Symbolics.Equation(lhs,rhs)
-end
-
-
 ## Cumulant expansion
+
 """
     cumulant_expansion(avg, order::Int)
 
@@ -159,6 +53,14 @@ function cumulant_expansion(avg::Average,order::Vector;mix_choice=maximum,kwargs
     return cumulant_expansion(avg,order_;kwargs...)
 end
 cumulant_expansion(x::Number,order;kwargs...) = x
+
+"""
+    average(::QNumber, order)
+
+Compute the average of an operator. If `order` is given, the [`cumulant_expansion`](@ref)
+up to that order is computed immediately.
+"""
+SQA.average(x,order;kwargs...) = cumulant_expansion(average(x),order;kwargs...)
 
 function cumulant_expansion(x::SymbolicUtils.Symbolic,order;mix_choice=maximum,simplify=true,kwargs...)
     if SymbolicUtils.iscall(x)
@@ -242,6 +144,32 @@ function _cumulant_expansion(args::Vector,order::Int)
         end
     end
     return average(+(args_sum...))
+end
+
+function _cumulant_expansion(x::IndexedAverageSum,order;kwargs...)
+    return IndexedAverageSum(simplifyMultiplication(cumulant_expansion(x.term,order;kwargs...)),x.sum_index,x.non_equal_indices)
+end
+function _cumulant_expansion(x::IndexedAverageDoubleSum,order;kwargs...)
+    inner = _cumulant_expansion(x.innerSum,order;kwargs...)
+    return IndexedAverageDoubleSum(inner,x.sum_index,x.non_equal_indices)
+end
+function _cumulant_expansion(a::BasicSymbolic{IndexedAverageSum},order;kwargs...)
+    if SymbolicUtils.hasmetadata(a,IndexedAverageSum)
+        meta = SymbolicUtils.metadata(a)[IndexedAverageSum]
+        return _cumulant_expansion(meta,order;kwargs...)
+    end
+end
+function _cumulant_expansion(a::BasicSymbolic{IndexedAverageDoubleSum},order;kwargs...)
+    if SymbolicUtils.hasmetadata(a,IndexedAverageDoubleSum)
+        meta = SymbolicUtils.metadata(a)[IndexedAverageDoubleSum]
+        return _cumulant_expansion(meta,order;kwargs...)
+    end
+end
+function _cumulant_expansion(a::BasicSymbolic{SpecialIndexedAverage},order;kwargs...)
+    if SymbolicUtils.hasmetadata(a,SpecialIndexedAverage)
+        meta = SymbolicUtils.metadata(a)[SpecialIndexedAverage]
+        return SpecialIndexedAverage(cumulant_expansion(meta.term,order;kwargs...),meta.indexMapping)
+    end
 end
 
 """
@@ -335,3 +263,31 @@ function get_order(q::QAdd)
     return maximum(order)
 end
 get_order(::QSym) = 1
+
+get_order(::IndexedOperator) = 1
+
+get_order(x::SingleSum) = get_order(x.term)
+get_order(x::SpecialIndexedTerm) = get_order(x.term)
+
+get_order(a::IndexedAverageSum) = get_order(a.term)
+get_order(a::IndexedAverageDoubleSum) = get_order(a.innerSum)
+get_order(a::SpecialIndexedAverage) = get_order(a.term)
+function get_order(a::BasicSymbolic{IndexedAverageSum})
+    if SymbolicUtils.hasmetadata(a,IndexedAverageSum)
+        meta = SymbolicUtils.metadata(a)[IndexedAverageSum]
+        return get_order(meta)
+    end
+end
+function get_order(a::BasicSymbolic{IndexedAverageDoubleSum})
+    if SymbolicUtils.hasmetadata(a,IndexedAverageDoubleSum)
+        meta = SymbolicUtils.metadata(a)[IndexedAverageDoubleSum]
+        return get_order(meta)
+    end
+end
+function get_order(a::BasicSymbolic{SpecialIndexedAverage})
+    if SymbolicUtils.hasmetadata(a,SpecialIndexedAverage)
+        meta = SymbolicUtils.metadata(a)[SpecialIndexedAverage]
+        return get_order(meta)
+    end
+end
+get_order(x::NumberedOperator) = get_order(x.op)
