@@ -18,10 +18,10 @@ using LinearAlgebra
 using QuantumOpticsBase
 import QuantumOpticsBase: ⊗, tensor
 
-include("../lib/SecondQuantizedAlgebra/src/SecondQuantizedAlgebra.jl")
+
 using Reexport
-@reexport using .SecondQuantizedAlgebra
-using .SecondQuantizedAlgebra: QNumber, SNuN, QMul, QAdd, ClusterAon, CallableTransition,
+@reexport using SecondQuantizedAlgebra
+using SecondQuantizedAlgebra: QNumber, SNuN, QMul, QAdd, ClusterAon, CallableTransition,
     IndexInt, get_indices, commutator, numeric_average, _conj,
     _adjoint, get_i, hilbert, inorder!, levels, has_cluster, ismergeable, inadjoint,
     undo_average, _average, sym_average, IndexedVariable, DoubleIndexedVariable,
