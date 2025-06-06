@@ -4,7 +4,30 @@ using OrdinaryDiffEq
 using ModelingToolkit
 
 @testset "scaling" begin
+# Custom filter function -- include only phase-invariant terms
+ϕ(x) = 0
+ϕ(x::Destroy) = -1
+ϕ(x::Create) = 1
+function ϕ(t::Transition)
+    if (t.i==1 && t.j==2) || (t.i==3 && t.j==2) || (t.i==:g && t.j==:e)
+        -1
+    elseif (t.i==2 && t.j==1) || (t.i==2 && t.j==3) || (t.i==:e && t.j==:g)
+        1
+    else
+        0
+    end
+end
+ϕ(avg::Average) = ϕ(avg.arguments[1])
+function ϕ(t::QuantumCumulants.QMul)
+    p = 0
+    for arg in t.args_nc
+        p += ϕ(arg)
+    end
+    return p
+end
+phase_invariant(x) = iszero(ϕ(x))
 
+@testset "" begin # TODO give name
 order = 2
 N_c = 1 #number of clusters
 @cnumbers Δc κ Γ2 Γ3 Γ23 η ν3 ν2
@@ -34,29 +57,6 @@ rates = [κ,[Γ2 for i=1:N_c]...,[Γ3 for i=1:N_c]...,[Γ23 for i=1:N_c]...,[ν3
 ops = [a'a, S(2,2,1)[1], a'*S(1,2,1)[1]]
 he = meanfield(ops,H,J;rates=rates,order=2)
 
-# Custom filter function -- include only phase-invariant terms
-ϕ(x) = 0
-ϕ(x::Destroy) = -1
-ϕ(x::Create) = 1
-function ϕ(t::Transition)
-    if (t.i==1 && t.j==2) || (t.i==3 && t.j==2) || (t.i==:g && t.j==:e)
-        -1
-    elseif (t.i==2 && t.j==1) || (t.i==2 && t.j==3) || (t.i==:e && t.j==:g)
-        1
-    else
-        0
-    end
-end
-ϕ(avg::Average) = ϕ(avg.arguments[1])
-function ϕ(t::QuantumCumulants.QMul)
-    p = 0
-    for arg in t.args_nc
-        p += ϕ(arg)
-    end
-    return p
-end
-phase_invariant(x) = iszero(ϕ(x))
-
 he_avg = cumulant_expansion(he,2)
 he_scale = complete(he_avg;filter_func=phase_invariant, order=order, multithread=false)
 @test length(he_scale) == 9
@@ -76,8 +76,10 @@ sol1 = solve(prob1, Tsit5(), reltol=1e-12, abstol=1e-12)
 
 avg = average(a*S(2,1,1)[2])
 # TODO: @test sol1[avg], sol1, he_scale) == map(conj, get_solution(average(a'*S(1,2,1)[1]), sol1, he_scale)) == conj.(getindex.(sol1.u, 3))
+end
 
 ## Two-level laser
+@testset "Two-level laser" begin
 M = 2
 @cnumbers N
 hf = FockSpace(:cavity)
@@ -152,9 +154,12 @@ avg_sub = QuantumCumulants.substitute_redundants(avg, scale_aons, names)
 avg = average(b[1]*b[2]'*b[3]*b[4]')
 avg_sub = QuantumCumulants.substitute_redundants(avg, scale_aons, names)
 @test isequal(avg_sub, average(b[1]'*b[2]'*b[3]*b[4]))
+end
 
 # Test Holstein
-M = 2
+@testset "Holstein" begin
+M = 2;
+@cnumbers N
 hc = FockSpace(:cavity)
 hvib = FockSpace(:mode)
 hcluster = ClusterSpace(hvib,N,M)
@@ -179,8 +184,10 @@ u0 = zeros(ComplexF64, length(he_avg))
 p0 = ps .=> ones(length(ps))
 prob = ODEProblem(sys, u0, (0.0,1.0), p0)
 sol = solve(prob, Tsit5())
+end
 
 # Test molecule
+@testset "molecule" begin
 M = 2 # Order
 # Prameters
 @cnumbers λ ν Γ η Δ γ N
@@ -215,9 +222,10 @@ sol1 = solve(prob1,Tsit5(),abstol=1e-12,reltol=1e-12)
 bdb1 = sol1[b[1]'*b[1]][end]
 σ22_1 = sol1[σ(2,2)][end]
 σ12_1 = sol1[σ(1,2)][end]
-
+end
 
 ## Two clusters
+@testset "clusters" begin
 N_c = 2
 N = cnumbers([Symbol(:N_, i) for i=1:N_c]...)
 M = 2
@@ -243,6 +251,7 @@ ops = [a'*a]
 he = meanfield(ops, H, J; rates=rates, order=2)
 
 # Scale
+phase_invariant(x) = iszero(ϕ(x))
 he_scaled = complete(he; filter_func=phase_invariant)
 
 @test isempty(find_missing(he_scaled))
@@ -259,9 +268,10 @@ prob = ODEProblem(sys, u0, (0.0, 50.0), p0)
 sol = solve(prob, RK4(), abstol=1e-10, reltol=1e-10)
 
 @test sol.u[end][1] ≈ 12.601868534
+end
 
 ### 6-level laser
-
+@testset "6-level laser" begin
 order = 2
 # Define parameters
 @cnumbers Δc κ g Γ12 Γ13 Γ24 Γ34 Γ54 Γ16 Γ64 Δ3 Δ4 Δ5 Δ6 Ω13 Ω34 Ω54 Ω64 η ν12 ν13 ν34 ν54 ν64 N
@@ -289,9 +299,10 @@ ops = [a'a, σ(2,2)[1], σ(3,3)[1], σ(4,4)[1], σ(5,5)[1], σ(6,6)[1]]
 eqs_ops = meanfield(ops,H,J;rates=rates, order=order, multithread=true)
 
 @test length(eqs_ops) == length(ops)
-
+end
 
 ### 4th order 2-level laser
+@testset "4th order 2-level laser" begin
 order = 4
 # Define parameters
 @cnumbers δA ΩA wA νA γ κ δc NA
@@ -311,11 +322,13 @@ rates = [κ, γ, wA, γ, νA]
 ops = [a'a, σA(2,2)[1]]
 he_ops = meanfield(ops,H,J;rates=rates, multithread=true, order=order)
 
+phase_invariant(x) = iszero(ϕ(x))
 he_scale = complete(he_ops; filter_func=phase_invariant, order=order, multithread=true)
 @test length(he_scale) == 18
 @test isempty(find_missing(he_scale))
-
+end
 ### 4th order synchronization
+@testset "4th order synchronization" begin
 
 order = 4
 # Define parameters
@@ -341,6 +354,7 @@ rates = [κ, γ, wA, γ, wB, νA, νB]
 ops = [a'a, σA(2,2)[1], σB(2,2)[1]]
 he_ops = meanfield(ops,H,J;rates=rates, multithread=true, order=order)
 
+phase_invariant(x) = iszero(ϕ(x))
 he_scale = complete(he_ops; filter_func=phase_invariant, order=order, multithread=true)
 @test length(he_scale) == 66
 @test isempty(find_missing(he_scale))
@@ -356,5 +370,6 @@ uend = copy(sol.u[end])
 @test length(unique(uend)) == 66
 uend_f = filter(x->imag(x) != 0, uend)
 @test 2*length(uend_f) == length(unique([uend_f; adjoint.(uend_f)]))
+end
 
 end # testset

@@ -4,6 +4,27 @@ using OrdinaryDiffEq
 using QuantumOpticsBase
 using Test
 
+@cnumbers Δ_ g κ η
+hf = FockSpace(:cavity)
+ha1 = NLevelSpace(:atom1,2)
+ha2 = NLevelSpace(:atom2,2)
+h = hf ⊗ ha1 ⊗ ha2
+a = Destroy(h,:a)
+s1(i,j) = Transition(h,:s1,i,j,2)
+s2(i,j) = Transition(h,:s2,i,j,3)
+H = Δ_*a'*a + g*(a' + a)*(s1(2,1) + s1(1,2) + s2(2,1) + s2(1,2)) + η*(a' + a)
+J = [a]
+rates = [κ]
+#
+imH = im*H
+op_ = a'a
+rhs_ = commutator(imH,op_)
+rhs_simplify = SymbolicUtils.simplify(rhs_)
+rhs_avg = average(rhs_simplify)
+
+eq = meanfield(a'a,H,J;rates=rates,order=2)
+eqs = complete(eq)
+
 @testset "spin" begin
 
 hs1 = PauliSpace(:Spin1)
@@ -97,9 +118,9 @@ u0_[3] = 1
 
 # initial state: numeric conversion
 b_field = FockBasis(4)
-bp1 = SpinBasis(1/2) 
+bp1 = SpinBasis(1/2)
 bp2 = SpinBasis(1/2)
-b = b_field ⊗ bp1 ⊗ bp2 
+b = b_field ⊗ bp1 ⊗ bp2
 ψf = fockstate(b_field,0)
 ψ1 = spindown(bp1)
 ψ2 = spindown(bp2)
@@ -165,7 +186,7 @@ Sp(i) = Sx(i) + 1im*Sy(i)
 # @test isequal( simplify(Sy(1)Sz(2)Sx(1)), simplify(Sx(1)Sy(1)Sz(2) - 1im*Sz(1)*Sz(2)) )
 
 
-### simple time evolution 
+### simple time evolution
 @cnumbers δcs Ωcs gcs Γcs
 Hcs1 = δcs/2*Sz(1)
 Jcs1 = [Sm(1)]
@@ -178,7 +199,7 @@ eqs_cs1_c = complete(eqs_cs1)
 
 eqs_cs1_c.states
 u0_cs1 = zeros(ComplexF64, length(eqs_cs1_c))
-# full excitation 
+# full excitation
 Ncs1 = 20
 Ncs1_ = Ncs1/2
 Ncs2 = 8
@@ -190,7 +211,7 @@ u0_cs1[5] = 1im*Ncs1/4 # xy
 u0_cs1[9] = Ncs1_*Ncs1_ # zz
 
 # initial state: numeric conversion
-bs1 = SpinBasis(Ncs1_) 
+bs1 = SpinBasis(Ncs1_)
 bs2 = SpinBasis(Ncs2_) # random
 b = bs1 ⊗ bs2 # used space is product space, but the second space is not used
 ψ1 = spinup(bs1)

@@ -594,3 +594,12 @@ function get_scale_solution(sol,op::Average,eqs;kwargs...)
     end
     return sol[op]
 end
+
+# Takes the averages of all functions in the array rhs and simplifies them if the flag is set
+function take_function_averages(rhs, simplify)
+    if simplify
+        rhs = map(SymbolicUtils.simplify, rhs)
+    end
+    rhs_avg = map(average, rhs)
+    return rhs_avg, map(undo_average, rhs_avg)
+end
