@@ -69,6 +69,10 @@ Create
 ```
 
 ```@docs
+GroundStateProjection
+```
+
+```@docs
 Transition
 ```
 

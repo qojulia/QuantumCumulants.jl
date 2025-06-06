@@ -28,6 +28,9 @@ function _postwalk_func(x)
     elseif MacroTools.@capture(x, dagger(arg_))
         s = "$(arg)^\\dagger"
         return s
+    elseif MacroTools.@capture(x, GroundStateProjection(arg_))
+        s = "\\vert \\emptyset_$(arg) \\rangle \\langle \\emptyset_$(arg) \\vert"
+        return s
     elseif MacroTools.@capture(x, Transition(arg_,i_,j_))
         s = "{$(arg)}$(transition_idx_script[]){{$(i)$(j)}}"
         return s
@@ -202,6 +205,7 @@ function _to_expression(x::Complex{Symbolics.Num}) # forward complex Nums to Sym
 end
 _to_expression(op::QSym) = op.name
 _to_expression(op::Create) = :(dagger($(op.name)))
+_to_expression(op::GroundStateProjection) = :(GroundStateProjection($(op.name)))
 _to_expression(op::Transition) = :(Transition($(op.name),$(op.i),$(op.j)) )
 xyz_sym=[:x,:y,:z]
 _to_expression(op::Pauli) = :(Pauli($(op.name),$(xyz_sym[op.axis])))

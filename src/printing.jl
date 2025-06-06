@@ -13,6 +13,7 @@ end
 
 Base.show(io::IO,x::QSym) = write(io, x.name)
 Base.show(io::IO,x::Create) = write(io, string(x.name, "′"))
+Base.show(io::IO,x::GroundStateProjection) = write(io, string("∅_", x.name))
 Base.show(io::IO,x::Transition) = write(io, Symbol(x.name,x.i,x.j))
 Base.show(io::IO,x::Pauli) = write(io, Symbol(x.name,xyz_sym[x.axis]))
 Base.show(io::IO,x::Spin) = write(io, Symbol(x.name,xyz_sym[x.axis]))
