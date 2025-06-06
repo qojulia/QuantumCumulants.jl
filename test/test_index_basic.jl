@@ -300,4 +300,10 @@ gi = IndexedVariable(:g, i)
 @test isequal(∑(α,i), N*α)
 @test isequal(∑(5α,i), 5*N*α)
 
+# issue 233
+term = ∑(gi,i)
+avarage_ = average(term)
+@test avarage_ isa SymbolicUtils.BasicSymbolic{IndexedAverageSum}
+@test qc.get_indices(term) == qc.get_indices(avarage_)
+
 end
