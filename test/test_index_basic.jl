@@ -302,6 +302,10 @@ gi = IndexedVariable(:g, i)
 
 # issue 233
 @testset "issue 233" begin
+N = 10
+h = NLevelSpace(:atom,2)
+i = Index(h,:i,N,h)
+gi = IndexedVariable(:g, i)
 term = ∑(gi,i)
 avarage_ = average(term)
 @test avarage_ isa SymbolicUtils.BasicSymbolic{IndexedAverageSum}
@@ -325,7 +329,9 @@ ops = [a'*a, σ(2,2,j)]
 
 imH = im*H
 rhs_ = commutator(imH,ops[1])
+
 indSum = SymbolicUtils.arguments(rhs_)[1]
+avarage_ = average(indSum.term)
 
 @test qc.get_indices(indSum.term) == qc.get_indices(avarage_)
 end
