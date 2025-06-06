@@ -6,7 +6,7 @@ function get_indices(term::QMul)
     return unique(vcat(get_indices(args_nc),get_indices(term.arg_c)))
 end
 get_indices(a::IndexedOperator) = [a.ind]
-get_indices(vec::Vector) = unique(vcat(get_indices.(vec)...))
+get_indices(vec::AbstractVector) = unique(vcat(get_indices.(vec)...))
 function get_indices(a::BasicSymbolic{DoubleIndexedVariable})
     meta = SymbolicUtils.metadata(a)[DoubleIndexedVariable]
     return unique([meta.ind1,meta.ind2])
@@ -122,7 +122,7 @@ inorder!(x) = x
 get_numbers(term::Average) = get_numbers(arguments(term)[1])
 get_numbers(term::QMul) = unique(vcat(get_numbers.(term.args_nc)...))
 get_numbers(x::NumberedOperator) = [x.numb]
-get_numbers(x::Vector) = unique(vcat(get_numbers.(x)...))
+get_numbers(x::AbstractVector) = unique(vcat(get_numbers.(x)...))
 get_numbers(x) = []
 
 

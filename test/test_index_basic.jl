@@ -300,4 +300,40 @@ gi = IndexedVariable(:g, i)
 @test isequal(∑(α,i), N*α)
 @test isequal(∑(5α,i), 5*N*α)
 
+# issue 233
+@testset "issue 233" begin
+N = 10
+h = NLevelSpace(:atom,2)
+i = Index(h,:i,N,h)
+gi = IndexedVariable(:g, i)
+term = ∑(gi,i)
+avarage_ = average(term)
+@test avarage_ isa SymbolicUtils.BasicSymbolic{IndexedAverageSum}
+
+hc = FockSpace(:cavity)
+ha = NLevelSpace(:atom,2)
+h = hc ⊗ ha
+
+@qnumbers a::Destroy(h)
+σ(α,β,i) = IndexedOperator(Transition(h, :σ, α, β),i)
+
+@cnumbers N Δ κ Γ R ν
+g(i) = IndexedVariable(:g, i)
+
+i = Index(h,:i,N,ha)
+j = Index(h,:j,N,ha)
+H = -Δ*a'a + Σ(g(i)*( a'*σ(1,2,i) + a*σ(2,1,i) ),i)
+J = [a, σ(1,2,i), σ(2,1,i), σ(2,2,i)]
+rates = [κ, Γ, R, ν]
+ops = [a'*a, σ(2,2,j)]
+
+imH = im*H
+rhs_ = commutator(imH,ops[1])
+
+indSum = SymbolicUtils.arguments(rhs_)[1]
+avarage_ = average(indSum.term)
+
+@test qc.get_indices(indSum.term) == qc.get_indices(avarage_)
+end
+
 end
