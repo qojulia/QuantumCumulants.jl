@@ -1,131 +1,3 @@
-# get_indices functions
-get_indices(x::AvgSums) = get_indices(arguments(x))
-get_indices(term::Average) = get_indices(arguments(term)[1])
-function get_indices(term::QMul)
-    args_nc = filter(x -> x isa IndexedOperator, term.args_nc)
-    return unique(vcat(get_indices(args_nc),get_indices(term.arg_c)))
-end
-get_indices(a::IndexedOperator) = [a.ind]
-get_indices(vec::AbstractVector) = unique(vcat(get_indices.(vec)...))
-function get_indices(a::BasicSymbolic{DoubleIndexedVariable})
-    meta = SymbolicUtils.metadata(a)[DoubleIndexedVariable]
-    return unique([meta.ind1,meta.ind2])
-end
-get_indices(a::BasicSymbolic{IndexedVariable}) = [SymbolicUtils.metadata(a)[IndexedVariable].ind]
-const Sums = Union{SingleSum,DoubleSum}
-# get_indices(x::Sums) = unique(get_indices(arguments(x)))
-get_indices(x::SingleSum) = get_indices(x.term)
-get_indices(x::DoubleSum) = get_indices(x.innerSum.term)
-get_indices(x::Number) = []
-get_indices(term) = iscall(term) ? get_indices(arguments(term)) : []
-
-#Usability functions:
-Σ(a,b) = DoubleSum(a,b)  #Double-Sum here, because if variable a is not a single sum it will create a single sum anyway
-Σ(a,b,c;kwargs...) = DoubleSum(a,b,c;kwargs...)
-∑(args...; kwargs...) = Σ(args...; kwargs...)
-
-IndexedOperator(x::IndexableOps,numb::Int64) = NumberedOperator(x,numb)
-function IndexedOperator(x::QTerm, numb::Int64) # σ(1,1,2)
-    f = SymbolicUtils.operation(x)
-    args = SymbolicUtils.arguments(x)
-    f([NumberedOperator(arg, numb) for arg in args]...)
-end
-IndexedVariable(x,numb::Int64) = SingleNumberedVariable(x,numb)
-IndexedVariable(x,num1::Int64,num2::Int64;kwargs...) = DoubleNumberedVariable(x,num1,num2;kwargs...)
-IndexedVariable(name::Symbol,ind1::Index,ind2::Index;kwargs...) = DoubleIndexedVariable(name,ind1,ind2;kwargs...)
-DoubleIndexedVariable(x,num1::Int64,num2::Int64;kwargs...) = DoubleNumberedVariable(x,num1,num2;kwargs...)
-
-#Numeric Conversion of NumberedOperators
-function to_numeric(op::NumberedOperator,b::QuantumOpticsBase.CompositeBasis; ranges::Vector{Int64}=Int64[],kwargs...)
-    if isempty(ranges)
-        error("When calling to_numeric for indexed Operators, specification of the \"ranges\" keyword is needed! This keyword requires a vector of Integers, which specify the maximum range of the index for each hilbertspace.")
-    end
-    h = hilbert(op)
-    if h isa ProductSpace
-        if length(h.spaces) != length(ranges)
-            error("Unequal length of hilbertspaces and ranges!")
-        end
-    else
-        if length(ranges) != 1
-            error("Wrong number of entries in ranges!")
-        end
-    end
-    start = 0
-    if h !== nothing #this is fine here since there are assertions above
-        aon_ = acts_on(op)
-        for i = 1:(aon_ - 1)
-            start = start + ranges[i]
-        end
-    end
-    aon = 0
-    if start == 0
-        aon = getNumber(op)[1] - 1
-    else
-        aon = op.numb + start
-    end
-    op_ = _to_numeric(op.op,b.bases[aon];kwargs...)
-    return QuantumOpticsBase.LazyTensor(b,[aon],(op_,))
-end
-#function that returns the conjugate of an average, but also preserving the correct ordering
-function _inconj(v::Average)
-    f = operation(v)
-    if f == conj
-        return _inconj(arguments(v)[1])
-    end
-    arg = v.arguments[1]
-    adj_arg = inadjoint(arg)
-    return _average(adj_arg)
-end
-function _inconj(v::T) where T <: SymbolicUtils.BasicSymbolic
-    if SymbolicUtils.iscall(v)
-        f = SymbolicUtils.operation(v)
-        args = map(_inconj, SymbolicUtils.arguments(v))
-        return SymbolicUtils.maketerm(T, f, args, TermInterface.metadata(v))
-    else
-        return conj(v)
-    end
-end
-_inconj(x::Number) = conj(x)
-
-function inadjoint(q::QMul)
-    qad = adjoint(q)
-    inorder!(qad)
-    return qad
-end
-inadjoint(op::QNumber) = adjoint(op)
-inadjoint(s::SymbolicUtils.BasicSymbolic{<:Number}) = _conj(s)
-inadjoint(x) = adjoint(x)
-
-function inorder!(v::Average)
-    f = operation(v)
-    if f == conj
-        return conj(inorder!(arguments(v)[1]))
-    end
-    return average(inorder!(arguments(v)[1]))
-end
-function inorder!(q::QMul)
-    sort!(q.args_nc, by=get_numbers)
-    sort!(q.args_nc, by=getIndName)
-    sort!(q.args_nc, by=acts_on)
-    return merge_commutators(q.arg_c,q.args_nc)
-end
-function inorder!(v::T) where T <: SymbolicUtils.BasicSymbolic
-    if SymbolicUtils.iscall(v)
-        f = SymbolicUtils.operation(v)
-        args = map(inorder!, SymbolicUtils.arguments(v))
-        return SymbolicUtils.maketerm(T, f, args, TermInterface.metadata(v))
-    end
-    return v
-end
-inorder!(x) = x
-
-get_numbers(term::Average) = get_numbers(arguments(term)[1])
-get_numbers(term::QMul) = unique(vcat(get_numbers.(term.args_nc)...))
-get_numbers(x::NumberedOperator) = [x.numb]
-get_numbers(x::AbstractVector) = unique(vcat(get_numbers.(x)...))
-get_numbers(x) = []
-
-
 """
     subst_reds(de::AbstractMeanfieldEquations)
 
@@ -249,36 +121,7 @@ function has_same(vec1::Vector,vec2::Vector)
     length(vec1) != length(vec2) && return false
     return isequal(counter.(vec1),counter.(vec2))
 end
-#function that returns a vector of vector of ops depending on their aons
-# so all ops, that act on the same  are returned in the same subvector
-function get_ops_of_aons(qmul::QMul; h=nothing, kwargs...)
-    aons = acts_on(qmul)
-    if !=(h,nothing)
-        if !(h isa Vector)
-            h = [h]
-        end
-        filter!(x -> x in h,aons)
-    end
-    dic = Dict{Int,Any}(aon => Any[] for aon in aons)
-    noAonVec = []
-    for op in qmul.args_nc
-        if acts_on(op) in aons
-            if (op isa NumberedOperator || op isa IndexedOperator) && op.op isa Transition
-                push!(dic[acts_on(op)],op.op)
-            else
-                push!(dic[acts_on(op)],op)
-            end
-        else
-            push!(noAonVec,op)
-        end
-    end
-    allVec = []
-    for i in keys(dic)
-        push!(allVec,dic[i])
-    end
-    push!(allVec,noAonVec)
-    return allVec
-end
+
 
 # function, that creates a dictionary within each key is an element of it and the value the count of the elemt,
 # used to calculate, if two arrays are containing the exact same elements, without order
@@ -352,4 +195,36 @@ function value_map(ps::Vector,p0::Vector;limits=nothing,kwargs...)
         dict = merge(dict,dicVal)
     end
     return collect(dict)
+end
+
+
+#function that returns a vector of vector of ops depending on their aons
+# so all ops, that act on the same  are returned in the same subvector
+function get_ops_of_aons(qmul::QMul; h=nothing, kwargs...)
+    aons = acts_on(qmul)
+    if !=(h,nothing)
+        if !(h isa Vector)
+            h = [h]
+        end
+        filter!(x -> x in h,aons)
+    end
+    dic = Dict{Int,Any}(aon => Any[] for aon in aons)
+    noAonVec = []
+    for op in qmul.args_nc
+        if acts_on(op) in aons
+            if (op isa NumberedOperator || op isa IndexedOperator) && op.op isa Transition
+                push!(dic[acts_on(op)],op.op)
+            else
+                push!(dic[acts_on(op)],op)
+            end
+        else
+            push!(noAonVec,op)
+        end
+    end
+    allVec = []
+    for i in keys(dic)
+        push!(allVec,dic[i])
+    end
+    push!(allVec,noAonVec)
+    return allVec
 end

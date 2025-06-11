@@ -28,8 +28,8 @@ function _master_noise(a_,J,Jdagger,rates)
         if isa(rates[k],SymbolicUtils.Symbolic) || isa(rates[k],Number) || isa(rates[k],Function)
             c1 = sqrt(rates[k])*(Jdagger[k]*a_-average(Jdagger[k])*average(a_))
             c2 = sqrt(rates[k])*(a_*J[k]-average(a_)*average(J[k]))
-            push_or_append_nz_args!(args, c1)
-            push_or_append_nz_args!(args, c2)
+            SQA.push_or_append_nz_args!(args, c1)
+            SQA.push_or_append_nz_args!(args, c2)
         elseif isa(rates[k],Matrix)
             error("Nondiagonal measurements are not supported")
         else
@@ -141,7 +141,7 @@ function calculate_order(de::AbstractMeanfieldEquations, eqns, order)
     maximum(order_) >= order_lhs || error("Cannot form cumulant expansion of derivative; you may want to use a higher order!")
     return order_
 end
- 
+
 
 function missing_variables(de::AbstractMeanfieldEquations, eqns, order=de.order, multithread=false, filter_func=nothing, mix_choice=maximum, simplify=true)
     vs = de.states

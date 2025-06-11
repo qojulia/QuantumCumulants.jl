@@ -153,7 +153,7 @@ function scale_term(x::QMul; h=nothing, kwargs...)
 end
 function get_ind_dic(inds)
     dic = Dict()
-    aons = unique(get_aon.(inds))
+    aons = unique(SQA.get_aon.(inds))
     for a in aons
         push!(dic, a => filter(x->isequal(a,x.aon),inds))
     end
@@ -198,7 +198,7 @@ function SymbolicUtils.substitute(sum::BasicSymbolic{IndexedAverageSum},subs;fol
     subTerm = SymbolicUtils.substitute(meta.term,subs;fold=fold)
     if SymbolicUtils._iszero(subTerm)
         return 0
-    elseif subTerm isa symbolics_terms
+    elseif subTerm isa SQA.symbolics_terms
         return IndexedAverageSum(subTerm,meta.sum_index,meta.non_equal_indices)
     else
         return (meta.sum_index.range - length(meta.non_equal_indices)) * subTerm
