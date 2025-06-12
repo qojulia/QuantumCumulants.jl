@@ -144,9 +144,9 @@ nothing # hide
 n_ls = zeros(length(Δ_ls))
 
 for i=1:length(Δ_ls)
-    Δc_ = Δ_ls[i]
-    Δa_ = Δc_ + Ωij(1,2) # cavity on resonace with the shifted collective emitter
-    p0_ = [Δc_; η_; Δa_; κ_; gi_; Γij_; Ωij_]
+    Δc_i = Δ_ls[i]
+    Δa_i = Δc_i + Ωij(1,2) # cavity on resonace with the shifted collective emitter
+    p0_ = [Δc_i; η_; Δa_i; κ_; gi_; Γij_; Ωij_]
     
     # create (remake) new ODEProblem
     prob_  = ODEProblem(sys,u0,(0.0, 20),ps.=>p0_)
