@@ -53,4 +53,6 @@ d = Destroy(h,:d,4)
             average(b)*average(a*c) - average(c)*average(a*b))))
 @test isequal(simplify(average(a*b*c*d) - cumulant(a*b*c*d)), cumulant_expansion(average(a*b*c*d),3))
 
+@test get_order(a*b + c) == 2
+
 end # testset
