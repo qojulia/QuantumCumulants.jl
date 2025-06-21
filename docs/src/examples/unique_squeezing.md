@@ -29,7 +29,7 @@ hf = FockSpace(:harmonic)
 ha = NLevelSpace(Symbol(:spin),2)
 h = hf ⊗ ha
 
-# Paramter
+# Parameter
 @cnumbers ω Ω ωd η κ g γ N ξ
 @syms t::Real # time
 nothing # hide
@@ -169,7 +169,7 @@ plot(p1, p2, layout=(1,2), size=(700,250),bottom_margin=5*Plots.mm, left_margin=
 
 ## Effective model
 
-For a suffeciently low excitation we can adiabatically elminate the dynamics of the two-level system(s). This leads to an effective Hamiltonian 
+For a suffeciently low excitation we can adiabatically eliminate the dynamics of the two-level system(s). This leads to an effective Hamiltonian 
 
 ```math
 \begin{align}

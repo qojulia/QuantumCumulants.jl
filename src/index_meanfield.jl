@@ -2,7 +2,7 @@
 #I did not want to change anything on the files in the already existing package, so I just copied and renamed a bunch of stuff here.
 
 
-#function that takes indexed operators and double indexed varaibles to calculate the meanfield equations
+#function that takes indexed operators and double indexed variables to calculate the meanfield equations
 #the jump operators have to have same indices as the indices specified by the double indexed variable
 """
     indexed_meanfield(ops::Vector,H::QNumber,J::Vector;
@@ -24,7 +24,7 @@ See also: [`meanfield`](@ref).
     ``\\sum_i J_i^\\dagger O J_i - \\frac{1}{2}\\left(J_i^\\dagger J_i O + OJ_i^\\dagger J_i\\right)``
     is added to the Heisenberg equation.
 
-# Optional argumentes
+# Optional arguments
 *`Jdagger::Vector=adjoint.(J)`: Vector containing the hermitian conjugates of
     the collapse operators.
 *`rates=ones(length(J))`: Decay rates corresponding to the collapse operators in `J`.
@@ -362,7 +362,7 @@ function indexed_complete!(
         end
     else
         #if there are no indices on the LHS -> use the first index of extra_indices as starting point
-        #this first index is (if it is a symbol) created similar to the first occuring index in the Equations
+        #this first index is (if it is a symbol) created similar to the first occurring index in the Equations
         if isempty(indices_lhs) && extra_indices[1] isa Symbol
             for ind in allInds
                 indices_lhs = [Index(ind.hilb, extra_indices[1], ind.range, ind.aon)]
@@ -508,7 +508,7 @@ function indexed_complete!(
             extra_indices = extras,
             checking = false,
             kwargs...,
-        ) #checkin dissabled, since there might be some terms, that are redundant, but also zero -> set them to zero aswell forsa fety
+        ) #checkin disabled, since there might be some terms, that are redundant, but also zero -> set them to zero aswell forsa fety
         missed = find_missing_Dsums(
             missed,
             de;
@@ -882,8 +882,8 @@ evaluate any summations inside these terms.
 # Arguments
 *`me::MeanfieldEquations`: A [`MeanfieldEquations`](@ref) entity, which shall be evaluated.
 
-# Optional argumentes
-*`limits::Dict{BasicSymbolic,Int64}=Dict{Symbol,Int64}()`: A seperate dictionary, to
+# Optional arguments
+*`limits::Dict{BasicSymbolic,Int64}=Dict{Symbol,Int64}()`: A separate dictionary, to
     specify any symbolic limits used when [`Index`](@ref) entities were defined. This needs
     to be specified, when the equations contain summations, for which the upper bound is given
     by a Symbolic.

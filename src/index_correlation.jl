@@ -88,7 +88,7 @@ function _new_operator(sum::IndexedAverageDoubleSum, h, aon = nothing; kwargs...
     return IndexedAverageDoubleSum(inner, newsum_index, newSumNonEquals)
 end
 _new_operator(sym::BasicSymbolic{IndexedAverageDoubleSum}, h, aon = nothing; kwargs...) =
-    _new_operator(SymbolicUtils.metadata(sym)[IndexedAvergeDoubleSum], h, aon; kwargs...)
+    _new_operator(SymbolicUtils.metadata(sym)[IndexedAverageDoubleSum], h, aon; kwargs...)
 _new_operator(sym::BasicSymbolic{IndexedVariable}, h, aon = nothing; kwargs...) =
     _new_operator(SymbolicUtils.metadata(sym)[IndexedVariable], h, aon; kwargs...)
 _new_operator(sym::BasicSymbolic{DoubleIndexedVariable}, h, aon = nothing; kwargs...) =
@@ -439,7 +439,7 @@ function indexed_complete_corr!(
 
     if order_max > maxNumb && order_max - maxNumb > length(extra_indices)
         error(
-            "Too few extra_indices provided! Please make sure that for higher orders of cumulant expansion, 
+            "Too few extra_indices provided! Please make sure that for higher orders of cumulant expansion,
           you also use the extra_indices argument to provide additional indices for calculation. The Number of
           extra_indices provided should be at least $(order_max - maxNumb).
       ",

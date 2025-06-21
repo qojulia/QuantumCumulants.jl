@@ -10,7 +10,7 @@ with oparators using a [`ClusterSpace`](@ref). For this it is considered that al
 # Arguments
 *`me::IndexedMeanfieldEquations`: A [`MeanfieldEquations`](@ref) entity, which shall be scaled.
 
-# Optional argumentes
+# Optional arguments
 *`h`: A HilbertSpace, Vector of Hilbertspaces or Numbers, specifying the specific Hilbertspaces,
     that shall be scaled. Does not scale any other Hilbertspace, other than the given ones.
 """

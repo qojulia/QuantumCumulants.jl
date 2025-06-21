@@ -366,7 +366,7 @@ const qc = QuantumCumulants
         Σ(σA(1, 2, i)*σB(2, 1, x) + σA(2, 1, i)*σB(1, 2, x), i, x) +
         Σ(g(x)*(a'*σB(1, 2, x) + a*σB(2, 1, x)), x)
 
-    # Jump operators wth corresponding rates
+    # Jump operators with corresponding rates
     J = [a, σA(1, 2, i), σA(2, 1, i), σA(2, 2, i), σB(1, 2, x), σB(2, 1, x), σB(2, 2, x)]
     rates = [κ, Γ, R, ν, Γ, R, ν]
     # Derive equations

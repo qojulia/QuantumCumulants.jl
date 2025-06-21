@@ -5,7 +5,7 @@ using Symbolics
 
 @testset "test_measurement_backaction_indices" begin
 
-    # Paramters
+    # Parameters
     @cnumbers κ g gf κf R Γ Δ ν N M
     δ(i) = IndexedVariable(:δ, i)
 

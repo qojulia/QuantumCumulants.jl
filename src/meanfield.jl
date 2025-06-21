@@ -20,7 +20,7 @@ equivalent to the Quantum-Langevin equation where noise is neglected.
     ``\\sum_i J_i^\\dagger O J_i - \\frac{1}{2}\\left(J_i^\\dagger J_i O + OJ_i^\\dagger J_i\\right)``
     is added to the Heisenberg equation.
 
-# Optional argumentes
+# Optional arguments
 *`Jdagger::Vector=adjoint.(J)`: Vector containing the hermitian conjugates of
     the collapse operators.
 *`rates=ones(length(J))`: Decay rates corresponding to the collapse operators in `J`.

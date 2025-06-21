@@ -41,7 +41,7 @@ const qc=QuantumCumulants
     @test(isequal(σ(2, 2, i_ind), σ(2, 1, i_ind)*σ12i))
 
     #@test(isequal(σ(2,2,i_ind)+σ(1,2,j_ind),σ(1,2,j_ind)+σ(2,2,i_ind)))
-    #apperently QAdd isequal function is dependant in order of terms inside the addition (?)
+    #apparently QAdd isequal function is dependant in order of terms inside the addition (?)
 
     @test(isequal(adjoint(σ(1, 2, i_ind)), σ(2, 1, i_ind)))
 
@@ -351,8 +351,8 @@ const qc=QuantumCumulants
         i = Index(h, :i, N, h)
         gi = IndexedVariable(:g, i)
         term = ∑(gi, i)
-        avarage_ = average(term)
-        @test avarage_ isa SymbolicUtils.BasicSymbolic{IndexedAverageSum}
+        average_ = average(term)
+        @test average_ isa SymbolicUtils.BasicSymbolic{IndexedAverageSum}
 
         hc = FockSpace(:cavity)
         ha = NLevelSpace(:atom, 2)
@@ -375,9 +375,9 @@ const qc=QuantumCumulants
         rhs_ = commutator(imH, ops[1])
 
         indSum = SymbolicUtils.arguments(rhs_)[1]
-        avarage_ = average(indSum.term)
+        average_ = average(indSum.term)
 
-        @test qc.get_indices(indSum.term) == qc.get_indices(avarage_)
+        @test qc.get_indices(indSum.term) == qc.get_indices(average_)
     end
 
 end

@@ -25,7 +25,7 @@ We create the parameters of the system including the $\texttt{IndexedVariable}$ 
 
 
 ```@example filter_cavity_indexed
-# Paramters
+# Parameters
 @cnumbers κ g gf κf R Γ Δ ν N M
 δ(i) = IndexedVariable(:δ, i)
 
