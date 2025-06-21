@@ -41,7 +41,7 @@ const qc=QuantumCumulants
     @test(isequal(σ(2, 2, i_ind), σ(2, 1, i_ind)*σ12i))
 
     #@test(isequal(σ(2,2,i_ind)+σ(1,2,j_ind),σ(1,2,j_ind)+σ(2,2,i_ind)))
-    #apperently QAdd isequal function is dependant in order of terms inside the addition (?)
+    #apparently QAdd isequal function is dependant in order of terms inside the addition (?)
 
     @test(isequal(adjoint(σ(1, 2, i_ind)), σ(2, 1, i_ind)))
 

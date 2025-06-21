@@ -272,7 +272,7 @@ for T ∈ [:AbstractTimeseriesSolution, :AbstractNoTimeSolution]
         var = make_var(avg, t)
 
         if any(isequal(var), vars)
-            # sucess, we found the symbol
+            # success, we found the symbol
             return getindex(sol, var)
         end
 

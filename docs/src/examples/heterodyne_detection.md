@@ -126,7 +126,7 @@ sol = solve(eprob,StochasticDiffEq.EM(), dt = 1e-9, save_noise=true,trajectories
 ```
 
 # Plot the average of the cavity number
-Here we plot the average of the cavity number for the stochastic and determinstic equation of motion with the trajectories in grey in the background. We can see that the dynamics of the system is indeed modified by the measurement backaction.
+Here we plot the average of the cavity number for the stochastic and deterministic equation of motion with the trajectories in grey in the background. We can see that the dynamics of the system is indeed modified by the measurement backaction.
 
 
 ```julia

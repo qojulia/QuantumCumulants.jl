@@ -34,7 +34,7 @@ function indexed_arithmetic(a_, J, Jdagger, rate, arithmetic)
     elseif length(all_indices) == 2# Double index
         return ∑(arithmetic(a_, J, Jdagger, rate), all_indices[1], all_indices[2])
     else
-        error("Too many indices occuring in multiplication")
+        error("Too many indices occurring in multiplication")
     end
 end
 
@@ -204,7 +204,7 @@ See also: [`indexed_meanfield`](@ref).
     ``\\sum_i J_i^\\dagger O J_i - \\frac{1}{2}\\left(J_i^\\dagger J_i O + OJ_i^\\dagger J_i\\right)``
     is added to the Heisenberg equation.
 
-# Optional argumentes
+# Optional arguments
 *`Jdagger::Vector=adjoint.(J)`: Vector containing the hermitian conjugates of
     the collapse operators.
 *`rates=ones(length(J))`: Decay rates corresponding to the collapse operators in `J`.
@@ -386,7 +386,7 @@ function generate_extras(vs, extra_indices, allInds, order_max)
         end
     else
         #if there are no indices on the LHS -> use the first index of extra_indices as starting point
-        #this first index is (if it is a symbol) created similar to the first occuring index in the Equations
+        #this first index is (if it is a symbol) created similar to the first occurring index in the Equations
         if isempty(indices_lhs) && extra_indices[1] isa Symbol
             for ind in allInds
                 indices_lhs = [Index(ind.hilb, extra_indices[1], ind.range, ind.aon)]
@@ -537,7 +537,7 @@ function generate_substitutions(vs, eqs, filter_func, extras)
     # but still occur on the RHS; set those to 0
     missed = find_missing(eqs, vhash, vs′hash; get_adjoints = false)
     missed =
-        find_missing_sums(missed, de; extra_indices = extras, checking = false, kwargs...) #checkin dissabled, since there might be some terms, that are redundant, but also zero -> set them to zero aswell forsa fety
+        find_missing_sums(missed, de; extra_indices = extras, checking = false, kwargs...) #checkin disabled, since there might be some terms, that are redundant, but also zero -> set them to zero aswell forsa fety
     missed =
         find_missing_Dsums(missed, de; extra_indices = extras, checking = false, kwargs...)
     missed = find_missing_sums(missed, de; checking = false, kwargs...)
@@ -871,7 +871,7 @@ function subst_reds_scale_equation(states, eqs; kwargs...)
                 to_insert[counter] = conj(states[ind_])
                 counter = counter + 1
             else
-                deleteat!(to_insert, counter) # these deletes are for consistancy only -> it is possible that not all terms are fully evaluated
+                deleteat!(to_insert, counter) # these deletes are for consistency only -> it is possible that not all terms are fully evaluated
                 deleteat!(to_sub, counter)   # yet in the system -> leftovers in the find_missing
             end
         end

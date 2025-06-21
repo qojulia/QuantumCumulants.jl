@@ -36,8 +36,8 @@ Mainly used by [`evalEquation`](@ref).
 *`map::Dict{Index,Int64}`: A dictionary, which contains specifications for the insertions
     the entry (i => 5) would result in all `i` indices being replaced with the number 5.
 
-# Optional argumentes
-*`limits::Dict{SymbolicUtils.BasicSymbolic,Int64}=Dict{Symbol,Int64}()`: A seperate dictionary, to
+# Optional arguments
+*`limits::Dict{SymbolicUtils.BasicSymbolic,Int64}=Dict{Symbol,Int64}()`: A separate dictionary, to
     specify any symbolic limits used when [`Index`](@ref) entities were defined. This needs
     to be specified, when the equation contains summations, for which the upper bound is given
     by a Symbolic.
@@ -77,8 +77,8 @@ where indices have been inserted and sums evaluated.
 # Arguments
 *`me::MeanfieldEquations`: A [`MeanfieldEquations`](@ref) entity, which shall be evaluated.
 
-# Optional argumentes
-*`limits=Dict{SymbolicUtils.BasicSymbolic,Int64}()`: A seperate dictionary, to
+# Optional arguments
+*`limits=Dict{SymbolicUtils.BasicSymbolic,Int64}()`: A separate dictionary, to
     specify any symbolic limits used when [`Index`](@ref) entities were defined. This needs
     to be specified, when the equations contain summations, for which the upper bound is given
     by a Symbolic.
@@ -329,8 +329,8 @@ only a single value, then all possible numbered-Variables are set to the same va
 *`sym`: Either a [`IndexedVariable`](@ref) or a [`DoubleIndexedVariable`](@ref)
 *`values`: For a [`IndexedVariable`](@ref) either a vector or a single number, and for [`DoubleIndexedVariable`](@ref) a matrix.
 
-# Optional argumentes
-*`limits::Dict{SymbolicUtils.BasicSymbolic,Int64}=Dict{BasicSymbolic,Int64}()`: A seperate dictionary, to
+# Optional arguments
+*`limits::Dict{SymbolicUtils.BasicSymbolic,Int64}=Dict{BasicSymbolic,Int64}()`: A separate dictionary, to
     specify any symbolic limits used when [`Index`](@ref) entities were defined. This needs
     to be specified, when the equations contain summations, for which the upper bound is given
     by a Symbolic.
@@ -417,7 +417,7 @@ function create_value_map(
     return dict
 end
 
-#functions for checking if indices occure in specific terms
+#functions for checking if indices occur in specific terms
 function containsIndexedOps(term::Average)
     arg_ = arguments(term)
     if arg_[1] isa QMul

@@ -58,7 +58,7 @@ function subst_reds_scale(me::AbstractMeanfieldEquations; kwargs...)
                 to_insert[counter] = conj(states[ind_])
                 counter = counter + 1
             else
-                deleteat!(to_insert, counter) # these deletes are for consistancy only -> it is possible that not all terms are fully evaluated
+                deleteat!(to_insert, counter) # these deletes are for consistency only -> it is possible that not all terms are fully evaluated
                 deleteat!(to_sub, counter)   # yet in the system -> leftovers in the find_missing
             end
         end
@@ -153,7 +153,7 @@ function has_same(vec1::Vector, vec2::Vector)
 end
 
 
-# function, that creates a dictionary within each key is an element of it and the value the count of the elemt,
+# function, that creates a dictionary within each key is an element of it and the value the count of the element,
 # used to calculate, if two arrays are containing the exact same elements, without order
 # copied from https://discourse.julialang.org/t/compare-array-of-string-with-no-regard-to-the-order/62322
 function counter(it)

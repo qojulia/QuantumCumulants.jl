@@ -319,7 +319,7 @@ const qc = QuantumCumulants
     j = Index(h, :j, N, ha)
     # Hamiltonian
     H = -Δ*a'a + Σ(g(i)*(a'*σ(1, 2, i) + a*σ(2, 1, i)), i)
-    # Jump operators wth corresponding rates
+    # Jump operators with corresponding rates
     J = [a, σ(1, 2, i), σ(2, 1, i), σ(2, 2, i)]
     rates = [κ, Γ, R, ν]
     # Derive equations
@@ -336,7 +336,7 @@ const qc = QuantumCumulants
     @cnumbers N Δ κ Γ R ν gg
     # Hamiltonian
     H = -Δ*a'a + sum(gg*(a'*σ(1, 2, i) + a*σ(2, 1, i)) for i = 1:3)
-    # Jump operators wth corresponding rates
+    # Jump operators with corresponding rates
     J = [a; [σ(1, 2, i) for i = 1:3]; [σ(2, 1, i) for i = 1:3]; [σ(2, 2, i) for i = 1:3]]
     rates = [κ; [Γ for i = 1:3]; [R for i = 1:3]; [ν for i = 1:3]]
     # Derive equations
