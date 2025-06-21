@@ -15,7 +15,7 @@ with the collective fiber-mediated decay rates $\Gamma^{1\mathrm{D}}_{ij}$. For 
 ```
 with $S^{\pm}_i = S^x \pm i S^y = \sum_{k=1}^{N_i} \sigma^{\pm}_k$, where $S^{x,y,z}_i = \frac{1}{2} \sum_{k=1}^{N_i} \sigma^{x,y,z}_k $.
 
-After loading the needed packages we define the Hilbert space and spin operators of the $M$ atomic ensembles coupled to the waveguide. We also define the numerical paramters and utilize that $\Omega_{ij} = \Omega_{ji}$ and $\Gamma_{ij} = \Gamma_{ji}$. Due to this the derived equations are simplified further.
+After loading the needed packages we define the Hilbert space and spin operators of the $M$ atomic ensembles coupled to the waveguide. We also define the numerical Parameters and utilize that $\Omega_{ij} = \Omega_{ji}$ and $\Gamma_{ij} = \Gamma_{ji}$. Due to this the derived equations are simplified further.
 
 
 ```@example waveguide
@@ -41,13 +41,13 @@ Sz(i) = Spin(h, "S$(i)", 3, i)
 Sm(i) = (Sx(i) - 1im*Sy(i))
 Sp(i) = (Sx(i) + 1im*Sy(i))
 
-# Paramter
+# Parameter
 Ω(i,j) = i>j ? cnumber("Ω_$(j)_$(i)") : cnumber("Ω_$(i)_$(j)")
 Γ(i,j) = i>j ? cnumber("Γ_$(j)_$(i)") : cnumber("Γ_$(i)_$(j)")
 nothing # hide
 ```
 
-With the symbolic operators and paramters we define the Hamiltonian and the collective jump operators with the corresponding rates. For rates written in matrix form the program automatically assumes collective dissipation according to 
+With the symbolic operators and Parameters we define the Hamiltonian and the collective jump operators with the corresponding rates. For rates written in matrix form the program automatically assumes collective dissipation according to 
 ```math
     \mathcal{L}[\rho]=\frac{1}{2}\sum_{i,j}^M R_{ij} (2 J_i \rho J^+_j-J^+_i \rho J_j - \rho J^+_i J_j),
 ```
@@ -64,7 +64,7 @@ rates = [Γ(c1,c2) for c1=1:M, c2=1:M]
 nothing # hide
 ```
 
-Now we create a complete list of operators, which we use to derive the second-order equations. This is considerable faster than to automatically complete the equations. We only show one of the 90 rather lenghty equations.
+Now we create a complete list of operators, which we use to derive the second-order equations. This is considerable faster than to automatically complete the equations. We only show one of the 90 rather lengthy equations.
 
 
 ```@example waveguide
@@ -96,11 +96,11 @@ nothing # hide
 ```
 
 
-We define the numerical system paramters and the initial state. For spin operators the initial state is unfortunately not fully trivial with all zeros. Therefore, we use the [numeric conversion](https://qojulia.github.io/QuantumCumulants.jl/stable/implementation/#Numeric-averages-and-conversion) which allows us to define the quantum state in [QuantumOptics.jl](https://docs.qojulia.org/quantumobjects/states/) and convert it to the correct initial average values.
+We define the numerical system Parameters and the initial state. For spin operators the initial state is unfortunately not fully trivial with all zeros. Therefore, we use the [numeric conversion](https://qojulia.github.io/QuantumCumulants.jl/stable/implementation/#Numeric-averages-and-conversion) which allows us to define the quantum state in [QuantumOptics.jl](https://docs.qojulia.org/quantumobjects/states/) and convert it to the correct initial average values.
 
 
 ```@example waveguide
-# System paramters
+# System Parameters
 Γ_ = 1.0  #Γ1D
 Ω_ = Γ_/2 #Ω1D
 
@@ -138,7 +138,7 @@ u0 = initial_values(eqs, ψ0)
 nothing # hide
 ```
 
-Finally, we create the ODE-problem, calculate the dynamics and plot the results. We see a fast transfer of the popualtion from the initially excited to the other atomic ensemble.
+Finally, we create the ODE-problem, calculate the dynamics and plot the results. We see a fast transfer of the population from the initially excited to the other atomic ensemble.
 
 
 ```@example waveguide

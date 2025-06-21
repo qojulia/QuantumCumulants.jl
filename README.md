@@ -3,7 +3,7 @@
 
 For the application of commutation relations **QuantumCumulants.jl** implements a simple noncommutative algebra, where any commutation relations are applied immediately. All other symbolic simplification and rewriting is done using the [Symbolics.jl](https://github.com/JuliaSymbolics/Symbolics.jl) package.
 
-To obtain a numerical solution, equations derived with **QuantumCumulants.jl** can be converted to [ModelingToolkit.jl](https://github.com/SciML/ModelingToolkit.jl) and subsequently solved with [DifferentialEquations.jl](https://github.com/SciML/DifferentialEquations.jl).
+To obtain a numerical solution, equations derived with **QuantumCumulants.jl** can be converted to [ModelingToolkit.jl](https://github.com/SciML/ModelingToolkit.jl) and subsequently solved with [DifferentialEquations.jl](https://github.com/SciML/DifferentialEquations.jl). If you want to only depend on the second quantized algebra, you can use [SecondQuantizedAlgebra.jl](https://github.com/qojulia/SecondQuantizedAlgebra.jl).
 
 ## Development status
 

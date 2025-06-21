@@ -1,6 +1,6 @@
 # Cavity Antiresonance
 
-In this example we investigate a system of $N$ closely spaced quantum emitters inside a coherently driven single mode cavity. The model is descriped in [D. Plankensteiner, et. al., Phys. Rev. Lett. 119, 093601 (2017)](https://journals.aps.org/prl/abstract/10.1103/PhysRevLett.119.093601).
+In this example we investigate a system of $N$ closely spaced quantum emitters inside a coherently driven single mode cavity. The model is described in [D. Plankensteiner, et. al., Phys. Rev. Lett. 119, 093601 (2017)](https://journals.aps.org/prl/abstract/10.1103/PhysRevLett.119.093601).
 The Hamiltonian of this system is composed of three parts $H = H_c + H_a + H_{\mathrm{int}}$, the driven cavity $H_c$, the dipole-dipole interacting atoms $H_a$ and the atom-cavity interaction $H_\mathrm{int}$:
 
 ```math
@@ -144,9 +144,9 @@ nothing # hide
 n_ls = zeros(length(Δ_ls))
 
 for i=1:length(Δ_ls)
-    Δc_ = Δ_ls[i]
-    Δa_ = Δc_ + Ωij(1,2) # cavity on resonace with the shifted collective emitter
-    p0_ = [Δc_; η_; Δa_; κ_; gi_; Γij_; Ωij_]
+    Δc_i = Δ_ls[i]
+    Δa_i = Δc_i + Ωij(1,2) # cavity on resonace with the shifted collective emitter
+    p0_ = [Δc_i; η_; Δa_i; κ_; gi_; Γij_; Ωij_]
     
     # create (remake) new ODEProblem
     prob_  = ODEProblem(sys,u0,(0.0, 20),ps.=>p0_)
