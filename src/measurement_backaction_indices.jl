@@ -128,7 +128,7 @@ function generate_index_self_mapping(indices)
     return mapping
 end
 
-# Creates an arrray of equations from two arrays of left and righthand sides for equations
+# Creates an array of equations from two arrays of left and righthand sides for equations
 create_equation_array(lhs, rhs) = [Symbolics.Equation(l, r) for (l, r) in zip(lhs, rhs)]
 
 function check_index_collision(a::Vector, H, J)
