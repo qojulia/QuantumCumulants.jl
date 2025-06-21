@@ -49,4 +49,4 @@ makedocs(
     ),
 )
 
-deploydocs(repo = "github.com/qojulia/QuantumCumulants.jl.git", push_preview = false)
+deploydocs(repo = "github.com/qojulia/QuantumCumulants.jl.git", push_preview = true)
