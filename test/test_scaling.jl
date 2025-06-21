@@ -238,7 +238,7 @@ using ModelingToolkit
     # Test molecule
     @testset "molecule" begin
         M = 2 # Order
-        # Prameters
+        # Parameters
         @cnumbers λ ν Γ η Δ γ N
         # Hilbert space
         h_in = NLevelSpace(:internal, 2)
