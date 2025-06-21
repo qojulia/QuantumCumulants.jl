@@ -291,7 +291,8 @@ const qc = QuantumCumulants
     N_a = N1+N2 # number of atoms
     h_a = tensor([ha(i) for i = 1:N_a]...)
     s(x, y, aon) = Transition(h_a, Symbol(:σ, aon, :_), x, y, aon)
-    S(x, y, c) = [sum(s(x, y, aon) for aon = 1:N1), sum(s(x, y, aon) for aon = (N1+1):N_a)][c]
+    S(x, y, c) =
+        [sum(s(x, y, aon) for aon = 1:N1), sum(s(x, y, aon) for aon = (N1+1):N_a)][c]
     # Hamiltonian
     Ha_a = sum(Δ(c)*S(2, 2, c) for c = 1:M)
     Hd_a = sum(η(c)*(S(2, 1, c) + S(1, 2, c)) for c = 1:M)

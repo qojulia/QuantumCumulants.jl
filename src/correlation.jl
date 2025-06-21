@@ -578,9 +578,8 @@ function _build_spec_func(ω, lhs, rhs, a1, a0, steady_vals, ps = [])
         subs_vals = zeros(length(Ax))
         subs_vals[i] = 1
         subs = Dict(lhs .=> subs_vals)
-        A_i = [inorder!(SymbolicUtils.simplify(substitute(Ax[j], subs))) for j = 1:length(
-            Ax,
-        )]
+        A_i =
+            [inorder!(SymbolicUtils.simplify(substitute(Ax[j], subs))) for j = 1:length(Ax)]
         A[:, i] = A_i
     end
 
