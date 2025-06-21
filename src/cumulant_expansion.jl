@@ -313,7 +313,7 @@ end
 get_order(::Number) = 0
 get_order(q::QMul) = length(q.args_nc)
 function get_order(q::QAdd)
-    order = Int[get_order(arg) for arg in SymbolicUtils.arguments(t)]
+    order = Int[get_order(arg) for arg in SymbolicUtils.arguments(q)]
     return maximum(order)
 end
 get_order(::QSym) = 1
