@@ -29,7 +29,12 @@ Optional arguments
 *simplify=true: Specify whether the result should be simplified.
 *kwargs...: Further keyword arguments being passed to simplification.
 """
-function cumulant_expansion(x::SymbolicUtils.Symbolic,order::Integer;simplify=true,kwargs...)
+function cumulant_expansion(
+    x::SymbolicUtils.Symbolic,
+    order::Integer;
+    simplify = true,
+    kwargs...,
+)
     if SymbolicUtils.iscall(x)
         get_order(x) <= order && return x
         f = SymbolicUtils.operation(x)
@@ -38,21 +43,21 @@ function cumulant_expansion(x::SymbolicUtils.Symbolic,order::Integer;simplify=tr
             return _cumulant_expansion(op.args_nc, order)
         else
             args = SymbolicUtils.arguments(x)
-            cumulants = [cumulant_expansion(arg,order;kwargs...) for arg in args]
+            cumulants = [cumulant_expansion(arg, order; kwargs...) for arg in args]
             return f(cumulants...)
         end
     elseif x isa AvgSums
-        return _cumulant_expansion(x,order;simplify,kwargs...) # basically just another cumulant_expansion dispatch
+        return _cumulant_expansion(x, order; simplify, kwargs...) # basically just another cumulant_expansion dispatch
     else
         return x
     end
 end
-function cumulant_expansion(avg::Average,order::Vector;mix_choice=maximum,kwargs...)
+function cumulant_expansion(avg::Average, order::Vector; mix_choice = maximum, kwargs...)
     aon = acts_on(avg)
     order_ = mix_choice(order[get_i(i)] for i in aon)
-    return cumulant_expansion(avg,order_;kwargs...)
+    return cumulant_expansion(avg, order_; kwargs...)
 end
-cumulant_expansion(x::Number,order;kwargs...) = x
+cumulant_expansion(x::Number, order; kwargs...) = x
 
 """
     average(::QNumber, order)
@@ -60,78 +65,119 @@ cumulant_expansion(x::Number,order;kwargs...) = x
 Compute the average of an operator. If `order` is given, the [`cumulant_expansion`](@ref)
 up to that order is computed immediately.
 """
-SQA.average(x,order;kwargs...) = cumulant_expansion(average(x),order;kwargs...)
+SQA.average(x, order; kwargs...) = cumulant_expansion(average(x), order; kwargs...)
 
-function cumulant_expansion(x::SymbolicUtils.Symbolic,order;mix_choice=maximum,simplify=true,kwargs...)
+function cumulant_expansion(
+    x::SymbolicUtils.Symbolic,
+    order;
+    mix_choice = maximum,
+    simplify = true,
+    kwargs...,
+)
     if SymbolicUtils.iscall(x)
         f = SymbolicUtils.operation(x)
         args = SymbolicUtils.arguments(x)
-        cumulants = [cumulant_expansion(arg,order;simplify=simplify,mix_choice=mix_choice) for arg in args]
+        cumulants = [
+            cumulant_expansion(arg, order; simplify = simplify, mix_choice = mix_choice) for arg in args
+        ]
         if simplify
-            return SymbolicUtils.simplify(f(cumulants...);kwargs...)
+            return SymbolicUtils.simplify(f(cumulants...); kwargs...)
         else
             return f(cumulants...)
         end
     elseif x isa AvgSums
-        return _cumulant_expansion(x,order;mix_choice,simplify,kwargs...) # basically just another cumulant_expansion dispatch
+        return _cumulant_expansion(x, order; mix_choice, simplify, kwargs...) # basically just another cumulant_expansion dispatch
     else
         return x
     end
 end
-function cumulant_expansion(de::AbstractMeanfieldEquations,order;multithread=false,mix_choice=maximum,kwargs...)
+function cumulant_expansion(
+    de::AbstractMeanfieldEquations,
+    order;
+    multithread = false,
+    mix_choice = maximum,
+    kwargs...,
+)
     order==de.order && return de
     eqs = de.equations
     eqs_out = Vector{Symbolics.Equation}(undef, length(eqs))
     if multithread
-        Threads.@threads for i=1:length(eqs)
-            cr = cumulant_expansion(eqs[i].rhs,order;mix_choice=mix_choice,kwargs...)
+        Threads.@threads for i = 1:length(eqs)
+            cr = cumulant_expansion(eqs[i].rhs, order; mix_choice = mix_choice, kwargs...)
             eqs_out[i] = Symbolics.Equation(eqs[i].lhs, cr)
         end
     else
-        for i=1:length(eqs)
-            cr = cumulant_expansion(eqs[i].rhs,order;mix_choice=mix_choice,kwargs...)
+        for i = 1:length(eqs)
+            cr = cumulant_expansion(eqs[i].rhs, order; mix_choice = mix_choice, kwargs...)
             eqs_out[i] = Symbolics.Equation(eqs[i].lhs, cr)
         end
     end
-    return MeanfieldEquations(eqs_out,de.operator_equations,de.states,de.operators,
-                            de.hamiltonian,de.jumps,de.jumps_dagger,de.rates,de.iv,de.varmap,
-                            order)
+    return MeanfieldEquations(
+        eqs_out,
+        de.operator_equations,
+        de.states,
+        de.operators,
+        de.hamiltonian,
+        de.jumps,
+        de.jumps_dagger,
+        de.rates,
+        de.iv,
+        de.varmap,
+        order,
+    )
 end
-function cumulant_expansion(de::ScaledMeanfieldEquations,order;multithread=false,mix_choice=maximum,kwargs...)
+function cumulant_expansion(
+    de::ScaledMeanfieldEquations,
+    order;
+    multithread = false,
+    mix_choice = maximum,
+    kwargs...,
+)
     order==de.order && return de
     eqs = de.equations
     eqs_out = Vector{Symbolics.Equation}(undef, length(eqs))
     if multithread
-        Threads.@threads for i=1:length(eqs)
-            cr = cumulant_expansion(eqs[i].rhs,order;mix_choice=mix_choice,kwargs...)
+        Threads.@threads for i = 1:length(eqs)
+            cr = cumulant_expansion(eqs[i].rhs, order; mix_choice = mix_choice, kwargs...)
             cr = substitute_redundants(cr, de.scale_aons, de.names)
             eqs_out[i] = Symbolics.Equation(eqs[i].lhs, cr)
         end
     else
-        for i=1:length(eqs)
-            cr = cumulant_expansion(eqs[i].rhs,order;mix_choice=mix_choice,kwargs...)
+        for i = 1:length(eqs)
+            cr = cumulant_expansion(eqs[i].rhs, order; mix_choice = mix_choice, kwargs...)
             cr = substitute_redundants(cr, de.scale_aons, de.names)
             eqs_out[i] = Symbolics.Equation(eqs[i].lhs, cr)
         end
     end
 
-    return ScaledMeanfieldEquations(eqs_out,de.operator_equations,de.states,de.operators,
-                                    de.hamiltonian,de.jumps,de.jumps_dagger,de.rates,de.iv,
-                                    de.varmap,order,
-                                    de.scale_aons,de.names,de.was_scaled
-                                    )
+    return ScaledMeanfieldEquations(
+        eqs_out,
+        de.operator_equations,
+        de.states,
+        de.operators,
+        de.hamiltonian,
+        de.jumps,
+        de.jumps_dagger,
+        de.rates,
+        de.iv,
+        de.varmap,
+        order,
+        de.scale_aons,
+        de.names,
+        de.was_scaled,
+    )
 end
 
-function _cumulant_expansion(args::Vector,order::Int)
+function _cumulant_expansion(args::Vector, order::Int)
     # Get all possible partitions; partitions(args,1) corresponds to the moment of order length(args)
-    parts = [partitions(args,i) for i=2:length(args)]
+    parts = [partitions(args, i) for i = 2:length(args)]
 
     args_sum = Any[]
     for p in parts
         for pj in p
             n = length(pj)
             args_prod = Any[-factorial(n-1)*(-1)^(n-1)]
-            for p_=pj # Product over partition blocks
+            for p_ in pj # Product over partition blocks
                 if length(p_) > order # If the encountered moment is larger than order, apply expansion
                     push!(args_prod, _cumulant_expansion(p_, order))
                 else # Else, average and add its product
@@ -146,29 +192,36 @@ function _cumulant_expansion(args::Vector,order::Int)
     return average(+(args_sum...))
 end
 
-function _cumulant_expansion(x::IndexedAverageSum,order;kwargs...)
-    return IndexedAverageSum(simplifyMultiplication(cumulant_expansion(x.term,order;kwargs...)),x.sum_index,x.non_equal_indices)
+function _cumulant_expansion(x::IndexedAverageSum, order; kwargs...)
+    return IndexedAverageSum(
+        simplifyMultiplication(cumulant_expansion(x.term, order; kwargs...)),
+        x.sum_index,
+        x.non_equal_indices,
+    )
 end
-function _cumulant_expansion(x::IndexedAverageDoubleSum,order;kwargs...)
-    inner = _cumulant_expansion(x.innerSum,order;kwargs...)
-    return IndexedAverageDoubleSum(inner,x.sum_index,x.non_equal_indices)
+function _cumulant_expansion(x::IndexedAverageDoubleSum, order; kwargs...)
+    inner = _cumulant_expansion(x.innerSum, order; kwargs...)
+    return IndexedAverageDoubleSum(inner, x.sum_index, x.non_equal_indices)
 end
-function _cumulant_expansion(a::BasicSymbolic{IndexedAverageSum},order;kwargs...)
-    if SymbolicUtils.hasmetadata(a,IndexedAverageSum)
+function _cumulant_expansion(a::BasicSymbolic{IndexedAverageSum}, order; kwargs...)
+    if SymbolicUtils.hasmetadata(a, IndexedAverageSum)
         meta = SymbolicUtils.metadata(a)[IndexedAverageSum]
-        return _cumulant_expansion(meta,order;kwargs...)
+        return _cumulant_expansion(meta, order; kwargs...)
     end
 end
-function _cumulant_expansion(a::BasicSymbolic{IndexedAverageDoubleSum},order;kwargs...)
-    if SymbolicUtils.hasmetadata(a,IndexedAverageDoubleSum)
+function _cumulant_expansion(a::BasicSymbolic{IndexedAverageDoubleSum}, order; kwargs...)
+    if SymbolicUtils.hasmetadata(a, IndexedAverageDoubleSum)
         meta = SymbolicUtils.metadata(a)[IndexedAverageDoubleSum]
-        return _cumulant_expansion(meta,order;kwargs...)
+        return _cumulant_expansion(meta, order; kwargs...)
     end
 end
-function _cumulant_expansion(a::BasicSymbolic{SpecialIndexedAverage},order;kwargs...)
-    if SymbolicUtils.hasmetadata(a,SpecialIndexedAverage)
+function _cumulant_expansion(a::BasicSymbolic{SpecialIndexedAverage}, order; kwargs...)
+    if SymbolicUtils.hasmetadata(a, SpecialIndexedAverage)
         meta = SymbolicUtils.metadata(a)[SpecialIndexedAverage]
-        return SpecialIndexedAverage(cumulant_expansion(meta.term,order;kwargs...),meta.indexMapping)
+        return SpecialIndexedAverage(
+            cumulant_expansion(meta.term, order; kwargs...),
+            meta.indexMapping,
+        )
     end
 end
 
@@ -195,7 +248,7 @@ julia> cumulant(a*b,3)
 0
 ```
 """
-function cumulant(op::QMul,n::Int=get_order(op);simplify=true,kwargs...)
+function cumulant(op::QMul, n::Int = get_order(op); simplify = true, kwargs...)
     order = get_order(op)
     if order < n
         return zero(op)
@@ -208,18 +261,19 @@ function cumulant(op::QMul,n::Int=get_order(op);simplify=true,kwargs...)
         end
     end
 end
-cumulant(avg::Average,args...;kwargs...) = cumulant(SymbolicUtils.arguments(avg)[1],args...;kwargs...)
-cumulant(op::QSym,n::Int=1;kwargs...) = isone(n) ? average(op) : zero(op)
+cumulant(avg::Average, args...; kwargs...) =
+    cumulant(SymbolicUtils.arguments(avg)[1], args...; kwargs...)
+cumulant(op::QSym, n::Int = 1; kwargs...) = isone(n) ? average(op) : zero(op)
 
-function _cumulant(args::Vector,m::Int=length(args))
-    parts = [partitions(args,i) for i=1:m]
+function _cumulant(args::Vector, m::Int = length(args))
+    parts = [partitions(args, i) for i = 1:m]
     args_sum = Any[]
-    for i=1:length(parts)
+    for i = 1:length(parts)
         p = collect(parts[i])
-        for j=1:length(p) # Terms in the sum
+        for j = 1:length(p) # Terms in the sum
             n = length(p[j])
             args_prod = Any[factorial(n-1)*(-1)^(n-1)]
-            for p_=p[j] # Product over partition blocks
+            for p_ in p[j] # Product over partition blocks
                 push!(args_prod, average(QMul(1, p_))) #_average before
             end
             # Add terms in sum
@@ -273,19 +327,19 @@ get_order(a::IndexedAverageSum) = get_order(a.term)
 get_order(a::IndexedAverageDoubleSum) = get_order(a.innerSum)
 get_order(a::SpecialIndexedAverage) = get_order(a.term)
 function get_order(a::BasicSymbolic{IndexedAverageSum})
-    if SymbolicUtils.hasmetadata(a,IndexedAverageSum)
+    if SymbolicUtils.hasmetadata(a, IndexedAverageSum)
         meta = SymbolicUtils.metadata(a)[IndexedAverageSum]
         return get_order(meta)
     end
 end
 function get_order(a::BasicSymbolic{IndexedAverageDoubleSum})
-    if SymbolicUtils.hasmetadata(a,IndexedAverageDoubleSum)
+    if SymbolicUtils.hasmetadata(a, IndexedAverageDoubleSum)
         meta = SymbolicUtils.metadata(a)[IndexedAverageDoubleSum]
         return get_order(meta)
     end
 end
 function get_order(a::BasicSymbolic{SpecialIndexedAverage})
-    if SymbolicUtils.hasmetadata(a,SpecialIndexedAverage)
+    if SymbolicUtils.hasmetadata(a, SpecialIndexedAverage)
         meta = SymbolicUtils.metadata(a)[SpecialIndexedAverage]
         return get_order(meta)
     end
