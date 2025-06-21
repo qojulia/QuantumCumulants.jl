@@ -14,7 +14,7 @@ Optional arguments
 
 see also: [`complete`](@ref), [`complete!`](@ref)
 """
-function find_missing(me::AbstractMeanfieldEquations; vs_adj=nothing, get_adjoints=true)
+function find_missing(me::AbstractMeanfieldEquations; vs_adj = nothing, get_adjoints = true)
     vs = me.states
     vhash = map(hash, vs)
     vs′ = if vs_adj===nothing
@@ -29,21 +29,49 @@ function find_missing(me::AbstractMeanfieldEquations; vs_adj=nothing, get_adjoin
     missed_hashes = UInt[]
 
     eqs = me.equations
-    for i=1:length(eqs)
-        find_missing!(missed, missed_hashes, eqs[i].rhs, vhash, vs′hash; get_adjoints=get_adjoints)
+    for i = 1:length(eqs)
+        find_missing!(
+            missed,
+            missed_hashes,
+            eqs[i].rhs,
+            vhash,
+            vs′hash;
+            get_adjoints = get_adjoints,
+        )
     end
     return missed
 end
 
-function find_missing!(missed, missed_hashes, r::SymbolicUtils.Symbolic, vhash, vs′hash; get_adjoints=true)
+function find_missing!(
+    missed,
+    missed_hashes,
+    r::SymbolicUtils.Symbolic,
+    vhash,
+    vs′hash;
+    get_adjoints = true,
+)
     if SymbolicUtils.iscall(r)
-        for arg∈SymbolicUtils.arguments(r)
-            find_missing!(missed, missed_hashes, arg, vhash, vs′hash; get_adjoints=get_adjoints)
+        for arg ∈ SymbolicUtils.arguments(r)
+            find_missing!(
+                missed,
+                missed_hashes,
+                arg,
+                vhash,
+                vs′hash;
+                get_adjoints = get_adjoints,
+            )
         end
     end
     return missed
 end
-function find_missing!(missed, missed_hashes, r::Average, vhash, vs′hash; get_adjoints=true)
+function find_missing!(
+    missed,
+    missed_hashes,
+    r::Average,
+    vhash,
+    vs′hash;
+    get_adjoints = true,
+)
     rhash = hash(r)
     if !(rhash ∈ vhash) && !(rhash ∈ vs′hash) && !(rhash ∈ missed_hashes)
         push!(missed, r)
@@ -62,11 +90,23 @@ function find_missing!(missed, missed_hashes, r::Average, vhash, vs′hash; get_
 end
 find_missing!(missed, missed_hashes, r::Number, vs, vs′hash; kwargs...) = missed
 
-function find_missing(eqs::Vector, vhash::Vector{UInt}, vs′hash::Vector{UInt}; get_adjoints=true)
+function find_missing(
+    eqs::Vector,
+    vhash::Vector{UInt},
+    vs′hash::Vector{UInt};
+    get_adjoints = true,
+)
     missed = []
     missed_hashes = UInt[]
-    for i=1:length(eqs)
-        find_missing!(missed, missed_hashes, eqs[i].rhs, vhash, vs′hash; get_adjoints=get_adjoints)
+    for i = 1:length(eqs)
+        find_missing!(
+            missed,
+            missed_hashes,
+            eqs[i].rhs,
+            vhash,
+            vs′hash;
+            get_adjoints = get_adjoints,
+        )
     end
     return missed
 end
@@ -95,9 +135,9 @@ Optional arguments
 
 see also: [`find_missing`](@ref), [`meanfield`](@ref)
 """
-function complete(de::AbstractMeanfieldEquations;kwargs...)
+function complete(de::AbstractMeanfieldEquations; kwargs...)
     de_ = deepcopy(de)
-    complete!(de_;kwargs...)
+    complete!(de_; kwargs...)
     return de_
 end
 
@@ -106,17 +146,19 @@ end
 
 In-place version of [`complete`](@ref)
 """
-function complete!(de::AbstractMeanfieldEquations;
-                                order=de.order,
-                                multithread=false,
-                                filter_func=nothing,
-                                mix_choice=maximum,
-                                simplify=true,
-                                kwargs...)
+function complete!(
+    de::AbstractMeanfieldEquations;
+    order = de.order,
+    multithread = false,
+    filter_func = nothing,
+    mix_choice = maximum,
+    simplify = true,
+    kwargs...,
+)
     vs = de.states
     order_lhs = maximum(get_order.(vs))
     order_rhs = 0
-    for i=1:length(de.equations)
+    for i = 1:length(de.equations)
         k = get_order(de.equations[i].rhs)
         k > order_rhs && (order_rhs = k)
     end
@@ -125,14 +167,19 @@ function complete!(de::AbstractMeanfieldEquations;
     else
         order_ = order
     end
-    maximum(order_) >= order_lhs || error("Cannot form cumulant expansion of derivative; you may want to use a higher order!")
+    maximum(order_) >= order_lhs || error(
+        "Cannot form cumulant expansion of derivative; you may want to use a higher order!",
+    )
 
     if order_ != de.order
-        for i=1:length(de.equations)
+        for i = 1:length(de.equations)
             lhs = de.equations[i].lhs
-            rhs = cumulant_expansion(de.equations[i].rhs,order_;
-                                        mix_choice=mix_choice,
-                                        simplify=simplify)
+            rhs = cumulant_expansion(
+                de.equations[i].rhs,
+                order_;
+                mix_choice = mix_choice,
+                simplify = simplify,
+            )
             de.equations[i] = Symbolics.Equation(lhs, rhs)
         end
     end
@@ -141,42 +188,46 @@ function complete!(de::AbstractMeanfieldEquations;
     vs′ = map(_conj, vs)
     vs′hash = map(hash, vs′)
     filter!(!in(vhash), vs′hash)
-    missed = find_missing(de.equations, vhash, vs′hash; get_adjoints=false)
+    missed = find_missing(de.equations, vhash, vs′hash; get_adjoints = false)
     isnothing(filter_func) || filter!(filter_func, missed) # User-defined filter
 
     while !isempty(missed)
         ops_ = [SymbolicUtils.arguments(m)[1] for m in missed]
-        me = meanfield(ops_,de.hamiltonian,de.jumps;
-                                Jdagger=de.jumps_dagger,
-                                rates=de.rates,
-                                simplify=simplify,
-                                multithread=multithread,
-                                order=order_,
-                                mix_choice=mix_choice,
-                                iv=de.iv,
-                                kwargs...)
+        me = meanfield(
+            ops_,
+            de.hamiltonian,
+            de.jumps;
+            Jdagger = de.jumps_dagger,
+            rates = de.rates,
+            simplify = simplify,
+            multithread = multithread,
+            order = order_,
+            mix_choice = mix_choice,
+            iv = de.iv,
+            kwargs...,
+        )
 
         _append!(de, me)
 
         vhash_ = hash.(me.states)
         vs′hash_ = hash.(_conj.(me.states))
         append!(vhash, vhash_)
-        for i=1:length(vhash_)
+        for i = 1:length(vhash_)
             vs′hash_[i] ∈ vhash_ || push!(vs′hash, vs′hash_[i])
         end
 
-        missed = find_missing(me.equations, vhash, vs′hash; get_adjoints=false)
+        missed = find_missing(me.equations, vhash, vs′hash; get_adjoints = false)
         isnothing(filter_func) || filter!(filter_func, missed) # User-defined filter
     end
 
     if !isnothing(filter_func)
         # Find missing values that are filtered by the custom filter function,
         # but still occur on the RHS; set those to 0
-        missed = find_missing(de.equations, vhash, vs′hash; get_adjoints=false)
+        missed = find_missing(de.equations, vhash, vs′hash; get_adjoints = false)
         filter!(!filter_func, missed)
         missed_adj = map(_adjoint, missed)
         subs = Dict(vcat(missed, missed_adj) .=> 0)
-        for i=1:length(de.equations)
+        for i = 1:length(de.equations)
             de.equations[i] = substitute(de.equations[i], subs)
             de.states[i] = de.equations[i].lhs
         end
@@ -213,7 +264,7 @@ end
 
 
 # Overload getindex to obtain solutions with averages
-for T ∈ [:AbstractTimeseriesSolution,:AbstractNoTimeSolution]
+for T ∈ [:AbstractTimeseriesSolution, :AbstractNoTimeSolution]
     @eval function Base.getindex(sol::SciMLBase.$(T), avg::Average)
         ode_func = sol.prob.f
         t = MTK.get_iv(ode_func.sys)
@@ -221,13 +272,14 @@ for T ∈ [:AbstractTimeseriesSolution,:AbstractNoTimeSolution]
         var = make_var(avg, t)
 
         if any(isequal(var), vars)
-            # sucess, we found the symbol
+            # success, we found the symbol
             return getindex(sol, var)
         end
 
         # couldn't find the symbol, so let's assume we have a conjugate here
         var = make_var(_conj(avg), t)
-        !any(isequal(var), vars) && throw(ArgumentError("The average $avg isn't part of the system!"))
+        !any(isequal(var), vars) &&
+            throw(ArgumentError("The average $avg isn't part of the system!"))
         return map(conj, getindex(sol, var))
     end
     @eval Base.getindex(sol::SciMLBase.$(T), op::QNumber) = getindex(sol, average(op))
@@ -245,7 +297,7 @@ for linear combinations of operators, which is not possible with `sol[op]`.
 """
 get_solution(sol, op::QNumber) = sol[op]
 function get_solution(sol, x)
-    if length(sol[:,1]) == 1 #SteadyStateProblem
+    if length(sol[:, 1]) == 1 #SteadyStateProblem
         return x
     else
         return x*ones(length(sol))
@@ -255,7 +307,7 @@ function get_solution(sol, op::QTerm)
     f = SymbolicUtils.operation(op)
     args = SymbolicUtils.arguments(op)
     if f===(+)
-        sol_args = [get_solution(sol, args[i]) for i=1:length(args)]
+        sol_args = [get_solution(sol, args[i]) for i = 1:length(args)]
         return f(sol_args...)
     elseif f === (*)
         c = args[1]
@@ -270,7 +322,7 @@ end
 function get_solution(sol, op::SymbolicUtils.BasicSymbolic{CNumber})
     f = SymbolicUtils.operation(op)
     args = SymbolicUtils.arguments(op)
-    sol_args = [get_solution(sol, args[i]) for i=1:length(args)]
+    sol_args = [get_solution(sol, args[i]) for i = 1:length(args)]
     (f).(sol_args...)
 end
 function get_solution(sol, op::SymbolicUtils.BasicSymbolic{SQA.AvgSym})
@@ -280,12 +332,12 @@ function get_solution(sol, op, dict::Dict)
     x = get_solution(sol, op)
     [substitute(x_, dict) for x_ in x]
 end
-function get_scale_solution(sol,op::Average,eqs;kwargs...)
+function get_scale_solution(sol, op::Average, eqs; kwargs...)
     if op in eqs.states
         return sol[op]
     else
-        ind_ = findfirst(x -> isscaleequal(op,x;kwargs...),eqs.states)
-        if !=(ind_,nothing)
+        ind_ = findfirst(x -> isscaleequal(op, x; kwargs...), eqs.states)
+        if !=(ind_, nothing)
             return sol[eqs.states[ind_]]
         end
     end

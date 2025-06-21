@@ -33,7 +33,7 @@ struct MeanfieldEquations <: AbstractMeanfieldEquations
     operators::Vector{QNumber}
     hamiltonian::QNumber
     jumps::Vector
-    jumps_dagger
+    jumps_dagger::Any
     rates::Vector
     iv::MTK.Num
     varmap::Vector{Pair}
@@ -71,7 +71,7 @@ struct IndexedMeanfieldEquations <: AbstractMeanfieldEquations #these are for ea
     operators::Vector{QNumber}
     hamiltonian::QNumber
     jumps::Vector
-    jumps_dagger
+    jumps_dagger::Any
     rates::Vector
     iv::MTK.Num
     varmap::Vector{Pair}
@@ -109,7 +109,7 @@ struct EvaledMeanfieldEquations <: AbstractMeanfieldEquations
     operators::Vector{QNumber}
     hamiltonian::QNumber
     jumps::Vector
-    jumps_dagger
+    jumps_dagger::Any
     rates::Vector
     iv::MTK.Num
     varmap::Vector{Pair}
@@ -121,7 +121,7 @@ Base.getindex(de::AbstractMeanfieldEquations, i) = de.equations[i]
 Base.lastindex(de::AbstractMeanfieldEquations) = lastindex(de.equations)
 Base.length(de::AbstractMeanfieldEquations) = length(de.equations)
 
-function _append!(de::T, me::T) where T<:AbstractMeanfieldEquations
+function _append!(de::T, me::T) where {T<:AbstractMeanfieldEquations}
     append!(de.equations, me.equations)
     append!(de.operator_equations, me.operator_equations)
     append!(de.states, me.states)
@@ -131,26 +131,31 @@ function _append!(de::T, me::T) where T<:AbstractMeanfieldEquations
 end
 
 # Substitution
-function substitute(de::T,dict) where T<:AbstractMeanfieldEquations
-    eqs = [substitute(eq, dict) for eq∈de.equations]
+function substitute(de::T, dict) where {T<:AbstractMeanfieldEquations}
+    eqs = [substitute(eq, dict) for eq ∈ de.equations]
     states = getfield.(eqs, :lhs)
-    fields = [getfield(de, s) for s∈fieldnames(T)[4:end]]
+    fields = [getfield(de, s) for s ∈ fieldnames(T)[4:end]]
     return T(eqs, de.operator_equations, states, fields...)
 end
 
-function substitute(de::IndexedMeanfieldEquations,dict)
-    eqs = [Symbolics.Equation(inorder!(substitute(eq.lhs, dict)),inorder!(substitute(eq.rhs, dict))) for eq∈de.equations]
+function substitute(de::IndexedMeanfieldEquations, dict)
+    eqs = [
+        Symbolics.Equation(
+            inorder!(substitute(eq.lhs, dict)),
+            inorder!(substitute(eq.rhs, dict)),
+        ) for eq ∈ de.equations
+    ]
     states = getfield.(eqs, :lhs)
-    fields = [getfield(de, s) for s∈fieldnames(IndexedMeanfieldEquations)[4:end]]
+    fields = [getfield(de, s) for s ∈ fieldnames(IndexedMeanfieldEquations)[4:end]]
     return IndexedMeanfieldEquations(eqs, de.operator_equations, states, fields...)
 end
 
 # Simplification
-function SymbolicUtils.simplify(de::T;kwargs...) where T<:AbstractMeanfieldEquations
-    eqs = [SymbolicUtils.simplify(eq;kwargs...) for eq∈de.equations]
-    eqs_op = [SymbolicUtils.simplify(eq;kwargs...) for eq∈de.operator_equations]
-    fields = [getfield(de, s) for s∈fieldnames(T)[3:end]]
-    return T(eqs,eqs_op,fields...)
+function SymbolicUtils.simplify(de::T; kwargs...) where {T<:AbstractMeanfieldEquations}
+    eqs = [SymbolicUtils.simplify(eq; kwargs...) for eq ∈ de.equations]
+    eqs_op = [SymbolicUtils.simplify(eq; kwargs...) for eq ∈ de.operator_equations]
+    fields = [getfield(de, s) for s ∈ fieldnames(T)[3:end]]
+    return T(eqs, eqs_op, fields...)
 end
 
 # Adding MTK variables
@@ -160,17 +165,19 @@ function add_vars!(varmap, vs, t)
     hashkeys = map(hash, keys)
     hashvals = map(hash, vals)
     hashvs = map(hash, vs)
-    for i=1:length(vs)
+    for i = 1:length(vs)
         if !(hashvs[i] ∈ hashkeys)
             var = make_var(vs[i], t)
-            !(hash(var) ∈ hashvals) || @warn string("Two different averages have the exact same name. ",
-                    "This may lead to unexpected behavior when trying to access the solution for $(vals[i])")
+            !(hash(var) ∈ hashvals) || @warn string(
+                "Two different averages have the exact same name. ",
+                "This may lead to unexpected behavior when trying to access the solution for $(vals[i])",
+            )
             push!(keys, vs[i])
             push!(vals, var)
             push!(hashkeys, hashvs[i])
         end
     end
-    for i=length(varmap)+1:length(keys)
+    for i = (length(varmap)+1):length(keys)
         push!(varmap, keys[i]=>vals[i])
     end
     return varmap
@@ -179,8 +186,8 @@ end
 function make_var(v, t)
     sym = Symbol(string(v))
     d = source_metadata(:make_var, sym)
-    var_f = SymbolicUtils.Sym{SymbolicUtils.FnType{Tuple{Any}, Complex}}(sym; metadata=d)
-    return SymbolicUtils.Term{Complex}(var_f, [t]; metadata=d)
+    var_f = SymbolicUtils.Sym{SymbolicUtils.FnType{Tuple{Any},Complex}}(sym; metadata = d)
+    return SymbolicUtils.Term{Complex}(var_f, [t]; metadata = d)
 end
 
 function make_varmap(vs, t)
@@ -196,12 +203,12 @@ struct ScaledMeanfieldEquations <: AbstractMeanfieldEquations
     operators::Vector{QNumber}
     hamiltonian::QNumber
     jumps::Vector
-    jumps_dagger
+    jumps_dagger::Any
     rates::Vector
     iv::MTK.Num
     varmap::Vector{Pair}
     order::Union{Int,Vector{<:Int},Nothing}
-    scale_aons
+    scale_aons::Any
     names::Vector
     was_scaled::Vector{Bool}
 end

@@ -20,7 +20,7 @@ equivalent to the Quantum-Langevin equation where noise is neglected.
     ``\\sum_i J_i^\\dagger O J_i - \\frac{1}{2}\\left(J_i^\\dagger J_i O + OJ_i^\\dagger J_i\\right)``
     is added to the Heisenberg equation.
 
-# Optional argumentes
+# Optional arguments
 *`Jdagger::Vector=adjoint.(J)`: Vector containing the hermitian conjugates of
     the collapse operators.
 *`rates=ones(length(J))`: Decay rates corresponding to the collapse operators in `J`.
@@ -33,43 +33,54 @@ equivalent to the Quantum-Langevin equation where noise is neglected.
     which `order` to prefer on terms that act on multiple Hilbert spaces.
 *`iv=ModelingToolkit.t`: The independent variable (time parameter) of the system.
 """
-function meanfield(a::Vector,H,J;kwargs...)
-    inds = vcat(get_indices(a),get_indices(H),get_indices(J))
+function meanfield(a::Vector, H, J; kwargs...)
+    inds = vcat(get_indices(a), get_indices(H), get_indices(J))
     if isempty(inds)
-        if :efficiencies in keys(kwargs) return _meanfield_backaction(a,H,J;kwargs...) end
-        return _meanfield(a,H,J;kwargs...)
+        if :efficiencies in keys(kwargs)
+            return _meanfield_backaction(a, H, J; kwargs...)
+        end
+        return _meanfield(a, H, J; kwargs...)
     else
-        if :efficiencies in keys(kwargs) return indexed_meanfield_backaction(a,H,J;kwargs...) end
-        return indexed_meanfield(a,H,J;kwargs...)
+        if :efficiencies in keys(kwargs)
+            return indexed_meanfield_backaction(a, H, J; kwargs...)
+        end
+        return indexed_meanfield(a, H, J; kwargs...)
     end
 end
-meanfield(a::QNumber,args...;kwargs...) = meanfield([a],args...;kwargs...)
-meanfield(a::Vector,H;kwargs...) = meanfield(a,H,[];Jdagger=[],kwargs...)
-function _meanfield(a::Vector,H,J;Jdagger::Vector=adjoint.(J),rates=ones(Int,length(J)),
-                    multithread=false,
-                    simplify=true,
-                    order=nothing,
-                    mix_choice=maximum,
-                    iv=MTK.t_nounits
-                    )
+meanfield(a::QNumber, args...; kwargs...) = meanfield([a], args...; kwargs...)
+meanfield(a::Vector, H; kwargs...) = meanfield(a, H, []; Jdagger = [], kwargs...)
+function _meanfield(
+    a::Vector,
+    H,
+    J;
+    Jdagger::Vector = adjoint.(J),
+    rates = ones(Int, length(J)),
+    multithread = false,
+    simplify = true,
+    order = nothing,
+    mix_choice = maximum,
+    iv = MTK.t_nounits,
+)
 
     if rates isa Matrix
-        J = [J]; Jdagger = [Jdagger]; rates = [rates]
+        J = [J];
+        Jdagger = [Jdagger];
+        rates = [rates]
     end
-    J_, Jdagger_, rates_ = _expand_clusters(J,Jdagger,rates)
+    J_, Jdagger_, rates_ = _expand_clusters(J, Jdagger, rates)
     # Derive operator equations
     rhs = Vector{Any}(undef, length(a))
     imH = im*H
     if multithread
-        Threads.@threads for i=1:length(a)
-            rhs_ = commutator(imH,a[i])
-            rhs_diss = _master_lindblad(a[i],J_,Jdagger_,rates_)
+        Threads.@threads for i = 1:length(a)
+            rhs_ = commutator(imH, a[i])
+            rhs_diss = _master_lindblad(a[i], J_, Jdagger_, rates_)
             rhs[i] = rhs_ + rhs_diss
         end
     else
-        for i=1:length(a)
-            rhs_ = commutator(imH,a[i])
-            rhs_diss = _master_lindblad(a[i],J_,Jdagger_,rates_)
+        for i = 1:length(a)
+            rhs_ = commutator(imH, a[i])
+            rhs_diss = _master_lindblad(a[i], J_, Jdagger_, rates_)
             rhs[i] = rhs_ + rhs_diss
         end
     end
@@ -83,33 +94,38 @@ function _meanfield(a::Vector,H,J;Jdagger::Vector=adjoint.(J),rates=ones(Int,len
     rhs = map(undo_average, rhs_avg)
 
     if order !== nothing
-        rhs_avg = [cumulant_expansion(r, order; simplify=simplify, mix_choice=mix_choice) for r∈rhs_avg]
+        rhs_avg = [
+            cumulant_expansion(r, order; simplify = simplify, mix_choice = mix_choice)
+            for r ∈ rhs_avg
+        ]
     end
 
-    eqs_avg = [Symbolics.Equation(l,r) for (l,r)=zip(vs,rhs_avg)]
-    eqs = [Symbolics.Equation(l,r) for (l,r)=zip(a,rhs)]
+    eqs_avg = [Symbolics.Equation(l, r) for (l, r) in zip(vs, rhs_avg)]
+    eqs = [Symbolics.Equation(l, r) for (l, r) in zip(a, rhs)]
     varmap = make_varmap(vs, iv)
 
-    me = MeanfieldEquations(eqs_avg,eqs,vs,a,H,J_,Jdagger_,rates_,iv,varmap,order)
+    me = MeanfieldEquations(eqs_avg, eqs, vs, a, H, J_, Jdagger_, rates_, iv, varmap, order)
     if SQA.has_cluster(H)
-        return scale(me;simplify=simplify,order=order,mix_choice=mix_choice)
+        return scale(me; simplify = simplify, order = order, mix_choice = mix_choice)
     else
         return me
     end
 end
 
-function _master_lindblad(a_,J,Jdagger,rates)
+function _master_lindblad(a_, J, Jdagger, rates)
     args = Any[]
-    for k=1:length(J)
-        if isa(rates[k],SymbolicUtils.Symbolic) || isa(rates[k],Number) || isa(rates[k],Function)
-            c1 = 0.5*rates[k]*Jdagger[k]*commutator(a_,J[k])
-            c2 = 0.5*rates[k]*commutator(Jdagger[k],a_)*J[k]
+    for k = 1:length(J)
+        if isa(rates[k], SymbolicUtils.Symbolic) ||
+           isa(rates[k], Number) ||
+           isa(rates[k], Function)
+            c1 = 0.5*rates[k]*Jdagger[k]*commutator(a_, J[k])
+            c2 = 0.5*rates[k]*commutator(Jdagger[k], a_)*J[k]
             SQA.push_or_append_nz_args!(args, c1)
             SQA.push_or_append_nz_args!(args, c2)
-        elseif isa(rates[k],Matrix)
-            for i=1:length(J[k]), j=1:length(J[k])
-                c1 = 0.5*rates[k][i,j]*Jdagger[k][i]*commutator(a_,J[k][j])
-                c2 = 0.5*rates[k][i,j]*commutator(Jdagger[k][i],a_)*J[k][j]
+        elseif isa(rates[k], Matrix)
+            for i = 1:length(J[k]), j = 1:length(J[k])
+                c1 = 0.5*rates[k][i, j]*Jdagger[k][i]*commutator(a_, J[k][j])
+                c2 = 0.5*rates[k][i, j]*commutator(Jdagger[k][i], a_)*J[k][j]
                 SQA.push_or_append_nz_args!(args, c1)
                 SQA.push_or_append_nz_args!(args, c2)
             end
@@ -122,11 +138,11 @@ function _master_lindblad(a_,J,Jdagger,rates)
 end
 
 
-function _expand_clusters(J,Jdagger,rates)
+function _expand_clusters(J, Jdagger, rates)
     J_ = []
     Jdagger_ = []
     rates_ = []
-    for i=1:length(J)
+    for i = 1:length(J)
         if (J[i] isa Vector) && !(rates[i] isa Matrix)
             h = hilbert(J[i][1])
             aon_ = acts_on(J[i][1])
@@ -140,12 +156,12 @@ function _expand_clusters(J,Jdagger,rates)
             append!(J_, J[i])
             append!(Jdagger_, Jdagger[i])
             order = h.spaces[get_i(aon)].order
-            append!(rates_, [rates[i] for k=1:order])
+            append!(rates_, [rates[i] for k = 1:order])
         else
             push!(J_, J[i])
             push!(Jdagger_, Jdagger[i])
             push!(rates_, rates[i])
         end
     end
-    return J_,Jdagger_,rates_
+    return J_, Jdagger_, rates_
 end

@@ -22,7 +22,7 @@ end
     rhs = getfield.(de.equations, :rhs)
     rhs_noise = getfield.(de.noise_equations, :rhs)
     npr = cnumbers("dW/dt")
-    lhs, rhs = QuantumCumulants._latexify(lhs, rhs.+npr.*rhs_noise, de.iv)
+    lhs, rhs = QuantumCumulants._latexify(lhs, rhs .+ npr .* rhs_noise, de.iv)
     return lhs, rhs
 end
 
@@ -30,20 +30,20 @@ function _latexify(lhs_, rhs_, t)
 
     # Convert eqs to Exprs
     rhs = _to_expression.(rhs_)
-    rhs = [MacroTools.postwalk(SQA._postwalk_func, eq) for eq=rhs]
-    rhs = [MacroTools.postwalk(SQA._postwalk_average, eq) for eq=rhs]
+    rhs = [MacroTools.postwalk(SQA._postwalk_func, eq) for eq in rhs]
+    rhs = [MacroTools.postwalk(SQA._postwalk_average, eq) for eq in rhs]
     lhs = _to_expression.(lhs_)
-    lhs = [MacroTools.postwalk(SQA._postwalk_func, eq) for eq=lhs]
-    lhs = [MacroTools.postwalk(SQA._postwalk_average, eq) for eq=lhs]
+    lhs = [MacroTools.postwalk(SQA._postwalk_func, eq) for eq in lhs]
+    lhs = [MacroTools.postwalk(SQA._postwalk_average, eq) for eq in lhs]
 
     tsym = Symbol(t)
     dt = Symbol(:d, tsym)
     ddt = :(d/$(dt))
-    lhs = [:($ddt * ($l)) for l=lhs]
+    lhs = [:($ddt * ($l)) for l in lhs]
 
     return lhs, rhs
 end
-_latexify(lhs,rhs) = _latexify([lhs],[rhs])
+_latexify(lhs, rhs) = _latexify([lhs], [rhs])
 
 @latexrecipe function f(c::CorrelationFunction)
     avg = average(c.op1*c.op2)

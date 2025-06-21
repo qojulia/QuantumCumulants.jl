@@ -9,7 +9,7 @@
 
 # master_arithmetic = (a, J, Jdagger,rate) -> 0.5*rate*Jdagger*commutator(a,J)+0.5*rate*commutator(Jdagger,a)*J
 # indexed_arithmetic(a_, Jloc, Jdaggerloc,rate, master_arithmetic)
-function indexed_arithmetic(a_,J,Jdagger,rate, arithmetic)
+function indexed_arithmetic(a_, J, Jdagger, rate, arithmetic)
     inds1 = get_indices(J)
     inds2 = get_indices(Jdagger)
     rinds = get_indices(rate)
@@ -17,33 +17,35 @@ function indexed_arithmetic(a_,J,Jdagger,rate, arithmetic)
 
     if isnothing(all_indices) || length(all_indices) == 0#No indices
 
-    if isa(rate,Matrix)
-        args = Any[]
-        for i=1:length(J[k]), j=1:length(J[k])
-            push_or_append_nz_args!(args, arithmetic(a_,J,Jdagger,rate))
+        if isa(rate, Matrix)
+            args = Any[]
+            for i = 1:length(J[k]), j = 1:length(J[k])
+                push_or_append_nz_args!(args, arithmetic(a_, J, Jdagger, rate))
+            end
+            return QAdd(args)
+        elseif isa(rate, SymbolicUtils.Symbolic) || isa(rate, Number) || isa(rate, Function)
+            return arithmetic(a_, J, Jdagger, rate)
+        else
+            error("Unknown rates type!")
         end
-        return QAdd(args)
-    elseif isa(rate,SymbolicUtils.Symbolic) || isa(rate,Number) || isa(rate,Function)
-        return arithmetic(a_,J,Jdagger,rate)
-    else
-        error("Unknown rates type!")
-    end
 
     elseif length(all_indices) == 1#Single index
-        return ∑(arithmetic(a_,J,Jdagger,rate),all_indices[1])
+        return ∑(arithmetic(a_, J, Jdagger, rate), all_indices[1])
     elseif length(all_indices) == 2# Double index
-        return ∑(arithmetic(a_,J,Jdagger,rate),all_indices[1],all_indices[2])
+        return ∑(arithmetic(a_, J, Jdagger, rate), all_indices[1], all_indices[2])
     else
-        error("Too many indices occuring in multiplication")
+        error("Too many indices occurring in multiplication")
     end
 end
 
 # Indexed master equation calculation with the refactored functionality
-function _simplified_indexed_master(a_,J,Jdagger,rates)
+function _simplified_indexed_master(a_, J, Jdagger, rates)
     out = nothing
-    master_arithmetic = (a, J, Jdagger,rate) -> 0.5*rate*Jdagger*commutator(a,J)+0.5*rate*commutator(Jdagger,a)*J
+    master_arithmetic =
+        (a, J, Jdagger, rate) ->
+            0.5*rate*Jdagger*commutator(a, J)+0.5*rate*commutator(Jdagger, a)*J
 
-    for k=1:length(J)
+    for k = 1:length(J)
 
         # Construct the proper decay operators
         rate = rates[k]
@@ -56,41 +58,57 @@ function _simplified_indexed_master(a_,J,Jdagger,rates)
             Jdaggerloc = Jdaggerloc[1]
         elseif !(isempty(get_indices(J[k]))) # Define decay operator but with different index if no vector was given
             inds = get_indices(Jloc)
-            length(inds) != 1 && error("Jump operators with multiple different indices are not supported!")
+            length(inds) != 1 &&
+                error("Jump operators with multiple different indices are not supported!")
             ind_ = inds[1]
             rind = get_indices(rate)
-            if !isequal(ind_,rind[1]) && !isequal(ind_,rind[2])
+            if !isequal(ind_, rind[1]) && !isequal(ind_, rind[2])
                 error("unequal index of jump operator and variable!")
-            elseif isequal(ind_,rind[1]) && !isequal(ind_,rind[2])
-                vec = [J[k],change_index(Jloc,ind_,rind[2])]
-            elseif !isequal(ind_,rind[1]) && isequal(ind_,rind[2])
-                vec = [change_index(Jloc,ind_,rind[2]),J[k]]
+            elseif isequal(ind_, rind[1]) && !isequal(ind_, rind[2])
+                vec = [J[k], change_index(Jloc, ind_, rind[2])]
+            elseif !isequal(ind_, rind[1]) && isequal(ind_, rind[2])
+                vec = [change_index(Jloc, ind_, rind[2]), J[k]]
             end
             Jloc = vec[2]
             Jdaggerloc = adjoint(vec[1])
         end
 
-        res = indexed_arithmetic(a_, Jloc, Jdaggerloc,rate, master_arithmetic)
-        if out===nothing out = res else out+=res end
+        res = indexed_arithmetic(a_, Jloc, Jdaggerloc, rate, master_arithmetic)
+        if out===nothing
+            out = res
+        else
+            out+=res
+        end
     end
     return out
 end
 
-function indexed_noise(a_,J,Jdagger,rates,efficiencies)
+function indexed_noise(a_, J, Jdagger, rates, efficiencies)
     out = nothing
-    noise_arithmetic(a, J, Jdagger,rate) = sqrt(rate)*(Jdagger*a-average(Jdagger)*a) + sqrt(rate)*(a*J-a*average(J))
+    noise_arithmetic(a, J, Jdagger, rate) =
+        sqrt(rate)*(Jdagger*a-average(Jdagger)*a) + sqrt(rate)*(a*J-a*average(J))
 
-    for k=1:length(J)
-        if isequal(efficiencies[k], 0) continue end
+    for k = 1:length(J)
+        if isequal(efficiencies[k], 0)
+            continue
+        end
         rate = rates[k] * efficiencies[k]
-        all_indices = collect(Set(vcat(get_indices(J[k]), get_indices(Jdagger[k]), get_indices(rate))))
+        all_indices = collect(
+            Set(vcat(get_indices(J[k]), get_indices(Jdagger[k]), get_indices(rate))),
+        )
 
-        if !isnothing(all_indices) && !isnothing(get_indices(rate)) && length(get_indices(rate)) > 1
+        if !isnothing(all_indices) &&
+           !isnothing(get_indices(rate)) &&
+           length(get_indices(rate)) > 1
             error("Rates with multiple indices not supported for measurement backaction")
         end
 
-        res = indexed_arithmetic(a_, J[k], Jdagger[k],rate, noise_arithmetic)
-        if out===nothing out = res else out+=res end
+        res = indexed_arithmetic(a_, J[k], Jdagger[k], rate, noise_arithmetic)
+        if out===nothing
+            out = res
+        else
+            out+=res
+        end
     end
 
     return out
@@ -103,17 +121,17 @@ function generate_index_self_mapping(indices)
     for j = 1:length(indices)
         for k = 1:j
             if k != j
-                push!(mapping,(indices[k],indices[j]))
+                push!(mapping, (indices[k], indices[j]))
             end
         end
     end
     return mapping
 end
 
-# Creates an arrray of equations from two arrays of left and righthand sides for equations
-create_equation_array(lhs, rhs) = [Symbolics.Equation(l,r) for (l,r)=zip(lhs,rhs)]
+# Creates an array of equations from two arrays of left and righthand sides for equations
+create_equation_array(lhs, rhs) = [Symbolics.Equation(l, r) for (l, r) in zip(lhs, rhs)]
 
-function check_index_collision(a::Vector,H,J)
+function check_index_collision(a::Vector, H, J)
     for ind in get_indices(a)
         if ind in get_indices(H)
             error("Index $(ind.name) in operator-vector is already used in H!")
@@ -148,7 +166,7 @@ struct IndexedMeanfieldNoiseEquations <: AbstractMeanfieldEquations
     operators::Vector{QNumber}
     hamiltonian::QNumber
     jumps::Vector
-    jumps_dagger
+    jumps_dagger::Any
     rates::Vector
     efficiencies::Vector
     iv::MTK.Num
@@ -186,7 +204,7 @@ See also: [`indexed_meanfield`](@ref).
     ``\\sum_i J_i^\\dagger O J_i - \\frac{1}{2}\\left(J_i^\\dagger J_i O + OJ_i^\\dagger J_i\\right)``
     is added to the Heisenberg equation.
 
-# Optional argumentes
+# Optional arguments
 *`Jdagger::Vector=adjoint.(J)`: Vector containing the hermitian conjugates of
     the collapse operators.
 *`rates=ones(length(J))`: Decay rates corresponding to the collapse operators in `J`.
@@ -200,15 +218,20 @@ See also: [`indexed_meanfield`](@ref).
     which `order` to prefer on terms that act on multiple Hilbert spaces.
 *`iv=ModelingToolkit.t`: The independent variable (time parameter) of the system.
 """
-function indexed_meanfield_backaction(a::Vector,H,J;Jdagger::Vector=adjoint.(J),
-    rates=ones(Int,length(J)),
-    efficiencies=zeros(Int,length(J)),
-    multithread=false,
-    simplify::Bool=true,
-    order=nothing,
-    mix_choice=maximum,
-    iv=MTK.t_nounits,
-    kwargs...)
+function indexed_meanfield_backaction(
+    a::Vector,
+    H,
+    J;
+    Jdagger::Vector = adjoint.(J),
+    rates = ones(Int, length(J)),
+    efficiencies = zeros(Int, length(J)),
+    multithread = false,
+    simplify::Bool = true,
+    order = nothing,
+    mix_choice = maximum,
+    iv = MTK.t_nounits,
+    kwargs...,
+)
 
     check_index_collision(a, H, J)
 
@@ -219,12 +242,13 @@ function indexed_meanfield_backaction(a::Vector,H,J;Jdagger::Vector=adjoint.(J),
 
     function calculate_term(i)
         try
-            rhs[i] = commutator(imH,a[i]) + indexed_master_lindblad(a[i],J,Jdagger,rates)
-            rhs_noise[i] = indexed_noise(a[i],J,Jdagger,rates,efficiencies)
+            rhs[i] =
+                commutator(imH, a[i]) + indexed_master_lindblad(a[i], J, Jdagger, rates)
+            rhs_noise[i] = indexed_noise(a[i], J, Jdagger, rates, efficiencies)
             indices = get_indices(a[i])
             if length(indices) > 1 #everything on lhs commutes -> reorder corresponding terms on rhs
-                rhs[i] = reorder(rhs[i],generate_index_self_mapping(indices))
-                rhs_noise[i] = reorder(rhs_noise[i],generate_index_self_mapping(indices))
+                rhs[i] = reorder(rhs[i], generate_index_self_mapping(indices))
+                rhs_noise[i] = reorder(rhs_noise[i], generate_index_self_mapping(indices))
             end
         catch err
             println("could not calculate meanfield-equations for operator $(a[i])")
@@ -233,11 +257,11 @@ function indexed_meanfield_backaction(a::Vector,H,J;Jdagger::Vector=adjoint.(J),
     end
 
     if multithread
-        Threads.@threads for i=1:length(a)
+        Threads.@threads for i = 1:length(a)
             calculate_term(i)
         end
     else
-        for i=1:length(a)
+        for i = 1:length(a)
             calculate_term(i)
         end
     end
@@ -246,17 +270,37 @@ function indexed_meanfield_backaction(a::Vector,H,J;Jdagger::Vector=adjoint.(J),
     vs = map(average, a)
     rhs_avg, rhs = take_function_averages(rhs, simplify)
     rhs_noise_avg, rhs_noise = take_function_averages(rhs_noise, simplify)
-    eqs_avg = create_equation_array(vs,rhs_avg)
-    eqs = create_equation_array(a,rhs)
-    eqs_noise_avg = create_equation_array(vs,rhs_noise_avg)
-    eqs_noise = create_equation_array(a,rhs_noise)
+    eqs_avg = create_equation_array(vs, rhs_avg)
+    eqs = create_equation_array(a, rhs)
+    eqs_noise_avg = create_equation_array(vs, rhs_noise_avg)
+    eqs_noise = create_equation_array(a, rhs_noise)
 
-    cumulant_expand_equations!(eqs_avg, order; mix_choice=mix_choice, simplify=simplify)
-    cumulant_expand_equations!(eqs_noise_avg, order; mix_choice=mix_choice, simplify=simplify)
+    cumulant_expand_equations!(eqs_avg, order; mix_choice = mix_choice, simplify = simplify)
+    cumulant_expand_equations!(
+        eqs_noise_avg,
+        order;
+        mix_choice = mix_choice,
+        simplify = simplify,
+    )
 
     varmap = make_varmap(vs, iv)
 
-    me = IndexedMeanfieldNoiseEquations(eqs_avg,eqs,eqs_noise_avg,eqs_noise,vs,a,H,J,Jdagger,rates,efficiencies,iv,varmap,order)
+    me = IndexedMeanfieldNoiseEquations(
+        eqs_avg,
+        eqs,
+        eqs_noise_avg,
+        eqs_noise,
+        vs,
+        a,
+        H,
+        J,
+        Jdagger,
+        rates,
+        efficiencies,
+        iv,
+        varmap,
+        order,
+    )
     return me
 end
 
@@ -268,7 +312,9 @@ function check_extra_indices(extra_indices)
 
     for ind in extra_indices
         if typeof(ind) != typeof(extra_indices[1])
-            error("Cannot use extra_indices of different types. Use either only Symbols or Index-Objects!")
+            error(
+                "Cannot use extra_indices of different types. Use either only Symbols or Index-Objects!",
+            )
         end
     end
 end
@@ -276,19 +322,19 @@ end
 # filters indices from extra_indices which are contained in allInds
 function filer_indices!(extra_indices, allInds)
     if extra_indices[1] isa Symbol
-        filter!(x -> x ∉ SQA.getIndName.(allInds),extra_indices)
+        filter!(x -> x ∉ SQA.getIndName.(allInds), extra_indices)
     else
-        filter!(x -> x ∉ allInds,extra_indices)
+        filter!(x -> x ∉ allInds, extra_indices)
     end
 end
 
 # determines the current and maximum order that is to be calculated using the current system
-function determine_orders(vs, eqs; order=de.order)
+function determine_orders(vs, eqs; order = de.order)
     order_lhs = maximum(get_order.(vs))
     order_rhs = 0
 
     # Determine RHS order
-    for i=1:length(eqs)
+    for i = 1:length(eqs)
         k = get_order(eqs[i].rhs)
         k > order_rhs && (order_rhs = k)
     end
@@ -310,7 +356,9 @@ function determine_orders(vs, eqs; order=de.order)
         end
     end
 
-    maximum(order_) >= order_lhs || error("Cannot form cumulant expansion of derivative; you may want to use a higher order!")
+    maximum(order_) >= order_lhs || error(
+        "Cannot form cumulant expansion of derivative; you may want to use a higher order!",
+    )
 
     return order, order_max
 end
@@ -322,32 +370,32 @@ function generate_extras(vs, extra_indices, allInds, order_max)
 
     if containsMultiple(allInds) && extra_indices[1] isa Symbol
         dic = split_inds(allInds)
-        filter!(x->!isempty(last(x)),dic)
+        filter!(x->!isempty(last(x)), dic)
         dic2 = Dict{Int,Any}(i => Any[] for i in keys(dic))
         for k in keys(dic)
-            dic2[k] = filter(x->isequal(x.aon,k),indices_lhs)
-            ind = allInds[findfirst(x->isequal(x.aon,k),allInds)]
+            dic2[k] = filter(x->isequal(x.aon, k), indices_lhs)
+            ind = allInds[findfirst(x->isequal(x.aon, k), allInds)]
             while length(dic2[k]) < order_max
-                push!(dic2[k],Index(ind.hilb,extra_indices[1],ind.range,k))
-                deleteat!(extra_indices,1)
+                push!(dic2[k], Index(ind.hilb, extra_indices[1], ind.range, k))
+                deleteat!(extra_indices, 1)
             end
         end
         extras = []
         for vec in values(dic2)
-            extras = [extras;vec]
+            extras = [extras; vec]
         end
     else
         #if there are no indices on the LHS -> use the first index of extra_indices as starting point
-        #this first index is (if it is a symbol) created similar to the first occuring index in the Equations
+        #this first index is (if it is a symbol) created similar to the first occurring index in the Equations
         if isempty(indices_lhs) && extra_indices[1] isa Symbol
             for ind in allInds
-                indices_lhs = [Index(ind.hilb,extra_indices[1],ind.range,ind.aon)]
-                deleteat!(extra_indices,1)
+                indices_lhs = [Index(ind.hilb, extra_indices[1], ind.range, ind.aon)]
+                deleteat!(extra_indices, 1)
                 break
             end
         elseif isempty(indices_lhs) && extra_indices[1] isa Index
             indices_lhs = [extra_indices[1]]
-            deleteat!(extra_indices,1)
+            deleteat!(extra_indices, 1)
         end
 
         #create (or append to the extras vector) all other extra_indices using the indices on the LHS
@@ -356,14 +404,14 @@ function generate_extras(vs, extra_indices, allInds, order_max)
             if extra_indices[1] isa Symbol
                 first = extras[1]
                 for name in extra_indices
-                    push!(extras,Index(first.hilb,name,first.range,first.aon))
+                    push!(extras, Index(first.hilb, name, first.range, first.aon))
                     if length(extras) >= order_max
                         break
                     end
                 end
             end
             if extra_indices[1] isa Index
-                extras = [extras;extra_indices]
+                extras = [extras; extra_indices]
             end
         end
         if length(extras) < order_max
@@ -376,72 +424,95 @@ function generate_extras(vs, extra_indices, allInds, order_max)
 end
 
 
-function find_missing_sums(missed,eqs,vs;extra_indices::Vector=[],checking=true,scaling=false,kwargs...)
+function find_missing_sums(
+    missed,
+    eqs,
+    vs;
+    extra_indices::Vector = [],
+    checking = true,
+    scaling = false,
+    kwargs...,
+)
     missed_ = copy(missed)
     extras = copy(extra_indices)
     for eq in eqs
         sums = checkIfSum(eq.rhs)   #get all sums of the rhs
         for sum in sums
             meta = SymbolicUtils.metadata(sum)[IndexedAverageSum]
-            extras_filtered = filterExtras(meta.sum_index,extras) #all the extraIndices, that have the same specific hilbertspace as the sum
-            checkAndChange(missed_,sum,extras_filtered,vs,checking,scaling;kwargs...)
+            extras_filtered = filterExtras(meta.sum_index, extras) #all the extraIndices, that have the same specific hilbertspace as the sum
+            checkAndChange(missed_, sum, extras_filtered, vs, checking, scaling; kwargs...)
         end
     end
     return inorder!.(missed_)
 end
 
 #this function might not be so fast
-function find_missing_Dsums(missed,eqs;extra_indices::Vector=[],checking=true,scaling=false,kwargs...)
+function find_missing_Dsums(
+    missed,
+    eqs;
+    extra_indices::Vector = [],
+    checking = true,
+    scaling = false,
+    kwargs...,
+)
     missed_ = copy(missed)
     extras = copy(extra_indices)
     for eq in eqs
         Dsums = getDSums(eq.rhs)
         for sum in Dsums
-            checkAndChangeDsum(missed_,sum,extras,de.states,checking,scaling;kwargs...)
+            checkAndChangeDsum(
+                missed_,
+                sum,
+                extras,
+                de.states,
+                checking,
+                scaling;
+                kwargs...,
+            )
         end
     end
     return inorder!.(missed_)
 end
 
 # Determines which operators are missing from the system and the updated system and filters all redundant/unneeded operators
-function find_index_missed(vs, eqs_de, eqs_me, extras, filter_func, scaling;kwargs...)
+function find_index_missed(vs, eqs_de, eqs_me, extras, filter_func, scaling; kwargs...)
     vhash = map(hash, vs)
     vs′ = map(_inconj, vs)
     vs′hash = map(hash, vs′)
     filter!(!in(vhash), vs′hash)
 
 
-    missed = find_missing(eqs_me, vhash, vs′hash; get_adjoints=false)
-    missed = find_missing_sums(missed,eqs_de,vs;extra_indices=extras,kwargs...)
-    missed = find_missing_Dsums(missed,eqs_de;extra_indices=extras,kwargs...)
+    missed = find_missing(eqs_me, vhash, vs′hash; get_adjoints = false)
+    missed = find_missing_sums(missed, eqs_de, vs; extra_indices = extras, kwargs...)
+    missed = find_missing_Dsums(missed, eqs_de; extra_indices = extras, kwargs...)
 
     missed = inorder!.(missed)
 
-    filter!(x -> (x isa Average),missed)
+    filter!(x -> (x isa Average), missed)
     isnothing(filter_func) || filter!(filter_func, missed) # User-defined filter
 
-    filter!(x -> filterComplete(x,vs,scaling;kwargs...), missed)
+    filter!(x -> filterComplete(x, vs, scaling; kwargs...), missed)
     missed = inorder!.(missed)
 
     for i = 1:length(missed)
         minds = get_indices(missed[i])
         newMinds = copy(minds)
         for ind1 in minds
-            extras_=filterExtras(ind1,extras)
+            extras_=filterExtras(ind1, extras)
             for k = 1:length(extras_)
                 if ind1 ∉ extras_ #this check might be redundant ?
                     println(typeof(missed[i]))
-                    println(typeof(change_index(missed[i],ind1,extras_[1])))
+                    println(typeof(change_index(missed[i], ind1, extras_[1])))
 
-                    missed[i] = change_index(missed[i],ind1,extras_[1])
+                    missed[i] = change_index(missed[i], ind1, extras_[1])
                     newMinds = get_indices(missed[i])
                     break
                 end
-                if findall(x->isequal(x,ind1),extras_)[1] > k && extras_[k] ∉ newMinds #this might go somewhat easier, maybe delete ind2 out of extras after each replacement somehow
-                    missed[i] = change_index(missed[i],ind1,extras_[k])
+                if findall(x->isequal(x, ind1), extras_)[1] > k && extras_[k] ∉ newMinds #this might go somewhat easier, maybe delete ind2 out of extras after each replacement somehow
+                    missed[i] = change_index(missed[i], ind1, extras_[k])
                     newMinds = get_indices(missed[i])
                     break
-                elseif findall(x->isequal(x,ind1),extras_)[1] <= k
+                elseif findall(x->isequal(x, ind1), extras_)[1] <= k
                     break
                 end
             end
@@ -450,9 +521,9 @@ function find_index_missed(vs, eqs_de, eqs_me, extras, filter_func, scaling;kwar
 
     missed = inorder!.(missed)
     missed = unique(missed)
-    missed = filter!(x -> filterComplete(x,vs,scaling;kwargs...), missed)
+    missed = filter!(x -> filterComplete(x, vs, scaling; kwargs...), missed)
     missed = inorder!.(missed)
-    missed = elimRed!(missed;scaling=scaling,kwargs...)
+    missed = elimRed!(missed; scaling = scaling, kwargs...)
 
     return missed
 end
@@ -464,14 +535,16 @@ function generate_substitutions(vs, eqs, filter_func, extras)
     vs′hash = map(hash, vs′)
     # Find missing values that are filtered by the custom filter function,
     # but still occur on the RHS; set those to 0
-    missed = find_missing(eqs, vhash, vs′hash; get_adjoints=false)
-    missed = find_missing_sums(missed,de;extra_indices=extras,checking=false,kwargs...) #checkin dissabled, since there might be some terms, that are redundant, but also zero -> set them to zero aswell forsa fety
-    missed = find_missing_Dsums(missed,de;extra_indices=extras,checking=false,kwargs...)
-    missed = find_missing_sums(missed,de;checking=false,kwargs...)
-    missed = find_missing_Dsums(missed,de;checking=false,kwargs...)
+    missed = find_missing(eqs, vhash, vs′hash; get_adjoints = false)
+    missed =
+        find_missing_sums(missed, de; extra_indices = extras, checking = false, kwargs...) #checkin disabled, since there might be some terms, that are redundant, but also zero -> set them to zero aswell forsa fety
+    missed =
+        find_missing_Dsums(missed, de; extra_indices = extras, checking = false, kwargs...)
+    missed = find_missing_sums(missed, de; checking = false, kwargs...)
+    missed = find_missing_Dsums(missed, de; checking = false, kwargs...)
 
     missed = inorder!.(missed) #this one might not be right (?) -> not even needed i think
-    filter!(x -> (x isa Average),missed)
+    filter!(x -> (x isa Average), missed)
 
     filter!(!filter_func, missed)
     missed_adj = map(_inconj, missed)
@@ -480,25 +553,30 @@ function generate_substitutions(vs, eqs, filter_func, extras)
 end
 
 # Cumulant expand all equations in eqs
-function cumulant_expand_equations!(eqs, order; mix_choice=maximum, simplify=true)
-    for i=1:length(eqs)
+function cumulant_expand_equations!(eqs, order; mix_choice = maximum, simplify = true)
+    for i = 1:length(eqs)
         lhs = eqs[i].lhs
-        rhs = cumulant_expansion(eqs[i].rhs,order;
-                    mix_choice=mix_choice,
-                    simplify=simplify)
+        rhs = cumulant_expansion(
+            eqs[i].rhs,
+            order;
+            mix_choice = mix_choice,
+            simplify = simplify,
+        )
         eqs[i] = Symbolics.Equation(lhs, rhs)
     end
 end
 
-function simplified_indexed_complete!(de::AbstractMeanfieldEquations;
-    order=de.order,
-    multithread=false,
-    filter_func=nothing,
-    mix_choice=maximum,
-    simplify=true,
-    extra_indices::Vector=[:i,:j,:k,:l,:m,:n,:p,:q,:r,:s,:t],
-    scaling=false,
-    kwargs...)
+function simplified_indexed_complete!(
+    de::AbstractMeanfieldEquations;
+    order = de.order,
+    multithread = false,
+    filter_func = nothing,
+    mix_choice = maximum,
+    simplify = true,
+    extra_indices::Vector = [:i, :j, :k, :l, :m, :n, :p, :q, :r, :s, :t],
+    scaling = false,
+    kwargs...,
+)
 
     check_extra_indices(extra_indices)
     maxNumb = maximum(length.(get_indices.(de.operators)))
@@ -508,29 +586,64 @@ function simplified_indexed_complete!(de::AbstractMeanfieldEquations;
     order_, order_max = determine_orders(vs, de.equations; order)
 
     if order_max > maxNumb && order_max - maxNumb > length(extra_indices)
-        error("Too few extra_indices provided! Please make sure that for higher orders of cumulant expansion,
-            you also use the extra_indices argument to provide additional indices for calculation. The Number of
-            extra_indices provided should be at least $(order_max - maxNumb).
-        ")
+        error(
+            "Too few extra_indices provided! Please make sure that for higher orders of cumulant expansion,
+          you also use the extra_indices argument to provide additional indices for calculation. The Number of
+          extra_indices provided should be at least $(order_max - maxNumb).
+      ",
+        )
     end
 
     if order_ != de.order
-        cumulant_expand_equations!(de.equations, order_; mix_choice = mix_choice, simplify = simplify)
+        cumulant_expand_equations!(
+            de.equations,
+            order_;
+            mix_choice = mix_choice,
+            simplify = simplify,
+        )
     end
 
     extras = generate_extras(vs, extra_indices, allInds, order_max)
-    missed = find_index_missed(vs, de.equations, de.equations, extras, filter_func, scaling;kwargs...)
+    missed = find_index_missed(
+        vs,
+        de.equations,
+        de.equations,
+        extras,
+        filter_func,
+        scaling;
+        kwargs...,
+    )
 
     while !isempty(missed)
         ops_ = [SymbolicUtils.arguments(m)[1] for m in missed]
-        me = indexed_meanfield(ops_,de.hamiltonian,de.jumps; Jdagger=de.jumps_dagger,rates=de.rates,simplify=simplify,multithread=multithread,order=order_,mix_choice=mix_choice,iv=de.iv,kwargs...)
+        me = indexed_meanfield(
+            ops_,
+            de.hamiltonian,
+            de.jumps;
+            Jdagger = de.jumps_dagger,
+            rates = de.rates,
+            simplify = simplify,
+            multithread = multithread,
+            order = order_,
+            mix_choice = mix_choice,
+            iv = de.iv,
+            kwargs...,
+        )
         _append!(de, me)
-        missed = find_index_missed(vs, de.equations, me.equations, extras, filter_func, scaling;kwargs...)
+        missed = find_index_missed(
+            vs,
+            de.equations,
+            me.equations,
+            extras,
+            filter_func,
+            scaling;
+            kwargs...,
+        )
     end
 
     if !isnothing(filter_func)
         subs = generate_substitutions(vs, de.equations, filter_func, extras)
-        for i=1:length(de.equations)
+        for i = 1:length(de.equations)
             de.equations[i] = (SymbolicUtils.substitute(de.equations[i], subs))
             de.states[i] = de.equations[i].lhs
         end
@@ -564,9 +677,9 @@ Optional arguments
 
 see also: [`find_missing`](@ref), [`indexed_meanfield`](@ref), [`meanfield`](@ref), [`find_missing_sums`](@ref)
 """
-function indexed_complete(de::IndexedMeanfieldNoiseEquations;kwargs...)
+function indexed_complete(de::IndexedMeanfieldNoiseEquations; kwargs...)
     de_ = deepcopy(de)
-    indexed_complete!(de_;kwargs...)
+    indexed_complete!(de_; kwargs...)
     return de_
 end
 
@@ -576,15 +689,17 @@ end
 
 In-place version of [`indexed_complete`](@ref)
 """
-function indexed_complete!(de::IndexedMeanfieldNoiseEquations;
-    order=de.order,
-    multithread=false,
-    filter_func=nothing,
-    mix_choice=maximum,
-    simplify=true,
-    extra_indices::Vector=[:i,:j,:k,:l,:m,:n,:p,:q,:r,:s,:t],
-    scaling=false,
-    kwargs...)
+function indexed_complete!(
+    de::IndexedMeanfieldNoiseEquations;
+    order = de.order,
+    multithread = false,
+    filter_func = nothing,
+    mix_choice = maximum,
+    simplify = true,
+    extra_indices::Vector = [:i, :j, :k, :l, :m, :n, :p, :q, :r, :s, :t],
+    scaling = false,
+    kwargs...,
+)
 
     check_extra_indices(extra_indices)
     maxNumb = maximum(length.(get_indices.(de.operators)))
@@ -594,35 +709,77 @@ function indexed_complete!(de::IndexedMeanfieldNoiseEquations;
     order_, order_max = determine_orders(vs, vcat(de.equations, de.noise_equations); order)
 
     if order_max > maxNumb && order_max - maxNumb > length(extra_indices)
-        error("Too few extra_indices provided! Please make sure that for higher orders of cumulant expansion,
-            you also use the extra_indices argument to provide additional indices for calculation. The Number of
-            extra_indices provided should be at least $(order_max - maxNumb).
-        ")
+        error(
+            "Too few extra_indices provided! Please make sure that for higher orders of cumulant expansion,
+          you also use the extra_indices argument to provide additional indices for calculation. The Number of
+          extra_indices provided should be at least $(order_max - maxNumb).
+      ",
+        )
     end
 
     if order_ != de.order
-        cummulant_expand_equations!(de.equations, order_; mix_choice = mix_choice, simplify = simplify)
-        cummulant_expand_equations!(de.noise_equations, order_; mix_choice = mix_choice, simplify = simplify)
+        cummulant_expand_equations!(
+            de.equations,
+            order_;
+            mix_choice = mix_choice,
+            simplify = simplify,
+        )
+        cummulant_expand_equations!(
+            de.noise_equations,
+            order_;
+            mix_choice = mix_choice,
+            simplify = simplify,
+        )
     end
 
     extras = generate_extras(vs, extra_indices, allInds, order_max)
-    missed = find_index_missed(vs, vcat(de.equations,de.noise_equations), vcat(de.equations,de.noise_equations), extras, filter_func, scaling;kwargs...)
+    missed = find_index_missed(
+        vs,
+        vcat(de.equations, de.noise_equations),
+        vcat(de.equations, de.noise_equations),
+        extras,
+        filter_func,
+        scaling;
+        kwargs...,
+    )
     #missed = find_index_missed(vs, de.equations, de.equations, extras, filter_func, scaling;kwargs...)
 
     while !isempty(missed)
 
         ops_ = [SymbolicUtils.arguments(m)[1] for m in missed]
-        me = indexed_meanfield_backaction(ops_,de.hamiltonian,de.jumps; Jdagger=de.jumps_dagger,rates=de.rates, efficiencies = de.efficiencies, simplify=simplify,multithread=multithread,order=order_,mix_choice=mix_choice,iv=de.iv,kwargs...)
+        me = indexed_meanfield_backaction(
+            ops_,
+            de.hamiltonian,
+            de.jumps;
+            Jdagger = de.jumps_dagger,
+            rates = de.rates,
+            efficiencies = de.efficiencies,
+            simplify = simplify,
+            multithread = multithread,
+            order = order_,
+            mix_choice = mix_choice,
+            iv = de.iv,
+            kwargs...,
+        )
         _append!(de, me)
-        missed = find_index_missed(vs, vcat(de.equations,de.noise_equations), vcat(me.equations,me.noise_equations), extras, filter_func, scaling;kwargs...)
+        missed = find_index_missed(
+            vs,
+            vcat(de.equations, de.noise_equations),
+            vcat(me.equations, me.noise_equations),
+            extras,
+            filter_func,
+            scaling;
+            kwargs...,
+        )
     end
 
     if !isnothing(filter_func)
         subs = generate_substitutions(vs, de.equations, filter_func, extras)
         subs_noise = generate_substitutions(vs, de.noise_equations, filter_func, extras)
-        for i=1:length(de.equations)
+        for i = 1:length(de.equations)
             de.equations[i] = (SymbolicUtils.substitute(de.equations[i], subs))
-            de.noise_equations[i] = (SymbolicUtils.substitute(de.noise_equations[i], subs_noise))
+            de.noise_equations[i] =
+                (SymbolicUtils.substitute(de.noise_equations[i], subs_noise))
             de.states[i] = de.equations[i].lhs
         end
     end
@@ -630,8 +787,9 @@ function indexed_complete!(de::IndexedMeanfieldNoiseEquations;
     return de
 end
 
-complete(eqs::IndexedMeanfieldNoiseEquations;kwargs...) = indexed_complete(eqs;kwargs...)
-complete!(eqs::IndexedMeanfieldNoiseEquations;kwargs...) = indexed_complete!(eqs;kwargs...)
+complete(eqs::IndexedMeanfieldNoiseEquations; kwargs...) = indexed_complete(eqs; kwargs...)
+complete!(eqs::IndexedMeanfieldNoiseEquations; kwargs...) =
+    indexed_complete!(eqs; kwargs...)
 
 
 function scale_equations(eqs; kwargs...)
@@ -640,8 +798,9 @@ function scale_equations(eqs; kwargs...)
         tempEq = scaleEq(eq; kwargs...)
         if tempEq.lhs in getLHS.(newEqs)
             continue
-        elseif isNotIn(tempEq.lhs,getLHS.(newEqs),true;kwargs...) && isNotIn(_inconj(tempEq.lhs),getLHS.(newEqs),true;kwargs...)
-            push!(newEqs,tempEq)
+        elseif isNotIn(tempEq.lhs, getLHS.(newEqs), true; kwargs...) &&
+               isNotIn(_inconj(tempEq.lhs), getLHS.(newEqs), true; kwargs...)
+            push!(newEqs, tempEq)
         end
     end
 
@@ -665,57 +824,73 @@ function scaleME(me::IndexedMeanfieldNoiseEquations; kwargs...)
     vs = getLHS.(newEqs)
     varmap = make_varmap(vs, me.iv)
     ops = undo_average.(vs)
-    return IndexedMeanfieldNoiseEquations(newEqs,me.operator_equations,newNoiseEqs,me.operator_noise_equations,vs,ops,me.hamiltonian,me.jumps,me.jumps_dagger,me.rates,me.efficiencies,me.iv,varmap,me.order)
+    return IndexedMeanfieldNoiseEquations(
+        newEqs,
+        me.operator_equations,
+        newNoiseEqs,
+        me.operator_noise_equations,
+        vs,
+        ops,
+        me.hamiltonian,
+        me.jumps,
+        me.jumps_dagger,
+        me.rates,
+        me.efficiencies,
+        me.iv,
+        varmap,
+        me.order,
+    )
 end
 
 # substitute redundant operators in scaled equations
-function subst_reds_scale_equation(states, eqs;kwargs...)
+function subst_reds_scale_equation(states, eqs; kwargs...)
 
     #states = me.states
     vhash = map(hash, states)
     states′ = map(_inconj, states)
     vs′hash = map(hash, states′)
-    missed = find_missing(eqs, vhash, vs′hash; get_adjoints=false)
+    missed = find_missing(eqs, vhash, vs′hash; get_adjoints = false)
     inorder!.(missed)
 
     to_sub = missed
-    filter!(x->x ∉ states,to_sub)
+    filter!(x->x ∉ states, to_sub)
 
-    to_insert = Vector{Any}(nothing,length(to_sub))
+    to_insert = Vector{Any}(nothing, length(to_sub))
 
     counter = 1
     while counter <= length(to_sub)
         elem = to_sub[counter]
-        ind_ = findfirst(x -> isscaleequal(elem,x;kwargs...),states)
-        if !=(ind_,nothing)
+        ind_ = findfirst(x -> isscaleequal(elem, x; kwargs...), states)
+        if !=(ind_, nothing)
             to_insert[counter] = states[ind_]
             counter = counter + 1
         else
-            ind_ = findfirst(x -> isscaleequal(inorder!(_inconj(elem)),x;kwargs...),states)
-            if !=(ind_,nothing)
+            ind_ =
+                findfirst(x -> isscaleequal(inorder!(_inconj(elem)), x; kwargs...), states)
+            if !=(ind_, nothing)
                 to_insert[counter] = conj(states[ind_])
                 counter = counter + 1
             else
-                deleteat!(to_insert,counter) # these deletes are for consistancy only -> it is possible that not all terms are fully evaluated
-                deleteat!(to_sub,counter)   # yet in the system -> leftovers in the find_missing
+                deleteat!(to_insert, counter) # these deletes are for consistency only -> it is possible that not all terms are fully evaluated
+                deleteat!(to_sub, counter)   # yet in the system -> leftovers in the find_missing
             end
         end
     end
 
     subs = Dict(to_sub .=> to_insert)
-    return [substitute(eq,subs) for eq in eqs]
+    return [substitute(eq, subs) for eq in eqs]
 end
 
-function scale(eqs::IndexedMeanfieldNoiseEquations;h=nothing,kwargs...)
+function scale(eqs::IndexedMeanfieldNoiseEquations; h = nothing, kwargs...)
     hilb = hilbert(arguments(eqs[1].lhs)[1]) #hilbertspace of the whole system
-    if !=(h,nothing)
+    if !=(h, nothing)
         if !(h isa Vector)
             h=[h]
         end
-        h_ = Vector{Any}(nothing,length(h))
+        h_ = Vector{Any}(nothing, length(h))
         for i = 1:length(h)
             if h[i] isa HilbertSpace
-                h_[i] = findfirst(x->isequal(x,h[i]),hilb.spaces)
+                h_[i] = findfirst(x->isequal(x, h[i]), hilb.spaces)
             else
                 h_[i] = h[i]
             end
@@ -723,20 +898,79 @@ function scale(eqs::IndexedMeanfieldNoiseEquations;h=nothing,kwargs...)
         h = h_
     end
 
-    me = scaleME(eqs;h=h,kwargs...)
-    newEqs = subst_reds_scale_equation(me.states,me.equations;h=h,kwargs...)
-    newNoiseEqs = subst_reds_scale_equation(me.states,me.noise_equations;h=h,kwargs...)
-    return IndexedMeanfieldNoiseEquations(newEqs,me.operator_equations,newNoiseEqs,me.operator_noise_equations,me.states,me.operators,me.hamiltonian,me.jumps,me.jumps_dagger,me.rates,me.efficiencies,me.iv,me.varmap,me.order)
+    me = scaleME(eqs; h = h, kwargs...)
+    newEqs = subst_reds_scale_equation(me.states, me.equations; h = h, kwargs...)
+    newNoiseEqs = subst_reds_scale_equation(me.states, me.noise_equations; h = h, kwargs...)
+    return IndexedMeanfieldNoiseEquations(
+        newEqs,
+        me.operator_equations,
+        newNoiseEqs,
+        me.operator_noise_equations,
+        me.states,
+        me.operators,
+        me.hamiltonian,
+        me.jumps,
+        me.jumps_dagger,
+        me.rates,
+        me.efficiencies,
+        me.iv,
+        me.varmap,
+        me.order,
+    )
 end
 
-function split_equations(eqin::IndexedMeanfieldNoiseEquations)::Tuple{IndexedMeanfieldEquations, IndexedMeanfieldEquations}
-    determ = IndexedMeanfieldEquations(eqin.equations,eqin.operator_equations,eqin.states,eqin.operators,eqin.hamiltonian,eqin.jumps,eqin.jumps_dagger,eqin.rates,eqin.iv,eqin.varmap,eqin.order)
-    noise = IndexedMeanfieldEquations(eqin.noise_equations,eqin.operator_noise_equations,eqin.states,eqin.operators,eqin.hamiltonian,eqin.jumps,eqin.jumps_dagger,eqin.efficiencies,eqin.iv,eqin.varmap,eqin.order)
+function split_equations(
+    eqin::IndexedMeanfieldNoiseEquations,
+)::Tuple{IndexedMeanfieldEquations,IndexedMeanfieldEquations}
+    determ = IndexedMeanfieldEquations(
+        eqin.equations,
+        eqin.operator_equations,
+        eqin.states,
+        eqin.operators,
+        eqin.hamiltonian,
+        eqin.jumps,
+        eqin.jumps_dagger,
+        eqin.rates,
+        eqin.iv,
+        eqin.varmap,
+        eqin.order,
+    )
+    noise = IndexedMeanfieldEquations(
+        eqin.noise_equations,
+        eqin.operator_noise_equations,
+        eqin.states,
+        eqin.operators,
+        eqin.hamiltonian,
+        eqin.jumps,
+        eqin.jumps_dagger,
+        eqin.efficiencies,
+        eqin.iv,
+        eqin.varmap,
+        eqin.order,
+    )
     return determ, noise
 end
 
-function merge_equations(determ::IndexedMeanfieldEquations, noise::IndexedMeanfieldEquations)::IndexedMeanfieldNoiseEquations
-    return IndexedMeanfieldNoiseEquations(determ.equations,determ.operator_equations,noise.equations,noise.operator_equations,determ.states,determ.operators,determ.hamiltonian,determ.jumps,determ.jumps_dagger,determ.rates,noise.rates,determ.iv,determ.varmap,determ.order)
+function merge_equations(
+    determ::IndexedMeanfieldEquations,
+    noise::IndexedMeanfieldEquations,
+)::IndexedMeanfieldNoiseEquations
+    return IndexedMeanfieldNoiseEquations(
+        determ.equations,
+        determ.operator_equations,
+        noise.equations,
+        noise.operator_equations,
+        determ.states,
+        determ.operators,
+        determ.hamiltonian,
+        determ.jumps,
+        determ.jumps_dagger,
+        determ.rates,
+        noise.rates,
+        determ.iv,
+        determ.varmap,
+        determ.order,
+    )
 end
 
 function mtk_generate_meta(eqs; ps = MTK.OrderedSet())
@@ -751,21 +985,39 @@ function mtk_generate_meta(eqs; ps = MTK.OrderedSet())
     return ps
 end
 
-function MTK.SDESystem(de::Union{MeanfieldNoiseEquations, IndexedMeanfieldNoiseEquations}, iv=de.iv; kwargs...)
+function MTK.SDESystem(
+    de::Union{MeanfieldNoiseEquations,IndexedMeanfieldNoiseEquations},
+    iv = de.iv;
+    kwargs...,
+)
     determ, noise = split_equations(de)
     eqs = MTK.equations(determ)
     neqs = MTK.equations(noise)
-    p =  mtk_generate_meta(vcat(eqs...,neqs...))
-    return MTK.SDESystem(eqs, map(x->x.rhs,neqs), iv, map(x->x[2], de.varmap), p; kwargs...)
+    p = mtk_generate_meta(vcat(eqs..., neqs...))
+    return MTK.SDESystem(
+        eqs,
+        map(x->x.rhs, neqs),
+        iv,
+        map(x->x[2], de.varmap),
+        p;
+        kwargs...,
+    )
 end
 
-function MTK.ODESystem(de::Union{MeanfieldNoiseEquations, IndexedMeanfieldNoiseEquations}, iv=de.iv; kwargs...)
+function MTK.ODESystem(
+    de::Union{MeanfieldNoiseEquations,IndexedMeanfieldNoiseEquations},
+    iv = de.iv;
+    kwargs...,
+)
     determ, noise = split_equations(de)
     return MTK.ODESystem(determ, iv; kwargs...)
 end
 
-function Base.show(io::IO,de::Union{MeanfieldNoiseEquations, IndexedMeanfieldNoiseEquations})
-    for i=1:length(de.equations)
+function Base.show(
+    io::IO,
+    de::Union{MeanfieldNoiseEquations,IndexedMeanfieldNoiseEquations},
+)
+    for i = 1:length(de.equations)
         write(io, "∂ₜ(")
         show(io, de.equations[i].lhs)
         write(io, ") = ")

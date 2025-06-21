@@ -25,16 +25,23 @@ defines the subscript added to the name of `op2` representing the constant time.
 Note that the correlation function is stored in the first index of the underlying
 system of equations.
 """
-function CorrelationFunction(op1,op2,de0::AbstractMeanfieldEquations;
-                            steady_state=false, add_subscript=0,
-                            filter_func=nothing, mix_choice=maximum,
-                            iv=nothing,
-                            order=nothing,
-                            simplify=true, kwargs...)
+function CorrelationFunction(
+    op1,
+    op2,
+    de0::AbstractMeanfieldEquations;
+    steady_state = false,
+    add_subscript = 0,
+    filter_func = nothing,
+    mix_choice = maximum,
+    iv = nothing,
+    order = nothing,
+    simplify = true,
+    kwargs...,
+)
     if iv === nothing
         iv_ = SymbolicUtils.Sym{Real}(:τ)
         iv_ = SymbolicUtils.setmetadata(iv_, MTK.VariableSource, (:parameters, :τ))
-        iv_ = SymbolicUtils.setmetadata(iv_, MTK.MTKVariableTypeCtx,MTK.PARAMETER)
+        iv_ = SymbolicUtils.setmetadata(iv_, MTK.MTKVariableTypeCtx, MTK.PARAMETER)
     else
         iv_ = iv
     end
@@ -47,7 +54,7 @@ function CorrelationFunction(op1,op2,de0::AbstractMeanfieldEquations;
     Jd0 = de0.jumps_dagger
 
     op1_ = _new_operator(op1, h)
-    op2_ = _new_operator(op2, h, length(h.spaces); add_subscript=add_subscript)
+    op2_ = _new_operator(op2, h, length(h.spaces); add_subscript = add_subscript)
     op2_0 = _new_operator(op2, h)
     H = _new_operator(H0, h)
     J = [_new_operator(j, h) for j in J0]
@@ -69,25 +76,43 @@ function CorrelationFunction(op1,op2,de0::AbstractMeanfieldEquations;
     op_ = op1_*op2_
     @assert get_order(op_) <= order_
 
-    de = meanfield(op_,H,J;Jdagger=Jd,rates=de0.rates,iv=iv_,order=order_)
-    _complete_corr!(de, length(h.spaces), lhs_new, order_, steady_state;
-                            filter_func=filter_func,
-                            mix_choice=mix_choice,
-                            simplify=simplify,
-                            kwargs...)
+    de = meanfield(op_, H, J; Jdagger = Jd, rates = de0.rates, iv = iv_, order = order_)
+    _complete_corr!(
+        de,
+        length(h.spaces),
+        lhs_new,
+        order_,
+        steady_state;
+        filter_func = filter_func,
+        mix_choice = mix_choice,
+        simplify = simplify,
+        kwargs...,
+    )
 
     varmap = make_varmap(lhs_new, de0.iv)
     de0_ = begin
         eqs = Symbolics.Equation[]
         eqs_op = Symbolics.Equation[]
         ops = map(undo_average, lhs_new)
-        for i=1:length(de0.equations)
+        for i = 1:length(de0.equations)
             rhs = _new_operator(de0.equations[i].rhs, h)
             rhs_op = _new_operator(de0.operator_equations[i].rhs, h)
             push!(eqs, Symbolics.Equation(lhs_new[i], rhs))
             push!(eqs_op, Symbolics.Equation(ops[i], rhs_op))
         end
-        MeanfieldEquations(eqs,eqs_op,lhs_new,ops,H,J,Jd,de0.rates,de0.iv,varmap,order_)
+        MeanfieldEquations(
+            eqs,
+            eqs_op,
+            lhs_new,
+            ops,
+            H,
+            J,
+            Jd,
+            de0.rates,
+            de0.iv,
+            varmap,
+            order_,
+        )
     end
 
     return CorrelationFunction(op1_, op2_, op2_0, de0_, de, steady_state)
@@ -111,7 +136,7 @@ function correlation_u0(c::CorrelationFunction, u_end)
     lhs0 = c.de0.states
     τ = MTK.get_iv(c.de)
     keys = []
-    for j=1:length(lhs)
+    for j = 1:length(lhs)
         l=lhs[j]
         l_adj = _inconj(l)
         if l ∈ Set(lhs0)
@@ -127,10 +152,11 @@ function correlation_u0(c::CorrelationFunction, u_end)
             push!(keys, make_var(c.de.equations[j].lhs, τ))
         else
             check = false
-            for i=1:length(lhs0)
+            for i = 1:length(lhs0)
                 l_ = substitute(l, Dict(lhs0[i] => u_end[i]))
                 check = !isequal(l_, l)
-                check && (push!(u0, l_); push!(keys, make_var(c.de.equations[j].lhs, τ)); break)
+                check &&
+                    (push!(u0, l_); push!(keys, make_var(c.de.equations[j].lhs, τ)); break)
             end
             check || error("Could not find initial value for $l !")
         end
@@ -146,7 +172,7 @@ pass this to the `ODEProblem`.
 
 See also: [`CorrelationFunction`](@ref) [`correlation_u0`](@ref)
 """
-function correlation_p0(c::CorrelationFunction, u_end, ps=Pair{Any,Any}[])
+function correlation_p0(c::CorrelationFunction, u_end, ps = Pair{Any,Any}[])
     if c.steady_state
         steady_vals = c.de0.states
         steady_params = map(_make_parameter, steady_vals)
@@ -180,13 +206,13 @@ To actually compute the spectrum at a frequency `ω`, construct the type on top
 of a correlation function and call it with `Spectrum(c)(ω,usteady,p0)`.
 """
 struct Spectrum
-    corr
-    Afunc
-    bfunc
-    cfunc
-    A
-    b
-    c
+    corr::Any
+    Afunc::Any
+    bfunc::Any
+    cfunc::Any
+    A::Any
+    b::Any
+    c::Any
 end
 
 """
@@ -206,14 +232,17 @@ julia> S = Spectrum(c)
 ℱ(⟨a′*a_0⟩)(ω)
 ```
 """
-function Spectrum(c::CorrelationFunction, ps=[]; w=Parameter(:ω), kwargs...)
-    c.steady_state || error("Cannot use Laplace transform when not in steady state! Use `CorrelationFunction(op1,op2,de0;steady_state=true)` or try computing the Fourier transform of the time evolution of the correlation function directly.")
+function Spectrum(c::CorrelationFunction, ps = []; w = Parameter(:ω), kwargs...)
+    c.steady_state || error(
+        "Cannot use Laplace transform when not in steady state! Use `CorrelationFunction(op1,op2,de0;steady_state=true)` or try computing the Fourier transform of the time evolution of the correlation function directly.",
+    )
     de = c.de
     de0 = c.de0
     lhs = getfield.(de.equations, :lhs)
     rhs = getfield.(de.equations, :rhs)
     lhs0 = getfield.(de0.equations, :lhs)
-    A,b,c_,Afunc,bfunc,cfunc = _build_spec_func(w, lhs, rhs, c.op2_0, c.op2, lhs0, ps; kwargs...)
+    A, b, c_, Afunc, bfunc, cfunc =
+        _build_spec_func(w, lhs, rhs, c.op2_0, c.op2, lhs0, ps; kwargs...)
     return Spectrum(c, Afunc, bfunc, cfunc, A, b, c_)
 end
 
@@ -230,13 +259,13 @@ The tolerance `wtol=0` specifies in which range the frequency should be treated
 as zero, i.e. whenever `abs(ω) <= wtol` the term proportional to `1/(im*ω)` is
 neglected to avoid divergences.
 """
-function (s::Spectrum)(ω::Real,usteady,ps=[];wtol=0)
-    A = s.Afunc[1](ω,usteady,ps)
-    b = s.bfunc[1](usteady,ps)
+function (s::Spectrum)(ω::Real, usteady, ps = []; wtol = 0)
+    A = s.Afunc[1](ω, usteady, ps)
+    b = s.bfunc[1](usteady, ps)
     if abs(ω) <= wtol
         b_ = b
     else
-        c = s.cfunc[1](ω,usteady,ps)
+        c = s.cfunc[1](ω, usteady, ps)
         b_ = b .+ c
     end
     return 2*real(getindex(A \ b_, 1))
@@ -248,12 +277,12 @@ end
 From an instance of [`Spectrum`](@ref) `s`, actually compute the spectral power
 density at all frequencies in `ω_ls`.
 """
-function (s::Spectrum)(ω_ls,usteady,ps=[];wtol=0)
+function (s::Spectrum)(ω_ls, usteady, ps = []; wtol = 0)
     s_ = Vector{real(eltype(usteady))}(undef, length(ω_ls))
-    A = s.Afunc[1](ω_ls[1],usteady,ps)
-    b0 = s.bfunc[1](usteady,ps)
+    A = s.Afunc[1](ω_ls[1], usteady, ps)
+    b0 = s.bfunc[1](usteady, ps)
     b = copy(b0)
-    c = s.cfunc[1](ω_ls[1],usteady,ps)
+    c = s.cfunc[1](ω_ls[1], usteady, ps)
 
     if abs(ω_ls[1]) <= wtol
         s_[1] = 2*real(getindex(A \ b, 1))
@@ -261,14 +290,14 @@ function (s::Spectrum)(ω_ls,usteady,ps=[];wtol=0)
         s_[1] = 2*real(getindex(A \ (b .+ c), 1))
     end
 
-    Afunc! = (A,ω) -> s.Afunc[2](A,ω,usteady,ps)
-    cfunc! = (c,ω) -> s.cfunc[2](c,ω,usteady,ps)
-    @inbounds for i=2:length(ω_ls)
-        Afunc!(A,ω_ls[i])
+    Afunc! = (A, ω) -> s.Afunc[2](A, ω, usteady, ps)
+    cfunc! = (c, ω) -> s.cfunc[2](c, ω, usteady, ps)
+    @inbounds for i = 2:length(ω_ls)
+        Afunc!(A, ω_ls[i])
         if abs(ω_ls[i]) <= wtol
             s_[i] = 2*real(getindex(A \ b0, 1))
         else
-            cfunc!(c,ω_ls[i])
+            cfunc!(c, ω_ls[i])
             @. b = b0 + c
             s_[i] = 2*real(getindex(A \ b, 1))
         end
@@ -282,8 +311,8 @@ function MTK.ODESystem(c::CorrelationFunction; complete_sys = true, kwargs...)
     τ = MTK.get_iv(c.de)
 
     ps = []
-    for eq∈c.de.equations
-        MTK.collect_vars!([],ps,eq.rhs,τ)
+    for eq ∈ c.de.equations
+        MTK.collect_vars!([], ps, eq.rhs, τ)
     end
     unique!(ps)
 
@@ -330,7 +359,7 @@ function MTK.ODESystem(c::CorrelationFunction; complete_sys = true, kwargs...)
     ps_adj_hash = hash.(ps_adj)
 
     de_ = deepcopy(de)
-    for i=1:length(de.equations)
+    for i = 1:length(de.equations)
         lhs = de_.equations[i].lhs
         rhs = substitute_conj(de_.equations[i].rhs, ps_adj, ps_adj_hash)
         de_.equations[i] = Symbolics.Equation(lhs, rhs)
@@ -354,13 +383,21 @@ function MTK.ODESystem(c::CorrelationFunction; complete_sys = true, kwargs...)
     return complete_sys ? complete(sys) : sys
 end
 
-substitute(c::CorrelationFunction, args...; kwargs...) =
-    CorrelationFunction(c.op1, c.op2, substitute(c.de0, args...; kwargs...), substitute(c.de, args...; kwargs...))
+substitute(c::CorrelationFunction, args...; kwargs...) = CorrelationFunction(
+    c.op1,
+    c.op2,
+    substitute(c.de0, args...; kwargs...),
+    substitute(c.de, args...; kwargs...),
+)
 
 function _make_parameter(s::Average)
     name = Symbol(string(s))
     sym = Parameter(name)
-    return SymbolicUtils.setmetadata(sym, Symbolics.VariableSource, (:_make_parameter, name))
+    return SymbolicUtils.setmetadata(
+        sym,
+        Symbolics.VariableSource,
+        (:_make_parameter, name),
+    )
 end
 _make_parameter(s::SymbolicUtils.Symbolic{<:Parameter}) = s
 
@@ -376,29 +413,29 @@ end
 _new_hilbert(h::FockSpace, aon) = FockSpace(Symbol(h.name, 0))
 _new_hilbert(h::NLevelSpace, aon) = NLevelSpace(Symbol(h.name, 0), h.levels, h.GS)
 
-function _new_operator(op::Destroy, h, aon=op.aon; add_subscript=nothing)
+function _new_operator(op::Destroy, h, aon = op.aon; add_subscript = nothing)
     if isnothing(add_subscript)
         Destroy(h, op.name, aon; op.metadata)
     else
         Destroy(h, Symbol(op.name, :_, add_subscript), aon; op.metadata)
     end
 end
-function _new_operator(op::Create, h, aon=op.aon; add_subscript=nothing)
+function _new_operator(op::Create, h, aon = op.aon; add_subscript = nothing)
     if isnothing(add_subscript)
         Create(h, op.name, aon; op.metadata)
     else
         Create(h, Symbol(op.name, :_, add_subscript), aon; op.metadata)
     end
 end
-function _new_operator(t::Transition, h, aon=t.aon; add_subscript=nothing)
+function _new_operator(t::Transition, h, aon = t.aon; add_subscript = nothing)
     if isnothing(add_subscript)
         Transition(h, t.name, t.i, t.j, aon; t.metadata)
     else
         Transition(h, Symbol(t.name, :_, add_subscript), t.i, t.j, aon; t.metadata)
     end
 end
-_new_operator(x::Number, h, aon=nothing; kwargs...) = x
-function _new_operator(t, h, aon=nothing; kwargs...)
+_new_operator(x::Number, h, aon = nothing; kwargs...) = x
+function _new_operator(t, h, aon = nothing; kwargs...)
     if SymbolicUtils.iscall(t)
         args = []
         if isnothing(aon)
@@ -407,7 +444,7 @@ function _new_operator(t, h, aon=nothing; kwargs...)
             end
         else
             for arg in SymbolicUtils.arguments(t)
-                push!(args, _new_operator(arg,h,aon; kwargs...))
+                push!(args, _new_operator(arg, h, aon; kwargs...))
             end
         end
         f = SymbolicUtils.operation(t)
@@ -416,7 +453,7 @@ function _new_operator(t, h, aon=nothing; kwargs...)
         return t
     end
 end
-function _new_operator(avg::Average, h, aon=nothing; kwargs...)
+function _new_operator(avg::Average, h, aon = nothing; kwargs...)
     op = SymbolicUtils.arguments(avg)[1]
     if isnothing(aon)
         _average(_new_operator(op, h; kwargs...))
@@ -425,11 +462,17 @@ function _new_operator(avg::Average, h, aon=nothing; kwargs...)
     end
 end
 
-function _complete_corr!(de,aon0,lhs_new,order,steady_state;
-                                mix_choice=maximum,
-                                simplify=true,
-                                filter_func=nothing,
-                                kwargs...)
+function _complete_corr!(
+    de,
+    aon0,
+    lhs_new,
+    order,
+    steady_state;
+    mix_choice = maximum,
+    simplify = true,
+    filter_func = nothing,
+    kwargs...,
+)
     vs = de.states
     H = de.hamiltonian
     J = de.jumps
@@ -440,7 +483,7 @@ function _complete_corr!(de,aon0,lhs_new,order,steady_state;
     vs′ = map(_conj, vs)
     vs′hash = map(hash, vs′)
     filter!(!in(vhash), vs′hash)
-    missed = find_missing(de.equations, vhash, vs′hash; get_adjoints=false)
+    missed = find_missing(de.equations, vhash, vs′hash; get_adjoints = false)
 
     vhash_new = map(hash, lhs_new)
     vhash_new′ = map(hash, _adjoint.(lhs_new))
@@ -467,24 +510,28 @@ function _complete_corr!(de,aon0,lhs_new,order,steady_state;
 
     while !isempty(missed)
         ops_ = [SymbolicUtils.arguments(m)[1] for m in missed]
-        me = meanfield(ops_,H,J;
-                                Jdagger=Jd,
-                                rates=rates,
-                                simplify=simplify,
-                                order=order,
-                                iv=de.iv,
-                                kwargs...)
+        me = meanfield(
+            ops_,
+            H,
+            J;
+            Jdagger = Jd,
+            rates = rates,
+            simplify = simplify,
+            order = order,
+            iv = de.iv,
+            kwargs...,
+        )
 
         _append!(de, me)
 
         vhash_ = hash.(me.states)
         vs′hash_ = hash.(_conj.(me.states))
         append!(vhash, vhash_)
-        for i=1:length(vhash_)
+        for i = 1:length(vhash_)
             vs′hash_[i] ∈ vhash_ || push!(vs′hash, vs′hash_[i])
         end
 
-        missed = find_missing(me.equations, vhash, vs′hash; get_adjoints=false)
+        missed = find_missing(me.equations, vhash, vs′hash; get_adjoints = false)
         filter!(_filter_aon, missed)
         isnothing(filter_func) || filter!(filter_func, missed) # User-defined filter
         filter_reds && filter_redundants!(missed, de.scale_aons, de.names)
@@ -493,12 +540,12 @@ function _complete_corr!(de,aon0,lhs_new,order,steady_state;
     if !isnothing(filter_func)
         # Find missing values that are filtered by the custom filter function,
         # but still occur on the RHS; set those to 0
-        missed = find_missing(de.equations, vhash, vs′hash; get_adjoints=false)
+        missed = find_missing(de.equations, vhash, vs′hash; get_adjoints = false)
         filter!(!filter_func, missed)
         filter_reds && filter_redundants!(missed, de.scale_aons, de.names)
         missed_adj = map(_adjoint, missed)
         subs = Dict(vcat(missed, missed_adj) .=> 0)
-        for i=1:length(de.equations)
+        for i = 1:length(de.equations)
             de.equations[i] = substitute(de.equations[i], subs)
             de.states[i] = de.equations[i].lhs
         end
@@ -509,7 +556,7 @@ end
 
 ### Auxiliary functions for Spectrum
 
-function _build_spec_func(ω, lhs, rhs, a1, a0, steady_vals, ps=[])
+function _build_spec_func(ω, lhs, rhs, a1, a0, steady_vals, ps = [])
     s = Dict(a0=>a1)
     ops = [SymbolicUtils.arguments(l)[1] for l in lhs]
 
@@ -518,56 +565,60 @@ function _build_spec_func(ω, lhs, rhs, a1, a0, steady_vals, ps=[])
     aon0 = acts_on(a0)
     @assert length(aon0)==1
     rhs_ = _find_dependent(rhs, aon0[1])
-    Ax = [im*ω*lhs[i] - rhs_[i] for i=1:length(lhs)] # Element-wise form of A*x
+    Ax = [im*ω*lhs[i] - rhs_[i] for i = 1:length(lhs)] # Element-wise form of A*x
 
     # Substitute <a0> by steady-state average <a>
     s_avg = Dict(average(a0) => average(a1))
-    Ax = [inorder!(substitute(A, s_avg)) for A∈Ax]
-    c = [inorder!(substitute(c_, s_avg)) for c_∈c]
+    Ax = [inorder!(substitute(A, s_avg)) for A ∈ Ax]
+    c = [inorder!(substitute(c_, s_avg)) for c_ ∈ c]
 
     # Compute symbolic A column-wise by substituting unit vectors into element-wise form of A*x
     A = Matrix{Any}(undef, length(Ax), length(Ax))
-    for i=1:length(Ax)
+    for i = 1:length(Ax)
         subs_vals = zeros(length(Ax))
         subs_vals[i] = 1
         subs = Dict(lhs .=> subs_vals)
-        A_i = [inorder!(SymbolicUtils.simplify(substitute(Ax[j],subs))) for j=1:length(Ax)]
-        A[:,i] = A_i
+        A_i =
+            [inorder!(SymbolicUtils.simplify(substitute(Ax[j], subs))) for j = 1:length(Ax)]
+        A[:, i] = A_i
     end
 
     # Substitute conjugates
     vs_adj = map(_conj, steady_vals)
     filter!(x->!(x ∈ Set(steady_vals)), vs_adj)
     vs′hash = map(hash, vs_adj)
-    A = [substitute_conj(A_,vs_adj,vs′hash) for A_∈A]
-    b = [substitute_conj(b_,vs_adj,vs′hash) for b_∈b]
-    c = [substitute_conj(c_,vs_adj,vs′hash) for c_∈c]
+    A = [substitute_conj(A_, vs_adj, vs′hash) for A_ ∈ A]
+    b = [substitute_conj(b_, vs_adj, vs′hash) for b_ ∈ b]
+    c = [substitute_conj(c_, vs_adj, vs′hash) for c_ ∈ c]
 
     # Keep Symbolics.unflatten_long_ops from stepping into symbolic average
     # functions by substituting. This can be removed once averages store
     # operators as metadata
-    A1 = [_substitute_vars(A_) for A_∈A]
-    b1 = [_substitute_vars(b_) for b_∈b]
-    c1 = [_substitute_vars(c_) for c_∈c]
-    steady_vals1 = [_substitute_vars(s_) for s_∈steady_vals]
+    A1 = [_substitute_vars(A_) for A_ ∈ A]
+    b1 = [_substitute_vars(b_) for b_ ∈ b]
+    c1 = [_substitute_vars(c_) for c_ ∈ c]
+    steady_vals1 = [_substitute_vars(s_) for s_ ∈ steady_vals]
 
     # Build functions
-    Afunc = Symbolics.build_function(A1, ω, steady_vals1, ps; expression=false)
-    bfunc = Symbolics.build_function(b1, steady_vals1, ps; expression=false)
-    cfunc = Symbolics.build_function(c1, ω, steady_vals1, ps; expression=false)
+    Afunc = Symbolics.build_function(A1, ω, steady_vals1, ps; expression = false)
+    bfunc = Symbolics.build_function(b1, steady_vals1, ps; expression = false)
+    cfunc = Symbolics.build_function(c1, ω, steady_vals1, ps; expression = false)
 
     return A, b, c, Afunc, bfunc, cfunc
 end
 
-function _substitute_vars(t::T) where T <: SymbolicUtils.Symbolic
+function _substitute_vars(t::T) where {T<:SymbolicUtils.Symbolic}
     if SymbolicUtils.iscall(t)
         f = SymbolicUtils.operation(t)
         if f === sym_average
             sym = Symbol(string(t))
-            return SymbolicUtils.setmetadata(SymbolicUtils.Sym{Complex{Real}}(sym),
-                Symbolics.VariableSource, (:_substitute_vars, sym))
+            return SymbolicUtils.setmetadata(
+                SymbolicUtils.Sym{Complex{Real}}(sym),
+                Symbolics.VariableSource,
+                (:_substitute_vars, sym),
+            )
         else
-            args = [_substitute_vars(arg) for arg∈SymbolicUtils.arguments(t)]
+            args = [_substitute_vars(arg) for arg ∈ SymbolicUtils.arguments(t)]
             return SymbolicUtils.maketerm(T, f, args, TermInterface.metadata(t))
         end
     else
@@ -590,8 +641,10 @@ function _find_independent(r, a0)
     else
         aon_r = acts_on(r)
         aon0 = acts_on(a0)
-        same = (length(aon_r)==length(aon0)) && all(a ∈ aon0 for a∈aon_r) &&
-                all(a ∈ aon_r for a ∈ aon0)
+        same =
+            (length(aon_r)==length(aon0)) &&
+            all(a ∈ aon0 for a ∈ aon_r) &&
+            all(a ∈ aon_r for a ∈ aon0)
         same && return 0
         return r
     end
@@ -610,8 +663,10 @@ function _find_dependent(r, a0)
     else
         aon_r = acts_on(r)
         aon0 = acts_on(a0)
-        same = (length(aon_r)==length(aon0)) && all(a ∈ aon0 for a∈aon_r) &&
-                all(a ∈ aon_r for a ∈ aon0)
+        same =
+            (length(aon_r)==length(aon0)) &&
+            all(a ∈ aon0 for a ∈ aon_r) &&
+            all(a ∈ aon_r for a ∈ aon0)
         same || return 0
         return r
     end
