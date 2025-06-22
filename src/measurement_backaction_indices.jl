@@ -438,7 +438,7 @@ function find_missing_sums(
     for eq in eqs
         sums = checkIfSum(eq.rhs)   #get all sums of the rhs
         for sum in sums
-            meta = SymbolicUtils.metadata(sum)[IndexedAverageSum]
+            meta = TermInterface.metadata(sum)[IndexedAverageSum]
             extras_filtered = filterExtras(meta.sum_index, extras) #all the extraIndices, that have the same specific hilbertspace as the sum
             checkAndChange(missed_, sum, extras_filtered, vs, checking, scaling; kwargs...)
         end
@@ -787,8 +787,8 @@ function indexed_complete!(
     return de
 end
 
-complete(eqs::IndexedMeanfieldNoiseEquations; kwargs...) = indexed_complete(eqs; kwargs...)
-complete!(eqs::IndexedMeanfieldNoiseEquations; kwargs...) =
+MTK.complete(eqs::IndexedMeanfieldNoiseEquations; kwargs...) = indexed_complete(eqs; kwargs...)
+MTK.complete!(eqs::IndexedMeanfieldNoiseEquations; kwargs...) =
     indexed_complete!(eqs; kwargs...)
 
 
@@ -973,8 +973,8 @@ function merge_equations(
     )
 end
 
-function mtk_generate_meta(eqs; ps = MTK.OrderedSet())
-    allstates = MTK.OrderedSet()
+function mtk_generate_meta(eqs; ps = OrderedCollections.OrderedSet())
+    allstates = OrderedCollections.OrderedSet()
     iv = nothing
 
     for eq in eqs

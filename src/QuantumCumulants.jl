@@ -1,39 +1,48 @@
 module QuantumCumulants
 
-using Latexify
-import MacroTools
-using LaTeXStrings
-using .SecondQuantizedAlgebra: show_brackets
+using Latexify: Latexify, @latexrecipe, latexify
+using MacroTools: MacroTools
+using LaTeXStrings: LaTeXStrings, latexstring, @L_str
 
-import SymbolicUtils
-import SymbolicUtils: substitute, BasicSymbolic, operation, arguments, iscall
+using Combinatorics: partitions
+using LinearAlgebra: LinearAlgebra
+using OrderedCollections: OrderedCollections
 
-import Symbolics
-import TermInterface
+using SciMLBase: SciMLBase
+using QuantumOpticsBase: QuantumOpticsBase, ⊗, tensor
 
-import SciMLBase
+using SymbolicUtils: SymbolicUtils, substitute, BasicSymbolic, operation, arguments, iscall
 
-import ModelingToolkit
-import ModelingToolkit: complete, complete!
+using Symbolics: Symbolics
+using TermInterface: TermInterface
+
+using ModelingToolkit: ModelingToolkit, complete, complete!
 const MTK = ModelingToolkit
 
-using Combinatorics: partitions, combinations, levicivita
-using LinearAlgebra
-
-using QuantumOpticsBase
-import QuantumOpticsBase: ⊗, tensor
-
-
-using Reexport
-@reexport using SecondQuantizedAlgebra
 using SecondQuantizedAlgebra:
+    SecondQuantizedAlgebra,
+    QTerm,
+    QSym,
+    CNumber,
+    Average,
     QNumber,
-    SNuN,
     QMul,
     QAdd,
+    SpecialIndexedTerm,
+    IndexedOperator,
     ClusterAon,
     CallableTransition,
-    IndexInt,
+    NumberedOperator,
+    Parameter,
+    ProductSpace,
+    FockSpace,
+    Destroy,
+    Create,
+    Index,
+    SingleSum,
+    DoubleSum,
+    Transition,
+    NLevelSpace,
     get_indices,
     commutator,
     numeric_average,
@@ -44,8 +53,6 @@ using SecondQuantizedAlgebra:
     inorder!,
     levels,
     has_cluster,
-    ismergeable,
-    inadjoint,
     undo_average,
     _average,
     sym_average,
@@ -58,13 +65,94 @@ using SecondQuantizedAlgebra:
     SingleNumberedVariable,
     create_index_arrays,
     IndexedAverageDoubleSum,
-    getIndName,
     _to_expression,
     AvgSums,
-    get_numbers
-const SQA = SecondQuantizedAlgebra
+    get_numbers,
+    @cnumbers,
+    @qnumbers,
+    @rnumbers,
+    ClusterSpace,
+    HilbertSpace,
+    Pauli,
+    PauliSpace,
+    RNumber,
+    RealParameter,
+    Spin,
+    SpinSpace,
+    acts_on,
+    change_index,
+    cnumber,
+    cnumbers,
+    find_operators,
+    fundamental_operators,
+    insert_index,
+    order_by_index,
+    reorder,
+    rnumber,
+    rnumbers,
+    to_numeric,
+    transition_superscript,
+    unique_ops,
+    unique_ops!,
+    Σ,
+    ∑,
+    HilbertSpace,
+    ProductSpace,
+    ⊗,
+    tensor,
+    QSym,
+    QTerm,
+    @qnumbers,
+    FockSpace,
+    Destroy,
+    Create,
+    NLevelSpace,
+    Transition,
+    PauliSpace,
+    Pauli,
+    SpinSpace,
+    Spin,
+    commutator,
+    acts_on,
+    CNumber,
+    Parameter,
+    @cnumbers,
+    cnumbers,
+    cnumber,
+    RNumber,
+    RealParameter,
+    @rnumbers,
+    rnumbers,
+    rnumber,
+    unique_ops,
+    unique_ops!,
+    to_numeric,
+    numeric_average,
+    ClusterSpace,
+    find_operators,
+    fundamental_operators,
+    transition_superscript,
+    Average,
+    average,
+    Index,
+    reorder,
+    IndexedOperator,
+    SingleSum,
+    IndexedVariable,
+    DoubleIndexedVariable,
+    DoubleSum,
+    SpecialIndexedTerm,
+    Σ,
+    ∑,
+    NumberedOperator,
+    change_index,
+    order_by_index,
+    insert_index,
+    numeric_average,
+    IndexedAverageSum,
+    IndexedAverageDoubleSum
 
-import Base: *, +, -
+const SQA = SecondQuantizedAlgebra
 
 export HilbertSpace,
     ProductSpace,
@@ -151,10 +239,6 @@ export HilbertSpace,
     eval_term,
     MeanfieldNoiseEquations,
     IndexedMeanfieldNoiseEquations#, indexed_arithmetic, indexed_noise, simplified_indexed_complete!
-
-
-source_metadata(source, name) =
-    Base.ImmutableDict{DataType,Any}(Symbolics.VariableSource, (source, name))
 
 
 include("equations.jl")
