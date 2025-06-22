@@ -64,6 +64,6 @@ using Test
         cumulant_expansion(average(a*b*c*d), 3),
     )
 
-@test get_order(a*b + c) == 2
+    @test get_order(a*b + c) == 2
 
 end # testset

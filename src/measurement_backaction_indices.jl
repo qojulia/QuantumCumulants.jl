@@ -787,7 +787,8 @@ function indexed_complete!(
     return de
 end
 
-MTK.complete(eqs::IndexedMeanfieldNoiseEquations; kwargs...) = indexed_complete(eqs; kwargs...)
+MTK.complete(eqs::IndexedMeanfieldNoiseEquations; kwargs...) =
+    indexed_complete(eqs; kwargs...)
 MTK.complete!(eqs::IndexedMeanfieldNoiseEquations; kwargs...) =
     indexed_complete!(eqs; kwargs...)
 
