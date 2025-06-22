@@ -1,5 +1,10 @@
 module QuantumCumulants
 
+using Latexify
+import MacroTools
+using LaTeXStrings
+using .SecondQuantizedAlgebra: show_brackets
+
 import SymbolicUtils
 import SymbolicUtils: substitute, BasicSymbolic, operation, arguments, iscall
 

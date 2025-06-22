@@ -10,7 +10,7 @@ end
 
 @testset "ExplicitImports" begin
     using ExplicitImports
-    # @test check_no_implicit_imports(QuantumCumulants) == nothing
+    @test check_no_implicit_imports(QuantumCumulants) == nothing
     @test check_all_explicit_imports_via_owners(QuantumCumulants) == nothing
     # @test check_all_explicit_imports_are_public(QuantumCumulants) == nothing
     # @test check_no_stale_explicit_imports(QuantumCumulants) == nothing

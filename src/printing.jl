@@ -1,5 +1,3 @@
-using .SecondQuantizedAlgebra: show_brackets
-
 function Base.show(io::IO, de::AbstractMeanfieldEquations)
     for i = 1:length(de.equations)
         write(io, "∂ₜ(")
