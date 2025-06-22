@@ -330,12 +330,12 @@ const qc=QuantumCumulants
     @test isequal(1:10, arr)
 
     @test isequal(qc.inorder!(σ(2, 1, 1)*σ(2, 2, 2)*σ(1, 2, 1)), σ(2, 2, 1)*σ(2, 2, 2))
-    @test isequal(qc.inadjoint(σ(2, 1, 1)*σ(2, 2, 2)*σ(1, 2, 1)), σ(2, 2, 1)*σ(2, 2, 2))
+    @test isequal(qc.SQA.inadjoint(σ(2, 1, 1)*σ(2, 2, 2)*σ(1, 2, 1)), σ(2, 2, 1)*σ(2, 2, 2))
     @test isequal(
         qc._inconj(average(σ(2, 1, 1)*σ(2, 2, 2)*σ(1, 2, 1))),
         (average(σ(2, 2, 1)*σ(2, 2, 2))),
     )
-    @test qc.ismergeable(σ(2, 1, 5), σ(1, 2, 5))
+    @test qc.SQA.ismergeable(σ(2, 1, 5), σ(1, 2, 5))
 
     # issue 188
     gi = IndexedVariable(:g, i)
