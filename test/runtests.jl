@@ -1,5 +1,5 @@
 names = [
-    "test_aqua.jl"
+    "test_code_quality.jl"
     "test_fock.jl"
     "test_nlevel.jl"
     "test_spin.jl"
