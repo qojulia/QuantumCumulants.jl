@@ -10,13 +10,13 @@ end
 
 @testset "ExplicitImports" begin
     using ExplicitImports
-    # @test check_no_implicit_imports(QuantumCumulants) == nothing
+    @test check_no_implicit_imports(QuantumCumulants) == nothing
     @test check_all_explicit_imports_via_owners(QuantumCumulants) == nothing
     # @test check_all_explicit_imports_are_public(QuantumCumulants) == nothing
-    # @test check_no_stale_explicit_imports(QuantumCumulants) == nothing
-    # @test check_all_qualified_accesses_via_owners(QuantumCumulants) == nothing
+    @test check_no_stale_explicit_imports(QuantumCumulants) == nothing
+    @test check_all_qualified_accesses_via_owners(QuantumCumulants) == nothing
     # @test check_all_qualified_accesses_are_public(QuantumCumulants) == nothing
-    # @test check_no_self_qualified_accesses(QuantumCumulants) == nothing
+    @test check_no_self_qualified_accesses(QuantumCumulants) == nothing
 end
 
 if isempty(VERSION.prerelease)

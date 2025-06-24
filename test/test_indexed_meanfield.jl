@@ -56,7 +56,7 @@ const qc = QuantumCumulants
     @test eqs.equations == eqs_2.equations
 
     @test isequal([i_ind, j_ind, k_ind], sort(qc.get_indices_equations(eqs)))
-    @test isequal([:i, :j, :k], sort(qc.getIndName.(qc.get_indices_equations(eqs))))
+    @test isequal([:i, :j, :k], sort(qc.SQA.getIndName.(qc.get_indices_equations(eqs))))
 
     @test length(eqs) == 3
 

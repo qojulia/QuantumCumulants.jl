@@ -273,7 +273,7 @@ function _append!(lhs::MeanfieldNoiseEquations, rhs::MeanfieldNoiseEquations)
     append!(lhs.varmap, rhs.varmap)
 end
 
-function complete!(
+function MTK.complete!(
     de::MeanfieldNoiseEquations;
     order = de.order,
     multithread = false,
@@ -360,7 +360,7 @@ function cumulant_expansion(
 end
 
 
-function complete(de::MeanfieldNoiseEquations; kwargs...)
+function MTK.complete(de::MeanfieldNoiseEquations; kwargs...)
     de_ = deepcopy(de)
     complete!(de_; kwargs...)
     return de_

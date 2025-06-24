@@ -1,7 +1,3 @@
-using Latexify
-import MacroTools
-using LaTeXStrings
-
 @latexrecipe function f(de::AbstractMeanfieldEquations)
     # Options
     env --> :align
@@ -22,7 +18,7 @@ end
     rhs = getfield.(de.equations, :rhs)
     rhs_noise = getfield.(de.noise_equations, :rhs)
     npr = cnumbers("dW/dt")
-    lhs, rhs = QuantumCumulants._latexify(lhs, rhs .+ npr .* rhs_noise, de.iv)
+    lhs, rhs = _latexify(lhs, rhs .+ npr .* rhs_noise, de.iv)
     return lhs, rhs
 end
 

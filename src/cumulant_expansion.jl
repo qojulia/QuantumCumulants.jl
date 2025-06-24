@@ -205,19 +205,19 @@ function _cumulant_expansion(x::IndexedAverageDoubleSum, order; kwargs...)
 end
 function _cumulant_expansion(a::BasicSymbolic{IndexedAverageSum}, order; kwargs...)
     if SymbolicUtils.hasmetadata(a, IndexedAverageSum)
-        meta = SymbolicUtils.metadata(a)[IndexedAverageSum]
+        meta = TermInterface.metadata(a)[IndexedAverageSum]
         return _cumulant_expansion(meta, order; kwargs...)
     end
 end
 function _cumulant_expansion(a::BasicSymbolic{IndexedAverageDoubleSum}, order; kwargs...)
     if SymbolicUtils.hasmetadata(a, IndexedAverageDoubleSum)
-        meta = SymbolicUtils.metadata(a)[IndexedAverageDoubleSum]
+        meta = TermInterface.metadata(a)[IndexedAverageDoubleSum]
         return _cumulant_expansion(meta, order; kwargs...)
     end
 end
 function _cumulant_expansion(a::BasicSymbolic{SpecialIndexedAverage}, order; kwargs...)
     if SymbolicUtils.hasmetadata(a, SpecialIndexedAverage)
-        meta = SymbolicUtils.metadata(a)[SpecialIndexedAverage]
+        meta = TermInterface.metadata(a)[SpecialIndexedAverage]
         return SpecialIndexedAverage(
             cumulant_expansion(meta.term, order; kwargs...),
             meta.indexMapping,
@@ -328,19 +328,19 @@ get_order(a::IndexedAverageDoubleSum) = get_order(a.innerSum)
 get_order(a::SpecialIndexedAverage) = get_order(a.term)
 function get_order(a::BasicSymbolic{IndexedAverageSum})
     if SymbolicUtils.hasmetadata(a, IndexedAverageSum)
-        meta = SymbolicUtils.metadata(a)[IndexedAverageSum]
+        meta = TermInterface.metadata(a)[IndexedAverageSum]
         return get_order(meta)
     end
 end
 function get_order(a::BasicSymbolic{IndexedAverageDoubleSum})
     if SymbolicUtils.hasmetadata(a, IndexedAverageDoubleSum)
-        meta = SymbolicUtils.metadata(a)[IndexedAverageDoubleSum]
+        meta = TermInterface.metadata(a)[IndexedAverageDoubleSum]
         return get_order(meta)
     end
 end
 function get_order(a::BasicSymbolic{SpecialIndexedAverage})
     if SymbolicUtils.hasmetadata(a, SpecialIndexedAverage)
-        meta = SymbolicUtils.metadata(a)[SpecialIndexedAverage]
+        meta = TermInterface.metadata(a)[SpecialIndexedAverage]
         return get_order(meta)
     end
 end

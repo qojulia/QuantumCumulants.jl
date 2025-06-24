@@ -404,7 +404,8 @@ Symbolics.jl. More fields could be added, but the four shown here are always req
 Now, for methods we simply need:
 
 ```@example custom-operators
-QuantumCumulants.ismergeable(::Position,::Momentum) = true
+using SecondQuantizedAlgebra
+SecondQuantizedAlgebra.ismergeable(::Position,::Momentum) = true
 Base.:*(x::Position, p::Momentum) = im + p*x
 Base.isequal(a::Position, b::Position) = isequal(a.hilbert, b.hilbert) && isequal(a.name, b.name) && isequal(a.aon, b.aon)
 Base.isequal(a::Momentum, b::Momentum) = isequal(a.hilbert, b.hilbert) && isequal(a.name, b.name) && isequal(a.aon, b.aon)
