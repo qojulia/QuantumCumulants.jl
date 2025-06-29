@@ -142,16 +142,6 @@ function check_index_collision(a::Vector, H, J)
     end
 end
 
-# Takes the averages of all functions in the array rhs and simplifies them if the flag is set
-function take_function_averages(rhs, simplify)
-    rhs_avg = map(average, rhs)
-
-    if simplify
-        rhs_avg = map(SymbolicUtils.simplify, rhs_avg)
-    end
-    return rhs_avg, map(undo_average, rhs_avg)
-end
-
 """
     IndexedMeanfieldNoiseEquations
 

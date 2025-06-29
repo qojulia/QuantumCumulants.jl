@@ -165,7 +165,7 @@ using Test
     # @test isequal( simplify(Sy(1)Sz(2)Sx(1)), simplify(Sx(1)Sy(1)Sz(2) - 1im*Sz(1)*Sz(2)) )
 
 
-    ### simple time evolution 
+    ### simple time evolution
     @cnumbers δcs Ωcs gcs Γcs
     Hcs1 = δcs/2*Sz(1)
     Jcs1 = [Sm(1)]
@@ -188,7 +188,7 @@ using Test
 
     eqs_cs1_c.states
     u0_cs1 = zeros(ComplexF64, length(eqs_cs1_c))
-    # full excitation 
+    # full excitation
     Ncs1 = 20
     Ncs1_ = Ncs1/2
     Ncs2 = 8
