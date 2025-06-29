@@ -113,3 +113,18 @@ function extract_parameters(eqs_, vars)
     setdiff!(symbols, vars)
     return symbols
 end
+
+function extract_parameters( me::AbstractMeanfieldEquations)
+    eqs = MTK.equations(me)
+
+    symbols = Set()
+    for eq in eqs
+        for var in Symbolics.get_variables(eq.rhs)
+            push!(symbols, var)
+        end
+    end
+
+    vars = map(last, me.varmap)
+    setdiff!(symbols, vars)
+    return symbols
+end
