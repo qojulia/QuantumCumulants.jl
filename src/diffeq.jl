@@ -76,7 +76,7 @@ function MTK.ODESystem(
     kwargs...,
 )
     eqs = MTK.equations(me)
-    pars = isnothing(pars) ? extract_parameters(eqs, vars) : pars
+    pars = isnothing(pars) ? extract_parameters(eqs) : pars
     sys = MTK.ODESystem(eqs, iv, vars, pars; kwargs...)
     return complete_sys ? complete(sys) : sys
 end
@@ -103,28 +103,20 @@ function substitute_conj_ind(t::T, vs′, vs′hash) where {T}
     end
 end
 
-function extract_parameters(eqs_, vars)
-    symbols = Set()
-    for eq in eqs_
-        for var in Symbolics.get_variables(eq.rhs)
-            push!(symbols, var)
-        end
-    end
-    setdiff!(symbols, vars)
-    return symbols
-end
-
-function extract_parameters( me::AbstractMeanfieldEquations)
-    eqs = MTK.equations(me)
-
-    symbols = Set()
+function extract_parameters(eqs::Vector{Symbolics.Equation})
+    params = []
     for eq in eqs
         for var in Symbolics.get_variables(eq.rhs)
-            push!(symbols, var)
+            if !SymbolicUtils.iscall(var)
+                push!(params, var)
+            end
         end
     end
+    return params
+end
 
-    vars = map(last, me.varmap)
-    setdiff!(symbols, vars)
-    return symbols
+function extract_parameters(me::AbstractMeanfieldEquations)
+    eqs = MTK.equations(me)
+
+    return extract_parameters(eqs)
 end

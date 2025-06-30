@@ -126,7 +126,9 @@ using Test
     cp0 = correlation_p0(c, sol.u[end], ps .=> p0)
     @test length(cp0) == 5
 
-    cprob = ODEProblem(csys, cu0, (0.0, 20.0), cp0)
+    # MTKv10 syntax
+    dict = merge(Dict(cu0), Dict(cp0))
+    cprob = ODEProblem(csys, dict, (0.0, 20.0))
     csol = solve(cprob, RK4())
 
     @test csol.retcode == SciMLBase.ReturnCode.Success
@@ -139,7 +141,8 @@ using Test
     cp0 = correlation_p0(c, sol.u[end], ps .=> p0)
     @test length(cp0) == 4
 
-    cprob = ODEProblem(csys, cu0, (0.0, 20.0), cp0)
+    dict = merge(Dict(cu0), Dict(cp0))
+    cprob = ODEProblem(csys, dict, (0.0, 20.0))
     csol_ns = solve(cprob, RK4())
 
     @test all(csol_ns.u .≈ csol.u)
@@ -155,14 +158,17 @@ using Test
     n0 = 20.0
     u0 = [n0]
     p0 = (ωc => 1 + 0im, κ => 1 + 0im)
-    prob = ODEProblem(sys, u0, (0.0, 10.0), p0)
+    dict = merge(Dict(p0), Dict(unknowns(sys) .=> u0))
+    prob = ODEProblem(sys, dict, (0.0, 10.0))
     sol = solve(prob, RK4())
 
     c = CorrelationFunction(a', a, he)
     @named csys = ODESystem(c)
     idx = 5
     u0_c = correlation_u0(c, sol.u[idx])
-    prob_c = ODEProblem(csys, u0_c, (0.0, 10.0), p0)
+
+    dict = merge(Dict(u0_c), Dict(p0))
+    prob_c = ODEProblem(csys, dict, (0.0, 10.0))
     sol_c = solve(prob_c, RK4(), save_idxs = 1)
     # plot(sol_c.t,real.(sol_c.u), label="Re(g) -- numeric")
     # plot(sol_c.t,imag.(sol_c.u), label="Im(g) -- numeric")

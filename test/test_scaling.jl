@@ -141,7 +141,8 @@ using ModelingToolkit
     @named sys = ODESystem(he_avg)
     p0 = ps .=> (0, 1.5, 0.25, 1, 4, 7)
     u0 = zeros(ComplexF64, length(he_scaled))
-    prob = ODEProblem(sys, u0, (0.0, 50.0), p0)
+    dict = merge(Dict(unknowns(sys) .=> u0), Dict(p0))
+    prob = ODEProblem(sys, dict, (0.0, 50.0))
     sol = solve(prob, RK4(), abstol = 1e-10, reltol = 1e-10)
 
     @test sol.u[end][1] ≈ 12.601868534
@@ -322,7 +323,9 @@ using ModelingToolkit
             )
     end
     u0 = zeros(ComplexF64, length(he_scaled))
-    prob = ODEProblem(sys, u0, (0.0, 50.0), p0)
+
+    dict = merge(Dict(unknowns(sys) .=> u0), Dict(p0))
+    prob = ODEProblem(sys, dict, (0.0, 50.0))
     sol = solve(prob, RK4(), abstol = 1e-10, reltol = 1e-10)
 
     @test sol.u[end][1] ≈ 12.601868534
