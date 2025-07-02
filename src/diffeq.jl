@@ -1,7 +1,7 @@
 const AbstractIndexedMeanfieldEquations =
     Union{IndexedMeanfieldEquations,EvaledMeanfieldEquations}
 
-# Relevant parts of ODESystem interface
+# Relevant parts of System interface
 MTK.get_iv(me::AbstractMeanfieldEquations) = me.iv
 MTK.unknowns(me::AbstractMeanfieldEquations) = me.states
 
@@ -67,7 +67,7 @@ function substitute_conj(t::T, vs′, vs′hash) where {T}
         return t
     end
 end
-function MTK.ODESystem(
+function MTK.System(
     me::Union{AbstractMeanfieldEquations,AbstractIndexedMeanfieldEquations},
     iv = me.iv,
     vars = map(last, me.varmap),
@@ -77,7 +77,7 @@ function MTK.ODESystem(
 )
     eqs = MTK.equations(me)
     pars = isnothing(pars) ? extract_parameters(eqs) : pars
-    sys = MTK.ODESystem(eqs, iv, vars, pars; kwargs...)
+    sys = MTK.System(eqs, iv, vars, pars; kwargs...)
     return complete_sys ? complete(sys) : sys
 end
 

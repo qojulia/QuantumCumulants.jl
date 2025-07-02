@@ -51,7 +51,7 @@ using Test
 
     eqs_mtk = equations(he_nophase)
 
-    @named sys = ODESystem(he_nophase)
+    @named sys = System(he_nophase)
 
     u0 = zeros(ComplexF64, length(ops))
     p0 = [
@@ -100,7 +100,7 @@ using Test
     @test isempty(find_missing(he_n))
 
 
-    @named sys_comp = ODESystem(he_n)
+    @named sys_comp = System(he_n)
     prob_comp = ODEProblem(sys_comp, u0, (0.0, 10.0), p0)
 
     sol_comp = solve(prob_comp, RK4())

@@ -83,7 +83,7 @@ using ModelingToolkit
     @test length(he_scale) == 9
 
     ps = [Δc; κ; Γ2; Γ3; Γ23; η; ν3; ν2; Δ2; Δ3; Ω3; g; N]
-    @named sys = ODESystem(he_scale)
+    @named sys = System(he_scale)
     u0 = zeros(ComplexF64, length(he_scale))
 
     N0 = 1000/N_c
@@ -138,7 +138,7 @@ using ModelingToolkit
     @test isempty(find_missing(he_avg))
 
     ps = (Δ, g, γ, κ, ν, N)
-    @named sys = ODESystem(he_avg)
+    @named sys = System(he_avg)
     p0 = ps .=> (0, 1.5, 0.25, 1, 4, 7)
     u0 = zeros(ComplexF64, length(he_scaled))
     dict = merge(Dict(unknowns(sys) .=> u0), Dict(p0))
@@ -209,7 +209,7 @@ using ModelingToolkit
     @test isempty(find_missing(he_avg))
 
     ps = (G, Δ, κ, γ, Ω, N)
-    @named sys = ODESystem(he_avg)
+    @named sys = System(he_avg)
 
     u0 = zeros(ComplexF64, length(he_avg))
     p0 = ps .=> ones(length(ps))
@@ -254,7 +254,7 @@ using ModelingToolkit
     @test isempty(find_missing(he_avg))
     ps = (Δ, η, γ, λ, ν, Γ, N)
     # Generate function
-    @named sys = ODESystem(he_avg)
+    @named sys = System(he_avg)
     p0 = ps .=> [ones(length(ps)-1); 4]
     u0 = zeros(ComplexF64, length(he_avg))
     prob1 = ODEProblem(sys, u0, (0.0, 1.0), p0)
@@ -297,7 +297,7 @@ using ModelingToolkit
     @test isempty(find_missing(he_scaled))
 
     ps = (κ, Δ..., g..., γ..., ν..., N...)
-    @named sys = ODESystem(he_scaled)
+    @named sys = System(he_scaled)
     if N_c==2
         p0 =
             ps .=> (
@@ -444,7 +444,7 @@ using ModelingToolkit
     @test length(he_scale) == 66
     @test isempty(find_missing(he_scale))
 
-    @named sys = ODESystem(he_scale)
+    @named sys = System(he_scale)
     u0 = zeros(ComplexF64, length(he_scale))
     ps = [δA, δB, ΩA, ΩB, wA, wB, νA, νB, γ, κ, δc, NA, NB]
     p0 = ps .=> [1.0 + i/20 for i = 1:length(ps)]

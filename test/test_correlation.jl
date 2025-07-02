@@ -23,7 +23,7 @@ using Test
     he_comp = complete(he_avg)
 
     ps = (Δ, g, γ, κ, ν)
-    @named sys = ODESystem(he_comp)
+    @named sys = System(he_comp)
 
     # Numerical solution
     # p0 = [0.0,0.5,1.0,0.1,0.9]
@@ -43,7 +43,7 @@ using Test
 
     # Correlation function
     c_steady = CorrelationFunction(a', a, he_comp; steady_state = true)
-    @named csys = ODESystem(c_steady)
+    @named csys = System(c_steady)
 
     u0_c = correlation_u0(c_steady, sol.u[end])
     p0_c = correlation_p0(c_steady, sol.u[end], p0)
@@ -112,14 +112,14 @@ using Test
     # p0 = (20.0,5.0,1.0)
 
     u0 = zeros(ComplexF64, 2)
-    @named sys = ODESystem(eqs)
+    @named sys = System(eqs)
     prob = ODEProblem(sys, u0, (0.0, 20.0), ps .=> p0)
     sol = solve(prob, RK4())
 
     @test sol.retcode == SciMLBase.ReturnCode.Success
 
     c = CorrelationFunction(σ(:e, :g), σ(:g, :e), eqs; steady_state = true)
-    @named csys = ODESystem(c)
+    @named csys = System(c)
     cu0 = correlation_u0(c, sol.u[end])
     @test length(cu0) == 3
 
@@ -135,7 +135,7 @@ using Test
 
     # Mollow when not in steady state
     c = CorrelationFunction(σ(:e, :g), σ(:g, :e), eqs; steady_state = false)
-    @named csys = ODESystem(c)
+    @named csys = System(c)
     cu0 = correlation_u0(c, sol.u[end])
     @test length(cu0) == 3
     cp0 = correlation_p0(c, sol.u[end], ps .=> p0)
@@ -154,7 +154,7 @@ using Test
     H = ωc*a'*a
     he = meanfield(a'*a, H, [a]; rates = [κ])
     ps = (ωc, κ)
-    @named sys = ODESystem(he)
+    @named sys = System(he)
     n0 = 20.0
     u0 = [n0]
     p0 = (ωc => 1 + 0im, κ => 1 + 0im)
@@ -163,7 +163,7 @@ using Test
     sol = solve(prob, RK4())
 
     c = CorrelationFunction(a', a, he)
-    @named csys = ODESystem(c)
+    @named csys = System(c)
     idx = 5
     u0_c = correlation_u0(c, sol.u[idx])
 

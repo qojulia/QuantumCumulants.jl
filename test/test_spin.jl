@@ -62,7 +62,7 @@ using Test
     eq = meanfield(a'a, H, J; rates = rates, order = 2)
     eqs = complete(eq)
     ps = [Δ_, g, κ, η]
-    @named sys = ODESystem(eqs)
+    @named sys = System(eqs)
     u0 = zeros(ComplexF64, length(eqs))
     p0 = [0.5, 1.0, 1.25, 0.85]
     prob = ODEProblem(sys, u0, (0.0, 0.5), ps .=> p0)
@@ -90,7 +90,7 @@ using Test
     eqs_ = complete(eq_)
     eqs_.states
     ps = [Δ_, g, κ, η]
-    @named sys_ = ODESystem(eqs_)
+    @named sys_ = System(eqs_)
     u0_ = zeros(ComplexF64, length(eqs_))
     u0_[1] = u0_[2] = -1
     u0_[3] = 1
@@ -184,7 +184,7 @@ using Test
     ]
     eqs_cs1 = meanfield(ops_cs1, Hcs1, Jcs1; rates = Rcs1, order = 2)
     eqs_cs1_c = complete(eqs_cs1)
-    @named sys_cs1 = ODESystem(eqs_cs1_c);
+    @named sys_cs1 = System(eqs_cs1_c);
 
     eqs_cs1_c.states
     u0_cs1 = zeros(ComplexF64, length(eqs_cs1_c))

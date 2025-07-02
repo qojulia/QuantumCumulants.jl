@@ -55,14 +55,14 @@ const qc = QuantumCumulants
 
 # u0_ev = zeros(ComplexF64, length(eqs_ev))
 
-# @named sys_ev = ODESystem(eqs_ev)
+# @named sys_ev = System(eqs_ev)
 # prob_ev = ODEProblem(sys_ev, u0_ev, (0.0, 0.1/50Γ_), ps .=> p0);
 # sol_ev = solve(prob_ev, Tsit5(), maxiters = 1e7)
 
 # corr3 = CorrelationFunction(op1, op2, eqs_c_2)
 # corr3_ev = evaluate(corr3, 1, 2; limits = (N=>3));
 
-# @named csys3 = ODESystem(corr3_ev)
+# @named csys3 = System(corr3_ev)
 
 # p0_c3 = correlation_p0(corr3_ev, sol_ev.u[end], ps .=> p0)
 # u0_c3 = correlation_u0(corr3_ev, sol_ev.u[end])
@@ -130,7 +130,7 @@ const qc = QuantumCumulants
 
 
     # define the ODE System and Problem
-    @named sys = ODESystem(eqs_sc1)
+    @named sys = System(eqs_sc1)
 
     # Initial state
     u0 = zeros(ComplexF64, length(eqs_sc1))
@@ -220,7 +220,7 @@ const qc = QuantumCumulants
 
     p0_c2 = correlation_p0(corr2_sc, sol.u[end], ps .=> p0)
     u0_c2 = correlation_u0(corr2_sc, sol.u[end])
-    @named csys2 = ODESystem(corr2_sc) # 5 equations, 8 parameters
+    @named csys2 = System(corr2_sc) # 5 equations, 8 parameters
 
     # prob_c2 = ODEProblem(csys2,u0_c2,(0.0,5.0),p0_c2)
     prob_c2 = ODEProblem(csys2, u0_c2, (0.0, 0.05), p0_c2)
@@ -235,7 +235,7 @@ const qc = QuantumCumulants
 
     u0_ev = zeros(ComplexF64, length(eqs_ev))
 
-    @named sys_ev = ODESystem(eqs_ev)
+    @named sys_ev = System(eqs_ev)
     # prob_ev = ODEProblem(sys_ev,u0_ev,(0.0, 1.0/50Γ_), ps.=>p0);
     prob_ev = ODEProblem(sys_ev, u0_ev, (0.0, 0.1/50Γ_), ps .=> p0);
     sol_ev = solve(prob_ev, Tsit5(), maxiters = 1e7)
@@ -246,7 +246,7 @@ const qc = QuantumCumulants
 
     p0_c3 = correlation_p0(corr3_ev, sol_ev.u[end], ps .=> p0)
     u0_c3 = correlation_u0(corr3_ev, sol_ev.u[end])
-    @named csys3 = ODESystem(corr3_ev)
+    @named csys3 = System(corr3_ev)
 
     # prob_c3 = ODEProblem(csys3,u0_c3,(0.0,5.0),p0_c3)
     dict = merge(Dict(u0_c3), Dict(p0_c3))
@@ -271,7 +271,7 @@ const qc = QuantumCumulants
     p0_c = correlation_p0(corr_nss_sc, sol.u[end], ps .=> p0)
     u0_c = correlation_u0(corr_nss_sc, sol.u[end])
 
-    @named csys = ODESystem(corr_nss_sc)
+    @named csys = System(corr_nss_sc)
 
     # prob_c4 = ODEProblem(csys,u0_c,(0.0,10.0),p0_c);
     dict = merge(Dict(p0_c), Dict(u0_c))
@@ -443,7 +443,7 @@ const qc = QuantumCumulants
     eqs = meanfield(ops, H, J; rates = rates, order = 2);
     eqs_c = complete(eqs);
     eqs_sc = scale(eqs_c);
-    @named sys = ODESystem(eqs_sc)
+    @named sys = System(eqs_sc)
     # Initial state
     u0 = zeros(ComplexF64, length(eqs_sc))
     # System parameters

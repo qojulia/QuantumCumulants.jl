@@ -306,8 +306,8 @@ function (s::Spectrum)(ω_ls, usteady, ps = []; wtol = 0)
     return s_
 end
 
-# Convert to ODESystem
-function MTK.ODESystem(c::CorrelationFunction; complete_sys = true, kwargs...)
+# Convert to System
+function MTK.System(c::CorrelationFunction; complete_sys = true, kwargs...)
     τ = MTK.get_iv(c.de)
 
     ps = extract_parameters(c.de)
@@ -374,7 +374,7 @@ function MTK.ODESystem(c::CorrelationFunction; complete_sys = true, kwargs...)
         de_ = substitute(de_, Dict(_conj(avg0) => avg0_par))
     end
 
-    return MTK.ODESystem(de_, τ; kwargs...)
+    return MTK.System(de_, τ; kwargs...)
 end
 
 substitute(c::CorrelationFunction, args...; kwargs...) = CorrelationFunction(

@@ -82,7 +82,7 @@ const qc = QuantumCumulants
     eqs_ord_c2 = complete(eqs_ord; order = 2)
     @test isequal(eqs_ord_c.states, eqs_ord_c2.states)
 
-    @named sys = ODESystem(eqs_);
+    @named sys = System(eqs_);
 
     u0 = zeros(ComplexF64, length(eqs_))
     # parameter
@@ -253,7 +253,7 @@ const qc = QuantumCumulants
     abstol=1e-8
     reltol=1e-8
     eqs_sc = scale(eqs_c);
-    @named sys_sc = ODESystem(eqs_sc);
+    @named sys_sc = System(eqs_sc);
     u0 = zeros(ComplexF64, length(eqs_sc))
     u0[1] = 2 # initial value for ⟨b'*b⟩
     ps_sc = [IndexedVariable(:g, 1), N, Δ, κ, γ, ν, χ]
@@ -265,7 +265,7 @@ const qc = QuantumCumulants
 
     #test with evaluate
     eqs_eval = evaluate(eqs_c; limits = (N=>N_));
-    @named sys = ODESystem(eqs_eval);
+    @named sys = System(eqs_eval);
     u0 = zeros(ComplexF64, length(eqs_eval))
     u0[1] = 2
     ps = [gi, Δ, κ, γ, ν, χ]
@@ -292,7 +292,7 @@ const qc = QuantumCumulants
     eqs_ = meanfield(ops_, H_, J_; rates = rates_, order = 2)
     eqs_c_ = complete(eqs_);
 
-    @named sys_ = ODESystem(eqs_c_)
+    @named sys_ = System(eqs_c_)
     u0_ = zeros(ComplexF64, length(eqs_c_))
     u0_[1] = 2
     ps_ = [gg, Δ, κ, γ, ν, χ]
