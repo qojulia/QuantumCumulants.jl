@@ -104,7 +104,7 @@ function substitute_conj_ind(t::T, vs′, vs′hash) where {T}
 end
 
 function extract_parameters(eqs::Vector{Symbolics.Equation})
-    params = []
+    params = Set()
     for eq in eqs
         for var in Symbolics.get_variables(eq.rhs)
             if !SymbolicUtils.iscall(var)
@@ -112,7 +112,7 @@ function extract_parameters(eqs::Vector{Symbolics.Equation})
             end
         end
     end
-    return params
+    return collect(params)
 end
 
 function extract_parameters(me::AbstractMeanfieldEquations)
