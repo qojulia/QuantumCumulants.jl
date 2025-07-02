@@ -1,5 +1,6 @@
 using QuantumCumulants
-using ModelingToolkit, OrdinaryDiffEq
+using ModelingToolkit
+using OrdinaryDiffEq
 using Test
 
 @testset "two-level-laser" begin
@@ -61,8 +62,8 @@ using Test
         (g .=> 1.5 .* ones(N))...,
         (Δ .=> ones(N))...,
     ]
-
-    prob = ODEProblem(sys, u0, (0.0, 10.0), p0)
+    dict = merge(Dict(unknowns(sys) .=> u0), Dict(p0...))
+    prob = ODEProblem(sys, dict, (0.0, 10.0))
 
     sol = solve(prob, RK4())
 
@@ -101,7 +102,8 @@ using Test
 
 
     @named sys_comp = System(he_n)
-    prob_comp = ODEProblem(sys_comp, u0, (0.0, 10.0), p0)
+    dict = merge(Dict(unknowns(sys_comp) .=> u0), Dict(p0...))
+    prob_comp = ODEProblem(sys_comp, dict, (0.0, 10.0))
 
     sol_comp = solve(prob_comp, RK4())
 

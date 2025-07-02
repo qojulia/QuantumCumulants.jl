@@ -41,7 +41,8 @@ using Test
     u0 = zeros(ComplexF64, 3)
     tmax = 10.0
 
-    prob = ODEProblem(sys, u0, (0.0, tmax), p0)
+    dict = merge(Dict(unknowns(sys) .=> u0), Dict(p0))
+    prob = ODEProblem(sys, dict, (0.0, tmax))
     sol = solve(prob, RK4())
     n = sol[average(a'*a)]
     pe = getindex.(sol.u, 2)

@@ -117,7 +117,8 @@ const qc = QuantumCumulants
     p0_i = [Δc_i, η_, Δa_i, κ_, g_v, ΓMatrix, ΩMatrix]
 
     ps_ = value_map(ps, p0_i) #Combine all the parameters + values to one list for solving
-    prob = ODEProblem(sys, u0, (0.0, 10Γ_), ps_);
+    dict = merge(Dict(zip(unknowns(sys), u0)), Dict(ps_))
+    prob = ODEProblem(sys, dict, (0.0, 10Γ_));
 
     sol_ss =
         solve(prob, Tsit5(), save_everystep = false, save_on = false, save_start = false)
@@ -259,7 +260,8 @@ const qc = QuantumCumulants
     ps_sc = [IndexedVariable(:g, 1), N, Δ, κ, γ, ν, χ]
     p_sc = [0.5, N_, 0.0, 1.0, 1.0, 0.5, 2.0]
     P_sc = value_map(ps_sc, p_sc);
-    prob_sc = ODEProblem(sys_sc, u0, (0.0, 10.0), P_sc);
+    dict = merge(Dict(zip(unknowns(sys_sc), u0)), Dict(P_sc))
+    prob_sc = ODEProblem(sys_sc, dict, (0.0, 10.0));
     sol_sc = solve(prob_sc, Tsit5(); abstol, reltol);
     @test sol_sc isa ODESolution
 
@@ -271,7 +273,8 @@ const qc = QuantumCumulants
     ps = [gi, Δ, κ, γ, ν, χ]
     p = [[0.5, 0.5, 0.5], 0.0, 1.0, 1.0, 0.5, 2.0]
     P = value_map(ps, p; limits = (N=>N_));
-    prob = ODEProblem(sys, u0, (0.0, 10.0), P);
+    dict = merge(Dict(zip(unknowns(sys), u0)), Dict(P))
+    prob = ODEProblem(sys, dict, (0.0, 10.0));
     sol = solve(prob, Tsit5(); abstol, reltol);
     @test sol isa ODESolution
 
@@ -297,7 +300,8 @@ const qc = QuantumCumulants
     u0_[1] = 2
     ps_ = [gg, Δ, κ, γ, ν, χ]
     p_ = [0.5, 0.0, 1.0, 1.0, 0.5, 2.0]
-    prob_ = ODEProblem(sys_, u0_, (0, 10.0), ps_ .=> p_)
+    dict = merge(Dict(unknowns(sys_) .=> u0_), Dict(ps_ .=> p_))
+    prob_ = ODEProblem(sys_, dict, (0, 10.0))
     sol_ = solve(prob_, Tsit5(); abstol, reltol)
 
     @test sol_sc[b_'b_][end] ≈ sol[b_'b_][end] ≈ sol_[b2'b2][end]

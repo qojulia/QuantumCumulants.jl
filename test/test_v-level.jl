@@ -87,8 +87,9 @@ using SymbolicUtils
     gn = 10.0 * Γ2n
     tmax = 5/Γ2n
 
-    p0 = p .=> [κn, gn, Δcn, Γ2n, Γ3n, Δ2n, Δ3n, Ω2n, Ω3n]
-    prob = ODEProblem(sys, u0, (0.0, tmax), p0)
+    p0 = Dict(zip(p, [κn, gn, Δcn, Γ2n, Γ3n, Δ2n, Δ3n, Ω2n, Ω3n]))
+    dict = merge(Dict(unknowns(sys) .=> u0), p0)
+    prob = ODEProblem(sys, dict, (0.0, tmax))
     sol = solve(prob, RK4())
 
     avg = average(a'*σ(2, 1))

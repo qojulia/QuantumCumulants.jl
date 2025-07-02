@@ -30,8 +30,8 @@ using Test
     p0 = ps .=> ComplexF64[1, 1.5, 0.25, 1, 4]
     u0 = unknowns(sys) .=> zeros(ComplexF64, length(he_comp))
     tmax = 10.0
-
-    prob = ODEProblem(sys, u0, (0.0, tmax), p0)
+    dict = merge(Dict(u0), Dict(p0))
+    prob = ODEProblem(sys, dict, (0.0, tmax))
     sol = solve(prob, RK4())
     n = getindex.(sol.u, 1)
     pe = getindex.(sol.u, 2)
@@ -49,8 +49,8 @@ using Test
     p0_c = correlation_p0(c_steady, sol.u[end], p0)
     # p0_c = (p0..., (c_steady.de0.lhs .=> sol.u[end])...)
     τ = range(0.0, 10tmax; length = 1001)
-
-    prob_c = ODEProblem{true}(csys, u0_c, (0.0, τ[end]), [p0_c...])
+    dict = merge(Dict(u0_c), Dict(p0_c))
+    prob_c = ODEProblem{true}(csys, dict, (0.0, τ[end]))
     sol_c = solve(prob_c, RK4(), saveat = τ, save_idxs = 1)
 
     # Spectrum via FFT of g(τ)
@@ -113,7 +113,8 @@ using Test
 
     u0 = zeros(ComplexF64, 2)
     @named sys = System(eqs)
-    prob = ODEProblem(sys, u0, (0.0, 20.0), ps .=> p0)
+    dict = merge(Dict(unknowns(sys) .=> u0), Dict(ps .=> p0))
+    prob = ODEProblem(sys, dict, (0.0, 20.0))
     sol = solve(prob, RK4())
 
     @test sol.retcode == SciMLBase.ReturnCode.Success

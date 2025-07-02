@@ -1,6 +1,6 @@
 using QuantumCumulants
 using QuantumOpticsBase
-using ModelingToolkit: System
+using ModelingToolkit
 using OrdinaryDiffEq
 using Test
 using Random;
@@ -279,7 +279,8 @@ Random.seed!(0)
     ps = [N, Δ, g, κ, Γ]
     p0 = [N_, Δ_, g_, κ_, Γ_]
 
-    prob = ODEProblem(sys, u0, (0.0, 1e-4/Γ_), ps .=> p0)
+    dict = merge(Dict(unknowns(sys) .=> u0), Dict(ps .=> p0))
+    prob = ODEProblem(sys, dict, (0.0, 1e-4/Γ_))
     sol = solve(prob, Tsit5(); save_on = false, save_everystep = false)
     @test sol.retcode == ReturnCode.Success
 

@@ -90,7 +90,8 @@ using ModelingToolkit
     N_ = N0*[1.0 for c = 1:N_c]
 
     p0 = ps .=> [ones(length(ps)-1); N_]
-    prob1 = ODEProblem(sys, u0, (0.0, 1.0), p0)
+    dict = merge(Dict(unknowns(sys) .=> u0), Dict(p0))
+    prob1 = ODEProblem(sys, dict, (0.0, 1.0))
     sol1 = solve(prob1, Tsit5(), reltol = 1e-12, abstol = 1e-12)
 
     @test sol1.u[end][1] ≈ 0.0758608728203
@@ -213,7 +214,8 @@ using ModelingToolkit
 
     u0 = zeros(ComplexF64, length(he_avg))
     p0 = ps .=> ones(length(ps))
-    prob = ODEProblem(sys, u0, (0.0, 1.0), p0)
+    dict = merge(Dict(unknowns(sys) .=> u0), Dict(p0))
+    prob = ODEProblem(sys, dict, (0.0, 1.0))
     sol = solve(prob, Tsit5())
 
     # Test molecule
@@ -257,7 +259,8 @@ using ModelingToolkit
     @named sys = System(he_avg)
     p0 = ps .=> [ones(length(ps)-1); 4]
     u0 = zeros(ComplexF64, length(he_avg))
-    prob1 = ODEProblem(sys, u0, (0.0, 1.0), p0)
+    dict = merge(Dict(unknowns(sys) .=> u0), Dict(p0))
+    prob1 = ODEProblem(sys, dict, (0.0, 1.0))
     sol1 = solve(prob1, Tsit5(), abstol = 1e-12, reltol = 1e-12)
     bdb1 = sol1[b[1]'*b[1]][end]
     σ22_1 = sol1[σ(2, 2)][end]
@@ -448,7 +451,8 @@ using ModelingToolkit
     u0 = zeros(ComplexF64, length(he_scale))
     ps = [δA, δB, ΩA, ΩB, wA, wB, νA, νB, γ, κ, δc, NA, NB]
     p0 = ps .=> [1.0 + i/20 for i = 1:length(ps)]
-    prob = ODEProblem(sys, u0, (0.0, 1.0), p0)
+    dict = merge(Dict(unknowns(sys) .=> u0), Dict(p0))
+    prob = ODEProblem(sys, dict, (0.0, 1.0))
     sol = solve(prob, RK4())
 
     uend = copy(sol.u[end])
