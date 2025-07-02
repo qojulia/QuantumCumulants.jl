@@ -185,6 +185,8 @@ const qc = QuantumCumulants
 
     # prob_c3 = ODEProblem(csys3,u0_c3,(0.0,5.0),p0_c3)
     dict = merge(Dict(u0_c3), Dict(p0_c3))
+
+    # https://github.com/SciML/ModelingToolkit.jl/issues/3789
     # prob_c3 = ODEProblem(csys3, dict, (0.0, 0.05))
     # sol_c3 = solve(prob_c3, Tsit5(); saveat = 0.001, maxiters = 1e8);
 
