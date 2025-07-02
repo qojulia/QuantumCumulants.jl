@@ -53,9 +53,8 @@ using ModelingToolkit, OrdinaryDiffEq
 
 @named sys = ODESystem(me)
 n0 = 20.0 # Initial number of photons in the cavity
-u0 = [n0]
-p0 = (ωc => 1, κ => 1)
-prob = ODEProblem(sys,u0,(0.0,2.0),p0) # End time not in steady state
+p0 = Dict(ωc => 1, κ => 1, unknowns(sys) => [n0]) # Initial values and parameters
+prob = ODEProblem(sys,p0,(0.0,2.0)) # End time not in steady state
 sol = solve(prob,RK4())
 nothing # hide
 ```
@@ -63,11 +62,11 @@ Numerically computing the correlation function works in the same way. Note, the 
 ```@example correlation
 @named csys = ODESystem(c)
 u0_c = correlation_u0(c, sol.u[end])
-prob_c = ODEProblem(csys,u0_c,(0.0,10.0),p0)
+prob_c = ODEProblem(csys,merge(Dict(u0_c),Dict(p0)),(0.0,10.0))
 sol_c = solve(prob_c,RK4(),save_idxs=1)
 nothing # hide
 ```
-Finally, lets check our numerical solution against the analytic one obtained above:
+Finally, let's check our numerical solution against the analytic one obtained above:
 ```@example correlation
 using Test # hide
 g_analytic(τ) = @. sol.u[end] * exp((im*p0[1][2]-0.5p0[2][2])*τ)

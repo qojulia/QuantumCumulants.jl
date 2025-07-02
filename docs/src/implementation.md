@@ -225,9 +225,9 @@ Finally, to obtain a numerical solution we can construct an `ODEProblem` and sol
 
 ```@example meanfield
 using OrdinaryDiffEq
-p0 = (ω => 1.0, η => 0.1)
-u0 = zeros(ComplexF64, length(me))
-prob = ODEProblem(sys,u0,(0.0,1.0),p0)
+p0 = Dict(ω => 1.0, η => 0.1)
+u0 = Dict(zip(unknowns(sys),zeros(ComplexF64, length(me))))
+prob = ODEProblem(sys,merge(u0,p0),(0.0,1.0))
 sol = solve(prob, RK4())
 nothing # hide
 ```
