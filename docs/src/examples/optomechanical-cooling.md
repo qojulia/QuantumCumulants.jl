@@ -78,7 +78,7 @@ To calculate the dynamics we create a system of ordinary differential equations,
 
 
 ```@example optomechanics
-@named sys = ODESystem(eqs_completed)
+@named sys = System(eqs_completed)
 nothing # hide
 ```
 

@@ -99,7 +99,7 @@ To calculate the dynamics of the system we create a system of ordinary different
 
 
 ```@example filter_cavity_indexed
-@named sys = ODESystem(eqs_eval)
+@named sys = System(eqs_eval)
 nothing # hide
 ```
 

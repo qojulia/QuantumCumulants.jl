@@ -5,7 +5,7 @@
 * The model (Hamiltonian) is specified.
 * Equations of motion for average values are derived. This is done by using the fundamental commutation relations of operators. The resulting equations are stored as symbolic equations using the [**Symbolics.jl**](https://github.com/JuliaSymbolics/Symbolics.jl) framework, which is also used for any additional simplification and rewriting.
 * Then follows the key step: the equations of motion the averages are truncated at a specified order neglecting higher-order quantum correlations using the generalized cumulant expansion method. This results in a closed set of *c*-number ordinary differential equations.
-* Finally, the symbolic system of equations can be turned into an `ODESystem` of the [**ModelingToolkit.jl**](https://github.com/SciML/ModelingToolkit.jl) framework which bridges the gap from symbolics to numerics. This makes it straightforward to obtain a solution of the time dynamics of a system within the  [**DifferentialEquations.jl**](https://diffeq.sciml.ai/latest/) ecosystem.
+* Finally, the symbolic system of equations can be turned into an `System` of the [**ModelingToolkit.jl**](https://github.com/SciML/ModelingToolkit.jl) framework which bridges the gap from symbolics to numerics. This makes it straightforward to obtain a solution of the time dynamics of a system within the  [**DifferentialEquations.jl**](https://diffeq.sciml.ai/latest/) ecosystem.
 
 
 ### Installation

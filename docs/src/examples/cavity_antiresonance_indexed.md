@@ -101,7 +101,7 @@ To create the equations for a specific number of atoms we use the function $\tex
 ```@example antiresonance_indexed
 N_ = 2
 eqs_ = evaluate(eqs;limits=(N=>N_))
-@named sys = ODESystem(eqs_)
+@named sys = System(eqs_)
 nothing # hide
 ```
 

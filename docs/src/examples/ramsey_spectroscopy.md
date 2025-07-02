@@ -63,7 +63,7 @@ To calculate the dynamic of the system we create a system of ordinary differenti
 
 
 ```@example ramsey
-@named sys = ODESystem(eqs)
+@named sys = System(eqs)
 
 # Parameter
 Γ_ = 1.0

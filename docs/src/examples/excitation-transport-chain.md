@@ -64,12 +64,12 @@ Rather, we only need to derive the equations once and substitute the noisy posit
 eqs = meanfield(σ(:g,:e,1),H,c_ops;rates=[γ for i=1:N],order=2)
 complete!(eqs)  # complete the set
 
-# Generate the ODESystem
-@named sys = ODESystem(eqs)
+# Generate the System
+@named sys = System(eqs)
 nothing # hide
 ```
 
-Once we have our set of equations and converted it to an `ODESystem` we are ready to solve for the dynamics.
+Once we have our set of equations and converted it to an `System` we are ready to solve for the dynamics.
 First, let's have a look at the excitation transport for perfectly positioned atoms.
 We assume an equidistant chain, were neighboring atoms are separated by a distance $d$.
 
