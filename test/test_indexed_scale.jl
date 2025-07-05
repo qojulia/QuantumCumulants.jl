@@ -136,7 +136,7 @@ const qc = QuantumCumulants
     Sz_(i) = ∑(σ2(2, 2, i) - σ2(3, 3, i), i)
     Sz2 = average(Sz_(i2)*Sz_(j2))
 
-    # SymbolicUtils v1.4.0 changed order of arguments     
+    # SymbolicUtils v1.4.0 changed order of arguments
     # @test QuantumCumulants.isscaleequal(simplify(scale(Sz2)),simplify(average(N*average(σ2(3,3,1)) + N*σ2(2,2,1)) + (-1+N)^2*average(σ2(2,2,1)*σ2(2,2,2)) +
     #    (-1+N)^2*average(σ2(3,3,1)*σ2(3,3,2)) -2*(-1+N)^2*average(σ2(2,2,1)*σ2(3,3,2))))
 
@@ -177,16 +177,18 @@ const qc = QuantumCumulants
 
     # scale
     eqs_sc = scale(eqs_c)
-    @named sys_sc = ODESystem(eqs_sc)
+    @named sys_sc = System(eqs_sc)
     u0_sc = zeros(ComplexF64, length(eqs_sc))
-    prob_sc = ODEProblem(sys_sc, u0_sc, (0, 2.0), [N, V, Ω] .=> [N_, V_, Ω_])
+    dict = merge(Dict(unknowns(sys_sc) .=> u0_sc), Dict([N, V, Ω] .=> [N_, V_, Ω_]))
+    prob_sc = ODEProblem(sys_sc, dict, (0, 2.0))
     sol_sc = solve(prob_sc, RK4())
 
     # evaluate
     eqs_ev = evaluate(eqs_c; limits = (N=>N_))
-    @named sys_ev = ODESystem(eqs_ev)
+    @named sys_ev = System(eqs_ev)
     u0_ev = zeros(ComplexF64, length(eqs_ev))
-    prob_ev = ODEProblem(sys_ev, u0_ev, (0, 2.0), [V, Ω] .=> [V_, Ω_])
+    dict = merge(Dict(unknowns(sys_ev) .=> u0_ev), Dict([N, V, Ω] .=> [N_, V_, Ω_]))
+    prob_ev = ODEProblem(sys_ev, dict, (0, 2.0))
     sol_ev = solve(prob_ev, RK4())
 
     #### straight forward (no indexing) ###
@@ -203,9 +205,10 @@ const qc = QuantumCumulants
     eqs_ = meanfield([σ(1, 2, 1)], Hint_; order)
     eqs_c_ = complete(eqs_)
 
-    @named sys_ = ODESystem(eqs_c_)
+    @named sys_ = System(eqs_c_)
     u0_ = zeros(ComplexF64, length(eqs_c_))
-    prob_ = ODEProblem(sys_, u0_, (0, 2.0), [N, V, Ω] .=> [N_, V_, Ω_])
+    dict = merge(Dict(unknowns(sys_) .=> u0_), Dict([N, V, Ω] .=> [N_, V_, Ω_]))
+    prob_ = ODEProblem(sys_, dict, (0, 2.0))
     sol_ = solve(prob_, RK4())
 
     @test sol_ev[s(1, 2, 1)][end] ≈ sol_[σ(1, 2, 1)][end] ≈ sol_sc[s(1, 2, 1)][end]
@@ -253,7 +256,7 @@ const qc = QuantumCumulants
     eqs = meanfield(ops, H, J; Jdagger = Jd, rates = rates, order = order)
     complete!(eqs)
     eqs_sc = scale(eqs)
-    @named sys = ODESystem(eqs_sc)
+    @named sys = System(eqs_sc)
     # Numerics
     u0 = zeros(ComplexF64, length(eqs_sc))
     Γ0 = 1.0
@@ -281,7 +284,8 @@ const qc = QuantumCumulants
         [η_(c) for c = 1:M];
         [N_(c) for c = 1:M]
     ]
-    prob = ODEProblem(sys, u0, (0.0, 4*2π/η0), ps .=> pn)
+    dict = merge(Dict(unknowns(sys) .=> u0), Dict(ps .=> pn))
+    prob = ODEProblem(sys, dict, (0.0, 4*2π/η0))
     sol = solve(prob, Tsit5(), reltol = 1e-10, abstol = 1e-10, maxiters = 1e7)
     t_ = sol.t
     s22(c) = sol[σ(2, 2, c, 1)]
@@ -305,10 +309,11 @@ const qc = QuantumCumulants
     ops_a = [s(2, 2, aon) for aon = 1:N_a]
     eqs_a = meanfield(ops_a, H_a, J_a; Jdagger = Jd_a, rates = rates_a, order = order)
     complete!(eqs_a)
-    @named sys_a = ODESystem(eqs_a)
+    @named sys_a = System(eqs_a)
     # Numerics
     u0_a = zeros(ComplexF64, length(eqs_a))
-    prob_a = ODEProblem(sys_a, u0_a, (0.0, 4*2π/η0), ps .=> pn)
+    dict = merge(Dict(unknowns(sys_a) .=> u0_a), Dict(ps .=> pn))
+    prob_a = ODEProblem(sys_a, dict, (0.0, 4*2π/η0))
     sol_a = solve(prob_a, Tsit5(), reltol = 1e-10, abstol = 1e-10, maxiters = 1e7)
     t_a = sol_a.t
     s22_a(c) = sol_a[s(2, 2, c)]

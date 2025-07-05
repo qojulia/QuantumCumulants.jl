@@ -34,14 +34,15 @@ using Test
     he_nophase = substitute(he_exp, subs)
     @test isempty(find_missing(he_nophase))
 
-    @named sys = ODESystem(he_nophase)
+    @named sys = System(he_nophase)
 
     # Numerical solution
     p0 = ps .=> [0.0, 0.5, 1.0, 0.1, 0.9]
     u0 = zeros(ComplexF64, 3)
     tmax = 10.0
 
-    prob = ODEProblem(sys, u0, (0.0, tmax), p0)
+    dict = merge(Dict(unknowns(sys) .=> u0), Dict(p0))
+    prob = ODEProblem(sys, dict, (0.0, tmax))
     sol = solve(prob, RK4())
     n = sol[average(a'*a)]
     pe = getindex.(sol.u, 2)

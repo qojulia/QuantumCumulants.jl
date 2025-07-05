@@ -110,7 +110,7 @@ In any case, we need to compute the steady state of the system numerically.
 ```@example single-atom-laser-spectrum
 # Numerical solution
 ps = (Δ, g, γ, κ, ν)
-@named sys = ODESystem(eqs)
+@named sys = System(eqs)
 u0 = zeros(ComplexF64, length(eqs))
 p0 = (1.0, 1.5, 0.25, 1, 4)
 prob = ODEProblem(sys,u0,(0.0,10.0),ps.=>p0)
@@ -123,7 +123,7 @@ Now, we can compute the time evolution of the correlation function in a similar 
 
 ```@example single-atom-laser-spectrum
 # Time evolution of correlation function
-@named csys = ODESystem(c)
+@named csys = System(c)
 u0_c = correlation_u0(c,sol.u[end])
 p0_c = correlation_p0(c,sol.u[end],ps.=>p0)
 prob_c = ODEProblem(csys,u0_c,(0.0,500.0),p0_c)

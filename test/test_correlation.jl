@@ -23,15 +23,15 @@ using Test
     he_comp = complete(he_avg)
 
     ps = (Δ, g, γ, κ, ν)
-    @named sys = ODESystem(he_comp)
+    @named sys = System(he_comp)
 
     # Numerical solution
     # p0 = [0.0,0.5,1.0,0.1,0.9]
     p0 = ps .=> ComplexF64[1, 1.5, 0.25, 1, 4]
     u0 = unknowns(sys) .=> zeros(ComplexF64, length(he_comp))
     tmax = 10.0
-
-    prob = ODEProblem(sys, u0, (0.0, tmax), p0)
+    dict = merge(Dict(u0), Dict(p0))
+    prob = ODEProblem(sys, dict, (0.0, tmax))
     sol = solve(prob, RK4())
     n = getindex.(sol.u, 1)
     pe = getindex.(sol.u, 2)
@@ -43,14 +43,14 @@ using Test
 
     # Correlation function
     c_steady = CorrelationFunction(a', a, he_comp; steady_state = true)
-    @named csys = ODESystem(c_steady)
+    @named csys = System(c_steady)
 
     u0_c = correlation_u0(c_steady, sol.u[end])
     p0_c = correlation_p0(c_steady, sol.u[end], p0)
     # p0_c = (p0..., (c_steady.de0.lhs .=> sol.u[end])...)
     τ = range(0.0, 10tmax; length = 1001)
-
-    prob_c = ODEProblem{true}(csys, u0_c, (0.0, τ[end]), [p0_c...])
+    dict = merge(Dict(u0_c), Dict(p0_c))
+    prob_c = ODEProblem{true}(csys, dict, (0.0, τ[end]))
     sol_c = solve(prob_c, RK4(), saveat = τ, save_idxs = 1)
 
     # Spectrum via FFT of g(τ)
@@ -112,34 +112,38 @@ using Test
     # p0 = (20.0,5.0,1.0)
 
     u0 = zeros(ComplexF64, 2)
-    @named sys = ODESystem(eqs)
-    prob = ODEProblem(sys, u0, (0.0, 20.0), ps .=> p0)
+    @named sys = System(eqs)
+    dict = merge(Dict(unknowns(sys) .=> u0), Dict(ps .=> p0))
+    prob = ODEProblem(sys, dict, (0.0, 20.0))
     sol = solve(prob, RK4())
 
     @test sol.retcode == SciMLBase.ReturnCode.Success
 
     c = CorrelationFunction(σ(:e, :g), σ(:g, :e), eqs; steady_state = true)
-    @named csys = ODESystem(c)
+    @named csys = System(c)
     cu0 = correlation_u0(c, sol.u[end])
     @test length(cu0) == 3
 
     cp0 = correlation_p0(c, sol.u[end], ps .=> p0)
     @test length(cp0) == 5
 
-    cprob = ODEProblem(csys, cu0, (0.0, 20.0), cp0)
+    # MTKv10 syntax
+    dict = merge(Dict(cu0), Dict(cp0))
+    cprob = ODEProblem(csys, dict, (0.0, 20.0))
     csol = solve(cprob, RK4())
 
     @test csol.retcode == SciMLBase.ReturnCode.Success
 
     # Mollow when not in steady state
     c = CorrelationFunction(σ(:e, :g), σ(:g, :e), eqs; steady_state = false)
-    @named csys = ODESystem(c)
+    @named csys = System(c)
     cu0 = correlation_u0(c, sol.u[end])
     @test length(cu0) == 3
     cp0 = correlation_p0(c, sol.u[end], ps .=> p0)
     @test length(cp0) == 4
 
-    cprob = ODEProblem(csys, cu0, (0.0, 20.0), cp0)
+    dict = merge(Dict(cu0), Dict(cp0))
+    cprob = ODEProblem(csys, dict, (0.0, 20.0))
     csol_ns = solve(cprob, RK4())
 
     @test all(csol_ns.u .≈ csol.u)
@@ -151,18 +155,21 @@ using Test
     H = ωc*a'*a
     he = meanfield(a'*a, H, [a]; rates = [κ])
     ps = (ωc, κ)
-    @named sys = ODESystem(he)
+    @named sys = System(he)
     n0 = 20.0
     u0 = [n0]
     p0 = (ωc => 1 + 0im, κ => 1 + 0im)
-    prob = ODEProblem(sys, u0, (0.0, 10.0), p0)
+    dict = merge(Dict(p0), Dict(unknowns(sys) .=> u0))
+    prob = ODEProblem(sys, dict, (0.0, 10.0))
     sol = solve(prob, RK4())
 
     c = CorrelationFunction(a', a, he)
-    @named csys = ODESystem(c)
+    @named csys = System(c)
     idx = 5
     u0_c = correlation_u0(c, sol.u[idx])
-    prob_c = ODEProblem(csys, u0_c, (0.0, 10.0), p0)
+
+    dict = merge(Dict(u0_c), Dict(p0))
+    prob_c = ODEProblem(csys, dict, (0.0, 10.0))
     sol_c = solve(prob_c, RK4(), save_idxs = 1)
     # plot(sol_c.t,real.(sol_c.u), label="Re(g) -- numeric")
     # plot(sol_c.t,imag.(sol_c.u), label="Im(g) -- numeric")

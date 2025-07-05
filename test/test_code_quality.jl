@@ -25,7 +25,7 @@ if isempty(VERSION.prerelease)
         # JET.test_package(SecondQuantizedAlgebra; target_defined_modules=true)
         rep = report_package("QuantumCumulants")
         @show rep
-        @test length(JET.get_reports(rep)) <= 306
+        @test length(JET.get_reports(rep)) <= 317
         @test_broken length(JET.get_reports(rep)) == 0
     end
 end

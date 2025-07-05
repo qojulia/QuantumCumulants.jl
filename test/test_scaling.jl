@@ -83,14 +83,15 @@ using ModelingToolkit
     @test length(he_scale) == 9
 
     ps = [Δc; κ; Γ2; Γ3; Γ23; η; ν3; ν2; Δ2; Δ3; Ω3; g; N]
-    @named sys = ODESystem(he_scale)
+    @named sys = System(he_scale)
     u0 = zeros(ComplexF64, length(he_scale))
 
     N0 = 1000/N_c
     N_ = N0*[1.0 for c = 1:N_c]
 
     p0 = ps .=> [ones(length(ps)-1); N_]
-    prob1 = ODEProblem(sys, u0, (0.0, 1.0), p0)
+    dict = merge(Dict(unknowns(sys) .=> u0), Dict(p0))
+    prob1 = ODEProblem(sys, dict, (0.0, 1.0))
     sol1 = solve(prob1, Tsit5(), reltol = 1e-12, abstol = 1e-12)
 
     @test sol1.u[end][1] ≈ 0.0758608728203
@@ -138,10 +139,11 @@ using ModelingToolkit
     @test isempty(find_missing(he_avg))
 
     ps = (Δ, g, γ, κ, ν, N)
-    @named sys = ODESystem(he_avg)
+    @named sys = System(he_avg)
     p0 = ps .=> (0, 1.5, 0.25, 1, 4, 7)
     u0 = zeros(ComplexF64, length(he_scaled))
-    prob = ODEProblem(sys, u0, (0.0, 50.0), p0)
+    dict = merge(Dict(unknowns(sys) .=> u0), Dict(p0))
+    prob = ODEProblem(sys, dict, (0.0, 50.0))
     sol = solve(prob, RK4(), abstol = 1e-10, reltol = 1e-10)
 
     @test sol.u[end][1] ≈ 12.601868534
@@ -208,11 +210,12 @@ using ModelingToolkit
     @test isempty(find_missing(he_avg))
 
     ps = (G, Δ, κ, γ, Ω, N)
-    @named sys = ODESystem(he_avg)
+    @named sys = System(he_avg)
 
     u0 = zeros(ComplexF64, length(he_avg))
     p0 = ps .=> ones(length(ps))
-    prob = ODEProblem(sys, u0, (0.0, 1.0), p0)
+    dict = merge(Dict(unknowns(sys) .=> u0), Dict(p0))
+    prob = ODEProblem(sys, dict, (0.0, 1.0))
     sol = solve(prob, Tsit5())
 
     # Test molecule
@@ -253,10 +256,11 @@ using ModelingToolkit
     @test isempty(find_missing(he_avg))
     ps = (Δ, η, γ, λ, ν, Γ, N)
     # Generate function
-    @named sys = ODESystem(he_avg)
+    @named sys = System(he_avg)
     p0 = ps .=> [ones(length(ps)-1); 4]
     u0 = zeros(ComplexF64, length(he_avg))
-    prob1 = ODEProblem(sys, u0, (0.0, 1.0), p0)
+    dict = merge(Dict(unknowns(sys) .=> u0), Dict(p0))
+    prob1 = ODEProblem(sys, dict, (0.0, 1.0))
     sol1 = solve(prob1, Tsit5(), abstol = 1e-12, reltol = 1e-12)
     bdb1 = sol1[b[1]'*b[1]][end]
     σ22_1 = sol1[σ(2, 2)][end]
@@ -296,7 +300,7 @@ using ModelingToolkit
     @test isempty(find_missing(he_scaled))
 
     ps = (κ, Δ..., g..., γ..., ν..., N...)
-    @named sys = ODESystem(he_scaled)
+    @named sys = System(he_scaled)
     if N_c==2
         p0 =
             ps .=> (
@@ -322,7 +326,9 @@ using ModelingToolkit
             )
     end
     u0 = zeros(ComplexF64, length(he_scaled))
-    prob = ODEProblem(sys, u0, (0.0, 50.0), p0)
+
+    dict = merge(Dict(unknowns(sys) .=> u0), Dict(p0))
+    prob = ODEProblem(sys, dict, (0.0, 50.0))
     sol = solve(prob, RK4(), abstol = 1e-10, reltol = 1e-10)
 
     @test sol.u[end][1] ≈ 12.601868534
@@ -441,11 +447,12 @@ using ModelingToolkit
     @test length(he_scale) == 66
     @test isempty(find_missing(he_scale))
 
-    @named sys = ODESystem(he_scale)
+    @named sys = System(he_scale)
     u0 = zeros(ComplexF64, length(he_scale))
     ps = [δA, δB, ΩA, ΩB, wA, wB, νA, νB, γ, κ, δc, NA, NB]
     p0 = ps .=> [1.0 + i/20 for i = 1:length(ps)]
-    prob = ODEProblem(sys, u0, (0.0, 1.0), p0)
+    dict = merge(Dict(unknowns(sys) .=> u0), Dict(p0))
+    prob = ODEProblem(sys, dict, (0.0, 1.0))
     sol = solve(prob, RK4())
 
     uend = copy(sol.u[end])

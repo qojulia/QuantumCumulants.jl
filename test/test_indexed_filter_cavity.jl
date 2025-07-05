@@ -78,15 +78,17 @@ using Test
     ps = [Γ, κ, g, κf, gf, R, [δ(i) for i = 1:M_]..., Δ, ν, N]
     p0 = [Γ_, κ_, g_, κf_, gf_, R_, δ_ls..., Δ_, ν_, N_]
 
-    @named sys = ODESystem(eqs_eval)
-    prob = ODEProblem(sys, u0, (0.0, 1.0/κf_), ps .=> p0)
+    @named sys = System(eqs_eval)
+    dict = merge(Dict(unknowns(sys) .=> u0), Dict(ps .=> p0))
+    prob = ODEProblem(sys, dict, (0.0, 1.0/κf_))
     sol = solve(prob, Tsit5(); maxiters = 1e7, abstol = 1e-12, reltol = 1e-12)
     n_ind = sol[a'a][end]
     nf_ind = [sol[b(k)'b(k)][end] for k = 1:M_]
     s22_ind = sol[σ(2, 2, 1)][end]
 
-    @named sys2 = ODESystem(eqs_sc_)
-    prob2 = ODEProblem(sys2, u0, (0.0, 1.0/κf_), ps .=> p0)
+    @named sys2 = System(eqs_sc_)
+    dict = merge(Dict(unknowns(sys2) .=> u0), Dict(ps .=> p0))
+    prob2 = ODEProblem(sys2, dict, (0.0, 1.0/κf_))
     sol2 = solve(prob2, Tsit5(); maxiters = 1e7, abstol = 1e-12, reltol = 1e-12)
     n_ind2 = sol2[a'a][end]
     nf_ind2 = [sol2[b(k)'b(k)][end] for k = 1:M_]
@@ -125,13 +127,14 @@ using Test
     eqs_c_ = complete(eqs_)
     @test length(eqs_c_) == length(eqs_eval) == length(eqs_sc_)
 
-    @named sys_ = ODESystem(eqs_c_)
+    @named sys_ = System(eqs_c_)
 
     ps_ = [Γ, κ, g, κf, gf, R, [d(i) for i = 1:M_]..., Δ, ν, N]
     p0_ = [Γ_, κ_, g_, κf_, gf_, R_, δ_ls..., Δ_, ν_, N_]
     u0_ = zeros(ComplexF64, length(eqs_c_))
 
-    prob_ = ODEProblem(sys_, u0_, (0.0, 1.0/κf_), ps_ .=> p0_)
+    dict = merge(Dict(unknowns(sys_) .=> u0_), Dict(ps_ .=> p0_))
+    prob_ = ODEProblem(sys_, dict, (0.0, 1.0/κf_))
     sol_ = solve(prob_, Tsit5(); maxiters = 1e7, abstol = 1e-12, reltol = 1e-12)
 
     n_bf = sol_[c'c][end]

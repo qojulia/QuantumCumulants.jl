@@ -91,8 +91,8 @@ nothing # hide
 To calculate the time evolution we create a Julia function which can be used by DifferentialEquations.jl to solve the set of ordinary differential equations.
 
 ```@example 3-level-laser
-# Build an ODESystem out of the MeanfieldEquations
-@named sys = ODESystem(me_comp)
+# Build an System out of the MeanfieldEquations
+@named sys = System(me_comp)
 nothing # hide
 ```
 

@@ -88,7 +88,7 @@ scaled_eqs = scale(eqs_c)
 ```
 
 # Deterministic time evolution
-Here we define the actual values for the system parameters. We then show that the deterministic time evolution without the noise terms is still accessible by using the constructor ODESystem for the stochastic system of equations and the syntax for the simulation of the time evolution is as usual.
+Here we define the actual values for the system parameters. We then show that the deterministic time evolution without the noise terms is still accessible by using the constructor System for the stochastic system of equations and the syntax for the simulation of the time evolution is as usual.
 
 
 ```julia
@@ -98,7 +98,7 @@ g_ = 6.531*10^3; ωl_ = 2.0 * π * 10^3; t0=0.0;t1=20e-6
 p = [N,ωa,γ,η,χ,ωc,κ,g,ξ,ωl]
 p0 = [N_,ωa_,γ_,η_,χ_,ωc_,κ_,g_,ξ_,ωl_]
 
-@named sys = ODESystem(scaled_eqs)
+@named sys = System(scaled_eqs)
 u0 = zeros(ComplexF64,length(scaled_eqs.equations))
 prob = ODEProblem(sys, u0,(0.0,1e-3),p.=>p0)
 sol_det = solve(prob,RK4(),dt=1e-9)
@@ -110,7 +110,7 @@ xlabel("Time (ms)")
 ```
 
 # Stochastic time evolution
-The stochastic time evolution is accessible via the constructor SDESystem, whose syntax is exactly the same as for the ODESystem, but with keyword args as defined in https://docs.sciml.ai/DiffEqDocs/stable/tutorials/sde_example/. We then need to provide a noise process for the measurement. If the noise is white the appropriate noise process is a Wiener process. The SDEProblem is then constructed just as the ODEProblem, but with an additional noise argument.
+The stochastic time evolution is accessible via the constructor SDESystem, whose syntax is exactly the same as for the System, but with keyword args as defined in https://docs.sciml.ai/DiffEqDocs/stable/tutorials/sde_example/. We then need to provide a noise process for the measurement. If the noise is white the appropriate noise process is a Wiener process. The SDEProblem is then constructed just as the ODEProblem, but with an additional noise argument.
 
 We can then make use of the EnsembleProblem which automatically runs multiple instances of the stochastic equations of motion. The number of trajectories can then be set in the solve call. See the documentation cited above for more details of the function calls here.
 

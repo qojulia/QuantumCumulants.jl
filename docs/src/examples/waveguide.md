@@ -142,7 +142,7 @@ Finally, we create the ODE-problem, calculate the dynamics and plot the results.
 
 
 ```@example waveguide
-@named sys = ODESystem(eqs)
+@named sys = System(eqs)
 prob = ODEProblem(sys,u0,(0.0, 8e-3), ps.=>p0)
 sol = solve(prob,Tsit5(),abstol=1e-6,reltol=1e-6)
 nothing # hide
