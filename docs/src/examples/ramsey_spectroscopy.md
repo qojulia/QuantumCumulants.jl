@@ -74,7 +74,7 @@ To calculate the dynamic of the system we create a system of ordinary differenti
 tp = π/2Ω_ # π/2-pulse
 tf = 1/20Γ_ # free evolution without drive
 
-function f(t)
+global function f(t)
     if t<tp || (t>tp+tf && t<2tp+tf)
         return 1
     else
@@ -82,8 +82,8 @@ function f(t)
     end
 end    
 
-ps = [Γ; Ω; Δ; ν]
-p0 = [Γ_; Ω_; Δ_; ν_]
+ps = [Γ, Ω, Δ, ν]
+p0 = [Γ_, Ω_, Δ_, ν_]
 
 # Initial state
 u0 = zeros(ComplexF64, length(eqs))
@@ -94,7 +94,8 @@ Finally, we calculate and plot the time evolution.
 
 
 ```@example ramsey
-prob = ODEProblem(sys,u0,(0.0, 2tp+tf), ps.=>p0)
+dict = merge(Dict(ps.=>p0), Dict(unknowns(sys) .=> u0))
+prob = ODEProblem(sys,dict,(0.0, 2tp+tf))
 sol = solve(prob,Tsit5(),maxiters=1e7)
 
 # Plot time evolution
