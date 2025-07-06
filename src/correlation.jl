@@ -40,7 +40,7 @@ function CorrelationFunction(
 )
     if iv === nothing
         iv_ = SymbolicUtils.Sym{Real}(:τ)
-        iv_ = SymbolicUtils.setmetadata(iv_, MTK.VariableSource, (:parameters, :τ))
+        iv_ = SymbolicUtils.setmetadata(iv_, Symbolics.VariableSource, (:parameters, :τ))
         iv_ = SymbolicUtils.setmetadata(iv_, MTK.MTKVariableTypeCtx, MTK.PARAMETER)
     else
         iv_ = iv
@@ -383,7 +383,7 @@ function MTK.ODESystem(c::CorrelationFunction; complete_sys = true, kwargs...)
     return complete_sys ? complete(sys) : sys
 end
 
-substitute(c::CorrelationFunction, args...; kwargs...) = CorrelationFunction(
+SymbolicUtils.substitute(c::CorrelationFunction, args...; kwargs...) = CorrelationFunction(
     c.op1,
     c.op2,
     substitute(c.de0, args...; kwargs...),
@@ -619,7 +619,7 @@ function _substitute_vars(t::T) where {T<:SymbolicUtils.Symbolic}
             )
         else
             args = [_substitute_vars(arg) for arg ∈ SymbolicUtils.arguments(t)]
-            return SymbolicUtils.maketerm(T, f, args, TermInterface.metadata(t))
+            return TermInterface.maketerm(T, f, args, TermInterface.metadata(t))
         end
     else
         return t

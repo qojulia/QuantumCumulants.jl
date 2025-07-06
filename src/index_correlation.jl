@@ -71,7 +71,7 @@ function _new_operator(sum::IndexedAverageSum, h, aon = nothing; kwargs...)
     )
 end
 _new_operator(sym::BasicSymbolic{IndexedAverageSum}, h, aon = nothing; kwargs...) =
-    _new_operator(SymbolicUtils.metadata(sym)[IndexedAverageSum], h, aon; kwargs...)
+    _new_operator(TermInterface.metadata(sym)[IndexedAverageSum], h, aon; kwargs...)
 
 function _new_operator(sum::IndexedAverageDoubleSum, h, aon = nothing; kwargs...)
     newsum_index = sum.sum_index
@@ -88,13 +88,13 @@ function _new_operator(sum::IndexedAverageDoubleSum, h, aon = nothing; kwargs...
     return IndexedAverageDoubleSum(inner, newsum_index, newSumNonEquals)
 end
 _new_operator(sym::BasicSymbolic{IndexedAverageDoubleSum}, h, aon = nothing; kwargs...) =
-    _new_operator(SymbolicUtils.metadata(sym)[IndexedAverageDoubleSum], h, aon; kwargs...)
+    _new_operator(TermInterface.metadata(sym)[IndexedAverageDoubleSum], h, aon; kwargs...)
 _new_operator(sym::BasicSymbolic{IndexedVariable}, h, aon = nothing; kwargs...) =
-    _new_operator(SymbolicUtils.metadata(sym)[IndexedVariable], h, aon; kwargs...)
+    _new_operator(TermInterface.metadata(sym)[IndexedVariable], h, aon; kwargs...)
 _new_operator(sym::BasicSymbolic{DoubleIndexedVariable}, h, aon = nothing; kwargs...) =
-    _new_operator(SymbolicUtils.metadata(sym)[DoubleIndexedVariable], h, aon; kwargs...)
+    _new_operator(TermInterface.metadata(sym)[DoubleIndexedVariable], h, aon; kwargs...)
 _new_operator(sym::BasicSymbolic{SpecialIndexedAverage}, h, aon = nothing; kwargs...) =
-    _new_operator(SymbolicUtils.metadata(sym)[SpecialIndexedAverage], h, aon; kwargs...)
+    _new_operator(TermInterface.metadata(sym)[SpecialIndexedAverage], h, aon; kwargs...)
 function _new_operator(sym::SpecialIndexedAverage, h, aon = nothing; kwargs...)
     indexMap =
         [(_new_index(f, h, aon), _new_index(l, h, aon)) for (f, l) in sym.indexMapping]
@@ -166,7 +166,7 @@ function IndexedCorrelationFunction(
 )
     if iv === nothing
         iv_ = SymbolicUtils.Sym{Real}(:τ)
-        iv_ = SymbolicUtils.setmetadata(iv_, MTK.VariableSource, (:parameters, :τ))
+        iv_ = SymbolicUtils.setmetadata(iv_, Symbolics.VariableSource, (:parameters, :τ))
         iv_ = SymbolicUtils.setmetadata(iv_, MTK.MTKVariableTypeCtx, MTK.PARAMETER)
     else
         iv_ = iv

@@ -157,7 +157,7 @@ function indexed_master_lindblad(a_, J, Jdagger, rates)
             end
         else
             if rates[k] isa BasicSymbolic{DoubleIndexedVariable}
-                meta = SymbolicUtils.metadata(rates[k])[DoubleIndexedVariable]
+                meta = TermInterface.metadata(rates[k])[DoubleIndexedVariable]
                 if !(J[k] isa Vector) && !(isempty(get_indices(J[k])))
                     inds = get_indices(J[k])
                     length(inds) != 1 && error(
@@ -654,7 +654,7 @@ function find_missing_sums(
     for eq in eqs
         sums = checkIfSum(eq.rhs)   #get all sums of the rhs
         for sum in sums
-            meta = SymbolicUtils.metadata(sum)[IndexedAverageSum]
+            meta = TermInterface.metadata(sum)[IndexedAverageSum]
             extras_filtered = filterExtras(meta.sum_index, extras) #all the extraIndices, that have the same specific hilbertspace as the sum
             checkAndChange(
                 missed_,
@@ -697,7 +697,7 @@ function find_missing_Dsums(
     return inorder!.(missed_)
 end
 function checkAndChange(missed_, sum, extras, states, checking, scaling; kwargs...)
-    meta = SymbolicUtils.metadata(sum)[IndexedAverageSum]
+    meta = TermInterface.metadata(sum)[IndexedAverageSum]
     avrgs = getAvrgs(sum) #get vector of all avrgs in the sum
     if avrgs isa Average
         avrgs = [avrgs]
@@ -733,10 +733,10 @@ function checkAndChange(missed_, sum, extras, states, checking, scaling; kwargs.
 end
 function checkAndChangeDsum(missed_, sum, extras, states, checking, scaling; kwargs...)
     avrgs = getAvrgs(sum) #get vector of all avrgs in the sum
-    meta = SymbolicUtils.metadata(sum)[IndexedAverageDoubleSum]
+    meta = TermInterface.metadata(sum)[IndexedAverageDoubleSum]
     inner = meta.innerSum
     outerInd = meta.sum_index
-    meta_inner = SymbolicUtils.metadata(sum)[IndexedAverageSum]
+    meta_inner = TermInterface.metadata(sum)[IndexedAverageSum]
     innerInd = meta_inner.sum_index
     for avr in avrgs
         changed_ = nothing
@@ -793,7 +793,7 @@ function find_missing!(
     vshash;
     kwargs...,
 )
-    meta = SymbolicUtils.metadata(term)[SpecialIndexedAverage]
+    meta = TermInterface.metadata(term)[SpecialIndexedAverage]
     return find_missing!(missed, missed_hashes, meta.term, vhash, vshash; kwargs...)
 end
 
@@ -867,8 +867,8 @@ function elimRed!(missed::Vector; scaling::Bool = false, kwargs...)
     return missed
 end
 
-complete(eqs::IndexedMeanfieldEquations; kwargs...) = indexed_complete(eqs; kwargs...)
-complete!(eqs::IndexedMeanfieldEquations; kwargs...) = indexed_complete!(eqs; kwargs...)
+MTK.complete(eqs::IndexedMeanfieldEquations; kwargs...) = indexed_complete(eqs; kwargs...)
+MTK.complete!(eqs::IndexedMeanfieldEquations; kwargs...) = indexed_complete!(eqs; kwargs...)
 
 """
     evaluate(eqs::IndexedMeanfieldEquations;limits)

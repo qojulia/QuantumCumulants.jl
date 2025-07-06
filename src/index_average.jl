@@ -212,7 +212,7 @@ function eval_term(
     h = nothing,
     kwargs...,
 )
-    meta = SymbolicUtils.metadata(sum_)[IndexedAverageSum]
+    meta = TermInterface.metadata(sum_)[IndexedAverageSum]
     if !=(h, nothing)
         if !(h isa Vector)
             h = [h]
@@ -261,7 +261,7 @@ function eval_term(
     return sum(adds)
 end
 function eval_term(sum::BasicSymbolic{IndexedAverageDoubleSum}; kwargs...)
-    meta = SymbolicUtils.metadata(sum)[IndexedAverageDoubleSum]
+    meta = TermInterface.metadata(sum)[IndexedAverageDoubleSum]
     return eval_term(
         IndexedAverageDoubleSum(
             eval_term(meta.innerSum; kwargs...),
@@ -342,7 +342,7 @@ function create_value_map(
     limits = Dict{BasicSymbolic,Int64}(),
     kwargs...,
 )
-    iVar = SymbolicUtils.metadata(sym)[IndexedVariable]
+    iVar = TermInterface.metadata(sym)[IndexedVariable]
     if iVar.ind.range isa SymbolicUtils.BasicSymbolic
         if iVar.ind.range in keys(limits)
             range1 = limits[iVar.ind.range]
@@ -367,7 +367,7 @@ function create_value_map(
     limits = Dict{BasicSymbolic,Int64}(),
     kwargs...,
 )
-    iVar = SymbolicUtils.metadata(sym)[IndexedVariable]
+    iVar = TermInterface.metadata(sym)[IndexedVariable]
     dict = Dict{BasicSymbolic,ComplexF64}()
     if iVar.ind.range isa SymbolicUtils.BasicSymbolic
         if iVar.ind.range in keys(limits)
@@ -390,7 +390,7 @@ function create_value_map(
     kwargs...,
 )
     dict = Dict{BasicSymbolic,ComplexF64}()
-    var = SymbolicUtils.metadata(sym)[DoubleIndexedVariable]
+    var = TermInterface.metadata(sym)[DoubleIndexedVariable]
     if var.ind1.range isa SymbolicUtils.BasicSymbolic
         if var.ind1.range in keys(limits)
             range1 = limits[var.ind1.range]
@@ -436,11 +436,11 @@ containsIndex(term::Average, ind::Index) = ind ∈ get_indices(term)
 # TODO: only used in tests, remove?
 
 getAvrgs(sum::BasicSymbolic{SpecialIndexedAverage}) =
-    getAvrgs(SymbolicUtils.metadata(sum)[SpecialIndexedAverage].term)
+    getAvrgs(TermInterface.metadata(sum)[SpecialIndexedAverage].term)
 getAvrgs(sum::BasicSymbolic{IndexedAverageSum}) =
-    getAvrgs(SymbolicUtils.metadata(sum)[IndexedAverageSum].term)
+    getAvrgs(TermInterface.metadata(sum)[IndexedAverageSum].term)
 getAvrgs(Dsum::BasicSymbolic{IndexedAverageDoubleSum}) =
-    getAvrgs(SymbolicUtils.metadata(Dsum)[IndexedAverageDoubleSum].innerSum)
+    getAvrgs(TermInterface.metadata(Dsum)[IndexedAverageDoubleSum].innerSum)
 function getAvrgs(term::BasicSymbolic{<:CNumber})
     if iscall(term)
         return vcat(
