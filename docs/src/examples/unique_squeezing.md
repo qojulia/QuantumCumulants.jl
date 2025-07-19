@@ -114,7 +114,7 @@ To calculate the dynamics of the system we create a system of ordinary different
 
 ```@example squeezing
 # symbolic ordinary differential equation system
-@named sys = ODESystem(eqs_sc)
+@named sys = System(eqs_sc)
 
 # initial state 
 u0 = zeros(ComplexF64, length(eqs_sc));
@@ -200,7 +200,7 @@ nothing # hide
 
 ```@example squeezing
 # symbolic ordinary differential equation system
-@named sys_a = ODESystem(eqs_a)
+@named sys_a = System(eqs_a)
 
 # initial state 
 u0_a = zeros(ComplexF64, length(eqs_a))

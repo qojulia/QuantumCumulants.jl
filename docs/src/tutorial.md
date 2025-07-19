@@ -58,12 +58,12 @@ using Symbolics
 eqs_nophase = simplify(substitute(eqs_expanded, subs))
 ```
 
-Finally, we can convert the [`MeanfieldEquations`](@ref) to an `ODESystem` as defined in [ModelingToolkit](https://github.com/SciML/ModelingToolkit.jl) which can be solved numerically with [OrdinaryDiffEq](https://github.com/JuliaDiffEq/OrdinaryDiffEq.jl).
+Finally, we can convert the [`MeanfieldEquations`](@ref) to an `System` as defined in [ModelingToolkit](https://github.com/SciML/ModelingToolkit.jl) which can be solved numerically with [OrdinaryDiffEq](https://github.com/JuliaDiffEq/OrdinaryDiffEq.jl).
 
 ```@example tutorial
-# Generate an ODESystem
+# Generate an System
 using ModelingToolkit
-@named sys = ODESystem(eqs_nophase)
+@named sys = System(eqs_nophase)
 
 # Solve the system using the OrdinaryDiffEq package
 using OrdinaryDiffEq

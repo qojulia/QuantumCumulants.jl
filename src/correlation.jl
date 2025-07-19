@@ -306,15 +306,11 @@ function (s::Spectrum)(ω_ls, usteady, ps = []; wtol = 0)
     return s_
 end
 
-# Convert to ODESystem
-function MTK.ODESystem(c::CorrelationFunction; complete_sys = true, kwargs...)
+# Convert to System
+function MTK.System(c::CorrelationFunction; complete_sys = true, kwargs...)
     τ = MTK.get_iv(c.de)
 
-    ps = []
-    for eq ∈ c.de.equations
-        MTK.collect_vars!([], ps, eq.rhs, τ)
-    end
-    unique!(ps)
+    ps = extract_parameters(c.de)
 
     if c.steady_state
         steady_vals = c.de0.states
@@ -348,7 +344,7 @@ function MTK.ODESystem(c::CorrelationFunction; complete_sys = true, kwargs...)
             ps_ = [ps..., _conj(avg)]
             de = substitute(c.de, Dict(avg2 => avg))
         else
-            ps_ = [ps...]
+            ps_ = ps
             de = c.de
         end
     end
@@ -378,9 +374,7 @@ function MTK.ODESystem(c::CorrelationFunction; complete_sys = true, kwargs...)
         de_ = substitute(de_, Dict(_conj(avg0) => avg0_par))
     end
 
-    eqs = MTK.equations(de_)
-    sys = MTK.ODESystem(eqs, τ; kwargs...)
-    return complete_sys ? complete(sys) : sys
+    return MTK.System(de_, τ; kwargs...)
 end
 
 SymbolicUtils.substitute(c::CorrelationFunction, args...; kwargs...) = CorrelationFunction(
