@@ -101,14 +101,48 @@ equations(csys3)[15]
 # for eq in eqs
 #     println(eq)
 # end
-    # sys = MTK.ODESystem(eqs, τ; kwargs...)
-    # return complete_sys ? complete(sys) : sys
+# sys = MTK.ODESystem(eqs, τ; kwargs...)
+# return complete_sys ? complete(sys) : sys
 
 # equations(csys3)
 # unknowns(csys3)
 # parameters(csys3)
 
-val =ComplexF64[-1.1437146742985789e-7 - 6.3887991023161414e-24im, 0.8635967567168613 + 0.0im, 0.8635967567168613 + 0.0im, 0.8635967567168613 + 0.0im, 3.452543902275645e-7 - 0.00034541449685634095im, 3.4525439022756444e-7 - 0.000345414496856341im, 3.452543902275641e-7 - 0.0003454144968563411im, 0.0 + 0.0im, 0.0 + 0.0im, 0.0 + 0.0im, 0.0 + 0.0im, 0.00016965965013210335 - 2.727267523449695e-23im, 0.0001696596501321033 - 3.242573084651477e-23im, 0.00016965965013210333 + 4.61495050759439e-24im, 0.0 + 0.0im, 0.0 + 0.0im, 0.0 + 0.0im, 0.0 + 0.0im, 0.0 + 0.0im, 0.0 + 0.0im, 0.0 + 0.0im, 0.0 + 0.0im, 0.0 + 0.0im, 0.0 + 0.0im, 0.0 + 0.0im, 0.0 + 0.0im, 0.0 + 0.0im, 0.7457993582118818 + 0.0im, 0.7457993582118818 + 3.805486687267425e-24im, 0.7457993582118817 + 0.0im, 0.0 + 0.0im, 0.0 + 0.0im, 0.0 + 0.0im]
+val = ComplexF64[
+    -1.1437146742985789e-7-6.3887991023161414e-24im,
+    0.8635967567168613+0.0im,
+    0.8635967567168613+0.0im,
+    0.8635967567168613+0.0im,
+    3.452543902275645e-7-0.00034541449685634095im,
+    3.4525439022756444e-7-0.000345414496856341im,
+    3.452543902275641e-7-0.0003454144968563411im,
+    0.0+0.0im,
+    0.0+0.0im,
+    0.0+0.0im,
+    0.0+0.0im,
+    0.00016965965013210335-2.727267523449695e-23im,
+    0.0001696596501321033-3.242573084651477e-23im,
+    0.00016965965013210333+4.61495050759439e-24im,
+    0.0+0.0im,
+    0.0+0.0im,
+    0.0+0.0im,
+    0.0+0.0im,
+    0.0+0.0im,
+    0.0+0.0im,
+    0.0+0.0im,
+    0.0+0.0im,
+    0.0+0.0im,
+    0.0+0.0im,
+    0.0+0.0im,
+    0.0+0.0im,
+    0.0+0.0im,
+    0.7457993582118818+0.0im,
+    0.7457993582118818+3.805486687267425e-24im,
+    0.7457993582118817+0.0im,
+    0.0+0.0im,
+    0.0+0.0im,
+    0.0+0.0im,
+]
 p0_c3 = correlation_p0(corr3_ev, val, ps .=> p0)
 u0_c3 = correlation_u0(corr3_ev, val)
 # isequal.(first.(u0_c3),unknowns(csys3))
@@ -123,7 +157,7 @@ dict = merge(Dict(u0_c3), Dict(p0_c3))
 # end
 # equations(csys3)[15]
 
-prob_c3 = ODEProblem(csys3, dict, (0.0, 0.05); fully_determined=true)
+prob_c3 = ODEProblem(csys3, dict, (0.0, 0.05); fully_determined = true)
 # prob_c3.f.f.f_oop
 sol_c3 = solve(prob_c3, Tsit5(); saveat = 0.001, maxiters = 1e8);
 
@@ -132,11 +166,8 @@ op = dict
 tspan = (0.0, 0.05)
 callback = nothing
 check_length = true
-eval_expression = false,
-eval_module = @__MODULE__
-check_compatibility = true,
-
-dvs = unknowns(sys)
+eval_expression = false, eval_module = @__MODULE__
+check_compatibility = true, dvs = unknowns(sys)
 ps = parameters(sys; initial_parameters = true)
 iv = ModelingToolkit.has_iv(sys) ? ModelingToolkit.get_iv(sys) : nothing
 eqs = equations(sys)
@@ -148,14 +179,17 @@ op = ModelingToolkit.to_varmap(op, dvs)
 ModelingToolkit.symbols_to_symbolics!(sys, op)
 ModelingToolkit.check_inputmap_keys(sys, op)
 
-defs = ModelingToolkit.add_toterms(ModelingToolkit.recursive_unwrap(defaults(sys)); replace = ModelingToolkit.is_discrete_system(sys))
+defs = ModelingToolkit.add_toterms(
+    ModelingToolkit.recursive_unwrap(defaults(sys));
+    replace = ModelingToolkit.is_discrete_system(sys),
+)
 obs, eqs = ModelingToolkit.unhack_observed(observed(sys), eqs)
 
 
 u0map = ModelingToolkit.anydict()
 pmap = ModelingToolkit.anydict()
-missing_unknowns, missing_pars = ModelingToolkit.build_operating_point!(sys, op,
-    u0map, pmap, defs, dvs, ps)
+missing_unknowns, missing_pars =
+    ModelingToolkit.build_operating_point!(sys, op, u0map, pmap, defs, dvs, ps)
 
 u0_eltype = nothing
 floatT = ModelingToolkit.calculate_float_type(op, u0Type)
@@ -164,7 +198,8 @@ u0_eltype = ModelingToolkit.something(u0_eltype, floatT)
 u0_constructor = identity
 p_constructor = identity
 symbolic_u0 = false
-u0_constructor = ModelingToolkit.get_u0_constructor(u0_constructor, u0Type, u0_eltype, symbolic_u0)
+u0_constructor =
+    ModelingToolkit.get_u0_constructor(u0_constructor, u0Type, u0_eltype, symbolic_u0)
 p_constructor = ModelingToolkit.get_p_constructor(p_constructor, pType, floatT)
 
 guesses_ = ModelingToolkit.AnyDict()
@@ -173,16 +208,22 @@ t = zero(floatT)
 
 
 
-        has_u0_ics = false
-    op = copy(ModelingToolkit.anydict(op))
-    initialization_eqs = []
-    check_units = false
-    time_dependent_init = true
-    algebraic_only = false
-    isys = generate_initializesystem(
-        sys; op, initialization_eqs, check_units, time_dependent_init,
-        guesses=guesses_, algebraic_only)
-    simplify_system = true
+has_u0_ics = false
+op = copy(ModelingToolkit.anydict(op))
+initialization_eqs = []
+check_units = false
+time_dependent_init = true
+algebraic_only = false
+isys = generate_initializesystem(
+    sys;
+    op,
+    initialization_eqs,
+    check_units,
+    time_dependent_init,
+    guesses = guesses_,
+    algebraic_only,
+)
+simplify_system = true
 
 uninit = setdiff(unknowns(sys), unknowns(isys), observables(isys))
 
