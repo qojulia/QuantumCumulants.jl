@@ -14,7 +14,7 @@ pages = [
     "Examples" => [
         "examples/single-atom-laser-spectrum.md"
         "examples/mollow.md"
-        "examples/many-atom-laser.md"
+        # "examples/many-atom-laser.md"
         "examples/optomechanical-cooling.md"
         "examples/excitation-transport-chain.md"
         # "examples/ramsey_spectroscopy.md"
