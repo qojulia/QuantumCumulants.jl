@@ -273,7 +273,7 @@ function substitute_redundants(
             for arg in SymbolicUtils.arguments(t)
                 push!(args, substitute_redundants(arg, scale_aons, names))
             end
-            return SymbolicUtils.maketerm(T, f, args, TermInterface.metadata(t))
+            return TermInterface.maketerm(T, f, args, TermInterface.metadata(t))
         end
     else
         return t
@@ -450,7 +450,7 @@ function _get_names(names, aon)
 end
 
 ## Complete
-function complete!(
+function MTK.complete!(
     de::ScaledMeanfieldEquations;
     order = de.order,
     multithread = false,

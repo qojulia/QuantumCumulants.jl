@@ -135,7 +135,7 @@ Optional arguments
 
 see also: [`find_missing`](@ref), [`meanfield`](@ref)
 """
-function complete(de::AbstractMeanfieldEquations; kwargs...)
+function MTK.complete(de::AbstractMeanfieldEquations; kwargs...)
     de_ = deepcopy(de)
     complete!(de_; kwargs...)
     return de_
@@ -146,7 +146,7 @@ end
 
 In-place version of [`complete`](@ref)
 """
-function complete!(
+function MTK.complete!(
     de::AbstractMeanfieldEquations;
     order = de.order,
     multithread = false,

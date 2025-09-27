@@ -131,14 +131,14 @@ function _append!(de::T, me::T) where {T<:AbstractMeanfieldEquations}
 end
 
 # Substitution
-function substitute(de::T, dict) where {T<:AbstractMeanfieldEquations}
+function SymbolicUtils.substitute(de::T, dict) where {T<:AbstractMeanfieldEquations}
     eqs = [substitute(eq, dict) for eq ∈ de.equations]
     states = getfield.(eqs, :lhs)
     fields = [getfield(de, s) for s ∈ fieldnames(T)[4:end]]
     return T(eqs, de.operator_equations, states, fields...)
 end
 
-function substitute(de::IndexedMeanfieldEquations, dict)
+function SymbolicUtils.substitute(de::IndexedMeanfieldEquations, dict)
     eqs = [
         Symbolics.Equation(
             inorder!(substitute(eq.lhs, dict)),
@@ -189,6 +189,9 @@ function make_var(v, t)
     var_f = SymbolicUtils.Sym{SymbolicUtils.FnType{Tuple{Any},Complex}}(sym; metadata = d)
     return SymbolicUtils.Term{Complex}(var_f, [t]; metadata = d)
 end
+
+source_metadata(source, name) =
+    Base.ImmutableDict{DataType,Any}(Symbolics.VariableSource, (source, name))
 
 function make_varmap(vs, t)
     varmap = Pair{Any,Any}[]

@@ -39,7 +39,7 @@ function scaleME(me::IndexedMeanfieldEquations; kwargs...)
     )
 end
 scale_term(sym::BasicSymbolic{IndexedAverageSum}; kwargs...) =
-    scale_term(SymbolicUtils.metadata(sym)[IndexedAverageSum]; kwargs...)
+    scale_term(TermInterface.metadata(sym)[IndexedAverageSum]; kwargs...)
 function scale_term(sum::IndexedAverageSum; h = nothing, kwargs...)
     if !=(h, nothing)
         if !(h isa Vector)
@@ -60,7 +60,7 @@ function scale_term(sum::IndexedAverageSum; h = nothing, kwargs...)
     return prefact*term_
 end
 scale_term(sym::BasicSymbolic{IndexedAverageDoubleSum}; kwargs...) =
-    scale_term(SymbolicUtils.metadata(sym)[IndexedAverageDoubleSum]; kwargs...)
+    scale_term(TermInterface.metadata(sym)[IndexedAverageDoubleSum]; kwargs...)
 function scale_term(sum::IndexedAverageDoubleSum; h = nothing, kwargs...)
     if !=(h, nothing)
         if !(h isa Vector)
@@ -102,7 +102,7 @@ function scale_term(add::BasicSymbolic{<:CNumber}; h = nothing, kwargs...)
                     # Double numbered variables need extra computation, since they depend on the number of indices within an average
                     # for example Γij * <σi> * <σj> -> Γ11, since both averages only have 1 index
                     # however Γij <σi * σj> -> Γ12 = Γ21 for scaled terms
-                    meta = SymbolicUtils.metadata(arg)[DoubleIndexedVariable]
+                    meta = TermInterface.metadata(arg)[DoubleIndexedVariable]
                     inds = []
                     for arg in arguments(mul)
                         push!(inds, get_indices(arg))
@@ -183,11 +183,11 @@ function get_ind_dic(inds)
     return dic
 end
 scale_term(x::BasicSymbolic{SpecialIndexedAverage}; kwargs...) =
-    scale_term(SymbolicUtils.metadata(x)[SpecialIndexedAverage].term; kwargs...) #this is fine, since the intrinsic conditions on the indices go away automatically from the scaling
+    scale_term(TermInterface.metadata(x)[SpecialIndexedAverage].term; kwargs...) #this is fine, since the intrinsic conditions on the indices go away automatically from the scaling
 scaleEq(eq::Symbolics.Equation; kwargs...) =
     Symbolics.Equation(scale_term(eq.lhs; kwargs...), scale_term(eq.rhs; kwargs...))
 function scale_term(sym::BasicSymbolic{IndexedVariable}; h = nothing, kwargs...)
-    meta = SymbolicUtils.metadata(sym)[IndexedVariable]
+    meta = TermInterface.metadata(sym)[IndexedVariable]
     if !=(h, nothing)
         if meta.ind.aon in h
             return SingleNumberedVariable(meta.name, 1)
@@ -198,7 +198,7 @@ function scale_term(sym::BasicSymbolic{IndexedVariable}; h = nothing, kwargs...)
     return SingleNumberedVariable(meta.name, 1)
 end
 function scale_term(sym::BasicSymbolic{DoubleIndexedVariable}; h = nothing, kwargs...)
-    meta = SymbolicUtils.metadata(sym)[DoubleIndexedVariable]
+    meta = TermInterface.metadata(sym)[DoubleIndexedVariable]
     if !=(h, nothing)
         if meta.ind1.aon in h
             return DoubleNumberedVariable(meta.name, 1, meta.ind2)
@@ -219,12 +219,12 @@ scale_term(x; kwargs...) = x
 
 SymbolicUtils.substitute(avrg::BasicSymbolic{SpecialIndexedAverage}, subs; fold = false) =
     SymbolicUtils.substitute(
-        SymbolicUtils.metadata(avrg)[SpecialIndexedAverage].term,
+        TermInterface.metadata(avrg)[SpecialIndexedAverage].term,
         subs;
         fold = fold,
     )#SpecialIndexedAverage(SymbolicUtils.substitute(term.metadata.term,subs;fold=fold),term.metadata.indexMapping)
 function SymbolicUtils.substitute(sum::BasicSymbolic{IndexedAverageSum}, subs; fold = false)
-    meta = SymbolicUtils.metadata(sum)[IndexedAverageSum]
+    meta = TermInterface.metadata(sum)[IndexedAverageSum]
     subTerm = SymbolicUtils.substitute(meta.term, subs; fold = fold)
     if SymbolicUtils._iszero(subTerm)
         return 0
@@ -236,7 +236,7 @@ function SymbolicUtils.substitute(sum::BasicSymbolic{IndexedAverageSum}, subs; f
 end
 SymbolicUtils.substitute(Dsum::BasicSymbolic{IndexedAverageDoubleSum}, subs; fold = false) =
     SymbolicUtils.substitute(
-        SymbolicUtils.metadata(Dsum)[IndexedAverageDoubleSum],
+        TermInterface.metadata(Dsum)[IndexedAverageDoubleSum],
         subs;
         fold = fold,
     )
@@ -291,7 +291,7 @@ function split_sums(
         return op(args...)
     end
     if term isa BasicSymbolic{IndexedAverageSum}
-        meta = SymbolicUtils.metadata(term)[IndexedAverageSum]
+        meta = TermInterface.metadata(term)[IndexedAverageSum]
         term_ = meta.term
         sumInd = meta.sum_index
         if isequal(ind, sumInd)
@@ -306,7 +306,7 @@ function split_sums(
         end
     end
     if term isa BasicSymbolic{IndexedAverageDoubleSum}
-        Dsum = SymbolicUtils.metadata(term)[IndexedAverageDoubleSum]
+        Dsum = TermInterface.metadata(term)[IndexedAverageDoubleSum]
         if isequal(ind, Dsum.sum_index)
             #create multiple doubleSums with the same innerSum
             ind2 = Index(
@@ -322,7 +322,7 @@ function split_sums(
             return extraSum + (amount-1)*Σ(Dsum.innerSum, ind2, Index[])
         elseif isequal(
             ind,
-            SymbolicUtils.metadata(Dsum.innerSum)[IndexedAverageSum].sum_index,
+            TermInterface.metadata(Dsum.innerSum)[IndexedAverageSum].sum_index,
         )
             #create doublesum of split innersums
             innerSums = split_sums(Dsum.innerSum, ind, amount)
