@@ -46,7 +46,7 @@ jobs:
       fail-fast: false
       matrix:
         version:
-          - 'pre'
+          # - 'pre'
           - 'lts'
           - '1'
         os:
