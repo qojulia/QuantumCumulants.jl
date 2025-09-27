@@ -5,7 +5,12 @@ using QuantumCumulants, Test
 
     Aqua.test_ambiguities([QuantumCumulants]; broken = true)
     Aqua.test_piracies(QuantumCumulants; broken = true)
-    Aqua.test_all(QuantumCumulants; ambiguities = false, piracies = false)
+    Aqua.test_all(
+        QuantumCumulants;
+        ambiguities = false,
+        piracies = false,
+        persistent_tasks = false,
+    )
 end
 
 @testset "ExplicitImports" begin
