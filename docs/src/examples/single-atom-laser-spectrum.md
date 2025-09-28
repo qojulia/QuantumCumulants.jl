@@ -127,7 +127,7 @@ Now, we can compute the time evolution of the correlation function in a similar 
 @named csys = System(c)
 u0_c = correlation_u0(c,sol.u[end])
 p0_c = correlation_p0(c,sol.u[end],ps.=>p0)
-dict = merge(Dict(unknowns(csys) .=> u0_c), Dict(p0_c))
+dict = merge(Dict(u0_c), Dict(p0_c))
 prob_c = ODEProblem(csys,dict,(0.0,500.0))
 sol_c = solve(prob_c,RK4(),save_idxs=1)
 nothing # hide
