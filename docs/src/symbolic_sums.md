@@ -226,7 +226,9 @@ u0 = zeros(ComplexF64,length(evaled))
 p = [Δ, gi, γ, κ, ν]
 p0 = [0,[0.75,1.2,1.5],0.25,1,1.5]
 p_ = value_map(p,p0;limits=(N=>3))
-prob = ODEProblem(sys,u0,(0.0,10.0),p_)
+
+dict = merge(Dict(unknowns(sys) .=> u0), Dict(p_))
+prob = ODEProblem(sys,dict,(0.0,10.0))
 sol = solve(prob,RK4())
 nothing #hide
 ```

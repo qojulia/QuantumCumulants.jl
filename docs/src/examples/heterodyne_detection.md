@@ -100,7 +100,8 @@ p0 = [N_,ωa_,γ_,η_,χ_,ωc_,κ_,g_,ξ_,ωl_]
 
 @named sys = System(scaled_eqs)
 u0 = zeros(ComplexF64,length(scaled_eqs.equations))
-prob = ODEProblem(sys, u0,(0.0,1e-3),p.=>p0)
+dict = merge(Dict(unknowns(sys) .=> u0), Dict(p .=> p0))
+prob = ODEProblem(sys, dict,(0.0,1e-3))
 sol_det = solve(prob,RK4(),dt=1e-9)
 
 plot(sol_det.t .* 1000, map(x -> real(x[2]), sol_det.u))

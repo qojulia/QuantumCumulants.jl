@@ -91,7 +91,8 @@ u0 = zeros(ComplexF64, length(eqs_completed))
 u0[2] = 4e6 # Initial number of phonons
 # System parameters
 p0 = (Δ=>-10, ωm=>1, E=>200, G=>0.0125, κ=>20)
-prob = ODEProblem(sys,u0,(0.0,60000),p0)
+dict = merge(Dict(unknowns(sys) .=> u0), Dict(p0))
+prob = ODEProblem(sys,dict,(0.0,60000))
 sol = solve(prob,RK4())
 nothing # hide
 ```

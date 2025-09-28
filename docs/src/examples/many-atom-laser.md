@@ -117,7 +117,8 @@ ps = (g, Γ23, Γ13, Γ12, Ω, Δc, Δ3, κ)
 p0 = ps .=> (gn, Γ23n, Γ13n, Γ12n, Ωn, Δcn, Δ3n, κn)
 tend = 10.0/κn
 
-prob = ODEProblem{true}(sys,u0,(0.0,tend),p0)
+dict = merge(Dict(unknowns(sys) .=> u0), Dict(p0))
+prob = ODEProblem(sys,dict,(0.0,tend))
 sol = solve(prob, Tsit5(), reltol=1e-8, abstol=1e-8)
 nothing # hide
 ```

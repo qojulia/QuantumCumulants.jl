@@ -54,7 +54,7 @@ using ModelingToolkit, OrdinaryDiffEq
 @named sys = System(me)
 n0 = 20.0 # Initial number of photons in the cavity
 n_avg = unknowns(sys) |> first
-p0 = (ωc => 1, κ => 1, n_avg => n0) # Initial values and parameters
+p0 = Dict(ωc => 1, κ => 1, n_avg => n0) # Initial values and parameters
 prob = ODEProblem(sys,p0,(0.0,2.0)) # End time not in steady state
 sol = solve(prob,RK4())
 nothing # hide

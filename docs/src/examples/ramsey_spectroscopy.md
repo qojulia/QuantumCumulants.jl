@@ -113,7 +113,8 @@ Scanning over the detuning for the excited state population leads to the well-kn
 s22_ls = zeros(length(Δ_ls))
 
 for i=1:length(Δ_ls)
-    prob_i = ODEProblem(sys,u0,(0.0, 2tp+tf), [Γ; Ω; Δ; ν].=>[Γ_; Ω_; Δ_ls[i]; ν_])
+    dict = merge(Dict(ps.=>[Γ_; Ω_; Δ_ls[i]; ν_]), Dict(unknowns(sys) .=> u0))
+    prob_i = ODEProblem(sys,dict,(0.0, 2tp+tf))
     sol_i = solve(prob_i, RK4(); adaptive=false, dt=1e-5)
     s22_ls[i] = real.(sol_i[σ(2,2)])[end]
 end

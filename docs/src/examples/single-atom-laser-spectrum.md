@@ -113,7 +113,8 @@ ps = (Δ, g, γ, κ, ν)
 @named sys = System(eqs)
 u0 = zeros(ComplexF64, length(eqs))
 p0 = (1.0, 1.5, 0.25, 1, 4)
-prob = ODEProblem(sys,u0,(0.0,10.0),ps.=>p0)
+dict = merge(Dict(unknowns(sys) .=> u0), Dict(ps .=> p0))
+prob = ODEProblem(sys,dict,(0.0,10.0))
 sol = solve(prob,RK4())
 nothing # hide
 ```
@@ -126,7 +127,8 @@ Now, we can compute the time evolution of the correlation function in a similar 
 @named csys = System(c)
 u0_c = correlation_u0(c,sol.u[end])
 p0_c = correlation_p0(c,sol.u[end],ps.=>p0)
-prob_c = ODEProblem(csys,u0_c,(0.0,500.0),p0_c)
+dict = merge(Dict(unknowns(csys) .=> u0_c), Dict(p0_c))
+prob_c = ODEProblem(csys,dict,(0.0,500.0))
 sol_c = solve(prob_c,RK4(),save_idxs=1)
 nothing # hide
 ```
