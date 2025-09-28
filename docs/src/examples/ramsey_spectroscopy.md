@@ -44,7 +44,7 @@ rates = [Γ, ν]
 nothing # hide
 ```
 
-The two-level atom is completely described with the excited state population and the coherence. Therefore we derive the equations for these two operators.
+The two-level atom is completely described with the excited state population and the coherence. Therefore, we derive the equations for these two operators.
 
 
 ```@example ramsey

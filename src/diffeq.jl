@@ -76,7 +76,7 @@ function MTK.System(
     kwargs...,
 )
     eqs = MTK.equations(me)
-    pars = isnothing(pars) ? extract_parameters(eqs) : pars
+    pars = isnothing(pars) ? extract_parameters(eqs, iv) : pars
     sys = MTK.System(eqs, iv, vars, pars; kwargs...)
     return complete_sys ? complete(sys) : sys
 end
@@ -103,11 +103,11 @@ function substitute_conj_ind(t::T, vs′, vs′hash) where {T}
     end
 end
 
-function extract_parameters(eqs::Vector{Symbolics.Equation})
+function extract_parameters(eqs::Vector{Symbolics.Equation}, iv = nothing)
     params = Set()
     for eq in eqs
         for var in Symbolics.get_variables(eq.rhs)
-            if !SymbolicUtils.iscall(var)
+            if !SymbolicUtils.iscall(var) && !isequal(var, iv)
                 push!(params, var)
             end
         end
@@ -118,5 +118,5 @@ end
 function extract_parameters(me::AbstractMeanfieldEquations)
     eqs = MTK.equations(me)
 
-    return extract_parameters(eqs)
+    return extract_parameters(eqs, me.iv)
 end
