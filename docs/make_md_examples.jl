@@ -5,7 +5,7 @@ using Literate
 const EXAMPLES_IN = joinpath(@__DIR__, "..", "examples")
 const OUTPUT_MD_DIR = joinpath(@__DIR__, "src", "examples")
 
-examples = filter!(file -> file[(end - 2):end] == ".jl", readdir(EXAMPLES_IN; join=true))
+examples = filter!(file -> file[(end-2):end] == ".jl", readdir(EXAMPLES_IN; join = true))
 filter!(file -> !contains(file, "make_nb_examples"), examples)
 
 if isempty(get(ENV, "CI", ""))
@@ -22,7 +22,7 @@ end
 function preprocess(content)
     sub = SubstitutionString("""
                              """)
-    content = replace(content, r"^# # [^\n]*"m => sub; count=1)
+    content = replace(content, r"^# # [^\n]*"m => sub; count = 1)
 
     # remove VSCode `##` block delimiter lines
     content = replace(content, r"^##$."ms => "")
@@ -33,8 +33,8 @@ for example in examples
     Literate.markdown(
         example,
         OUTPUT_MD_DIR;
-        flavor=Literate.DocumenterFlavor(),
-        config=extra_literate_config,
+        flavor = Literate.DocumenterFlavor(),
+        config = extra_literate_config,
         # preprocess=preprocess,
     )
 end
