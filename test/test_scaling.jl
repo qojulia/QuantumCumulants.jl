@@ -395,7 +395,7 @@ using ModelingToolkit
         @test length(eqs_ops) == length(ops)
     end
 
-    # What comes nect is takes too long (40 min on CI)
+    # What comes next is takes too long (40 min on CI)
     ### 4th order 2-level laser # takes too long (40 min on CI)
     # @testset "4th order 2-level laser" begin
     # order = 4
