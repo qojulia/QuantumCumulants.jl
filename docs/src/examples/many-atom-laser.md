@@ -1,3 +1,7 @@
+```@meta
+EditURL = "../../../examples/many-atom-laser.jl"
+```
+
 # Many-atom laser
 
 This example describes a second order laser system consisting of $N$ three-level atoms coupled to a single mode cavity. An auxiliary state $|3\rangle$, which quickly decays into the upper lasing state $|2\rangle$, is coherently pumped to achieve population inversion on the lasing transition $|1\rangle \leftrightarrow |2\rangle$. The Hamiltonian of this system is given by
@@ -22,58 +26,47 @@ For our system we have four different dissipative processes with the jump operat
 
 We start by loading the needed packages.
 
-
-```@example 3-level-laser
+````@example many-atom-laser
 using QuantumCumulants
 using ModelingToolkit, OrdinaryDiffEq
 using Plots
-```
+````
 
 Then we define the symbolic parameters of the system, the Hilbertspace and the necessary operators. We define an atomic transition operator function $\sigma(i,j,k)$ for the transition from $|j \rangle$ to $|i \rangle$ of atom $k$. Since we only have one [`FockSpace`](@ref) we do not need to specify the Hilbertspace on which the [`Destroy`](@ref) operator acts. For the different atomic transitions, however, we need to specify this, since there is more than one [`NLevelSpace`](@ref). This information is stored in the `.aon` field of each operator.
 
-
-```@example 3-level-laser
-# Parameters
-N = 2 #number of atoms
+````@example many-atom-laser
+N = 2 # number of atoms
 κ, g, Γ23, Γ13, Γ12, Ω, Δc, Δ3 = cnumbers("κ g Γ_{23} Γ_{13} Γ_{12} Ω Δ_c Δ_3")
 
-# Hilbertspace
-hf = FockSpace(:cavity)
+hf = FockSpace(:cavity) # Hilbertspace
 ha = ⊗([NLevelSpace(Symbol(:atom,i),3) for i=1:N]...)
 h = hf ⊗ ha
 
-# Operators
-a = Destroy(h,:a)
+a = Destroy(h,:a) # Operators
 σ(i,j,k) = Transition(h,Symbol("σ_{$k}"),i,j,k+1)
 nothing # hide
-```
+````
 
 Now we create the Hamiltonian and the jumps with the corresponding rates of our laser system. We assume here that all atoms are identical.
 
+````@example many-atom-laser
+H = -Δc*a'a + sum(g*(a'*σ(1,2,i) + a*σ(2,1,i)) for i=1:N) + sum(Ω*(σ(3,1,i) + σ(1,3,i)) for i=1:N) - sum(Δ3*σ(3,3,i) for i=1:N) # Hamiltonian
 
-```@example 3-level-laser
-# Hamiltonian
-H = -Δc*a'a + sum(g*(a'*σ(1,2,i) + a*σ(2,1,i)) for i=1:N) + sum(Ω*(σ(3,1,i) + σ(1,3,i)) for i=1:N) - sum(Δ3*σ(3,3,i) for i=1:N)
+J = [a;[σ(1,2,i) for i=1:N];[σ(1,3,i) for i=1:N];[σ(2,3,i) for i=1:N]] # Jumps
 
-# Jumps
-J = [a;[σ(1,2,i) for i=1:N];[σ(1,3,i) for i=1:N];[σ(2,3,i) for i=1:N]]
-
-# Rates
-rates = [κ;[Γ12 for i=1:N];[Γ13 for i=1:N];[Γ23 for i=1:N]]
+rates = [κ;[Γ12 for i=1:N];[Γ13 for i=1:N];[Γ23 for i=1:N]] # Rates
 nothing # hide
-```
+````
 
 Later we will complete the system automatically, which has the disadvantage that the equations are not ordered. Therefore we define a list of interesting operators, which we want to use later. Note that at least one operator(-product) is needed. We derive the equations for these operators, average them, and automatically complete the system of equations.
 
-
-```@example 3-level-laser
-# list of operators
-ops = [a'a, σ(2,2,1), σ(3,3,1)]
+````@example many-atom-laser
+ops = [a'a, σ(2,2,1), σ(3,3,1)] # list of operators
 
 eqs = meanfield(ops,H,J; rates=rates)
 eqs_expanded = cumulant_expansion(eqs,2) #second order average
 nothing # hide
-```
+````
 
 ```math
 \begin{align}
@@ -83,25 +76,24 @@ nothing # hide
 \end{align}
 ```
 
-```@example 3-level-laser
-me_comp = complete(eqs_expanded) #automatically complete the system
+````@example many-atom-laser
+me_comp = complete(eqs_expanded) # automatically complete the system
 nothing # hide
-```
+````
 
 To calculate the time evolution we create a Julia function which can be used by DifferentialEquations.jl to solve the set of ordinary differential equations.
 
-```@example 3-level-laser
-# Build an System out of the MeanfieldEquations
+Build a System out of the MeanfieldEquations
+
+````@example many-atom-laser
 @named sys = System(me_comp)
 nothing # hide
-```
+````
 
-Finally we compute the time evolution after defining an initial state and numerical values for the parameters.
+Finally, we compute the time evolution after defining an initial state and numerical values for the parameters.
 
-
-```@example 3-level-laser
-# initial state
-u0 = zeros(ComplexF64, length(me_comp))
+````@example many-atom-laser
+u0 = zeros(ComplexF64, length(me_comp)) # initial state
 
 Γ12n = 1.0
 Γ23n = 20Γ12n
@@ -112,8 +104,7 @@ gn = 2Γ12n
 Δ3n = 0.0
 κn = 0.5Γ12n
 
-# list of parameters
-ps = (g, Γ23, Γ13, Γ12, Ω, Δc, Δ3, κ)
+ps = (g, Γ23, Γ13, Γ12, Ω, Δc, Δ3, κ) # list of parameters
 p0 = ps .=> (gn, Γ23n, Γ13n, Γ12n, Ωn, Δcn, Δ3n, κn)
 tend = 10.0/κn
 
@@ -121,17 +112,33 @@ dict = merge(Dict(unknowns(sys) .=> u0), Dict(p0))
 prob = ODEProblem(sys,dict,(0.0,tend))
 sol = solve(prob, Tsit5(), reltol=1e-8, abstol=1e-8)
 nothing # hide
-```
+````
 
 We plot the average photon number and the population inversion of the lasing transition.
 
-
-```@example 3-level-laser
+````@example many-atom-laser
 n_t = real.(sol[average(a'*a)])
 σ22m11_t = real.(2*sol[σ(2,2,1)] .+ sol[σ(3,3,1)] .-1 ) #σ11 + σ22 + σ33 = 𝟙
 
-# Plot
-p1 = plot(sol.t, n_t, xlabel="tΓ₁₂", ylabel="⟨a⁺a⟩", legend = false)
+p1 = plot(sol.t, n_t, xlabel="tΓ₁₂", ylabel="⟨a⁺a⟩", legend = false) # Plot
 p2 = plot(sol.t, σ22m11_t, xlabel="tΓ₁₂", ylabel="⟨σ22⟩ - ⟨σ11⟩", legend = false)
 plot(p1, p2, layout=(1,2), size=(800,300))
-```
+````
+
+## Package versions
+
+These results were obtained using the following versions:
+
+````@example many-atom-laser
+using InteractiveUtils
+versioninfo()
+
+using Pkg
+Pkg.status(["SummationByPartsOperators", "OrdinaryDiffEq"],
+           mode=PKGMODE_MANIFEST)
+````
+
+---
+
+*This page was generated using [Literate.jl](https://github.com/fredrikekre/Literate.jl).*
+
