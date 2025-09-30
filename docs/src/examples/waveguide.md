@@ -33,7 +33,7 @@ M_np = 2 # number of non-pumped spins
 M = M_p + M_np
 
 h_spin(i) = SpinSpace("spin_$(i)") # Hilbert space
-h = tensor([h_spin(i) for i=1:M]...)
+h = tensor([h_spin(i) for i = 1:M]...)
 
 Sx(i) = Spin(h, "S$(i)", 1, i) # Operators
 
@@ -43,8 +43,8 @@ Sz(i) = Spin(h, "S$(i)", 3, i)
 Sm(i) = (Sx(i) - 1im*Sy(i))
 Sp(i) = (Sx(i) + 1im*Sy(i))
 
-Ω(i,j) = i>j ? cnumber("Ω_$(j)_$(i)") : cnumber("Ω_$(i)_$(j)") # Parameter
-Γ(i,j) = i>j ? cnumber("Γ_$(j)_$(i)") : cnumber("Γ_$(i)_$(j)")
+Ω(i, j) = i>j ? cnumber("Ω_$(j)_$(i)") : cnumber("Ω_$(i)_$(j)") # Parameter
+Γ(i, j) = i>j ? cnumber("Γ_$(j)_$(i)") : cnumber("Γ_$(i)_$(j)")
 nothing # hide
 ````
 
@@ -55,10 +55,10 @@ With the symbolic operators and Parameters we define the Hamiltonian and the col
 with the jump operator $J_i$ and the corresponding decay rate matrix $R_{ij}$. This implementation is similar to the one in [QuantumOptics.jl](https://docs.qojulia.org/timeevolution/master/) for collective dissipation.
 
 ````@example waveguide
-H = sum( (i≠j)*Ω(i,j)*Sp(i)*Sm(j) for i=1:M for j=1:M) # Hamiltonian
+H = sum((i≠j)*Ω(i, j)*Sp(i)*Sm(j) for i = 1:M for j = 1:M) # Hamiltonian
 
-J = [Sm(c1) for c1=1:M] # Jump operators and rate matrix
-rates = [Γ(c1,c2) for c1=1:M, c2=1:M]
+J = [Sm(c1) for c1 = 1:M] # Jump operators and rate matrix
+rates = [Γ(c1, c2) for c1 = 1:M, c2 = 1:M]
 nothing # hide
 ````
 
@@ -67,19 +67,20 @@ Now we create a complete list of operators, which we use to derive the second-or
 ````@example waveguide
 S(i) = [Sx(i), Sy(i), Sz(i)] # create list of operators
 SiSi(i) = [Sx(i)Sx(i), Sx(i)Sy(i), Sx(i)Sz(i), Sy(i)Sy(i), Sy(i)Sz(i), Sz(i)Sz(i)]
-ops = []; [push!(ops, S(i)...) for i=1:M]
-[push!(ops, SiSi(i)...) for i=1:M]
-for i=1:M, j=i:M
+ops = [];
+[push!(ops, S(i)...) for i = 1:M]
+[push!(ops, SiSi(i)...) for i = 1:M]
+for i = 1:M, j = i:M
     if i≠j
-        for α=1:3, β=1:3
+        for α = 1:3, β = 1:3
             push!(ops, S(i)[α]*S(j)[β])
         end
     end
 end
 println("Number of equations = $(length(ops))")
 
-eqs = meanfield(ops,H,J;rates=rates,order=2) # derive equations
-meanfield(Sz(1),H,J;rates=rates,order=2)
+eqs = meanfield(ops, H, J; rates = rates, order = 2) # derive equations
+meanfield(Sz(1), H, J; rates = rates, order = 2)
 nothing # hide
 ````
 
@@ -95,16 +96,16 @@ We define the numerical system Parameters and the initial state. For spin operat
 Γ_ = 1.0  # Γ1D # System Parameters
 Ω_ = Γ_/2 # Ω1D
 
-x_p = [i/M_p for i=0:M_p-1]*2π # positions
-x_np = [i/M_np for i=0:M_np-1]*2π
+x_p = [i/M_p for i = 0:(M_p-1)]*2π # positions
+x_np = [i/M_np for i = 0:(M_np-1)]*2π
 x_ls = [x_p; x_np]
 
-Γij(i,j) = cos(abs(x_ls[i] - x_ls[j]))
-Γ_ls = [Γij(i,j) for i=1:M for j=1:M]*Γ_
-Ωij(i,j) = sin(abs(x_ls[i] - x_ls[j]))
-Ω_ls = [Ωij(i,j) for i=1:M for j=1:M]*Ω_
+Γij(i, j) = cos(abs(x_ls[i] - x_ls[j]))
+Γ_ls = [Γij(i, j) for i = 1:M for j = 1:M]*Γ_
+Ωij(i, j) = sin(abs(x_ls[i] - x_ls[j]))
+Ω_ls = [Ωij(i, j) for i = 1:M for j = 1:M]*Ω_
 
-ps = [[Γ(i,j) for i=1:M for j=1:M]; [Ω(i,j) for i=1:M for j=1:M]; ]
+ps = [[Γ(i, j) for i = 1:M for j = 1:M]; [Ω(i, j) for i = 1:M for j = 1:M];]
 p0 = [Γ_ls; Ω_ls;]
 nothing # hide
 ````
@@ -116,12 +117,12 @@ N_p = 8000 # number of pumped atoms
 N_np = 2000 # number of non-pumped atoms
 bs1 = SpinBasis(N_p/2/M_p) # spin basis for pumped atoms
 bs2 = SpinBasis(N_np/2/M_np) # spin basis for non-pumped atoms
-b = tensor([bs1 for i=1:M_p]..., [bs2 for i=1:M_np]...)
+b = tensor([bs1 for i = 1:M_p]..., [bs2 for i = 1:M_np]...)
 
 Θ = π/3 # corresponds to an excitation of 75%
 ψ_p = coherentspinstate(bs1, Θ, 0.0) # initially pumped atoms
 ψ_np = spindown(bs2) # initially non-pumped atoms
-ψ0 = LazyKet(b, ([ψ_p for i=1:M_p]..., [ψ_np for i=1:M_np]...))
+ψ0 = LazyKet(b, ([ψ_p for i = 1:M_p]..., [ψ_np for i = 1:M_np]...))
 u0 = initial_values(eqs, ψ0)  # initial state
 nothing # hide
 ````
@@ -131,23 +132,23 @@ Finally, we create the ODE-problem, calculate the dynamics and plot the results.
 ````@example waveguide
 @named sys = System(eqs)
 dict = merge(Dict(unknowns(sys) .=> u0), Dict(ps .=> p0))
-prob = ODEProblem(sys,dict,(0.0, 8e-3))
-sol = solve(prob,Tsit5(),abstol=1e-6,reltol=1e-6)
+prob = ODEProblem(sys, dict, (0.0, 8e-3))
+sol = solve(prob, Tsit5(), abstol = 1e-6, reltol = 1e-6)
 nothing # hide
 ````
 
 ````@example waveguide
 t = sol.t * 1e3
 Sz_t(i) = real.(sol[Sz(i)])
-N_ls = [[N_p for i=1:M_p] ./ M_p; [N_np for i=1:M_np] ./ M_np ]
+N_ls = [[N_p for i = 1:M_p] ./ M_p; [N_np for i = 1:M_np] ./ M_np]
 σ22_t(i) = Sz_t(i)/N_ls[i] .+ 1/2
-σ22_p_t = sum(σ22_t(i) for i=1:M_p) ./ M_p
-σ22_np_t = sum(σ22_t(i) for i=M_p+1:M_p+M_np) ./ M_np
+σ22_p_t = sum(σ22_t(i) for i = 1:M_p) ./ M_p
+σ22_np_t = sum(σ22_t(i) for i = (M_p+1):(M_p+M_np)) ./ M_np
 
-p = plot(xlabel="Γ1D t ⋅ 10³", ylabel="⟨σ²²⟩")
-plot!(p,t,σ22_p_t,label="pumped")
-plot!(p,t,σ22_np_t, label="non-pumped")
-plot(p, size=(500,300))
+p = plot(xlabel = "Γ1D t ⋅ 10³", ylabel = "⟨σ²²⟩")
+plot!(p, t, σ22_p_t, label = "pumped")
+plot!(p, t, σ22_np_t, label = "non-pumped")
+plot(p, size = (500, 300))
 ````
 
 ## Package versions
@@ -159,8 +160,7 @@ using InteractiveUtils
 versioninfo()
 
 using Pkg
-Pkg.status(["SummationByPartsOperators", "OrdinaryDiffEq"],
-           mode=PKGMODE_MANIFEST)
+Pkg.status(["SummationByPartsOperators", "OrdinaryDiffEq"], mode = PKGMODE_MANIFEST)
 ````
 
 ---

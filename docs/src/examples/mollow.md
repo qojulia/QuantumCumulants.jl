@@ -12,7 +12,7 @@ where $\Delta = \omega_\ell - \omega_a$ is the detuning between the laser and th
 
 ````@example mollow
 using Latexify # hide
-set_default(double_linebreak=true) # hide
+set_default(double_linebreak = true) # hide
 using QuantumCumulants
 using ModelingToolkit, OrdinaryDiffEq
 using Plots
@@ -21,15 +21,15 @@ using Plots
 Obtaining the equations of motion for the system is simple. Note that in this case, we are not actually making any assumptions: in the special case of a single atom (even if it has more than two levels), there exists a simple mapping between the equations of motions for averages and the density operator. In our case, the density operator $\rho$ is determined by only two average values, $\langle\sigma^{eg}\rangle = \rho_{eg} = \rho_{ge}^* $ and $\langle \sigma^{ee}\rangle = \rho_{ee} = 1 - \rho_{gg}$. In other words, we are solving the master equation component-wise.
 
 ````@example mollow
-h = NLevelSpace(:atom, (:g,:e)) # Hilbert space
+h = NLevelSpace(:atom, (:g, :e)) # Hilbert space
 
 @cnumbers Δ Ω γ # Operators
 @qnumbers σ::Transition(h)
-H = Δ*σ(:e,:e) + Ω*(σ(:g,:e) + σ(:e,:g))
-J = [σ(:g,:e)]
+H = Δ*σ(:e, :e) + Ω*(σ(:g, :e) + σ(:e, :g))
+J = [σ(:g, :e)]
 
 
-eqs = meanfield([σ(:e,:g),σ(:e,:e)], H, J; rates=[γ]) # Equations
+eqs = meanfield([σ(:e, :g), σ(:e, :e)], H, J; rates = [γ]) # Equations
 ````
 
 In order to compute the spectrum, we first need to compute the correlation function given by
@@ -41,7 +41,7 @@ where $t_0$ is any time after which the original system has reached steady state
 The correlation function of the system given by `eqs` can be computed as follows.
 
 ````@example mollow
-c = CorrelationFunction(σ(:e,:g), σ(:g,:e), eqs; steady_state=true) # Correlation Function
+c = CorrelationFunction(σ(:e, :g), σ(:g, :e), eqs; steady_state = true) # Correlation Function
 nothing # hide
 ````
 
@@ -64,8 +64,8 @@ As mentioned above, to compute the time evolution of the system itself, we are e
 In the following, we will use the latter approach:
 
 ````@example mollow
-ps = (Δ,Ω,γ)
-S = Spectrum(c,ps)
+ps = (Δ, Ω, γ)
+S = Spectrum(c, ps)
 nothing # hide
 ````
 
@@ -82,24 +82,29 @@ To find the spectrum, we first need to compute the time evolution of the system 
 ````@example mollow
 @named sys = System(eqs)
 
-p0 = (0.0,2.0,1.0)
+p0 = (0.0, 2.0, 1.0)
 u0 = zeros(ComplexF64, 2)
 dict = merge(Dict(unknowns(sys) .=> u0), Dict(ps .=> p0))
-prob = ODEProblem(sys,dict,(0.0,20.0))
-sol = solve(prob,RK4())
+prob = ODEProblem(sys, dict, (0.0, 20.0))
+sol = solve(prob, RK4())
 nothing # hide
 ````
 
 ````@example mollow
-plot(sol, vars=((x,y)->(x,real(y)), 0, 2),xlabel="γt", label="Excited state population")
+plot(
+    sol,
+    vars = ((x, y)->(x, real(y)), 0, 2),
+    xlabel = "γt",
+    label = "Excited state population",
+)
 ````
 
 Now, solving the linear system to obtain the spectrum can simply be done by calling the instance at a range of frequencies, and providing the proper steady-state values and numerical parameters.
 
 ````@example mollow
-ω = range(-6pi,6pi,length=1001)
-s = S(ω,sol.u[end],p0)
-plot(ω,s,xlabel="ω - ωℓ",label="Resonance spectrum")
+ω = range(-6pi, 6pi, length = 1001)
+s = S(ω, sol.u[end], p0)
+plot(ω, s, xlabel = "ω - ωℓ", label = "Resonance spectrum")
 ````
 
 The resulting spectrum shows a prominent peak at the resonance point ($\omega=\omega_\ell=\omega_a$), but also two more peaks around $\omega \approx \pm \Omega^2/\gamma$. These two resonances originate from the dressed states. These three peaks are called Mollow Triplet.
@@ -113,8 +118,7 @@ using InteractiveUtils
 versioninfo()
 
 using Pkg
-Pkg.status(["SummationByPartsOperators", "OrdinaryDiffEq"],
-           mode=PKGMODE_MANIFEST)
+Pkg.status(["QuantumCumulants", "OrdinaryDiffEq", "ModelingToolkit", "Plots"], mode = PKGMODE_MANIFEST)
 ````
 
 ---

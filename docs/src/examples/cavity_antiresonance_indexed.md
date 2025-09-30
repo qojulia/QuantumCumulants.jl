@@ -32,17 +32,17 @@ The parameters $g_j, \, \Gamma_{ij}$ and $\Omega_{ij}$ are defined as indexed va
 
 ````@example cavity_antiresonance_indexed
 hc = FockSpace(:cavity) # Hilbert space
-ha = NLevelSpace(Symbol(:atom),2)
+ha = NLevelSpace(Symbol(:atom), 2)
 h = hc ⊗ ha
 
 @cnumbers N Δc η Δa κ # Parameters
-g(i) = IndexedVariable(:g,i)
-Γ(i,j) = IndexedVariable(:Γ,i,j)
-Ω(i,j) = IndexedVariable(:Ω,i,j;identical=false)
+g(i) = IndexedVariable(:g, i)
+Γ(i, j) = IndexedVariable(:Γ, i, j)
+Ω(i, j) = IndexedVariable(:Ω, i, j; identical = false)
 
 
-i = Index(h,:i,N,ha) # Indices
-j = Index(h,:j,N,ha)
+i = Index(h, :i, N, ha) # Indices
+j = Index(h, :j, N, ha)
 ````
 
 The kwarg ’identical=false’ for the double indexed variable specifies that $\Omega_{ij} = 0$ for $i = j$.
@@ -50,7 +50,7 @@ Now we create the operators on the composite Hilbert space using the $\texttt{In
 
 ````@example cavity_antiresonance_indexed
 @qnumbers a::Destroy(h)
-σ(x,y,k) = IndexedOperator(Transition(h,:σ,x,y),k)
+σ(x, y, k) = IndexedOperator(Transition(h, :σ, x, y), k)
 nothing # hide
 ````
 
@@ -64,19 +64,19 @@ We define the Hamiltonian and Liouvillian. For the collective atomic decay we wr
 
 ````@example cavity_antiresonance_indexed
 Hc = Δc*a'a + η*(a' + a) # Hamiltonian
-Ha = Δa*Σ(σ(2,2,i),i) + Σ(Ω(i,j)*σ(2,1,i)*σ(1,2,j),j,i)
-Hi = Σ(g(i)*(a'*σ(1,2,i) + a*σ(2,1,i)),i)
+Ha = Δa*Σ(σ(2, 2, i), i) + Σ(Ω(i, j)*σ(2, 1, i)*σ(1, 2, j), j, i)
+Hi = Σ(g(i)*(a'*σ(1, 2, i) + a*σ(2, 1, i)), i)
 H = Hc + Ha + Hi
 
-J = [a, σ(1,2,i)] # Jump operators
-rates = [κ, Γ(i,j)]
+J = [a, σ(1, 2, i)] # Jump operators
+rates = [κ, Γ(i, j)]
 nothing # hide
 ````
 
 We derive the system of equations in first order mean-field.
 
 ````@example cavity_antiresonance_indexed
-eqs = meanfield(a,H,J;rates=rates,order=1)
+eqs = meanfield(a, H, J; rates = rates, order = 1)
 complete!(eqs)
 nothing # hide
 ````
@@ -93,7 +93,7 @@ To create the equations for a specific number of atoms we use the function $\tex
 
 ````@example cavity_antiresonance_indexed
 N_ = 2
-eqs_ = evaluate(eqs;limits=(N=>N_))
+eqs_ = evaluate(eqs; limits = (N=>N_))
 @named sys = System(eqs_)
 nothing # hide
 ````
@@ -106,8 +106,12 @@ u0 = zeros(ComplexF64, length(eqs_))
 d = 2π*0.08 #0.08λ
 θ = π/2
 
-Ωij(i,j) = i==j ? 0 : Γ_*(-3/4)*( (1-(cos(θ))^2)*cos(d)/d-(1-3*(cos(θ))^2)*(sin(d)/(d^2)+(cos(d)/(d^3))) )
-Γij(i,j) = i==j ? Γ_ : Γ_*(3/2)*( (1-(cos(θ))^2)*sin(d)/d+(1-3*(cos(θ))^2)*((cos(d)/(d^2))-(sin(d)/(d^3))))
+Ωij(i, j) =
+    i==j ? 0 :
+    Γ_*(-3/4)*((1-(cos(θ))^2)*cos(d)/d-(1-3*(cos(θ))^2)*(sin(d)/(d^2)+(cos(d)/(d^3))))
+Γij(i, j) =
+    i==j ? Γ_ :
+    Γ_*(3/2)*((1-(cos(θ))^2)*sin(d)/d+(1-3*(cos(θ))^2)*((cos(d)/(d^2))-(sin(d)/(d^3))))
 
 g_ = 2Γ_
 κ_ = 20Γ_
@@ -115,13 +119,13 @@ g_ = 2Γ_
 Δc_ = 0Γ_
 η_ = κ_/100
 
-gi_ls = [g(i) for i=1:N_]
-Γij_ls = [Γ(i,j) for i = 1:N_ for j=1:N_]
-Ωij_ls = [Ω(i,j) for i = 1:N_ for j=1:N_ if i≠j]
+gi_ls = [g(i) for i = 1:N_]
+Γij_ls = [Γ(i, j) for i = 1:N_ for j = 1:N_]
+Ωij_ls = [Ω(i, j) for i = 1:N_ for j = 1:N_ if i≠j]
 
-gi_ = [g_*(-1)^i for i=1:N_] # list of symbolic indexed parameters
-Γij_ = [Γij(i,j) for i = 1:N_ for j=1:N_]
-Ωij_ = [Ωij(i,j) for i = 1:N_ for j=1:N_ if i≠j]
+gi_ = [g_*(-1)^i for i = 1:N_] # list of symbolic indexed parameters
+Γij_ = [Γij(i, j) for i = 1:N_ for j = 1:N_]
+Ωij_ = [Ωij(i, j) for i = 1:N_ for j = 1:N_ if i≠j]
 
 ps = [Δc; η; Δa; κ; gi_ls; Γij_ls; Ωij_ls]
 p0 = [Δc_; η_; Δa_; κ_; gi_; Γij_; Ωij_]
@@ -132,13 +136,13 @@ nothing # hide
 Δ_ls = [-10:0.05:10;]Γ_
 n_ls = zeros(length(Δ_ls))
 
-for i=1:length(Δ_ls)
+for i = 1:length(Δ_ls)
     Δc_i = Δ_ls[i]
-    Δa_i = Δc_i + Ωij(1,2) # cavity on resonace with the shifted collective emitter
+    Δa_i = Δc_i + Ωij(1, 2) # cavity on resonace with the shifted collective emitter
     p0_ = [Δc_i; η_; Δa_i; κ_; gi_; Γij_; Ωij_]
 
     dict = merge(Dict(unknowns(sys) .=> u0), Dict(ps .=> p0_)) # create (remake) new ODEProblem
-    prob_  = ODEProblem(sys,dict,(0.0, 20))
+    prob_ = ODEProblem(sys, dict, (0.0, 20))
     sol_ = solve(prob_, Tsit5())
     n_ls[i] = abs2(sol_[a][end])
 end
@@ -149,7 +153,7 @@ The transmission rate $T$ with respect to the pump laser detuning is given by th
 
 ````@example cavity_antiresonance_indexed
 T = n_ls ./ maximum(n_ls)
-plot(Δ_ls, T, xlabel="Δ/Γ", ylabel="T", legend=false)
+plot(Δ_ls, T, xlabel = "Δ/Γ", ylabel = "T", legend = false)
 ````
 
 ## Package versions
@@ -161,8 +165,7 @@ using InteractiveUtils
 versioninfo()
 
 using Pkg
-Pkg.status(["SummationByPartsOperators", "OrdinaryDiffEq"],
-           mode=PKGMODE_MANIFEST)
+Pkg.status(["QuantumCumulants", "OrdinaryDiffEq", "ModelingToolkit", "Plots"], mode = PKGMODE_MANIFEST)
 ````
 
 ---

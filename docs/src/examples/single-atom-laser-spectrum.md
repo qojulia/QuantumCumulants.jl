@@ -12,7 +12,7 @@ where $\Delta = \omega_\mathrm{c} - \omega_\mathrm{a}$ is the detuning between t
 
 ````@example single-atom-laser-spectrum
 using Latexify # hide
-set_default(double_linebreak=true) # hide
+set_default(double_linebreak = true) # hide
 using QuantumCumulants
 using ModelingToolkit, OrdinaryDiffEq
 using Plots
@@ -20,23 +20,23 @@ using Plots
 @cnumbers Δ g γ κ ν # Define parameters
 
 hf = FockSpace(:cavity) # Define hilbert space
-ha = NLevelSpace(:atom,(:g,:e))
+ha = NLevelSpace(:atom, (:g, :e))
 h = hf ⊗ ha
 
-a = Destroy(h,:a) # Define the fundamental operators
-s = Transition(h,:σ,:g,:e)
+a = Destroy(h, :a) # Define the fundamental operators
+s = Transition(h, :σ, :g, :e)
 
 H = Δ*a'*a + g*(a'*s + a*s') # Hamiltonian
 
-J = [a,s,s'] # Collapse operators
-rates = [κ,γ,ν]
+J = [a, s, s'] # Collapse operators
+rates = [κ, γ, ν]
 nothing # hide
 ````
 
 The first equation we want to derive is that for the average photon number $\langle a^\dagger a \rangle$.
 
 ````@example single-atom-laser-spectrum
-eq_n = meanfield(a'*a,H,J;rates=rates,order=2) # Derive equation for average photon number
+eq_n = meanfield(a'*a, H, J; rates = rates, order = 2) # Derive equation for average photon number
 nothing # hide
 ````
 
@@ -65,7 +65,7 @@ function ϕ(t::QuantumCumulants.QMul)
 end
 phase_invariant(x) = iszero(ϕ(x))
 
-eqs = complete(eq_n;filter_func=phase_invariant) # Complete equations
+eqs = complete(eq_n; filter_func = phase_invariant) # Complete equations
 ````
 
 In order to compute the spectrum, we first compute the correlation function $g(\tau) = \langle a^\dagger(t_0 + \tau) a(t_0)\rangle \equiv \langle a^\dagger a_0\rangle.$
@@ -73,7 +73,7 @@ In order to compute the spectrum, we first compute the correlation function $g(\
 Note that the [`CorrelationFunction`](@ref) finds the equation for $g(\tau)$ and then completes the system of equations by using its own version of the [`complete`](@ref) function. We can also provide the same custom filter function as before to skip over terms that are not phase-invariant. Similarly, setting the keyword `steady_state=true`, we tell the function not to derive equations of motion for operators that do not depend on $\tau$, but only on $t_0$ (if $t_0$ is in steady state, these values do not change with $\tau$).
 
 ````@example single-atom-laser-spectrum
-c = CorrelationFunction(a', a, eqs; steady_state=true, filter_func=phase_invariant) # Correlation function
+c = CorrelationFunction(a', a, eqs; steady_state = true, filter_func = phase_invariant) # Correlation function
 nothing # hide
 ````
 
@@ -102,8 +102,8 @@ ps = (Δ, g, γ, κ, ν)
 u0 = zeros(ComplexF64, length(eqs))
 p0 = (1.0, 1.5, 0.25, 1, 4)
 dict = merge(Dict(unknowns(sys) .=> u0), Dict(ps .=> p0))
-prob = ODEProblem(sys,dict,(0.0,10.0))
-sol = solve(prob,RK4())  # Numerical solution
+prob = ODEProblem(sys, dict, (0.0, 10.0))
+sol = solve(prob, RK4())  # Numerical solution
 nothing # hide
 ````
 
@@ -111,18 +111,18 @@ Now, we can compute the time evolution of the correlation function similarly. Si
 
 ````@example single-atom-laser-spectrum
 @named csys = System(c) # Time evolution of correlation function
-u0_c = correlation_u0(c,sol.u[end])
-p0_c = correlation_p0(c,sol.u[end],ps.=>p0)
+u0_c = correlation_u0(c, sol.u[end])
+p0_c = correlation_p0(c, sol.u[end], ps .=> p0)
 dict = merge(Dict(u0_c), Dict(p0_c))
-prob_c = ODEProblem(csys,dict,(0.0,500.0))
-sol_c = solve(prob_c,RK4(),save_idxs=1)
+prob_c = ODEProblem(csys, dict, (0.0, 500.0))
+sol_c = solve(prob_c, RK4(), save_idxs = 1)
 nothing # hide
 ````
 
 Finally, we borrow the FFT function from [QuantumOptics.jl](https://qojulia.org) and compute the spectrum from the solution. Note that this requires an equidistant list of times, and we therefore interpolate the solution from the differential equation.
 
 ````@example single-atom-laser-spectrum
-τ = range(0.0, sol_c.t[end], length=15001) # Interpolate solution
+τ = range(0.0, sol_c.t[end], length = 15001) # Interpolate solution
 corr = sol_c.(τ)
 
 
@@ -134,13 +134,13 @@ nothing # hide
 Now, in order to compare we also compute the spectrum by constructing it directly from the correlation function and plot the results.
 
 ````@example single-atom-laser-spectrum
-S = Spectrum(c,ps) # Spectrum
-s_laplace = S(ω,sol.u[end],p0)
+S = Spectrum(c, ps) # Spectrum
+s_laplace = S(ω, sol.u[end], p0)
 nothing # hide
 
-plot(ω, s_fft, label="Spectrum (FFT)", xlabel="ω")
-plot!(ω, s_laplace, label="Spectrum (Laplace)")
-xlims!(-3,3)
+plot(ω, s_fft, label = "Spectrum (FFT)", xlabel = "ω")
+plot!(ω, s_laplace, label = "Spectrum (Laplace)")
+xlims!(-3, 3)
 ````
 
 As expected, both methods yield exactly the same spectrum. The difference is just in the method used, with the Laplace transform having a computational advantage.
@@ -154,8 +154,7 @@ using InteractiveUtils
 versioninfo()
 
 using Pkg
-Pkg.status(["SummationByPartsOperators", "OrdinaryDiffEq"],
-           mode=PKGMODE_MANIFEST)
+Pkg.status(["SummationByPartsOperators", "OrdinaryDiffEq"], mode = PKGMODE_MANIFEST)
 ````
 
 ---

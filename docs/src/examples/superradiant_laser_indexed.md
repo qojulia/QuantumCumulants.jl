@@ -27,11 +27,11 @@ Creating an operator with an $\texttt{Index}$ is done with the constructor $\tex
 
 ````@example superradiant_laser_indexed
 hc = FockSpace(:cavity)
-ha = NLevelSpace(:atom,2)
+ha = NLevelSpace(:atom, 2)
 h = hc ⊗ ha
 
 @qnumbers a::Destroy(h) # operators
-σ(α,β,i) = IndexedOperator(Transition(h, :σ, α, β),i)
+σ(α, β, i) = IndexedOperator(Transition(h, :σ, α, β), i)
 nothing # hide
 ````
 
@@ -41,16 +41,16 @@ Now we define the indices and the parameters of the system. An $\texttt{Index}$ 
 @cnumbers N Δ κ Γ R ν
 g(i) = IndexedVariable(:g, i)
 
-i = Index(h,:i,N,ha)
-j = Index(h,:j,N,ha)
+i = Index(h, :i, N, ha)
+j = Index(h, :j, N, ha)
 ````
 
 We define the Hamiltonian using symbolic sums and define the individual dissipative processes. For an indexed jump operator the (symbolic) sum is build in the Liouvillian.
 
 ````@example superradiant_laser_indexed
-H = -Δ*a'a + Σ(g(i)*( a'*σ(1,2,i) + a*σ(2,1,i) ),i) # Hamiltonian
+H = -Δ*a'a + Σ(g(i)*(a'*σ(1, 2, i) + a*σ(2, 1, i)), i) # Hamiltonian
 
-J = [a, σ(1,2,i), σ(2,1,i), σ(2,2,i)] # Jump operators with corresponding rates
+J = [a, σ(1, 2, i), σ(2, 1, i), σ(2, 2, i)] # Jump operators with corresponding rates
 rates = [κ, Γ, R, ν]
 nothing # hide
 ````
@@ -58,8 +58,8 @@ nothing # hide
 First we want to derive the equation for $\langle a^\dagger a \rangle$ and $\langle \sigma_j^{22} \rangle$. Note that you can only use indices on the LHS which haven't been used for the Hamiltonian and the jumps.
 
 ````@example superradiant_laser_indexed
-ops = [a'*a, σ(2,2,j)] # Derive equations
-eqs = meanfield(ops,H,J;rates=rates,order=2)
+ops = [a'*a, σ(2, 2, j)] # Derive equations
+eqs = meanfield(ops, H, J; rates = rates, order = 2)
 nothing # hide
 ````
 
@@ -74,7 +74,7 @@ To get a closed set of equations we automatically complete the system. Since thi
 ````@example superradiant_laser_indexed
 φ(x::Average) = φ(x.arguments[1]) # custom filter function
 φ(::Destroy) = -1
-φ(::Create) =1
+φ(::Create) = 1
 φ(x::QTerm) = sum(map(φ, x.args_nc))
 φ(x::Transition) = x.i - x.j
 φ(x::IndexedOperator) = x.op.i - x.op.j
@@ -82,7 +82,7 @@ To get a closed set of equations we automatically complete the system. Since thi
 φ(x::AvgSums) = φ(arguments(x))
 phase_invariant(x) = iszero(φ(x))
 
-eqs_c = complete(eqs; filter_func=phase_invariant) # Complete equations
+eqs_c = complete(eqs; filter_func = phase_invariant) # Complete equations
 nothing # hide
 ````
 
@@ -135,19 +135,19 @@ ps = [N, Δ, g(1), κ, Γ, R, ν]
 p0 = [N_, Δ_, g_, κ_, Γ_, R_, ν_]
 
 dict = merge(Dict(unknowns(sys) .=> u0), Dict(ps .=> p0))
-prob = ODEProblem(sys,dict,(0.0, 1.0/50Γ_))
+prob = ODEProblem(sys, dict, (0.0, 1.0/50Γ_))
 nothing # hide
 ````
 
 ````@example superradiant_laser_indexed
-sol = solve(prob,Tsit5(),maxiters=1e7) # Solve the numeric problem
+sol = solve(prob, Tsit5(), maxiters = 1e7) # Solve the numeric problem
 
 t = sol.t # Plot time evolution
 n = real.(sol[a'a])
-s22 = real.(sol[σ(2,2,1)])
-p1 = plot(t, n, xlabel="tΓ", ylabel="⟨a⁺a⟩", legend=false) # Plot
-p2 = plot(t, s22, xlabel="tΓ", ylabel="⟨σ22⟩", legend=false)
-plot(p1, p2, layout=(1,2), size=(700,300))
+s22 = real.(sol[σ(2, 2, 1)])
+p1 = plot(t, n, xlabel = "tΓ", ylabel = "⟨a⁺a⟩", legend = false) # Plot
+p2 = plot(t, s22, xlabel = "tΓ", ylabel = "⟨σ22⟩", legend = false)
+plot(p1, p2, layout = (1, 2), size = (700, 300))
 ````
 
 ## Spectrum
@@ -155,7 +155,7 @@ plot(p1, p2, layout=(1,2), size=(700,300))
 We calculate the spectrum here with the Laplace transform of the two-time correlation function. This is implemented with the function $\texttt{Spectrum}$.
 
 ````@example superradiant_laser_indexed
-corr = CorrelationFunction(a', a, eqs_c; steady_state=true, filter_func=phase_invariant)
+corr = CorrelationFunction(a', a, eqs_c; steady_state = true, filter_func = phase_invariant)
 corr_sc = scale(corr)
 S = Spectrum(corr_sc, ps)
 nothing # hide
@@ -179,11 +179,11 @@ The spectrum is then calculated with
 
 ````@example superradiant_laser_indexed
 ω = [-10:0.01:10;]Γ_
-spec = S(ω,sol.u[end],p0)
+spec = S(ω, sol.u[end], p0)
 spec_n = spec ./ maximum(spec)
 δ = abs(ω[(findmax(spec)[2])])
 
-plot(ω, spec_n, xlabel="ω/Γ", legend=false, size=(500,300))
+plot(ω, spec_n, xlabel = "ω/Γ", legend = false, size = (500, 300))
 ````
 
 Beside the narrow linewidth we can also see another key feature of the superradiant laser here, namely the very weak cavity pulling. At a detunig of $\Delta = 2500\Gamma$ there is only a shift of the laser light from the atomic resonance frequency of $\delta = 1\Gamma$.
@@ -197,8 +197,7 @@ using InteractiveUtils
 versioninfo()
 
 using Pkg
-Pkg.status(["SummationByPartsOperators", "OrdinaryDiffEq"],
-           mode=PKGMODE_MANIFEST)
+Pkg.status(["SummationByPartsOperators", "OrdinaryDiffEq"], mode = PKGMODE_MANIFEST)
 ````
 
 ---

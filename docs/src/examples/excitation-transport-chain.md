@@ -39,19 +39,24 @@ using Plots
 
 
 N = 10 # Hilbert space for N atoms
-h = ⊗([NLevelSpace(Symbol(:atom, i), (:g,:e)) for i=1:N]...)
+h = ⊗([NLevelSpace(Symbol(:atom, i), (:g, :e)) for i = 1:N]...)
 
-σ(i,j,k) = Transition(h,Symbol(:σ_,k),i,j,k) # Operators
+σ(i, j, k) = Transition(h, Symbol(:σ_, k), i, j, k) # Operators
 
 
 @cnumbers Ω γ w Δ J0 # Define the symbolic parameters and the interaction
-x = cnumbers(join(["x_$i" for i=1:N], " "))
-J(xᵢ,xⱼ) = J0 / abs(xᵢ - xⱼ)^3
+x = cnumbers(join(["x_$i" for i = 1:N], " "))
+J(xᵢ, xⱼ) = J0 / abs(xᵢ - xⱼ)^3
 
-H = -Δ*sum(σ(:e,:e,k) for k=1:N) + Ω*(σ(:e,:g,1) + σ(:g,:e,1)) +
-    sum(J(x[k],x[k+1])*(σ(:e,:g,k)*σ(:g,:e,k+1) + σ(:g,:e,k)*σ(:e,:g,k+1)) for k=1:N-1)
+H =
+    -Δ*sum(σ(:e, :e, k) for k = 1:N) +
+    Ω*(σ(:e, :g, 1) + σ(:g, :e, 1)) +
+    sum(
+        J(x[k], x[k+1])*(σ(:e, :g, k)*σ(:g, :e, k+1) + σ(:g, :e, k)*σ(:e, :g, k+1)) for
+        k = 1:(N-1)
+    )
 
-c_ops = [σ(:g,:e,k) for k=1:N]
+c_ops = [σ(:g, :e, k) for k = 1:N]
 nothing # hide
 ````
 
@@ -61,7 +66,7 @@ Note, that in order to include noise, we will not need to make any adaptions on 
 Rather, we only need to derive the equations once and substitute the noisy positions accordingly when performing the numerical solutions.
 
 ````@example excitation-transport-chain
-eqs = meanfield(σ(:g,:e,1),H,c_ops;rates=[γ for i=1:N],order=2) # Derive the equations to second order
+eqs = meanfield(σ(:g, :e, 1), H, c_ops; rates = [γ for i = 1:N], order = 2) # Derive the equations to second order
 complete!(eqs)  # complete the set
 
 @named sys = System(eqs) # Generate the System
@@ -74,19 +79,24 @@ We assume an equidistant chain, were neighboring atoms are separated by a distan
 
 ````@example excitation-transport-chain
 d = 0.75 # Define parameters without noise
-x0 = [d*(k-1) for k=1:N]
+x0 = [d*(k-1) for k = 1:N]
 p = [γ => 1.0; Δ => 0.0; Ω => 2.0; J0 => 1.25; x .=> x0;]
 
 
 u0 = zeros(ComplexF64, length(eqs))  # initial state -- all atoms in the ground state
 dict = merge(Dict(unknowns(sys) .=> u0), Dict(p))
-prob = ODEProblem(sys,dict,(0.0,15.0)) # Create ODEProblem
+prob = ODEProblem(sys, dict, (0.0, 15.0)) # Create ODEProblem
 
-sol = solve(prob,RK4()) # Solve
+sol = solve(prob, RK4()) # Solve
 
-graph = plot(sol.t, real.(sol[σ(:e,:e,1)]), label="Driven atom",
-            xlabel="γt", ylabel="Excited state population") # Plot
-plot!(graph, sol.t, real.(sol[σ(:e,:e,N)]), label="End of chain", leg=1)
+graph = plot(
+    sol.t,
+    real.(sol[σ(:e, :e, 1)]),
+    label = "Driven atom",
+    xlabel = "γt",
+    ylabel = "Excited state population",
+) # Plot
+plot!(graph, sol.t, real.(sol[σ(:e, :e, N)]), label = "End of chain", leg = 1)
 ````
 
 As you can see, the excitation transport is reasonably efficient, resulting in an excited state population at the end of the chain well above 10%.
@@ -104,34 +114,34 @@ In the following, we define the function that sets up the new `ODEProblem` for a
 
 ````@example excitation-transport-chain
 s = d/30  # strength of fluctuations
-function prob_func(prob,i,repeat)
-    x_ = x0 .+ s.*randn(N) # Define the new set of parameters
+function prob_func(prob, i, repeat)
+    x_ = x0 .+ s .* randn(N) # Define the new set of parameters
     p_ = [γ => 1.0; Δ => 0.0; Ω => 2.0; J0 => 1.25; x .=> x_;]
 
     dict = merge(Dict(unknowns(sys) .=> u0), Dict(p_))
-    return ODEProblem(sys,dict,(0.0,15.0)) # Return new ODEProblem
+    return ODEProblem(sys, dict, (0.0, 15.0)) # Return new ODEProblem
 end
 
 trajectories = 20
-eprob = EnsembleProblem(prob,prob_func=prob_func)
-sim = solve(eprob,RK4(),trajectories=trajectories)
+eprob = EnsembleProblem(prob, prob_func = prob_func)
+sim = solve(eprob, RK4(), trajectories = trajectories)
 nothing # hide
 ````
 
 Finally, we average over the results and compare them against the results from before, where there was no noise in the atomic positioning.
 
 ````@example excitation-transport-chain
-tspan = range(0.0, sol.t[end], length=101)
+tspan = range(0.0, sol.t[end], length = 101)
 pops_avg = zeros(length(tspan), N) # Average resulting excitations
-for i=1:N, j=1:trajectories
+for i = 1:N, j = 1:trajectories
     sol_ = sim.u[j].(tspan)  # interpolate solution
-    p_idx = findfirst(isequal(average(σ(:e,:e,i))), unknowns(eqs))
+    p_idx = findfirst(isequal(average(σ(:e, :e, i))), unknowns(eqs))
     pop = [u[p_idx] for u ∈ sol_]
-    @. pops_avg[:,i] += pop / trajectories
+    @. pops_avg[:, i] += pop / trajectories
 end
 
-plot!(graph, tspan, pops_avg[:,1], color=:steelblue, ls=:dash, label=nothing)
-plot!(graph, tspan, pops_avg[:,N], color=:orange, ls=:dash, label=nothing)
+plot!(graph, tspan, pops_avg[:, 1], color = :steelblue, ls = :dash, label = nothing)
+plot!(graph, tspan, pops_avg[:, N], color = :orange, ls = :dash, label = nothing)
 ````
 
 In the above graph, the solid lines are the ones from before, where we did not include any position fluctuations.
@@ -144,11 +154,24 @@ We can also plot the results for each trajectory on top of the average.
 Let's look at each trajectory of the excited state population of the atom at the end of the chain.
 
 ````@example excitation-transport-chain
-graph2 = plot(xlabel="γt", ylabel="Excitation at end of chain")
-for i=1:trajectories
-    plot!(graph2, sim.u[i].t, real.(sim.u[i][σ(:e,:e,N)]), color=:steelblue, label=nothing)
+graph2 = plot(xlabel = "γt", ylabel = "Excitation at end of chain")
+for i = 1:trajectories
+    plot!(
+        graph2,
+        sim.u[i].t,
+        real.(sim.u[i][σ(:e, :e, N)]),
+        color = :steelblue,
+        label = nothing,
+    )
 end
-plot!(graph2, tspan, pops_avg[:,N], lw=4, label="Average over trajectories", color=:orange)
+plot!(
+    graph2,
+    tspan,
+    pops_avg[:, N],
+    lw = 4,
+    label = "Average over trajectories",
+    color = :orange,
+)
 ````
 
 As you can see, in some realizations the transport is almost not hindered at all.
@@ -163,8 +186,7 @@ using InteractiveUtils
 versioninfo()
 
 using Pkg
-Pkg.status(["SummationByPartsOperators", "OrdinaryDiffEq"],
-           mode=PKGMODE_MANIFEST)
+Pkg.status(["QuantumCumulants", "OrdinaryDiffEq", "ModelingToolkit", "Plots"], mode = PKGMODE_MANIFEST)
 ````
 
 ---

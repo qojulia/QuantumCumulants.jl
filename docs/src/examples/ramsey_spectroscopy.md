@@ -30,13 +30,13 @@ Beside defining the symbolic parameters we additionally need to [register](https
 After defining the Hilbert space and the operator of the two-level atom we construct the time dependent Hamiltonian as well as the jump operator list with the corresponding rates.
 
 ````@example ramsey_spectroscopy
-h = NLevelSpace(:atom,2) # Hilbert space
+h = NLevelSpace(:atom, 2) # Hilbert space
 
-σ(i,j) = Transition(h, :σ, i, j, 2) # Operators
+σ(i, j) = Transition(h, :σ, i, j, 2) # Operators
 
-H = -Δ*σ(2,2) + f(t)*Ω/2*(σ(1,2) + σ(2,1)) # Hamiltonian
+H = -Δ*σ(2, 2) + f(t)*Ω/2*(σ(1, 2) + σ(2, 1)) # Hamiltonian
 
-J = [σ(1,2), σ(2,2)] # Jump operators & rates
+J = [σ(1, 2), σ(2, 2)] # Jump operators & rates
 rates = [Γ, ν]
 nothing # hide
 ````
@@ -44,7 +44,7 @@ nothing # hide
 The two-level atom is completely described with the excited state population and the coherence. Therefore, we derive the equations for these two operators.
 
 ````@example ramsey_spectroscopy
-eqs = meanfield([σ(2,2), σ(1,2)],H,J;rates=rates)
+eqs = meanfield([σ(2, 2), σ(1, 2)], H, J; rates = rates)
 nothing # hide
 ````
 
@@ -91,13 +91,13 @@ nothing # hide
 Finally, we calculate and plot the time evolution.
 
 ````@example ramsey_spectroscopy
-dict = merge(Dict(ps.=>p0), Dict(unknowns(sys) .=> u0))
-prob = ODEProblem(sys,dict,(0.0, 2tp+tf))
-sol = solve(prob,Tsit5(),maxiters=1e7)
+dict = merge(Dict(ps .=> p0), Dict(unknowns(sys) .=> u0))
+prob = ODEProblem(sys, dict, (0.0, 2tp+tf))
+sol = solve(prob, Tsit5(), maxiters = 1e7)
 
 t = sol.t # Plot time evolution
-s22 = real.(sol[σ(2,2)])
-plot(t, s22, xlabel="tΓ", ylabel="⟨σ22⟩", legend=false, size=(600,300))
+s22 = real.(sol[σ(2, 2)])
+plot(t, s22, xlabel = "tΓ", ylabel = "⟨σ22⟩", legend = false, size = (600, 300))
 ````
 
 Scanning over the detuning for the excited state population leads to the well-known Ramsey fringes.
@@ -106,14 +106,14 @@ Scanning over the detuning for the excited state population leads to the well-kn
 Δ_ls = [-2000:4:2000;]Γ_
 s22_ls = zeros(length(Δ_ls))
 
-for i=1:length(Δ_ls)
-    dict = merge(Dict(ps.=>[Γ_; Ω_; Δ_ls[i]; ν_]), Dict(unknowns(sys) .=> u0))
-    prob_i = ODEProblem(sys,dict,(0.0, 2tp+tf))
-    sol_i = solve(prob_i, RK4(); adaptive=false, dt=1e-5)
-    s22_ls[i] = real.(sol_i[σ(2,2)])[end]
+for i = 1:length(Δ_ls)
+    dict = merge(Dict(ps .=> [Γ_; Ω_; Δ_ls[i]; ν_]), Dict(unknowns(sys) .=> u0))
+    prob_i = ODEProblem(sys, dict, (0.0, 2tp+tf))
+    sol_i = solve(prob_i, RK4(); adaptive = false, dt = 1e-5)
+    s22_ls[i] = real.(sol_i[σ(2, 2)])[end]
 end
 
-plot(Δ_ls, s22_ls, xlabel="Δ/Γ", ylabel="⟨σ22⟩", legend=false, size=(600,300))
+plot(Δ_ls, s22_ls, xlabel = "Δ/Γ", ylabel = "⟨σ22⟩", legend = false, size = (600, 300))
 ````
 
 ## Package versions
@@ -125,8 +125,7 @@ using InteractiveUtils
 versioninfo()
 
 using Pkg
-Pkg.status(["SummationByPartsOperators", "OrdinaryDiffEq"],
-           mode=PKGMODE_MANIFEST)
+Pkg.status(["SummationByPartsOperators", "OrdinaryDiffEq"], mode = PKGMODE_MANIFEST)
 ````
 
 ---

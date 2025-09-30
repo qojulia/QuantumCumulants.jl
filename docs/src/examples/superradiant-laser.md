@@ -20,7 +20,7 @@ We start by loading the packages.
 
 ````@example superradiant-laser
 using Latexify # hide
-set_default(double_linebreak=true) # hide
+set_default(double_linebreak = true) # hide
 using QuantumCumulants
 using OrdinaryDiffEq, ModelingToolkit
 using Plots
@@ -33,7 +33,7 @@ M = 2 # order
 @cnumbers N Δ g κ Γ R ν
 
 hc = FockSpace(:cavity) # Hilbertspace
-ha_ = NLevelSpace(:atom,2)
+ha_ = NLevelSpace(:atom, 2)
 ha = ClusterSpace(ha_, N, M)
 h = hc ⊗ ha
 ````
@@ -42,8 +42,8 @@ Now we can define the operators on the composite Hilbert space including the $\t
 
 ````@example superradiant-laser
 @qnumbers a::Destroy(h) # operators
-σ(i,j) = Transition(h, :σ, i, j, 2)
-σ(2,2)
+σ(i, j) = Transition(h, :σ, i, j, 2)
+σ(2, 2)
 ````
 
 What is different, however, is that the transition operator defined on the $\texttt{ClusterSpace}$ is an array of $M$ transitions defined on internally created sub-Hilbert spaces. The reason for this is the following: Although we assume all atoms to be identical, we still need to keep track of the correlations between different atoms. Since $\langle \sigma^{21}_1 \sigma^{12}_1 \rangle = \langle \sigma^{22}_1 \rangle$ is obviously not equal to $\langle \sigma^{21}_1 \sigma^{12}_2 \rangle$ at least a second atom is needed for a second order description. On the other hand, as all atoms are the same, it must hold that $\langle \sigma^{21}_1 \sigma^{12}_2 \rangle = \langle \sigma^{21}_\alpha \sigma^{12}_\beta \rangle$ for all $\alpha \ne \beta$, therefore two atoms are sufficient. For higher orders and or bosonic operators the arguments are the same.
@@ -51,9 +51,9 @@ What is different, however, is that the transition operator defined on the $\tex
 The symbolic calculation rules for these operators acting on a $\texttt{ClusterSpace}$ are implemented such that e.g. $\sum\limits_j \sigma^{22}_j$ can be written as $sum(\sigma(2,2))$ in the code. For the jump operators the syntax is such that individual atomic dissipation is written as $J = [σ(i,j)]$, whereas collective behaviour is expressed as $J = sum(σ(i,j))$. The Hamiltonian and the dissipative processes for individual atomic behaviour are therefore
 
 ````@example superradiant-laser
-H = -Δ*a'a + g*(a'*sum(σ(1,2)) + a*sum(σ(2,1))) # Hamiltonian
+H = -Δ*a'a + g*(a'*sum(σ(1, 2)) + a*sum(σ(2, 1))) # Hamiltonian
 
-J = [a, σ(1,2), σ(2,1), σ(2,2)] # Jump operators & rates
+J = [a, σ(1, 2), σ(2, 1), σ(2, 2)] # Jump operators & rates
 rates = [κ, Γ, R, ν]
 nothing # hide
 ````
@@ -61,8 +61,8 @@ nothing # hide
 First we want to derive the equation for $\langle a^\dagger a \rangle$ and $\langle \sigma_1^{22} \rangle$. $\texttt{QuantumCumulants}$ automatically sets the right scaling factors in the equations to account for the number of identical atoms and also replaces redundant averages, e.g. $\langle \sigma_2^{22} \rangle$ is replaced by $\langle \sigma_1^{22} \rangle$ in the equations, since all atoms behave identically these two averages are the same.
 
 ````@example superradiant-laser
-ops = [a'*a, σ(2,2)[1]] # Derive equations
-eqs = meanfield(ops,H,J;rates=rates,order=M)
+ops = [a'*a, σ(2, 2)[1]] # Derive equations
+eqs = meanfield(ops, H, J; rates = rates, order = M)
 nothing # hide
 ````
 
@@ -78,12 +78,12 @@ To get a closed set of equations we automatically complete the system. Since thi
 ````@example superradiant-laser
 φ(x::Average) = φ(x.arguments[1]) # custom filter function
 φ(::Destroy) = -1
-φ(::Create) =1
+φ(::Create) = 1
 φ(x::QTerm) = sum(map(φ, x.args_nc))
 φ(x::Transition) = x.i - x.j
 phase_invariant(x) = iszero(φ(x))
 
-eqs_c = complete(eqs; filter_func=phase_invariant)# Complete equations
+eqs_c = complete(eqs; filter_func = phase_invariant)# Complete equations
 ````
 
 ```math
@@ -118,20 +118,20 @@ ps = [N, Δ, g, κ, Γ, R, ν]
 p0 = [N_, Δ_, g_, κ_, Γ_, R_, ν_]
 
 dict = merge(Dict(unknowns(sys) .=> u0), Dict(ps .=> p0))
-prob = ODEProblem(sys,dict,(0.0, 1.0/50Γ_))
+prob = ODEProblem(sys, dict, (0.0, 1.0/50Γ_))
 nothing # hide
 
-sol = solve(prob,Tsit5(),maxiters=1e7)
+sol = solve(prob, Tsit5(), maxiters = 1e7)
 nothing # hide
 
 
 t = sol.t # Plot time evolution
 n = real.(sol[a'a])
-s22 = real.(sol[σ(2,2)[1]])
+s22 = real.(sol[σ(2, 2)[1]])
 
-p1 = plot(t, n, xlabel="tΓ", ylabel="⟨a⁺a⟩", legend=false) # Plot
-p2 = plot(t, s22, xlabel="tΓ", ylabel="⟨σ22⟩", legend=false)
-plot(p1, p2, layout=(1,2), size=(700,300))
+p1 = plot(t, n, xlabel = "tΓ", ylabel = "⟨a⁺a⟩", legend = false) # Plot
+p2 = plot(t, s22, xlabel = "tΓ", ylabel = "⟨σ22⟩", legend = false)
+plot(p1, p2, layout = (1, 2), size = (700, 300))
 ````
 
 ## Spectrum
@@ -139,7 +139,7 @@ plot(p1, p2, layout=(1,2), size=(700,300))
 We calculate the spectrum here with the Laplace transform of the two-time correlation function. This is implemented with the function $\texttt{Spectrum}$.
 
 ````@example superradiant-laser
-corr = CorrelationFunction(a', a, eqs_c; steady_state=true, filter_func=phase_invariant)
+corr = CorrelationFunction(a', a, eqs_c; steady_state = true, filter_func = phase_invariant)
 S = Spectrum(corr, ps)
 nothing # hide
 ````
@@ -162,11 +162,11 @@ The spectrum is then calculated with
 
 ````@example superradiant-laser
 ω = [-10:0.01:10;]Γ_
-spec = S(ω,sol.u[end],p0)
+spec = S(ω, sol.u[end], p0)
 spec_n = spec ./ maximum(spec)
 δ = abs(ω[(findmax(spec)[2])])
 
-plot(ω, spec_n, xlabel="ω/Γ", legend=false, size=(500,300))
+plot(ω, spec_n, xlabel = "ω/Γ", legend = false, size = (500, 300))
 ````
 
 Beside the narrow linewidth we can also see another key feature of the superradiant laser here, namely the very weak cavity pulling. At a detunig of $\Delta = 2500\Gamma$ there is only a shift of the laser light from the atomic resonance frequency of $\delta = 1\Gamma$.
@@ -184,8 +184,7 @@ using InteractiveUtils
 versioninfo()
 
 using Pkg
-Pkg.status(["SummationByPartsOperators", "OrdinaryDiffEq"],
-           mode=PKGMODE_MANIFEST)
+Pkg.status(["SummationByPartsOperators", "OrdinaryDiffEq"], mode = PKGMODE_MANIFEST)
 ````
 
 ---

@@ -20,7 +20,7 @@ hc = FockSpace(:cavity) # Hilbertspace
 hm = FockSpace(:motion)
 h = hc ⊗ hm
 
-@qnumbers a::Destroy(h,1) b::Destroy(h,2) # Operators
+@qnumbers a::Destroy(h, 1) b::Destroy(h, 2) # Operators
 
 
 @cnumbers Δ ωm E G κ # Parameters
@@ -38,7 +38,7 @@ We are specifically interested in the average number of photons $\langle a^\dagg
 
 ````@example optomechanical-cooling
 ops = [a'*a, b'*b] # Derive equations
-eqs = meanfield(ops,H,J;rates=rates,order=2)
+eqs = meanfield(ops, H, J; rates = rates, order = 2)
 nothing # hide
 ````
 
@@ -84,8 +84,8 @@ u0[2] = 4e6 # Initial number of phonons
 
 p0 = (Δ=>-10, ωm=>1, E=>200, G=>0.0125, κ=>20) # System parameters
 dict = merge(Dict(unknowns(sys) .=> u0), Dict(p0))
-prob = ODEProblem(sys,dict,(0.0,60000))
-sol = solve(prob,RK4())
+prob = ODEProblem(sys, dict, (0.0, 60000))
+sol = solve(prob, RK4())
 nothing # hide
 ````
 
@@ -95,9 +95,9 @@ phonons = real.(sol[b'b])
 T = 7.5e-5*phonons
 photons = real.(sol[a'a])
 
-p1 = plot(t, T, ylabel="T in K", legend=false)
-p2 = plot(t, photons, xlabel="t⋅ωm", ylabel="⟨a⁺a⟩", legend=false)
-plot(p1, p2, layout=(2,1), size=(650,400))
+p1 = plot(t, T, ylabel = "T in K", legend = false)
+p2 = plot(t, photons, xlabel = "t⋅ωm", ylabel = "⟨a⁺a⟩", legend = false)
+plot(p1, p2, layout = (2, 1), size = (650, 400))
 ````
 
 ## Package versions
@@ -109,8 +109,7 @@ using InteractiveUtils
 versioninfo()
 
 using Pkg
-Pkg.status(["SummationByPartsOperators", "OrdinaryDiffEq"],
-           mode=PKGMODE_MANIFEST)
+Pkg.status(["QuantumCumulants", "OrdinaryDiffEq", "ModelingToolkit", "Plots"], mode = PKGMODE_MANIFEST)
 ````
 
 ---
