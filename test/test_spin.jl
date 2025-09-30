@@ -62,10 +62,11 @@ using Test
     eq = meanfield(a'a, H, J; rates = rates, order = 2)
     eqs = complete(eq)
     ps = [Δ_, g, κ, η]
-    @named sys = ODESystem(eqs)
+    @named sys = System(eqs)
     u0 = zeros(ComplexF64, length(eqs))
     p0 = [0.5, 1.0, 1.25, 0.85]
-    prob = ODEProblem(sys, u0, (0.0, 0.5), ps .=> p0)
+    dict = merge(Dict(unknowns(sys) .=> u0), Dict(ps .=> p0))
+    prob = ODEProblem(sys, dict, (0.0, 0.5))
     sol = solve(prob, RK4())
 
     s1y = get_solution(sol, 1im*(s1(1, 2) - s1(2, 1)))[end]
@@ -90,7 +91,7 @@ using Test
     eqs_ = complete(eq_)
     eqs_.states
     ps = [Δ_, g, κ, η]
-    @named sys_ = ODESystem(eqs_)
+    @named sys_ = System(eqs_)
     u0_ = zeros(ComplexF64, length(eqs_))
     u0_[1] = u0_[2] = -1
     u0_[3] = 1
@@ -108,7 +109,8 @@ using Test
     @test all(u0_pauli .≈ u0_)
 
     p0 = [0.5, 1.0, 1.25, 0.85]
-    prob_ = ODEProblem(sys_, u0_, (0.0, 0.5), ps .=> p0)
+    dict = merge(Dict(unknowns(sys_) .=> u0_), Dict(ps .=> p0))
+    prob_ = ODEProblem(sys_, dict, (0.0, 0.5))
     sol_ = solve(prob_, RK4())
 
     s1y_ = get_solution(sol_, σ1(2))[end]
@@ -165,7 +167,7 @@ using Test
     # @test isequal( simplify(Sy(1)Sz(2)Sx(1)), simplify(Sx(1)Sy(1)Sz(2) - 1im*Sz(1)*Sz(2)) )
 
 
-    ### simple time evolution 
+    ### simple time evolution
     @cnumbers δcs Ωcs gcs Γcs
     Hcs1 = δcs/2*Sz(1)
     Jcs1 = [Sm(1)]
@@ -184,11 +186,11 @@ using Test
     ]
     eqs_cs1 = meanfield(ops_cs1, Hcs1, Jcs1; rates = Rcs1, order = 2)
     eqs_cs1_c = complete(eqs_cs1)
-    @named sys_cs1 = ODESystem(eqs_cs1_c);
+    @named sys_cs1 = System(eqs_cs1_c);
 
     eqs_cs1_c.states
     u0_cs1 = zeros(ComplexF64, length(eqs_cs1_c))
-    # full excitation 
+    # full excitation
     Ncs1 = 20
     Ncs1_ = Ncs1/2
     Ncs2 = 8
@@ -211,7 +213,8 @@ using Test
 
     ps_cs1 = [δcs, Γcs]
     p0_cs1 = [0, 1]
-    prob_cs1 = ODEProblem(sys_cs1, u0_cs1, (0.0, 0.2), ps_cs1 .=> p0_cs1)
+    dict = merge(Dict(unknowns(sys_cs1) .=> u0_cs1), Dict(ps_cs1 .=> p0_cs1))
+    prob_cs1 = ODEProblem(sys_cs1, dict, (0.0, 0.2))
     sol_cs1 = solve(prob_cs1, Tsit5(), abstol = 1e-8, reltol = 1e-8)
 
     @test sol_cs1[Sz(1)][1] == 10.0

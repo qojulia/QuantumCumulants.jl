@@ -99,7 +99,7 @@ To calculate the dynamics of the system we create a system of ordinary different
 
 
 ```@example filter_cavity_indexed
-@named sys = ODESystem(eqs_eval)
+@named sys = System(eqs_eval)
 nothing # hide
 ```
 
@@ -124,7 +124,8 @@ gf_ = 0.1Γ_
 ps = [Γ, κ, g, κf, gf, R, [δ(i) for i=1:M_]..., Δ, ν, N]
 p0 = [Γ_, κ_, g_, κf_, gf_, R_, δ_ls..., Δ_, ν_, N_]
 
-prob = ODEProblem(sys,u0,(0.0, 10.0/κf_), ps.=>p0)
+dict = merge(Dict(unknowns(sys) .=> u0), Dict(ps .=> p0))
+prob = ODEProblem(sys,dict,(0.0, 10.0/κf_))
 nothing # hide
 ```
 

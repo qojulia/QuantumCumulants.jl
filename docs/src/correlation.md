@@ -47,27 +47,27 @@ nothing # hide
 ```
 When the [`CorrelationFunction`](@ref) is constructed, an additional Hilbert space is added internally which represents the system at the time ``t``. In our case, this means that another [`FockSpace`](@ref) is added. Note that all operators involved in the correlation function are defined on the [`ProductSpace`](@ref) including this additional Hilbert space.
 
-The equation for ``g(t,\tau)`` is now stored in the first entry of `c.de`. To solve the above numerically, we need to convert to an `ODESystem` and solve numerically.
+The equation for ``g(t,\tau)`` is now stored in the first entry of `c.de`. To solve the above numerically, we need to convert to an `System` and solve numerically.
 ```@example correlation
 using ModelingToolkit, OrdinaryDiffEq
 
-@named sys = ODESystem(me)
+@named sys = System(me)
 n0 = 20.0 # Initial number of photons in the cavity
-u0 = [n0]
-p0 = (ωc => 1, κ => 1)
-prob = ODEProblem(sys,u0,(0.0,2.0),p0) # End time not in steady state
+n_avg = unknowns(sys) |> first
+p0 = (ωc => 1, κ => 1, n_avg => n0) # Initial values and parameters
+prob = ODEProblem(sys,Dict(p0),(0.0,2.0)) # End time not in steady state
 sol = solve(prob,RK4())
 nothing # hide
 ```
 Numerically computing the correlation function works in the same way. Note, the initial state of the correlation function depends on the final state of the system. However, in general it does not depend on *all* the final values of the system. The correct values can be picked out automatically using the [`correlation_u0`](@ref) function.
 ```@example correlation
-@named csys = ODESystem(c)
+@named csys = System(c)
 u0_c = correlation_u0(c, sol.u[end])
-prob_c = ODEProblem(csys,u0_c,(0.0,10.0),p0)
+prob_c = ODEProblem(csys,merge(Dict(u0_c),Dict(p0)),(0.0,10.0))
 sol_c = solve(prob_c,RK4(),save_idxs=1)
 nothing # hide
 ```
-Finally, lets check our numerical solution against the analytic one obtained above:
+Finally, let's check our numerical solution against the analytic one obtained above:
 ```@example correlation
 using Test # hide
 g_analytic(τ) = @. sol.u[end] * exp((im*p0[1][2]-0.5p0[2][2])*τ)

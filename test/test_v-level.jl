@@ -71,7 +71,7 @@ using SymbolicUtils
 
 
     p = [κ, g, Δc, Γ2, Γ3, Δ2, Δ3, Ω2, Ω3]
-    @named sys = ODESystem(he_avg)
+    @named sys = System(he_avg)
 
     u0 = zeros(ComplexF64, length(he_avg))
 
@@ -87,8 +87,9 @@ using SymbolicUtils
     gn = 10.0 * Γ2n
     tmax = 5/Γ2n
 
-    p0 = p .=> [κn, gn, Δcn, Γ2n, Γ3n, Δ2n, Δ3n, Ω2n, Ω3n]
-    prob = ODEProblem(sys, u0, (0.0, tmax), p0)
+    p0 = Dict(zip(p, [κn, gn, Δcn, Γ2n, Γ3n, Δ2n, Δ3n, Ω2n, Ω3n]))
+    dict = merge(Dict(unknowns(sys) .=> u0), p0)
+    prob = ODEProblem(sys, dict, (0.0, tmax))
     sol = solve(prob, RK4())
 
     avg = average(a'*σ(2, 1))
@@ -136,6 +137,6 @@ using SymbolicUtils
     pf = [ωf; gf; κf; avg_ps; p]
 
     # Generate function for the filter cavities
-    @named sys_f = ODESystem(he_f_avg)
+    @named sys_f = System(he_f_avg)
 
 end # testset

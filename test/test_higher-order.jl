@@ -62,9 +62,10 @@ using OrdinaryDiffEq, ModelingToolkit
     # Numerical solution
     ps = (Δ, g, γ, κ, ν)
     p0 = (0.5, 1.5, 0.25, 1, 4)
-    @named sys4 = ODESystem(he4)
+    @named sys4 = System(he4)
     u0 = zeros(ComplexF64, length(he4))
-    prob4 = ODEProblem(sys4, u0, (0.0, tspan[end]), ps .=> p0)
+    dict = merge(Dict(unknowns(sys4) .=> u0), Dict(ps .=> p0))
+    prob4 = ODEProblem(sys4, dict, (0.0, tspan[end]))
     sol4 = solve(prob4, RK4())
 
     n4 = real.(getindex.(sol4.(tspan), 1))
@@ -81,9 +82,10 @@ using OrdinaryDiffEq, ModelingToolkit
     # Numerical solution
     ps = (Δ, g, γ, κ, ν)
     p0 = (0.5, 1.5, 0.25, 1, 4)
-    @named sys6 = ODESystem(he6)
+    @named sys6 = System(he6)
     u0 = zeros(ComplexF64, length(he6))
-    prob6 = ODEProblem(sys6, u0, (0.0, tspan[end]), ps .=> p0)
+    dict = merge(Dict(unknowns(sys6) .=> u0), Dict(ps .=> p0))
+    prob6 = ODEProblem(sys6, dict, (0.0, tspan[end]))
     sol6 = solve(prob6, RK4())
 
     n6 = real.(getindex.(sol6.(tspan), 1))

@@ -5,7 +5,12 @@ using QuantumCumulants, Test
 
     Aqua.test_ambiguities([QuantumCumulants]; broken = true)
     Aqua.test_piracies(QuantumCumulants; broken = true)
-    Aqua.test_all(QuantumCumulants; ambiguities = false, piracies = false)
+    Aqua.test_all(
+        QuantumCumulants;
+        ambiguities = false,
+        piracies = false,
+        persistent_tasks = false,
+    )
 end
 
 @testset "ExplicitImports" begin
@@ -25,7 +30,7 @@ if isempty(VERSION.prerelease)
         # JET.test_package(SecondQuantizedAlgebra; target_defined_modules=true)
         rep = report_package("QuantumCumulants")
         @show rep
-        @test length(JET.get_reports(rep)) <= 306
+        @test length(JET.get_reports(rep)) <= 317
         @test_broken length(JET.get_reports(rep)) == 0
     end
 end

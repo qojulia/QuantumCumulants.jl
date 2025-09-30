@@ -87,11 +87,7 @@ function _meanfield(
 
     # Average
     vs = map(average, a)
-    rhs_avg = map(average, rhs)
-    if simplify
-        rhs_avg = map(SymbolicUtils.simplify, rhs_avg)
-    end
-    rhs = map(undo_average, rhs_avg)
+    rhs_avg, rhs = take_function_averages(rhs, simplify)
 
     if order !== nothing
         rhs_avg = [

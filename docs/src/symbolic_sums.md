@@ -212,13 +212,13 @@ evaled = evaluate(eqs_comp;limits=(N=>3))
 nothing #hide
 ```
 
-The last set of equations is now in a form, which can be convert to an `ODESystem` as defined in [ModelingToolkit](https://github.com/SciML/ModelingToolkit.jl) and be solved numerically with [OrdinaryDiffEq](https://github.com/JuliaDiffEq/OrdinaryDiffEq.jl). Furthermore we give each atom a different coupling strength `g`. This can now be done by using the [`value_map`](@ref) function to create a parameter mapping for the `ODEProblem`. In this case we give as coupling strength a vector with three different values.
+The last set of equations is now in a form, which can be convert to an `System` as defined in [ModelingToolkit](https://github.com/SciML/ModelingToolkit.jl) and be solved numerically with [OrdinaryDiffEq](https://github.com/JuliaDiffEq/OrdinaryDiffEq.jl). Furthermore we give each atom a different coupling strength `g`. This can now be done by using the [`value_map`](@ref) function to create a parameter mapping for the `ODEProblem`. In this case we give as coupling strength a vector with three different values.
 
 
 ```@example symbolic_sums
-# Generate an ODESystem
+# Generate an System
 using ModelingToolkit
-@named sys = ODESystem(evaled)
+@named sys = System(evaled)
 
 # Solve the system using the OrdinaryDiffEq package
 using OrdinaryDiffEq
@@ -226,7 +226,9 @@ u0 = zeros(ComplexF64,length(evaled))
 p = [Δ, gi, γ, κ, ν]
 p0 = [0,[0.75,1.2,1.5],0.25,1,1.5]
 p_ = value_map(p,p0;limits=(N=>3))
-prob = ODEProblem(sys,u0,(0.0,10.0),p_)
+
+dict = merge(Dict(unknowns(sys) .=> u0), Dict(p_))
+prob = ODEProblem(sys,dict,(0.0,10.0))
 sol = solve(prob,RK4())
 nothing #hide
 ```

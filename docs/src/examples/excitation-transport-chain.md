@@ -64,12 +64,12 @@ Rather, we only need to derive the equations once and substitute the noisy posit
 eqs = meanfield(σ(:g,:e,1),H,c_ops;rates=[γ for i=1:N],order=2)
 complete!(eqs)  # complete the set
 
-# Generate the ODESystem
-@named sys = ODESystem(eqs)
+# Generate the System
+@named sys = System(eqs)
 nothing # hide
 ```
 
-Once we have our set of equations and converted it to an `ODESystem` we are ready to solve for the dynamics.
+Once we have our set of equations and converted it to an `System` we are ready to solve for the dynamics.
 First, let's have a look at the excitation transport for perfectly positioned atoms.
 We assume an equidistant chain, were neighboring atoms are separated by a distance $d$.
 
@@ -81,7 +81,8 @@ p = [γ => 1.0; Δ => 0.0; Ω => 2.0; J0 => 1.25; x .=> x0;]
 
 # Create ODEProblem
 u0 = zeros(ComplexF64, length(eqs))  # initial state -- all atoms in the ground state
-prob = ODEProblem(sys,u0,(0.0,15.0),p)
+dict = merge(Dict(unknowns(sys) .=> u0), Dict(p))
+prob = ODEProblem(sys,dict,(0.0,15.0))
 
 # Solve
 sol = solve(prob,RK4())
@@ -112,7 +113,8 @@ function prob_func(prob,i,repeat)
     x_ = x0 .+ s.*randn(N)
     p_ = [γ => 1.0; Δ => 0.0; Ω => 2.0; J0 => 1.25; x .=> x_;]
     # Return new ODEProblem
-    return ODEProblem(sys,u0,(0.0,15.0),p_)
+    dict = merge(Dict(unknowns(sys) .=> u0), Dict(p_))
+    return ODEProblem(sys,dict,(0.0,15.0))
 end
 
 trajectories = 20

@@ -111,7 +111,7 @@ To calculate the dynamics of the system we create a system of ordinary different
 
 
 ```@example superradiant-laser
-@named sys = ODESystem(eqs_c)
+@named sys = System(eqs_c)
 nothing # hide
 ```
 
@@ -133,7 +133,8 @@ R_ = 1000Γ_ #R=1Hz
 ps = [N, Δ, g, κ, Γ, R, ν]
 p0 = [N_, Δ_, g_, κ_, Γ_, R_, ν_]
 
-prob = ODEProblem(sys,u0,(0.0, 1.0/50Γ_), ps.=>p0)
+dict = merge(Dict(unknowns(sys) .=> u0), Dict(ps .=> p0))
+prob = ODEProblem(sys,dict,(0.0, 1.0/50Γ_))
 nothing # hide
 ```
 

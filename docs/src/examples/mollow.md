@@ -89,11 +89,12 @@ To find the spectrum, we first need to compute the time evolution of the system 
 
 
 ```@example mollow
-@named sys = ODESystem(eqs)
+@named sys = System(eqs)
 
 p0 = (0.0,2.0,1.0)
 u0 = zeros(ComplexF64, 2)
-prob = ODEProblem(sys,u0,(0.0,20.0),ps .=> p0)
+dict = merge(Dict(unknowns(sys) .=> u0), Dict(ps .=> p0))
+prob = ODEProblem(sys,dict,(0.0,20.0))
 sol = solve(prob,RK4())
 nothing # hide
 ```

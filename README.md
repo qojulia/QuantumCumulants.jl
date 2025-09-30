@@ -44,10 +44,10 @@ rates = [κ,γ,ν]
 eqs = meanfield([a,σ(:g,:e),σ(:e,:e)], H, J; rates=rates, order=1)
 
 using ModelingToolkit, OrdinaryDiffEq
-@named sys = ODESystem(eqs)
-p0 = (Δ=>0, g=>1.5, κ=>1, γ=>0.25, ν=>4)
-u0 = ComplexF64[1e-2, 0, 0]
-prob = ODEProblem(sys,u0,(0.0,50.0),p0)
+@named sys = System(eqs)
+p0 = Dict(Δ=>0, g=>1.5, κ=>1, γ=>0.25, ν=>4)
+u0 = Dict(unknowns(sys) => ComplexF64[1e-2, 0, 0])
+prob = ODEProblem(sys,merge(u0, p0),(0.0,50.0))
 sol = solve(prob,RK4())
 
 using Plots
@@ -58,7 +58,7 @@ plot(sol.t, n, xlabel="t", label="n")
 ![photon-number](https://user-images.githubusercontent.com/18166442/114183684-3ae76080-9944-11eb-9d21-94bf4069bb60.png)
 
 
-The above code implements the Jaynes-Cummings Hamiltonian describing an optical cavity mode that couples to a two-level atom. Additionally, the decay processes are specified. Then, mean-field equations for the average values of the operators `[a,σ(:g,:e),σ(:e,:e)]` are derived and expanded to first order (average values of products are factorized). For the numerical solution an `ODESystem` (from [ModelingToolkit.jl](https://github.com/SciML/ModelingToolkit.jl)) is created and solved with the [OrdinaryDiffEq.jl](https://github.com/SciML/OrdinaryDiffEq.jl) library. Finally, the time dynamics of the photon number `n` is plotted.
+The above code implements the Jaynes-Cummings Hamiltonian describing an optical cavity mode that couples to a two-level atom. Additionally, the decay processes are specified. Then, mean-field equations for the average values of the operators `[a,σ(:g,:e),σ(:e,:e)]` are derived and expanded to first order (average values of products are factorized). For the numerical solution an `System` (from [ModelingToolkit.jl](https://github.com/SciML/ModelingToolkit.jl)) is created and solved with the [OrdinaryDiffEq.jl](https://github.com/SciML/OrdinaryDiffEq.jl) library. Finally, the time dynamics of the photon number `n` is plotted.
 
 
 ## Citing

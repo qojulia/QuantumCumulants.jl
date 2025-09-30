@@ -101,7 +101,7 @@ To create the equations for a specific number of atoms we use the function $\tex
 ```@example antiresonance_indexed
 N_ = 2
 eqs_ = evaluate(eqs;limits=(N=>N_))
-@named sys = ODESystem(eqs_)
+@named sys = System(eqs_)
 nothing # hide
 ```
 
@@ -149,7 +149,8 @@ for i=1:length(Δ_ls)
     p0_ = [Δc_i; η_; Δa_i; κ_; gi_; Γij_; Ωij_]
     
     # create (remake) new ODEProblem
-    prob_  = ODEProblem(sys,u0,(0.0, 20),ps.=>p0_)
+    dict = merge(Dict(unknowns(sys) .=> u0), Dict(ps .=> p0_))
+    prob_  = ODEProblem(sys,dict,(0.0, 20))
     sol_ = solve(prob_, Tsit5())
     n_ls[i] = abs2(sol_[a][end])
 end

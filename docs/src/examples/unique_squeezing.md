@@ -114,7 +114,7 @@ To calculate the dynamics of the system we create a system of ordinary different
 
 ```@example squeezing
 # symbolic ordinary differential equation system
-@named sys = ODESystem(eqs_sc)
+@named sys = System(eqs_sc)
 
 # initial state 
 u0 = zeros(ComplexF64, length(eqs_sc));
@@ -140,7 +140,8 @@ sol_ls = []
 N_ls = [1,2,10,100]
 for N_ in N_ls
     p0 = [ω_, Ω_, ωd_, g_, η_, κ_, γ_, N_, ξ_]
-    prob = ODEProblem(sys,u0,(0.0, 4π/ωd_), ps.=>p0)
+    dict = merge(Dict(unknowns(sys) .=> u0), Dict(ps .=> p0))
+    prob = ODEProblem(sys,dict,(0.0, 4π/ωd_))
     sol = solve(prob,Tsit5(); saveat=π/30ωd_ ,reltol=1e-10,abstol=1e-10)
     push!(sol_ls,sol)
 end
@@ -200,7 +201,7 @@ nothing # hide
 
 ```@example squeezing
 # symbolic ordinary differential equation system
-@named sys_a = ODESystem(eqs_a)
+@named sys_a = System(eqs_a)
 
 # initial state 
 u0_a = zeros(ComplexF64, length(eqs_a))

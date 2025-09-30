@@ -211,13 +211,13 @@ Before you can actually solve the system of equations, you need to ensure that i
 
 ## Numerical solution
 
-Finally, in order to actually solve a system of equations, we need to convert a set of equations to an [`ODESystem`](https://mtk.sciml.ai/dev/systems/ODESystem/), which represents a symbolic set of ordinary differential equations. `ODESystem`s are part of the [**ModelingToolkit.jl**](https://github.com/SciML/ModelingToolkit.jl) framework, which allows for generating fast numerical functions that can be directly used in the [**OrdinaryDiffEq.jl**](https://github.com/SciML/OrdinaryDiffEq.jl) package. On top of that, [**ModelingToolkit.jl**](https://github.com/SciML/ModelingToolkit.jl) also offers a variety of additional functionality, such as the symbolic computation of Jacobians for better stability and performance.
+Finally, in order to actually solve a system of equations, we need to convert a set of equations to an [`System`](https://docs.sciml.ai/ModelingToolkit/dev/API/System/), which represents a symbolic set of ordinary differential equations. `System`s are part of the [**ModelingToolkit.jl**](https://github.com/SciML/ModelingToolkit.jl) framework, which allows for generating fast numerical functions that can be directly used in the [**OrdinaryDiffEq.jl**](https://github.com/SciML/OrdinaryDiffEq.jl) package. On top of that, [**ModelingToolkit.jl**](https://github.com/SciML/ModelingToolkit.jl) also offers a variety of additional functionality, such as the symbolic computation of Jacobians for better stability and performance.
 
-To obtain an `ODESystem` from [`MeanfieldEquations`](@ref), you simply need to call the constructor:
+To obtain an `System` from [`MeanfieldEquations`](@ref), you simply need to call the constructor:
 
 ```@example meanfield
 using ModelingToolkit
-@named sys = ODESystem(me)
+@named sys = System(me)
 nothing # hide
 ```
 
@@ -225,9 +225,9 @@ Finally, to obtain a numerical solution we can construct an `ODEProblem` and sol
 
 ```@example meanfield
 using OrdinaryDiffEq
-p0 = (ω => 1.0, η => 0.1)
-u0 = zeros(ComplexF64, length(me))
-prob = ODEProblem(sys,u0,(0.0,1.0),p0)
+p0 = Dict(ω => 1.0, η => 0.1)
+u0 = Dict(zip(unknowns(sys),zeros(ComplexF64, length(me))))
+prob = ODEProblem(sys,merge(u0,p0),(0.0,1.0))
 sol = solve(prob, RK4())
 nothing # hide
 ```

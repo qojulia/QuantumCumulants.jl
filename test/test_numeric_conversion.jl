@@ -1,6 +1,6 @@
 using QuantumCumulants
 using QuantumOpticsBase
-using ModelingToolkit: ODESystem
+using ModelingToolkit
 using OrdinaryDiffEq
 using Test
 using Random;
@@ -261,7 +261,7 @@ Random.seed!(0)
     eqs = meanfield(ops, H, J; rates = rates, order = order)
     eqs_c = complete(eqs)
     eqs_sc = scale(eqs_c)
-    @named sys = ODESystem(eqs_sc)
+    @named sys = System(eqs_sc)
     @test_throws ArgumentError initial_values(eqs_sc, ψ)
 
     u0 = initial_values(eqs_sc, ψ; ranges = ranges)
@@ -279,7 +279,8 @@ Random.seed!(0)
     ps = [N, Δ, g, κ, Γ]
     p0 = [N_, Δ_, g_, κ_, Γ_]
 
-    prob = ODEProblem(sys, u0, (0.0, 1e-4/Γ_), ps .=> p0)
+    dict = merge(Dict(unknowns(sys) .=> u0), Dict(ps .=> p0))
+    prob = ODEProblem(sys, dict, (0.0, 1e-4/Γ_))
     sol = solve(prob, Tsit5(); save_on = false, save_everystep = false)
     @test sol.retcode == ReturnCode.Success
 
