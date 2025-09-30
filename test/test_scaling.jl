@@ -4,28 +4,28 @@ using OrdinaryDiffEq
 using ModelingToolkit
 
 @testset "scaling" begin
-        # Custom filter function -- include only phase-invariant terms
-        ϕ(x) = 0
-        ϕ(x::Destroy) = -1
-        ϕ(x::Create) = 1
-        function ϕ(t::Transition)
-            if (t.i == 1 && t.j == 2) || (t.i == 3 && t.j == 2) || (t.i == :g && t.j == :e)
-                -1
-            elseif (t.i == 2 && t.j == 1) || (t.i == 2 && t.j == 3) || (t.i == :e && t.j == :g)
-                1
-            else
-                0
-            end
+    # Custom filter function -- include only phase-invariant terms
+    ϕ(x) = 0
+    ϕ(x::Destroy) = -1
+    ϕ(x::Create) = 1
+    function ϕ(t::Transition)
+        if (t.i == 1 && t.j == 2) || (t.i == 3 && t.j == 2) || (t.i == :g && t.j == :e)
+            -1
+        elseif (t.i == 2 && t.j == 1) || (t.i == 2 && t.j == 3) || (t.i == :e && t.j == :g)
+            1
+        else
+            0
         end
-        ϕ(avg::Average) = ϕ(avg.arguments[1])
-        function ϕ(t::QuantumCumulants.QMul)
-            p = 0
-            for arg in t.args_nc
-                p += ϕ(arg)
-            end
-            return p
+    end
+    ϕ(avg::Average) = ϕ(avg.arguments[1])
+    function ϕ(t::QuantumCumulants.QMul)
+        p = 0
+        for arg in t.args_nc
+            p += ϕ(arg)
         end
-        phase_invariant(x) = iszero(ϕ(x))
+        return p
+    end
+    phase_invariant(x) = iszero(ϕ(x))
 
     @testset "scaling cluster" begin
         order = 2
@@ -75,11 +75,15 @@ using ModelingToolkit
 
         # Derive equation for average photon number
         ops = [a'a, S(2, 2, 1)[1], a' * S(1, 2, 1)[1]]
-        he = meanfield(ops, H, J; rates=rates, order=2)
+        he = meanfield(ops, H, J; rates = rates, order = 2)
 
         he_avg = cumulant_expansion(he, 2)
-        he_scale =
-            complete(he_avg; filter_func=phase_invariant, order=order, multithread=false)
+        he_scale = complete(
+            he_avg;
+            filter_func = phase_invariant,
+            order = order,
+            multithread = false,
+        )
         @test length(he_scale) == 9
 
         ps = [Δc; κ; Γ2; Γ3; Γ23; η; ν3; ν2; Δ2; Δ3; Ω3; g; N]
@@ -92,7 +96,7 @@ using ModelingToolkit
         p0 = ps .=> [ones(length(ps) - 1); N_]
         dict = merge(Dict(unknowns(sys) .=> u0), Dict(p0))
         prob1 = ODEProblem(sys, dict, (0.0, 1.0))
-        sol1 = solve(prob1, Tsit5(), reltol=1e-12, abstol=1e-12)
+        sol1 = solve(prob1, Tsit5(), reltol = 1e-12, abstol = 1e-12)
 
         @test sol1.u[end][1] ≈ 0.0758608728203
 
@@ -117,10 +121,10 @@ using ModelingToolkit
         J = [a; [σ(:g, :e)[i] for i = 1:M]; [σ(:e, :g)[i] for i = 1:M]]
         rates = [κ; [γ for i = 1:M]; [ν for i = 1:M]]
 
-        he = meanfield(a' * a, H, J; rates=rates, order=2)
+        he = meanfield(a' * a, H, J; rates = rates, order = 2)
 
         # Complete
-        he_scaled = complete(he; filter_func=phase_invariant)
+        he_scaled = complete(he; filter_func = phase_invariant)
 
         names = he_scaled.names
         avg = average(σ(:e, :g)[1] * σ(:e, :e)[2])
@@ -145,7 +149,7 @@ using ModelingToolkit
         u0 = zeros(ComplexF64, length(he_scaled))
         dict = merge(Dict(unknowns(sys) .=> u0), Dict(p0))
         prob = ODEProblem(sys, dict, (0.0, 50.0))
-        sol = solve(prob, RK4(), abstol=1e-10, reltol=1e-10)
+        sol = solve(prob, RK4(), abstol = 1e-10, reltol = 1e-10)
 
         @test sol.u[end][1] ≈ 12.601868534
 
@@ -154,11 +158,11 @@ using ModelingToolkit
             a',
             a,
             he_avg;
-            steady_state=true,
-            filter_func=phase_invariant,
+            steady_state = true,
+            filter_func = phase_invariant,
         )
         Spec = Spectrum(corr, ps)
-        s = Spec(range(-π, π, length=301), sol.u[end], getindex.(p0, 2))
+        s = Spec(range(-π, π, length = 301), sol.u[end], getindex.(p0, 2))
         @test all(s .>= 0.0)
     end
 
@@ -207,9 +211,19 @@ using ModelingToolkit
         H = Δ * a' * a + G * sum(b[i] + b[i]' for i = 1:M) * a' * a + Ω * (a + a')
         J = [a, b]
         rates = [κ, γ]
-        ops =
-            [a, a' * a, a * a, b[1], a * b[1], a' * b[1], b[1]' * b[1], b[1] * b[1], b[1]' * b[2], b[1] * b[2]]
-        he = meanfield(ops, H, J; rates=rates)
+        ops = [
+            a,
+            a' * a,
+            a * a,
+            b[1],
+            a * b[1],
+            a' * b[1],
+            b[1]' * b[1],
+            b[1] * b[1],
+            b[1]' * b[2],
+            b[1] * b[2],
+        ]
+        he = meanfield(ops, H, J; rates = rates)
 
         he_avg = cumulant_expansion(he, 2)
         @test isempty(find_missing(he_avg))
@@ -257,7 +271,7 @@ using ModelingToolkit
             b[1]' * b[2],
             b[1] * b[2],
         ]
-        he = meanfield(ops, H, J; rates=rates)
+        he = meanfield(ops, H, J; rates = rates)
         he_avg = cumulant_expansion(he, 2)
         @test isempty(find_missing(he_avg))
         ps = (Δ, η, γ, λ, ν, Γ, N)
@@ -267,7 +281,7 @@ using ModelingToolkit
         u0 = zeros(ComplexF64, length(he_avg))
         dict = merge(Dict(unknowns(sys) .=> u0), Dict(p0))
         prob1 = ODEProblem(sys, dict, (0.0, 1.0))
-        sol1 = solve(prob1, Tsit5(), abstol=1e-12, reltol=1e-12)
+        sol1 = solve(prob1, Tsit5(), abstol = 1e-12, reltol = 1e-12)
         bdb1 = sol1[b[1]'*b[1]][end]
         σ22_1 = sol1[σ(2, 2)][end]
         σ12_1 = sol1[σ(1, 2)][end]
@@ -299,10 +313,10 @@ using ModelingToolkit
         rates = [κ, γ..., ν...]
 
         ops = [a' * a]
-        he = meanfield(ops, H, J; rates=rates, order=2)
+        he = meanfield(ops, H, J; rates = rates, order = 2)
 
         # Scale
-        he_scaled = complete(he; filter_func=phase_invariant)
+        he_scaled = complete(he; filter_func = phase_invariant)
 
         @test isempty(find_missing(he_scaled))
 
@@ -336,7 +350,7 @@ using ModelingToolkit
 
         dict = merge(Dict(unknowns(sys) .=> u0), Dict(p0))
         prob = ODEProblem(sys, dict, (0.0, 50.0))
-        sol = solve(prob, RK4(), abstol=1e-10, reltol=1e-10)
+        sol = solve(prob, RK4(), abstol = 1e-10, reltol = 1e-10)
 
         @test sol.u[end][1] ≈ 12.601868534
     end
@@ -390,7 +404,7 @@ using ModelingToolkit
 
         # Derive equation for average photon number
         ops = [a'a, σ(2, 2)[1], σ(3, 3)[1], σ(4, 4)[1], σ(5, 5)[1], σ(6, 6)[1]]
-        eqs_ops = meanfield(ops, H, J; rates=rates, order=order, multithread=true)
+        eqs_ops = meanfield(ops, H, J; rates = rates, order = order, multithread = true)
 
         @test length(eqs_ops) == length(ops)
     end
