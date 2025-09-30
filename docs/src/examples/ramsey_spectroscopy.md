@@ -74,7 +74,7 @@ To calculate the dynamic of the system we create a system of ordinary differenti
 tp = π/2Ω_ # π/2-pulse
 tf = 1/20Γ_ # free evolution without drive
 
-global function f(t)
+function f(t)
     if t<tp || (t>tp+tf && t<2tp+tf)
         return 1
     else
@@ -121,3 +121,4 @@ end
 
 plot(Δ_ls, s22_ls, xlabel="Δ/Γ", ylabel="⟨σ22⟩", legend=false, size=(600,300))
 ```
+
