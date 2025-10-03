@@ -3,6 +3,8 @@ using QuantumCumulants, SecondQuantizedAlgebra
 
 ENV["GKSwstype"] = "100" # enable headless mode for GR to suppress warnings when plotting
 
+include("make_md_examples.jl")
+
 pages = [
     "index.md",
     "theory.md",
