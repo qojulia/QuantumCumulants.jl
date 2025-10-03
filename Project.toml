@@ -1,6 +1,6 @@
 name = "QuantumCumulants"
 uuid = "35bcea6d-e19f-57db-af74-8011de6c7255"
-version = "0.4.1"
+version = "0.4.0"
 
 [deps]
 Combinatorics = "861a8166-3701-5b0c-9a16-15d98fcdc6aa"
@@ -35,7 +35,7 @@ QuantumOpticsBase = "0.4, 0.5"
 Random = "1.10"
 SciMLBase = "1, 2"
 SecondQuantizedAlgebra = "0.4.3"
-SteadyStateDiffEq = "2"
+SteadyStateDiffEq = "2.5"
 SymbolicUtils = "3.6"
 Symbolics = "6"
 TermInterface = "2"
