@@ -19,6 +19,18 @@ NLevelSpace
 ```
 
 ```@docs
+PauliSpace
+```
+
+```@docs
+SpinSpace
+```
+
+```@docs
+PhaseSpace
+```
+
+```@docs
 ClusterSpace
 ```
 
@@ -28,22 +40,6 @@ ClusterSpace
 
 ```@docs
 tensor
-```
-
-```@docs
-PauliSpace
-```
-
-```@docs
-Pauli
-```
-
-```@docs
-SpinSpace
-```
-
-```@docs
-Spin
 ```
 
 ## [q-Numbers](@id API: Operators)
@@ -72,6 +68,21 @@ Create
 Transition
 ```
 
+```@docs
+Pauli
+```
+
+```@docs
+Spin
+```
+
+```@docs
+Position
+```
+
+```@docs
+Momentum
+```
 
 ## [Mean field](@id API: Meanfield)
 
