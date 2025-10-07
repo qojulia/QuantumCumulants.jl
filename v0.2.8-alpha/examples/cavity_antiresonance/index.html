@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Cavity Antiresonance · QuantumCumulants.jl</title><link href="https://fonts.googleapis.com/css?family=Lato|Roboto+Mono" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.0/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.0/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.0/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.11.1/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL="../.."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../../assets/documenter.js"></script><script src="../../siteinfo.js"></script><script src="../../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-dark.css" data-theme-name="documenter-dark" data-theme-primary-dark/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../../assets/themeswap.js"></script></head><body><div id="documenter"><nav class="docs-sidebar"><div class="docs-package-name"><span class="docs-autofit">QuantumCumulants.jl</span></div><form class="docs-search" action="../../search/"><input class="docs-search-query" id="documenter-search-query" name="q" type="text" placeholder="Search docs"/></form><ul class="docs-menu"><li><a class="tocitem" href="../../">Introduction</a></li><li><a class="tocitem" href="../../theory/">Theoretical background</a></li><li><a class="tocitem" href="../../tutorial/">Tutorial</a></li><li><a class="tocitem" href="../../correlation/">Correlation functions and spectra</a></li><li><a class="tocitem" href="../../implementation/">Implementation</a></li><li><a class="tocitem" href="../../api/">API</a></li><li><span class="tocitem">Examples</span><ul><li><a class="tocitem" href="../single-atom-laser-spectrum/">Spectrum of a single-atom laser</a></li><li><a class="tocitem" href="../mollow/">Mollow Triplet</a></li><li><a class="tocitem" href="../many-atom-laser/">Many-atom laser</a></li><li><a class="tocitem" href="../optomechanical-cooling/">Optomechanical Cooling</a></li><li><a class="tocitem" href="../superradiant-laser/">Superradiant Laser</a></li><li><a class="tocitem" href="../excitation-transport-chain/">Noisy excitation transport</a></li><li class="is-active"><a class="tocitem" href>Cavity Antiresonance</a></li><li><a class="tocitem" href="../ramsey_spectroscopy/">Ramsey Spectroscopy</a></li></ul></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><nav class="breadcrumb"><ul class="is-hidden-mobile"><li><a class="is-disabled">Examples</a></li><li class="is-active"><a href>Cavity Antiresonance</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>Cavity Antiresonance</a></li></ul></nav><div class="docs-right"><a class="docs-edit-link" href="https://github.com/qojulia/QuantumCumulants.jl/blob/master/docs/src/examples/cavity_antiresonance.md" title="Edit on GitHub"><span class="docs-icon fab"></span><span class="docs-label is-hidden-touch">Edit on GitHub</span></a><a class="docs-settings-button fas fa-cog" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-sidebar-button fa fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a></div></header><article class="content" id="documenter-page"><h1 id="Cavity-Antiresonance"><a class="docs-heading-anchor" href="#Cavity-Antiresonance">Cavity Antiresonance</a><a id="Cavity-Antiresonance-1"></a><a class="docs-heading-anchor-permalink" href="#Cavity-Antiresonance" title="Permalink"></a></h1><p>In this example we investigate a system of <span>$N$</span> closely spaced quantum emitters inside a coherently driven single mode cavity. The model is descriped in <a href="https://journals.aps.org/prl/abstract/10.1103/PhysRevLett.119.093601">D. Plankensteiner, et. al., Phys. Rev. Lett. 119, 093601 (2017)</a>. The Hamiltonian of this system is composed of three parts <span>$H = H_c + H_a + H_{\mathrm{int}}$</span>, the driven cavity <span>$H_c$</span>, the dipole-dipole interacting atoms <span>$H_a$</span> and the atom-cavity interaction <span>$H_\mathrm{int}$</span>:</p><p class="math-container">\[\begin{align*}
+H_\mathrm{c} &amp;= \Delta_c a^\dagger a + \eta (a^\dagger + a) \\
+&amp;\\
+H_a &amp;= \Delta_a \sum\limits_{j} \sigma_j^{22} + \sum\limits_{i \neq j} \Omega_{ij} \sigma_i^{21} \sigma_j^{12} \\
+&amp;\\
+H_\mathrm{int} &amp;= \sum\limits_{j} g_j (a^\dagger \sigma_j^{12} + a \sigma_j^{21})
+\end{align*}\]</p><p>Additionally the system features two decay channels, the lossy cavity with photon decay rate <span>$\kappa$</span> and collective atomic emission described by the decay-rate matrix <span>$\Gamma_{ij}$</span>. In our example we will consider the case of <span>$N=2$</span> atoms.</p><p>We start by loading the packages.</p><pre><code class="language-julia">using QuantumCumulants
+using OrdinaryDiffEq, SteadyStateDiffEq, ModelingToolkit
+using Plots</code></pre><p>The Hilbert space for this system is given by one cavity mode and <span>$N$</span> two-level atoms and the parameters <span>$g_j, \, \Gamma_{ij}$</span> and <span>$\Omega_{ij}$</span> are defined as a function of atom <span>$i$</span> and <span>$j$</span>. We will describe the system in first order mean-field.</p><pre><code class="language-julia">order = 1
+@cnumbers Δc η Δa κ
+
+g(j) = cnumbers(Symbol(g, j))[1]
+Γ(i,j) = cnumbers(Symbol(Γ, i, j))[1]
+Ω(i,j) = cnumbers(Symbol(Ω, i, j))[1]
+
+N = 2 #number of atoms
+hc = FockSpace(:cavity)
+ha = ⊗([NLevelSpace(Symbol(:atom,i),2) for i=1:N]...)
+h = hc ⊗ ha</code></pre><p>Now we create the operators on the composite Hilbert space. The transition operator of the <span>$k$</span>-th atom acts here on the Hilbert space <span>$k+1$</span>, since the first Hilbert space is the one of the cavity.</p><pre><code class="language-julia">@qnumbers a::Destroy(h)
+σ(i,j,k) = Transition(h,Symbol(&quot;σ_{$k}&quot;),i,j,k+1)</code></pre><p>We define the Hamiltonian and Liouvillian. For the collective atomic decay we can write the corresponding jump process with a rate-matrix <span>$R$</span> and a vector <span>$J$</span> of jump operators, such that an operator <span>$\mathcal{O}$</span> follows the equation</p><p class="math-container">\[\dot{\mathcal{O}} = \sum_{ij} R_{ij} (J_i^\dagger \mathcal{O} J_j - J_i^\dagger J_j \mathcal{O}/2 -  \mathcal{O} J_i^\dagger J_j/2) + \mathrm{noise}.\]</p><pre><code class="language-julia"># Hamiltonian
+Hc = Δc*a&#39;a + η*(a&#39; + a)
+Ha = Δa*sum(σ(2,2,k) for k=1:N) +
+    sum(Ω(i,j)*σ(2,1,i)*σ(1,2,j)*(i≠j) for i=1:N for j=1:N)
+Hi = sum(g(k)*(a&#39;σ(1,2,k) + a*σ(2,1,k)) for k=1:N)
+H = Hc + Ha + Hi
+
+# Jump operators &amp; and rates
+J = [a, [σ(1,2,k) for k=1:N]]
+rates = [κ, [Γ(i,j) for i=1:N, j=1:N]]</code></pre><p>Using the Hamiltonina and Liouvillian we derive the system of equations in first order mean-field.</p><pre><code class="language-julia">ops = [a, σ(2,2,1), σ(1,2,1)]
+eqs = meanfield(ops,H,J;rates=rates,order=order)</code></pre><p class="math-container">\[\begin{align}
+\frac{d}{dt} \langle a\rangle  =&amp; -1 i \eta -0.5 \kappa \langle a\rangle  -1 i {\Delta}c \langle a\rangle  -1 i g1 \langle {\sigma_{1}}^{{12}}\rangle  -1 i g2 \langle {\sigma_{2}}^{{12}}\rangle  \\
+\frac{d}{dt} \langle {\sigma_{1}}^{{22}}\rangle  =&amp; -1.0 {\Gamma}11 \langle {\sigma_{1}}^{{22}}\rangle  -0.5 {\Gamma}21 \langle {\sigma_{2}}^{{21}}\rangle  \langle {\sigma_{1}}^{{12}}\rangle  + 1 i g1 \langle a^\dagger\rangle  \langle {\sigma_{1}}^{{12}}\rangle  -1 i g1 \langle a\rangle  \langle {\sigma_{1}}^{{21}}\rangle  + 1 i {\Omega}21 \langle {\sigma_{2}}^{{21}}\rangle  \langle {\sigma_{1}}^{{12}}\rangle  -0.5 {\Gamma}12 \langle {\sigma_{1}}^{{21}}\rangle  \langle {\sigma_{2}}^{{12}}\rangle  -1 i {\Omega}12 \langle {\sigma_{1}}^{{21}}\rangle  \langle {\sigma_{2}}^{{12}}\rangle  \\
+\frac{d}{dt} \langle {\sigma_{1}}^{{12}}\rangle  =&amp; -1 i g1 \langle a\rangle  -0.5 {\Gamma}11 \langle {\sigma_{1}}^{{12}}\rangle  -1 i {\Delta}a \langle {\sigma_{1}}^{{12}}\rangle  -0.5 {\Gamma}12 \langle {\sigma_{2}}^{{12}}\rangle  -1 i {\Omega}12 \langle {\sigma_{2}}^{{12}}\rangle  + {\Gamma}12 \langle {\sigma_{1}}^{{22}}\rangle  \langle {\sigma_{2}}^{{12}}\rangle  + 2 i g1 \langle a\rangle  \langle {\sigma_{1}}^{{22}}\rangle  + 2 i {\Omega}12 \langle {\sigma_{1}}^{{22}}\rangle  \langle {\sigma_{2}}^{{12}}\rangle
+\end{align}\]</p><p>We complete the set of equations automatically and create an ordinary differential equation system in order to solve it numerically.</p><pre><code class="language-julia">complete!(eqs)
+@named sys = ODESystem(eqs)</code></pre><p>Finally we need to define the initial state of the system and the numerical parameters. In the end we want to obtain the transmission rate <span>$T$</span> of our system. For this purpose we calculate the steady state photon number in the cavity <span>$|\langle a \rangle|^2$</span> for different laser frequencies.</p><pre><code class="language-julia">u0 = zeros(ComplexF64, length(eqs))
+# parameter
+Γ_ = 1.0
+d = 2π*0.08 #0.08λ
+θ = π/2
+Ωij_(i,j) = Γ_*(-3/4)*( (1-(cos(θ))^2)*cos(d)/d-(1-3*(cos(θ))^2)*(sin(d)/(d^2)+(cos(d)/(d^3))) )
+function Γij_(i,j)
+    i==j ? Γ_ : Γ_*(3/2)*( (1-(cos(θ))^2)*sin(d)/d+(1-3*(cos(θ))^2)*((cos(d)/(d^2))-(sin(d)/(d^3))))
+end
+
+g_ = 2Γ_
+κ_ = 20Γ_
+Δa_ = 0Γ_
+Δc_ = 0Γ_
+η_ = κ_/100
+
+ps = [Δc, η, Δa, κ, [g(j) for j=1:N]..., [Γ(i,j) for i=1:N for j=1:N]...,
+    [Ω(i,j) for i=1:N for j=1:N  if i≠j]...]
+p0 = [Δc_, η_, Δa_, κ_, [g_*(-1)^j for j=1:N]...,
+    [Γij_(i,j) for i=1:N for j=1:N]..., [Ωij_(i,j) for i=1:N for j=1:N  if i≠j]...]</code></pre><pre><code class="language-julia">Δ_ls = [-10:0.05:10;]Γ_
+n_ls = zeros(length(Δ_ls))
+
+for i=1:length(Δ_ls)
+    Δc_i = Δ_ls[i]
+    Δa_i = Δc_i + Ωij_(1,2) #cavity on resonace with the shifted collective emitter
+    p0_i = [Δc_i, η_, Δa_i, κ_, [g_*(-1)^j for j=1:N]..., [Γij_(i,j) for i=1:N for j=1:N]...,
+        [Ωij_(i,j) for i=1:N for j=1:N  if i≠j]...]
+    prob = ODEProblem(sys,u0,(0.0, 20Γ_), ps.=&gt;p0_i);
+    prob_ss = SteadyStateProblem(prob);
+    sol_ss = solve(prob_ss, DynamicSS(Tsit5(); abstol=1e-8, reltol=1e-8),
+        reltol=1e-14, abstol=1e-14, maxiters=5e7)
+    n_ls[i] = abs2(sol_ss[a])
+end</code></pre><p>The transmission rate <span>$T$</span> with respect to the pump laser detuning is given by the relative steady state intra-cavity photon number <span>$n(\Delta)/n_\mathrm{max}$</span>. We qualitatively reproduce the antiresonance from <a href="https://journals.aps.org/prl/abstract/10.1103/PhysRevLett.119.093601">D. Plankensteiner, et. al., Phys. Rev. Lett. 119, 093601 (2017)</a> for two atoms.</p><pre><code class="language-julia">T = n_ls ./ maximum(n_ls)
+plot(Δ_ls, T, xlabel=&quot;Δ/Γ&quot;, ylabel=&quot;T&quot;, legend=false)</code></pre><p><img src="../antiresonance.svg" alt="svg"/></p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../excitation-transport-chain/">« Noisy excitation transport</a><a class="docs-footer-nextpage" href="../ramsey_spectroscopy/">Ramsey Spectroscopy »</a><div class="flexbox-break"></div><p class="footer-message"><a href="https://github.com/qojulia/QuantumCumulants.jl"><strong>Back to GitHub</strong></a></p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> on <span class="colophon-date" title="Friday 16 September 2022 06:07">Friday 16 September 2022</span>. Using Julia version 1.8.1.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
