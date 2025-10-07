@@ -1,4 +1,4 @@
-# ## Mollow Triplet
+# # Mollow Triplet
 
 # In the following example, we show how one can compute the resonance spectrum of a single, coherently driven atom. The Hamiltonian describing the system is given by
 
