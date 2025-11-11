@@ -964,44 +964,30 @@ function merge_equations(
     )
 end
 
-function mtk_generate_meta(eqs; ps = OrderedCollections.OrderedSet())
-    allstates = OrderedCollections.OrderedSet()
-    iv = nothing
-
-    for eq in eqs
-        MTK.collect_vars!(allstates, ps, eq.lhs, iv)
-        MTK.collect_vars!(allstates, ps, eq.rhs, iv)
-    end
-
-    return ps
-end
 
 function MTK.SDESystem(
-    de::Union{MeanfieldNoiseEquations,IndexedMeanfieldNoiseEquations},
-    iv = de.iv;
+    me::Union{MeanfieldNoiseEquations,IndexedMeanfieldNoiseEquations},
+    iv = me.iv,
+    vars = map(last, me.varmap),
+    pars = nothing;
+    complete_sys = true,
     kwargs...,
 )
-    determ, noise = split_equations(de)
+    determ, noise = split_equations(me)
     eqs = MTK.equations(determ)
     neqs = MTK.equations(noise)
-    p = mtk_generate_meta(vcat(eqs..., neqs...))
-    return MTK.SDESystem(
-        eqs,
-        map(x->x.rhs, neqs),
-        iv,
-        map(x->x[2], de.varmap),
-        p;
-        kwargs...,
-    )
+    neqs_rhs = map(x->x.rhs, neqs)
+    pars = isnothing(pars) ? extract_parameters(vcat(eqs..., neqs...), iv) : pars
+
+    sys =  MTK.SDESystem(eqs, neqs_rhs, iv, vars, pars; kwargs...,)
+    return complete_sys ? complete(sys) : sys
 end
 
-function MTK.System(
-    de::Union{MeanfieldNoiseEquations,IndexedMeanfieldNoiseEquations},
-    iv = de.iv;
+function MTK.System(de::Union{MeanfieldNoiseEquations,IndexedMeanfieldNoiseEquations};
     kwargs...,
 )
     determ, noise = split_equations(de)
-    return MTK.System(determ, iv; kwargs...)
+    return MTK.System(determ; kwargs...)
 end
 
 function Base.show(
