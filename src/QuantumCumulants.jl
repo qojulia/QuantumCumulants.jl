@@ -196,7 +196,7 @@ export HilbertSpace,
     MeanfieldNoiseEquations,
     IndexedMeanfieldNoiseEquations,
     BackwardMeanfieldNoiseEquations,
-    meanfield_backward
+    meanfield_backward,
     translate_W_to_Y
 
 
