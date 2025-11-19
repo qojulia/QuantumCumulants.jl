@@ -194,7 +194,10 @@ export HilbertSpace,
     insert_index,
     eval_term,
     MeanfieldNoiseEquations,
-    IndexedMeanfieldNoiseEquations
+    IndexedMeanfieldNoiseEquations,
+    BackwardMeanfieldNoiseEquations,
+    meanfield_backward
+    translate_W_to_Y
 
 
 include("equations.jl")
@@ -206,6 +209,7 @@ include("correlation.jl")
 include("scale.jl")
 include("measurement_backaction.jl")
 include("measurement_backaction_indices.jl")
+include("measurement_retrodiction.jl")
 include("latexify_recipes.jl")
 include("printing.jl")
 include("index_average.jl")

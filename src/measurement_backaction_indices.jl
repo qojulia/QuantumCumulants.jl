@@ -142,27 +142,6 @@ function check_index_collision(a::Vector, H, J)
     end
 end
 
-"""
-    IndexedMeanfieldNoiseEquations
-
-Like a [`MeanfieldNoiseEquations`](@ref), but with symbolic indices.
-"""
-struct IndexedMeanfieldNoiseEquations <: AbstractMeanfieldEquations
-    equations::Vector{Symbolics.Equation}
-    operator_equations::Vector{Symbolics.Equation}
-    noise_equations::Vector{Symbolics.Equation}
-    operator_noise_equations::Vector{Symbolics.Equation}
-    states::Vector
-    operators::Vector{QNumber}
-    hamiltonian::QNumber
-    jumps::Vector
-    jumps_dagger::Any
-    rates::Vector
-    efficiencies::Vector
-    iv::MTK.Num
-    varmap::Vector{Pair}
-    order::Union{Int,Vector{<:Int},Nothing}
-end
 
 function _append!(lhs::IndexedMeanfieldNoiseEquations, rhs::IndexedMeanfieldNoiseEquations)
     append!(lhs.noise_equations, rhs.noise_equations)
@@ -966,7 +945,7 @@ end
 
 
 function MTK.SDESystem(
-    me::Union{MeanfieldNoiseEquations,IndexedMeanfieldNoiseEquations},
+    me::Union{MeanfieldNoiseEquations,IndexedMeanfieldNoiseEquations,BackwardMeanfieldNoiseEquations},
     iv = me.iv,
     vars = map(last, me.varmap),
     pars = nothing;
@@ -992,7 +971,7 @@ end
 
 function Base.show(
     io::IO,
-    de::Union{MeanfieldNoiseEquations,IndexedMeanfieldNoiseEquations},
+    de::Union{MeanfieldNoiseEquations,IndexedMeanfieldNoiseEquations,BackwardMeanfieldNoiseEquations},
 )
     for i = 1:length(de.equations)
         write(io, "∂ₜ(")
