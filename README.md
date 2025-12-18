@@ -46,7 +46,7 @@ eqs = meanfield([a,σ(:g,:e),σ(:e,:e)], H, J; rates=rates, order=1)
 using ModelingToolkit, OrdinaryDiffEq
 @named sys = System(eqs)
 p0 = Dict(Δ=>0, g=>1.5, κ=>1, γ=>0.25, ν=>4)
-u0 = Dict(unknowns(sys) => ComplexF64[1e-2, 0, 0])
+u0 = Dict(unknowns(sys) .=> ComplexF64[1e-2, 0, 0])
 prob = ODEProblem(sys,merge(u0, p0),(0.0,50.0))
 sol = solve(prob,RK4())
 
