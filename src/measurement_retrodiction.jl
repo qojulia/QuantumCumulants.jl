@@ -86,8 +86,10 @@ function meanfield_backward(
         rhs_ = commutator(-imH, a[i]) # backward: -H
         rhs_diss = _master_lindblad_backward(a[i], J, Jdagger, rates) # backward: recycling term J→J⁺ 
         rhs_trace = a[i]*JJd_JdJ_term # trace preserving term
+        rhs_dY_dS = _dY_dS_extra_term(a[i], J, Jdagger, efficiencies .* rates) # extra term to be able to use Y(t)
+        rhs[i] = rhs_ + rhs_diss + rhs_trace + rhs_dY_dS # sum
+
         rhs_noise[i] = _master_noise(a[i], adjoint(J), adjoint(Jdagger), efficiencies .* rates) # backward: J→J⁺
-        rhs[i] = rhs_ + rhs_diss + rhs_trace
     end
 
     if multithread
@@ -148,6 +150,30 @@ function meanfield_backward(
     )
     return me
 end
+
+function _dY_dS_extra_term(a_, J, Jdagger, rates)
+    args = Any[]
+    for k = 1:length(J)
+        if isequal(rates[k], 0)
+            continue
+        end
+        if isa(rates[k], SymbolicUtils.Symbolic) ||
+           isa(rates[k], Number) ||
+           isa(rates[k], Function)
+           # simplify on 
+            c1 = rates[k]*average((J[k]*a_-average(J[k])*average(a_)))
+            c2 = rates[k]*average((a_*Jdagger[k]-average(a_)*average(Jdagger[k])))
+            SQA.push_or_append_nz_args!( args,-(c1+c2)*(average(Jdagger[k]+J[k])) )
+        elseif isa(rates[k], Matrix)
+            error("Nondiagonal measurements are not supported")
+        else
+            error("Unknown rates type!")
+        end
+    end
+    isempty(args) && return 0
+    return sum(args)
+end
+
 
 function _master_lindblad_backward(a_, J, Jdagger, rates)
     args = Any[]
