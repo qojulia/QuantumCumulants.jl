@@ -373,7 +373,7 @@ The first argument of `f` needs to be the lhs of the each and the second
 argument needs to be the rhs. All equations in `eqs.equations` are affected by `f`. 
 
 For example, to add terms from an additional Hamiltonian `Hadd` with a second order
-approximation, we need:
+cumulant expansion, we need:
 
 ```
 function f(lhs, rhs) 
