@@ -369,11 +369,12 @@ end
 
 Modify the symbolic quations `eqs` with the function `f`. The function 
 `f(lhs,rhs)` needs to return the desired new rhs of the equation. 
-The first argument of `f` needs to be the lhs of the each and the second 
-argument needs to be the rhs. All equations in `eqs.equations` are affected by `f`. 
+The first argument of `f` represents the lhs of each equation and the second 
+argument is the rhs. For the lhs of the equation the operator is used in the 
+function, not the average. All equations in `eqs.equations` are affected by `f`. 
 
 For example, to add terms from an additional Hamiltonian `Hadd` with a second order
-cumulant expansion, we need:
+cumulant expansion, we have:
 
 ```
 function f(lhs, rhs) 
