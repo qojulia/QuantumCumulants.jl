@@ -363,3 +363,45 @@ function SQA._conj(v::Average)
         return _average(adj_arg)
     end
 end
+
+"""
+    modify_equations(eqs::MeanfieldEquations, f(lhs,rhs)::Function)
+
+Modify the symbolic quations `eqs` with the function `f`. The function 
+`f(lhs,rhs)` needs to return the desired new rhs of the equation. 
+The first argument of `f` needs to be the lhs of the each and the second 
+argument needs to be the rhs. All equations in `eqs.equations` are affected by `f`. 
+
+For example, to add terms from an additional Hamiltonian `Hadd` with a second order
+approximation, we need:
+
+```
+function f(lhs, rhs) 
+    term = cumulant_expansion(average(commutator(1im*Hadd, lhs)), 2)
+    return rhs + term
+end
+```
+
+see also: [`modify_equations!`](@ref)
+"""
+function modify_equations(eqs::AbstractMeanfieldEquations, f::Function) 
+    eqs_ = deepcopy(eqs)
+    modify_equations!(eqs_, f)
+    return eqs_
+end
+
+"""
+    modify_equations!(eqs::MeanfieldEquations)
+
+In-place version of [`modify_equations`](@ref)
+"""
+function modify_equations!(eqs::AbstractMeanfieldEquations, f::Function)
+    eqs_vec = eqs.equations
+    for i = 1:length(eqs_vec)
+        lhs = eqs_vec[i].lhs
+        rhs = eqs_vec[i].rhs
+        lhs_op = undo_average(lhs)
+        eqs_vec[i] = lhs ~ f(lhs_op, rhs)
+    end
+end
+# TODO: modify_stochastic_equations() (proportional to dW); tests
