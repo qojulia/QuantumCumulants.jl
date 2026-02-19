@@ -2,7 +2,7 @@
 EditURL = "../../../examples/mollow.jl"
 ```
 
-## Mollow Triplet
+# Mollow Triplet
 
 In the following example, we show how one can compute the resonance spectrum of a single, coherently driven atom. The Hamiltonian describing the system is given by
 
@@ -71,7 +71,7 @@ nothing # hide
 
 $\mathcal{F}(\langle {σ}^{{eg}}  {σ_0}^{{ge}}\rangle )(\omega)$
 
-Constructing the [`Spectrum`](@ref) from the correlation function, automatically derives a matrix $A$ and a vector $b$ determining the set of linear equations
+Constructing the [`Spectrum`](@ref Spectrum) from the correlation function, automatically derives a matrix $A$ and a vector $b$ determining the set of linear equations
 
 $A(\omega)x(\omega) = b(\omega),$
 
@@ -118,7 +118,10 @@ using InteractiveUtils
 versioninfo()
 
 using Pkg
-Pkg.status(["QuantumCumulants", "OrdinaryDiffEq", "ModelingToolkit", "Plots"], mode = PKGMODE_MANIFEST)
+Pkg.status(
+    ["QuantumCumulants", "OrdinaryDiffEq", "ModelingToolkit", "Plots"],
+    mode = PKGMODE_MANIFEST,
+)
 ````
 
 ---

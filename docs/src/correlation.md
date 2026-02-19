@@ -117,7 +117,7 @@ A\textbf{x} = b + c,
 ```
 where ``A = i\omega - \textbf{M}``, ``b = \textbf{y}(0)`` and ``c=\textbf{c}/(i\omega)``. In most cases, solving the above matrix equation is much faster than doing an additional time evolution to obtain the correlation function.
 
-This approach is implemented with the [`Spectrum`](@ref) type, which performs the Laplace transform and computes the matrix ``A`` and the vectors ``b`` and ``c`` symbolically. Additionally, functions that return all those things in numerical form depending on the steady-state values and given parameters are generated via [Symbolics](https://github.com/JuliaSymbolics/Symbolics.jl) `build_function`. Usage is as follows:
+This approach is implemented with the [`Spectrum`](@ref Spectrum) type, which performs the Laplace transform and computes the matrix ``A`` and the vectors ``b`` and ``c`` symbolically. Additionally, functions that return all those things in numerical form depending on the steady-state values and given parameters are generated via [Symbolics](https://github.com/JuliaSymbolics/Symbolics.jl) `build_function`. Usage is as follows:
 
 ```@example correlation
 c = CorrelationFunction(a', a, me; steady_state=true) # need to specify steady state

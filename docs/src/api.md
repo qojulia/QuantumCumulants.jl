@@ -350,3 +350,7 @@ MeanfieldNoiseEquations
 ```@docs
 IndexedMeanfieldNoiseEquations
 ```
+
+```@docs
+BackwardMeanfieldNoiseEquations
+```

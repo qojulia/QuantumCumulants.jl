@@ -84,7 +84,7 @@ nothing # hide
 # ```
 
 
-# The spectrum can now be computed by solving the above system of equations and then taking the Fourier transform, or by taking the Fourier transform directly, which is done by constructing an instance of the [`Spectrum`](@ref) type. Here, we will compare both approaches.
+# The spectrum can now be computed by solving the above system of equations and then taking the Fourier transform, or by taking the Fourier transform directly, which is done by constructing an instance of the [`Spectrum`](@ref Spectrum) type. Here, we will compare both approaches.
 
 # In any case, we need to compute the steady state of the system numerically.
 

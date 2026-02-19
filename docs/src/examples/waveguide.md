@@ -160,7 +160,7 @@ using InteractiveUtils
 versioninfo()
 
 using Pkg
-Pkg.status(["QuantumCumulants", "OrdinaryDiffEq"], mode = PKGMODE_MANIFEST)
+Pkg.status(["QuantumCumulants", "OrdinaryDiffEq", "QuantumOptics"], mode = PKGMODE_MANIFEST)
 ````
 
 ---
