@@ -199,6 +199,7 @@ function make_varmap(vs, t)
     return varmap
 end
 
+# This is only for ClusterSpace? 
 struct ScaledMeanfieldEquations <: AbstractMeanfieldEquations
     equations::Vector{Symbolics.Equation}
     operator_equations::Vector{Symbolics.Equation}
@@ -263,8 +264,6 @@ struct IndexedMeanfieldNoiseEquations <: AbstractMeanfieldEquations
     order::Union{Int,Vector{<:Int},Nothing}
 end
 
-# TODO: ScaledMeanfieldNoiseEquations
-
 """
     BackwardMeanfieldNoiseEquations
 
@@ -292,4 +291,4 @@ end
 
 const NoiseEquations = Union{MeanfieldNoiseEquations,BackwardMeanfieldNoiseEquations}
 
-# TODO: ScaledBackwardMeanfieldNoiseEquations, EvaledBackwardMeanfieldEquations
+# TODO: EvaledBackwardMeanfieldEquations

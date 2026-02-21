@@ -26,7 +26,7 @@ pages = [
         "examples/unique_squeezing.md"
         "examples/waveguide.md"
         "examples/superradiant-laser.md"
-        # "examples/heterodyne_detection.md"
+        "examples/heterodyne_detection.md"
     ],
 ]
 

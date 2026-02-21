@@ -7,8 +7,7 @@ const OUTPUT_MD_DIR = joinpath(@__DIR__, "src", "examples")
 
 examples = filter!(file -> file[(end-2):end] == ".jl", readdir(EXAMPLES_IN; join = true))
 filter!(
-    file -> !contains(file, "make_nb_examples") && !contains(file, "heterodyne"),
-    examples,
+    file -> !contains(file, "make_nb_examples"), examples,
 )
 
 if isempty(get(ENV, "CI", ""))

@@ -237,8 +237,12 @@ function indexed_meanfield_backaction(
 
     # Average
     vs = map(average, a)
-    rhs_avg, rhs = take_function_averages(rhs, simplify)
-    rhs_noise_avg, rhs_noise = take_function_averages(rhs_noise, simplify)
+    rhs_avg_ = map(average, rhs)
+    rhs_noise_avg_ = map(average, rhs_noise)
+    # rhs_avg, rhs = take_function_averages(rhs, simplify) # simplify(rhs) uses undo_average(): ab+⟨a⟩b -> 2ab WRONG!     
+    rhs_avg = map(SymbolicUtils.simplify, rhs_avg_) 
+    # rhs_noise_avg, rhs_noise = take_function_averages(rhs_noise, simplify) # simplify(rhs) uses undo_average(): ab+⟨a⟩b -> 2ab WRONG!
+    rhs_noise_avg = map(SymbolicUtils.simplify, rhs_noise_avg_)
     eqs_avg = create_equation_array(vs, rhs_avg)
     eqs = create_equation_array(a, rhs)
     eqs_noise_avg = create_equation_array(vs, rhs_noise_avg)
@@ -814,10 +818,10 @@ end
 
 # substitute redundant operators in scaled equations
 function subst_reds_scale_equation(states, eqs; kwargs...)
-
-    #states = me.states
+    
     vhash = map(hash, states)
-    states′ = map(_inconj, states)
+    # states′ = map(_inconj, states)
+    states′ = map(_conj, states) 
     vs′hash = map(hash, states′)
     missed = find_missing(eqs, vhash, vs′hash; get_adjoints = false)
     inorder!.(missed)
