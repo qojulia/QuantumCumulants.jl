@@ -367,7 +367,7 @@ end
 """
     modify_equations(eqs::MeanfieldEquations, f(lhs,rhs)::Function)
 
-Modify the symbolic quations `eqs` with the function `f`. The function 
+Modify the symbolic equations `eqs` with the function `f`. The function 
 `f(lhs,rhs)` needs to return the desired new rhs of the equation. 
 The first argument of `f` represents the lhs of each equation and the second 
 argument is the rhs. For the lhs of the equation the operator is used in the 

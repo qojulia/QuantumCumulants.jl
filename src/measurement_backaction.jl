@@ -60,7 +60,7 @@ function translate_W_to_Y(eqs::NoiseEquations; simplify=true, mix_choice=maximum
 
     for it=1:length(eqs_)
         eqs_it = eqs_[it]
-        # expand() needs to be outside of average() -> see implemntation of expand()
+        # expand() needs to be outside of average() -> see implementation of expand()
         W_to_Y_term_ = SymbolicUtils.simplify(average(-_master_noise_dY(undo_average(eqs_it.lhs), J, Jd, rates.*eff)))
         # W_to_Y_term_ = average(-_master_noise_dY(undo_average(eqs_it.lhs), J, Jd, rates.*eff))
         W_to_Y_term = cumulant_expansion(W_to_Y_term_, order; simplify=simplify, mix_choice = mix_choice)
