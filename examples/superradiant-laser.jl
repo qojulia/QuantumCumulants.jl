@@ -123,7 +123,7 @@ plot(p1, p2, layout = (1, 2), size = (700, 300))
 
 
 
-# ## Spectrum {#spectrum_example2}
+# ## Laser Spectrum
 
 
 # We calculate the spectrum here with the Laplace transform of the two-time correlation function. This is implemented with the function $\texttt{Spectrum}$.

@@ -84,7 +84,7 @@ function meanfield_backward(
             i = 1:length(J)
         )
 
-    function calculate_term(i)
+    function calculate_term!(i)
         rhs_ = commutator(-imH, a[i]) # backward: -H
         rhs_diss = _master_lindblad_backward(a[i], J, Jdagger, rates) # backward: recycling term J→J⁺ 
         rhs_trace = a[i]*JJd_JdJ_term # trace preserving term
@@ -97,11 +97,11 @@ function meanfield_backward(
 
     if multithread
         Threads.@threads for i = 1:length(a)
-            calculate_term(i)
+            calculate_term!(i)
         end
     else
         for i = 1:length(a)
-            calculate_term(i)
+            calculate_term!(i)
         end
     end
 

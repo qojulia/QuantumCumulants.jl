@@ -220,7 +220,4 @@ include("index_scale.jl")
 include("index_correlation.jl")
 include("index_utils.jl")
 
-
-@deprecate heisenberg(args...; kwargs...) meanfield(args...; kwargs...)
-
 end # module

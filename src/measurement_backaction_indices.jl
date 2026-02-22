@@ -209,7 +209,7 @@ function indexed_meanfield_backaction(
     rhs_noise = Vector{Any}(undef, length(a))
     imH = im*H
 
-    function calculate_term(i)
+    function calculate_term!(i)
         try
             rhs[i] =
                 commutator(imH, a[i]) + indexed_master_lindblad(a[i], J, Jdagger, rates)
@@ -227,11 +227,11 @@ function indexed_meanfield_backaction(
 
     if multithread
         Threads.@threads for i = 1:length(a)
-            calculate_term(i)
+            calculate_term!(i)
         end
     else
         for i = 1:length(a)
-            calculate_term(i)
+            calculate_term!(i)
         end
     end
 
@@ -772,8 +772,8 @@ function scale_equations(eqs; kwargs...)
         tempEq = scaleEq(eq; kwargs...)
         if tempEq.lhs in getLHS.(newEqs)
             continue
-        elseif isNotIn(tempEq.lhs, getLHS.(newEqs), true; kwargs...) &&
-               isNotIn(_inconj(tempEq.lhs), getLHS.(newEqs), true; kwargs...)
+        elseif is_not_in(tempEq.lhs, getLHS.(newEqs), true; kwargs...) &&
+               is_not_in(_inconj(tempEq.lhs), getLHS.(newEqs), true; kwargs...)
             push!(newEqs, tempEq)
         end
     end

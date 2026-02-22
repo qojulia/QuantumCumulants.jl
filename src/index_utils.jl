@@ -163,7 +163,7 @@ function counter(it)
     end
     return y
 end
-function isNotIn(avrg::Average, states::Vector, scaling; kwargs...)
+function is_not_in(avrg::Average, states::Vector, scaling::Bool; kwargs...)
     _avg = inorder!(avrg)
     if scaling
         for state in states

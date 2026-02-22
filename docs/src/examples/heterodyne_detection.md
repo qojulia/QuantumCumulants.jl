@@ -90,7 +90,7 @@ Here we define the actual values for the system parameters. We then show that th
 ωc_ = 0.0
 κ_ = 2π*1.13e3
 ξ_ = 0.12
-N_= 5e4
+N_ = 5e4
 ωa_ = 0.0
 γ_ = 2π*0.375
 η_ = 2π*20
@@ -125,14 +125,26 @@ noise = StochasticDiffEq.RealWienerProcess(0.0, 0.0)
 prob_st = SDEProblem(sys_st, dict, (0.0, T_end); noise = noise)
 sol_test = solve(prob_st, EM(); dt = T_end/2e5);
 
-plot(sol_test.t, real(sol_test[a'a]),
-    xlabel = "Time (ms)", ylabel = "Cavity photon number", legend = false)
+plot(
+    sol_test.t,
+    real(sol_test[a'a]),
+    xlabel = "Time (ms)",
+    ylabel = "Cavity photon number",
+    legend = false,
+)
 
 Random.seed!(1) # hide
 eprob = EnsembleProblem(prob_st)
 traj = 200
 tspan = range(0.0, T_end, length = 201)
-sol = solve(eprob, StochasticDiffEq.EM(), dt = T_end/2e5, save_noise = true, trajectories = traj, saveat = tspan )
+sol = solve(
+    eprob,
+    StochasticDiffEq.EM(),
+    dt = T_end/2e5,
+    save_noise = true,
+    trajectories = traj,
+    saveat = tspan,
+)
 ````
 
 Here we plot the average of the cavity number for the stochastic and deterministic equation of motion with the trajectories in gray in the background. We can see that the dynamics of the system is indeed modified by the measurement backaction.
@@ -140,23 +152,30 @@ Here we plot the average of the cavity number for the stochastic and determinist
 ````@example heterodyne_detection
 n_avg_ = zeros(length(tspan)) # average photon number
 a_real_avg_ = zeros(length(tspan)) # average field (real part)
-traj_succ = 0 # trajectories can be numerically unstable
-for i=1:traj
+traj_succ = zeros(length(tspan)) # trajectories can be numerically unstable
+for i = 1:traj
     sol_ = sol.u[i]
     if length(sol_) == length(tspan)
-        n_avg_ += real(sol_[a'a])
-        a_real_avg_ += real(sol_[a])
-        traj_succ += 1
+        n_avg_ .+= real(sol_[a'a])
+        a_real_avg_ .+= real(sol_[a])
+        traj_succ[i] = 1
     end
 end
 
-@show traj_succ
-n_avg = n_avg_ / traj_succ
-a_real_avg = a_real_avg_ / traj_succ
+@show sum(traj_succ)
+n_avg = n_avg_ / sum(traj_succ)
+a_real_avg = a_real_avg_ / sum(traj_succ)
 graph1 = plot(xlabel = "Time (ms)", ylabel = "Cavity photon number")
-for i=1:traj
+for i = 1:traj
     sol_n = real(sol.u[i][a'a])
-    plot!(graph1, sol.u[i].t, real(sol.u[i][a'a]), color = :grey, alpha=0.75 , label = nothing)
+    plot!(
+        graph1,
+        sol.u[i].t,
+        real(sol.u[i][a'a]),
+        color = :grey,
+        alpha = 0.75,
+        label = nothing,
+    )
 end
 plot!(graph1, tspan, n_avg, color = :red, label = nothing)
 ````
@@ -165,8 +184,8 @@ For the cavity field amplitude we see that the ensemble average becomes zero, bu
 
 ````@example heterodyne_detection
 graph2 = plot(xlabel = "Time (ms)", ylabel = "Real part cavity field")
-for i=1:traj
-    plot!(graph2, tspan, real(sol.u[i][a']), color = :grey, alpha=0.75 , label = nothing)
+for i = 1:traj
+    plot!(graph2, tspan, real(sol.u[i][a']), color = :grey, alpha = 0.75, label = nothing)
 end
 plot!(graph2, tspan, a_real_avg, color = :red, label = nothing)
 ````

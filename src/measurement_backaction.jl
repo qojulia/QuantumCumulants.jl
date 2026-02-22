@@ -136,7 +136,7 @@ function _meanfield_backaction(
     rhs_noise = Vector{Any}(undef, length(a))
     imH = im*H
 
-    function calculate_term(i)
+    function calculate_term!(i)
         rhs_ = commutator(imH, a[i])
         rhs_diss = _master_lindblad(a[i], J, Jdagger, rates)
         # rhs_dY = average(-_master_noise_dY(a[i], J, Jdagger, efficiencies .* rates)) # this is much slower??
@@ -146,11 +146,11 @@ function _meanfield_backaction(
 
     if multithread
         Threads.@threads for i = 1:length(a)
-            calculate_term(i)
+            calculate_term!(i)
         end
     else
         for i = 1:length(a)
-            calculate_term(i)
+            calculate_term!(i)
         end
     end
 
