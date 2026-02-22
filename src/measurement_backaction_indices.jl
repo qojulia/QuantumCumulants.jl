@@ -240,7 +240,7 @@ function indexed_meanfield_backaction(
     rhs_avg_ = map(average, rhs)
     rhs_noise_avg_ = map(average, rhs_noise)
     # rhs_avg, rhs = take_function_averages(rhs, simplify) # simplify(rhs) uses undo_average(): ab+⟨a⟩b -> 2ab WRONG!     
-    rhs_avg = map(SymbolicUtils.simplify, rhs_avg_) 
+    rhs_avg = map(SymbolicUtils.simplify, rhs_avg_)
     # rhs_noise_avg, rhs_noise = take_function_averages(rhs_noise, simplify) # simplify(rhs) uses undo_average(): ab+⟨a⟩b -> 2ab WRONG!
     rhs_noise_avg = map(SymbolicUtils.simplify, rhs_noise_avg_)
     eqs_avg = create_equation_array(vs, rhs_avg)
@@ -818,10 +818,10 @@ end
 
 # substitute redundant operators in scaled equations
 function subst_reds_scale_equation(states, eqs; kwargs...)
-    
+
     vhash = map(hash, states)
     # states′ = map(_inconj, states)
-    states′ = map(_conj, states) 
+    states′ = map(_conj, states)
     vs′hash = map(hash, states′)
     missed = find_missing(eqs, vhash, vs′hash; get_adjoints = false)
     inorder!.(missed)
@@ -949,7 +949,11 @@ end
 
 
 function MTK.SDESystem(
-    me::Union{MeanfieldNoiseEquations,IndexedMeanfieldNoiseEquations,BackwardMeanfieldNoiseEquations},
+    me::Union{
+        MeanfieldNoiseEquations,
+        IndexedMeanfieldNoiseEquations,
+        BackwardMeanfieldNoiseEquations,
+    },
     iv = me.iv,
     vars = map(last, me.varmap),
     pars = nothing;
@@ -962,11 +966,12 @@ function MTK.SDESystem(
     neqs_rhs = map(x->x.rhs, neqs)
     pars = isnothing(pars) ? extract_parameters(vcat(eqs..., neqs...), iv) : pars
 
-    sys =  MTK.SDESystem(eqs, neqs_rhs, iv, vars, pars; kwargs...,)
+    sys = MTK.SDESystem(eqs, neqs_rhs, iv, vars, pars; kwargs...)
     return complete_sys ? complete(sys) : sys
 end
 
-function MTK.System(de::Union{MeanfieldNoiseEquations,IndexedMeanfieldNoiseEquations};
+function MTK.System(
+    de::Union{MeanfieldNoiseEquations,IndexedMeanfieldNoiseEquations};
     kwargs...,
 )
     determ, noise = split_equations(de)
@@ -975,7 +980,11 @@ end
 
 function Base.show(
     io::IO,
-    de::Union{MeanfieldNoiseEquations,IndexedMeanfieldNoiseEquations,BackwardMeanfieldNoiseEquations},
+    de::Union{
+        MeanfieldNoiseEquations,
+        IndexedMeanfieldNoiseEquations,
+        BackwardMeanfieldNoiseEquations,
+    },
 )
     for i = 1:length(de.equations)
         write(io, "∂ₜ(")

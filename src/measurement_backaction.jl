@@ -8,11 +8,11 @@ function _master_noise(a_, J, Jdagger, rates)
         if isa(rates[k], SymbolicUtils.Symbolic) ||
            isa(rates[k], Number) ||
            isa(rates[k], Function)
-           # simplify on 
+            # simplify on 
             c1 = sqrt(rates[k])*average((Jdagger[k]*a_-average(Jdagger[k])*average(a_)))
             c2 = sqrt(rates[k])*average((a_*J[k]-average(a_)*average(J[k])))
-            SQA.push_or_append_nz_args!(args,c1)
-            SQA.push_or_append_nz_args!(args,c2)
+            SQA.push_or_append_nz_args!(args, c1)
+            SQA.push_or_append_nz_args!(args, c2)
         elseif isa(rates[k], Matrix)
             error("Nondiagonal measurements are not supported")
         else
@@ -24,7 +24,7 @@ function _master_noise(a_, J, Jdagger, rates)
 end
 
 function _master_noise_dY(a_, J, Jdagger, rates)
-        args = Any[]
+    args = Any[]
     for k = 1:length(J)
         if isequal(rates[k], 0)
             continue
@@ -34,8 +34,16 @@ function _master_noise_dY(a_, J, Jdagger, rates)
            isa(rates[k], Function)
             # TODO: average(a_) is not needed below? 
             # efficiency goes into rate
-            c1 = rates[k]*average((Jdagger[k]*a_-average(Jdagger[k])*average(a_))*average(Jdagger[k] + J[k]))
-            c2 = rates[k]*average((a_*J[k]-average(a_)*average(J[k]))*average(Jdagger[k] + J[k]))
+            c1 =
+                rates[k]*average(
+                    (
+                        Jdagger[k]*a_-average(Jdagger[k])*average(a_)
+                    )*average(Jdagger[k] + J[k]),
+                )
+            c2 =
+                rates[k]*average(
+                    (a_*J[k]-average(a_)*average(J[k]))*average(Jdagger[k] + J[k]),
+                )
             SQA.push_or_append_nz_args!(args, c1)
             SQA.push_or_append_nz_args!(args, c2)
 
@@ -48,7 +56,7 @@ function _master_noise_dY(a_, J, Jdagger, rates)
     isempty(args) && return 0
     return QAdd(args)
 end
-function translate_W_to_Y(eqs::NoiseEquations; simplify=true, mix_choice=maximum) 
+function translate_W_to_Y(eqs::NoiseEquations; simplify = true, mix_choice = maximum)
     # since the additional expression is ⟨c⁺ + c⟩ it is the same for Forward and Backward NoiseEquations
     eqs_copy = deepcopy(eqs)
     eqs_ = eqs_copy.equations
@@ -58,12 +66,19 @@ function translate_W_to_Y(eqs::NoiseEquations; simplify=true, mix_choice=maximum
     eff = eqs_copy.efficiencies
     order = eqs_copy.order
 
-    for it=1:length(eqs_)
+    for it = 1:length(eqs_)
         eqs_it = eqs_[it]
         # expand() needs to be outside of average() -> see implementation of expand()
-        W_to_Y_term_ = SymbolicUtils.simplify(average(-_master_noise_dY(undo_average(eqs_it.lhs), J, Jd, rates.*eff)))
+        W_to_Y_term_ = SymbolicUtils.simplify(
+            average(-_master_noise_dY(undo_average(eqs_it.lhs), J, Jd, rates .* eff)),
+        )
         # W_to_Y_term_ = average(-_master_noise_dY(undo_average(eqs_it.lhs), J, Jd, rates.*eff))
-        W_to_Y_term = cumulant_expansion(W_to_Y_term_, order; simplify=simplify, mix_choice = mix_choice)
+        W_to_Y_term = cumulant_expansion(
+            W_to_Y_term_,
+            order;
+            simplify = simplify,
+            mix_choice = mix_choice,
+        )
         eqs_[it] = eqs_it.lhs ~ eqs_it.rhs + W_to_Y_term
     end
     return eqs_copy

@@ -77,7 +77,7 @@ g_analytic(τ) = @. sol.u[end] * exp((im*p0[1][2]-0.5p0[2][2])*τ)
 Note, that this was a very simple case. Usually the system of equations describing the correlation function is much more complex and depends on multiple other correlation functions (see for example [Spectrum of a single atom laser](@ref)).
 
 
-## Spectrum
+## Spectrum {#spectrum_corr}
 
 There are two possible ways two compute the spectrum given a correlation function:
 

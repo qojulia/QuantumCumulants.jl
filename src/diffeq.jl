@@ -16,7 +16,7 @@ function MTK.equations(
     vhash = map(hash, vs)
 
     # Substitute conjugate variables by explicit conj
-    vs′ = map(_conj, vs) 
+    vs′ = map(_conj, vs)
     # vs′ = map(_inconj, vs) # I am not sure why this does not work. 
     vs′hash = map(hash, vs′)
     i = 1

@@ -385,7 +385,7 @@ end
 
 see also: [`modify_equations!`](@ref)
 """
-function modify_equations(eqs::AbstractMeanfieldEquations, f::Function) 
+function modify_equations(eqs::AbstractMeanfieldEquations, f::Function)
     eqs_ = deepcopy(eqs)
     modify_equations!(eqs_, f)
     return eqs_

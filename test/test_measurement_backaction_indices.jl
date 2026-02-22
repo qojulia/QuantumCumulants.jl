@@ -25,7 +25,8 @@ using Symbolics
 
     # test meanfield - measurement backaction
     test_eq_a = -1im*Δ*average(a) - 0.5κ*average(a)
-    test_noise_eq_a = √(η*κ)*(average(a'a) + average(a*a) - average(a)^2 - average(a)*average(a'))
+    test_noise_eq_a =
+        √(η*κ)*(average(a'a) + average(a*a) - average(a)^2 - average(a)*average(a'))
     me_a = meanfield(a, Δ*a'a, [a]; rates = [κ], efficiencies = [η])
     @test iszero(me_a.equations[1].rhs - test_eq_a)
     @test iszero(me_a.noise_equations[1].rhs - test_noise_eq_a)

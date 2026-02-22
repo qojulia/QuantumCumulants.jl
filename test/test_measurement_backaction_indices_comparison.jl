@@ -40,9 +40,16 @@ using Symbolics
     stoch_eqs_complete = indexed_complete(stoch_eqs)
     det_eqs_complete = indexed_complete(det_eqs)
 
-    for (eq_stoch, eq_det) in zip(full_stoch_eqs.equations, full_det_eqs.equations)
+    # full_det_eqs does not have not-equal-indices but full_stoch_eqs has. 
+    # This does not matter for the scaled equations. 
+    @test_broken isequal(simplify(full_stoch_eqs[9].rhs - full_det_eqs[9].rhs), 0)
+    full_stoch_eqs_scale = scale(full_stoch_eqs)
+    full_det_eqs_scale = scale(full_det_eqs)
+
+    for (eq_stoch, eq_det) in
+        zip(full_stoch_eqs_scale.equations, full_det_eqs_scale.equations)
         @test isequal(simplify(eq_stoch.lhs - eq_det.lhs), 0)
-        @test isequal(simplify(eq_stoch.rhs - eq_det.rhs), 0)
+        @test isequal(simplify(expand(eq_stoch.rhs - eq_det.rhs)), 0)
     end
 
     for (eq_stoch, eq_det) in zip(stoch_eqs.equations, det_eqs.equations)

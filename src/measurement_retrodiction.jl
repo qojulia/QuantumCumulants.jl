@@ -1,6 +1,4 @@
-function split_equations(
-    eqin::NoiseEquations,
-)::Tuple{MeanfieldEquations,MeanfieldEquations}
+function split_equations(eqin::NoiseEquations)::Tuple{MeanfieldEquations,MeanfieldEquations}
     determ = MeanfieldEquations(
         eqin.equations,
         eqin.operator_equations,
@@ -80,7 +78,11 @@ function meanfield_backward(
     rhs_noise = Vector{Any}(undef, length(a))
     imH = im*H
 
-    JJd_JdJ_term = -sum( rates[i]*( average(J[i]*Jdagger[i]) - average(Jdagger[i]*J[i]) ) for i=1:length(J)) 
+    JJd_JdJ_term =
+        -sum(
+            rates[i]*(average(J[i]*Jdagger[i]) - average(Jdagger[i]*J[i])) for
+            i = 1:length(J)
+        )
 
     function calculate_term(i)
         rhs_ = commutator(-imH, a[i]) # backward: -H
@@ -89,7 +91,8 @@ function meanfield_backward(
         rhs_dY_dS = _dY_dS_extra_term(a[i], J, Jdagger, efficiencies .* rates) # extra term to be able to use Y(t)
         rhs[i] = rhs_ + rhs_diss + rhs_trace + rhs_dY_dS # sum
 
-        rhs_noise[i] = _master_noise(a[i], adjoint(J), adjoint(Jdagger), efficiencies .* rates) # backward: J→J⁺
+        rhs_noise[i] =
+            _master_noise(a[i], adjoint(J), adjoint(Jdagger), efficiencies .* rates) # backward: J→J⁺
     end
 
     if multithread
@@ -114,7 +117,7 @@ function meanfield_backward(
 
     rhs = map(undo_average, rhs_avg)
     rhs_noise = map(undo_average, rhs_noise_avg) # this is not correct, see _master_noise (but also not used)
-    
+
     if order !== nothing
         rhs_avg = [
             cumulant_expansion(r, order; simplify = simplify, mix_choice = mix_choice)
@@ -160,10 +163,10 @@ function _dY_dS_extra_term(a_, J, Jdagger, rates)
         if isa(rates[k], SymbolicUtils.Symbolic) ||
            isa(rates[k], Number) ||
            isa(rates[k], Function)
-           # simplify on 
+            # simplify on 
             c1 = rates[k]*average((J[k]*a_-average(J[k])*average(a_)))
             c2 = rates[k]*average((a_*Jdagger[k]-average(a_)*average(Jdagger[k])))
-            SQA.push_or_append_nz_args!( args,-(c1+c2)*(average(Jdagger[k]+J[k])) )
+            SQA.push_or_append_nz_args!(args, -(c1+c2)*(average(Jdagger[k]+J[k])))
         elseif isa(rates[k], Matrix)
             error("Nondiagonal measurements are not supported")
         else

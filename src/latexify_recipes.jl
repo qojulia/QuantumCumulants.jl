@@ -9,7 +9,13 @@
     return lhs, rhs
 end
 
-@latexrecipe function f(de::Union{MeanfieldNoiseEquations,IndexedMeanfieldNoiseEquations,BackwardMeanfieldNoiseEquations})
+@latexrecipe function f(
+    de::Union{
+        MeanfieldNoiseEquations,
+        IndexedMeanfieldNoiseEquations,
+        BackwardMeanfieldNoiseEquations,
+    },
+)
     # Options
     env --> :align
     cdot --> false
