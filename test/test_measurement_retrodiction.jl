@@ -2,10 +2,11 @@ using QuantumCumulants
 using ModelingToolkit
 using OrdinaryDiffEq
 using StochasticDiffEq
+using DiffEqNoiseProcess
 using Random
 using Test
 
-@testset "test_measurement_retrodiction" begin
+# @testset "test_measurement_retrodiction" begin
 
     h = PhaseSpace(:motion)
     @qnumbers x::Position(h, 1)
@@ -57,9 +58,16 @@ using Test
         dY_W[k] = dW + √η_*cd_p_c*dt
     end
     dYdt_data = [dY_W; dY_W[end]] / dt
+
     # dYdt(t) = dYdt_data[Int(floor(t/dt)) + 1] # TODO: why does this give a small difference?? Maybe the times do no perfectly match in the solver?
     dYdt(t) = dYdt_data[Int(round(t/dt))+1]
+    Ydot(t) = dYdt(t)
 
+    dYdt_data_rev = [reverse(dY_W); dY_W[1]] / dt
+    dYdt_rev(t) = dYdt_data_rev[Int(round(t/dt))+1]
+    Ydot_rev(t) = dYdt_rev(t)
+
+    # modify equations
     eqs_det = meanfield(ops, H, J; rates = R, order = 2)
     function f_measure(lhs, rhs)
         term_ = √(η*Γ)*(lhs*a + a'*lhs - average(a+a')*lhs)*(Ydot(t) - √(η*Γ)*average(a+a'))
@@ -67,21 +75,22 @@ using Test
         return rhs + term
     end
     eqs_kal = modify_equations(eqs_det, f_measure)
+    @test isequal(eqs_kal[1].lhs, eqs_det[1].lhs)
+    eqs_kal_1_rhs = eqs_det[1].rhs -s*(Ydot(t) - 2s*sqrt(Γ*η)*average(x))*sqrt(Γ*η) + 2s*(Ydot(t) - 2s*sqrt(Γ*η)*average(x))*sqrt(Γ*η)*average(x*x) - 2s*(Ydot(t) - 2s*sqrt(Γ*η)*average(x))*sqrt(Γ*η)*(average(x)^2)
+    @test isequal(eqs_kal[1].rhs - eqs_kal_1_rhs, 0)
     eqs_kal_test = deepcopy(eqs_det)
     modify_equations!(eqs_kal_test, f_measure)
     @test isequal(eqs_kal_test[1], eqs_kal[1])
     @test isequal(eqs_kal_test[4], eqs_kal[4])
 
-    Ydot(t) = dYdt(t)
     @named sys_kal = System(eqs_kal)
     prob_kal = ODEProblem(sys_kal, dict_fw, (0, Tend))
 
     sol_kal = solve(prob_kal, Euler(); dt = dt, saveat = T_saveat)
     # it = 100#8 # step from 7 to 8 changes drastically if floor() is used!! # TODO
-    # abs.(sol_fw.u[it] .- sol_kal.u[it])
-    @test sum(abs.(sol_fw.u[end] .- sol_kal.u[end])) < 1e-6
+    @test sum(abs.(sol_fw.u[end] .- sol_kal.u[end])) < 1e-8
 
-    # back propagation
+    ### back propagation
     eqs_back_kal = meanfield(ops, -H, J; rates = R, order = 2)
     eqs_back_kal_c = complete(eqs_back_kal)
     ## adjust recycling term for the back propagation
@@ -101,12 +110,44 @@ using Test
     end
     eqs_back_kal_c2 = modify_equations(eqs_back_kal_c1, f_back_kal)
     # deterministic smoothing equations
-    Ydot_rev(t) = dYdt(Tend-t)
+    # Ydot_rev(t) = dYdt(Tend-t)
     @named sys_back_kal = System(eqs_back_kal_c2)
     u0_bw = [0.0+0im, 0, 100, 0, 100]
     dict_bw = merge(Dict(unknowns(sys_back_kal) .=> u0_bw), Dict(ps .=> pn))
     prob_bw_kal = ODEProblem(sys_back_kal, dict_bw, (0, Tend))
     sol_bw = solve(prob_bw_kal, Euler(); dt = dt, saveat = T_saveat)
 
-    # TODO: modify_equations!(); stochastic version - compare and test functions; 
-end
+    # TODO: stochastic version - compare and test functions; 
+
+    ##########################
+    ### stochastic verison ### (comparison)
+    ##########################
+
+    # equations for the measuremt record dY as noise input for the solver (instead of dW)
+    eqs_c_Y = translate_W_to_Y(eqs)
+
+    # solve forward propagation again 
+    Y_W_fw = cumsum([0; dY_W]) 
+    noise_Y_fw = NoiseGrid(t_W, Y_W_fw)
+
+    @named sys_fw_Y = SDESystem(eqs_c_Y)
+    prob_fw_Y = SDEProblem(sys_fw_Y, dict_fw, (0, Tend); noise=noise_Y_fw)
+    sol_fw_Y = solve(prob_fw_Y, EM(); dt=dt, saveat=T_saveat)
+    @test sum(abs.(sol_fw.u[end] .- sol_fw_Y.u[end])) < 1e-8
+
+    # backward equations
+    eqs_back = meanfield_backward(ops[1:end-1], H, J; rates=R, efficiencies=eff, order=2)
+    eqs_back_c = complete(eqs_back)
+    @test isequal(eqs_back_c.states, eqs_c_Y.states)
+
+    Y_W_bw = cumsum([0; reverse(dY_W)]) 
+    noise_Y_bw = NoiseGrid(t_W, Y_W_bw)
+
+    # noise_Y_bw = NoiseGrid(t_W, reverse(-Y_W))
+    @named sys_fw_Y_bw = SDESystem(eqs_back_c)
+    dict_bw = merge(Dict(unknowns(sys_fw_Y_bw) .=> u0_bw), Dict(ps.=>pn))
+    prob_fw_Y_bw = SDEProblem(sys_fw_Y_bw, dict_bw, (0, Tend); noise=noise_Y_bw)
+    sol_bw_Y = solve(prob_fw_Y_bw, EM(); dt=dt, saveat=T_saveat)
+
+    @test sum(abs.(sol_bw.u[end] .- sol_bw_Y.u[end])) < 1e-8
+# end

@@ -26,6 +26,7 @@ names = [
     "test_measurement_backaction_indices_comparison.jl"
     "test_measurement_backaction_indices.jl"
     "test_measurement_backaction.jl"
+    "test_measurement_retrodiction.jl"
 ]
 
 detected_tests =

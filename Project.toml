@@ -45,6 +45,7 @@ julia = "1.10"
 [extras]
 Aqua = "4c88cf16-eb10-579e-8560-4a9242c79595"
 CheckConcreteStructs = "73c92db5-9da6-4938-911a-6443a7e94a58"
+DiffEqNoiseProcess = "77a26b50-5914-5dd7-bc55-306e6241c503"
 ExplicitImports = "7d51a73a-1435-4ff3-83d9-f097790105c7"
 JET = "c3a54625-cd67-489e-a8e7-0a5a0ff4e31b"
 ModelingToolkit = "961ee093-0014-501f-94e3-6117800e7a78"
@@ -55,4 +56,4 @@ SteadyStateDiffEq = "9672c7b4-1e72-59bd-8a11-6ac3964bc41f"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [targets]
-test = ["OrdinaryDiffEq", "SteadyStateDiffEq", "ModelingToolkit", "QuantumOptics", "Random", "Test", "Aqua", "ExplicitImports", "JET", "CheckConcreteStructs"]
+test = ["OrdinaryDiffEq", "SteadyStateDiffEq", "ModelingToolkit", "QuantumOptics", "Random", "Test", "Aqua", "ExplicitImports", "JET", "CheckConcreteStructs", "DiffEqNoiseProcess"]

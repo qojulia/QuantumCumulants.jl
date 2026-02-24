@@ -94,10 +94,18 @@ for k = 1:N
     dYdt_W[k] = dW/dt + √η_*cd_p_c
     dY_W[k] = dW + √η_*cd_p_c*dt
 end
+
+## forward propagation
 dYdt_data = [dYdt_W; dYdt_W[end]]
 dYdt(t) = dYdt_data[Int(round(t/dt))+1] # measurement current
+Ydot(t) = dYdt(t)
 
-# We modify the noiseless equations to add the (deterministic) term from the measurement current. 
+## backward propagation
+dYdt_data_rev = [reverse(dY_W); dY_W[1]] / dt
+dYdt_rev(t) = dYdt_data_rev[Int(round(t/dt))+1]
+Ydot_rev(t) = dYdt_rev(t)
+
+# We modify the noiseless equations with the function [`modify_equations`](@Ref) to add the (deterministic) term from the measurement current. 
 
 ## deterministic Kalman filtering equations
 eqs_det = meanfield(ops, H, J; rates = R, order = 2)
@@ -110,7 +118,6 @@ eqs_kal = modify_equations(eqs_det, f_measure)
 
 #
 
-Ydot(t) = dYdt(t)
 @named sys_kal = System(eqs_kal)
 prob_kal = ODEProblem(sys_kal, dict_fw, (0, Tend))
 nothing # hide
@@ -174,7 +181,6 @@ eqs_back_kal_c2 = modify_equations(eqs_back_kal_c1, f_back_kal)
 #
 
 # deterministic smoothing equations
-Ydot_rev(t) = dYdt(Tend-t)
 @named sys_back_kal = System(eqs_back_kal_c2)
 u0_bw = [0.0+0im, 0, 100, 0, 100]
 dict_bw = merge(Dict(unknowns(sys_back_kal) .=> u0_bw), Dict(ps .=> pn))
