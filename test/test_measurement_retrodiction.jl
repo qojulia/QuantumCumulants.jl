@@ -121,7 +121,7 @@ using Test
     sol_bw = solve(prob_bw_kal, Euler(); dt = dt, saveat = T_saveat)
 
     ##########################
-    ### stochastic verison ### (comparison)
+    ### stochastic version ### (comparison)
     ##########################
 
     # equations for the measuremt record dY as noise input for the solver (instead of dW)
