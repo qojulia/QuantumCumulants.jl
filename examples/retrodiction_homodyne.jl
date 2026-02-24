@@ -1,6 +1,6 @@
 # # Prediction and Retrodiction
 
-# In this example, we implement the prediction and retrodiction of a continiously monitored Gaussian system as described in [J. Zhang and K. Mølmer, Phys. Rev. A 96, 062131 (2017)](10.1103/PhysRevA.96.062131). The system is a harmonic oscillator with frequency $\Omega$, where the decay $\sqrt{\Gamma} a$ is continuously monitored with an efficiency $\eta$.  
+# In this example, we implement the prediction and retrodiction of a continuously monitored Gaussian system as described in [J. Zhang and K. Mølmer, Phys. Rev. A 96, 062131 (2017)](10.1103/PhysRevA.96.062131). The system is a harmonic oscillator with frequency $\Omega$, where the decay $\sqrt{\Gamma} a$ is continuously monitored with an efficiency $\eta$.  
 # We start by loading the needed packages and specifying the model.
 
 using QuantumCumulants
@@ -149,12 +149,12 @@ plot!(t_W .* Γ_, x_fw; ribbon = sqr_σx_fw, fillalpha = 0.2, label = "")
 
 # We can see that the same dynamics as before is obtained.
 
-# The same measurement current is now used to propagate backward in time to obtain the retrodicted, more precise, state of the system. This procedure can also be described with the so-called past quantum state, and is similar to the smoothing procedure in classical measurement theory, where past and future observations are used to estiamte the state of a system. To this end, we drive the backward propagation equation, where we again modify the usual equations. We need to adjust the recycling term of the Lindblad operator and include the measurement backaction. 
+# The same measurement current is now used to propagate backward in time to obtain the retrodicted, more precise, state of the system. This procedure can also be described with the so-called past quantum state, and is similar to the smoothing procedure in classical measurement theory, where past and future observations are used to estimate the state of a system. To this end, we drive the backward propagation equation, where we again modify the usual equations. We need to adjust the recycling term of the Lindblad operator and include the measurement backaction. 
 
 eqs_back_kal = meanfield(ops, -H, J; rates = R, order = 2)
 eqs_back_kal_c = complete(eqs_back_kal)
 
-## adjust recycling term for the back propagtion
+## adjust recycling term for the back propagation
 function f_back_lind(lhs, rhs)
     term_1 = Γ*a*lhs*a' - Γ*a'lhs*a # adapt recycling term
     term_2 = -Γ*(average(a*a') - average(a'a))*lhs

@@ -84,7 +84,7 @@ using Test
     # back propagation
     eqs_back_kal = meanfield(ops, -H, J; rates = R, order = 2)
     eqs_back_kal_c = complete(eqs_back_kal)
-    ## adjust recycling term for the back propagtion
+    ## adjust recycling term for the back propagation
     function f_back_lind(lhs, rhs)
         term_1 = Γ*a*lhs*a' - Γ*a'lhs*a # adapt recycling term
         term_2 = -Γ*(average(a*a') - average(a'a))*lhs
