@@ -20,7 +20,7 @@ function split_equations(eqin::NoiseEquations)::Tuple{MeanfieldEquations,Meanfie
         eqin.hamiltonian,
         eqin.jumps,
         eqin.jumps_dagger,
-        eqin.efficiencies,  
+        eqin.efficiencies,
         eqin.iv,
         eqin.varmap,
         eqin.order,
