@@ -134,8 +134,14 @@ Random.seed!(1) # hide
 eprob = EnsembleProblem(prob_st)
 traj = 200
 tspan = range(0.0, T_end, length = 201)
-sol = solve(eprob, StochasticDiffEq.EM(), dt = T_end/2e5,
-    save_noise = true, trajectories = traj, saveat = tspan)
+sol = solve(
+    eprob,
+    StochasticDiffEq.EM(),
+    dt = T_end/2e5,
+    save_noise = true,
+    trajectories = traj,
+    saveat = tspan,
+)
 
 # We plot the average of the cavity photon number for the stochastic and deterministic equation of motion with the trajectories in gray in the background. We can see that the dynamics of the system is indeed modified by the measurement backaction.
 
