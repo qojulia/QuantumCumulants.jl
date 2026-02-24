@@ -71,7 +71,7 @@ function meanfield_backward(
 )
 
     inds = vcat(get_indices(a), get_indices(H), get_indices(J))
-    if isempty(inds)
+    if !isempty(inds)
         error("The function meanfield_backward() does not yet support indices.")
     end
 
