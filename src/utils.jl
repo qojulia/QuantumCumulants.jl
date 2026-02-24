@@ -405,4 +405,5 @@ function modify_equations!(eqs::AbstractMeanfieldEquations, f::Function)
         eqs_vec[i] = lhs ~ f(lhs_op, rhs)
     end
 end
-# TODO: modify_stochastic_equations() (proportional to dW); tests
+
+# TODO: modify_noise_equations() (proportional to dW); tests

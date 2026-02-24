@@ -6,7 +6,7 @@ const EXAMPLES_IN = joinpath(@__DIR__, "..", "examples")
 const OUTPUT_MD_DIR = joinpath(@__DIR__, "src", "examples")
 
 examples = filter!(file -> file[(end-2):end] == ".jl", readdir(EXAMPLES_IN; join = true))
-filter!(file -> !contains(file, "make_nb_examples"), examples)
+filter!(file -> !contains(file, "make_nb_examples") && !contains(file, "retrodiction"), examples)
 
 if isempty(get(ENV, "CI", ""))
     # only needed when building docs locally; set automatically when built under CI

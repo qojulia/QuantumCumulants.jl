@@ -27,6 +27,7 @@ pages = [
         "examples/waveguide.md"
         "examples/superradiant-laser.md"
         "examples/heterodyne_detection.md"
+        # "examples/retrodiction_homodyne.md"
     ],
 ]
 

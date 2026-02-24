@@ -70,6 +70,11 @@ function meanfield_backward(
     iv = MTK.t_nounits,
 )
 
+    inds = vcat(get_indices(a), get_indices(H), get_indices(J))
+    if isempty(inds)
+        error("The function meanfield_backward() does not yet support indices.")
+    end
+
     if rates isa Matrix
         error("Nondiagonal measurements are not supported")
     end
