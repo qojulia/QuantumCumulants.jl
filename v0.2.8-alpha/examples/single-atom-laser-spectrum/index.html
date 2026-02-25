@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Spectrum of a single-atom laser · QuantumCumulants.jl</title><link href="https://fonts.googleapis.com/css?family=Lato|Roboto+Mono" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.0/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.0/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.0/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.11.1/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL="../.."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../../assets/documenter.js"></script><script src="../../siteinfo.js"></script><script src="../../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-dark.css" data-theme-name="documenter-dark" data-theme-primary-dark/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../../assets/themeswap.js"></script></head><body><div id="documenter"><nav class="docs-sidebar"><div class="docs-package-name"><span class="docs-autofit">QuantumCumulants.jl</span></div><form class="docs-search" action="../../search/"><input class="docs-search-query" id="documenter-search-query" name="q" type="text" placeholder="Search docs"/></form><ul class="docs-menu"><li><a class="tocitem" href="../../">Introduction</a></li><li><a class="tocitem" href="../../theory/">Theoretical background</a></li><li><a class="tocitem" href="../../tutorial/">Tutorial</a></li><li><a class="tocitem" href="../../correlation/">Correlation functions and spectra</a></li><li><a class="tocitem" href="../../implementation/">Implementation</a></li><li><a class="tocitem" href="../../api/">API</a></li><li><span class="tocitem">Examples</span><ul><li class="is-active"><a class="tocitem" href>Spectrum of a single-atom laser</a></li><li><a class="tocitem" href="../mollow/">Mollow Triplet</a></li><li><a class="tocitem" href="../many-atom-laser/">Many-atom laser</a></li><li><a class="tocitem" href="../optomechanical-cooling/">Optomechanical Cooling</a></li><li><a class="tocitem" href="../superradiant-laser/">Superradiant Laser</a></li><li><a class="tocitem" href="../excitation-transport-chain/">Noisy excitation transport</a></li><li><a class="tocitem" href="../cavity_antiresonance/">Cavity Antiresonance</a></li><li><a class="tocitem" href="../ramsey_spectroscopy/">Ramsey Spectroscopy</a></li></ul></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><nav class="breadcrumb"><ul class="is-hidden-mobile"><li><a class="is-disabled">Examples</a></li><li class="is-active"><a href>Spectrum of a single-atom laser</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>Spectrum of a single-atom laser</a></li></ul></nav><div class="docs-right"><a class="docs-edit-link" href="https://github.com/qojulia/QuantumCumulants.jl/blob/master/docs/src/examples/single-atom-laser-spectrum.md" title="Edit on GitHub"><span class="docs-icon fab"></span><span class="docs-label is-hidden-touch">Edit on GitHub</span></a><a class="docs-settings-button fas fa-cog" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-sidebar-button fa fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a></div></header><article class="content" id="documenter-page"><h1 id="Spectrum-of-a-single-atom-laser"><a class="docs-heading-anchor" href="#Spectrum-of-a-single-atom-laser">Spectrum of a single-atom laser</a><a id="Spectrum-of-a-single-atom-laser-1"></a><a class="docs-heading-anchor-permalink" href="#Spectrum-of-a-single-atom-laser" title="Permalink"></a></h1><p>In this example, we will compute the spectrum of the single-atom laser, which is also shown in the <a href="../../tutorial/#Tutorial">Tutorial</a>. The Hamitlonian of the system is</p><p class="math-container">\[H = \Delta a^\dagger a + g\left(a^\dagger \sigma^{ge} + a\sigma^{eg}\right),\]</p><p>where <span>$\Delta = \omega_\mathrm{c} - \omega_\mathrm{a}$</span> is the detuning between the cavity and the atomic resonance frequency, respectively. The cavity loses photons at a rate <span>$\kappa$</span>, and the atom is subject to spontaneous emission with a rate <span>$\gamma$</span>. Additionally, the atom is incoherently driven with a rate <span>$\nu$</span>, such that it can provide lasing gain to the system. We start, by specifying this model.</p><pre><code class="language-julia">using QuantumCumulants
+using ModelingToolkit, OrdinaryDiffEq
+using Plots
+
+# Define parameters
+@cnumbers Δ g γ κ ν
+
+# Define hilbert space
+hf = FockSpace(:cavity)
+ha = NLevelSpace(:atom,(:g,:e))
+h = hf ⊗ ha
+
+# Define the fundamental operators
+a = Destroy(h,:a)
+s = Transition(h,:σ,:g,:e)
+
+# Hamiltonian
+H = Δ*a&#39;*a + g*(a&#39;*s + a*s&#39;)
+
+# Collapse operators
+J = [a,s,s&#39;]
+rates = [κ,γ,ν]</code></pre><p>The first equation we want to derive is that for the average photon number <span>$\langle a^\dagger a \rangle$</span>.</p><pre><code class="language-julia"># Derive equation for average photon number
+eq_n = meanfield(a&#39;*a,H,J;rates=rates,order=2)</code></pre><p>The remaining equations will be computed automatically using the <a href="../../api/#QuantumCumulants.complete"><code>complete</code></a> function. However, we want to exclude terms such as <span>$\langle a \rangle$</span> since these are phase-dependent and therefore 0 in our phase-invariant system. To this end, we provide a custom filter function to <a href="../../api/#QuantumCumulants.complete"><code>complete</code></a>. This function should return <code>true</code>, if the given average should be included, and <code>false</code> if it should be excluded (just like Julia&#39;s native <code>filter</code> function requires). We write a small function <span>$\phi$</span> that computes the phase of an average, such that <span>$\phi(a) = -1$</span>, <span>$\phi(a^\dagger) = 1$</span>, and <span>$\phi(a^\dagger a) = \phi(a) + \phi(a^\dagger) = 0$</span>. Similarly, we want to have <span>$\phi(\sigma^{eg})=1=-\phi(\sigma^{ge})$</span>, and <span>$\phi(\sigma^{ee})=0$</span>. An average of an operator <span>$x$</span> is then said to be phase invariant if <span>$\phi(x)=0$</span>.</p><pre><code class="language-julia"># Custom filter function -- include only phase-invariant terms
+ϕ(x) = 0
+ϕ(::Destroy) = -1
+ϕ(::Create) = 1
+function ϕ(t::Transition)
+    if (t.i==:e &amp;&amp; t.j==:g)
+        1
+    elseif (t.i==:g &amp;&amp; t.j==:e)
+        -1
+    else
+        0
+    end
+end
+ϕ(avg::Average) = ϕ(avg.arguments[1])
+function ϕ(t::QuantumCumulants.QMul)
+    p = 0
+    for arg in t.args_nc
+        p += ϕ(arg)
+    end
+    return p
+end
+phase_invariant(x) = iszero(ϕ(x))
+
+# Complete equations
+eqs = complete(eq_n;filter_func=phase_invariant)</code></pre><p>\begin{align} \frac{d}{dt} \langle a^\dagger  a\rangle  =&amp; -1.0 \kappa \langle a^\dagger  a\rangle  -1 i g \langle a^\dagger  {\sigma}^{{ge}}\rangle  + 1 i g \langle a  {\sigma}^{{eg}}\rangle  \\
+\frac{d}{dt} \langle a^\dagger  {\sigma}^{{ge}}\rangle  =&amp; 1 i g \langle {\sigma}^{{ee}}\rangle  -1 i g \langle a^\dagger  a\rangle  -0.5 \gamma \langle a^\dagger  {\sigma}^{{ge}}\rangle  -0.5 \kappa \langle a^\dagger  {\sigma}^{{ge}}\rangle  -0.5 \nu \langle a^\dagger  {\sigma}^{{ge}}\rangle  + 1 i \Delta \langle a^\dagger  {\sigma}^{{ge}}\rangle  + 2 i g \langle {\sigma}^{{ee}}\rangle  \langle a^\dagger  a\rangle  \\
+\frac{d}{dt} \langle {\sigma}^{{ee}}\rangle  =&amp; \nu -1.0 \gamma \langle {\sigma}^{{ee}}\rangle  -1.0 \nu \langle {\sigma}^{{ee}}\rangle  + 1 i g \langle a^\dagger  {\sigma}^{{ge}}\rangle  -1 i g \langle a  {\sigma}^{{eg}}\rangle  \end{align}</p><p>In order to compute the spectrum, we first compute the correlation function <span>$g(\tau) = \langle a^\dagger(t_0 + \tau) a(t_0)\rangle \equiv \langle a^\dagger a_0\rangle.$</span></p><p>Note that the <a href="../../api/#QuantumCumulants.CorrelationFunction"><code>CorrelationFunction</code></a> finds the equation for <span>$g(\tau)$</span> and then completes the system of equations by using its own version of the <a href="../../api/#QuantumCumulants.complete"><code>complete</code></a> function. We can also provide the same custom filter function as before to skip over terms that are not phase-invariant. Similarly, setting the keyword <code>steady_state=true</code>, we tell the function not to derive equations of motion for operators that do not depend on <span>$\tau$</span>, but only on <span>$t_0$</span> (if <span>$t_0$</span> is in steady state, these values do not change with <span>$\tau$</span>).</p><pre><code class="language-julia"># Correlation function
+c = CorrelationFunction(a&#39;, a, eqs; steady_state=true, filter_func=phase_invariant)</code></pre><p class="math-container">\[\langle a^\dagger a_0\rangle\]</p><p>As we can see, there are only two equations necessary to obtain the correlation function:</p><pre><code class="language-julia">c.de</code></pre><p class="math-container">\[\begin{align} \frac{d}{dt} \langle a^\dagger a_0\rangle =&amp; 1.0 i g \langle {\sigma}^{{eg}} a_0\rangle + 1.0 i \Delta \langle a^\dagger a_0\rangle -0.5 \kappa \langle a^\dagger a_0\rangle \\
+\frac{d}{dt} \langle {\sigma}^{{eg}} a_0\rangle =&amp; 1.0 i g \langle a^\dagger a_0\rangle -0.5 \gamma \langle {\sigma}^{{eg}} a_0\rangle -0.5 \nu \langle {\sigma}^{{eg}} a_0\rangle -2.0 i \langle {\sigma}^{{ee}}\rangle g \langle a^\dagger a_0\rangle
+\end{align}\]</p><p>The spectrum can now be computed by solving the above system of equations and then taking the Fourier transform, or by taking the Fourier transform directly, which is done by constructing an instance of the <a href="../../api/#QuantumCumulants.Spectrum"><code>Spectrum</code></a> type. Here, we will compare both approaches.</p><p>In any case, we need to compute the steady state of the system numerically.</p><pre><code class="language-julia"># Numerical solution
+ps = (Δ, g, γ, κ, ν)
+@named sys = ODESystem(eqs)
+u0 = zeros(ComplexF64, length(eqs))
+p0 = (1.0, 1.5, 0.25, 1, 4)
+prob = ODEProblem(sys,u0,(0.0,10.0),ps.=&gt;p0)
+sol = solve(prob,RK4())</code></pre><p>Now, we can compute the time evolution of the correlation function in a similar way. Since the initial state of this system does not necessarily depend on all steady-state values, we can use the <a href="../../api/#QuantumCumulants.correlation_u0"><code>correlation_u0</code></a> function which automatically generates the correct initial state vector required. Similarly, we use <a href="../../api/#QuantumCumulants.correlation_p0"><code>correlation_p0</code></a> which generates the list of parameters including all needed steady-state values.</p><pre><code class="language-julia"># Time evolution of correlation function
+@named csys = ODESystem(c)
+u0_c = correlation_u0(c,sol.u[end])
+p0_c = correlation_p0(c,sol.u[end],ps.=&gt;p0)
+prob_c = ODEProblem(csys,u0_c,(0.0,500.0),p0_c)
+sol_c = solve(prob_c,RK4(),save_idxs=1)</code></pre><p>Finally, we borrow the FFT function from <a href="https://qojulia.org">QuantumOptics.jl</a> and compute the spectrum from the solution. Note that this requires an equidistant list of times, and we therefore interpolate the solution from the differential equation.</p><pre><code class="language-julia"># Interpolate solution
+τ = range(0.0, sol_c.t[end], length=15001)
+corr = sol_c.(τ)
+
+# Compute spectrum
+using QuantumOptics.timecorrelations: correlation2spectrum
+ω, s_fft = correlation2spectrum(τ, corr)</code></pre><p>Now, in order to compare we also compute the spectrum by constructing it directly from the correlation function and plot the results.</p><pre><code class="language-julia"># Spectrum
+S = Spectrum(c,ps)
+s_laplace = S(ω,sol.u[end],p0)
+
+plot(ω, s_fft, label=&quot;Spectrum (FFT)&quot;, xlabel=&quot;ω&quot;)
+plot!(ω, s_laplace, label=&quot;Spectrum (Laplace)&quot;)
+xlims!(-3,3)</code></pre><p><img src="../laser-spectrum.svg" alt="svg"/></p><p>As expected, both methods yield exactly the same spectrum. The difference is just in the method used, with the Laplace transform having a computational advantage.</p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../../api/">« API</a><a class="docs-footer-nextpage" href="../mollow/">Mollow Triplet »</a><div class="flexbox-break"></div><p class="footer-message"><a href="https://github.com/qojulia/QuantumCumulants.jl"><strong>Back to GitHub</strong></a></p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> on <span class="colophon-date" title="Friday 16 September 2022 06:07">Friday 16 September 2022</span>. Using Julia version 1.8.1.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
