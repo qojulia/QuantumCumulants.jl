@@ -77,7 +77,7 @@ g_analytic(τ) = @. sol.u[end] * exp((im*p0[1][2]-0.5p0[2][2])*τ)
 Note, that this was a very simple case. Usually the system of equations describing the correlation function is much more complex and depends on multiple other correlation functions (see for example [Spectrum of a single atom laser](@ref)).
 
 
-## Spectrum
+## Spectrum calculation
 
 There are two possible ways two compute the spectrum given a correlation function:
 
@@ -117,7 +117,7 @@ A\textbf{x} = b + c,
 ```
 where ``A = i\omega - \textbf{M}``, ``b = \textbf{y}(0)`` and ``c=\textbf{c}/(i\omega)``. In most cases, solving the above matrix equation is much faster than doing an additional time evolution to obtain the correlation function.
 
-This approach is implemented with the [`Spectrum`](@ref) type, which performs the Laplace transform and computes the matrix ``A`` and the vectors ``b`` and ``c`` symbolically. Additionally, functions that return all those things in numerical form depending on the steady-state values and given parameters are generated via [Symbolics](https://github.com/JuliaSymbolics/Symbolics.jl) `build_function`. Usage is as follows:
+This approach is implemented with the [`Spectrum`](@ref Spectrum) type, which performs the Laplace transform and computes the matrix ``A`` and the vectors ``b`` and ``c`` symbolically. Additionally, functions that return all those things in numerical form depending on the steady-state values and given parameters are generated via [Symbolics](https://github.com/JuliaSymbolics/Symbolics.jl) `build_function`. Usage is as follows:
 
 ```@example correlation
 c = CorrelationFunction(a', a, me; steady_state=true) # need to specify steady state

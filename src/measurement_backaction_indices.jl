@@ -142,27 +142,6 @@ function check_index_collision(a::Vector, H, J)
     end
 end
 
-"""
-    IndexedMeanfieldNoiseEquations
-
-Like a [`MeanfieldNoiseEquations`](@ref), but with symbolic indices.
-"""
-struct IndexedMeanfieldNoiseEquations <: AbstractMeanfieldEquations
-    equations::Vector{Symbolics.Equation}
-    operator_equations::Vector{Symbolics.Equation}
-    noise_equations::Vector{Symbolics.Equation}
-    operator_noise_equations::Vector{Symbolics.Equation}
-    states::Vector
-    operators::Vector{QNumber}
-    hamiltonian::QNumber
-    jumps::Vector
-    jumps_dagger::Any
-    rates::Vector
-    efficiencies::Vector
-    iv::MTK.Num
-    varmap::Vector{Pair}
-    order::Union{Int,Vector{<:Int},Nothing}
-end
 
 function _append!(lhs::IndexedMeanfieldNoiseEquations, rhs::IndexedMeanfieldNoiseEquations)
     append!(lhs.noise_equations, rhs.noise_equations)
@@ -230,7 +209,7 @@ function indexed_meanfield_backaction(
     rhs_noise = Vector{Any}(undef, length(a))
     imH = im*H
 
-    function calculate_term(i)
+    function calculate_term!(i)
         try
             rhs[i] =
                 commutator(imH, a[i]) + indexed_master_lindblad(a[i], J, Jdagger, rates)
@@ -248,18 +227,22 @@ function indexed_meanfield_backaction(
 
     if multithread
         Threads.@threads for i = 1:length(a)
-            calculate_term(i)
+            calculate_term!(i)
         end
     else
         for i = 1:length(a)
-            calculate_term(i)
+            calculate_term!(i)
         end
     end
 
     # Average
     vs = map(average, a)
-    rhs_avg, rhs = take_function_averages(rhs, simplify)
-    rhs_noise_avg, rhs_noise = take_function_averages(rhs_noise, simplify)
+    rhs_avg_ = map(average, rhs)
+    rhs_noise_avg_ = map(average, rhs_noise)
+    # rhs_avg, rhs = take_function_averages(rhs, simplify) # simplify(rhs) uses undo_average(): ab+⟨a⟩b -> 2ab WRONG!     
+    rhs_avg = map(SymbolicUtils.simplify, rhs_avg_)
+    # rhs_noise_avg, rhs_noise = take_function_averages(rhs_noise, simplify) # simplify(rhs) uses undo_average(): ab+⟨a⟩b -> 2ab WRONG!
+    rhs_noise_avg = map(SymbolicUtils.simplify, rhs_noise_avg_)
     eqs_avg = create_equation_array(vs, rhs_avg)
     eqs = create_equation_array(a, rhs)
     eqs_noise_avg = create_equation_array(vs, rhs_noise_avg)
@@ -789,8 +772,8 @@ function scale_equations(eqs; kwargs...)
         tempEq = scaleEq(eq; kwargs...)
         if tempEq.lhs in getLHS.(newEqs)
             continue
-        elseif isNotIn(tempEq.lhs, getLHS.(newEqs), true; kwargs...) &&
-               isNotIn(_inconj(tempEq.lhs), getLHS.(newEqs), true; kwargs...)
+        elseif is_not_in(tempEq.lhs, getLHS.(newEqs), true; kwargs...) &&
+               is_not_in(_inconj(tempEq.lhs), getLHS.(newEqs), true; kwargs...)
             push!(newEqs, tempEq)
         end
     end
@@ -836,9 +819,9 @@ end
 # substitute redundant operators in scaled equations
 function subst_reds_scale_equation(states, eqs; kwargs...)
 
-    #states = me.states
     vhash = map(hash, states)
-    states′ = map(_inconj, states)
+    # states′ = map(_inconj, states)
+    states′ = map(_conj, states)
     vs′hash = map(hash, states′)
     missed = find_missing(eqs, vhash, vs′hash; get_adjoints = false)
     inorder!.(missed)
@@ -964,49 +947,44 @@ function merge_equations(
     )
 end
 
-function mtk_generate_meta(eqs; ps = OrderedCollections.OrderedSet())
-    allstates = OrderedCollections.OrderedSet()
-    iv = nothing
-
-    for eq in eqs
-        MTK.collect_vars!(allstates, ps, eq.lhs, iv)
-        MTK.collect_vars!(allstates, ps, eq.rhs, iv)
-    end
-
-    return ps
-end
 
 function MTK.SDESystem(
-    de::Union{MeanfieldNoiseEquations,IndexedMeanfieldNoiseEquations},
-    iv = de.iv;
+    me::Union{
+        MeanfieldNoiseEquations,
+        IndexedMeanfieldNoiseEquations,
+        BackwardMeanfieldNoiseEquations,
+    },
+    iv = me.iv,
+    vars = map(last, me.varmap),
+    pars = nothing;
+    complete_sys = true,
     kwargs...,
 )
-    determ, noise = split_equations(de)
+    determ, noise = split_equations(me)
     eqs = MTK.equations(determ)
     neqs = MTK.equations(noise)
-    p = mtk_generate_meta(vcat(eqs..., neqs...))
-    return MTK.SDESystem(
-        eqs,
-        map(x->x.rhs, neqs),
-        iv,
-        map(x->x[2], de.varmap),
-        p;
-        kwargs...,
-    )
+    neqs_rhs = map(x->x.rhs, neqs)
+    pars = isnothing(pars) ? extract_parameters(vcat(eqs..., neqs...), iv) : pars
+
+    sys = MTK.SDESystem(eqs, neqs_rhs, iv, vars, pars; kwargs...)
+    return complete_sys ? complete(sys) : sys
 end
 
 function MTK.System(
-    de::Union{MeanfieldNoiseEquations,IndexedMeanfieldNoiseEquations},
-    iv = de.iv;
+    de::Union{MeanfieldNoiseEquations,IndexedMeanfieldNoiseEquations};
     kwargs...,
 )
     determ, noise = split_equations(de)
-    return MTK.System(determ, iv; kwargs...)
+    return MTK.System(determ; kwargs...)
 end
 
 function Base.show(
     io::IO,
-    de::Union{MeanfieldNoiseEquations,IndexedMeanfieldNoiseEquations},
+    de::Union{
+        MeanfieldNoiseEquations,
+        IndexedMeanfieldNoiseEquations,
+        BackwardMeanfieldNoiseEquations,
+    },
 )
     for i = 1:length(de.equations)
         write(io, "∂ₜ(")

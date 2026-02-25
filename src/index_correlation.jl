@@ -603,15 +603,15 @@ end
 function filterComplete_corr(x, states1, states2, scaling, steady_state; kwargs...)
     if steady_state
         return (
-            isNotIn(x, states1, scaling; kwargs...) &&
-            isNotIn(_inconj(x), states1, scaling; kwargs...) &&
-            isNotIn(x, states2, scaling; kwargs...) &&
-            isNotIn(_inconj(x), states2, scaling; kwargs...)
+            is_not_in(x, states1, scaling; kwargs...) &&
+            is_not_in(_inconj(x), states1, scaling; kwargs...) &&
+            is_not_in(x, states2, scaling; kwargs...) &&
+            is_not_in(_inconj(x), states2, scaling; kwargs...)
         )
     else
         return (
-            isNotIn(x, states1, scaling; kwargs...) &&
-            isNotIn(_inconj(x), states1, scaling; kwargs...)
+            is_not_in(x, states1, scaling; kwargs...) &&
+            is_not_in(_inconj(x), states1, scaling; kwargs...)
         )
     end
 end

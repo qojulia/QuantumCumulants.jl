@@ -1,5 +1,7 @@
 const AbstractIndexedMeanfieldEquations =
-    Union{IndexedMeanfieldEquations,EvaledMeanfieldEquations}
+    Union{IndexedMeanfieldEquations,EvaledMeanfieldEquations,IndexedMeanfieldNoiseEquations}
+# TODO?: create abstract type AbstractIndexedMeanfieldEquations <: AbstractMeanfieldEquations
+# which is supertype of all the IndexedEquations
 
 # Relevant parts of System interface
 MTK.get_iv(me::AbstractMeanfieldEquations) = me.iv
@@ -15,6 +17,7 @@ function MTK.equations(
 
     # Substitute conjugate variables by explicit conj
     vs′ = map(_conj, vs)
+    # vs′ = map(_inconj, vs) # I am not sure why this does not work. 
     vs′hash = map(hash, vs′)
     i = 1
     while i <= length(vs′)

@@ -16,8 +16,8 @@ function scaleME(me::IndexedMeanfieldEquations; kwargs...)
         tempEq = scaleEq(eq; kwargs...)
         if tempEq.lhs in getLHS.(newEqs)
             continue
-        elseif isNotIn(tempEq.lhs, getLHS.(newEqs), true; kwargs...) &&
-               isNotIn(_inconj(tempEq.lhs), getLHS.(newEqs), true; kwargs...)
+        elseif is_not_in(tempEq.lhs, getLHS.(newEqs), true; kwargs...) &&
+               is_not_in(_inconj(tempEq.lhs), getLHS.(newEqs), true; kwargs...)
             push!(newEqs, tempEq)
         end
     end

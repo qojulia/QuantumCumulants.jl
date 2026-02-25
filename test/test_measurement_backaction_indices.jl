@@ -6,7 +6,7 @@ using Symbolics
 @testset "test_measurement_backaction_indices" begin
 
     # Parameters
-    @cnumbers κ g gf κf R Γ Δ ν N M
+    @cnumbers κ g gf κf R Γ Δ ν N M η
     δ(i) = IndexedVariable(:δ, i)
 
     # Hilbertspace
@@ -23,6 +23,17 @@ using Symbolics
     b(k) = IndexedOperator(Destroy(h, :b, 2), k)
     σ(α, β, k) = IndexedOperator(Transition(h, :σ, α, β, 3), k)
 
+    # test meanfield - measurement backaction
+    test_eq_a = -1im*Δ*average(a) - 0.5κ*average(a)
+    test_noise_eq_a =
+        √(η*κ)*(average(a'a) + average(a*a) - average(a)^2 - average(a)*average(a'))
+    me_a = meanfield(a, Δ*a'a, [a]; rates = [κ], efficiencies = [η])
+    @test iszero(me_a.equations[1].rhs - test_eq_a)
+    @test iszero(me_a.noise_equations[1].rhs - test_noise_eq_a)
+
+    me_a_o1 = meanfield(a', Δ*a'a, [a]; rates = [κ], efficiencies = [η], order = 1)
+    @test iszero(me_a_o1.noise_equations[1].rhs)
+
     # Hamiltonian
     H =
         Δ*Σ(σ(2, 2, j), j) +
@@ -37,7 +48,6 @@ using Symbolics
     eqs = meanfield(a'a, H, J; rates = rates, order = 2)
     eqs_c = complete(eqs);
 
-    @cnumbers η
     efficiencies = [η, 0, 0, 0, 0]
     eqs_noise = meanfield(a'a, H, J; rates = rates, efficiencies = efficiencies, order = 2)
     eqs_c_noise = indexed_complete(eqs);

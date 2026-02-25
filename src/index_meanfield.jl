@@ -542,8 +542,8 @@ function split_inds(inds::Vector)
 end
 
 filterComplete(x, states, scaling; kwargs...) =
-    isNotIn(x, states, scaling; kwargs...) &&
-    isNotIn(_inconj(x), states, scaling; kwargs...)
+    is_not_in(x, states, scaling; kwargs...) &&
+    is_not_in(_inconj(x), states, scaling; kwargs...)
 
 #gets all indices that are used in the states of the meanfieldequations
 function get_all_indices(vec::Vector)

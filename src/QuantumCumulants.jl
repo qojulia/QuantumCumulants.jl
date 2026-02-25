@@ -154,6 +154,8 @@ export HilbertSpace,
     numeric_average,
     initial_values,
     get_solution,
+    modify_equations,
+    modify_equations!,
     get_scale_solution,
     CorrelationFunction,
     Spectrum,
@@ -194,7 +196,10 @@ export HilbertSpace,
     insert_index,
     eval_term,
     MeanfieldNoiseEquations,
-    IndexedMeanfieldNoiseEquations
+    IndexedMeanfieldNoiseEquations,
+    BackwardMeanfieldNoiseEquations,
+    meanfield_backward,
+    translate_W_to_Y
 
 
 include("equations.jl")
@@ -206,6 +211,7 @@ include("correlation.jl")
 include("scale.jl")
 include("measurement_backaction.jl")
 include("measurement_backaction_indices.jl")
+include("measurement_retrodiction.jl")
 include("latexify_recipes.jl")
 include("printing.jl")
 include("index_average.jl")
@@ -214,7 +220,5 @@ include("index_scale.jl")
 include("index_correlation.jl")
 include("index_utils.jl")
 
-
 @deprecate heisenberg(args...; kwargs...) meanfield(args...; kwargs...)
-
 end # module

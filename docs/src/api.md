@@ -230,6 +230,14 @@ initial_values
 get_solution
 ```
 
+```@docs
+modify_equations
+```
+
+```@docs
+modify_equations!
+```
+
 ## [Symbolic Summations](@id API: Sums)
 
 ```@docs
@@ -341,4 +349,8 @@ MeanfieldNoiseEquations
 
 ```@docs
 IndexedMeanfieldNoiseEquations
+```
+
+```@docs
+BackwardMeanfieldNoiseEquations
 ```
