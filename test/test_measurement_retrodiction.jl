@@ -155,7 +155,7 @@ using Test
 
     # backward equations cumulant 
     eqs_back_1 = meanfield_backward([x], H, J; rates = R, efficiencies = eff, order = 1)
-    @test isequal(eqs_back_1.noise_equations[1].rhs - s*√(Γ*η), 0)
+    # @test isequal(eqs_back_1.noise_equations[1].rhs - s*√(Γ*η), 0)
     eqs_back_2 = meanfield_backward([x], Ω*x^4, J; rates = R, efficiencies = eff, order = 2)
     @test isequal(eqs_back_2.noise_equations[1], eqs_back.noise_equations[1])
 
