@@ -33,15 +33,15 @@ pages = [
 
 using Pkg
 status = sprint(io -> Pkg.status("SecondQuantizedAlgebra"; io = io))
-# version = match(r"(v[0-9].[0-9]+.[0-9]+)", status)[1]
+version = match(r"(v[0-9].[0-9]+.[0-9]+)", status)[1]
 gh_moi = Documenter.Remotes.GitHub("qojulia", "SecondQuantizedAlgebra.jl")
-# remotes = Dict(pkgdir(SecondQuantizedAlgebra) => (gh_moi, version))
+remotes = Dict(pkgdir(SecondQuantizedAlgebra) => (gh_moi, version))
 
 makedocs(
     sitename = "QuantumCumulants.jl",
     modules = [QuantumCumulants, SecondQuantizedAlgebra],
     pages = pages,
-    # remotes = remotes,
+    remotes = remotes,
     checkdocs = :exports,
     format = Documenter.HTML(
         mathengine = MathJax(),

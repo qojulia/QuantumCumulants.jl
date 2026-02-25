@@ -32,7 +32,7 @@ function merge_backward_equations(
     determ::MeanfieldEquations,
     noise::MeanfieldEquations,
 )::BackwardMeanfieldNoiseEquations
-    return MeanfieldNoiseEquations(
+    return BackwardMeanfieldNoiseEquations(
         determ.equations,
         determ.operator_equations,
         noise.equations,

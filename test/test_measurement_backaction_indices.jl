@@ -31,6 +31,9 @@ using Symbolics
     @test iszero(me_a.equations[1].rhs - test_eq_a)
     @test iszero(me_a.noise_equations[1].rhs - test_noise_eq_a)
 
+    me_a_o1 = meanfield(a', Δ*a'a, [a]; rates = [κ], efficiencies = [η], order=1)
+    @test iszero(me_a_o1.noise_equations[1].rhs)
+
     # Hamiltonian
     H =
         Δ*Σ(σ(2, 2, j), j) +

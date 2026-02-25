@@ -83,7 +83,7 @@ nothing # hide
 # \end{align}
 # ```
 
-# Here we define the actual values for the system parameters. We then show that the deterministic time evolution without the noise terms is still accessible by using the constructor `System`` for the stochastic system of equations and the syntax for the simulation of the time evolution is as usual.
+# Here we define the actual values for the system parameters. We then show that the deterministic time evolution without the noise terms is still accessible by using the constructor `System` for the stochastic system of equations and the syntax for the simulation of the time evolution is as usual.
 
 ## frequencies are in kHz
 ωc_ = 0.0
@@ -111,7 +111,7 @@ sol_det = solve(prob, RK4(), dt = T_end/2e5)
 graph = plot(xlabel = "Time (ms)", ylabel = "Cavity photon number")
 plot!(graph, sol_det.t, real(sol_det[a'a]), legend = false)
 
-# The stochastic time evolution is accessible via the constructor `SDESystem``, whose syntax is exactly the same as for the System, but with keyword args as defined in the [SDE tutotia](https://docs.sciml.ai/DiffEqDocs/stable/tutorials/sde_example/). We need to provide a noise process for the measurement. If the noise is white the appropriate noise process is a Wiener process. The `SDEProblem` is constructed just as the `ODEProblem`, but with an additional noise argument.
+# The stochastic time evolution is accessible via the constructor `SDESystem`, whose syntax is exactly the same as for the System, but with keyword args as defined in the [SDE tutorial](https://docs.sciml.ai/DiffEqDocs/stable/tutorials/sde_example/). We need to provide a noise process for the measurement. If the noise is white the appropriate noise process is a Wiener process. The `SDEProblem` is constructed just as the `ODEProblem`, but with an additional noise argument.
 
 # We can then make use of the `EnsembleProblem`, which automatically runs multiple instances of the stochastic equations of motion. The number of trajectories can be set in the solve call. See the tutorial linked above for more details of the function calls here.
 
@@ -147,7 +147,7 @@ sol = solve(
 
 n_avg_ = zeros(length(tspan)) # average photon number
 a_real_avg_ = zeros(length(tspan)) # average field (real part)
-traj_succ = zeros(length(tspan)) # trajectories can be numerically unstable 
+traj_succ = zeros(traj) # trajectories can be numerically unstable 
 for i = 1:traj
     sol_ = sol.u[i]
     if length(sol_) == length(tspan)
