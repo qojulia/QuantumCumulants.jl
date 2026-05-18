@@ -65,7 +65,7 @@ end
     # Every index appearing in the completed system must trace back to the
     # user's declared vocabulary. The completion path canonicalizes leaf
     # averages against the user-provided indices and never invents new
-    # ones — names like `i1`, `_c1`, etc. must not appear.
+    # ones (names like `i1`, `_c1`, etc. must not appear).
     declared = Set([i_ind.name, k_ind.name])
     for op in ceqs.operators
         for idx in SecondQuantizedAlgebra.get_indices(op)

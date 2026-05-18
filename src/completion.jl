@@ -50,8 +50,8 @@ function _collect_missing!(
     return
 end
 
-# Two leaf averages are alpha-equivalent — and therefore the same physical
-# state — when their operator structures coincide after renaming free or
+# Two leaf averages are alpha-equivalent, and therefore the same physical
+# state, when their operator structures coincide after renaming free or
 # bound indices on each Hilbert subspace to a deterministic canonical name.
 # The canonical name comes from the user's own index vocabulary: for each
 # subspace, the indices the user constructed in declaration order. State

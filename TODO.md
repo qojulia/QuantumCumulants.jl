@@ -4,16 +4,6 @@ These were identified while porting the master test suite. Each item is a
 behavior the master branch handled but the v1 rewrite either drops, weakens,
 or gets wrong. Listed in rough priority order.
 
-## `Σ(..., i, j; non_equal=true)` kwarg removed
-
-**Symptom:** master constructed `DoubleSum(_, i, j; non_equal=true)` to
-build dipole-dipole sums excluding the diagonal. SQA v0.5 removed the
-`non_equal` keyword.
-
-**Status:** SQA-level API change. QC consumers must build the `i != j`
-exclusion manually (e.g. via `Σ` with explicit `[non_equal_indices]`
-argument).
-
 ## `scale(::NoiseMeanFieldEquations)` not defined
 
 **Symptom:** master scaled indexed noise systems via `scale(stoch_eqs)`.
