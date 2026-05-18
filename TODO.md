@@ -4,51 +4,6 @@ These were identified while porting the master test suite. Each item is a
 behavior the master branch handled but the v1 rewrite either drops, weakens,
 or gets wrong. Listed in rough priority order.
 
-## `complete!()` does not preserve conjugate-pair states needed by codegen
-
-**Symptom:** for two-level systems where initial ops are
-`[σ(:e,:g), σ(:e,:e)]`, `complete!()` exits with only those two states because
-`find_missing` correctly recognises `⟨σ_12⟩ = conj(⟨σ_21⟩)` and skips it. The
-RHS of the `⟨σ_22⟩` equation still references `⟨σ_12⟩`, but it's not a state.
-
-**Consequence:** `to_system(eqs)` then `solve(prob, Tsit5())` raises
-`MethodError: objects of type SecondQuantizedAlgebra.AvgFunc are not callable`
-at runtime — the codegen emits a literal `avg(σ_12)` call because there is
-no state variable to substitute.
-
-**Root cause:** v1's `to_system` codegen substitutes RHS averages via
-`_avg_to_var_dict(eqs)`, which only knows about averages that appear in
-`eqs.states`. It has no rule to map `avg(adj(op))` to `conj(state_of_op)`.
-
-**Master's behavior:** master also tracked only canonical states (see
-`vs_adj` in `master:src/utils.jl`), but its System codegen knew how to
-express conjugate observables via the primary states. This is a real gap.
-
-**Workaround:** user must call `complete!(eqs; get_adjoints=true)` (the
-current default in v1 to keep ODE flows working), which inflates closure
-counts (e.g. V-level: 32 vs master's 16).
-
-**Proper fix:** teach `_avg_to_var_dict` / `to_system` codegen to emit
-`avg(adj(op)) → conj(state_var_of(avg(op)))` substitution rules.
-
-## `complete!()` over-counts the canonical closure
-
-**Symptom:** master's V-level test closes at 16 equations. v1's `complete!`
-with `get_adjoints=false` produces 18 — two extra second-order moments where
-master's ordering canonicalisation picks a single representative of a
-conjugate pair but v1 doesn't.
-
-**Consequence:** master-equivalent count assertions need a tolerance band.
-
-**Root cause:** SQA v0.5 normal-ordering / `find_operators` heuristics
-differ subtly from the old in-tree QC implementation. When both `⟨a*σ⟩`
-and `⟨a'*σ'⟩` appear in a single RHS scan, master would pick one based on
-its hashing/`<`-ordering rules; v1's `_collect_missing!` picks based on
-which it encounters first, which depends on the SQA term order.
-
-**Proper fix:** match master's `lt_reference_order` choice when picking
-which conjugate of a pair becomes the canonical state.
-
 ## `_filter_rhs!` originally tried to reapply `complex(...)`
 
 **Symptom:** when `complete!(...; filter_func=phase_invariant)` recursed

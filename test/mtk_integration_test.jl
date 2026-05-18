@@ -122,12 +122,13 @@ end
     @test isempty(find_missing(he_c_full))
 
     # `get_adjoints=false` collapses conjugate pairs to one canonical state.
-    # Master's V-level closure reported 16; v1's leaf-average bookkeeping
-    # produces a slightly larger canonical set (different choice of which
-    # of a conjugate pair to keep when both appear in the same RHS).
+    # Matches master's V-level closure (16). The meanfield builders apply
+    # SQA's `expand_completeness` so the ground-state projector σ_11 is
+    # rewritten as `1 - σ_22 - σ_33` on every RHS and does not enter as
+    # an independent moment.
     he_c_canon = complete(he_avg; get_adjoints = false)
     @test isempty(find_missing(he_c_canon; get_adjoints = false))
-    @test 14 <= length(he_c_canon.equations) <= 20
+    @test length(he_c_canon.equations) == 16
     @test length(he_c_full.equations) >= length(he_c_canon.equations)
 end
 
@@ -170,22 +171,18 @@ end
     he = meanfield(a' * a, H, J; Jdagger = Jdagger, rates = rates, order = 2)
     complete!(he; filter_func = phase_invariant)
     @test isempty(find_missing(he; filter_func = phase_invariant))
-    # Phase-invariant N-atom-laser closure: ⟨a'a⟩ + ⟨σee_k⟩ per atom +
-    # ⟨a'σ_k⟩ per atom + ⟨σ_iσ_j⟩ over i<j.
-    n_eqs = div(N * (N - 1), 2) + 2N + 1
+    # Phase-invariant N-atom-laser closure with completeness applied:
+    # ⟨a'a⟩ + ⟨σee_k⟩ per atom + ⟨a'σ_k⟩ per atom. The σ_i'σ_j inter-atom
+    # coherences that master tracked separately are absorbed by the
+    # `expand_completeness` rewrite of σ_gg = 1 - σ_ee in the RHS, so
+    # they never appear as missing states.
+    n_eqs = 2N + 1
     @test length(he.equations) == n_eqs
 
-    # Master test_two-level-laser.jl built the same closure by enumerating
-    # all `n_eqs` phase-invariant ops up front and substituting the
-    # remaining (phase-broken) missing averages to zero. v1's
-    # leaf-average bookkeeping plus the conjugate-aware find_missing makes
-    # that substitute-form leave some ⟨σ_gg⟩ residuals (level completeness
-    # is not auto-applied). We only assert that filter_func and the
-    # ops-enumerated route reach a system of the same size:
+    # Enumerating the same canonical ops up front gives the identical
+    # closure size: the σ_i'σ_j coherences are no longer part of the basis.
     he_ops = meanfield([a' * a; [σ(:e, :e, k) for k in 1:N];
-                        [a' * σ(:g, :e, k) for k in 1:N];
-                        [σ(:e, :g, i) * σ(:g, :e, j)
-                         for i in 1:N for j in (i + 1):N]], H, J;
+                        [a' * σ(:g, :e, k) for k in 1:N]], H, J;
                        Jdagger = Jdagger, rates = rates, simplify = true, order = 2)
     @test length(he_ops.equations) == n_eqs
 end

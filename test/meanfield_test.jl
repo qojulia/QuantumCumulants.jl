@@ -104,10 +104,13 @@ end
     # operator_equations[i].rhs is stored as a SymbolicUtils symbolic in
     # v1, not a QAdd (see TODO.md). The equivalent assertion uses the
     # averaged form on `eqs.equations[i].rhs` against `average(da)`.
+    # `meanfield` applies SQA's `expand_completeness`, so analytic targets
+    # that reference σ_gg explicitly must do the same to land in the same
+    # basis before subtracting.
     he = meanfield([a, σ, a' * a], H)
-    @test _iz(he.equations[1].rhs - average(da))
-    @test _iz(he.equations[2].rhs - average(ds))
-    @test _iz(he.equations[3].rhs - average(dn))
+    @test _iz(he.equations[1].rhs - average(expand_completeness(da)))
+    @test _iz(he.equations[2].rhs - average(expand_completeness(ds)))
+    @test _iz(he.equations[3].rhs - average(expand_completeness(dn)))
 end
 
 @testset "meanfield: Lossy JC drift matches analytic" begin
@@ -127,9 +130,12 @@ end
 
     @test _iz(he_diss.equations[1].rhs -
               average((-im * ωc - 0.5κ) * a + (-im * g) * σ))
+    # `meanfield` applies SQA's `expand_completeness`, so σ_gg gets
+    # rewritten as `1 - σ_ee` on every RHS. Match that basis here.
     @test _iz(he_diss.equations[2].rhs -
-              average((-im * g) * a * σgg + (-im * ωa - 0.5γ) * σ +
-                      (im * g) * a * σee))
+              average(expand_completeness((-im * g) * a * σgg +
+                                          (-im * ωa - 0.5γ) * σ +
+                                          (im * g) * a * σee)))
     @test _iz(he_diss.equations[3].rhs -
               average((-γ) * σee + (im * g) * a' * σ + (-im * g) * a * σ'))
 end
@@ -151,10 +157,13 @@ end
 
     @test _iz(he_laser.equations[1].rhs -
               average((-κ) * a' * a + (-im * g) * a' * σ + (im * g) * a * σ'))
-    # Master's reduced form `ν + (-ν-γ)*σee` uses σ_gg + σ_ee = 1; the
-    # equivalent unreduced form (matching v1's output) is ν*σ_gg - γ*σ_ee.
+    # `meanfield` applies SQA's `expand_completeness`, so σ_gg gets
+    # rewritten as `1 - σ_ee` and the analytic form ν*σ_gg - γ*σ_ee
+    # collapses to ν + (-ν - γ)*σ_ee. Use the same expansion here.
     @test _iz(he_laser.equations[2].rhs -
-              average(ν * σgg - γ * σee + (im * g) * a' * σ + (-im * g) * a * σ'))
+              average(expand_completeness(
+                  ν * σgg - γ * σee +
+                  (im * g) * a' * σ + (-im * g) * a * σ')))
 end
 
 @testset "meanfield: Jaynes-Cummings system shape" begin

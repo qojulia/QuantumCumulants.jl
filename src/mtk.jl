@@ -102,10 +102,12 @@ function _to_system_sde(eqs::NoiseMeanFieldEquations, name::Symbol, sign::Int)
     iv_uw = SymbolicUtils.unwrap(iv)
     D  = Symbolics.Differential(iv)
     dict, dvs = _avg_to_var_dict(eqs)
+    conj_dict = _conj_substitution_dict(eqs, dict)
     drift = Vector{Symbolics.Equation}(undef, length(eqs.equations))
     ps_set = Set{SymbolicUtils.BasicSymbolic}()
     @inbounds for (i, eq) in enumerate(eqs.equations)
-        rhs      = SymbolicUtils.substitute(eq.rhs, dict)
+        rhs_conj = _substitute_conj_avgs(eq.rhs, conj_dict)
+        rhs      = SymbolicUtils.substitute(rhs_conj, dict)
         drift[i] = D(dict[eq.lhs]) ~ sign * rhs
         _collect_params!(ps_set, rhs, dict, iv_uw)
     end

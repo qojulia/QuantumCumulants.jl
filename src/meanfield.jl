@@ -60,7 +60,8 @@ function _meanfield_forward(ops, H, J, Jdagger, rates, order,
     op_rhs = Vector{QAdd}(undef, length(ops_qa))
     operator_eqs = Vector{Symbolics.Equation}(undef, length(ops_qa))
     @inbounds for (i, op) in enumerate(ops_qa)
-        rhs = commutator(imH, op) + _lindblad_rhs(op, J, Jdagger, rates)
+        rhs = SecondQuantizedAlgebra.expand_completeness(
+            commutator(imH, op) + _lindblad_rhs(op, J, Jdagger, rates))
         op_rhs[i] = rhs
         operator_eqs[i] = op ~ rhs
     end
@@ -98,7 +99,8 @@ function _meanfield_noise(::Forward, ops, H, J, Jdagger, rates,
     op_rhs = Vector{QAdd}(undef, length(ops_qa))
     operator_eqs = Vector{Symbolics.Equation}(undef, length(ops_qa))
     @inbounds for (i, op) in enumerate(ops_qa)
-        rhs = commutator(imH, op) + _lindblad_rhs(op, J, Jdagger, rates)
+        rhs = SecondQuantizedAlgebra.expand_completeness(
+            commutator(imH, op) + _lindblad_rhs(op, J, Jdagger, rates))
         op_rhs[i] = rhs
         operator_eqs[i] = op ~ rhs
     end
@@ -138,7 +140,8 @@ function _meanfield_noise(::Backward, ops, H, J, Jdagger, rates,
     op_rhs = Vector{QAdd}(undef, length(ops_qa))
     operator_eqs = Vector{Symbolics.Equation}(undef, length(ops_qa))
     @inbounds for (i, op) in enumerate(ops_qa)
-        rhs = commutator(imH, op) + _lindblad_rhs(op, J, Jdagger, rates)
+        rhs = SecondQuantizedAlgebra.expand_completeness(
+            commutator(imH, op) + _lindblad_rhs(op, J, Jdagger, rates))
         op_rhs[i] = rhs
         operator_eqs[i] = op ~ rhs
     end

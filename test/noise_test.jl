@@ -1,6 +1,7 @@
 using QuantumCumulants
 using Symbolics: Symbolics, @variables, expand
 using SymbolicUtils
+using ModelingToolkitBase: ModelingToolkitBase
 using Test
 
 function _iz(x)
@@ -92,4 +93,25 @@ end
     det = meanfield(a, H, [a]; rates = [κ], order = 2)
     stoch = meanfield(a, H, [a]; rates = [κ], efficiencies = [η], order = 2)
     @test _iz(stoch.equations[1].rhs - det.equations[1].rhs)
+end
+
+@testset "to_system on noise eqs: substitutes conjugate of state on RHS" begin
+    # Driven damped cavity. The drift of ⟨a'a⟩ references ⟨a'⟩, but ⟨a'⟩ is
+    # the conjugate of state ⟨a⟩ and is therefore not itself added as a
+    # separate state. The SDE codegen path must rewrite ⟨a'⟩ as
+    # `conj(u_for_a(t))` before substituting averages into MTK variables;
+    # without that rewrite it would emit a literal `avg(a')` call and the
+    # solver would later fail with "AvgFunc not callable".
+    @variables Δ::Real κ::Real η::Real η_d::Real
+    hc = FockSpace(:cavity)
+    a = Destroy(hc, :a)
+    H = Δ * a' * a + η_d * (a + a')
+    eqs = meanfield([a, a' * a], H, [a];
+                    rates = [κ], efficiencies = [η], order = 2)
+
+    @test length(eqs.states) == 2
+    @test eqs isa NoiseMeanFieldEquations
+
+    sys = to_system(eqs; name = :driven_cav_noise)
+    @test sys isa ModelingToolkitBase.System
 end
