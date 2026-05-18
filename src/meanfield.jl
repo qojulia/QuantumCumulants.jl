@@ -1,163 +1,177 @@
 """
-    meanfield(ops::Vector,H::QNumber)
-    meanfield(op::QNumber,H::QNumber)
+    meanfield(ops, H, J=QField[]; Jdagger=adjoint.(J), rates=ones(length(J)),
+              efficiencies=nothing, direction=Forward(),
+              order=nothing, simplify=true,
+              mix_choice=maximum, iv=Symbolics.variable(:t))
 
-    meanfield(ops::Vector,H::QNumber,J::Vector;
-            Jdagger::Vector=adjoint.(J),rates=ones(length(J)))
-    meanfield(op::QNumber,H::QNumber,J::Vector;
-            Jdagger::Vector=adjoint.(J),rates=ones(length(J)))
-
-Compute the set of equations for the operators in `ops` under the Hamiltonian
-`H` and with loss operators contained in `J`. The resulting equation is
-equivalent to the Quantum-Langevin equation where noise is neglected.
-
-# Arguments
-*`ops::Vector`: The operators of which the equations are to be computed.
-*`H::QNumber`: The Hamiltonian describing the reversible dynamics of the
-    system.
-*`J::Vector{<:QNumber}`: A vector containing the collapse operators of
-    the system. A term of the form
-    ``\\sum_i J_i^\\dagger O J_i - \\frac{1}{2}\\left(J_i^\\dagger J_i O + OJ_i^\\dagger J_i\\right)``
-    is added to the Heisenberg equation.
-
-# Optional arguments
-*`Jdagger::Vector=adjoint.(J)`: Vector containing the hermitian conjugates of
-    the collapse operators.
-*`rates=ones(length(J))`: Decay rates corresponding to the collapse operators in `J`.
-*`multithread=false`: Specify whether the derivation of equations for all operators in `ops`
-    should be multithreaded using `Threads.@threads`.
-*`simplify=true`: Specify whether the derived equations should be simplified.
-*`order=nothing`: Specify to which `order` a [`cumulant_expansion`](@ref) is performed.
-    If `nothing`, this step is skipped.
-*`mix_choice=maximum`: If the provided `order` is a `Vector`, `mix_choice` determines
-    which `order` to prefer on terms that act on multiple Hilbert spaces.
-*`iv=ModelingToolkit.t`: The independent variable (time parameter) of the system.
+Compute equations of motion for the averages of `ops` under Hamiltonian `H`
+and collapse operators `J` (with rates `rates`). Returns a `MeanFieldEquations`
+unless `efficiencies` is given (then a `NoiseMeanFieldEquations`).
 """
-function meanfield(a::Vector, H, J; kwargs...)
-    inds = vcat(get_indices(a), get_indices(H), get_indices(J))
-    if isempty(inds)
-        if :efficiencies in keys(kwargs)
-            return _meanfield_backaction(a, H, J; kwargs...)
-        end
-        return _meanfield(a, H, J; kwargs...)
-    else
-        if :efficiencies in keys(kwargs)
-            return indexed_meanfield_backaction(a, H, J; kwargs...)
-        end
-        return indexed_meanfield(a, H, J; kwargs...)
-    end
-end
-meanfield(a::QNumber, args...; kwargs...) = meanfield([a], args...; kwargs...)
-meanfield(a::Vector, H; kwargs...) = meanfield(a, H, []; Jdagger = [], kwargs...)
-function _meanfield(
-    a::Vector,
-    H,
-    J;
-    Jdagger::Vector = adjoint.(J),
-    rates = ones(Int, length(J)),
-    multithread = false,
-    simplify = true,
+_make_iv() = first(MTK.@independent_variables t)
+
+function meanfield(
+    ops::AbstractVector,
+    H::QField,
+    J::AbstractVector = QField[];
+    Jdagger::AbstractVector = adjoint.(J),
+    rates::AbstractVector = ones(length(J)),
+    efficiencies = nothing,
+    direction::EvolutionDirection = Forward(),
     order = nothing,
-    mix_choice = maximum,
-    iv = MTK.t_nounits,
+    simplify::Bool = true,
+    mix_choice::Function = maximum,
+    iv::Symbolics.Num = _make_iv(),
 )
-
-    if rates isa Matrix
-        J = [J];
-        Jdagger = [Jdagger];
-        rates = [rates]
-    end
-    J_, Jdagger_, rates_ = _expand_clusters(J, Jdagger, rates)
-    # Derive operator equations
-    rhs = Vector{Any}(undef, length(a))
-    imH = im*H
-    if multithread
-        Threads.@threads for i = 1:length(a)
-            rhs_ = commutator(imH, a[i])
-            rhs_diss = _master_lindblad(a[i], J_, Jdagger_, rates_)
-            rhs[i] = rhs_ + rhs_diss
-        end
+    Jn, Jdn = _normalize_jumps(J, Jdagger)
+    rn = _normalize_rates(rates, length(Jn))
+    if efficiencies === nothing
+        direction isa Forward || throw(ArgumentError(
+            "`direction=Backward()` requires `efficiencies=...`"))
+        return _meanfield_forward(ops, H, Jn, Jdn, rn, order,
+                                  simplify, mix_choice, iv)
     else
-        for i = 1:length(a)
-            rhs_ = commutator(imH, a[i])
-            rhs_diss = _master_lindblad(a[i], J_, Jdagger_, rates_)
-            rhs[i] = rhs_ + rhs_diss
-        end
-    end
-
-    # Average
-    vs = map(average, a)
-    rhs_avg, rhs = take_function_averages(rhs, simplify)
-
-    if order !== nothing
-        rhs_avg = [
-            cumulant_expansion(r, order; simplify = simplify, mix_choice = mix_choice)
-            for r ∈ rhs_avg
-        ]
-    end
-
-    eqs_avg = [Symbolics.Equation(l, r) for (l, r) in zip(vs, rhs_avg)]
-    eqs = [Symbolics.Equation(l, r) for (l, r) in zip(a, rhs)]
-    varmap = make_varmap(vs, iv)
-
-    me = MeanfieldEquations(eqs_avg, eqs, vs, a, H, J_, Jdagger_, rates_, iv, varmap, order)
-    if SQA.has_cluster(H)
-        return scale(me; simplify = simplify, order = order, mix_choice = mix_choice)
-    else
-        return me
+        en = _normalize_rates(efficiencies, length(Jn))
+        return _meanfield_noise(direction, ops, H, Jn, Jdn, rn, en,
+                                order, simplify, mix_choice, iv)
     end
 end
 
-function _master_lindblad(a_, J, Jdagger, rates)
-    args = Any[]
-    for k = 1:length(J)
-        if isa(rates[k], SymbolicUtils.Symbolic) ||
-           isa(rates[k], Number) ||
-           isa(rates[k], Function)
-            c1 = 0.5*rates[k]*Jdagger[k]*commutator(a_, J[k])
-            c2 = 0.5*rates[k]*commutator(Jdagger[k], a_)*J[k]
-            SQA.push_or_append_nz_args!(args, c1)
-            SQA.push_or_append_nz_args!(args, c2)
-        elseif isa(rates[k], Matrix)
-            for i = 1:length(J[k]), j = 1:length(J[k])
-                c1 = 0.5*rates[k][i, j]*Jdagger[k][i]*commutator(a_, J[k][j])
-                c2 = 0.5*rates[k][i, j]*commutator(Jdagger[k][i], a_)*J[k][j]
-                SQA.push_or_append_nz_args!(args, c1)
-                SQA.push_or_append_nz_args!(args, c2)
-            end
-        else
-            error("Unknown rates type!")
-        end
+function _normalize_jumps(J, Jdagger)
+    if isempty(J)
+        return QField[], QField[]
     end
-    isempty(args) && return 0
-    return QAdd(args)
+    return collect(J), collect(Jdagger)
 end
 
-
-function _expand_clusters(J, Jdagger, rates)
-    J_ = []
-    Jdagger_ = []
-    rates_ = []
-    for i = 1:length(J)
-        if (J[i] isa Vector) && !(rates[i] isa Matrix)
-            h = hilbert(J[i][1])
-            aon_ = acts_on(J[i][1])
-            aon = if aon_ isa Vector
-                @assert length(aon_)==1
-                aon_[1]
-            else
-                aon_
-            end
-            @assert has_cluster(h, aon)
-            append!(J_, J[i])
-            append!(Jdagger_, Jdagger[i])
-            order = h.spaces[get_i(aon)].order
-            append!(rates_, [rates[i] for k = 1:order])
-        else
-            push!(J_, J[i])
-            push!(Jdagger_, Jdagger[i])
-            push!(rates_, rates[i])
-        end
+function _normalize_rates(rates, n::Int)
+    if isempty(rates) && n == 0
+        return Symbolics.Num[]
     end
-    return J_, Jdagger_, rates_
+    return collect(rates)
+end
+
+meanfield(op::QField, H::QField, args...; kw...) = meanfield([op], H, args...; kw...)
+
+function _meanfield_forward(ops, H, J, Jdagger, rates, order,
+                            simplify, mix_choice, iv)
+    imH = im * H
+    ops_qa = QAdd[op * 1 for op in ops]
+    op_rhs = Vector{QAdd}(undef, length(ops_qa))
+    operator_eqs = Vector{Symbolics.Equation}(undef, length(ops_qa))
+    @inbounds for (i, op) in enumerate(ops_qa)
+        rhs = commutator(imH, op) + _lindblad_rhs(op, J, Jdagger, rates)
+        op_rhs[i] = rhs
+        operator_eqs[i] = op ~ rhs
+    end
+    states  = SymbolicUtils.BasicSymbolic[average(op) for op in ops_qa]
+    order_vec = order === nothing ? nothing :
+                _normalize_order(order, (; hamiltonian = H))
+    avg_eqs = Vector{Symbolics.Equation}(undef, length(ops_qa))
+    @inbounds for i in eachindex(op_rhs)
+        rhs = average(op_rhs[i])
+        if order_vec !== nothing
+            rhs = cumulant_expansion(rhs, order_vec; simplify=false, mix_choice)
+        end
+        rhs = _rewrite_complex_literals(rhs)
+        simplify && (rhs = SymbolicUtils.simplify(rhs))
+        avg_eqs[i] = states[i] ~ rhs
+    end
+    return MeanFieldEquations(avg_eqs, operator_eqs, states, ops_qa,
+                              H, collect(J), collect(Jdagger), collect(rates),
+                              iv, order_vec)
+end
+
+function _lindblad_rhs(op, J, Jdagger, rates)
+    isempty(J) && return zero(op)
+    acc = zero(op)
+    @inbounds for k in eachindex(J)
+        acc += (rates[k]/2) * (Jdagger[k] * commutator(op, J[k]) +
+                                commutator(Jdagger[k], op) * J[k])
+    end
+    return acc
+end
+
+function _meanfield_noise(::Forward, ops, H, J, Jdagger, rates,
+                          efficiencies, order, simplify, mix_choice, iv)
+    imH = im * H
+    ops_qa = QAdd[op * 1 for op in ops]
+    op_rhs = Vector{QAdd}(undef, length(ops_qa))
+    operator_eqs = Vector{Symbolics.Equation}(undef, length(ops_qa))
+    @inbounds for (i, op) in enumerate(ops_qa)
+        rhs = commutator(imH, op) + _lindblad_rhs(op, J, Jdagger, rates)
+        op_rhs[i] = rhs
+        operator_eqs[i] = op ~ rhs
+    end
+    states = SymbolicUtils.BasicSymbolic[average(op) for op in ops_qa]
+    order_vec = order === nothing ? nothing :
+                _normalize_order(order, (; hamiltonian = H))
+    avg_eqs = Vector{Symbolics.Equation}(undef, length(ops_qa))
+    @inbounds for i in eachindex(op_rhs)
+        rhs = average(op_rhs[i])
+        if order_vec !== nothing
+            rhs = cumulant_expansion(rhs, order_vec; simplify=false, mix_choice)
+        end
+        rhs = _rewrite_complex_literals(rhs)
+        simplify && (rhs = SymbolicUtils.simplify(rhs))
+        avg_eqs[i] = states[i] ~ rhs
+    end
+    op_noise, avg_noise = _build_noise_equations_forward(
+        ops_qa, J, Jdagger, rates, efficiencies, simplify)
+    if order_vec !== nothing
+        avg_noise = [eq.lhs ~ cumulant_expansion(eq.rhs, order_vec;
+                                                  simplify=false, mix_choice)
+                     for eq in avg_noise]
+    end
+    avg_noise = [eq.lhs ~ _rewrite_complex_literals(eq.rhs) for eq in avg_noise]
+    if simplify
+        avg_noise = [eq.lhs ~ SymbolicUtils.simplify(eq.rhs) for eq in avg_noise]
+    end
+    return NoiseMeanFieldEquations(avg_eqs, avg_noise, operator_eqs, op_noise,
+                                    states, ops_qa, H,
+                                    collect(J), collect(Jdagger),
+                                    collect(rates), collect(efficiencies),
+                                    iv, order_vec, Forward())
+end
+
+function _meanfield_noise(::Backward, ops, H, J, Jdagger, rates,
+                          efficiencies, order, simplify, mix_choice, iv)
+    imH = im * H
+    ops_qa = QAdd[op * 1 for op in ops]
+    op_rhs = Vector{QAdd}(undef, length(ops_qa))
+    operator_eqs = Vector{Symbolics.Equation}(undef, length(ops_qa))
+    @inbounds for (i, op) in enumerate(ops_qa)
+        rhs = commutator(imH, op) + _lindblad_rhs(op, J, Jdagger, rates)
+        op_rhs[i] = rhs
+        operator_eqs[i] = op ~ rhs
+    end
+    states = SymbolicUtils.BasicSymbolic[average(op) for op in ops_qa]
+    order_vec = order === nothing ? nothing :
+                _normalize_order(order, (; hamiltonian = H))
+    avg_eqs = Vector{Symbolics.Equation}(undef, length(ops_qa))
+    @inbounds for i in eachindex(op_rhs)
+        rhs = average(op_rhs[i])
+        if order_vec !== nothing
+            rhs = cumulant_expansion(rhs, order_vec; simplify=false, mix_choice)
+        end
+        rhs = _rewrite_complex_literals(rhs)
+        simplify && (rhs = SymbolicUtils.simplify(rhs))
+        avg_eqs[i] = states[i] ~ rhs
+    end
+    op_noise, avg_noise = _build_noise_equations_backward(
+        ops_qa, J, Jdagger, rates, efficiencies, simplify)
+    if order_vec !== nothing
+        avg_noise = [eq.lhs ~ cumulant_expansion(eq.rhs, order_vec;
+                                                  simplify=false, mix_choice)
+                     for eq in avg_noise]
+    end
+    avg_noise = [eq.lhs ~ _rewrite_complex_literals(eq.rhs) for eq in avg_noise]
+    if simplify
+        avg_noise = [eq.lhs ~ SymbolicUtils.simplify(eq.rhs) for eq in avg_noise]
+    end
+    return NoiseMeanFieldEquations(avg_eqs, avg_noise, operator_eqs, op_noise,
+                                    states, ops_qa, H,
+                                    collect(J), collect(Jdagger),
+                                    collect(rates), collect(efficiencies),
+                                    iv, order_vec, Backward())
 end

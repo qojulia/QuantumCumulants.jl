@@ -1,294 +1,134 @@
 """
-Abstract type for equations.
+Supertype of [`MeanFieldEquations`](@ref) and [`NoiseMeanFieldEquations`](@ref).
 """
-abstract type AbstractMeanfieldEquations end
-
-"""
-    MeanfieldEquations <: AbstractMeanfieldEquations
-
-Type defining a system of differential equations, where `lhs` is a vector of
-derivatives and `rhs` is a vector of expressions. In addition, it keeps track
-of the Hamiltonian, the collapse operators and the corresponding decay rates of
-the system.
-
-# Fields
-*`equations`: Vector of the differential equations of averages.
-*`operator_equations`: Vector of the operator differential equations.
-*`states`: Vector containing the averages on the left-hand-side of the equations.
-*`operators`: Vector containing the operators on the left-hand-side of the equations.
-*`hamiltonian`: Operator defining the system Hamiltonian.
-*`jumps`: Vector of operators specifying the decay processes.
-*`jumps`: Vector of operators specifying the adjoint of the decay processes.
-*`rates`: Decay rates corresponding to the `jumps`.
-*`iv`: The independent variable (time parameter) of the system.
-*`varmap`: Vector of pairs that map the averages to time-dependent variables.
-    That format is necessary for ModelingToolkit functionality.
-*`order`: The order at which the [`cumulant_expansion`](@ref) has been performed.
+abstract type AbstractMeanFieldEquations end
 
 """
-struct MeanfieldEquations <: AbstractMeanfieldEquations
+    EvolutionDirection
+
+Supertype of the singleton tags [`Forward`](@ref) and [`Backward`](@ref) used to
+dispatch the noise/retrodiction code path at compile time.
+"""
+abstract type EvolutionDirection end
+
+"""Forward Heisenberg evolution (positive sign on `i[H, ·]`)."""
+struct Forward  <: EvolutionDirection end
+
+"""Backward Heisenberg evolution (negative sign), used for retrodiction."""
+struct Backward <: EvolutionDirection end
+
+"""
+    MeanFieldEquations
+
+Concrete equation set produced by [`meanfield`](@ref) when no measurement
+backaction is requested. All type parameters are bound concretely.
+"""
+struct MeanFieldEquations{
+    O  <: Union{Nothing, Vector{Int}},
+    H  <: QField,
+    Op <: QField,
+    Jt <: QField,
+    Jdt<: QField,
+    R,
+    S  <: SymbolicUtils.BasicSymbolic,
+} <: AbstractMeanFieldEquations
     equations::Vector{Symbolics.Equation}
     operator_equations::Vector{Symbolics.Equation}
-    states::Vector
-    operators::Vector{QNumber}
-    hamiltonian::QNumber
-    jumps::Vector
-    jumps_dagger::Any
-    rates::Vector
-    iv::MTK.Num
-    varmap::Vector{Pair}
-    order::Union{Int,Vector{<:Int},Nothing}
-end
+    states::Vector{S}
+    operators::Vector{Op}
+    hamiltonian::H
+    jumps::Vector{Jt}
+    jumps_dagger::Vector{Jdt}
+    rates::Vector{R}
+    iv::Symbolics.Num
+    order::O
 
-"""
-    IndexedMeanfieldEquations <: AbstractMeanfieldEquations
-
-Type defining a system of differential equations, where `lhs` is a vector of
-derivatives and `rhs` is a vector of expressions. In addition, it keeps track
-of the Hamiltonian, the collapse operators and the corresponding decay rates of
-the system. Similar to [`MeanfieldEquations`](@ref), specialized for equations,
-that are using [`Index`](@ref) entities.
-
-# Fields
-*`equations`: Vector of the differential equations of averages.
-*`operator_equations`: Vector of the operator differential equations.
-*`states`: Vector containing the averages on the left-hand-side of the equations.
-*`operators`: Vector containing the operators on the left-hand-side of the equations.
-*`hamiltonian`: Operator defining the system Hamiltonian.
-*`jumps`: Vector of operators specifying the decay processes.
-*`jumps_dagger`: Vector of operators specifying the adjoint of the decay processes.
-*`rates`: Decay rates corresponding to the `jumps`.
-*`iv`: The independent variable (time parameter) of the system.
-*`varmap`: Vector of pairs that map the averages to time-dependent variables.
-    That format is necessary for ModelingToolkit functionality.
-*`order`: The order at which the [`cumulant_expansion`](@ref) has been performed.
-
-"""
-struct IndexedMeanfieldEquations <: AbstractMeanfieldEquations #these are for easier dispatching of meanfield, complete,... functions
-    equations::Vector{Symbolics.Equation}
-    operator_equations::Vector{Symbolics.Equation}
-    states::Vector
-    operators::Vector{QNumber}
-    hamiltonian::QNumber
-    jumps::Vector
-    jumps_dagger::Any
-    rates::Vector
-    iv::MTK.Num
-    varmap::Vector{Pair}
-    order::Union{Int,Vector{<:Int},Nothing}
-end
-
-"""
-    EvaledMeanfieldEquations <: AbstractMeanfieldEquations
-
-Type defining a system of differential equations, where `lhs` is a vector of
-derivatives and `rhs` is a vector of expressions. In addition, it keeps track
-of the Hamiltonian, the collapse operators and the corresponding decay rates of
-the system. Similar to [`MeanfieldEquations`](@ref), specialized for equations,
-that are evaluated using the [`evaluate`](@ref) function.
-
-# Fields
-*`equations`: Vector of the differential equations of averages.
-*`operator_equations`: Vector of the operator differential equations.
-*`states`: Vector containing the averages on the left-hand-side of the equations.
-*`operators`: Vector containing the operators on the left-hand-side of the equations.
-*`hamiltonian`: Operator defining the system Hamiltonian.
-*`jumps`: Vector of operators specifying the decay processes.
-*`jumps_dagger`: Vector of operators specifying the adjoint of the decay processes.
-*`rates`: Decay rates corresponding to the `jumps`.
-*`iv`: The independent variable (time parameter) of the system.
-*`varmap`: Vector of pairs that map the averages to time-dependent variables.
-    That format is necessary for ModelingToolkit functionality.
-*`order`: The order at which the [`cumulant_expansion`](@ref) has been performed.
-
-"""
-struct EvaledMeanfieldEquations <: AbstractMeanfieldEquations
-    equations::Vector{Symbolics.Equation}
-    operator_equations::Vector{Symbolics.Equation}
-    states::Vector
-    operators::Vector{QNumber}
-    hamiltonian::QNumber
-    jumps::Vector
-    jumps_dagger::Any
-    rates::Vector
-    iv::MTK.Num
-    varmap::Vector{Pair}
-    order::Union{Int,Vector{<:Int},Nothing}
-end
-
-Base.getindex(de::AbstractMeanfieldEquations, i::Int) = de.equations[i]
-Base.getindex(de::AbstractMeanfieldEquations, i) = de.equations[i]
-Base.lastindex(de::AbstractMeanfieldEquations) = lastindex(de.equations)
-Base.length(de::AbstractMeanfieldEquations) = length(de.equations)
-
-function _append!(de::T, me::T) where {T<:AbstractMeanfieldEquations}
-    append!(de.equations, me.equations)
-    append!(de.operator_equations, me.operator_equations)
-    append!(de.states, me.states)
-    append!(de.operators, me.operators)
-    append!(de.varmap, me.varmap)
-    return de
-end
-
-# Substitution
-function SymbolicUtils.substitute(de::T, dict) where {T<:AbstractMeanfieldEquations}
-    eqs = [substitute(eq, dict) for eq ∈ de.equations]
-    states = getfield.(eqs, :lhs)
-    fields = [getfield(de, s) for s ∈ fieldnames(T)[4:end]]
-    return T(eqs, de.operator_equations, states, fields...)
-end
-
-function SymbolicUtils.substitute(de::IndexedMeanfieldEquations, dict)
-    eqs = [
-        Symbolics.Equation(
-            inorder!(substitute(eq.lhs, dict)),
-            inorder!(substitute(eq.rhs, dict)),
-        ) for eq ∈ de.equations
-    ]
-    states = getfield.(eqs, :lhs)
-    fields = [getfield(de, s) for s ∈ fieldnames(IndexedMeanfieldEquations)[4:end]]
-    return IndexedMeanfieldEquations(eqs, de.operator_equations, states, fields...)
-end
-
-# Simplification
-function SymbolicUtils.simplify(de::T; kwargs...) where {T<:AbstractMeanfieldEquations}
-    eqs = [SymbolicUtils.simplify(eq; kwargs...) for eq ∈ de.equations]
-    eqs_op = [SymbolicUtils.simplify(eq; kwargs...) for eq ∈ de.operator_equations]
-    fields = [getfield(de, s) for s ∈ fieldnames(T)[3:end]]
-    return T(eqs, eqs_op, fields...)
-end
-
-# Adding MTK variables
-function add_vars!(varmap, vs, t)
-    keys = getindex.(varmap, 1)
-    vals = getindex.(varmap, 2)
-    hashkeys = map(hash, keys)
-    hashvals = map(hash, vals)
-    hashvs = map(hash, vs)
-    for i = 1:length(vs)
-        if !(hashvs[i] ∈ hashkeys)
-            var = make_var(vs[i], t)
-            !(hash(var) ∈ hashvals) || @warn string(
-                "Two different averages have the exact same name. ",
-                "This may lead to unexpected behavior when trying to access the solution for $(vals[i])",
-            )
-            push!(keys, vs[i])
-            push!(vals, var)
-            push!(hashkeys, hashvs[i])
-        end
+    function MeanFieldEquations(
+        equations::Vector{Symbolics.Equation},
+        operator_equations::Vector{Symbolics.Equation},
+        states::Vector{S},
+        operators::Vector{Op},
+        hamiltonian::H,
+        jumps::Vector{Jt},
+        jumps_dagger::Vector{Jdt},
+        rates::Vector{R},
+        iv::Symbolics.Num,
+        order::O,
+    ) where {O,H,Op,Jt,Jdt,R,S}
+        n = length(equations)
+        @assert n == length(operator_equations) == length(states) == length(operators) (
+            "equations/states/operators must have matching lengths")
+        @assert length(jumps) == length(jumps_dagger) == length(rates) (
+            "jumps/jumps_dagger/rates must have matching lengths")
+        new{O,H,Op,Jt,Jdt,R,S}(equations, operator_equations, states, operators,
+                               hamiltonian, jumps, jumps_dagger, rates, iv, order)
     end
-    for i = (length(varmap)+1):length(keys)
-        push!(varmap, keys[i]=>vals[i])
-    end
-    return varmap
 end
 
-function make_var(v, t)
-    sym = Symbol(string(v))
-    d = source_metadata(:make_var, sym)
-    var_f = SymbolicUtils.Sym{SymbolicUtils.FnType{Tuple{Any},Complex}}(sym; metadata = d)
-    return SymbolicUtils.Term{Complex}(var_f, [t]; metadata = d)
-end
-
-source_metadata(source, name) =
-    Base.ImmutableDict{DataType,Any}(Symbolics.VariableSource, (source, name))
-
-function make_varmap(vs, t)
-    varmap = Pair{Any,Any}[]
-    add_vars!(varmap, vs, t)
-    return varmap
-end
-
-# This is only for ClusterSpace? 
-struct ScaledMeanfieldEquations <: AbstractMeanfieldEquations
-    equations::Vector{Symbolics.Equation}
-    operator_equations::Vector{Symbolics.Equation}
-    states::Vector
-    operators::Vector{QNumber}
-    hamiltonian::QNumber
-    jumps::Vector
-    jumps_dagger::Any
-    rates::Vector
-    iv::MTK.Num
-    varmap::Vector{Pair}
-    order::Union{Int,Vector{<:Int},Nothing}
-    scale_aons::Any
-    names::Vector
-    was_scaled::Vector{Bool}
-end
-
-
-# noise equations
 """
-    MeanfieldNoiseEquations
+    NoiseMeanFieldEquations
 
-Mean field equations including a separate set of equations describing the
-noise generated by measurement backactions.
+Concrete equation set produced by [`meanfield`](@ref) when `efficiencies` is
+supplied. `direction::D` (singleton `Forward` or `Backward`) drives compile-time
+dispatch of the noise drift assembly.
 """
-struct MeanfieldNoiseEquations <: AbstractMeanfieldEquations
+struct NoiseMeanFieldEquations{
+    O  <: Union{Nothing, Vector{Int}},
+    H  <: QField,
+    Op <: QField,
+    Jt <: QField,
+    Jdt<: QField,
+    R, E,
+    S  <: SymbolicUtils.BasicSymbolic,
+    D  <: EvolutionDirection,
+} <: AbstractMeanFieldEquations
     equations::Vector{Symbolics.Equation}
-    operator_equations::Vector{Symbolics.Equation}
     noise_equations::Vector{Symbolics.Equation}
-    operator_noise_equations::Vector{Symbolics.Equation} # useless but needed to create eqs
-    states::Vector
-    operators::Vector{QNumber}
-    hamiltonian::QNumber
-    jumps::Vector
-    jumps_dagger::Any
-    rates::Vector
-    efficiencies::Vector
-    iv::MTK.Num
-    varmap::Vector{Pair}
-    order::Union{Int,Vector{<:Int},Nothing}
-end
-
-"""
-    IndexedMeanfieldNoiseEquations
-
-Like a [`MeanfieldNoiseEquations`](@ref), but with symbolic indices.
-"""
-struct IndexedMeanfieldNoiseEquations <: AbstractMeanfieldEquations
-    equations::Vector{Symbolics.Equation}
     operator_equations::Vector{Symbolics.Equation}
-    noise_equations::Vector{Symbolics.Equation}
     operator_noise_equations::Vector{Symbolics.Equation}
-    states::Vector
-    operators::Vector{QNumber}
-    hamiltonian::QNumber
-    jumps::Vector
-    jumps_dagger::Any
-    rates::Vector
-    efficiencies::Vector
-    iv::MTK.Num
-    varmap::Vector{Pair}
-    order::Union{Int,Vector{<:Int},Nothing}
+    states::Vector{S}
+    operators::Vector{Op}
+    hamiltonian::H
+    jumps::Vector{Jt}
+    jumps_dagger::Vector{Jdt}
+    rates::Vector{R}
+    efficiencies::Vector{E}
+    iv::Symbolics.Num
+    order::O
+    direction::D
+
+    function NoiseMeanFieldEquations(
+        equations::Vector{Symbolics.Equation},
+        noise_equations::Vector{Symbolics.Equation},
+        operator_equations::Vector{Symbolics.Equation},
+        operator_noise_equations::Vector{Symbolics.Equation},
+        states::Vector{S},
+        operators::Vector{Op},
+        hamiltonian::H,
+        jumps::Vector{Jt},
+        jumps_dagger::Vector{Jdt},
+        rates::Vector{R},
+        efficiencies::Vector{E},
+        iv::Symbolics.Num,
+        order::O,
+        direction::D,
+    ) where {O,H,Op,Jt,Jdt,R,E,S,D}
+        n = length(equations)
+        @assert n == length(noise_equations) == length(operator_equations) ==
+                length(operator_noise_equations) == length(states) == length(operators) (
+            "equations/states/operators/noise must have matching lengths")
+        @assert length(jumps) == length(jumps_dagger) == length(rates) == length(efficiencies) (
+            "jumps/jumps_dagger/rates/efficiencies must have matching lengths")
+        new{O,H,Op,Jt,Jdt,R,E,S,D}(equations, noise_equations, operator_equations,
+                                    operator_noise_equations, states, operators,
+                                    hamiltonian, jumps, jumps_dagger, rates,
+                                    efficiencies, iv, order, direction)
+    end
 end
 
-"""
-    BackwardMeanfieldNoiseEquations
-
-Mean field equations for the backward propagation with 
-noise generated by measurement backactions. 
-
-See also: [`MeanfieldNoiseEquations`](@ref)
-"""
-struct BackwardMeanfieldNoiseEquations <: AbstractMeanfieldEquations
-    equations::Vector{Symbolics.Equation}
-    operator_equations::Vector{Symbolics.Equation}
-    noise_equations::Vector{Symbolics.Equation}
-    operator_noise_equations::Vector{Symbolics.Equation} # useless but needed to create eqs # TODO: delete?
-    states::Vector
-    operators::Vector{QNumber}
-    hamiltonian::QNumber
-    jumps::Vector
-    jumps_dagger::Any
-    rates::Vector
-    efficiencies::Vector
-    iv::MTK.Num
-    varmap::Vector{Pair}
-    order::Union{Int,Vector{<:Int},Nothing}
-end
-
-const NoiseEquations = Union{MeanfieldNoiseEquations,BackwardMeanfieldNoiseEquations}
-
-# TODO: EvaledBackwardMeanfieldEquations
+Base.length(eqs::AbstractMeanFieldEquations)      = length(eqs.equations)
+Base.getindex(eqs::AbstractMeanFieldEquations, i) = eqs.equations[i]
+Base.lastindex(eqs::AbstractMeanFieldEquations)   = lastindex(eqs.equations)
+Base.iterate(eqs::AbstractMeanFieldEquations, st=1) =
+    st > length(eqs) ? nothing : (eqs.equations[st], st+1)
+Base.eltype(::Type{<:AbstractMeanFieldEquations}) = Symbolics.Equation

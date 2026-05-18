@@ -1,105 +1,45 @@
 # # Optomechanical Cooling
 
-# In this example, we show how to implement a cooling scheme based on radiation pressure coupling of light to a mechanical oscillator, such as a membrane. The oscillator is placed inside an optical cavity. The cavity is driven by a laser and the resulting radiation pressure of the cavity field effectively couples the photons in the cavity mode to the vibrational phonons of the mechanical oscillator mode. This model is based on the one studied in [C. Genes, et. al., Phys. Rev. A 77, 033804 (2008)](https://journals.aps.org/pra/abstract/10.1103/PhysRevA.77.033804), and the Hamiltonian reads
+# In this example, we implement a cooling scheme based on radiation pressure coupling of light to a mechanical oscillator inside an optical cavity. The model is based on [C. Genes et. al., Phys. Rev. A 77, 033804 (2008)](https://journals.aps.org/pra/abstract/10.1103/PhysRevA.77.033804), with Hamiltonian
 
 # $H = -\hbar\Delta a^\dagger a + \hbar\omega_m b^\dagger b + \hbar Ga^\dagger a \left(b + b^\dagger\right) + \hbar E \left(a + a^\dagger\right),$
 
-# where $\Delta = \omega_\ell - \omega_c$ is the detuning between the driving laser ($\omega_\ell$) and the cavity ($\omega_c$). The amplitude of the laser is denoted by $E$, the resonance frequency of the mechanical oscillator by $\omega_m$, and the radiation pressure coupling is given by $G$. Additionally, photons leak out of the cavity at a rate $\kappa$.
-# We start by loading the needed packages and specifying the model.
-
-
 using QuantumCumulants
-using OrdinaryDiffEq, ModelingToolkit
+using OrdinaryDiffEq, ModelingToolkitBase
 using Plots
 
-hc = FockSpace(:cavity) # Hilbertspace
+hc = FockSpace(:cavity)
 hm = FockSpace(:motion)
 h = hc ⊗ hm
 
-@qnumbers a::Destroy(h, 1) b::Destroy(h, 2) # Operators
+@qnumbers a::Destroy(h, 1) b::Destroy(h, 2)
 
+@variables Δ ωm E G κ
 
-@cnumbers Δ ωm E G κ # Parameters
+H = -Δ*a'*a + ωm*b'*b + G*a'*a*(b + b') + E*(a + a')
 
-
-H = -Δ*a'*a + ωm*b'*b + G*a'*a*(b + b') + E*(a + a') # Hamiltonian
-
-
-J = [a] # Jump operators & rates
+J = [a]
 rates = [κ]
-nothing # hide
 
-# We are specifically interested in the average number of photons $\langle a^\dagger a \rangle$ and phonons $\langle b^\dagger b \rangle$. Thus, we first derive the equations for these two averages. We restrict our description to a second order cumulant expansion.
+ops = [a'*a, b'*b]
+eqs = meanfield(ops, H, J; rates = rates, order = 2, simplify = false)
+complete!(eqs; simplify = false)
 
-ops = [a'*a, b'*b] # Derive equations
-eqs = meanfield(ops, H, J; rates = rates, order = 2)
-nothing # hide
+sys = to_system(eqs; name = :optomech)
+sys_c = mtkcompile(sys)
 
-# ```math
-# \begin{align}
-# \frac{d}{dt} \langle a^\dagger  a\rangle  =& -1 i E \langle a^\dagger\rangle  + 1 i E \langle a\rangle  -1.0 \kappa \langle a^\dagger  a\rangle  \\
-# \frac{d}{dt} \langle b^\dagger  b\rangle  =& -1 i G \left( \langle a^\dagger\rangle  \langle a  b^\dagger\rangle  + \langle b^\dagger\rangle  \langle a^\dagger  a\rangle  + \langle a\rangle  \langle a^\dagger  b^\dagger\rangle  -2 \langle a^\dagger\rangle  \langle b^\dagger\rangle  \langle a\rangle  \right) + 1 i G \left( \langle a^\dagger\rangle  \langle a  b\rangle  + \langle a\rangle  \langle a^\dagger  b\rangle  + \langle b\rangle  \langle a^\dagger  a\rangle  -2 \langle a^\dagger\rangle  \langle a\rangle  \langle b\rangle  \right)
-# \end{align}
-# ```
+u0 = initial_values(eqs;
+    defaults = Dict(average(b' * b) => 4e6 + 0im))
 
-# To get a closed set of equations we automatically complete the system.
+p0 = Dict(Δ => -10.0, ωm => 1.0, E => 200.0, G => 0.0125, κ => 20.0)
+prob = ODEProblem(sys_c, merge(u0, p0), (0.0, 60000.0))
+sol = solve(prob, Tsit5())
 
-eqs_completed = complete(eqs) # Complete equations
-nothing # hide
+ts = sol.t
+phonons = real.(get_solution(sol, b' * b, eqs).(ts))
+T = 7.5e-5 .* phonons
+photons = real.(get_solution(sol, a' * a, eqs).(ts))
 
-# ```math
-# \begin{align}
-# \frac{d}{dt} \langle a^\dagger  a\rangle  =& -1 i E \langle a^\dagger\rangle  + 1 i E \langle a\rangle  -1.0 \kappa \langle a^\dagger  a\rangle  \\
-# \frac{d}{dt} \langle b^\dagger  b\rangle  =& -1 i G \left( \langle a^\dagger\rangle  \langle a  b^\dagger\rangle  + \langle b^\dagger\rangle  \langle a^\dagger  a\rangle  + \langle a\rangle  \langle a^\dagger  b^\dagger\rangle  -2 \langle a^\dagger\rangle  \langle b^\dagger\rangle  \langle a\rangle  \right) + 1 i G \left( \langle a^\dagger\rangle  \langle a  b\rangle  + \langle a\rangle  \langle a^\dagger  b\rangle  + \langle b\rangle  \langle a^\dagger  a\rangle  -2 \langle a^\dagger\rangle  \langle a\rangle  \langle b\rangle  \right) \\
-# \frac{d}{dt} \langle a^\dagger\rangle  =& 1 i E + G \left( 1 i \langle a^\dagger  b^\dagger\rangle  + 1 i \langle a^\dagger  b\rangle  \right) -1 i \Delta \langle a^\dagger\rangle  -0.5 \kappa \langle a^\dagger\rangle  \\
-# \frac{d}{dt} \langle a  b^\dagger\rangle  =& G \left( -2 i \langle b^\dagger\rangle  \langle a  b^\dagger\rangle  -1 i \langle b^\dagger\rangle  \langle a  b\rangle  -1 i \langle a\rangle  \langle b^\dagger  b^\dagger\rangle  -1 i \langle a\rangle  \langle b^\dagger  b\rangle  + 2 i \langle a\rangle  \langle b^\dagger\rangle ^{2} -1 i \langle b\rangle  \langle a  b^\dagger\rangle  + 2 i \langle b^\dagger\rangle  \langle a\rangle  \langle b\rangle  \right) -1 i E \langle b^\dagger\rangle  + 1 i G \left( \langle a^\dagger\rangle  \langle a  a\rangle  -2 \langle a^\dagger\rangle  \langle a\rangle ^{2} + 2 \langle a\rangle  \langle a^\dagger  a\rangle  \right) + 1 i \Delta \langle a  b^\dagger\rangle  -0.5 \kappa \langle a  b^\dagger\rangle  + 1 i {\omega}m \langle a  b^\dagger\rangle  \\
-# \frac{d}{dt} \langle b^\dagger\rangle  =& 1 i G \langle a^\dagger  a\rangle  + 1 i {\omega}m \langle b^\dagger\rangle  \\
-# \frac{d}{dt} \langle a^\dagger  b^\dagger\rangle  =& G \left( 1 i \langle a^\dagger\rangle  + 2 i \langle a^\dagger\rangle  \langle a^\dagger  a\rangle  + 1 i \langle a^\dagger\rangle  \langle b^\dagger  b^\dagger\rangle  + 1 i \langle a^\dagger\rangle  \langle b^\dagger  b\rangle  -2 i \langle a^\dagger\rangle  \langle b^\dagger\rangle ^{2} + 2 i \langle b^\dagger\rangle  \langle a^\dagger  b^\dagger\rangle  + 1 i \langle b^\dagger\rangle  \langle a^\dagger  b\rangle  + 1 i \langle a\rangle  \langle a^\dagger  a^\dagger\rangle  -2 i \langle a\rangle  \langle a^\dagger\rangle ^{2} + 1 i \langle b\rangle  \langle a^\dagger  b^\dagger\rangle  -2 i \langle a^\dagger\rangle  \langle b^\dagger\rangle  \langle b\rangle  \right) + 1 i E \langle b^\dagger\rangle  -1 i \Delta \langle a^\dagger  b^\dagger\rangle  -0.5 \kappa \langle a^\dagger  b^\dagger\rangle  + 1 i {\omega}m \langle a^\dagger  b^\dagger\rangle  \\
-# \frac{d}{dt} \langle b^\dagger  b^\dagger\rangle  =& 2 i G \left( \langle a^\dagger\rangle  \langle a  b^\dagger\rangle  + \langle b^\dagger\rangle  \langle a^\dagger  a\rangle  + \langle a\rangle  \langle a^\dagger  b^\dagger\rangle  -2 \langle a^\dagger\rangle  \langle b^\dagger\rangle  \langle a\rangle  \right) + 2 i {\omega}m \langle b^\dagger  b^\dagger\rangle  \\
-# \frac{d}{dt} \langle a  a\rangle  =& G \left( -2 i \langle b^\dagger\rangle  \langle a  a\rangle  + 4 i \langle b^\dagger\rangle  \langle a\rangle ^{2} -4 i \langle a\rangle  \langle a  b^\dagger\rangle  -4 i \langle a\rangle  \langle a  b\rangle  -2 i \langle b\rangle  \langle a  a\rangle  + 4 i \langle b\rangle  \langle a\rangle ^{2} \right) -2 i E \langle a\rangle  + 2 i \Delta \langle a  a\rangle  -1.0 \kappa \langle a  a\rangle
-# \end{align}
-# ```
-
-
-# To calculate the dynamics we create a system of ordinary differential equations, which can be used by [DifferentialEquations.jl](https://diffeq.sciml.ai/stable/).
-
-@named sys = System(eqs_completed)
-nothing # hide
-
-# Finally, we need to define the numerical parameters and the initial state of the system. We will consider the membrane at room temperature. Its vibrational mode is in a thermal state with an average number of phonons that can be estimated from $k_B T = n_\mathrm{vib}\hbar \omega_m$. If the resonator has a resonance frequency of $\omega_m = 10\mathrm{MHz}$, then the number of phonons at room temperature ($T\approx 300K$) is approximately $n_\mathrm{vib} \approx 4\times 10^6$.
-
-
-
-u0 = zeros(ComplexF64, length(eqs_completed)) # Initial state
-u0[2] = 4e6 # Initial number of phonons
-
-p0 = (Δ=>-10, ωm=>1, E=>200, G=>0.0125, κ=>20) # System parameters
-dict = merge(Dict(unknowns(sys) .=> u0), Dict(p0))
-prob = ODEProblem(sys, dict, (0.0, 60000))
-sol = solve(prob, RK4())
-nothing # hide
-
-#
-
-
-t = real.(sol.t) # Plot results
-phonons = real.(sol[b'b])
-T = 7.5e-5*phonons
-photons = real.(sol[a'a])
-
-p1 = plot(t, T, ylabel = "T in K", legend = false)
-p2 = plot(t, photons, xlabel = "t⋅ωm", ylabel = "⟨a⁺a⟩", legend = false)
+p1 = plot(ts, T, ylabel = "T in K", legend = false)
+p2 = plot(ts, photons, xlabel = "t⋅ωm", ylabel = "⟨a⁺a⟩", legend = false)
 plot(p1, p2, layout = (2, 1), size = (650, 400))
-
-# ## Package versions
-
-# These results were obtained using the following versions:
-
-using InteractiveUtils
-versioninfo()
-
-using Pkg
-Pkg.status(
-    ["QuantumCumulants", "OrdinaryDiffEq", "ModelingToolkit", "Plots"],
-    mode = PKGMODE_MANIFEST,
-)

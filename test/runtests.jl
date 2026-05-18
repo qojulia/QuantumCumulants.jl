@@ -1,49 +1,21 @@
-names = [
-    "test_code_quality.jl"
-    "test_fock.jl"
-    "test_nlevel.jl"
-    "test_spin.jl"
-    "test_meanfield.jl"
-    "test_parameters.jl"
-    "test_average.jl"
-    "test_diffeq.jl"
-    "test_v-level.jl"
-    "test_mixed-order.jl"
-    "test_correlation.jl"
-    "test_two-level-laser.jl"
-    "test_numeric_conversion.jl"
-    "test_cluster.jl"
-    "test_scaling.jl"
-    "test_higher-order.jl"
-    "test_index_basic.jl"
-    "test_average_sums.jl"
-    "test_double_sums.jl"
-    "test_indexed_meanfield.jl"
-    "test_indexed_correlation.jl"
-    "test_indexed_scale.jl"
-    "test_indexed_filter_cavity.jl"
-    "test_indexed_mixed_order.jl"
-    "test_measurement_backaction_indices_comparison.jl"
-    "test_measurement_backaction_indices.jl"
-    "test_measurement_backaction.jl"
-    "test_measurement_retrodiction.jl"
-]
+using QuantumCumulants
+using ParallelTestRunner: ParallelTestRunner
 
-detected_tests =
-    filter(name->startswith(name, "test_") && endswith(name, ".jl"), readdir("."))
+# Start with autodiscovered tests
+testsuite = ParallelTestRunner.find_tests(@__DIR__)
 
-unused_tests = setdiff(detected_tests, names)
-if length(unused_tests) != 0
-    @warn string("The following tests are not used:\n", join(unused_tests, "\n"))
+# `pending/` holds ports of master tests that depend on v1 features still
+# being implemented (see TODO.md). The files are kept in the tree as
+# source-of-truth so a future port is a one-line uncomment.
+for name in collect(keys(testsuite))
+    startswith(name, "pending/") && delete!(testsuite, name)
 end
 
-unavailable_tests = setdiff(names, detected_tests)
-if length(unavailable_tests) != 0
-    error("The following tests could not be found:\n", join(unavailable_tests, "\n"))
+# Parse arguments
+args = ParallelTestRunner.parse_args(ARGS)
+
+if ParallelTestRunner.filter_tests!(testsuite, args)
+    delete!(testsuite, "quality/JET")
 end
 
-for name in names
-    if startswith(name, "test_") && endswith(name, ".jl")
-        include(name)
-    end
-end
+ParallelTestRunner.runtests(QuantumCumulants, args; testsuite)
