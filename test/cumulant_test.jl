@@ -39,9 +39,8 @@ end
     @test isequal(average(a^2), average(a * a))
     @test isequal(average((a' * a)^2), average(a' * a * a' * a))
 
-    # Master test_average.jl: cumulant-truncated `average(op, n)` two-arg form.
-    @test _iz(average(a^2, 1) - average(a)^2)
-    @test _iz(average(a' * a^2, 2) -
+    @test _iz(cumulant_expansion(average(a^2), 1) - average(a)^2)
+    @test _iz(cumulant_expansion(average(a' * a^2), 2) -
               (average(a') * average(a^2) +
                -2 * average(a') * average(a)^2 +
                2 * average(a) * average(a' * a)))
@@ -124,9 +123,9 @@ end
     a = Destroy(h, :a, 1)
     σ(i, j) = Transition(h, :σ, i, j)
 
-    @test _iz(average(a' * a, [2, 1]) - average(a' * a))
+    @test _iz(cumulant_expansion(average(a' * a), [2, 1]) - average(a' * a))
     @test _iz(
-        average(a' * σ(1, 2), [2, 1]; mix_choice = minimum) -
+        cumulant_expansion(average(a' * σ(1, 2)), [2, 1]; mix_choice = minimum) -
         average(a') * average(σ(1, 2)),
     )
 

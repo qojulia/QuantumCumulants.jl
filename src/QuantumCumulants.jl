@@ -9,6 +9,10 @@ using SymbolicUtils: SymbolicUtils
 using Symbolics: Symbolics, @variables
 using ModelingToolkitBase: ModelingToolkitBase
 using Latexify: Latexify, @latexrecipe
+using LaTeXStrings: LaTeXStrings
+using MacroTools: MacroTools
+using OrderedCollections: OrderedCollections
+using TermInterface: TermInterface
 using LinearAlgebra: I
 const MTK = ModelingToolkitBase
 

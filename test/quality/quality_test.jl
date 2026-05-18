@@ -13,15 +13,6 @@ using ExplicitImports
             # rewrite branch it routinely exceeds Aqua's 5-minute timeout, even
             # though the package itself has no persistent tasks.
             persistent_tasks = false,
-            stale_deps = (; ignore = [:LaTeXStrings,
-                                       :Latexify, :MacroTools, :OrderedCollections,
-                                       :TermInterface]),
-            piracies = (;
-                # SecondQuantizedAlgebra.average(op, order; ...) is a deliberate
-                # convenience overload that immediately applies cumulant_expansion;
-                # the method takes only built-in types so Aqua flags it.
-                treat_as_own = [QuantumCumulants.SecondQuantizedAlgebra.average],
-            ),
         )
     end
 

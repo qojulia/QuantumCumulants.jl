@@ -137,15 +137,6 @@ end
 cumulant_expansion(x::Symbolics.Num, order; kw...) =
     cumulant_expansion(SymbolicUtils.unwrap(x), order; kw...)
 
-"""
-    average(op, order; kw...)
-
-Take the average of `op` and immediately apply [`cumulant_expansion`](@ref)
-truncated at `order`.
-"""
-SecondQuantizedAlgebra.average(op, order; kw...) =
-    cumulant_expansion(average(op), order; kw...)
-
 function _expand_average(ops::QField, order::Int)
     qa = ops isa QAdd ? ops : ops
     out = 0
