@@ -73,7 +73,6 @@ function _meanfield_forward(ops, H, J, Jdagger, rates, order,
         if order_vec !== nothing
             rhs = cumulant_expansion(rhs, order_vec; simplify=false, mix_choice)
         end
-        rhs = _rewrite_complex_literals(rhs)
         simplify && (rhs = SymbolicUtils.simplify(rhs))
         avg_eqs[i] = states[i] ~ rhs
     end
@@ -112,7 +111,6 @@ function _meanfield_noise(::Forward, ops, H, J, Jdagger, rates,
         if order_vec !== nothing
             rhs = cumulant_expansion(rhs, order_vec; simplify=false, mix_choice)
         end
-        rhs = _rewrite_complex_literals(rhs)
         simplify && (rhs = SymbolicUtils.simplify(rhs))
         avg_eqs[i] = states[i] ~ rhs
     end
@@ -123,7 +121,6 @@ function _meanfield_noise(::Forward, ops, H, J, Jdagger, rates,
                                                   simplify=false, mix_choice)
                      for eq in avg_noise]
     end
-    avg_noise = [eq.lhs ~ _rewrite_complex_literals(eq.rhs) for eq in avg_noise]
     if simplify
         avg_noise = [eq.lhs ~ SymbolicUtils.simplify(eq.rhs) for eq in avg_noise]
     end
@@ -154,7 +151,6 @@ function _meanfield_noise(::Backward, ops, H, J, Jdagger, rates,
         if order_vec !== nothing
             rhs = cumulant_expansion(rhs, order_vec; simplify=false, mix_choice)
         end
-        rhs = _rewrite_complex_literals(rhs)
         simplify && (rhs = SymbolicUtils.simplify(rhs))
         avg_eqs[i] = states[i] ~ rhs
     end
@@ -165,7 +161,6 @@ function _meanfield_noise(::Backward, ops, H, J, Jdagger, rates,
                                                   simplify=false, mix_choice)
                      for eq in avg_noise]
     end
-    avg_noise = [eq.lhs ~ _rewrite_complex_literals(eq.rhs) for eq in avg_noise]
     if simplify
         avg_noise = [eq.lhs ~ SymbolicUtils.simplify(eq.rhs) for eq in avg_noise]
     end

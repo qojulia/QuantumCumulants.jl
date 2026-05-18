@@ -17,13 +17,10 @@ using ExplicitImports
                                        :Latexify, :MacroTools, :OrderedCollections,
                                        :TermInterface]),
             piracies = (;
-                # Base.complex glue methods are intentionally pirated to bridge
-                # MTK's runtime code-gen for SQA-generated equations.
                 # SecondQuantizedAlgebra.average(op, order; ...) is a deliberate
                 # convenience overload that immediately applies cumulant_expansion;
                 # the method takes only built-in types so Aqua flags it.
-                treat_as_own = [Base.complex,
-                                QuantumCumulants.SecondQuantizedAlgebra.average],
+                treat_as_own = [QuantumCumulants.SecondQuantizedAlgebra.average],
             ),
         )
     end

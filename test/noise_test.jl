@@ -3,13 +3,10 @@ using Symbolics: Symbolics, @variables, expand
 using SymbolicUtils
 using Test
 
-# Robust zero check: rewrite literal complex(re, im) calls into re + im*1im first
-# (they otherwise hide cancellation from simplify/expand), then simplify-expand.
 function _iz(x)
     x isa Number && return iszero(x)
     x isa SymbolicUtils.BasicSymbolic || return iszero(x)
-    rw = QuantumCumulants._rewrite_complex_literals(x)
-    return SymbolicUtils._iszero(SymbolicUtils.simplify(rw; expand = true))
+    return SymbolicUtils._iszero(SymbolicUtils.simplify(x; expand = true))
 end
 
 @testset "forward noise meanfield: shape" begin
@@ -68,7 +65,13 @@ end
     a = Destroy(hc, :a)
 
     me_a = meanfield(a, Δ * a' * a, [a]; rates = [κ], efficiencies = [η], order = 2)
-    test_eq_a = -1im * Δ * average(a) - 0.5κ * average(a)
+    # Build comparison targets by averaging an operator-level expression rather
+    # than multiplying averages by complex scalars. The latter promotes through
+    # `Complex{Num}` and Symbolics materialises the literal `complex(re, im)`
+    # symbolic term, which is opaque to `simplify`/`expand`. Going via
+    # `average(op-with-complex-coeff)` routes through SQA's `average(::QAdd)`,
+    # which composes the imaginary unit using `Symbolics.IM`.
+    test_eq_a = average(-1im * Δ * a - (1//2) * κ * a)
     test_noise_eq_a = sqrt(η * κ) *
         (average(a' * a) + average(a * a) - average(a)^2 - average(a) * average(a'))
     @test _iz(me_a.equations[1].rhs - test_eq_a)

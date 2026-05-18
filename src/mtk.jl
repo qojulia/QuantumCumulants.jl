@@ -60,37 +60,6 @@ function _make_time_dependent_var(name::Symbol, iv::Symbolics.Num)
     return v
 end
 
-# MTK's code-gen for an equation with a `complex(re_sym, im_sym)` literal can
-# emit a runtime call `complex(re::ComplexF64, im::ComplexF64)`, for which Base
-# defines no method. Provide one that respects the additive identity
-# `complex(r, i) === r + i * im`. This is the runtime counterpart of the
-# `_rewrite_complex_literals` symbolic pass: the latter eliminates the literal
-# whenever a tree rewrite succeeds, and this glue handles the cases where the
-# symbolic rewrite was bypassed (e.g. by `try/catch` falling back).
-Base.complex(re::Complex, im_p::Complex) = re + im_p * im
-Base.complex(re::Real, im_p::Complex) = re + im_p * im
-Base.complex(re::Complex, im_p::Real) = re + im_p * im
-
-function _rewrite_complex_literals(expr)
-    expr isa SymbolicUtils.BasicSymbolic || return expr
-    SymbolicUtils.iscall(expr) || return expr
-    SecondQuantizedAlgebra.is_average(expr) && return expr
-    op   = SymbolicUtils.operation(expr)
-    op isa SecondQuantizedAlgebra.AvgFunc && return expr
-    args = SymbolicUtils.arguments(expr)
-    if op === complex && length(args) == 2
-        re = _rewrite_complex_literals(args[1])
-        im_part = _rewrite_complex_literals(args[2])
-        return re + im_part * im
-    end
-    new_args = Any[_rewrite_complex_literals(a) for a in args]
-    try
-        return op(new_args...)
-    catch
-        return expr
-    end
-end
-
 function _collect_params!(set, x, dict, iv_uw)
     if x isa SymbolicUtils.BasicSymbolic
         SymbolicUtils.isconst(x) && return
@@ -116,8 +85,7 @@ end
     to_system(eqs::MeanFieldEquations; name::Symbol)
 
 Build a `ModelingToolkitBase.System` from the QC equation set. Substitutes
-Averages with real-typed `u(t)` Num variables, rewrites `complex(re, im)` to
-additive form, and passes `dvs`/`ps` explicitly.
+Averages with real-typed `u(t)` Num variables and passes `dvs`/`ps` explicitly.
 """
 function to_system(eqs::NoiseMeanFieldEquations{O,H,Op,Jt,Jdt,R,E,S,Forward};
                    name::Symbol) where {O,H,Op,Jt,Jdt,R,E,S}
@@ -137,8 +105,7 @@ function _to_system_sde(eqs::NoiseMeanFieldEquations, name::Symbol, sign::Int)
     drift = Vector{Symbolics.Equation}(undef, length(eqs.equations))
     ps_set = Set{SymbolicUtils.BasicSymbolic}()
     @inbounds for (i, eq) in enumerate(eqs.equations)
-        rhs_sub  = SymbolicUtils.substitute(eq.rhs, dict)
-        rhs      = _rewrite_complex_literals(rhs_sub)
+        rhs      = SymbolicUtils.substitute(eq.rhs, dict)
         drift[i] = D(dict[eq.lhs]) ~ sign * rhs
         _collect_params!(ps_set, rhs, dict, iv_uw)
     end
@@ -156,8 +123,7 @@ function to_system(eqs::MeanFieldEquations; name::Symbol)
     ps_set  = Set{SymbolicUtils.BasicSymbolic}()
     @inbounds for (i, eq) in enumerate(eqs.equations)
         rhs_conj = _substitute_conj_avgs(eq.rhs, conj_dict)
-        rhs_sub  = SymbolicUtils.substitute(rhs_conj, dict)
-        rhs      = _rewrite_complex_literals(rhs_sub)
+        rhs      = SymbolicUtils.substitute(rhs_conj, dict)
         new_eqs[i] = D(dict[eq.lhs]) ~ rhs
         _collect_params!(ps_set, rhs, dict, iv_uw)
     end

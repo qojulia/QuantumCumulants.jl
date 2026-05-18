@@ -51,11 +51,8 @@ end
     @test length(he_exp.equations) == length(he_o2.equations)
     for (e1, e2) in zip(he_exp.equations, he_o2.equations)
         @test isequal(e1.lhs, e2.lhs)
-        # rhs may differ in internal Mul-arg ordering but is mathematically
-        # equal — compare via the cumulant-test `_iz` pattern.
         diff = e1.rhs - e2.rhs
-        diff_rw = QuantumCumulants._rewrite_complex_literals(diff)
-        @test SymbolicUtils._iszero(SymbolicUtils.simplify(diff_rw; expand = true))
+        @test SymbolicUtils._iszero(SymbolicUtils.simplify(diff; expand = true))
     end
 
     # find_missing returns averages only (not parameters)

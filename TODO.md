@@ -4,28 +4,6 @@ These were identified while porting the master test suite. Each item is a
 behavior the master branch handled but the v1 rewrite either drops, weakens,
 or gets wrong. Listed in rough priority order.
 
-## RHS rebuild leaves `complex(re, im)` literal calls in equations
-
-**Symptom:** equation RHSes are stored as e.g. `⟨a⟩ * complex(-κ/2, -Δ)`
-because `complex(BasicSymbolic{SymReal}, BasicSymbolic{SymReal})` materialises
-a literal `complex(...)` call instead of unfolding to `re + im*1im`.
-
-**Consequence:** `simplify(rhs - analytic_target; expand=true)` will not
-reduce to 0 even when the difference is identically zero, because
-`complex(...)` is opaque to Symbolics' polynomial rules.
-
-**Workaround applied:** `src/meanfield.jl` now runs
-`_rewrite_complex_literals` on every RHS before storing it
-(`_meanfield_forward`, `_meanfield_noise` both directions, noise drift +
-noise eq). Tests use a local `_iz` helper that also runs the rewrite before
-`simplify`.
-
-**Why it's still on this list:** the rewrite is reactive. The right fix is
-that v1's `Symbolics`/SQA glue should never produce the literal `complex(...)`
-call in the first place (or `simplify` should expand it). Once a user
-constructs an analytic comparison target like `-1im*Δ*⟨a⟩ - 0.5κ*⟨a⟩`,
-they hit the same problem and need to know about the rewrite.
-
 ## `complete!()` does not preserve conjugate-pair states needed by codegen
 
 **Symptom:** for two-level systems where initial ops are

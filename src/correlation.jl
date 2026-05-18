@@ -64,8 +64,7 @@ function (S::Spectrum)(ω_val::Real, u_end, p0)
     n = length(eqs.equations)
     A = zeros(ComplexF64, n, n)
     b = zeros(ComplexF64, n)
-    # Pre-rewrite complex literals so substitute won't assert S<:Real.
-    rhss = [_rewrite_complex_literals(eq.rhs) for eq in eqs.equations]
+    rhss = [eq.rhs for eq in eqs.equations]
     p_sub = _build_p_sub(S.ps, p0, c.τ, u_end, eqs)
     @inbounds for (i, rhs) in enumerate(rhss)
         # Linear decomposition: rhs = sum_j A[i,j] * state_j + b[i]

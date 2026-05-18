@@ -3,14 +3,10 @@ using Symbolics: Symbolics, @variables, expand
 using SymbolicUtils
 using Test
 
-# Robust zero check on rhs expressions that may contain `complex(re, im)`
-# literals (a Symbolics quirk when SymReal scalars mix with `1im`). See
-# TODO.md and src/mtk.jl::_rewrite_complex_literals.
 function _iz(x)
     x isa Number && return iszero(x)
     x isa SymbolicUtils.BasicSymbolic || return iszero(x)
-    rw = QuantumCumulants._rewrite_complex_literals(x)
-    return SymbolicUtils._iszero(SymbolicUtils.simplify(rw; expand = true))
+    return SymbolicUtils._iszero(SymbolicUtils.simplify(x; expand = true))
 end
 
 @testset "meanfield: damped cavity" begin
