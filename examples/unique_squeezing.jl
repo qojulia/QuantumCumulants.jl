@@ -25,7 +25,7 @@ ha = NLevelSpace(Symbol(:spin), 2)
 h = hf ⊗ ha
 
 @variables ω Ω ωd η κ g γ N ξ # Parameter
-@syms t::Real # time
+t = first(ModelingToolkitBase.@independent_variables t) # time iv (v1: use the same iv that meanfield uses internally)
 nothing # hide
 
 # On the Hilbert space we create the destroy operator $a$ of the harmonic oscillator and the (indexed) transition operator $\sigma_i^{xy}$ for the $i$-th two-level system.
@@ -53,7 +53,7 @@ ps = [ω, Ω, ωd, g, η, κ, γ, N, ξ] # symbolic and numeric parameter list
 
 # First we derive the mean-field equations in second order for $\langle a \rangle$, $\langle a^\dagger a \rangle$ and $\langle \sigma^{22}_j \rangle$, then we complete the system to obtain a closed set of equations.
 
-eqs = meanfield([a, a'a, σ(2, 2, j)], H, J; rates = rates, order = 2)
+eqs = meanfield([a, a'a, σ(2, 2, j)], H, J; rates = rates, order = 2, iv = t)
 nothing # hide
 
 # ```math
@@ -103,8 +103,8 @@ sol_ls = []
 N_ls = [1, 2, 10, 100]
 for N_ in N_ls
     p0 = [ω_, Ω_, ωd_, g_, η_, κ_, γ_, N_, ξ_]
-    u0_dict = initial_values(eqs_sc, u0)
-    dict = merge(u0_dict, Dict(ps .=> p0))
+    u0_dict = Dict{Any, Any}(unknowns(sys) .=> u0) # (v1: initial_values(eqs, u0::Vector) → zero-init via unknowns(sys))
+    dict = merge(u0_dict, Dict{Any, Any}(ps .=> p0))
     prob = ODEProblem(sys, dict, (0.0, 4π/ωd_))
     sol = solve(prob, Tsit5(); saveat = π/30ωd_, reltol = 1e-10, abstol = 1e-10)
     push!(sol_ls, sol)

@@ -73,9 +73,9 @@ nothing # hide
 
 u0 = initial_values(eqs_completed; defaults = Dict(average(b'*b) => 4.0e6 + 0im)) # Initial state (4e6 phonons)
 
-p0 = Dict(Δ=>-10.0, ωm=>1.0, E=>200.0, G=>0.0125, κ=>20.0) # System parameters
+p0 = Dict{Num, ComplexF64}(Δ=>-10.0+0im, ωm=>1.0+0im, E=>200.0+0im, G=>0.0125+0im, κ=>20.0+0im) # System parameters
 prob = ODEProblem(sys_c, merge(u0, p0), (0.0, 60000.0))
-sol = solve(prob, RK4())
+sol = solve(prob, Tsit5())
 nothing # hide
 
 #

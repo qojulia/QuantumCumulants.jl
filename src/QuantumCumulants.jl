@@ -8,7 +8,7 @@ using SecondQuantizedAlgebra: SecondQuantizedAlgebra, QField, QAdd,
 import SecondQuantizedAlgebra as SQA
 using SymbolicUtils: SymbolicUtils
 using Symbolics: Symbolics, @variables
-using ModelingToolkitBase: ModelingToolkitBase
+using ModelingToolkitBase: ModelingToolkitBase, complete
 using Latexify: Latexify, @latexrecipe
 using LaTeXStrings: LaTeXStrings
 using MacroTools: MacroTools

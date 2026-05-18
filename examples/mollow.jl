@@ -74,7 +74,7 @@ p0 = (0.0, 2.0, 1.0)
 u0 = zeros(ComplexF64, 2)
 dict = merge(Dict(unknowns(ssys) .=> u0), Dict(ps .=> p0))
 prob = ODEProblem(ssys, dict, (0.0, 20.0))
-sol = solve(prob, RK4())
+sol = solve(prob, Tsit5()) # (v1: RK4 dropped from OrdinaryDiffEq 7 exports)
 nothing # hide
 
 #

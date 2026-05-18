@@ -42,9 +42,10 @@ import QuantumCumulants.SecondQuantizedAlgebra as SQA # (v1: walk QAdd/QTerm via
 ϕ(::Destroy) = -1
 ϕ(::Create) = 1
 function ϕ(t::Transition)
-    if (t.i==:e && t.j==:g)
+    # (v1: SQA stores level indices as integers; :g=1, :e=2 per NLevelSpace(:atom,(:g,:e)))
+    if (t.i == 2 && t.j == 1)
         1
-    elseif (t.i==:g && t.j==:e)
+    elseif (t.i == 1 && t.j == 2)
         -1
     else
         0
@@ -67,7 +68,7 @@ function ϕ(avg)
 end
 phase_invariant(x) = iszero(ϕ(x))
 
-eqs = QuantumCumulants.complete(eq_n; filter_func = phase_invariant) # Complete equations (v1: qualify due to MTKBase/BipartiteGraphs `complete` collisions)
+eqs = complete(eq_n; filter_func = phase_invariant) # Complete equations
 
 
 # In order to compute the spectrum, we first compute the correlation function $g(\tau) = \langle a^\dagger(t_0 + \tau) a(t_0)\rangle \equiv \langle a^\dagger a_0\rangle.$
@@ -100,11 +101,11 @@ nothing # hide
 ps = (Δ, g, γ, κ, ν)
 sys = to_system(eqs; name = :sys) # (v1: @named sys = System(eqs) → to_system(eqs; name=:sys))
 ssys = mtkcompile(sys)
-p0 = (1.0, 1.5, 0.25, 1, 4)
-u0 = initial_values(eqs) # (v1: build u0 dict via initial_values, defaults to zeros)
-dict = merge(u0, Dict(ps .=> p0))
+p0 = (1.0, 1.5, 0.25, 1.0, 4.0)
+u0 = zeros(ComplexF64, length(unknowns(ssys))) # (v1: zero init via unknowns(ssys))
+dict = merge(Dict(unknowns(ssys) .=> u0), Dict(ps .=> p0))
 prob = ODEProblem(ssys, dict, (0.0, 10.0))
-sol = solve(prob, RK4())  # Numerical solution
+sol = solve(prob, Tsit5())  # Numerical solution
 nothing # hide
 
 # Now, we can compute the time evolution of the correlation function similarly. Since the initial state of this system does not necessarily depend on all steady-state values, we can use the [`correlation_u0`](@ref) function which automatically generates the correct initial state vector required. Similarly, we use [`correlation_p0`](@ref) which generates the list of parameters including all needed steady-state values.
@@ -112,11 +113,12 @@ nothing # hide
 
 csys = to_system(c; name = :csys) # Time evolution of correlation function
 cssys = mtkcompile(csys)
-u0_c = correlation_u0(c, sol.u[end])
+u_ss = Dict(avg => get_solution(sol, avg, eqs)(sol.t[end]) for avg in eqs.states) # (v1: build avg→value dict from solution)
+u0_c = correlation_u0(c, u_ss)
 p0_c = correlation_p0(c, sol.u[end], ps .=> p0)
 dict = merge(Dict(u0_c), Dict(p0_c))
 prob_c = ODEProblem(cssys, dict, (0.0, 500.0))
-sol_c = solve(prob_c, RK4(), save_idxs = 1)
+sol_c = solve(prob_c, Tsit5(), save_idxs = 1)
 nothing # hide
 
 # Finally, we borrow the FFT function from [QuantumOptics.jl](https://qojulia.org) and compute the spectrum from the solution. Note that this requires an equidistant list of times, and we therefore interpolate the solution from the differential equation.
@@ -135,7 +137,7 @@ nothing # hide
 
 
 S = Spectrum(c, ps) # Spectrum
-s_laplace = S(ω, sol.u[end], p0)
+s_laplace = S(ω, u_ss, p0) # (v1: pass avg→value dict, not raw vector)
 nothing # hide
 
 plot(ω, s_fft, label = "Spectrum (FFT)", xlabel = "ω")

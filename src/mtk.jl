@@ -45,7 +45,7 @@ end
 
 function _avg_to_var_dict(eqs::AbstractMeanFieldEquations)
     iv = eqs.iv
-    dict = IdDict{SymbolicUtils.BasicSymbolic, Symbolics.Num}()
+    dict = Dict{SymbolicUtils.BasicSymbolic, Symbolics.Num}()
     dvs = Symbolics.Num[]
     for avg in eqs.states
         v = _make_time_dependent_var(_stable_avg_name(avg), iv)
@@ -178,6 +178,12 @@ function _substitute_conj_avgs(x, conj_dict)
     op === SQA.sym_average && return x
     args = SymbolicUtils.arguments(x)
     new_args = Any[_substitute_conj_avgs(a, conj_dict) for a in args]
+    # `complex(re_sym, im_sym)` literals occasionally survive in the RHS
+    # (e.g. from `im * H` constructing `Complex{Num}` coefficients). Calling
+    # `op(new_args...)` with `op === complex` and symbolic args has no method;
+    # rewrite to additive form `re + im_part * im` instead.
+    # TODO fix https://github.com/JuliaSymbolics/SymbolicUtils.jl/pull/922
+    op === complex && length(new_args) == 2 && return new_args[1] + new_args[2] * Symbolics.IM
     return op(new_args...)
 end
 

@@ -25,6 +25,13 @@ function find_missing(
     for eq in eqs.equations
         _collect_missing!(missing_states, seen_keys, canon, eq.rhs, get_adjoints)
     end
+    # For noise equations, scan the stochastic RHS too so missing states
+    # introduced only by the dW/dt term get derived as well.
+    if eqs isa NoiseMeanFieldEquations
+        for eq in eqs.noise_equations
+            _collect_missing!(missing_states, seen_keys, canon, eq.rhs, get_adjoints)
+        end
+    end
     if filter_func !== nothing
         filter!(filter_func, missing_states)
     end
@@ -149,7 +156,10 @@ function complete!(
     )
     for _ in 1:max_iter
         missing_states = find_missing(eqs; filter_func, get_adjoints)
-        isempty(missing_states) && return eqs
+        if isempty(missing_states)
+            filter_func !== nothing && _filter_rhs!(eqs, filter_func)
+            return eqs
+        end
         new_ops = QField[_undo_for_derivation(m) for m in missing_states]
         new_eqs = _derive_for(eqs, new_ops; simplify, mix_choice)
         if filter_func !== nothing
@@ -164,6 +174,18 @@ function _filter_rhs!(eqs::MeanFieldEquations, filter_func)
     for (i, eq) in enumerate(eqs.equations)
         new_rhs = _filter_expr(eq.rhs, filter_func)
         eqs.equations[i] = eq.lhs ~ new_rhs
+    end
+    return eqs
+end
+
+function _filter_rhs!(eqs::NoiseMeanFieldEquations, filter_func)
+    for (i, eq) in enumerate(eqs.equations)
+        new_rhs = _filter_expr(eq.rhs, filter_func)
+        eqs.equations[i] = eq.lhs ~ new_rhs
+    end
+    for (i, eq) in enumerate(eqs.noise_equations)
+        new_rhs = _filter_expr(eq.rhs, filter_func)
+        eqs.noise_equations[i] = eq.lhs ~ new_rhs
     end
     return eqs
 end
@@ -190,7 +212,7 @@ Non-mutating variant. Returns a new `MeanFieldEquations`. If `order` is
 given, the returned system is first cumulant-expanded to that order before
 the completion loop runs.
 """
-function complete(
+function MTK.complete(
         eqs::MeanFieldEquations; order = nothing,
         mix_choice = maximum, simplify::Bool = true, kw...
     )
@@ -211,9 +233,62 @@ function _derive_for(
     )
 end
 
+function _derive_for(
+        eqs::NoiseMeanFieldEquations, new_ops;
+        simplify::Bool, mix_choice = maximum
+    )
+    return _meanfield_noise(
+        eqs.direction, new_ops, eqs.hamiltonian, eqs.jumps,
+        eqs.jumps_dagger, eqs.rates, eqs.efficiencies,
+        eqs.order, simplify, mix_choice, eqs.iv
+    )
+end
+
+function complete!(
+        eqs::NoiseMeanFieldEquations; max_iter::Int = 200,
+        simplify::Bool = true, filter_func = nothing,
+        mix_choice = maximum, get_adjoints::Bool = true
+    )
+    for _ in 1:max_iter
+        missing_states = find_missing(eqs; filter_func, get_adjoints)
+        if isempty(missing_states)
+            filter_func !== nothing && _filter_rhs!(eqs, filter_func)
+            return eqs
+        end
+        new_ops = QField[_undo_for_derivation(m) for m in missing_states]
+        new_eqs = _derive_for(eqs, new_ops; simplify, mix_choice)
+        if filter_func !== nothing
+            _filter_rhs!(new_eqs, filter_func)
+        end
+        _append!(eqs, new_eqs)
+    end
+    error("complete!: did not close within $max_iter iterations")
+end
+
+function MTK.complete(
+        eqs::NoiseMeanFieldEquations; order = nothing,
+        mix_choice = maximum, simplify::Bool = true, kw...
+    )
+    order === nothing || throw(ArgumentError(
+        "`complete(::NoiseMeanFieldEquations; order=...)` is not supported; pass `order` to `meanfield` instead."
+    ))
+    eqs_copy = _copy(eqs)
+    return complete!(eqs_copy; simplify, mix_choice, kw...)
+end
+
 function _append!(a::MeanFieldEquations, b::MeanFieldEquations)
     append!(a.equations, b.equations)
     append!(a.operator_equations, b.operator_equations)
+    append!(a.states, b.states)
+    append!(a.operators, b.operators)
+    return a
+end
+
+function _append!(a::NoiseMeanFieldEquations, b::NoiseMeanFieldEquations)
+    append!(a.equations, b.equations)
+    append!(a.noise_equations, b.noise_equations)
+    append!(a.operator_equations, b.operator_equations)
+    append!(a.operator_noise_equations, b.operator_noise_equations)
     append!(a.states, b.states)
     append!(a.operators, b.operators)
     return a
@@ -230,5 +305,22 @@ function _copy(eqs::MeanFieldEquations)
         copy(eqs.jumps_dagger),
         copy(eqs.rates),
         eqs.iv, eqs.order
+    )
+end
+
+function _copy(eqs::NoiseMeanFieldEquations)
+    return NoiseMeanFieldEquations(
+        copy(eqs.equations),
+        copy(eqs.noise_equations),
+        copy(eqs.operator_equations),
+        copy(eqs.operator_noise_equations),
+        copy(eqs.states),
+        copy(eqs.operators),
+        eqs.hamiltonian,
+        copy(eqs.jumps),
+        copy(eqs.jumps_dagger),
+        copy(eqs.rates),
+        copy(eqs.efficiencies),
+        eqs.iv, eqs.order, eqs.direction,
     )
 end

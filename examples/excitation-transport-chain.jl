@@ -79,7 +79,7 @@ p = Dict([γ => 1.0; Δ => 0.0; Ω => 2.0; J0 => 1.25; x .=> x0;])
 u0 = initial_values(eqs)  # initial state -- all atoms in the ground state
 prob = ODEProblem(sys_c, merge(u0, p), (0.0, 15.0)) # Create ODEProblem
 
-sol = solve(prob, RK4()) # Solve
+sol = solve(prob, Tsit5()) # Solve
 
 pop1 = real.(get_solution(sol, σ(:e, :e, 1), eqs).(sol.t))
 popN = real.(get_solution(sol, σ(:e, :e, N), eqs).(sol.t))
@@ -116,7 +116,7 @@ end
 
 trajectories = 20
 eprob = EnsembleProblem(prob, prob_func = prob_func)
-sim = solve(eprob, RK4(), trajectories = trajectories)
+sim = solve(eprob, Tsit5(), trajectories = trajectories)
 nothing # hide
 
 # Finally, we average over the results and compare them against the results from before, where there was no noise in the atomic positioning.

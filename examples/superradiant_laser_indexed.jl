@@ -83,7 +83,7 @@ function φ(avg)
 end
 phase_invariant(x) = iszero(φ(x))
 
-eqs_c = QuantumCumulants.complete(eqs; filter_func = phase_invariant) # Complete equations (v1: qualify due to MTKBase/BipartiteGraphs `complete` collisions)
+eqs_c = complete(eqs; filter_func = phase_invariant) # Complete equations
 nothing # hide
 
 # ```math
