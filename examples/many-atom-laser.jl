@@ -16,7 +16,7 @@ N = 2 # number of atoms
 @variables κ g Γ23 Γ13 Γ12 Ω Δc Δ3
 
 hf = FockSpace(:cavity)
-ha = ⊗([NLevelSpace(Symbol(:atom, i), 3) for i = 1:N]...)
+ha = ⊗([NLevelSpace(Symbol(:atom, i), 3) for i in 1:N]...)
 h = hf ⊗ ha
 
 a = Destroy(h, :a)
@@ -25,12 +25,12 @@ nothing # hide
 
 H =
     -Δc * a' * a +
-    sum(g * (a' * σ(1, 2, i) + a * σ(2, 1, i)) for i = 1:N) +
-    sum(Ω * (σ(3, 1, i) + σ(1, 3, i)) for i = 1:N) -
-    sum(Δ3 * σ(3, 3, i) for i = 1:N)
+    sum(g * (a' * σ(1, 2, i) + a * σ(2, 1, i)) for i in 1:N) +
+    sum(Ω * (σ(3, 1, i) + σ(1, 3, i)) for i in 1:N) -
+    sum(Δ3 * σ(3, 3, i) for i in 1:N)
 
-J = [a; [σ(1, 2, i) for i = 1:N]; [σ(1, 3, i) for i = 1:N]; [σ(2, 3, i) for i = 1:N]]
-rates = [κ; [Γ12 for i = 1:N]; [Γ13 for i = 1:N]; [Γ23 for i = 1:N]]
+J = [a; [σ(1, 2, i) for i in 1:N]; [σ(1, 3, i) for i in 1:N]; [σ(2, 3, i) for i in 1:N]]
+rates = [κ; [Γ12 for i in 1:N]; [Γ13 for i in 1:N]; [Γ23 for i in 1:N]]
 nothing # hide
 
 ops = [a' * a, σ(2, 2, 1), σ(3, 3, 1)]
@@ -51,12 +51,14 @@ gn = 2Γ12n
 Δ3n = 0.0
 κn = 0.5Γ12n
 
-p0 = Dict(g => gn, Γ23 => Γ23n, Γ13 => Γ13n, Γ12 => Γ12n,
-          Ω => Ωn, Δc => Δcn, Δ3 => Δ3n, κ => κn)
+p0 = Dict(
+    g => gn, Γ23 => Γ23n, Γ13 => Γ13n, Γ12 => Γ12n,
+    Ω => Ωn, Δc => Δcn, Δ3 => Δ3n, κ => κn
+)
 tend = 10.0 / κn
 
 prob = ODEProblem(sys_c, merge(u0, p0), (0.0, tend))
-sol = solve(prob, Tsit5(), reltol = 1e-8, abstol = 1e-8)
+sol = solve(prob, Tsit5(), reltol = 1.0e-8, abstol = 1.0e-8)
 nothing # hide
 
 n_t = real.(get_solution(sol, a' * a, eqs).(sol.t))

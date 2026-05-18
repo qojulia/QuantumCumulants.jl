@@ -11,8 +11,10 @@ counts as missing. When `get_adjoints=false`, only one of each
 conjugate-pair is emitted into `missing_states` (the conjugate is marked
 seen so it isn't returned again on a later RHS scan).
 """
-function find_missing(eqs::AbstractMeanFieldEquations; filter_func = nothing,
-                      get_adjoints::Bool = true)
+function find_missing(
+        eqs::AbstractMeanFieldEquations; filter_func = nothing,
+        get_adjoints::Bool = true
+    )
     seen = Set{SymbolicUtils.BasicSymbolic}()
     for s in eqs.states
         push!(seen, s)
@@ -77,9 +79,11 @@ The order used for cumulant expansion is the one already stored in
 `cumulant_expansion(eqs, order)`). The non-mutating [`complete`](@ref)
 variant additionally accepts an `order` keyword.
 """
-function complete!(eqs::MeanFieldEquations; max_iter::Int = 200,
-                   simplify::Bool = true, filter_func = nothing,
-                   mix_choice = maximum, get_adjoints::Bool = true)
+function complete!(
+        eqs::MeanFieldEquations; max_iter::Int = 200,
+        simplify::Bool = true, filter_func = nothing,
+        mix_choice = maximum, get_adjoints::Bool = true
+    )
     for _ in 1:max_iter
         missing_states = find_missing(eqs; filter_func, get_adjoints)
         isempty(missing_states) && return eqs
@@ -123,19 +127,25 @@ Non-mutating variant. Returns a new `MeanFieldEquations`. If `order` is
 given, the returned system is first cumulant-expanded to that order before
 the completion loop runs.
 """
-function complete(eqs::MeanFieldEquations; order = nothing,
-                  mix_choice = maximum, simplify::Bool = true, kw...)
+function complete(
+        eqs::MeanFieldEquations; order = nothing,
+        mix_choice = maximum, simplify::Bool = true, kw...
+    )
     eqs_copy = order === nothing ?
         _copy(eqs) :
         cumulant_expansion(_copy(eqs), order; simplify, mix_choice)
     return complete!(eqs_copy; simplify, mix_choice, kw...)
 end
 
-function _derive_for(eqs::MeanFieldEquations, new_ops;
-                     simplify::Bool, mix_choice = maximum)
-    return _meanfield_forward(new_ops, eqs.hamiltonian, eqs.jumps,
-                              eqs.jumps_dagger, eqs.rates, eqs.order,
-                              simplify, mix_choice, eqs.iv)
+function _derive_for(
+        eqs::MeanFieldEquations, new_ops;
+        simplify::Bool, mix_choice = maximum
+    )
+    return _meanfield_forward(
+        new_ops, eqs.hamiltonian, eqs.jumps,
+        eqs.jumps_dagger, eqs.rates, eqs.order,
+        simplify, mix_choice, eqs.iv
+    )
 end
 
 function _append!(a::MeanFieldEquations, b::MeanFieldEquations)
@@ -147,13 +157,15 @@ function _append!(a::MeanFieldEquations, b::MeanFieldEquations)
 end
 
 function _copy(eqs::MeanFieldEquations)
-    return MeanFieldEquations(copy(eqs.equations),
-                              copy(eqs.operator_equations),
-                              copy(eqs.states),
-                              copy(eqs.operators),
-                              eqs.hamiltonian,
-                              copy(eqs.jumps),
-                              copy(eqs.jumps_dagger),
-                              copy(eqs.rates),
-                              eqs.iv, eqs.order)
+    return MeanFieldEquations(
+        copy(eqs.equations),
+        copy(eqs.operator_equations),
+        copy(eqs.states),
+        copy(eqs.operators),
+        eqs.hamiltonian,
+        copy(eqs.jumps),
+        copy(eqs.jumps_dagger),
+        copy(eqs.rates),
+        eqs.iv, eqs.order
+    )
 end

@@ -6,7 +6,7 @@ Two-time correlation `⟨op1(0) · op2(τ)⟩` in a new independent variable τ.
 Reuses the underlying meanfield/cumulant/complete pipeline on a new
 equation set with `iv = τ` and the original parameters held fixed.
 """
-struct CorrelationFunction{T<:MeanFieldEquations, O1<:QField, O2<:QField}
+struct CorrelationFunction{T <: MeanFieldEquations, O1 <: QField, O2 <: QField}
     op1::O1
     op2::O2
     eqs::T
@@ -14,17 +14,21 @@ struct CorrelationFunction{T<:MeanFieldEquations, O1<:QField, O2<:QField}
     steady_state::Bool
 end
 
-function CorrelationFunction(op1::QField, op2::QField,
-                             eqs0::MeanFieldEquations;
-                             steady_state::Bool = true,
-                             simplify::Bool = true)
+function CorrelationFunction(
+        op1::QField, op2::QField,
+        eqs0::MeanFieldEquations;
+        steady_state::Bool = true,
+        simplify::Bool = true
+    )
     τ = first(MTK.@independent_variables τ)
     new_op = op1 * op2
-    eqs_c = meanfield([new_op], eqs0.hamiltonian, eqs0.jumps;
-                      Jdagger = eqs0.jumps_dagger,
-                      rates   = eqs0.rates,
-                      order   = eqs0.order,
-                      simplify, iv = τ)
+    eqs_c = meanfield(
+        [new_op], eqs0.hamiltonian, eqs0.jumps;
+        Jdagger = eqs0.jumps_dagger,
+        rates = eqs0.rates,
+        order = eqs0.order,
+        simplify, iv = τ
+    )
     complete!(eqs_c)
     return CorrelationFunction(op1, op2, eqs_c, τ, steady_state)
 end
@@ -41,8 +45,8 @@ The current implementation solves the (Laplace-domain) linear system
 `A(ω) x(ω) = b(ω)` derived from the τ-evolution equations of the correlation
 function. `S(ω) = real(x_1(ω))` is returned and normalized at the end.
 """
-struct Spectrum{T<:MeanFieldEquations,P}
-    c::CorrelationFunction{T,<:QField,<:QField}
+struct Spectrum{T <: MeanFieldEquations, P}
+    c::CorrelationFunction{T, <:QField, <:QField}
     ω::Symbolics.Num
     ps::P
 end
@@ -74,8 +78,10 @@ function (S::Spectrum)(ω_val::Real, u_end, p0)
             A[i, j] = _scalarize(coeff_n)
         end
         # Constant term: substitute states with 0 to get the affine part
-        zero_sub = merge(p_sub,
-            Dict{Any, Any}(SymbolicUtils.unwrap(dv) => 0.0 for dv in eqs.states))
+        zero_sub = merge(
+            p_sub,
+            Dict{Any, Any}(SymbolicUtils.unwrap(dv) => 0.0 for dv in eqs.states)
+        )
         const_n = SymbolicUtils.substitute(rhs, zero_sub)
         b[i] = _scalarize(const_n)
     end
@@ -151,7 +157,9 @@ end
 Pass-through of `p` for now. Frozen-state injection of `op1`-touching
 averages can be added on top of this base.
 """
-function correlation_p0(c::CorrelationFunction, p::AbstractDict,
-                        u_end::AbstractDict)
+function correlation_p0(
+        c::CorrelationFunction, p::AbstractDict,
+        u_end::AbstractDict
+    )
     return Dict{Symbolics.Num, ComplexF64}(k => ComplexF64(v) for (k, v) in p)
 end

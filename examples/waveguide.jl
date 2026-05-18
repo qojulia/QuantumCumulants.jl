@@ -14,7 +14,7 @@ M = 2
 @variables Ω12 Γ12 Γ11 Γ22
 
 h_spin(i) = SpinSpace(Symbol(:spin_, i))
-h = tensor([h_spin(i) for i = 1:M]...)
+h = tensor([h_spin(i) for i in 1:M]...)
 
 Sx(i) = Spin(h, Symbol(:S, i), 1, i)
 Sy(i) = Spin(h, Symbol(:S, i), 2, i)

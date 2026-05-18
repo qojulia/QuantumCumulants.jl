@@ -27,9 +27,11 @@ end
     @qnumbers a::Destroy(hc)
     @variables ω κ η
     H = ω * a' * a
-    eqs = meanfield([a, a' * a], H, [a];
-                    rates = [κ], efficiencies = [η],
-                    direction = Backward(), order = 2)
+    eqs = meanfield(
+        [a, a' * a], H, [a];
+        rates = [κ], efficiencies = [η],
+        direction = Backward(), order = 2
+    )
     @test eqs isa NoiseMeanFieldEquations
     @test eqs.direction isa Backward
 end
@@ -41,7 +43,7 @@ end
     eqs = meanfield(a, ω * a' * a, [a]; rates = [κ], efficiencies = [η], order = 2)
 
     test_noise = sqrt(κ * η) *
-                 (average(a' * a + a * a) - average(a') * average(a) - average(a)^2)
+        (average(a' * a + a * a) - average(a') * average(a) - average(a)^2)
     @test isequal(eqs[1].lhs, average(a))
     @test _iz(test_noise - eqs.noise_equations[1].rhs)
 end
@@ -54,8 +56,10 @@ end
     a = Destroy(h, :a)
     σ = Transition(h, :σ, 2, 1)
 
-    eqs = meanfield([a, σ], ω * a' * a + ωa * σ' * σ, [a, σ];
-                    rates = [κ, γ], efficiencies = [0, 0])
+    eqs = meanfield(
+        [a, σ], ω * a' * a + ωa * σ' * σ, [a, σ];
+        rates = [κ, γ], efficiencies = [0, 0]
+    )
     @test _iz(eqs.noise_equations[1].rhs)
     @test _iz(eqs.noise_equations[2].rhs)
 end
@@ -72,7 +76,7 @@ end
     # symbolic term, which is opaque to `simplify`/`expand`. Going via
     # `average(op-with-complex-coeff)` routes through SQA's `average(::QAdd)`,
     # which composes the imaginary unit using `Symbolics.IM`.
-    test_eq_a = average(-1im * Δ * a - (1//2) * κ * a)
+    test_eq_a = average(-1im * Δ * a - (1 // 2) * κ * a)
     test_noise_eq_a = sqrt(η * κ) *
         (average(a' * a) + average(a * a) - average(a)^2 - average(a) * average(a'))
     @test _iz(me_a.equations[1].rhs - test_eq_a)
@@ -106,8 +110,10 @@ end
     hc = FockSpace(:cavity)
     a = Destroy(hc, :a)
     H = Δ * a' * a + η_d * (a + a')
-    eqs = meanfield([a, a' * a], H, [a];
-                    rates = [κ], efficiencies = [η], order = 2)
+    eqs = meanfield(
+        [a, a' * a], H, [a];
+        rates = [κ], efficiencies = [η], order = 2
+    )
 
     @test length(eqs.states) == 2
     @test eqs isa NoiseMeanFieldEquations

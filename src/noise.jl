@@ -11,16 +11,17 @@ end
 
 function _build_noise_equations_forward(ops, J, Jdagger, rates, efficiencies, simplify::Bool)
     n_ops = length(ops)
-    n_J   = length(J)
+    n_J = length(J)
     operator_noise_eqs = Vector{Symbolics.Equation}(undef, n_ops)
     noise_eqs = Vector{Symbolics.Equation}(undef, n_ops)
     @inbounds for (i, op) in enumerate(ops)
-        op_drift  = 0 * op
+        op_drift = 0 * op
         avg_drift = 0
         for k in 1:n_J
             iszero(efficiencies[k]) && continue
             d = SecondQuantizedAlgebra.expand_completeness(
-                _noise_drift_one(op, J[k], Jdagger[k], rates[k], efficiencies[k]))
+                _noise_drift_one(op, J[k], Jdagger[k], rates[k], efficiencies[k])
+            )
             op_drift = op_drift + d
             avg_drift = avg_drift + average(d)
         end
@@ -33,18 +34,19 @@ end
 
 function _build_noise_equations_backward(ops, J, Jdagger, rates, efficiencies, simplify::Bool)
     n_ops = length(ops)
-    n_J   = length(J)
+    n_J = length(J)
     op_noise = Vector{Symbolics.Equation}(undef, n_ops)
-    noise    = Vector{Symbolics.Equation}(undef, n_ops)
+    noise = Vector{Symbolics.Equation}(undef, n_ops)
     @inbounds for (i, op) in enumerate(ops)
-        op_drift  = 0 * op
+        op_drift = 0 * op
         avg_drift = 0
         for k in 1:n_J
             iszero(efficiencies[k]) && continue
             coeff = sqrt(efficiencies[k] * rates[k])
             avg_term = Symbolics.Num(average(Jdagger[k] + J[k]))
             d = SecondQuantizedAlgebra.expand_completeness(
-                coeff * (Jdagger[k] * op + op * J[k] - avg_term * op))
+                coeff * (Jdagger[k] * op + op * J[k] - avg_term * op)
+            )
             op_drift = op_drift + d
             avg_drift = avg_drift + average(d)
         end

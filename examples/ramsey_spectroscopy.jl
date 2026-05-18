@@ -18,9 +18,9 @@ h = NLevelSpace(:atom, 2)
 
 # Seed a meanfield call to grab an MTK-aware iv `t`, then build the
 # time-dependent Hamiltonian against it.
-eqs_seed = meanfield([σ(2, 2), σ(1, 2)], -Δ*σ(2, 2), [σ(1, 2), σ(2, 2)]; rates = [Γ, ν])
+eqs_seed = meanfield([σ(2, 2), σ(1, 2)], -Δ * σ(2, 2), [σ(1, 2), σ(2, 2)]; rates = [Γ, ν])
 t = eqs_seed.iv
-H = -Δ*σ(2, 2) + f(t)*Ω/2*(σ(1, 2) + σ(2, 1))
+H = -Δ * σ(2, 2) + f(t) * Ω / 2 * (σ(1, 2) + σ(2, 1))
 
 eqs = meanfield([σ(2, 2), σ(1, 2)], H, [σ(1, 2), σ(2, 2)]; rates = [Γ, ν], iv = t)
 complete!(eqs)
@@ -33,8 +33,8 @@ sys_c = mtkcompile(sys)
 Δ_ = 0Γ_
 ν_ = 0.2Γ_
 
-tp = π/(2Ω_)
-tf = 1/(20Γ_)
+tp = π / (2Ω_)
+tf = 1 / (20Γ_)
 
 function f(t)
     if t < tp || (t > tp + tf && t < 2tp + tf)
@@ -48,7 +48,7 @@ ps = Dict(Γ => Γ_, Ω => Ω_, Δ => Δ_, ν => ν_)
 u0 = initial_values(eqs)
 
 prob = ODEProblem(sys_c, merge(u0, ps), (0.0, 2tp + tf))
-sol = solve(prob, Tsit5(), maxiters = 1e7)
+sol = solve(prob, Tsit5(), maxiters = 1.0e7)
 
 ts = sol.t
 s22 = real.(get_solution(sol, σ(2, 2), eqs).(ts))
@@ -62,7 +62,7 @@ s22_ls = zeros(length(Δ_ls))
 for i in eachindex(Δ_ls)
     ps_i = Dict(Γ => Γ_, Ω => Ω_, Δ => Δ_ls[i], ν => ν_)
     prob_i = ODEProblem(sys_c, merge(u0, ps_i), (0.0, 2tp + tf))
-    sol_i = solve(prob_i, Tsit5(); reltol = 1e-8, abstol = 1e-8)
+    sol_i = solve(prob_i, Tsit5(); reltol = 1.0e-8, abstol = 1.0e-8)
     s22_ls[i] = real(get_solution(sol_i, σ(2, 2), eqs)(sol_i.t[end]))
 end
 

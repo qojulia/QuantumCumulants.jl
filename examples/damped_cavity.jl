@@ -28,14 +28,16 @@ sys_c = mtkcompile(sys)
 
 # Set initial conditions and parameters, solve
 u0 = initial_values(eqs; defaults = Dict(average(a) => 1.0 + 0.0im))
-p  = Dict(ω => 2.0, κ => 0.5)
+p = Dict(ω => 2.0, κ => 0.5)
 
 prob = ODEProblem(sys_c, merge(u0, p), (0.0, 5.0))
-sol  = solve(prob, Tsit5(); reltol = 1e-10, abstol = 1e-12)
+sol = solve(prob, Tsit5(); reltol = 1.0e-10, abstol = 1.0e-12)
 
 # Plot vs analytical solution
-ts   = range(0.0, 5.0; length = 200)
-num  = real.(get_solution(sol, a, eqs).(ts))
-ana  = real.(exp.((-im * 2.0 - 0.5 / 2) .* ts))
-plot(ts, [num ana]; label = ["Re ⟨a⟩ (numeric)" "Re ⟨a⟩ (analytical)"],
-     xlabel = "t", linewidth = 2)
+ts = range(0.0, 5.0; length = 200)
+num = real.(get_solution(sol, a, eqs).(ts))
+ana = real.(exp.((-im * 2.0 - 0.5 / 2) .* ts))
+plot(
+    ts, [num ana]; label = ["Re ⟨a⟩ (numeric)" "Re ⟨a⟩ (analytical)"],
+    xlabel = "t", linewidth = 2
+)

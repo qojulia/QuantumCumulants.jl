@@ -44,9 +44,9 @@ function _op_index_suffix(op::SecondQuantizedAlgebra.QSym)
 end
 
 function _avg_to_var_dict(eqs::AbstractMeanFieldEquations)
-    iv   = eqs.iv
+    iv = eqs.iv
     dict = IdDict{SymbolicUtils.BasicSymbolic, Symbolics.Num}()
-    dvs  = Symbolics.Num[]
+    dvs = Symbolics.Num[]
     for avg in eqs.states
         v = _make_time_dependent_var(_stable_avg_name(avg), iv)
         dict[avg] = v
@@ -87,51 +87,55 @@ end
 Build a `ModelingToolkitBase.System` from the QC equation set. Substitutes
 Averages with real-typed `u(t)` Num variables and passes `dvs`/`ps` explicitly.
 """
-function to_system(eqs::NoiseMeanFieldEquations{O,H,Op,Jt,Jdt,R,E,S,Forward};
-                   name::Symbol) where {O,H,Op,Jt,Jdt,R,E,S}
+function to_system(
+        eqs::NoiseMeanFieldEquations{O, H, Op, Jt, Jdt, R, E, S, Forward};
+        name::Symbol
+    ) where {O, H, Op, Jt, Jdt, R, E, S}
     return _to_system_sde(eqs, name, +1)
 end
 
-function to_system(eqs::NoiseMeanFieldEquations{O,H,Op,Jt,Jdt,R,E,S,Backward};
-                   name::Symbol) where {O,H,Op,Jt,Jdt,R,E,S}
+function to_system(
+        eqs::NoiseMeanFieldEquations{O, H, Op, Jt, Jdt, R, E, S, Backward};
+        name::Symbol
+    ) where {O, H, Op, Jt, Jdt, R, E, S}
     return _to_system_sde(eqs, name, -1)
 end
 
 function _to_system_sde(eqs::NoiseMeanFieldEquations, name::Symbol, sign::Int)
     iv = eqs.iv
     iv_uw = SymbolicUtils.unwrap(iv)
-    D  = Symbolics.Differential(iv)
+    D = Symbolics.Differential(iv)
     dict, dvs = _avg_to_var_dict(eqs)
     conj_dict = _conj_substitution_dict(eqs, dict)
     drift = Vector{Symbolics.Equation}(undef, length(eqs.equations))
     ps_set = Set{SymbolicUtils.BasicSymbolic}()
     @inbounds for (i, eq) in enumerate(eqs.equations)
         rhs_conj = _substitute_conj_avgs(eq.rhs, conj_dict)
-        rhs      = SymbolicUtils.substitute(rhs_conj, dict)
+        rhs = SymbolicUtils.substitute(rhs_conj, dict)
         drift[i] = D(dict[eq.lhs]) ~ sign * rhs
         _collect_params!(ps_set, rhs, dict, iv_uw)
     end
     ps = [MTK.toparam(p) for p in ps_set]
-    return MTK.System(drift, iv, dvs, ps; name=name)
+    return MTK.System(drift, iv, dvs, ps; name = name)
 end
 
 function to_system(eqs::MeanFieldEquations; name::Symbol)
     iv = eqs.iv
     iv_uw = SymbolicUtils.unwrap(iv)
-    D  = Symbolics.Differential(iv)
+    D = Symbolics.Differential(iv)
     dict, dvs = _avg_to_var_dict(eqs)
     conj_dict = _conj_substitution_dict(eqs, dict)
     new_eqs = Vector{Symbolics.Equation}(undef, length(eqs.equations))
-    ps_set  = Set{SymbolicUtils.BasicSymbolic}()
+    ps_set = Set{SymbolicUtils.BasicSymbolic}()
     @inbounds for (i, eq) in enumerate(eqs.equations)
         rhs_conj = _substitute_conj_avgs(eq.rhs, conj_dict)
-        rhs      = SymbolicUtils.substitute(rhs_conj, dict)
+        rhs = SymbolicUtils.substitute(rhs_conj, dict)
         new_eqs[i] = D(dict[eq.lhs]) ~ rhs
         _collect_params!(ps_set, rhs, dict, iv_uw)
     end
     ps_old = collect(ps_set)
     ps = [MTK.toparam(p) for p in ps_old]
-    return MTK.System(new_eqs, iv, dvs, ps; name=name)
+    return MTK.System(new_eqs, iv, dvs, ps; name = name)
 end
 
 # Build a substitution `⟨op†⟩ → conj(state_var(⟨op⟩))` for every state
@@ -139,8 +143,10 @@ end
 # substitute the conjugate of a state without needing the conjugate to
 # also be added to `eqs.states`. (See completion.jl::find_missing: by
 # default, conjugates of states are excluded from missing-state scans.)
-function _conj_substitution_dict(eqs::AbstractMeanFieldEquations,
-                                 var_dict::AbstractDict)
+function _conj_substitution_dict(
+        eqs::AbstractMeanFieldEquations,
+        var_dict::AbstractDict
+    )
     states = Set(eqs.states)
     conj_dict = Dict{SymbolicUtils.BasicSymbolic, Any}()
     for s in eqs.states
@@ -181,8 +187,10 @@ end
 Return `Dict{Symbolics.Num, ComplexF64}` mapping each state's u(t) variable to
 its initial value. Unspecified averages default to `zero(ComplexF64)`.
 """
-function initial_values(eqs::AbstractMeanFieldEquations;
-                        defaults::AbstractDict = Dict())
+function initial_values(
+        eqs::AbstractMeanFieldEquations;
+        defaults::AbstractDict = Dict()
+    )
     dict, _ = _avg_to_var_dict(eqs)
     u0 = Dict{Symbolics.Num, ComplexF64}()
     for avg in eqs.states
@@ -197,11 +205,13 @@ end
 Query an ODESolution `sol` for the trajectory of `avg_or_op`. Accepts either a
 raw `Average` BasicSymbolic or a `QField` (which is averaged internally).
 """
-function get_solution(sol, avg::SymbolicUtils.BasicSymbolic,
-                      eqs::AbstractMeanFieldEquations)
+function get_solution(
+        sol, avg::SymbolicUtils.BasicSymbolic,
+        eqs::AbstractMeanFieldEquations
+    )
     dict, _ = _avg_to_var_dict(eqs)
     var = dict[avg]
-    return τ -> sol(τ; idxs=var)
+    return τ -> sol(τ; idxs = var)
 end
 get_solution(sol, op::QField, eqs::AbstractMeanFieldEquations) =
     get_solution(sol, average(op), eqs)

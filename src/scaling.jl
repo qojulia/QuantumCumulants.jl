@@ -12,7 +12,7 @@ eager normal-ordering, so this function is conservative.
 function scale!(eqs::MeanFieldEquations)
     n = length(eqs.states)
     n <= 1 && return eqs
-    canon  = IdDict{SymbolicUtils.BasicSymbolic, SymbolicUtils.BasicSymbolic}()
+    canon = IdDict{SymbolicUtils.BasicSymbolic, SymbolicUtils.BasicSymbolic}()
     seen_keys = Dict{Any, Int}()
     keep_idx = Int[]
     for (k, s) in enumerate(eqs.states)
@@ -32,7 +32,7 @@ function scale!(eqs::MeanFieldEquations)
     new_op_eqs = Symbolics.Equation[]
     for i in keep_idx
         new_rhs = isempty(sub) ? eqs.equations[i].rhs :
-                  SymbolicUtils.substitute(eqs.equations[i].rhs, sub)
+            SymbolicUtils.substitute(eqs.equations[i].rhs, sub)
         push!(new_eqs, eqs.states[i] ~ new_rhs)
         push!(new_states, eqs.states[i])
         push!(new_ops, eqs.operators[i])

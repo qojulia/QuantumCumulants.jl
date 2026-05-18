@@ -19,12 +19,12 @@ function get_order(x::SymbolicUtils.BasicSymbolic)
     # its constituent leaf averages, not the order of `undo_average`'s
     # operator-product re-assembly.
     if SecondQuantizedAlgebra.is_average(x) &&
-       SymbolicUtils.iscall(x) &&
-       SymbolicUtils.operation(x) === SecondQuantizedAlgebra.sym_average
+            SymbolicUtils.iscall(x) &&
+            SymbolicUtils.operation(x) === SecondQuantizedAlgebra.sym_average
         return get_order(SecondQuantizedAlgebra.undo_average(x))
     end
     if SymbolicUtils.iscall(x)
-        return maximum(get_order, SymbolicUtils.arguments(x); init=0)
+        return maximum(get_order, SymbolicUtils.arguments(x); init = 0)
     end
     return 0
 end
@@ -67,7 +67,7 @@ function _term_cumulant(ops::Vector, n::Int)
     for k in 1:n
         for p in partitions(ops, k)
             m = length(p)
-            coeff = factorial(m-1) * (-1)^(m-1)
+            coeff = factorial(m - 1) * (-1)^(m - 1)
             prod = 1
             for block in p
                 prod = prod * average(_prod_ops(block))
@@ -101,8 +101,10 @@ function _has_average(x::SymbolicUtils.BasicSymbolic)
 end
 _has_average(::Any) = false
 
-function cumulant_expansion(x::SymbolicUtils.BasicSymbolic, order::Int;
-                            simplify::Bool = true, mix_choice = maximum)
+function cumulant_expansion(
+        x::SymbolicUtils.BasicSymbolic, order::Int;
+        simplify::Bool = true, mix_choice = maximum
+    )
     if SecondQuantizedAlgebra.is_average(x)
         get_order(x) <= order && return x
         return _expand_average(SecondQuantizedAlgebra.undo_average(x), order)
@@ -116,8 +118,10 @@ function cumulant_expansion(x::SymbolicUtils.BasicSymbolic, order::Int;
     return x
 end
 
-function cumulant_expansion(x::SymbolicUtils.BasicSymbolic, order::Vector{Int};
-                            simplify::Bool = true, mix_choice = maximum)
+function cumulant_expansion(
+        x::SymbolicUtils.BasicSymbolic, order::Vector{Int};
+        simplify::Bool = true, mix_choice = maximum
+    )
     if SecondQuantizedAlgebra.is_average(x)
         ops = SecondQuantizedAlgebra.undo_average(x)
         aons = collect(SecondQuantizedAlgebra.acts_on(ops))
@@ -157,7 +161,7 @@ function _expand_product(args::Vector, order::Int)
     for k in 2:n
         for p in partitions(args, k)
             m = length(p)
-            coeff = -factorial(m-1) * (-1)^(m-1)
+            coeff = -factorial(m - 1) * (-1)^(m - 1)
             prod = 1
             for block in p
                 if length(block) > order
@@ -178,15 +182,23 @@ end
 Apply `cumulant_expansion` to every RHS in `eqs.equations`, returning a new
 struct with the same shape and the supplied order stored in `eqs.order`.
 """
-function cumulant_expansion(eqs::MeanFieldEquations, order;
-                            simplify::Bool = true, mix_choice = maximum)
+function cumulant_expansion(
+        eqs::MeanFieldEquations, order;
+        simplify::Bool = true, mix_choice = maximum
+    )
     order_vec = _normalize_order(order, eqs)
-    new_eqs = [eq.lhs ~ cumulant_expansion(eq.rhs, order_vec;
-                                            simplify, mix_choice)
-               for eq in eqs.equations]
-    return MeanFieldEquations(new_eqs, eqs.operator_equations, eqs.states,
-                              eqs.operators, eqs.hamiltonian, eqs.jumps,
-                              eqs.jumps_dagger, eqs.rates, eqs.iv, order_vec)
+    new_eqs = [
+        eq.lhs ~ cumulant_expansion(
+                eq.rhs, order_vec;
+                simplify, mix_choice
+            )
+            for eq in eqs.equations
+    ]
+    return MeanFieldEquations(
+        new_eqs, eqs.operator_equations, eqs.states,
+        eqs.operators, eqs.hamiltonian, eqs.jumps,
+        eqs.jumps_dagger, eqs.rates, eqs.iv, order_vec
+    )
 end
 
 function _normalize_order(order::Int, eqs)

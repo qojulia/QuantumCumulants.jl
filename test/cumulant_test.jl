@@ -6,9 +6,13 @@ using Test
 # Helper: robust zero check across QAdd, Number, and BasicSymbolic.
 # Uses expand() because SymbolicUtils simplify doesn't always collapse
 # polynomially-equivalent symbolic-average products (different Mul-arg ordering).
-_iz(x) = (x isa Number ? iszero(x) :
-          (x isa SymbolicUtils.BasicSymbolic ? SymbolicUtils._iszero(expand(x)) :
-           iszero(x)))
+_iz(x) = (
+    x isa Number ? iszero(x) :
+        (
+            x isa SymbolicUtils.BasicSymbolic ? SymbolicUtils._iszero(expand(x)) :
+            iszero(x)
+        )
+)
 
 @testset "get_order" begin
     hc = FockSpace(:cavity)
@@ -40,16 +44,23 @@ end
     @test isequal(average((a' * a)^2), average(a' * a * a' * a))
 
     @test _iz(cumulant_expansion(average(a^2), 1) - average(a)^2)
-    @test _iz(cumulant_expansion(average(a' * a^2), 2) -
-              (average(a') * average(a^2) +
-               -2 * average(a') * average(a)^2 +
-               2 * average(a) * average(a' * a)))
+    @test _iz(
+        cumulant_expansion(average(a' * a^2), 2) -
+            (
+            average(a') * average(a^2) +
+                -2 * average(a') * average(a)^2 +
+                2 * average(a) * average(a' * a)
+        )
+    )
 
-    # Master test_average.jl: conjugate of an Average. v1 lacks a public
-    # `_conj`/`qconj` that maps `⟨2im·a'·σ⟩ ↦ (-2im)·⟨a·σ'⟩` directly —
-    # `conj` wraps in a literal `conj(...)` call and `qconj` errors on
-    # Average. Logged in TODO.md.
-    @test_skip _iz(conj(average(2im * a' * σ)) - (-2im) * average(a * σ'))
+    # Conjugate of an Average via SQA's `inner_adjoint`: pushes conjugation
+    # inside the average and adjoints the operator. The target is routed
+    # through `average(QAdd)` so both sides use SQA's `Symbolics.IM`
+    # encoding for `1im` and the diff simplifies to 0.
+    @test _iz(
+        SecondQuantizedAlgebra.inner_adjoint(average(2im * a' * σ)) -
+            average(-2im * a * σ')
+    )
 
     # Linear over scalar params.
     @variables ωc ωa
@@ -105,13 +116,13 @@ end
     @test _iz(
         cumulant(a * b * c) - (
             average(a * b * c) + 2 * average(a) * average(b) * average(c) -
-            average(a) * average(b * c) - average(b) * average(a * c) -
-            average(c) * average(a * b)
+                average(a) * average(b * c) - average(b) * average(a * c) -
+                average(c) * average(a * b)
         ),
     )
     @test _iz(
         average(a * b * c * d) - cumulant(a * b * c * d) -
-        cumulant_expansion(average(a * b * c * d), 3),
+            cumulant_expansion(average(a * b * c * d), 3),
     )
 end
 
@@ -126,11 +137,13 @@ end
     @test _iz(cumulant_expansion(average(a' * a), [2, 1]) - average(a' * a))
     @test _iz(
         cumulant_expansion(average(a' * σ(1, 2)), [2, 1]; mix_choice = minimum) -
-        average(a') * average(σ(1, 2)),
+            average(a') * average(σ(1, 2)),
     )
 
-    he = meanfield([a' * a, σ(2, 2)],
-                   a' * a + σ(2, 2) + a' * σ(1, 2) + a * σ(2, 1))
+    he = meanfield(
+        [a' * a, σ(2, 2)],
+        a' * a + σ(2, 2) + a' * σ(1, 2) + a * σ(2, 1)
+    )
     he_avg1 = cumulant_expansion(he, 2)
     he_avg2 = cumulant_expansion(he, [2, 1])
     he_avg3 = cumulant_expansion(he, [2, 1]; mix_choice = minimum)
@@ -155,8 +168,10 @@ end
         sum(Ω * (σ(3, 1, i) + σ(1, 3, i)) for i in 1:N) -
         sum(Δ3 * σ(3, 3, i) for i in 1:N)
 
-    J = [a; [σ(1, 2, i) for i in 1:N]; [σ(1, 3, i) for i in 1:N];
-         [σ(2, 3, i) for i in 1:N]]
+    J = [
+        a; [σ(1, 2, i) for i in 1:N]; [σ(1, 3, i) for i in 1:N];
+        [σ(2, 3, i) for i in 1:N]
+    ]
     rates = [κ; [Γ12 for i in 1:N]; [Γ13 for i in 1:N]; [Γ23 for i in 1:N]]
 
     ops = [a'a, σ(2, 2, 1), σ(3, 3, 1)]

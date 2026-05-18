@@ -16,20 +16,22 @@ h = hc ⊗ hm
 
 @variables Δ ωm E G κ
 
-H = -Δ*a'*a + ωm*b'*b + G*a'*a*(b + b') + E*(a + a')
+H = -Δ * a' * a + ωm * b' * b + G * a' * a * (b + b') + E * (a + a')
 
 J = [a]
 rates = [κ]
 
-ops = [a'*a, b'*b]
+ops = [a' * a, b' * b]
 eqs = meanfield(ops, H, J; rates = rates, order = 2, simplify = false)
 complete!(eqs; simplify = false)
 
 sys = to_system(eqs; name = :optomech)
 sys_c = mtkcompile(sys)
 
-u0 = initial_values(eqs;
-    defaults = Dict(average(b' * b) => 4e6 + 0im))
+u0 = initial_values(
+    eqs;
+    defaults = Dict(average(b' * b) => 4.0e6 + 0im)
+)
 
 p0 = Dict(Δ => -10.0, ωm => 1.0, E => 200.0, G => 0.0125, κ => 20.0)
 prob = ODEProblem(sys_c, merge(u0, p0), (0.0, 60000.0))

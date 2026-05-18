@@ -25,11 +25,15 @@ rates = [κ, γ, η, 2 * χ]
 efficiencies = [ξ, 0, 0, 0]
 
 ops = [a', a' * a, σ(2, 2), σ(1, 2), a * a]
-eqs = meanfield(ops, H, J;
-                rates = rates, efficiencies = efficiencies,
-                direction = Forward(), order = 2, simplify = false)
+eqs = meanfield(
+    ops, H, J;
+    rates = rates, efficiencies = efficiencies,
+    direction = Forward(), order = 2, simplify = false
+)
 
 @assert eqs isa NoiseMeanFieldEquations
 @assert eqs.direction isa Forward
-println("Built NoiseMeanFieldEquations: ", length(eqs.equations), " drift / ",
-        length(eqs.noise_equations), " noise equations.")
+println(
+    "Built NoiseMeanFieldEquations: ", length(eqs.equations), " drift / ",
+    length(eqs.noise_equations), " noise equations."
+)

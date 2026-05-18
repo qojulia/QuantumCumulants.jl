@@ -72,8 +72,14 @@ end
     # reduced form `(-ig)a + (-iωa)σ + (2ig)a·σ_ee`; here we write the
     # equivalent unreduced target so the assertion passes literally.
     ds = commutator(1im * H, σ)
-    @test iszero(simplify(ds - ((-1im * g) * a * σgg + (-1im * ωa) * σ +
-                                 (1im * g) * a * σee)))
+    @test iszero(
+        simplify(
+            ds - (
+                (-1im * g) * a * σgg + (-1im * ωa) * σ +
+                    (1im * g) * a * σee
+            )
+        )
+    )
 
     dn = commutator(1im * H, a' * a)
     @test iszero(simplify(dn - ((-1im * g) * a' * σ + (1im * g) * a * σ')))
@@ -95,8 +101,14 @@ end
     @test iszero(simplify(da - (-im * ωc * a + (-im * g) * σ)))
 
     ds = commutator(im * H, σ)
-    @test iszero(simplify(ds - ((-im * g) * a * σgg + (-im * ωa) * σ +
-                                 (im * g) * a * σee)))
+    @test iszero(
+        simplify(
+            ds - (
+                (-im * g) * a * σgg + (-im * ωa) * σ +
+                    (im * g) * a * σee
+            )
+        )
+    )
 
     dn = commutator(im * H, a' * a)
     @test iszero(simplify(dn - ((-im * g) * a' * σ + (im * g) * a * σ')))
@@ -128,16 +140,26 @@ end
     J = [a, σ]
     he_diss = meanfield([a, σ, σ' * σ], H, J; rates = [κ, γ])
 
-    @test _iz(he_diss.equations[1].rhs -
-              average((-im * ωc - 0.5κ) * a + (-im * g) * σ))
+    @test _iz(
+        he_diss.equations[1].rhs -
+            average((-im * ωc - 0.5κ) * a + (-im * g) * σ)
+    )
     # `meanfield` applies SQA's `expand_completeness`, so σ_gg gets
     # rewritten as `1 - σ_ee` on every RHS. Match that basis here.
-    @test _iz(he_diss.equations[2].rhs -
-              average(expand_completeness((-im * g) * a * σgg +
-                                          (-im * ωa - 0.5γ) * σ +
-                                          (im * g) * a * σee)))
-    @test _iz(he_diss.equations[3].rhs -
-              average((-γ) * σee + (im * g) * a' * σ + (-im * g) * a * σ'))
+    @test _iz(
+        he_diss.equations[2].rhs -
+            average(
+            expand_completeness(
+                (-im * g) * a * σgg +
+                    (-im * ωa - 0.5γ) * σ +
+                    (im * g) * a * σee
+            )
+        )
+    )
+    @test _iz(
+        he_diss.equations[3].rhs -
+            average((-γ) * σee + (im * g) * a' * σ + (-im * g) * a * σ')
+    )
 end
 
 @testset "meanfield: single-atom laser drift matches analytic" begin
@@ -155,15 +177,22 @@ end
     J = [a, σ, σ']
     he_laser = meanfield([a' * a, σ' * σ, a' * σ], H, J; rates = [κ, γ, ν])
 
-    @test _iz(he_laser.equations[1].rhs -
-              average((-κ) * a' * a + (-im * g) * a' * σ + (im * g) * a * σ'))
+    @test _iz(
+        he_laser.equations[1].rhs -
+            average((-κ) * a' * a + (-im * g) * a' * σ + (im * g) * a * σ')
+    )
     # `meanfield` applies SQA's `expand_completeness`, so σ_gg gets
     # rewritten as `1 - σ_ee` and the analytic form ν*σ_gg - γ*σ_ee
     # collapses to ν + (-ν - γ)*σ_ee. Use the same expansion here.
-    @test _iz(he_laser.equations[2].rhs -
-              average(expand_completeness(
-                  ν * σgg - γ * σee +
-                  (im * g) * a' * σ + (-im * g) * a * σ')))
+    @test _iz(
+        he_laser.equations[2].rhs -
+            average(
+            expand_completeness(
+                ν * σgg - γ * σee +
+                    (im * g) * a' * σ + (-im * g) * a * σ'
+            )
+        )
+    )
 end
 
 @testset "meanfield: Jaynes-Cummings system shape" begin

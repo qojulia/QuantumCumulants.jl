@@ -52,9 +52,7 @@ end
     eqs = meanfield(ops, H, J; rates = rates, order = 2)
     @test length(eqs.equations) == 3
     @test eqs isa MeanFieldEquations
-    # NOTE: `complete(eqs)` for this collective-JC setup hits SQA v0.5's
-    # strict "summation index appears in both factors" guard during the
-    # inner `commutator(im*H, ops[i])`. See TODO.md for the deferred fix.
-    # The drift derivation itself succeeds; this asserts the structural
-    # contract of `meanfield(...)` on indexed inputs.
+    ceqs = complete(eqs)
+    @test ceqs isa MeanFieldEquations
+    @test length(ceqs.equations) >= 3
 end

@@ -28,7 +28,9 @@ H = ω * a' * a + Ω / 2 * (σ(2, 2) - σ(1, 1)) +
 J = [b, σ(1, 2)]
 rates = [κ, γ]
 
-eqs = meanfield([a, a' * a, σ(2, 2)], H, J;
-                rates = rates, order = 2, simplify = false)
+eqs = meanfield(
+    [a, a' * a, σ(2, 2)], H, J;
+    rates = rates, order = 2, simplify = false
+)
 println("Generated ", length(eqs.equations), " equations.")
 println("First eq: ", eqs.equations[1])
