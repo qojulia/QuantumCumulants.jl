@@ -15,14 +15,15 @@ function find_missing(
         eqs::AbstractMeanFieldEquations; filter_func = nothing,
         get_adjoints::Bool = true
     )
-    seen = Set{SymbolicUtils.BasicSymbolic}()
+    canon = _build_canonical_indices(eqs)
+    seen_keys = Set{SQA.QAdd}()
     for s in eqs.states
-        push!(seen, s)
-        push!(seen, _avg_conj(s))
+        push!(seen_keys, _canonical_key(s, canon))
+        push!(seen_keys, _canonical_key(_avg_conj(s), canon))
     end
     missing_states = SymbolicUtils.BasicSymbolic[]
     for eq in eqs.equations
-        _collect_missing!(missing_states, seen, eq.rhs, get_adjoints)
+        _collect_missing!(missing_states, seen_keys, canon, eq.rhs, get_adjoints)
     end
     if filter_func !== nothing
         filter!(filter_func, missing_states)
@@ -30,22 +31,84 @@ function find_missing(
     return missing_states
 end
 
-function _collect_missing!(missing_states, seen, x, get_adjoints::Bool = true)
-    if x isa SymbolicUtils.BasicSymbolic
-        if _is_leaf_average(x)
-            x in seen && return
-            push!(seen, x)
-            get_adjoints || push!(seen, _avg_conj(x))
-            push!(missing_states, x)
-            return
-        end
-        if SymbolicUtils.iscall(x)
-            for a in SymbolicUtils.arguments(x)
-                _collect_missing!(missing_states, seen, a, get_adjoints)
-            end
-        end
+function _collect_missing!(
+        missing_states, seen_keys, canon, x, get_adjoints::Bool = true
+    )
+    x isa SymbolicUtils.BasicSymbolic || return
+    if _is_leaf_average(x)
+        key = _canonical_key(x, canon)
+        key in seen_keys && return
+        push!(seen_keys, key)
+        get_adjoints || push!(seen_keys, _canonical_key(_avg_conj(x), canon))
+        push!(missing_states, x)
+        return
+    end
+    SymbolicUtils.iscall(x) || return
+    for a in SymbolicUtils.arguments(x)
+        _collect_missing!(missing_states, seen_keys, canon, a, get_adjoints)
     end
     return
+end
+
+# Two leaf averages are alpha-equivalent — and therefore the same physical
+# state — when their operator structures coincide after renaming free or
+# bound indices on each Hilbert subspace to a deterministic canonical name.
+# The canonical name comes from the user's own index vocabulary: for each
+# subspace, the indices the user constructed in declaration order. State
+# identity never depends on a name the algebra invented.
+const _CanonIndex = Dict{Int, Vector{SQA.Index}}
+
+function _build_canonical_indices(eqs::AbstractMeanFieldEquations)
+    canon = _CanonIndex()
+    sources = Iterators.flatten(
+        (
+            (eqs.hamiltonian,), eqs.operators, eqs.jumps, eqs.jumps_dagger,
+        )
+    )
+    for src in sources, idx in SQA.get_indices(src)
+        v = get!(canon, idx.space_index, SQA.Index[])
+        idx in v || push!(v, idx)
+    end
+    for v in values(canon)
+        sort!(v, by = idx -> idx.name)
+    end
+    return canon
+end
+
+function _canonical_key(x::SymbolicUtils.BasicSymbolic, canon::_CanonIndex)
+    op = SQA.undo_average(x)
+    encountered = SQA.Index[]
+    for term in keys(op.arguments), o in term.ops
+        idx = o.index
+        SQA.has_index(idx) || continue
+        idx in encountered && continue
+        push!(encountered, idx)
+    end
+    pos_by_space = Dict{Int, Int}()
+    result = op
+    for idx in encountered
+        pos = get(pos_by_space, idx.space_index, 0) + 1
+        pos_by_space[idx.space_index] = pos
+        space_canon = get(canon, idx.space_index, nothing)
+        space_canon === nothing && continue
+        pos <= length(space_canon) || continue
+        target = space_canon[pos]
+        target == idx && continue
+        result = SQA.change_index(result, idx, target)
+    end
+    return SQA.QAdd(
+        result.arguments, SQA.Index[]
+    )
+end
+
+# Drop sum-scope `.indices` so the derived operator represents the
+# index-parametrized family rather than a sum-wrapped scalar.
+function _undo_for_derivation(m::SymbolicUtils.BasicSymbolic)
+    op = SQA.undo_average(m)
+    op isa SQA.QAdd || return op
+    return SQA.QAdd(
+        op.arguments, SQA.Index[]
+    )
 end
 
 # Conjugate of a leaf average: ⟨op⟩ ↦ ⟨op'⟩. We build it via SQA's `average`
@@ -54,17 +117,17 @@ end
 # `meanfield`.
 function _avg_conj(x::SymbolicUtils.BasicSymbolic)
     _is_leaf_average(x) || return x
-    op = SecondQuantizedAlgebra.undo_average(x)
+    op = SQA.undo_average(x)
     return average(adjoint(op))
 end
 
-# `SecondQuantizedAlgebra.is_average` returns true for the whole AvgSym
+# `SQA.is_average` returns true for the whole AvgSym
 # expression tree (e.g. ⟨a⟩*⟨σ₂₂⟩, which is a product of averages, still has
 # symtype === AvgSym). For closure detection we want only *leaf* averages —
 # the ones produced by `average(op)` directly, where the head is `sym_average`.
 function _is_leaf_average(x::SymbolicUtils.BasicSymbolic)
-    SecondQuantizedAlgebra.is_average(x) || return false
-    return SymbolicUtils.operation(x) === SecondQuantizedAlgebra.sym_average
+    SQA.is_average(x) || return false
+    return SymbolicUtils.operation(x) === SQA.sym_average
 end
 
 """
@@ -87,7 +150,7 @@ function complete!(
     for _ in 1:max_iter
         missing_states = find_missing(eqs; filter_func, get_adjoints)
         isempty(missing_states) && return eqs
-        new_ops = QField[SecondQuantizedAlgebra.undo_average(m) for m in missing_states]
+        new_ops = QField[_undo_for_derivation(m) for m in missing_states]
         new_eqs = _derive_for(eqs, new_ops; simplify, mix_choice)
         if filter_func !== nothing
             _filter_rhs!(new_eqs, filter_func)
@@ -107,7 +170,7 @@ end
 
 function _filter_expr(x, filter_func)
     if x isa SymbolicUtils.BasicSymbolic
-        if SecondQuantizedAlgebra.is_average(x)
+        if SQA.is_average(x)
             return filter_func(x) ? x : 0
         end
         if SymbolicUtils.iscall(x) && _has_average(x)

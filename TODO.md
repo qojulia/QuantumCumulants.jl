@@ -4,20 +4,6 @@ These were identified while porting the master test suite. Each item is a
 behavior the master branch handled but the v1 rewrite either drops, weakens,
 or gets wrong. Listed in rough priority order.
 
-## SQA v0.5 strict index conflict in collective indexed Hamiltonians
-
-**Symptom:** master test_indexed_meanfield's collective-decay JC setup
-(`H` builds `Σ(g(i)*(a'*σ(1,2,i) + ...), i)` and ops use `σ(_,_,k)`) errors
-with `ArgumentError: Summation index i appears in both factors` during the
-inner `commutator(im*H, op)` step in v1, even though master accepted it.
-
-**Status:** appears to be a SQA-level change (v0.5 stricter index hygiene)
-rather than QC code. The same construction worked under SQA in master.
-
-**Workaround:** use scalar (non-indexed) ops in collective tests, or
-explicitly declare index disjointness via `assume_distinct_index` if that
-mechanism exists in v0.5.
-
 ## `Σ(..., i, j; non_equal=true)` kwarg removed
 
 **Symptom:** master constructed `DoubleSum(_, i, j; non_equal=true)` to

@@ -53,7 +53,7 @@ Non-mutating variant.
 scale(eqs::MeanFieldEquations) = scale!(_copy(eqs))
 
 function _state_canonical_key(avg::SymbolicUtils.BasicSymbolic)
-    op = SecondQuantizedAlgebra.undo_average(avg)
+    op = SQA.undo_average(avg)
     return _qfield_key(op)
 end
 
@@ -66,7 +66,7 @@ function _qfield_key(op::QAdd)
     sort!(out; by = repr)
     return out
 end
-_qfield_key(op::SecondQuantizedAlgebra.QSym) = _op_shape_key(op)
+_qfield_key(op::SQA.QSym) = _op_shape_key(op)
 
-_op_shape_key(op::SecondQuantizedAlgebra.QSym) =
+_op_shape_key(op::SQA.QSym) =
     (string(typeof(op)), op.name, op.space_index)

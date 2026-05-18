@@ -5,6 +5,7 @@ using Reexport: @reexport
 
 using SecondQuantizedAlgebra: SecondQuantizedAlgebra, QField, QAdd,
     average, commutator, operators
+import SecondQuantizedAlgebra as SQA
 using SymbolicUtils: SymbolicUtils
 using Symbolics: Symbolics, @variables
 using ModelingToolkitBase: ModelingToolkitBase

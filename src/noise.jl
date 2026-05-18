@@ -19,7 +19,7 @@ function _build_noise_equations_forward(ops, J, Jdagger, rates, efficiencies, si
         avg_drift = 0
         for k in 1:n_J
             iszero(efficiencies[k]) && continue
-            d = SecondQuantizedAlgebra.expand_completeness(
+            d = SQA.expand_completeness(
                 _noise_drift_one(op, J[k], Jdagger[k], rates[k], efficiencies[k])
             )
             op_drift = op_drift + d
@@ -44,7 +44,7 @@ function _build_noise_equations_backward(ops, J, Jdagger, rates, efficiencies, s
             iszero(efficiencies[k]) && continue
             coeff = sqrt(efficiencies[k] * rates[k])
             avg_term = Symbolics.Num(average(Jdagger[k] + J[k]))
-            d = SecondQuantizedAlgebra.expand_completeness(
+            d = SQA.expand_completeness(
                 coeff * (Jdagger[k] * op + op * J[k] - avg_term * op)
             )
             op_drift = op_drift + d

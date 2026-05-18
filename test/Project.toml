@@ -1,7 +1,5 @@
 [deps]
 Aqua = "4c88cf16-eb10-579e-8560-4a9242c79595"
-SymbolicUtils = "d1185830-fcd6-423d-90d6-eec64667417b"
-Symbolics = "0c5d862f-8b57-4792-8d23-62f2024744c7"
 CheckConcreteStructs = "73c92db5-9da6-4938-911a-6443a7e94a58"
 DiffEqNoiseProcess = "77a26b50-5914-5dd7-bc55-306e6241c503"
 ExplicitImports = "7d51a73a-1435-4ff3-83d9-f097790105c7"
@@ -13,8 +11,11 @@ QuantumCumulants = "35bcea6d-e19f-57db-af74-8011de6c7255"
 QuantumOptics = "6e0679c1-51ea-5a7c-ac74-d61b76210b0c"
 QuantumOpticsBase = "4f57444f-1401-5e15-980d-4471b28d5678"
 Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
+SecondQuantizedAlgebra = "f7aa4685-e143-4cb6-a7f3-073579757907"
 SteadyStateDiffEq = "9672c7b4-1e72-59bd-8a11-6ac3964bc41f"
 StochasticDiffEq = "789caeaf-c7a9-5a7d-9973-96adeb23e2a0"
+SymbolicUtils = "d1185830-fcd6-423d-90d6-eec64667417b"
+Symbolics = "0c5d862f-8b57-4792-8d23-62f2024744c7"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [compat]

@@ -1,6 +1,6 @@
 function _stable_avg_name(avg::SymbolicUtils.BasicSymbolic)
-    @assert SecondQuantizedAlgebra.is_average(avg) "expected an Average BasicSymbolic"
-    op = SecondQuantizedAlgebra.undo_average(avg)
+    @assert SQA.is_average(avg) "expected an Average BasicSymbolic"
+    op = SQA.undo_average(avg)
     s = "avg_" * _op_name_chunk(op)
     return Symbol(s)
 end
@@ -13,33 +13,33 @@ function _op_name_chunk(op::QAdd)
     end
     return join(chunks, "_plus_")
 end
-function _op_name_chunk(op::SecondQuantizedAlgebra.QSym)
+function _op_name_chunk(op::SQA.QSym)
     base = string(op.name)
     extra = _op_name_extra(op)
     return isempty(extra) ? base : base * extra
 end
 
-function _op_name_extra(op::SecondQuantizedAlgebra.QSym)
+function _op_name_extra(op::SQA.QSym)
     return _op_index_suffix(op)
 end
-function _op_name_extra(op::SecondQuantizedAlgebra.Transition)
+function _op_name_extra(op::SQA.Transition)
     i = op.i isa Symbol ? string(op.i) : string(Int(op.i))
     j = op.j isa Symbol ? string(op.j) : string(Int(op.j))
     return "_" * i * j * _op_index_suffix(op)
 end
-_op_name_extra(op::SecondQuantizedAlgebra.Destroy) = _op_index_suffix(op)
-_op_name_extra(op::SecondQuantizedAlgebra.Create) = "_dag" * _op_index_suffix(op)
-function _op_name_extra(op::SecondQuantizedAlgebra.Pauli)
+_op_name_extra(op::SQA.Destroy) = _op_index_suffix(op)
+_op_name_extra(op::SQA.Create) = "_dag" * _op_index_suffix(op)
+function _op_name_extra(op::SQA.Pauli)
     return "_" * string(Int(op.axis)) * _op_index_suffix(op)
 end
-function _op_name_extra(op::SecondQuantizedAlgebra.Spin)
+function _op_name_extra(op::SQA.Spin)
     return "_" * string(Int(op.axis)) * _op_index_suffix(op)
 end
 
-function _op_index_suffix(op::SecondQuantizedAlgebra.QSym)
+function _op_index_suffix(op::SQA.QSym)
     isdefined(op, :index) || return ""
     idx = op.index
-    idx === SecondQuantizedAlgebra.NO_INDEX && return ""
+    idx === SQA.NO_INDEX && return ""
     return "_" * string(idx.name)
 end
 
@@ -160,10 +160,10 @@ function _conj_substitution_dict(
 end
 
 function _avg_conj_for_codegen(x::SymbolicUtils.BasicSymbolic)
-    SecondQuantizedAlgebra.is_average(x) || return x
+    SQA.is_average(x) || return x
     SymbolicUtils.iscall(x) || return x
-    SymbolicUtils.operation(x) === SecondQuantizedAlgebra.sym_average || return x
-    op = SecondQuantizedAlgebra.undo_average(x)
+    SymbolicUtils.operation(x) === SQA.sym_average || return x
+    op = SQA.undo_average(x)
     return average(adjoint(op))
 end
 
@@ -175,7 +175,7 @@ function _substitute_conj_avgs(x, conj_dict)
     end
     SymbolicUtils.iscall(x) || return x
     op = SymbolicUtils.operation(x)
-    op === SecondQuantizedAlgebra.sym_average && return x
+    op === SQA.sym_average && return x
     args = SymbolicUtils.arguments(x)
     new_args = Any[_substitute_conj_avgs(a, conj_dict) for a in args]
     return op(new_args...)

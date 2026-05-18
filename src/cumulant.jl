@@ -7,7 +7,7 @@ Highest moment order appearing in `expr`. Numbers have order 0; bare operators
 have order 1; products have order equal to the number of operator factors.
 """
 get_order(::Number) = 0
-get_order(::SecondQuantizedAlgebra.QSym) = 1
+get_order(::SQA.QSym) = 1
 function get_order(q::QAdd)
     isempty(q.arguments) && return 0
     return maximum(length(t.ops) for (t, _) in q.arguments)
@@ -18,10 +18,10 @@ function get_order(x::SymbolicUtils.BasicSymbolic)
     # but its "order" for cumulant-truncation purposes is the max order of
     # its constituent leaf averages, not the order of `undo_average`'s
     # operator-product re-assembly.
-    if SecondQuantizedAlgebra.is_average(x) &&
+    if SQA.is_average(x) &&
             SymbolicUtils.iscall(x) &&
-            SymbolicUtils.operation(x) === SecondQuantizedAlgebra.sym_average
-        return get_order(SecondQuantizedAlgebra.undo_average(x))
+            SymbolicUtils.operation(x) === SQA.sym_average
+        return get_order(SQA.undo_average(x))
     end
     if SymbolicUtils.iscall(x)
         return maximum(get_order, SymbolicUtils.arguments(x); init = 0)
@@ -38,7 +38,7 @@ _prod_ops(block::AbstractVector) = isempty(block) ? 1 : reduce(*, block)
 
 The `n`-th joint cumulant of `op` (signed sum over partitions of length n).
 """
-function cumulant(op::SecondQuantizedAlgebra.QSym, n::Int = 1; simplify::Bool = true)
+function cumulant(op::SQA.QSym, n::Int = 1; simplify::Bool = true)
     return n == 1 ? average(op) : 0
 end
 
@@ -53,8 +53,8 @@ function cumulant(op::QAdd, n::Int = get_order(op); simplify::Bool = true)
 end
 
 function cumulant(avg::SymbolicUtils.BasicSymbolic, args...; kw...)
-    if SecondQuantizedAlgebra.is_average(avg)
-        return cumulant(SecondQuantizedAlgebra.undo_average(avg), args...; kw...)
+    if SQA.is_average(avg)
+        return cumulant(SQA.undo_average(avg), args...; kw...)
     end
     throw(ArgumentError("cumulant expects an Average or QField"))
 end
@@ -92,7 +92,7 @@ cumulant_expansion(eqs::MeanFieldEquations, ::Nothing; kw...) = eqs
 
 # Returns true if the expression tree contains any averaged subexpression.
 function _has_average(x::SymbolicUtils.BasicSymbolic)
-    SecondQuantizedAlgebra.is_average(x) && return true
+    SQA.is_average(x) && return true
     SymbolicUtils.iscall(x) || return false
     for a in SymbolicUtils.arguments(x)
         a isa SymbolicUtils.BasicSymbolic && _has_average(a) && return true
@@ -105,9 +105,9 @@ function cumulant_expansion(
         x::SymbolicUtils.BasicSymbolic, order::Int;
         simplify::Bool = true, mix_choice = maximum
     )
-    if SecondQuantizedAlgebra.is_average(x)
+    if SQA.is_average(x)
         get_order(x) <= order && return x
-        return _expand_average(SecondQuantizedAlgebra.undo_average(x), order)
+        return _expand_average(SQA.undo_average(x), order)
     end
     if SymbolicUtils.iscall(x) && _has_average(x)
         op = SymbolicUtils.operation(x)
@@ -122,9 +122,9 @@ function cumulant_expansion(
         x::SymbolicUtils.BasicSymbolic, order::Vector{Int};
         simplify::Bool = true, mix_choice = maximum
     )
-    if SecondQuantizedAlgebra.is_average(x)
-        ops = SecondQuantizedAlgebra.undo_average(x)
-        aons = collect(SecondQuantizedAlgebra.acts_on(ops))
+    if SQA.is_average(x)
+        ops = SQA.undo_average(x)
+        aons = collect(SQA.acts_on(ops))
         ord = isempty(aons) ? maximum(order) : mix_choice(order[k] for k in aons)
         get_order(x) <= ord && return x
         return _expand_average(ops, ord)
@@ -209,6 +209,6 @@ _normalize_order(order::Vector{Int}, _) = order
 _normalize_order(::Nothing, _) = nothing
 
 function _nspaces(op::QField)
-    aons = SecondQuantizedAlgebra.acts_on(op)
+    aons = SQA.acts_on(op)
     return isempty(aons) ? 1 : maximum(aons)
 end
