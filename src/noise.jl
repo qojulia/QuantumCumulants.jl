@@ -33,26 +33,9 @@ function _build_noise_equations_forward(ops, J, Jdagger, rates, efficiencies, si
 end
 
 function _build_noise_equations_backward(ops, J, Jdagger, rates, efficiencies, simplify::Bool)
-    n_ops = length(ops)
-    n_J = length(J)
-    op_noise = Vector{Symbolics.Equation}(undef, n_ops)
-    noise = Vector{Symbolics.Equation}(undef, n_ops)
-    @inbounds for (i, op) in enumerate(ops)
-        op_drift = 0 * op
-        avg_drift = 0
-        for k in 1:n_J
-            iszero(efficiencies[k]) && continue
-            coeff = sqrt(efficiencies[k] * rates[k])
-            avg_term = Symbolics.Num(average(Jdagger[k] + J[k]))
-            d = SQA.expand_completeness(
-                coeff * (Jdagger[k] * op + op * J[k] - avg_term * op)
-            )
-            op_drift = op_drift + d
-            avg_drift = avg_drift + average(d)
-        end
-        op_noise[i] = op ~ op_drift
-        simplify && (avg_drift = SymbolicUtils.simplify(avg_drift))
-        noise[i] = average(op) ~ avg_drift
-    end
-    return op_noise, noise
+    # Backward / retrodiction noise drift: same formula as the forward case
+    # but with J ↔ J† swapped. Master writes this as
+    # `_master_noise(a, adjoint(J), adjoint(Jdagger), ...)` (see master
+    # `src/measurement_retrodiction.jl`).
+    return _build_noise_equations_forward(ops, Jdagger, J, rates, efficiencies, simplify)
 end

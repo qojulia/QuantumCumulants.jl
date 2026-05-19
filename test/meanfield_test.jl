@@ -245,10 +245,9 @@ end
     @test length(eqs2_c.equations) == 14
 end
 
-@testset "meanfield: collective decay via flattened jumps" begin
-    # Master's `J = [[J1, J2]]; rates = [[matrix]]` rate-matrix form is
-    # deferred in v1 (CHANGELOG). The explicit-jumps form below is the
-    # mathematical equivalent (master test_meanfield.jl lines 87-112).
+@testset "meanfield: collective decay rate matrix" begin
+    # Master `J = [[J1, J2]]; rates = [[matrix]]` rate-matrix form, ported
+    # from master test_meanfield.jl lines 87-112.
     N = 2
     @variables G11::Real G12::Real G21::Real G22::Real δ::Real
     h = ⊗([NLevelSpace(Symbol(:atom, i), 2) for i in 1:N]...)
@@ -256,20 +255,26 @@ end
     H = δ * (σ_(2, 2, 1) + σ_(2, 2, 2))
     ops_0 = [σ_(1, 2, 1)]
 
-    # Explicit Jdagger ≠ adjoint.(J) form lets us encode the off-diagonal
-    # rate matrix without master's `rates = [[matrix]]` syntax.
+    # Native matrix-rates form: `J` is a `Vector{Vector{Op}}`, and `rates`
+    # is a `Vector{Matrix}` carrying the cross-rate matrix per bath.
+    J_nested = [[σ_(1, 2, 1), σ_(1, 2, 2)]]
+    rates_matrix = [[G11 G12; G21 G22]]
+    eqs_native = meanfield(ops_0, H, J_nested; rates = rates_matrix)
+    eqs_native_c = complete(eqs_native)
+    @test eqs_native_c isa MeanFieldEquations
+    @test isempty(find_missing(eqs_native_c))
+
+    # Flattened-jumps form should produce the same algebraic content.
     JumpOp = Transition[]
     JumpOpConj = Transition[]
     for i in 1:N, j in 1:N
         push!(JumpOp, σ_(1, 2, i))
         push!(JumpOpConj, σ_(2, 1, j))
     end
-    rates = [G11, G21, G12, G22]
-    eqs3 = meanfield(ops_0, H, JumpOp; Jdagger = JumpOpConj, rates = rates)
-    eqs_c3 = complete(eqs3)
-    @test eqs_c3 isa MeanFieldEquations
-    @test length(eqs_c3.equations) >= 1
-    @test isempty(find_missing(eqs_c3))
+    rates_flat = [G11, G21, G12, G22]
+    eqs_flat = meanfield(ops_0, H, JumpOp; Jdagger = JumpOpConj, rates = rates_flat)
+    eqs_flat_c = complete(eqs_flat)
+    @test length(eqs_native_c.equations) == length(eqs_flat_c.equations)
 
     # Diagonal-only rate case via simple `rates = [γ, γ]` form must also
     # close.

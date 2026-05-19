@@ -89,24 +89,35 @@ u0 = zeros(ComplexF64, length(eqs_sc)); # initial state
 
 ω_ = 1.0 # Parameters
 Ω_ = 2e3ω_
-gc_ = sqrt(Ω_*ω_/N) # renormalization of coupling to keep the system intensive
-g_ = 0.9gc_
 η_ = 4ω_
 κ_ = ω_
 γ_ = ω_
+
+# Derived quantities (`gc`, `g`, `ωd`, `ξ`) depend on `N`. We pick the
+# largest `N` (the well-converged case) as the canonical global value used
+# by the post-solve effective-model analysis below; the loop redefines them
+# locally per `N_`.
+
+N_global = 100
+gc_ = sqrt(Ω_*ω_/N_global)
+g_ = 0.9gc_
 ωd_ = sqrt(1-g_^2/gc_^2)*ω_
-ξ_ = 1/4*log(1-N*g_^2/(ω_*Ω_))
+ξ_ = 1/4*log(1-N_global*g_^2/(ω_*Ω_))
 
 # We solve the dynamics for four different numbers of two-level systems $N = [1, 2, 10, 100]$.
 
 sol_ls = []
 N_ls = [1, 2, 10, 100]
 for N_ in N_ls
-    p0 = [ω_, Ω_, ωd_, g_, η_, κ_, γ_, N_, ξ_]
-    u0_dict = Dict{Any, Any}(unknowns(sys) .=> u0) # (v1: initial_values(eqs, u0::Vector) → zero-init via unknowns(sys))
-    dict = merge(u0_dict, Dict{Any, Any}(ps .=> p0))
-    prob = ODEProblem(sys, dict, (0.0, 4π/ωd_))
-    sol = solve(prob, Tsit5(); saveat = π/30ωd_, reltol = 1e-10, abstol = 1e-10)
+    local gc_l = sqrt(Ω_*ω_/N_)
+    local g_l = 0.9gc_l
+    local ωd_l = sqrt(1-g_l^2/gc_l^2)*ω_
+    local ξ_l = 1/4*log(1-N_*g_l^2/(ω_*Ω_))
+    local p0 = [ω_, Ω_, ωd_l, g_l, η_, κ_, γ_, N_, ξ_l]
+    local u0_dict = Dict{Any, Any}(unknowns(sys) .=> u0)
+    local dict = merge(u0_dict, Dict{Any, Any}(ps .=> p0))
+    local prob = ODEProblem(sys, dict, (0.0, 4π/ωd_l))
+    local sol = solve(prob, Tsit5(); saveat = π/30ωd_l, reltol = 1e-10, abstol = 1e-10)
     push!(sol_ls, sol)
 end
 
@@ -115,8 +126,8 @@ end
 c_ls=[:black, :red, :blue, :cyan] # plot results
 p1 = plot(xlabel = "ω t", ylabel = "Δ² O")
 p2 = plot(xlabel = "ω t", ylabel = "⟨σz⟩")
-for i = 1:length(N_ls)
-    sol = sol_ls[i]
+for k = 1:length(N_ls)
+    sol = sol_ls[k]
     t_ = sol.t
 
     adag_a = get_solution(sol, a'*a, eqs_sc)(t_)
@@ -127,11 +138,11 @@ for i = 1:length(N_ls)
 
     sqx = adag_adag + aa + 2*adag_a .+ 1 - (adag + a_) .^ 2
     sqy = adag_adag + aa - 2*adag_a .- 1 - (adag - a_) .^ 2
-    plot!(p1, t_, real.(sqx), label = "N = $(N_ls[i])", color = c_ls[i])
-    plot!(p1, t_, -real.(sqy), ls = :dash, label = nothing, color = c_ls[i])
+    plot!(p1, t_, real.(sqx), label = "N = $(N_ls[k])", color = c_ls[k])
+    plot!(p1, t_, -real.(sqy), ls = :dash, label = nothing, color = c_ls[k])
 
-    s22 = get_solution(sol, σ(2, 2, 1), eqs_sc)(t_)
-    plot!(p2, t_, real.(2s22 .- 1), color = c_ls[i], label = nothing)
+    s22 = get_solution(sol, σ(2, 2, i), eqs_sc)(t_)
+    plot!(p2, t_, real.(2s22 .- 1), color = c_ls[k], label = nothing)
 end
 plot(
     p1,
@@ -177,8 +188,8 @@ u0_a = zeros(ComplexF64, length(eqs_a)) # initial state
 gΩ_ = g_^2/(4Ω_) # Additional parameter
 N_ = 69 # the final result does not depend on N
 
-ps_a = [ω, ωd, η, κ, N, g, Ω, ξ, gΩ] # symbolic and numeric parameter list
-p0_a = [ω_, ωd_, η_, κ_, N_, g_, Ω_, ξ_, gΩ_]
+ps_a = [ω, ωd, η, κ, N, gΩ, ξ] # symbolic parameter list (matches sys_a)
+p0_a = [ω_, ωd_, η_, κ_, N_, gΩ_, ξ_]
 
 u0_a_dict = initial_values(eqs_a, u0_a)
 dict_a = merge(u0_a_dict, Dict(ps_a .=> p0_a))

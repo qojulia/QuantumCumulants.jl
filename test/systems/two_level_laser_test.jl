@@ -86,9 +86,9 @@ end
     sol = solve(prob, Tsit5())
     @test sol.retcode == ReturnCode.Success
 
-    n_t = real.(get_solution(sol, a' * a, he_comp).(sol.t))
-    pe_t = real.(get_solution(sol, σ' * σ, he_comp).(sol.t))
-    # Photon population stays real and non-negative; atomic excitation real and in [0, 1]
-    @test all(>=(- 1.0e-9), n_t)
-    @test all(x -> -1.0e-9 <= x <= 1 + 1.0e-9, pe_t)
+    # Photon population stays real and non-negative; atomic excitation real and in [0, 1].
+    assert_real(sol, a' * a, he_comp)
+    assert_nonneg(sol, a' * a, he_comp)
+    assert_real(sol, σ' * σ, he_comp)
+    assert_population(sol, σ' * σ, he_comp)
 end

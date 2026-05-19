@@ -15,6 +15,8 @@ Running a single test file: pass a name filter to `ParallelTestRunner` via `Pkg.
 `julia --project -e 'using Pkg; Pkg.test(test_args=["completion"])'`.
 The runner skips anything under [test/pending/](test/pending/) (ports blocked on v1 regressions, see [TODO.md](TODO.md)).
 
+**Always log `make test` output to a file** (e.g. `make test 2>&1 | tee /tmp/maketest.log`) so follow-up filters and triage queries grep the log instead of re-running the suite. The full run takes 90+ seconds; rerunning to extract one stack trace is wasteful. Same applies for `make jet` / `make format` if you need to inspect their output more than once.
+
 ## Project layout and dependencies
 
 - The package is a thin symbolic layer on top of [SecondQuantizedAlgebra.jl](https://github.com/qojulia/SecondQuantizedAlgebra.jl) (SQA), which provides the operator algebra (`FockSpace`, `NLevelSpace`, `Destroy`, `Transition`, `Index`, `Σ`, …). `QuantumCumulants` `@reexport`s SQA, so users `using QuantumCumulants` get the full algebra surface.
@@ -44,6 +46,29 @@ This is the `rewrite` branch building the breaking 1.0 release on top of SQA v0.
 - `ClusterSpace` removed (SQA v0.5); use `Index` + `Σ` directly.
 
 When in doubt about whether something is "missing" vs. "moved," check [CHANGELOG.md](CHANGELOG.md) Migration section and [TODO.md](TODO.md) (lists known v1 regressions still to port: `non_equal=true` kwarg, `scale(::NoiseMeanFieldEquations)`, `evaluate(eqs; limits=...)`, `meanfield_backward`, rate-matrix collective decay, etc.).
+
+## What the v1 rewrite is *for*
+
+The point of the rewrite is **not** to reproduce master line-by-line on top of new dependency versions. The point is a **maintainable, scalable, performant** implementation that uses SQA's new data model natively. The starting reading list is SQA's [docs/src/devdocs.md](/home/oameye/Documents/SecondQuantizedAlgebra.jl/docs/src/devdocs.md) (architecture, naming policy, canonicalisation pipeline, diagonal splitting) and [docs/src/symbolic_sums.md](/home/oameye/Documents/SecondQuantizedAlgebra.jl/docs/src/symbolic_sums.md). Read these *first* before porting anything from master; the answers to "what should this function do" come from there, not from master's source.
+
+### Key SQA invariants QC code must respect
+
+- **Naming policy (operational).** `Index` objects are *user-owned*. SQA never mints `Index` on the user's behalf because an algebra-invented index breaks downstream pattern-matching, initial-condition substitution, and follow-on `evaluate(...; limits=...)` calls (devdocs *Naming policy*). When QC needs new indices (e.g. inside `scale!`, `evaluate`, `complete!`'s alpha canonicalisation), it must derive names from the user's existing vocabulary (typically the first-declared index per Hilbert subspace) so the result stays traceable and usable.
+- **`*(QAdd, QAdd)` is strict.** Two `QAdd`s with overlapping `.indices` raise `ArgumentError` instead of silently alpha-renaming (devdocs *Disjoint bound indices in products*). Multiply only after a `SQA.change_index` rename on one side.
+- **Undetermined free-index pairs stay put.** Two ops on the same subspace with different free symbolic indices and no `ne` are `Undetermined`; `_partial_sort!` deliberately leaves them in physical order, same-site collapse does not fire (devdocs *Operator sorting*, *Free indices and `assume_distinct_index`*). Use `assume_distinct_index(q, [(i, j)])` when QC code knows the user means "distinct atoms"; do not invent a private NE convention.
+- **Sum metadata round-trip.** `average(QAdd_with_indices)` stamps each averaged term with `SumIndices`/`SumNonEqual` metadata; `undo_average` restores it. Comparing or canonicalising averages must not silently strip the metadata, or constant-operator sums (e.g. `⟨1⟩` inside `Σ_i`) collapse incorrectly (devdocs *Averaging*).
+- **`change_index` is the only knob.** Substituting an `Index` is the single primitive that carries algebraic normalisation: `_canonicalize!` for non-sum results (projector squashing, commuting reorder, ne-violated drop), `_accumulate_with_diag!` for sum results (off-diagonal + diagonal split under existing `.indices`), `_substitute_ne` for NE propagation. If a QC pass touches indices, it should be doing it through `change_index`, not by hand.
+- **One compound type.** Everything is `QSym` (atoms) or `QAdd` (sums of products with prefactors). No `QMul`. `QTerm` is a dict key, not a value type. Don't write code that branches on `QMul` or assumes a 3-level expression tree (devdocs *Type hierarchy*).
+- **Ground-state projectors stay atomic.** `σᵍᵍ` is a legitimate canonical-form atom, not auto-expanded into `1 - Σ σᵏᵏ`. Use `expand_completeness` only when the basis change is the explicit goal. QC's mean-field code already relies on this — don't accidentally trigger the expansion (devdocs *Simplification vs. normal ordering*).
+
+### Concrete coding-style rules
+
+- **Read SQA's source first**, not master's, when porting a feature. The right port is "what do SQA primitives imply this should look like," not "what would master's lines translate to."
+- **Reach for `SQA.change_index`, `SQA.Σ`, `*`, `+` first.** Manual `QAdd(QTermDict(QTerm(ops, ne) => c), idx)` construction is a last resort and must be justified (typically only inside SQA itself).
+- **Mint Indices, when required, from the user's vocabulary.** Derive names from declared indices (`Symbol(i.name, "_", k)`); do not invent fresh prefixes like `:_eval_1`. Per-Hilbert-space canonicalisation lives in [completion.jl](src/completion.jl)'s `_build_canonical_indices`.
+- **`_canonical_key` in completion.jl is for bound-index alpha-equivalence**, not for distinguishing concrete positions. After `evaluate`, the indices are *concrete* (the user constructed them, or we minted them from the user's vocabulary), and the dedup key should be the operator itself, optionally normalised for commuting-op ordering — not `_canonical_key`.
+- **Don't keep parallel copies of master helpers.** If SQA is missing a primitive QC genuinely needs, add it to SQA (or write a one-liner here that composes existing ones). Do not duplicate.
+- **Failure mode to watch for**: building a `QAdd` by hand and then being surprised that `σ_ee² ≠ σ_ee`, or that `σ_2 σ_1 ≠ σ_1 σ_2`. The fix is to route through SQA's product (`*`) or `change_index`, which run the canonicalisation pipeline; never to hand-roll a sort.
 
 ## Test layout
 

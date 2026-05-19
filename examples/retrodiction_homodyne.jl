@@ -62,7 +62,7 @@ nothing # hide
 
 ## define numerical SDE
 Random.seed!(2) # hide
-sys_fw = to_system(eqs; name = :sys_fw)
+sys_fw = mtkcompile(to_system(eqs; name = :sys_fw))
 dict_fw = merge(Dict(unknowns(sys_fw) .=> u0), Dict(ps .=> pn))
 noise = StochasticDiffEq.RealWienerProcess(0.0, 0.0; save_everystep = true)
 prob_fw = SDEProblem(sys_fw, dict_fw, (0, Tend); noise = noise)

@@ -64,6 +64,10 @@ end
     sol = solve(prob, Tsit5())
     @test sol.retcode == ReturnCode.Success
 
+    # Physicality: excited-state population is Hermitian (real) and lives in [0, 1].
+    assert_real(sol, σ(:e, :e), eqs)
+    assert_population(sol, σ(:e, :e), eqs)
+
     # CorrelationFunction in both regimes; non-SS needs the seed-state
     # coupling so it has at least as many equations.
     c_ss = CorrelationFunction(σ(:e, :g), σ(:g, :e), eqs; steady_state = true)

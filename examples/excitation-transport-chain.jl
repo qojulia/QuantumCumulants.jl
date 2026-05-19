@@ -29,7 +29,7 @@
 # As always, we start by loading the packages we use and some basic definitions.
 
 using QuantumCumulants
-using ModelingToolkitBase, OrdinaryDiffEq
+using ModelingToolkitBase, OrdinaryDiffEqTsit5
 using Plots
 
 
@@ -107,7 +107,7 @@ plot!(graph, sol.t, popN, label = "End of chain", leg = 1)
 # In the following, we define the function that sets up the new `ODEProblem` for a realization and solve a specified number of trajectories.
 
 s = d/30  # strength of fluctuations
-function prob_func(prob, i, repeat)
+function prob_func(prob, ctx)
     x_ = x0 .+ s .* randn(N) # Define the new set of parameters
     p_ = Dict([γ => 1.0; Δ => 0.0; Ω => 2.0; J0 => 1.25; x .=> x_;])
 
@@ -115,8 +115,8 @@ function prob_func(prob, i, repeat)
 end
 
 trajectories = 20
-eprob = EnsembleProblem(prob, prob_func = prob_func)
-sim = solve(eprob, Tsit5(), trajectories = trajectories)
+eprob = OrdinaryDiffEqTsit5.EnsembleProblem(prob, prob_func = prob_func)
+sim = solve(eprob, Tsit5(), OrdinaryDiffEqTsit5.EnsembleSerial(); trajectories)
 nothing # hide
 
 # Finally, we average over the results and compare them against the results from before, where there was no noise in the atomic positioning.

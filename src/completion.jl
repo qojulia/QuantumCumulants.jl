@@ -67,9 +67,14 @@ const _CanonIndex = Dict{Int, Vector{SQA.Index}}
 
 function _build_canonical_indices(eqs::AbstractMeanFieldEquations)
     canon = _CanonIndex()
+    # Collective-decay `jumps` / `jumps_dagger` may be nested vectors; flatten
+    # one level so each source is a single `QField` SQA can call `get_indices`
+    # on.
+    flat_jumps = _flatten_jumps(eqs.jumps)
+    flat_jdag = _flatten_jumps(eqs.jumps_dagger)
     sources = Iterators.flatten(
         (
-            (eqs.hamiltonian,), eqs.operators, eqs.jumps, eqs.jumps_dagger,
+            (eqs.hamiltonian,), eqs.operators, flat_jumps, flat_jdag,
         )
     )
     for src in sources, idx in SQA.get_indices(src)
@@ -80,6 +85,17 @@ function _build_canonical_indices(eqs::AbstractMeanFieldEquations)
         sort!(v, by = idx -> idx.name)
     end
     return canon
+end
+
+_flatten_jumps(js::AbstractVector{<:QField}) = js
+function _flatten_jumps(js::AbstractVector)
+    isempty(js) && return QField[]
+    eltype(js) <: AbstractVector || return js
+    out = QField[]
+    for jk in js
+        append!(out, jk)
+    end
+    return out
 end
 
 function _canonical_key(x::SymbolicUtils.BasicSymbolic, canon::_CanonIndex)
@@ -130,7 +146,7 @@ end
 
 # `SQA.is_average` returns true for the whole AvgSym
 # expression tree (e.g. ⟨a⟩*⟨σ₂₂⟩, which is a product of averages, still has
-# symtype === AvgSym). For closure detection we want only *leaf* averages —
+# symtype === AvgSym). For closure detection we want only *leaf* averages,
 # the ones produced by `average(op)` directly, where the head is `sym_average`.
 function _is_leaf_average(x::SymbolicUtils.BasicSymbolic)
     SQA.is_average(x) || return false
@@ -226,10 +242,10 @@ function _derive_for(
         eqs::MeanFieldEquations, new_ops;
         simplify::Bool, mix_choice = maximum
     )
-    return _meanfield_forward(
-        new_ops, eqs.hamiltonian, eqs.jumps,
+    return _meanfield_deterministic(
+        eqs.direction, new_ops, eqs.hamiltonian, eqs.jumps,
         eqs.jumps_dagger, eqs.rates, eqs.order,
-        simplify, mix_choice, eqs.iv
+        simplify, mix_choice, eqs.iv,
     )
 end
 
@@ -304,7 +320,7 @@ function _copy(eqs::MeanFieldEquations)
         copy(eqs.jumps),
         copy(eqs.jumps_dagger),
         copy(eqs.rates),
-        eqs.iv, eqs.order
+        eqs.iv, eqs.order, eqs.direction,
     )
 end
 

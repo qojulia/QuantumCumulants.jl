@@ -9,7 +9,19 @@ function _op_name_chunk(op::QAdd)
     isempty(op.arguments) && return "zero"
     chunks = String[]
     for (term, _) in op.arguments
-        push!(chunks, join((_op_name_chunk(o) for o in term.ops), "_"))
+        base = join((_op_name_chunk(o) for o in term.ops), "_")
+        # `ne` (non-equal-index constraints) is semantic state and must
+        # appear in the MTK identifier — otherwise two terms that differ
+        # only in their constraint set generate clashing variable names
+        # (see TODO.md unique_squeezing dedup note).
+        if !isempty(term.ne)
+            ne_chunks = String[]
+            for (a, b) in term.ne
+                push!(ne_chunks, string(a.name) * "neq" * string(b.name))
+            end
+            base *= "_" * join(ne_chunks, "_")
+        end
+        push!(chunks, base)
     end
     return join(chunks, "_plus_")
 end
@@ -107,16 +119,34 @@ function _to_system_sde(eqs::NoiseMeanFieldEquations, name::Symbol, sign::Int)
     D = Symbolics.Differential(iv)
     dict, dvs = _avg_to_var_dict(eqs)
     conj_dict = _conj_substitution_dict(eqs, dict)
-    drift = Vector{Symbolics.Equation}(undef, length(eqs.equations))
+    # Single Brownian per system: `eqs.noise_equations` already aggregates the
+    # per-jump noise drifts into one column. Multiple independent measurement
+    # processes would need one Brownian per jump (TODO).
+    w = first(MTK.@brownians _qc_dW)
+    new_eqs = Vector{Symbolics.Equation}(undef, length(eqs.equations))
     ps_set = Set{SymbolicUtils.BasicSymbolic}()
     @inbounds for (i, eq) in enumerate(eqs.equations)
         rhs_conj = _substitute_conj_avgs(eq.rhs, conj_dict)
-        rhs = SymbolicUtils.substitute(rhs_conj, dict)
-        drift[i] = D(dict[eq.lhs]) ~ sign * rhs
+        rhs = _safe_substitute(rhs_conj, dict)
+        noise_eq = eqs.noise_equations[i]
+        noise_rhs_conj = _substitute_conj_avgs(noise_eq.rhs, conj_dict)
+        noise_rhs = _safe_substitute(noise_rhs_conj, dict)
+        # Substituted noise / drift trees can carry symtype `Any` (mixed
+        # average products). SymbolicUtils refuses arithmetic between
+        # mismatched symtypes, so build the product/sum nodes via `maketerm`,
+        # which preserves structure without dispatching the worker buffer.
+        w_uw = SymbolicUtils.unwrap(w)
+        T = typeof(w_uw)
+        signed_rhs = sign == 1 ? rhs :
+            TermInterface.maketerm(T, *, Any[sign, rhs], nothing)
+        noise_term = TermInterface.maketerm(T, *, Any[noise_rhs, w_uw], nothing)
+        total_rhs = TermInterface.maketerm(T, +, Any[signed_rhs, noise_term], nothing)
+        new_eqs[i] = D(dict[eq.lhs]) ~ total_rhs
         _collect_params!(ps_set, rhs, dict, iv_uw)
+        _collect_params!(ps_set, noise_rhs, dict, iv_uw)
     end
     ps = [MTK.toparam(p) for p in ps_set]
-    return MTK.System(drift, iv, dvs, ps; name = name)
+    return MTK.System(new_eqs, iv, dvs, ps, [w]; name = name)
 end
 
 function to_system(eqs::MeanFieldEquations; name::Symbol)
@@ -129,7 +159,7 @@ function to_system(eqs::MeanFieldEquations; name::Symbol)
     ps_set = Set{SymbolicUtils.BasicSymbolic}()
     @inbounds for (i, eq) in enumerate(eqs.equations)
         rhs_conj = _substitute_conj_avgs(eq.rhs, conj_dict)
-        rhs = SymbolicUtils.substitute(rhs_conj, dict)
+        rhs = _safe_substitute(rhs_conj, dict)
         new_eqs[i] = D(dict[eq.lhs]) ~ rhs
         _collect_params!(ps_set, rhs, dict, iv_uw)
     end
@@ -184,7 +214,17 @@ function _substitute_conj_avgs(x, conj_dict)
     # rewrite to additive form `re + im_part * im` instead.
     # TODO fix https://github.com/JuliaSymbolics/SymbolicUtils.jl/pull/922
     op === complex && length(new_args) == 2 && return new_args[1] + new_args[2] * Symbolics.IM
-    return op(new_args...)
+    # Some interior operators (e.g. Σ-sums whose symtype isn't <: Number)
+    # refuse `+` via SymbolicUtils's worker dispatch. Rebuild the node via
+    # `maketerm` in those cases, preserving the original symtype/metadata.
+    try
+        return op(new_args...)
+    catch err
+        err isa MethodError && err.f === op || rethrow()
+        return TermInterface.maketerm(
+            typeof(x), op, new_args, TermInterface.metadata(x),
+        )
+    end
 end
 
 """
@@ -206,6 +246,141 @@ function initial_values(
 end
 
 """
+    initial_values(eqs::AbstractMeanFieldEquations, state; kwargs...)
+
+For a set of symbolic equations `eqs` compute the initial state-average values
+corresponding to the numeric quantum state `state` of the system. `state` can
+be a `QuantumOpticsBase.StateVector` (Ket) or `Operator` (density matrix);
+indexed/scaled equations are supported when `state` is a tensor product or
+`LazyKet`.
+
+Returns a `Vector{ComplexF64}` aligned with `eqs.states`.
+
+See also: [`to_numeric`](@ref), [`numeric_average`](@ref).
+"""
+function initial_values(
+        eqs::AbstractMeanFieldEquations, state;
+        kwargs...
+    )
+    vals = ComplexF64[]
+    for v in eqs.states
+        push!(vals, ComplexF64(SQA.numeric_average(v, state; kwargs...)))
+    end
+    return vals
+end
+
+"""
+    initial_values(eqs::AbstractMeanFieldEquations, u0::AbstractVector{<:Number})
+
+Map a numeric initial-condition vector aligned with `eqs.states` to a
+`Dict{Symbolics.Num, ComplexF64}` keyed by the MTK state variables produced
+by `to_system`. Equivalent to building the dict via `unknowns(sys) .=> u0`.
+"""
+function initial_values(
+        eqs::AbstractMeanFieldEquations, u0::AbstractVector{<:Number};
+        kwargs...
+    )
+    length(u0) == length(eqs.states) || throw(DimensionMismatch(
+        "initial value vector length $(length(u0)) does not match number of states $(length(eqs.states))",
+    ))
+    dict_var, _ = _avg_to_var_dict(eqs)
+    out = Dict{Symbolics.Num, ComplexF64}()
+    for (k, avg) in enumerate(eqs.states)
+        out[dict_var[avg]] = ComplexF64(u0[k])
+    end
+    return out
+end
+
+"""
+    parameter_map(eqs::AbstractMeanFieldEquations, pairs) -> Dict
+
+Translate a user-facing `Pair`/`Dict` of parameter assignments into an
+MTK-compatible parameter map. Accepts the original `IndexedVariable`
+callable (e.g. `g` from `g(i) = IndexedVariable(:g, i)`) as a key and
+matches it to the Symbolics-array parameter that `evaluate` synthesised
+from the per-atom callable references. Scalar values are broadcast to
+N-element vectors with N matching the array's concrete shape.
+
+```julia
+pmap = parameter_map(evaled, Dict(
+    g(i)  => 0.1,           # broadcast to fill(0.1, N)
+    Δa(i) => [0.0, 0.1],    # explicit per-atom values
+    κ     => 1.0,           # scalar passes through
+))
+```
+"""
+function parameter_map(eqs::AbstractMeanFieldEquations, pairs)
+    arr_by_name = Dict{Symbol, SymbolicUtils.BasicSymbolic}()
+    scalar_by_name = Dict{Symbol, SymbolicUtils.BasicSymbolic}()
+    for eq in eqs.equations
+        _collect_named_params!(arr_by_name, scalar_by_name,
+                               SymbolicUtils.unwrap(eq.rhs))
+        _collect_named_params!(arr_by_name, scalar_by_name,
+                               SymbolicUtils.unwrap(eq.lhs))
+    end
+    pmap = Dict{Any, Any}()
+    for (k, v) in pairs
+        ku = SymbolicUtils.unwrap(k)
+        name = _param_name(ku)
+        if name !== nothing && haskey(arr_by_name, name)
+            arr = arr_by_name[name]
+            shp = SymbolicUtils.shape(arr)
+            n = (shp isa SymbolicUtils.SmallVec{UnitRange{Int}} && !isempty(shp)) ?
+                length(shp[1]) : nothing
+            if v isa AbstractArray
+                pmap[arr] = v
+            elseif n !== nothing
+                pmap[arr] = fill(v, n)
+            else
+                pmap[arr] = v
+            end
+        elseif name !== nothing && haskey(scalar_by_name, name)
+            pmap[scalar_by_name[name]] = v
+        else
+            pmap[k] = v
+        end
+    end
+    return pmap
+end
+
+# Extract the user-visible name of a parameter expression:
+# - bare Sym `:κ` → :κ
+# - callable-Sym Term `g(i.sym)` (IndexedVariable shape) → :g
+# - scalar after `unwrap(Num(...))` likewise
+_param_name(x) = nothing
+function _param_name(x::SymbolicUtils.BasicSymbolic)
+    if !SymbolicUtils.iscall(x)
+        return Base.nameof(x)
+    end
+    op = SymbolicUtils.operation(x)
+    if op isa SymbolicUtils.BasicSymbolic && !SymbolicUtils.iscall(op)
+        return Base.nameof(op)
+    end
+    return nothing
+end
+
+# Populate the two name → MTK-parameter dicts from a tree `x`.
+# `arr_dict` collects array-typed params (from the `getindex` post-pass);
+# `scalar_dict` collects bare-Sym scalar parameters (κ, Γ, …).
+function _collect_named_params!(arr_dict, scalar_dict, x)
+    x isa SymbolicUtils.BasicSymbolic || return
+    if !SymbolicUtils.iscall(x)
+        # Only Sym leaves have `nameof`; numeric Consts and the like don't.
+        SymbolicUtils.issym(x) || return
+        shp = SymbolicUtils.shape(x)
+        if shp isa SymbolicUtils.SmallVec{UnitRange{Int}} && !isempty(shp)
+            arr_dict[Base.nameof(x)] = x
+        elseif SymbolicUtils.symtype(x) <: Real
+            scalar_dict[Base.nameof(x)] = x
+        end
+        return
+    end
+    for a in SymbolicUtils.arguments(x)
+        _collect_named_params!(arr_dict, scalar_dict, a)
+    end
+end
+
+"""
     get_solution(sol, avg_or_op, eqs)
 
 Query an ODESolution `sol` for the trajectory of `avg_or_op`. Accepts either a
@@ -216,8 +391,19 @@ function get_solution(
         eqs::AbstractMeanFieldEquations
     )
     dict, _ = _avg_to_var_dict(eqs)
-    var = dict[avg]
-    return τ -> sol(τ; idxs = var)
+    if haskey(dict, avg)
+        var = dict[avg]
+        return τ -> sol(τ; idxs = var)
+    end
+    # Conjugate fallback: ⟨op†⟩ is not stored explicitly because
+    # `complete!` deduplicates conjugate pairs. Look up ⟨op⟩ instead and
+    # return `conj` of its trajectory.
+    conj_avg = _avg_conj_for_codegen(avg)
+    if conj_avg !== avg && haskey(dict, conj_avg)
+        var = dict[conj_avg]
+        return τ -> conj.(sol(τ; idxs = var))
+    end
+    throw(KeyError(avg))
 end
 get_solution(sol, op::QField, eqs::AbstractMeanFieldEquations) =
     get_solution(sol, average(op), eqs)

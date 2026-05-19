@@ -1,76 +1,154 @@
-# v1 regressions discovered during test porting
+# v1 rewrite, remaining work
 
-These were identified while porting the master test suite. Each item is a
-behavior the master branch handled but the v1 rewrite either drops, weakens,
-or gets wrong. Listed in rough priority order.
+Outstanding work on the v1 rewrite. See [DESIGN.md](DESIGN.md) for the
+target architecture and [CHANGELOG.md](CHANGELOG.md) for what has landed.
 
-## `scale(::NoiseMeanFieldEquations)` not defined
+Current state: 601 pass + 1 broken / 602 total (`make test 2>&1 | tee /tmp/maketest.log`).
+All 14 examples run end-to-end. All non-SQA master tests are ported and
+the bound-index coefficient orphaning bug is resolved; the remaining
+work is test-strengthening and architectural cleanup.
 
-**Symptom:** master scaled indexed noise systems via `scale(stoch_eqs)`.
-v1 only has `scale(::MeanFieldEquations)`.
+## Test strengthening (next pass)
 
-**Status:** missing. Would need to scale both `eqs.equations` and
-`eqs.noise_equations` consistently.
+Most ported tests cover the same scenarios as master *in pipeline shape*
+but do NOT verify the same physics agreement that master asserted. The
+next pass strengthens them so v1 demonstrably reproduces master where v1
+has the features, and explicitly marks the gaps where it doesn't.
 
-## Example regressions surfaced during 1:1 port from master
+### Helpers already in tests, reuse them
 
-Each was a working master example; ported syntax loads fine but fails at a
-later stage. The `complex(re, im)` literal bug that initially masked these
-is fixed (see `_rewrite_complex_literals` in [src/meanfield.jl](src/meanfield.jl)
-and the defensive case in `_substitute_conj_avgs` in [src/mtk.jl](src/mtk.jl),
-both using `Symbolics.IM` to keep the additive form in SymReal land).
+- `test/parameters_test.jl::_is_zero(x)`: symbolic-vs-Bool zero detection:
+  ```julia
+  _is_zero(x::SQA.QAdd) = iszero(x)
+  _is_zero(x::Number) = iszero(x)
+  function _is_zero(x::SymbolicUtils.BasicSymbolic)
+      s = simplify(x; expand = true)
+      s isa Number && return iszero(s)
+      SymbolicUtils.isconst(s) && return iszero(s.val)
+      return isequal(s, 0)
+  end
+  ```
+  Lift to `test/common.jl` or duplicate per file.
+- `test/higher_order_test.jl::ϕ` and `phase_invariant`: the
+  phase-invariance filter pattern (counts adjoint excess per term, used
+  with `complete(...; filter_func=phase_invariant)`). Same pattern in
+  `test/indexed_correlation_test.jl` (commented-out master form would
+  need it for order=2).
+- `parameter_map(eqs, [g(i) => 0.1, κ => 1.0, …])` in [src/mtk.jl](src/mtk.jl):
+  user-facing pmap helper for `IndexedVariable` parameters. Scalar values
+  broadcast to N-element vectors; per-atom vectors pass through.
 
-- **[examples/heterodyne_detection.jl](examples/heterodyne_detection.jl)** —
-  `TypeError: in Complex, in T, expected T<:Real, got Type{Number}`. Type
-  promotion blows up somewhere in the SDE construction. Likely SQA-side.
-- **[examples/retrodiction_homodyne.jl](examples/retrodiction_homodyne.jl)** —
-  `SDEProblem` rejects the system with "A completed system is required.
-  Call `complete` or `mtkcompile` on the system before creating a
-  `SDEProblem`." Example needs a `mtkcompile` step (and possibly QC-side
-  too: `complete(::NoiseMeanFieldEquations{...,Backward})` may not be
-  fully wired).
-- **[examples/excitation-transport-chain.jl](examples/excitation-transport-chain.jl)** —
-  `UndefVarError: EnsembleProblem`. Example needs `using
-  DifferentialEquations` (or `using SciMLBase`); separately, the
-  `EnsembleProblem` pathway should be exercised against the rewritten
-  noise machinery.
-- **[examples/optomechanical-cooling.jl](examples/optomechanical-cooling.jl)** —
-  `MethodError: objects of type SecondQuantizedAlgebra.AvgFunc are not
-  callable` at `solve()`. Looks like an `AvgFunc` (sum/index-parametrised
-  average) survives into the numerics where a scalar `Num` is expected.
-- **[examples/single-atom-laser-spectrum.jl](examples/single-atom-laser-spectrum.jl)** —
-  `CorrelationFunction` is fundamentally broken. Current code does
-  `new_op = op1 * op2; meanfield([new_op], ...)` which derives equations
-  for `⟨a†(τ)a(τ)⟩` (same time), NOT the two-time correlation
-  `⟨a†(τ)a(0)⟩`. For `op1=a†, op2=a` this produces 14 states instead of
-  the expected 2. The fix is the **Quantum Regression Theorem via an
-  ancilla subspace**: create `op2_anc` on a fresh subspace index
-  `aon_anc = max(existing aons) + 1` using `_embed_on` helpers, form
-  `new_op = op1 * op2_anc`, and call `_complete_ancilla!` which only
-  derives equations for averages touching the ancilla. A partial attempt
-  at this fix already lives in `src/correlation.jl` (written but not
-  tested) — read it, it may be close but have bugs. SQA operator API:
-  `Destroy(name, space_index, index)`, `SQA.acts_on(op)` returns subspace
-  indices. After fixing `CorrelationFunction`, the `Spectrum` Laplace
-  computation also needs fixing: `Symbolics.derivative` on the substituted
-  RHS fails with 'array expression'/'symtype' errors. Use a
-  finite-difference approach instead: `A[i,j] = f(e_j) - f(0)` by
-  substituting all states=0, then setting state_j=1.
-- **[examples/unique_squeezing.jl](examples/unique_squeezing.jl)** —
-  `ArgumentError: Cannot add arguments of different sizes - encountered
-  shapes UnitRange{Int64}[] and SymbolicUtils.Unknown(2)`. `scale` shape
-  mismatch on this system.
-- **[examples/superradiant_laser_indexed.jl](examples/superradiant_laser_indexed.jl)** —
-  `MethodError: no method matching *(::Type{Number}, ::Type{Real},
-  ::Type{Any})` at `to_system` after `scale`. Type promotion on the
-  scaled-equation RHS.
+### Concrete strengthening patterns (use these, don't reinvent)
 
-## Deferred from CHANGELOG (not regressions per se, just not yet ported)
+**ODE numerical equality between two derivation paths:**
+```julia
+SQA = QuantumCumulants.SecondQuantizedAlgebra
+sol_a = solve(prob_a, Tsit5(); abstol = 1e-10, reltol = 1e-10)
+sol_b = solve(prob_b, Tsit5(); abstol = 1e-10, reltol = 1e-10)
+# For scale-vs-evaluate: scale collapses to 1 atom-state, evaluate
+# produces N atom-states by symmetry; use get_solution on each.
+obs_op_a = SQA.undo_average(eqs_a.states[k_a])
+obs_op_b = SQA.undo_average(eqs_b.states[k_b])
+val_a = get_solution(sol_a, obs_op_a, eqs_a)(sol_a.t[end])
+val_b = get_solution(sol_b, obs_op_b, eqs_b)(sol_b.t[end])
+@test isapprox(val_a, val_b; atol = 1e-6)
+```
 
-- `evaluate(eqs; limits=(N=>n,))` to unroll indexed sums to fixed-N
-- `initial_values(eqs, ψ::Ket)` for spin-coherent / Fock state initialisation
-- Rate-matrix collective decay (`J = [[J1, J2]]; rates = [[Γ11 Γ12; Γ21 Γ22]]`)
-- `meanfield_backward(...)` (use `meanfield(...; direction=Backward())`)
-- `modify_equations(eqs, f)` / `translate_W_to_Y(eqs)` (retrodiction helpers)
-- `find_operators(h, order)` returning a deduplicated, canonically-ordered
-  operator set so closure tests can assert exact counts
+**Reference-RHS equality for noise equations (master pattern):**
+```julia
+@variables Δ::Real κ::Real η::Real
+H = Δ * a' * a
+me = meanfield(a, H, [a]; rates = [κ], efficiencies = [η])
+expected = average(-1im * Δ * a - 0.5κ * a)
+@test _is_zero(simplify(me.equations[1].rhs - expected; expand = true))
+expected_noise = √(η * κ) * (
+    average(a' * a) + average(a * a) -
+    average(a)^2 - average(a) * average(a')
+)
+@test _is_zero(simplify(me.noise_equations[1].rhs - expected_noise; expand = true))
+```
+
+**Steady-state cumulant-order convergence:**
+```julia
+he4 = complete(meanfield(a'*a, H, J; rates=rates); order=4, filter_func=phase_invariant)
+he6 = complete(meanfield(a'*a, H, J; rates=rates); order=6, filter_func=phase_invariant)
+# build sys, prob, solve to t=long
+n_ss_4 = real(get_solution(sol4, a'*a, he4)(sol4.t[end]))
+n_ss_6 = real(get_solution(sol6, a'*a, he6)(sol6.t[end]))
+@test abs(n_ss_4 - n_ss_6) / abs(n_ss_6) < 0.05
+```
+
+**Independent reference for indexed_mixed_order (brute-force N=3):**
+Construct the 3-atom Hilbert space explicitly (`tensor(ha for _ in 1:3)`
+plus the cavity), build the master operator, evolve the density matrix,
+compare. Use `QuantumOpticsBase.timeevolution.master` or similar. If too
+involved, ODE-solve `evaluate(eqs; limits=(N=>3))` and compare against
+ODE-solve of scale of the same system; both should converge to the same
+steady-state observable for permutation-symmetric initial conditions.
+
+**SDE pipeline for measurement_retrodiction:**
+Use `StochasticDiffEq.SDEProblem` + `EM()`. v1 has SDESystem code-gen
+wired (see `examples/heterodyne_detection.jl` and
+`examples/retrodiction_homodyne.jl`). The Kalman forward+backward
+agreement is the master assertion; reproducing it requires
+`meanfield_backward` to produce the correct backward dynamics (verify
+via `direction = Backward()`).
+
+### Per-file audit (still to do)
+
+| File | Master's strongest assertion | What we have now | Action |
+|---|---|---|---|
+| `test/measurement_retrodiction_test.jl` | Full Kalman smoothing scenario | Shape-only checks | Port the SDE pipeline: meanfield with efficiencies, simulate forward via SDEProblem with `Tsit5()` + StochasticDiffEq, construct measurement record `dY_W`, propagate backward, compare reconstructed state against true state. |
+| `test/indexed_correlation_test.jl` | order=2 indexed JC with phase-invariant filter, `evaluate(corr, ...)`, `split_sums` | order=1 only, no filter | Try order=2 (may be slow). If the v1 `complete!` mixed-order issue blocks order=2, add a ParallelTestRunner timeout and assert "completes in N seconds" as a regression marker. |
+
+### Tests where master's assertion is NOT reachable (representation diff)
+
+| File | What's not reachable | Why |
+|---|---|---|
+| `test/parameters_test.jl::detuned two-level commutator sign` (currently `@test_broken`) | `iszero(simplify(rhs + 2im * Δ * ⟨s₁₂⟩))` | SymbolicUtils stores `2im * Δ` as `complex(0, 2Δ)` literal vs our factored form. Both code-gen to the same numeric values but the symbolic difference doesn't simplify. Leave `@test_broken` until SymbolicUtils representation settles. |
+
+## Open v1 feature gaps that block deeper test ports
+
+- **`evaluate(eqs; h = [hilb])` per-Hilbert-space filter**: master
+  accepts `h::Vector` to evaluate only specific Hilbert subspaces. v1
+  emits a warning and ignores `h`.
+- **`scale(eqs; h = [k])` per-Hilbert-space scaling**: master accepts
+  `h::Vector` to scale a subset of Hilbert subspaces, leaving others as
+  symbolic indices.
+- **`complete!` mixed-order parity**: for `order = [1, 2]` on the
+  indexed JC laser, v1 derives more equations than master (23 vs 8).
+  Both are valid closures; the assertion-count divergence blocks
+  straight equation-count ports.
+- **`Spectrum` numerical stability** for higher-order cumulants. Affects
+  spectral-equality assertions; ODE-steady-state convergence still works.
+- **`numeric_average(op, state; level_map=…)` kwarg passthrough**:
+  master's `initial_values(eqs, ψ::Ket; level_map=…)` translates symbolic
+  level names (`:g`, `:e`) to integer indices in `NLevelBasis`. v1
+  delegates to `SQA.numeric_average` which dropped the `level_map`
+  kwarg. Either re-add `level_map` to SQA or document that symbolic
+  levels must be replaced with integer levels in v1 user code.
+
+## Architectural follow-ups from [DESIGN.md](DESIGN.md)
+
+File-size and maintainability wins, NOT user-facing feature changes.
+Gated on the test-strengthening above landing first.
+
+- **Step 3**: unify `meanfield.jl` three derivation paths (forward,
+  noise-forward, backward) into one parameterised `derive()`. ~120
+  lines saved.
+- **Step 4**: consolidate `_canonical_key` / `_build_canonical_indices`
+  into a single source of truth shared by `find_missing`, `scale!`,
+  `evaluate`, `to_system`. Currently `scaling.jl` and `completion.jl`
+  carry near-duplicate machinery.
+- **Step 5**: audit `correlation.jl` (520 lines) and `mtk.jl` (320
+  lines) for the same scalar-first-then-patched pattern. Target:
+  correlation drops to ≤250 lines by reusing `to_system`.
+- **SQA additions**: `strip_sum_scope`, `set_index`,
+  `canonicalise_undetermined`, `enumerate_sum`, batched `change_index`,
+  `pairwise_distinct`. Promote to SQA's public API and have QC call
+  them instead of carrying local equivalents.
+
+## Definition of "done" for this branch
+
+- [ ] Ported tests assert master-equivalent (or stronger) physics, not
+      just pipeline shape.

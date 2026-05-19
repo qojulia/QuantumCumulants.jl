@@ -27,10 +27,11 @@ struct MeanFieldEquations{
         O <: Union{Nothing, Vector{Int}},
         H <: QField,
         Op <: QField,
-        Jt <: QField,
-        Jdt <: QField,
+        Jt,
+        Jdt,
         R,
         S <: SymbolicUtils.BasicSymbolic,
+        D <: EvolutionDirection,
     } <: AbstractMeanFieldEquations
     equations::Vector{Symbolics.Equation}
     operator_equations::Vector{Symbolics.Equation}
@@ -42,6 +43,7 @@ struct MeanFieldEquations{
     rates::Vector{R}
     iv::Symbolics.Num
     order::O
+    direction::D
 
     function MeanFieldEquations(
             equations::Vector{Symbolics.Equation},
@@ -54,7 +56,9 @@ struct MeanFieldEquations{
             rates::Vector{R},
             iv::Symbolics.Num,
             order::O,
-        ) where {O, H, Op, Jt, Jdt, R, S}
+            direction::D = Forward(),
+        ) where {O, H <: QField, Op <: QField, Jt, Jdt, R,
+                 S <: SymbolicUtils.BasicSymbolic, D <: EvolutionDirection}
         n = length(equations)
         @assert n == length(operator_equations) == length(states) == length(operators) (
             "equations/states/operators must have matching lengths"
@@ -62,9 +66,9 @@ struct MeanFieldEquations{
         @assert length(jumps) == length(jumps_dagger) == length(rates) (
             "jumps/jumps_dagger/rates must have matching lengths"
         )
-        return new{O, H, Op, Jt, Jdt, R, S}(
+        return new{O, H, Op, Jt, Jdt, R, S, D}(
             equations, operator_equations, states, operators,
-            hamiltonian, jumps, jumps_dagger, rates, iv, order
+            hamiltonian, jumps, jumps_dagger, rates, iv, order, direction,
         )
     end
 end
@@ -80,8 +84,8 @@ struct NoiseMeanFieldEquations{
         O <: Union{Nothing, Vector{Int}},
         H <: QField,
         Op <: QField,
-        Jt <: QField,
-        Jdt <: QField,
+        Jt,
+        Jdt,
         R, E,
         S <: SymbolicUtils.BasicSymbolic,
         D <: EvolutionDirection,

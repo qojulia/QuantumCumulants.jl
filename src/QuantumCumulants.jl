@@ -23,7 +23,10 @@ export meanfield, cumulant_expansion, cumulant, get_order
 export complete, complete!, find_missing
 export scale, scale!
 export CorrelationFunction, Spectrum, correlation_u0, correlation_p0
-export to_system, initial_values, get_solution
+export to_system, initial_values, get_solution, parameter_map
+export modify_equations, modify_equations!
+export translate_W_to_Y
+export evaluate
 
 include("equations.jl")
 include("meanfield.jl")
@@ -33,6 +36,9 @@ include("mtk.jl")
 include("scaling.jl")
 include("correlation.jl")
 include("noise.jl")
+include("modify.jl")
+include("measurement_backaction.jl")
+include("evaluate.jl")
 include("latexify.jl")
 
 end # module

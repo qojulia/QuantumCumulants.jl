@@ -128,7 +128,11 @@ g_ = 1000Γ_ #g=1Hz
 R_ = 1000Γ_ #R=1Hz
 ν_ = 1000Γ_ #ν=1Hz
 
-ps = [N, Δ, g(1), κ, Γ, R, ν]
+# (v1: `scale` flattens the `IndexedVariable(:g, i)` couplings to a
+# scalar `Num g`, so the parameter list uses plain `g` rather than the
+# per-atom `g(1)`.)
+g_sym = Symbolics.Num(SymbolicUtils.Sym{SymbolicUtils.SymReal}(:g; type = Real))
+ps = [N, Δ, g_sym, κ, Γ, R, ν]
 p0 = [N_, Δ_, g_, κ_, Γ_, R_, ν_]
 
 dict = merge(u0, Dict(ps .=> p0))
@@ -140,7 +144,7 @@ sol = solve(prob, Tsit5(), maxiters = 1e7) # Solve the numeric problem
 
 t = sol.t # Plot time evolution
 n = real.(get_solution(sol, a'a, eqs_sc).(t))
-s22 = real.(get_solution(sol, σ(2, 2, 1), eqs_sc).(t))
+s22 = real.(get_solution(sol, σ(2, 2, i), eqs_sc).(t))
 p1 = plot(t, n, xlabel = "tΓ", ylabel = "⟨a⁺a⟩", legend = false) # Plot
 p2 = plot(t, s22, xlabel = "tΓ", ylabel = "⟨σ22⟩", legend = false)
 plot(p1, p2, layout = (1, 2), size = (700, 300))
@@ -157,7 +161,7 @@ nothing # hide
 
 # The set of equations for the correlation function is given by
 
-corr_sc.de
+corr_sc.eqs # (v1: was `corr_sc.de`)
 nothing # hide
 
 

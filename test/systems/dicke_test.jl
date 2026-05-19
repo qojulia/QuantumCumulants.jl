@@ -32,4 +32,12 @@ using Test
     prob = ODEProblem(sys_c, dict, (0.0, 0.5))
     sol = solve(prob, Tsit5())
     @test sol.retcode == ReturnCode.Success
+
+    # Physicality: Pauli-Z expectation is Hermitian (real) and bounded in
+    # [-1, 1] for each spin. ⟨a'a⟩ is not guaranteed to land in the
+    # order-2 closure, so we don't assert on it here.
+    assert_real(sol, σ(1, 3), eqs)
+    assert_bounded(sol, σ(1, 3), eqs, -1.0, 1.0)
+    assert_real(sol, σ(2, 3), eqs)
+    assert_bounded(sol, σ(2, 3), eqs, -1.0, 1.0)
 end
