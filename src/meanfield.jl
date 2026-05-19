@@ -87,13 +87,11 @@ function _operator_rhs(::Backward, op, imH, J, Jdagger, rates)
         + op * trace_term
 end
 
-function _meanfield_deterministic(
-        direction::EvolutionDirection,
-        ops, H, J, Jdagger, rates, order,
-        simplify, mix_choice, iv,
-    )
+# Operator-level drift derivation shared by every derivation path: build a
+# `op ~ rhs` equation for each requested observable. The direction selects
+# the coherent + Lindblad recycling formula via `_operator_rhs`.
+function _build_op_drift(direction, ops_qa, H, J, Jdagger, rates)
     imH = im * H
-    ops_qa = QAdd[op * 1 for op in ops]
     op_rhs = Vector{QAdd}(undef, length(ops_qa))
     operator_eqs = Vector{Symbolics.Equation}(undef, length(ops_qa))
     @inbounds for (i, op) in enumerate(ops_qa)
@@ -103,18 +101,56 @@ function _meanfield_deterministic(
         op_rhs[i] = rhs
         operator_eqs[i] = op ~ rhs
     end
-    states = SymbolicUtils.BasicSymbolic[average(op) for op in ops_qa]
-    order_vec = order === nothing ? nothing :
-        _normalize_order(order, (; hamiltonian = H))
-    avg_eqs = Vector{Symbolics.Equation}(undef, length(ops_qa))
+    return op_rhs, operator_eqs
+end
+
+# Lift operator drift to the averaged level, optionally adding a per-op
+# correction (e.g. `_dY_dS_extra_term` for backward noise) and applying
+# cumulant truncation + symbolic simplify.
+function _build_avg_drift_eqs(
+        op_rhs, states, ops_qa, extra_term, order_vec, simplify, mix_choice,
+    )
+    avg_eqs = Vector{Symbolics.Equation}(undef, length(op_rhs))
     @inbounds for i in eachindex(op_rhs)
         rhs = average(op_rhs[i])
+        extra_term === nothing || (rhs = rhs + extra_term(ops_qa[i]))
         if order_vec !== nothing
             rhs = cumulant_expansion(rhs, order_vec; simplify = false, mix_choice)
         end
         simplify && (rhs = SymbolicUtils.simplify(rhs))
         avg_eqs[i] = states[i] ~ rhs
     end
+    return avg_eqs
+end
+
+# Apply cumulant truncation + simplify to pre-built noise drifts.
+function _finalize_noise_eqs(avg_noise, order_vec, simplify, mix_choice)
+    if order_vec !== nothing
+        avg_noise = [
+            eq.lhs ~ cumulant_expansion(
+                    eq.rhs, order_vec; simplify = false, mix_choice
+                ) for eq in avg_noise
+        ]
+    end
+    if simplify
+        avg_noise = [eq.lhs ~ SymbolicUtils.simplify(eq.rhs) for eq in avg_noise]
+    end
+    return avg_noise
+end
+
+function _meanfield_deterministic(
+        direction::EvolutionDirection,
+        ops, H, J, Jdagger, rates, order,
+        simplify, mix_choice, iv,
+    )
+    ops_qa = QAdd[op * 1 for op in ops]
+    op_rhs, operator_eqs = _build_op_drift(direction, ops_qa, H, J, Jdagger, rates)
+    states = SymbolicUtils.BasicSymbolic[average(op) for op in ops_qa]
+    order_vec = order === nothing ? nothing :
+        _normalize_order(order, (; hamiltonian = H))
+    avg_eqs = _build_avg_drift_eqs(
+        op_rhs, states, ops_qa, nothing, order_vec, simplify, mix_choice,
+    )
     return MeanFieldEquations(
         avg_eqs, operator_eqs, states, ops_qa,
         H, collect(J), collect(Jdagger), collect(rates),
@@ -184,112 +220,44 @@ function _dY_dS_extra_term(op, J, Jdagger, rates)
     return out
 end
 
-function _meanfield_noise(
-        direction::Forward, ops, H, J, Jdagger, rates,
-        efficiencies, order, simplify, mix_choice, iv
-    )
-    imH = im * H
-    ops_qa = QAdd[op * 1 for op in ops]
-    op_rhs = Vector{QAdd}(undef, length(ops_qa))
-    operator_eqs = Vector{Symbolics.Equation}(undef, length(ops_qa))
-    @inbounds for (i, op) in enumerate(ops_qa)
-        rhs = SQA.expand_completeness(
-            _operator_rhs(direction, op, imH, J, Jdagger, rates),
-        )
-        op_rhs[i] = rhs
-        operator_eqs[i] = op ~ rhs
-    end
-    states = SymbolicUtils.BasicSymbolic[average(op) for op in ops_qa]
-    order_vec = order === nothing ? nothing :
-        _normalize_order(order, (; hamiltonian = H))
-    avg_eqs = Vector{Symbolics.Equation}(undef, length(ops_qa))
-    @inbounds for i in eachindex(op_rhs)
-        rhs = average(op_rhs[i])
-        if order_vec !== nothing
-            rhs = cumulant_expansion(rhs, order_vec; simplify = false, mix_choice)
-        end
-        simplify && (rhs = SymbolicUtils.simplify(rhs))
-        avg_eqs[i] = states[i] ~ rhs
-    end
-    op_noise, avg_noise = _build_noise_equations_forward(
-        ops_qa, J, Jdagger, rates, efficiencies, simplify
-    )
-    if order_vec !== nothing
-        avg_noise = [
-            eq.lhs ~ cumulant_expansion(
-                    eq.rhs, order_vec;
-                    simplify = false, mix_choice
-                )
-                for eq in avg_noise
-        ]
-    end
-    if simplify
-        avg_noise = [eq.lhs ~ SymbolicUtils.simplify(eq.rhs) for eq in avg_noise]
-    end
-    return NoiseMeanFieldEquations(
-        avg_eqs, avg_noise, operator_eqs, op_noise,
-        states, ops_qa, H,
-        collect(J), collect(Jdagger),
-        collect(rates), collect(efficiencies),
-        iv, order_vec, Forward()
-    )
+_noise_builder(::Forward) = _build_noise_equations_forward
+_noise_builder(::Backward) = _build_noise_equations_backward
+
+# Backward + noise picks up an extra deterministic correction in the dY-form
+# of the SDE (master `_master_noise_dY` / `_dY_dS_extra_term`). Forward noise
+# and pure-deterministic paths have no such correction.
+_avg_extra_term(::Forward, _, _, _) = nothing
+function _avg_extra_term(::Backward, J, Jdagger, eff_rates)
+    return op -> _dY_dS_extra_term(op, J, Jdagger, eff_rates)
 end
 
 function _meanfield_noise(
-        direction::Backward, ops, H, J, Jdagger, rates,
-        efficiencies, order, simplify, mix_choice, iv
+        direction::EvolutionDirection, ops, H, J, Jdagger, rates,
+        efficiencies, order, simplify, mix_choice, iv,
     )
-    imH = im * H
     ops_qa = QAdd[op * 1 for op in ops]
-    op_rhs = Vector{QAdd}(undef, length(ops_qa))
-    operator_eqs = Vector{Symbolics.Equation}(undef, length(ops_qa))
-    eff_rates = efficiencies .* rates
-    @inbounds for (i, op) in enumerate(ops_qa)
-        # Operator equation: time-reversed coherent drift + adjoint Lindblad
-        # recycling + trace-preserving term. The `_dY_dS_extra_term` lives in
-        # average-space (it contains `⟨J⟩·⟨op⟩` cumulant cross-products), so
-        # it's added only to the averaged equation below — matching master's
-        # `meanfield_backward` semantics where `rhs[i] = rhs_ + rhs_diss +
-        # rhs_trace + rhs_dY_dS` is then `average`d.
-        rhs = SQA.expand_completeness(
-            _operator_rhs(direction, op, imH, J, Jdagger, rates),
-        )
-        op_rhs[i] = rhs
-        operator_eqs[i] = op ~ rhs
-    end
+    op_rhs, operator_eqs = _build_op_drift(direction, ops_qa, H, J, Jdagger, rates)
     states = SymbolicUtils.BasicSymbolic[average(op) for op in ops_qa]
     order_vec = order === nothing ? nothing :
         _normalize_order(order, (; hamiltonian = H))
-    avg_eqs = Vector{Symbolics.Equation}(undef, length(ops_qa))
-    @inbounds for i in eachindex(op_rhs)
-        rhs = average(op_rhs[i]) +
-            _dY_dS_extra_term(ops_qa[i], J, Jdagger, eff_rates)
-        if order_vec !== nothing
-            rhs = cumulant_expansion(rhs, order_vec; simplify = false, mix_choice)
-        end
-        simplify && (rhs = SymbolicUtils.simplify(rhs))
-        avg_eqs[i] = states[i] ~ rhs
-    end
-    op_noise, avg_noise = _build_noise_equations_backward(
+
+    # The dY-form average correction only fires for `Backward` + noise;
+    # `_avg_extra_term` returns `nothing` for `Forward`, so the averaged
+    # drift comes out identical to the deterministic forward path.
+    extra = _avg_extra_term(direction, J, Jdagger, efficiencies .* rates)
+    avg_eqs = _build_avg_drift_eqs(
+        op_rhs, states, ops_qa, extra, order_vec, simplify, mix_choice,
+    )
+
+    op_noise, avg_noise = _noise_builder(direction)(
         ops_qa, J, Jdagger, rates, efficiencies, simplify
     )
-    if order_vec !== nothing
-        avg_noise = [
-            eq.lhs ~ cumulant_expansion(
-                    eq.rhs, order_vec;
-                    simplify = false, mix_choice
-                )
-                for eq in avg_noise
-        ]
-    end
-    if simplify
-        avg_noise = [eq.lhs ~ SymbolicUtils.simplify(eq.rhs) for eq in avg_noise]
-    end
+    avg_noise = _finalize_noise_eqs(avg_noise, order_vec, simplify, mix_choice)
     return NoiseMeanFieldEquations(
         avg_eqs, avg_noise, operator_eqs, op_noise,
         states, ops_qa, H,
         collect(J), collect(Jdagger),
         collect(rates), collect(efficiencies),
-        iv, order_vec, Backward()
+        iv, order_vec, direction,
     )
 end

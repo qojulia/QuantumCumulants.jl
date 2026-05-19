@@ -3,7 +3,7 @@
 Outstanding work on the v1 rewrite. See [DESIGN.md](DESIGN.md) for the
 target architecture and [CHANGELOG.md](CHANGELOG.md) for what has landed.
 
-Current state: 621 pass + 1 broken / 622 total (`make test 2>&1 | tee /tmp/maketest.log`).
+Current state: 625 pass + 1 broken / 626 total (`make test 2>&1 | tee /tmp/maketest.log`).
 All 14 examples run end-to-end. All non-SQA master tests are ported and
 the bound-index coefficient orphaning bug is resolved; the remaining
 work is test-strengthening and architectural cleanup.
@@ -151,9 +151,13 @@ via `direction = Backward()`).
 File-size and maintainability wins, NOT user-facing feature changes.
 Gated on the test-strengthening above landing first.
 
-- **Step 3**: unify `meanfield.jl` three derivation paths (forward,
+- ~~**Step 3**: unify `meanfield.jl` three derivation paths (forward,
   noise-forward, backward) into one parameterised `derive()`. ~120
-  lines saved.
+  lines saved.~~ Done: `_meanfield_deterministic` and the (Forward,
+  Backward) `_meanfield_noise` methods now share `_build_op_drift`,
+  `_build_avg_drift_eqs`, and `_finalize_noise_eqs`; the two
+  `_meanfield_noise` methods collapse to one. Saved ~32 lines and
+  removed three near-identical drift loops.
 - **Step 4**: consolidate `_canonical_key` / `_build_canonical_indices`
   into a single source of truth shared by `find_missing`, `scale!`,
   `evaluate`, `to_system`. Currently `scaling.jl` and `completion.jl`
