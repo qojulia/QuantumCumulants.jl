@@ -100,13 +100,7 @@ end
 
 function _canonical_key(x::SymbolicUtils.BasicSymbolic, canon::_CanonIndex)
     op = SQA.undo_average(x)
-    encountered = SQA.Index[]
-    for term in keys(op.arguments), o in term.ops
-        idx = o.index
-        SQA.has_index(idx) || continue
-        idx in encountered && continue
-        push!(encountered, idx)
-    end
+    encountered = _free_op_indices(op)
     pos_by_space = Dict{Int, Int}()
     result = op
     for idx in encountered
@@ -122,6 +116,18 @@ function _canonical_key(x::SymbolicUtils.BasicSymbolic, canon::_CanonIndex)
     return SQA.QAdd(
         result.arguments, SQA.Index[]
     )
+end
+
+# Collect distinct free indices appearing in operators inside `op`, in
+# encounter order. Used by both `_canonical_key` (alpha-equivalence) and
+# `_scale_qadd` (permutation collapse).
+function _free_op_indices(op::SQA.QAdd)
+    out = SQA.Index[]
+    for (term, _) in op.arguments, o in term.ops
+        SQA.has_index(o.index) || continue
+        o.index in out || push!(out, o.index)
+    end
+    return out
 end
 
 # Drop sum-scope `.indices` so the derived operator represents the

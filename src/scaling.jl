@@ -152,18 +152,6 @@ end
 _scale_qadd(op::SQA.QSym, canon) = op
 _scale_qadd(op, _) = op
 
-# Indices appearing in actual operators (not in sum-scope metadata).
-function _free_op_indices(op::QAdd)
-    out = SQA.Index[]
-    for (term, _) in op.arguments
-        for o in term.ops
-            SQA.has_index(o.index) || continue
-            o.index in out || push!(out, o.index)
-        end
-    end
-    return out
-end
-
 _canon_first(canon, space_index) = begin
     list = get(canon, space_index, nothing)
     (list === nothing || isempty(list)) ? nothing : first(list)
