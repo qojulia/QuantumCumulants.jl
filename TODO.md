@@ -3,7 +3,7 @@
 Outstanding work on the v1 rewrite. See [DESIGN.md](DESIGN.md) for the
 target architecture and [CHANGELOG.md](CHANGELOG.md) for what has landed.
 
-Current state: 601 pass + 1 broken / 602 total (`make test 2>&1 | tee /tmp/maketest.log`).
+Current state: 621 pass + 1 broken / 622 total (`make test 2>&1 | tee /tmp/maketest.log`).
 All 14 examples run end-to-end. All non-SQA master tests are ported and
 the bound-index coefficient orphaning bug is resolved; the remaining
 work is test-strengthening and architectural cleanup.
@@ -98,7 +98,6 @@ via `direction = Backward()`).
 
 | File | Master's strongest assertion | What we have now | Action |
 |---|---|---|---|
-| `test/measurement_retrodiction_test.jl` | Full Kalman smoothing scenario | Shape-only checks | Port the SDE pipeline: meanfield with efficiencies, simulate forward via SDEProblem with `Tsit5()` + StochasticDiffEq, construct measurement record `dY_W`, propagate backward, compare reconstructed state against true state. |
 | `test/indexed_correlation_test.jl` | order=2 indexed JC with phase-invariant filter, `evaluate(corr, ...)`, `split_sums` | order=1 only, no filter | Try order=2 (may be slow). If the v1 `complete!` mixed-order issue blocks order=2, add a ParallelTestRunner timeout and assert "completes in N seconds" as a regression marker. |
 
 ### Tests where master's assertion is NOT reachable (representation diff)
@@ -115,6 +114,25 @@ via `direction = Backward()`).
 - **`scale(eqs; h = [k])` per-Hilbert-space scaling**: master accepts
   `h::Vector` to scale a subset of Hilbert subspaces, leaving others as
   symbolic indices.
+- **`scale` per-atom rate coefficients pick up an extra `N`**: scaling
+  the rate-equation for ⟨σ_k₂₂⟩ in the indexed JC laser at order=1
+  produces `R + N*(-R-Γ)*⟨σ_k₂₂⟩` instead of the per-atom form
+  `R + (-R-Γ)*⟨σ_k₂₂⟩` (the LHS is a *specific* atom's population, not
+  the sum over atoms, so the `N` factor on the decay term is wrong). At
+  `N=1` the formula reduces correctly. Until fixed, physics steady-state
+  assertions must go through `evaluate(eqs_c; limits = (N => 1))`
+  rather than `scale`; see `test/indexed_correlation_test.jl::order=1
+  laser steady state via evaluate(N=>1)`. **Root cause:** SQA's
+  `meanfield` derivation puts a `Σ_k` sum-scope on the RHS σ22 term
+  even though the LHS uses the same free `k` for a specific atom: at
+  the operator level the inner average is `Σ(k=1:N) σ_k₂₂` (sum scope
+  `Index[k]`) while the LHS is just `σ_k₂₂` (no scope). `scale` then
+  correctly attaches an `(N - 0) = N` prefactor via
+  `_sum_scope_prefactor`. The fix lives in SQA: when a jump
+  `σ(2,1,k)` and an observable `σ(2,2,k)` share the *same* free index,
+  the Lindblad contraction should produce a per-atom term (no sum
+  scope) rather than a bound-`k` sum. Workaround in tests: use
+  `evaluate(N=>1)` or use different free indices for ops vs jumps.
 - **`complete!` mixed-order parity**: for `order = [1, 2]` on the
   indexed JC laser, v1 derives more equations than master (23 vs 8).
   Both are valid closures; the assertion-count divergence blocks
@@ -147,6 +165,12 @@ Gated on the test-strengthening above landing first.
   `canonicalise_undetermined`, `enumerate_sum`, batched `change_index`,
   `pairwise_distinct`. Promote to SQA's public API and have QC call
   them instead of carrying local equivalents.
+- **SQA op-scalar product overload**:
+  `*(::BasicSymbolic{<:SymReal}, ::QAdd)` and the reverse are missing,
+  so multiplying an averaged quantity into a `QAdd` requires wrapping
+  in `Symbolics.Num(...)` (e.g. `measurement_retrodiction_test.jl`'s
+  `f_measure` callback for Kalman drives). Adding the overload would
+  let `modify_equations` callbacks be written naturally.
 
 ## Definition of "done" for this branch
 
