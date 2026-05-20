@@ -61,7 +61,7 @@ end
     S = Spectrum(c, ps)
     s_num = S(ω, u_end, pn)
     s_an = @. (κ_num / 2) / ((ω + ωc_num)^2 + (κ_num / 2)^2)
-    @test maximum(abs.(s_num .- s_an)) < 1e-10
+    @test maximum(abs.(s_num .- s_an)) < 1.0e-10
 end
 
 @testset "Driven cavity: ODE conjugate substitution is non-folding" begin
@@ -89,14 +89,14 @@ end
     u0 = Dict(unknowns(sys_c) .=> zeros(ComplexF64, length(unknowns(sys_c))))
     sol = solve(
         ODEProblem(sys_c, merge(u0, Dict(ps .=> pn)), (0.0, 80.0)),
-        Tsit5(); abstol = 1e-10, reltol = 1e-10,
+        Tsit5(); abstol = 1.0e-10, reltol = 1.0e-10,
     )
     @test sol.retcode == ReturnCode.Success
 
     a_ss_an = -im * Ω_n / (im * ωc_n + κ_n / 2)
     n_ss_an = abs2(a_ss_an)
-    @test abs(get_solution(sol, a, he)(80.0) - a_ss_an) < 1e-7
-    @test abs(get_solution(sol, a' * a, he)(80.0) - n_ss_an) < 1e-7
+    @test abs(get_solution(sol, a, he)(80.0) - a_ss_an) < 1.0e-7
+    @test abs(get_solution(sol, a' * a, he)(80.0) - n_ss_an) < 1.0e-7
 end
 
 @testset "_lookup_avg resolves compound (normal-ordered) expressions" begin
@@ -141,7 +141,7 @@ end
     @named csys = to_system(c)
     csys_c = mtkcompile(csys)
     prob = ODEProblem(csys_c, merge(u0, p0_dict), (0.0, 30.0))
-    sol = solve(prob, Tsit5(); abstol = 1e-10, reltol = 1e-10)
+    sol = solve(prob, Tsit5(); abstol = 1.0e-10, reltol = 1.0e-10)
     @test sol.retcode == ReturnCode.Success
 
     # The first (and only) unknown of `csys_c` is ⟨a·a'_anc⟩(τ).
@@ -149,10 +149,10 @@ end
     τs = [0.5, 1.0, 2.0, 4.0]
     g_num = [sol(τ; idxs = g_var) for τ in τs]
     g_an = @. exp(-(im * pn[1] + pn[2] / 2) * τs)
-    @test maximum(abs.(g_num .- g_an)) < 1e-7
+    @test maximum(abs.(g_num .- g_an)) < 1.0e-7
 
     # g(τ → ∞) → 0 (vacuum, no asymptote). κ/2 = 0.25 ⇒ exp(-7.5) ≈ 5.5e-4.
-    @test abs(sol(30.0; idxs = g_var)) < 1e-3
+    @test abs(sol(30.0; idxs = g_var)) < 1.0e-3
 end
 
 @testset "Mollow correlation: setup + ODE solve + CorrelationFunction shapes" begin
