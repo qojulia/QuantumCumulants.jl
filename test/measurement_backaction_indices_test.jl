@@ -42,7 +42,10 @@ using Test
     @test _is_zero(rhs_o1)
 end
 
-@testset "indexed measurement backaction: filter cavity Hamiltonian builds" begin
+@testset "indexed measurement backaction: filter cavity drift agrees det vs stoch" begin
+    # Efficiencies enter the noise channel, not the drift, so the drift
+    # equations of `meanfield(...)` and `meanfield(...; efficiencies=...)`
+    # must coincide term-by-term on the indexed multi-Hilbert input.
     @variables κ::Real g::Real gf::Real κf::Real R::Real Γ::Real Δ::Real ν::Real N::Real M::Real η::Real
     δ(i) = IndexedVariable(:δ, i)
 
@@ -66,19 +69,31 @@ end
     J = [a, b(i), σ(1, 2, j), σ(2, 1, j), σ(2, 2, j)]
     rates = [κ, κf, Γ, R, ν]
 
-    # Deterministic indexed meanfield at order=2.
-    eqs = meanfield(a' * a, H, J; rates = rates, order = 2)
-    eqs_c = complete(eqs)
-    @test length(eqs_c.equations) >= 1
+    eqs_det = meanfield(a' * a, H, J; rates = rates, order = 2)
+    eqs_det_c = complete(eqs_det)
 
-    # Same input with one efficient measurement channel (cavity).
     efficiencies = [η, 0, 0, 0, 0]
     eqs_noise = meanfield(
         a' * a, H, J; rates = rates, efficiencies = efficiencies, order = 2
     )
     @test eqs_noise isa NoiseMeanFieldEquations
-    # The deterministic part of the noise equations should match the
-    # ordinary meanfield equations (LHS-wise after a fresh complete).
     eqs_noise_c = complete(eqs_noise)
-    @test length(eqs_noise_c.equations) >= length(eqs_c.equations)
+
+    # Structural: stoch state set contains det state set.
+    @test length(eqs_noise_c.equations) >= length(eqs_det_c.equations)
+    det_lhs = Set(e.lhs for e in eqs_det_c.equations)
+    stoch_lhs = Set(e.lhs for e in eqs_noise_c.equations)
+    @test issubset(det_lhs, stoch_lhs)
+
+    # Physics: for every LHS shared between det and stoch, the drift rhs
+    # must agree symbolically. Verify the first three to bound cost.
+    det_by_lhs = Dict(e.lhs => e.rhs for e in eqs_det_c.equations)
+    n_checked = 0
+    for eq in eqs_noise_c.equations
+        haskey(det_by_lhs, eq.lhs) || continue
+        @test _is_zero(eq.rhs - det_by_lhs[eq.lhs])
+        n_checked += 1
+        n_checked >= 3 && break
+    end
+    @test n_checked >= 1
 end

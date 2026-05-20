@@ -336,23 +336,6 @@ function _collect_ambient!(found, x, aon_anc, states_set)
     return
 end
 
-# Walk the tree replacing every leaf average (operation === sym_average) by
-# looking it up in `subs`. Avoid SymbolicUtils.substitute on the whole expr,
-# which can rebuild interior avg nodes with symtype=Any and break later
-# is_average / substitute calls.
-function _substitute_avg_leaves(x, subs)
-    x isa SymbolicUtils.BasicSymbolic || return x
-    if SymbolicUtils.iscall(x) && SymbolicUtils.operation(x) === SQA.sym_average
-        return get(subs, x, x)
-    end
-    SymbolicUtils.iscall(x) || return x
-    op = SymbolicUtils.operation(x)
-    new_args = Any[_substitute_avg_leaves(a, subs) for a in SymbolicUtils.arguments(x)]
-    op === complex && length(new_args) == 2 &&
-        return new_args[1] + new_args[2] * Symbolics.IM
-    return op(new_args...)
-end
-
 function _ambient_param(avg::SymbolicUtils.BasicSymbolic)
     # Prefix with `ss_` so ambient steady-state parameters never collide with
     # state variable names. Different subspaces aren't reflected in
@@ -494,7 +477,7 @@ function to_system(c::CorrelationFunction; name::Symbol)
         for (k, v) in conj_dict;     merged[k] = v; end
         for (k, v) in ambient_subs;  merged[k] = v; end
         for (k, v) in dict;          merged[k] = v; end
-        rhs = _substitute_avg_leaves(eq.rhs, merged)
+        rhs = _safe_substitute(eq.rhs, merged)
         new_eqs[i] = D(dict[eq.lhs]) ~ rhs
         _collect_params!(ps_set, rhs, dict, iv_uw)
     end

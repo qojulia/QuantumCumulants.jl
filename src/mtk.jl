@@ -125,12 +125,11 @@ function _to_system_sde(eqs::NoiseMeanFieldEquations, name::Symbol, sign::Int)
     w = first(MTK.@brownians _qc_dW)
     new_eqs = Vector{Symbolics.Equation}(undef, length(eqs.equations))
     ps_set = Set{SymbolicUtils.BasicSymbolic}()
+    merged = merge(conj_dict, dict)
     @inbounds for (i, eq) in enumerate(eqs.equations)
-        rhs_conj = _substitute_conj_avgs(eq.rhs, conj_dict)
-        rhs = _safe_substitute(rhs_conj, dict)
+        rhs = _safe_substitute(eq.rhs, merged)
         noise_eq = eqs.noise_equations[i]
-        noise_rhs_conj = _substitute_conj_avgs(noise_eq.rhs, conj_dict)
-        noise_rhs = _safe_substitute(noise_rhs_conj, dict)
+        noise_rhs = _safe_substitute(noise_eq.rhs, merged)
         # Substituted noise / drift trees can carry symtype `Any` (mixed
         # average products). SymbolicUtils refuses arithmetic between
         # mismatched symtypes, so build the product/sum nodes via `maketerm`,
@@ -157,9 +156,9 @@ function to_system(eqs::MeanFieldEquations; name::Symbol)
     conj_dict = _conj_substitution_dict(eqs, dict)
     new_eqs = Vector{Symbolics.Equation}(undef, length(eqs.equations))
     ps_set = Set{SymbolicUtils.BasicSymbolic}()
+    merged = merge(conj_dict, dict)
     @inbounds for (i, eq) in enumerate(eqs.equations)
-        rhs_conj = _substitute_conj_avgs(eq.rhs, conj_dict)
-        rhs = _safe_substitute(rhs_conj, dict)
+        rhs = _safe_substitute(eq.rhs, merged)
         new_eqs[i] = D(dict[eq.lhs]) ~ rhs
         _collect_params!(ps_set, rhs, dict, iv_uw)
     end
@@ -195,36 +194,6 @@ function _avg_conj_for_codegen(x::SymbolicUtils.BasicSymbolic)
     SymbolicUtils.operation(x) === SQA.sym_average || return x
     op = SQA.undo_average(x)
     return average(adjoint(op))
-end
-
-function _substitute_conj_avgs(x, conj_dict)
-    isempty(conj_dict) && return x
-    x isa SymbolicUtils.BasicSymbolic || return x
-    if haskey(conj_dict, x)
-        return conj_dict[x]
-    end
-    SymbolicUtils.iscall(x) || return x
-    op = SymbolicUtils.operation(x)
-    op === SQA.sym_average && return x
-    args = SymbolicUtils.arguments(x)
-    new_args = Any[_substitute_conj_avgs(a, conj_dict) for a in args]
-    # `complex(re_sym, im_sym)` literals occasionally survive in the RHS
-    # (e.g. from `im * H` constructing `Complex{Num}` coefficients). Calling
-    # `op(new_args...)` with `op === complex` and symbolic args has no method;
-    # rewrite to additive form `re + im_part * im` instead.
-    # TODO fix https://github.com/JuliaSymbolics/SymbolicUtils.jl/pull/922
-    op === complex && length(new_args) == 2 && return new_args[1] + new_args[2] * Symbolics.IM
-    # Some interior operators (e.g. Σ-sums whose symtype isn't <: Number)
-    # refuse `+` via SymbolicUtils's worker dispatch. Rebuild the node via
-    # `maketerm` in those cases, preserving the original symtype/metadata.
-    try
-        return op(new_args...)
-    catch err
-        err isa MethodError && err.f === op || rethrow()
-        return TermInterface.maketerm(
-            typeof(x), op, new_args, TermInterface.metadata(x),
-        )
-    end
 end
 
 """

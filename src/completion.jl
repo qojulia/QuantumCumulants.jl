@@ -45,9 +45,16 @@ function _collect_missing!(
     if _is_leaf_average(x)
         key = _canonical_key(x, canon)
         key in seen_keys && return
+        conj_key = _canonical_key(_avg_conj(x), canon)
         push!(seen_keys, key)
-        get_adjoints || push!(seen_keys, _canonical_key(_avg_conj(x), canon))
-        push!(missing_states, x)
+        push!(seen_keys, conj_key)
+        # Push canonical-form averages: the missing set must be invariant
+        # of RHS scan order, so two passes that encounter different members
+        # of a conjugate pair first still seed identical states.
+        push!(missing_states, average(key))
+        if get_adjoints && conj_key != key
+            push!(missing_states, average(conj_key))
+        end
         return
     end
     SymbolicUtils.iscall(x) || return
@@ -99,10 +106,18 @@ function _flatten_jumps(js::AbstractVector)
 end
 
 function _canonical_key(x::SymbolicUtils.BasicSymbolic, canon::_CanonIndex)
-    op = SQA.undo_average(x)
+    op_raw = SQA.undo_average(x)
+    op_raw isa SQA.QAdd || return op_raw
+    # Strip sum-scope `.indices` for the dedup key: states are stored in the
+    # per-atom template form (see `_undo_for_derivation`), so a sum-scoped RHS
+    # leaf `Σ_i ⟨σ_{i,22}⟩` must dedup against the per-atom state
+    # `⟨σ_{i,22}⟩`. `evaluate` later re-materialises the sum at codegen by
+    # enumerating the concrete atom states.
+    op = isempty(op_raw.indices) ? op_raw :
+        SQA.QAdd(op_raw.arguments, SQA.Index[])
     encountered = _free_op_indices(op)
     pos_by_space = Dict{Int, Int}()
-    result = op
+    rename = Dict{SQA.Index, SQA.Index}()
     for idx in encountered
         pos = get(pos_by_space, idx.space_index, 0) + 1
         pos_by_space[idx.space_index] = pos
@@ -111,11 +126,17 @@ function _canonical_key(x::SymbolicUtils.BasicSymbolic, canon::_CanonIndex)
         pos <= length(space_canon) || continue
         target = space_canon[pos]
         target == idx && continue
-        result = SQA.change_index(result, idx, target)
+        rename[idx] = target
     end
-    return SQA.QAdd(
-        result.arguments, SQA.Index[]
-    )
+    if isempty(rename)
+        return op === op_raw ? op : SQA.QAdd(op.arguments, SQA.Index[])
+    end
+    # Batched `change_index` does the rename simultaneously, so a target
+    # name that coincides with another encountered index (e.g. swapping
+    # `k <-> j` under canon `[j, k]`) does not fuse them destructively
+    # mid-rename.
+    result = SQA.change_index(op, rename)
+    return SQA.QAdd(result.arguments, SQA.Index[])
 end
 
 # Collect distinct free indices appearing in operators inside `op`, in
