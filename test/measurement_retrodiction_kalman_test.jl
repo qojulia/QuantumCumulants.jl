@@ -74,9 +74,9 @@ using Test
     eqs_det = meanfield(ops, H, J; rates = R, order = 2)
     iv = eqs_det.iv
     function f_measure(lhs, rhs)
-        avg_apad = Symbolics.Num(average(a + a'))
+        avg_apad = average(a + a')
         inn = lhs * a + a' * lhs - avg_apad * lhs
-        drive = Symbolics.Num(Ydot_meas(iv)) - √(η * Γ) * avg_apad
+        drive = Ydot_meas(iv) - √(η * Γ) * avg_apad
         term_ = √(η * Γ) * inn * drive
         return rhs + cumulant_expansion(average(term_), 2)
     end

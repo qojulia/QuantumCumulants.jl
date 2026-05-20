@@ -28,13 +28,6 @@ gaps and a small set of SQA primitive promotions.
   `canonicalise_undetermined`, `enumerate_sum`, `pairwise_distinct`.
   Promote to SQA's public API and have QC call them instead of carrying
   local equivalents.
-- **SQA op-scalar product overload**:
-  `*(::BasicSymbolic{<:SymReal}, ::QAdd)` and the reverse are missing,
-  so multiplying an averaged quantity into a `QAdd` requires wrapping
-  in `Symbolics.Num(...)` (e.g. `measurement_retrodiction_test.jl`'s
-  `f_measure` callback for Kalman drives). Adding the overload would
-  let `modify_equations` callbacks be written naturally.
-
 ## Definition of "done" for this branch
 
 - [ ] Ported tests assert master-equivalent (or stronger) physics, not
