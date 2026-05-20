@@ -20,11 +20,12 @@ Latexify = "0.13, 0.14, 0.15, 0.16"
 MacroTools = "0.5"
 OrdinaryDiffEq = "6"
 Plots = "1"
+SecondQuantizedAlgebra = "0.5"
 QuantumOptics = "1"
 QuantumOpticsBase = "0.4"
 StochasticDiffEq = "6"
-SymbolicUtils = "3.26.0"
-Symbolics = "6"
+SymbolicUtils = "4"
+Symbolics = "7"
 
 [sources]
 SecondQuantizedAlgebra = {url = "https://github.com/qojulia/SecondQuantizedAlgebra.jl", rev = "redesign-v2"}
