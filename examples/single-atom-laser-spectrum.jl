@@ -98,7 +98,7 @@ nothing # hide
 # In any case, we need to compute the steady state of the system numerically.
 
 ps = (Δ, g, γ, κ, ν)
-sys = to_system(eqs; name = :sys) # (v1: @named sys = System(eqs) → to_system(eqs; name=:sys))
+sys = System(eqs; name = :sys) # (v1: @named sys = System(eqs) → System(eqs; name=:sys))
 ssys = mtkcompile(sys)
 p0 = (1.0, 1.5, 0.25, 1.0, 4.0)
 u0 = zeros(ComplexF64, length(unknowns(ssys))) # (v1: zero init via unknowns(ssys))
@@ -110,7 +110,7 @@ nothing # hide
 # Now, we can compute the time evolution of the correlation function similarly. Since the initial state of this system does not necessarily depend on all steady-state values, we can use the [`correlation_u0`](@ref) function which automatically generates the correct initial state vector required. Similarly, we use [`correlation_p0`](@ref) which generates the list of parameters including all needed steady-state values.
 
 
-csys = to_system(c; name = :csys) # Time evolution of correlation function
+csys = System(c; name = :csys) # Time evolution of correlation function
 cssys = mtkcompile(csys)
 u_ss = Dict(avg => get_solution(sol, avg, eqs)(sol.t[end]) for avg in eqs.states) # (v1: build avg→value dict from solution)
 u0_c = correlation_u0(c, u_ss)

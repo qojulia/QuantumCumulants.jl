@@ -1,3 +1,5 @@
+_make_iv() = first(MTK.@independent_variables t)
+
 """
     meanfield(ops, H, J=QField[]; Jdagger=adjoint.(J), rates=ones(length(J)),
               efficiencies=nothing, direction=Forward(),
@@ -11,8 +13,6 @@ The returned RHS is left in its raw, unsimplified form. Apply
 `SymbolicUtils.simplify` (e.g. via `Symbolics.simplify(eq.rhs; expand=true)`)
 to the equations you want to inspect.
 """
-_make_iv() = first(MTK.@independent_variables t)
-
 function meanfield(
         ops::AbstractVector,
         H::QField,

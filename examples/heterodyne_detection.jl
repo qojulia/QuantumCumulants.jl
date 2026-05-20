@@ -94,7 +94,7 @@ p0 = [N_, ωa_, γ_, η_, χ_, ωc_, κ_, g_, ξ_, ωl_]
 T_end = 0.1 # 0.1ms
 
 # TODO(v1): deterministic System build from NoiseMeanFieldEquations + scaling not yet supported — see TODO.md
-# sys = to_system(scaled_eqs; name = :sys)
+# sys = System(scaled_eqs; name = :sys)
 # u0 = zeros(ComplexF64, length(scaled_eqs))
 # dict = merge(Dict(unknowns(sys) .=> u0), Dict(p .=> p0))
 # prob = ODEProblem(sys, dict, (0.0, T_end))
@@ -108,7 +108,7 @@ T_end = 0.1 # 0.1ms
 # We can then make use of the `EnsembleProblem`, which automatically runs multiple instances of the stochastic equations of motion. The number of trajectories can be set in the solve call. See the tutorial linked above for more details of the function calls here.
 
 # TODO(v1): SDESystem construction from NoiseMeanFieldEquations not yet wired — see TODO.md
-# sys_st = to_system(scaled_eqs; name = :sys_st)  # should produce an SDESystem when direction = Forward()
+# sys_st = System(scaled_eqs; name = :sys_st)  # should produce an SDESystem when direction = Forward()
 #
 # Random.seed!(2) # hide
 # noise = StochasticDiffEq.RealWienerProcess(0.0, 0.0)

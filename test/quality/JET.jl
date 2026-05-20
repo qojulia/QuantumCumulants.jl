@@ -42,10 +42,10 @@ function _jet_to_system_cavity()
     H = ω * a' * a
     eqs = meanfield([a], H, [a]; rates = [κ])
     complete!(eqs)
-    return to_system(eqs; name = :cav)
+    return System(eqs; name = :cav)
 end
 
-push!(JET_CALL_THUNKS, "to_system(damped cavity)" => _jet_to_system_cavity)
+push!(JET_CALL_THUNKS, "System(damped cavity)" => _jet_to_system_cavity)
 
 
 @testset "Type Stability (JET)" begin

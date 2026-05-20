@@ -43,7 +43,7 @@ using Test
     u0 = ComplexF64[x0, p0, 5 + x0 * x0, im / 2 + x0 * p0, 5 + p0 * p0]
 
     Random.seed!(2)
-    sys_fw = mtkcompile(to_system(eqs; name = :sys_fw))
+    sys_fw = mtkcompile(System(eqs; name = :sys_fw))
     dict_fw = merge(Dict(unknowns(sys_fw) .=> u0), Dict(ps .=> pn))
     noise = StochasticDiffEq.RealWienerProcess(0.0, 0.0; save_everystep = true)
     prob_fw = SDEProblem(sys_fw, dict_fw, (0, Tend); noise = noise)
@@ -87,7 +87,7 @@ using Test
             for i in eachindex(eqs_kal.equations)
     )
 
-    sys_kal = mtkcompile(to_system(eqs_kal; name = :sys_kal))
+    sys_kal = mtkcompile(System(eqs_kal; name = :sys_kal))
     dict_kal = merge(Dict(unknowns(sys_kal) .=> u0), Dict(ps .=> pn))
     prob_kal = ODEProblem(sys_kal, dict_kal, (0, Tend))
     sol_kal = solve(prob_kal, Tsit5(); dt = dt, adaptive = false, saveat = T_saveat)

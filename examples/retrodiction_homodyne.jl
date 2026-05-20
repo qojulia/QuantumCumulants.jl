@@ -62,7 +62,7 @@ nothing # hide
 
 ## define numerical SDE
 Random.seed!(2) # hide
-sys_fw = mtkcompile(to_system(eqs; name = :sys_fw))
+sys_fw = mtkcompile(System(eqs; name = :sys_fw))
 dict_fw = merge(Dict(unknowns(sys_fw) .=> u0), Dict(ps .=> pn))
 noise = StochasticDiffEq.RealWienerProcess(0.0, 0.0; save_everystep = true)
 prob_fw = SDEProblem(sys_fw, dict_fw, (0, Tend); noise = noise)
@@ -120,7 +120,7 @@ eqs_det = meanfield(ops, H, J; rates = R, order = 2)
 #
 
 # TODO(v1): modify_equations — see TODO.md
-# sys_kal = to_system(eqs_kal; name = :sys_kal)
+# sys_kal = System(eqs_kal; name = :sys_kal)
 # prob_kal = ODEProblem(sys_kal, dict_fw, (0, Tend))
 nothing # hide
 
@@ -189,7 +189,7 @@ eqs_back_kal_c = complete(eqs_back_kal)
 
 # deterministic smoothing equations
 # TODO(v1): modify_equations — see TODO.md
-# sys_back_kal = to_system(eqs_back_kal_c2; name = :sys_back_kal)
+# sys_back_kal = System(eqs_back_kal_c2; name = :sys_back_kal)
 # u0_bw = [0.0+0im, 0, 100, 0, 100]
 # dict_bw = merge(Dict(unknowns(sys_back_kal) .=> u0_bw), Dict(ps .=> pn))
 # prob_bw_kal = ODEProblem(sys_back_kal, dict_bw, (0, Tend))

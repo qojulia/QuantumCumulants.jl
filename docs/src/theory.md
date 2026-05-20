@@ -111,7 +111,7 @@ set_default(double_linebreak=true) # hide
 using QuantumCumulants
 
 # Symbolic parameters
-@cnumbers Δ g
+@variables Δ::Real g::Real
 
 # Hilbert space
 hf = FockSpace(:cavity)
@@ -119,7 +119,8 @@ ha = NLevelSpace(:atom,(:g,:e))
 h = hf⊗ha
 
 # Operators
-@qnumbers a::Destroy(h) σ::Transition(h)
+@qnumbers a::Destroy(h)
+σ(i, j) = Transition(h, :σ, i, j)
 
 # Hamiltonian
 H = Δ*a'*a + g*(a'*σ(:g,:e) + a*σ(:e,:g))
@@ -152,7 +153,7 @@ nothing # hide
 \end{align*}
 ```
 
-Note, that **QuantumCumulants.jl** automatizes the derivation of equations and the cumulant expansion. Furthermore, the final step of numerical implementation is handled by converting to the [**ModelingToolkit.jl**](https://github.com/SciML/ModelingToolkit.jl) framework.
+Note that **QuantumCumulants.jl** automatizes the derivation of equations and the cumulant expansion. The final step of numerical implementation is handled by converting to the [**ModelingToolkitBase.jl**](https://github.com/SciML/ModelingToolkitBase.jl) framework via `System`.
 
 ### References
 

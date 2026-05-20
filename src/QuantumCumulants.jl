@@ -8,7 +8,7 @@ using SecondQuantizedAlgebra: SecondQuantizedAlgebra, QField, QAdd,
 import SecondQuantizedAlgebra as SQA
 using SymbolicUtils: SymbolicUtils
 using Symbolics: Symbolics, @variables
-using ModelingToolkitBase: ModelingToolkitBase, complete
+using ModelingToolkitBase: ModelingToolkitBase, complete, System
 using Latexify: Latexify, @latexrecipe
 using LaTeXStrings: LaTeXStrings
 using MacroTools: MacroTools
@@ -20,10 +20,10 @@ const MTK = ModelingToolkitBase
 export AbstractMeanFieldEquations, MeanFieldEquations, NoiseMeanFieldEquations
 export EvolutionDirection, Forward, Backward
 export meanfield, cumulant_expansion, cumulant, get_order
-export complete, complete!, find_missing
+export complete, complete!, find_missing, System
 export scale, scale!
 export CorrelationFunction, Spectrum, correlation_u0, correlation_p0
-export to_system, initial_values, get_solution, parameter_map
+export initial_values, get_solution, parameter_map
 export modify_equations, modify_equations!
 export translate_W_to_Y
 export evaluate

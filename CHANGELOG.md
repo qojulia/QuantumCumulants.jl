@@ -13,7 +13,7 @@ Breaking release. Clean rewrite atop SecondQuantizedAlgebra v0.5 and ModelingToo
 - `heisenberg` deprecation alias dropped. Call `meanfield` directly.
 - `plotME` removed. Its target `EvaledMeanfieldEquations` no longer exists; latexify on the unified `MeanFieldEquations` covers the same use case.
 - `get_scale_solution` removed. The unified `get_solution(sol, op, eqs)` handles both scalar and scaled-indexed systems.
-- `subst_reds` removed. Redundant-conjugate substitution is folded into `to_system`'s codegen path automatically.
+- `subst_reds` removed. Redundant-conjugate substitution is folded into the `System(eqs)` codegen path automatically.
 - `find_missing_sums` removed. Unified `find_missing` covers both scalar and indexed cases.
 - Indexed-helper exports `value_map`, `split_sums`, `scale_term`, `eval_term`, `insert_index`, `order_by_index` removed. The equivalent transformations are expressed through SQA's `change_index` and `Σ` directly.
 - Parameter-machinery exports `Parameter`, `CNumber`, `RNumber`, `RealParameter`, `Average` (type), and the `@cnumbers`/`@rnumbers`/`cnumbers`/`cnumber`/`rnumbers`/`rnumber` macros removed. Use `Symbolics.@variables x::Real` (or `::Complex`) for symbolic parameters.
@@ -31,8 +31,8 @@ Breaking release. Clean rewrite atop SecondQuantizedAlgebra v0.5 and ModelingToo
 - `meanfield(ops, H, J; ...)` is the single derivation entry. Noise is opt-in via `efficiencies=...`; retrodiction via `direction=Backward()`.
 - `scale(eqs; h=Int[])` and `evaluate(eqs; limits, h=Int[])` accept a `h::Vector{Int}` of `space_index` values selecting which Hilbert subspaces are collapsed / unrolled. The empty default targets every subspace (previous behaviour). Hybrid systems can unroll some subspaces with `evaluate` and collapse others with `scale` in any order.
 - `scale` drops additive constants from the LHS when SQA's commutator pipeline produces a `c + ⟨...⟩` shape (e.g. `⟨a*a'⟩` renamed to a same-index pair collapses to `1 + ⟨a'a⟩`). The constant-offset equation deduplicates against its normal-ordered sibling.
-- Equation LHS in the user-facing struct is the raw `Average` `BasicSymbolic`. The `Differential(t)(u(t))` form is built only inside `to_system(...)`.
-- `to_system`'s conjugate substitution builds `conj(avg_op(t))` via `SymbolicUtils.term(conj, var; type=Number)` rather than `Base.conj(var)`, so the symbolic `conj` node survives `mtkcompile` and `build_function`. Without this, every `⟨X⟩ - ⟨X†⟩` driving term silently zeroed on the compiled RHS because Symbolics simplifies `conj(::SymReal)` to identity. Related ModelingToolkit gap tracked at https://github.com/SciML/ModelingToolkit.jl/issues/4548.
+- Equation LHS in the user-facing struct is the raw `Average` `BasicSymbolic`. The `Differential(t)(u(t))` form is built only inside `ModelingToolkitBase.System(eqs; name)`, which QC extends to dispatch on `MeanFieldEquations`, `NoiseMeanFieldEquations`, and `CorrelationFunction`.
+- The `System(eqs)` conjugate substitution builds `conj(avg_op(t))` via `SymbolicUtils.term(conj, var; type=Number)` rather than `Base.conj(var)`, so the symbolic `conj` node survives `mtkcompile` and `build_function`. Without this, every `⟨X⟩ - ⟨X†⟩` driving term silently zeroed on the compiled RHS because Symbolics simplifies `conj(::SymReal)` to identity. Related ModelingToolkit gap tracked at https://github.com/SciML/ModelingToolkit.jl/issues/4548.
 - `cumulant_expansion` redistributes the sum-scope metadata (`SumIndices`/`SumNonEqual`) onto each factorised product term so `scale` can recover the per-index range prefactor after Wick factorisation. Bound indices that no factored leaf references keep SQA's "spurious bound idx, factor 1" convention.
 - Quality gates (Aqua + ExplicitImports + CheckConcreteStructs + JET) are part of CI.
 - Updated to ModelingToolkitBase 1.36, SymbolicUtils 4, Symbolics 7, SecondQuantizedAlgebra 0.5.
@@ -44,7 +44,7 @@ Breaking release. Clean rewrite atop SecondQuantizedAlgebra v0.5 and ModelingToo
 - Replace `IndexedCorrelationFunction(...)` with `CorrelationFunction(...)`.
 - Replace `meanfield_backward(...)` with `meanfield(...; direction=Backward())`.
 - Replace `@cnumbers x y` / `@rnumbers x y` with `@variables x::Real y::Real` (or `::Complex` as appropriate).
-- Build numeric systems via `to_system(eqs; name=:sys)` then `mtkcompile(sys)`.
+- Build numeric systems via `System(eqs; name=:sys)` then `mtkcompile(sys)`. QC extends `ModelingToolkitBase.System` to dispatch on `MeanFieldEquations`, `NoiseMeanFieldEquations`, and `CorrelationFunction`; the standalone `to_system` entry point is gone.
 - Access trajectories via `get_solution(sol, op, eqs)(t)` instead of `sol[op]` or `get_scale_solution(...)`.
 - For numeric initial values from symbolic level names, pre-translate the `:g`/`:e` labels to integer levels before calling `initial_values(eqs, ψ)`. The master `level_map` kwarg was dropped.
 
@@ -73,7 +73,7 @@ smoke run:
 - `heterodyne_detection.jl`, `retrodiction_homodyne.jl` construct the
   forward/backward `NoiseMeanFieldEquations` via the unified `meanfield(...;
   efficiencies=..., direction=Forward()/Backward())` API. The downstream
-  `SDESystem` integration via `to_system` is built; the ensemble-averaging
+  `SDESystem` integration via `System(eqs; name)` is built; the ensemble-averaging
   examples remain a follow-up.
 
 

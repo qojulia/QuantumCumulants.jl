@@ -48,7 +48,7 @@ using Test
 
     # ODE roundtrip at order=4: equations must compile through MTK and
     # integrate to a finite steady-state without blowing up.
-    @named sys4 = to_system(he4)
+    @named sys4 = System(he4)
     sys4_c = mtkcompile(sys4)
     u0 = Dict(unknowns(sys4_c) .=> zeros(ComplexF64, length(unknowns(sys4_c))))
     ps = [Δ, g, γ, κ, ν]

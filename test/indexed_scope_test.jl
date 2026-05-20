@@ -53,7 +53,7 @@ end
 
 @testset "indexed scope: end-to-end inhomogeneous JC integrates" begin
     # Drives the full pipeline (meanfield → complete! → evaluate →
-    # to_system → ODEProblem → solve) with per-atom inhomogeneous
+    # System → ODEProblem → solve) with per-atom inhomogeneous
     # coupling. A successful solve here confirms: lifted scope reaches
     # the operator-side substitution, IndexedVariable coefficients track
     # the rename, and MTK accepts the resulting array-parameter system.
@@ -71,7 +71,7 @@ end
     complete!(eqs)
     evaled = evaluate(eqs; limits = (N => 2))
 
-    @named sys = to_system(evaled)
+    @named sys = System(evaled)
     sys_c = mtkcompile(sys)
     pmap = parameter_map(
         evaled, Dict(
@@ -117,7 +117,7 @@ end
     evaled = evaluate(eqs; limits = (N => 2))
 
     # Locate the two atom-cavity correlation states `⟨a σ_22(i_k)⟩`.
-    # Computed BEFORE `to_system` so the filter sees the un-substituted
+    # Computed BEFORE `System` so the filter sees the un-substituted
     # average leaves.
     # `complete!` non-deterministically picks one of each conjugate pair,
     # so atom-cavity correlations may appear as ⟨a σ_22⟩ OR ⟨a' σ_22⟩.
@@ -142,7 +142,7 @@ end
         has_pop && has_cavity && push!(corr_states, s)
     end
 
-    @named sys = to_system(evaled)
+    @named sys = System(evaled)
     sys_c = mtkcompile(sys)
     pmap = parameter_map(
         evaled, Dict(

@@ -120,7 +120,7 @@ end
     @test isempty(find_missing(evaled; get_adjoints = false))
 
     SQA = QuantumCumulants.SecondQuantizedAlgebra
-    @named sys = to_system(evaled)
+    @named sys = System(evaled)
     sys_c = mtkcompile(sys)
     # Below-threshold parameter point. Above threshold (strong η, large ν)
     # the cumulant closure is not bounded; this is a physics constraint,

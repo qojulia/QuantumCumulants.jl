@@ -83,7 +83,7 @@ nothing # hide
 # To calculate the dynamics of the system we create a system of ordinary differential equations with its initial state and numerical parameters.
 
 
-sys = to_system(eqs_sc; name = :sys) # symbolic ordinary differential equation system
+sys = System(eqs_sc; name = :sys) # symbolic ordinary differential equation system
 sys = mtkcompile(sys)
 u0 = zeros(ComplexF64, length(eqs_sc)); # initial state
 
@@ -180,7 +180,7 @@ nothing # hide
 # ```
 
 
-sys_a = to_system(eqs_a; name = :sys_a) # symbolic ordinary differential equation system
+sys_a = System(eqs_a; name = :sys_a) # symbolic ordinary differential equation system
 sys_a = mtkcompile(sys_a)
 
 u0_a = zeros(ComplexF64, length(eqs_a)) # initial state

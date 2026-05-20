@@ -72,7 +72,7 @@ nothing # hide
 # To calculate the time evolution we create a Julia function which can be used by DifferentialEquations.jl to solve the set of ordinary differential equations.
 
 # Build a System out of the MeanfieldEquations
-sys = to_system(eqs; name = :laser)
+sys = System(eqs; name = :laser)
 sys_c = mtkcompile(sys)
 nothing # hide
 

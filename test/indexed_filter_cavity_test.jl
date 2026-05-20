@@ -147,7 +147,7 @@ end
     @test isempty(find_missing(eqs_ev; get_adjoints = false))
 
     SQA = QuantumCumulants.SecondQuantizedAlgebra
-    @named sys_ev = to_system(eqs_ev)
+    @named sys_ev = System(eqs_ev)
     sys_c = mtkcompile(sys_ev)
     pars = ModelingToolkitBase.parameters(sys_c)
     pmap = Dict{Any, Any}()

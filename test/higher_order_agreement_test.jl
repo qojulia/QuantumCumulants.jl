@@ -48,8 +48,8 @@ using Test
         order = 6, filter_func = phase_invariant
     )
 
-    @named sys4 = to_system(he4); sys4_c = mtkcompile(sys4)
-    @named sys6 = to_system(he6); sys6_c = mtkcompile(sys6)
+    @named sys4 = System(he4); sys4_c = mtkcompile(sys4)
+    @named sys6 = System(he6); sys6_c = mtkcompile(sys6)
     u04 = Dict(unknowns(sys4_c) .=> zeros(ComplexF64, length(unknowns(sys4_c))))
     u06 = Dict(unknowns(sys6_c) .=> zeros(ComplexF64, length(unknowns(sys6_c))))
     ps = [Δ, g, γ, κ, ν]

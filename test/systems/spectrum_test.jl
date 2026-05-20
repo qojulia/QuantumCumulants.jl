@@ -67,7 +67,7 @@ end
 @testset "Driven cavity: ODE conjugate substitution is non-folding" begin
     # Regression test for a subtle correctness bug: meanfield equations
     # frequently contain `⟨X⟩ - ⟨X†⟩` terms. The `_conj_substitution_dict`
-    # pass in `to_system` maps `⟨X†⟩ → _qc_conj(avg_X(t))`. Using bare
+    # pass in `System` maps `⟨X†⟩ → _qc_conj(avg_X(t))`. Using bare
     # `conj(...)` folds to `avg_X(t)` (because state vars carry `Real`
     # symtype), silently zeroing the entire driving term. Here:
     #   d⟨a'a⟩/dt = -κ⟨a'a⟩ + iΩ(⟨a⟩ - ⟨a'⟩)
@@ -81,7 +81,7 @@ end
     he = meanfield([a, a'a], H, [a]; rates = [κ])
     complete!(he)
 
-    @named sys = to_system(he)
+    @named sys = System(he)
     sys_c = mtkcompile(sys)
     ωc_n, κ_n, Ω_n = 1.0, 0.5, 0.3
     ps = [ωc, κ, Ω]
@@ -120,7 +120,7 @@ end
 end
 
 @testset "Damped cavity: τ-integration matches exp(-(iωc + κ/2)τ)" begin
-    # End-to-end check of the τ-ODE pipeline: `to_system(c)`, `correlation_u0`,
+    # End-to-end check of the τ-ODE pipeline: `System(c)`, `correlation_u0`,
     # `correlation_p0`, ODE solve. The closed form for a damped vacuum cavity
     # is ⟨a(τ)·a†(0)⟩_ss = exp(-(iωc + κ/2)τ).
     hc = FockSpace(:cavity)
@@ -138,7 +138,7 @@ end
     u_end = Dict(SymbolicUtils.unwrap(average(a' * a)) => 0.0 + 0im)
     u0 = correlation_u0(c, u_end)
     p0_dict = correlation_p0(c, u_end, collect(ps) .=> pn)
-    @named csys = to_system(c)
+    @named csys = System(c)
     csys_c = mtkcompile(csys)
     prob = ODEProblem(csys_c, merge(u0, p0_dict), (0.0, 30.0))
     sol = solve(prob, Tsit5(); abstol = 1.0e-10, reltol = 1.0e-10)
@@ -167,7 +167,7 @@ end
     ps = (Δ, Ω, γ)
     p0 = ComplexF64[20.0, 5.0, 1.0]
     u0 = zeros(ComplexF64, length(eqs.equations))
-    @named sys = to_system(eqs)
+    @named sys = System(eqs)
     sys_c = mtkcompile(sys)
     dict = merge(Dict(unknowns(sys_c) .=> u0), Dict(ps .=> p0))
     prob = ODEProblem(sys_c, dict, (0.0, 20.0))

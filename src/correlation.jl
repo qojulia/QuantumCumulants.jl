@@ -340,7 +340,7 @@ _scalarize(x) = ComplexF64(0)
 #    coefficients);
 #  - averages touching ONLY the ancilla (⟨op2_anc⟩-type), which are constants
 #    equal to the original-system ⟨op2⟩ at steady state.
-# Both are mapped to MTK parameters in `to_system(c)` and given numeric values
+# Both are mapped to MTK parameters in `System(c)` and given numeric values
 # in `correlation_p0`.
 function _ambient_avgs(c::CorrelationFunction)
     found = OrderedCollections.OrderedSet{SymbolicUtils.BasicSymbolic}()
@@ -487,13 +487,13 @@ function correlation_p0(c::CorrelationFunction, u_end, ps_p0)
 end
 
 """
-    to_system(c::CorrelationFunction; name)
+    ModelingToolkitBase.System(c::CorrelationFunction; name::Symbol)
 
 Build an MTK `System` for the τ-evolution of the correlation function.
 Ambient steady-state averages on the RHS are substituted with MTK parameters
 whose values are supplied via [`correlation_p0`](@ref).
 """
-function to_system(c::CorrelationFunction; name::Symbol)
+function MTK.System(c::CorrelationFunction; name::Symbol)
     eqs = c.eqs
     iv = eqs.iv
     iv_uw = SymbolicUtils.unwrap(iv)

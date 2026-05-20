@@ -16,7 +16,7 @@ For every `Index` whose `range` matches a limits key:
   2. Free LHS indices enumerate over their range, producing one equation per
      concrete value.
 
-The result is a system whose `QAdd`s have empty `.indices`, ready for `to_system`
+The result is a system whose `QAdd`s have empty `.indices`, ready for `System`
 and `mtkcompile`.
 
 `h` further restricts unrolling to Hilbert subspaces whose `space_index` is in

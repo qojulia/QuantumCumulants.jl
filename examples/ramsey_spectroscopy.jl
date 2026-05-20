@@ -51,7 +51,7 @@ nothing # hide
 # To calculate the dynamic of the system we create a system of ordinary differential equations and define the numeric parameters with the time dependent function.
 
 
-sys = to_system(eqs; name = :sys) # (v1: @named sys = System(eqs) → to_system(eqs; name=:sys))
+sys = System(eqs; name = :sys) # (v1: @named sys = System(eqs) → System(eqs; name=:sys))
 sys_c = mtkcompile(sys)
 
 # Parameter

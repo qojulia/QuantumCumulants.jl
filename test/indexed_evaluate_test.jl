@@ -29,7 +29,7 @@ using Test
 
     # Round-trip through MTK: mtkcompile must accept the result without
     # Σ-typed residual shapes leaking into MTK's fixpoint substitution.
-    @named sys = to_system(eqs_ev)
+    @named sys = System(eqs_ev)
     sys_c = mtkcompile(sys)
     @test length(unknowns(sys_c)) == 6
 
@@ -72,8 +72,8 @@ end
     eqs_ev = evaluate(eqs_c; limits = (N3 => 3))
 
     N_, V_, Ω_ = 3, 4.79 / 2, 1.0
-    @named sys_sc = to_system(eqs_sc); sys_sc_c = mtkcompile(sys_sc)
-    @named sys_ev = to_system(eqs_ev); sys_ev_c = mtkcompile(sys_ev)
+    @named sys_sc = System(eqs_sc); sys_sc_c = mtkcompile(sys_sc)
+    @named sys_ev = System(eqs_ev); sys_ev_c = mtkcompile(sys_ev)
     u0_sc = Dict(unknowns(sys_sc_c) .=> zeros(ComplexF64, length(unknowns(sys_sc_c))))
     u0_ev = Dict(unknowns(sys_ev_c) .=> zeros(ComplexF64, length(unknowns(sys_ev_c))))
 

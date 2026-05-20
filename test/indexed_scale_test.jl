@@ -33,7 +33,7 @@ using Test
     @test length(eqs_sc.equations) >= 1
     @test isempty(find_missing(eqs_sc; get_adjoints = false))
 
-    @named sys = to_system(eqs_sc)
+    @named sys = System(eqs_sc)
     sys_c = mtkcompile(sys)
     @test length(unknowns(sys_c)) >= 1
 end
@@ -86,8 +86,8 @@ end
     @test isempty(find_missing(eqs_sc; get_adjoints = false))
     @test isempty(find_missing(eqs_ev; get_adjoints = false))
 
-    @named sys_sc = to_system(eqs_sc); sys_sc_c = mtkcompile(sys_sc)
-    @named sys_ev = to_system(eqs_ev); sys_ev_c = mtkcompile(sys_ev)
+    @named sys_sc = System(eqs_sc); sys_sc_c = mtkcompile(sys_sc)
+    @named sys_ev = System(eqs_ev); sys_ev_c = mtkcompile(sys_ev)
 
     N_, V_, Ω_ = 3, 4.79 / 2, 1.0
     u0_sc = Dict(unknowns(sys_sc_c) .=> zeros(ComplexF64, length(unknowns(sys_sc_c))))

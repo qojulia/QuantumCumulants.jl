@@ -99,7 +99,7 @@ end
     @test _iz(stoch.equations[1].rhs - det.equations[1].rhs)
 end
 
-@testset "to_system on noise eqs: substitutes conjugate of state on RHS" begin
+@testset "System on noise eqs: substitutes conjugate of state on RHS" begin
     # Driven damped cavity. The drift of ⟨a'a⟩ references ⟨a'⟩, but ⟨a'⟩ is
     # the conjugate of state ⟨a⟩ and is therefore not itself added as a
     # separate state. The SDE codegen path must rewrite ⟨a'⟩ as
@@ -118,6 +118,6 @@ end
     @test length(eqs.states) == 2
     @test eqs isa NoiseMeanFieldEquations
 
-    sys = to_system(eqs; name = :driven_cav_noise)
+    sys = System(eqs; name = :driven_cav_noise)
     @test sys isa ModelingToolkitBase.System
 end

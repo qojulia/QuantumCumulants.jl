@@ -62,7 +62,7 @@ nothing # hide
 eqs = meanfield(σ(:g, :e, 1), H, c_ops; rates = [γ for i in 1:N], order = 2) # Derive the equations to second order
 complete!(eqs)  # complete the set
 
-sys = to_system(eqs; name = :sys) # Generate the System
+sys = System(eqs; name = :sys) # Generate the System
 sys_c = mtkcompile(sys)
 nothing # hide
 

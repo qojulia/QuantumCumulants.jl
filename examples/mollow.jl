@@ -67,7 +67,7 @@ nothing # hide
 
 # To find the spectrum, we first need to compute the time evolution of the system up to steady state.
 
-sys = to_system(eqs; name = :sys)
+sys = System(eqs; name = :sys)
 ssys = mtkcompile(sys)
 
 p0 = (0.0, 2.0, 1.0)

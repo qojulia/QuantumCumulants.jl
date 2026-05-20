@@ -58,7 +58,7 @@ end
     @test isempty(find_missing(he; filter_func = phase_invariant))
     @test length(he.equations) >= 3
 
-    @named sys = to_system(he)
+    @named sys = System(he)
     @test sys isa ModelingToolkitBase.System
 end
 
@@ -78,7 +78,7 @@ end
 
     ps = (Δ, g, γ, κ, ν)
     p0 = ps .=> ComplexF64[1, 1.5, 0.25, 1, 4]
-    @named sys = to_system(he_comp)
+    @named sys = System(he_comp)
     sys_c = mtkcompile(sys)
     u0 = unknowns(sys_c) .=> zeros(ComplexF64, length(unknowns(sys_c)))
     tmax = 10.0

@@ -76,7 +76,7 @@ M_ = 20
 
 
 # TODO(v1): evaluate(eqs; limits=...) — not yet ported, see TODO.md
-# sys = to_system(eqs_eval; name = :sys)
+# sys = System(eqs_eval; name = :sys)
 # sys_c = mtkcompile(sys)
 # nothing # hide
 

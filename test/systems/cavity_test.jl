@@ -4,14 +4,14 @@ using ModelingToolkitBase: ModelingToolkitBase, @named, mtkcompile, ODEProblem, 
 using OrdinaryDiffEq: Tsit5, solve, ReturnCode
 using Test
 
-@testset "to_system: damped cavity end-to-end" begin
+@testset "System: damped cavity end-to-end" begin
     hc = FockSpace(:cavity)
     @qnumbers a::Destroy(hc)
     @variables ω κ
     H = ω * a' * a
     eqs = meanfield([a], H, [a]; rates = [κ])
     complete!(eqs)
-    sys = to_system(eqs; name = :damped_cav)
+    sys = System(eqs; name = :damped_cav)
 
     sys_c = mtkcompile(sys)
     @test length(unknowns(sys_c)) == 1

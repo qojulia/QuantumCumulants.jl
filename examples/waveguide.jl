@@ -144,7 +144,7 @@ nothing # hide
 
 
 # TODO(v1): full solve depends on initial_values(eqs, ψ::Ket) and rate-matrix collective decay — see TODO.md
-# sys = to_system(eqs; name = :sys)
+# sys = System(eqs; name = :sys)
 # sys = mtkcompile(sys)
 # dict = merge(Dict(unknowns(sys) .=> u0), Dict(ps .=> p0))
 # prob = ODEProblem(sys, dict, (0.0, 8e-3))

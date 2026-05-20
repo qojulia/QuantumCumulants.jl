@@ -109,7 +109,7 @@ end
     eqs = meanfield(ops, H, J; rates = rates, order = 1)
     eqs_c = complete(eqs)
     eqs_ev = evaluate(eqs_c; limits = (N => 1))
-    sys = mtkcompile(to_system(eqs_ev; name = :sys))
+    sys = mtkcompile(System(eqs_ev; name = :sys))
 
     Δ_, g_, κ_, Γ_, R_, ν_ = 0.0, 1.0, 1.0, 0.25, 4.0, 1.0
     p_map = parameter_map(

@@ -110,7 +110,7 @@ nothing # hide
 
 # To calculate the dynamics of the system we create a system of ordinary differential equations, which can be used by [DifferentialEquations.jl](https://diffeq.sciml.ai/stable/).
 
-sys = to_system(eqs_sc; name = :sys) # (v1: @named sys = System(eqs) → to_system(eqs; name=:sys))
+sys = System(eqs_sc; name = :sys) # (v1: @named sys = System(eqs) → System(eqs; name=:sys))
 sys_c = mtkcompile(sys)
 nothing # hide
 

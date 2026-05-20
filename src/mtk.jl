@@ -94,19 +94,22 @@ function _collect_params!(set, x, dict, iv_uw)
 end
 
 """
-    to_system(eqs::MeanFieldEquations; name::Symbol)
+    ModelingToolkitBase.System(eqs::AbstractMeanFieldEquations; name::Symbol)
+    ModelingToolkitBase.System(c::CorrelationFunction; name::Symbol)
 
 Build a `ModelingToolkitBase.System` from the QC equation set. Substitutes
 Averages with real-typed `u(t)` Num variables and passes `dvs`/`ps` explicitly.
+For [`NoiseMeanFieldEquations`](@ref) the result is an SDE system whose
+Brownian column is the aggregated per-jump noise drift.
 """
-function to_system(
+function MTK.System(
         eqs::NoiseMeanFieldEquations{O, H, Op, Jt, Jdt, R, E, S, Forward};
         name::Symbol
     ) where {O, H, Op, Jt, Jdt, R, E, S}
     return _to_system_sde(eqs, name, +1)
 end
 
-function to_system(
+function MTK.System(
         eqs::NoiseMeanFieldEquations{O, H, Op, Jt, Jdt, R, E, S, Backward};
         name::Symbol
     ) where {O, H, Op, Jt, Jdt, R, E, S}
@@ -148,7 +151,7 @@ function _to_system_sde(eqs::NoiseMeanFieldEquations, name::Symbol, sign::Int)
     return MTK.System(new_eqs, iv, dvs, ps, [w]; name = name)
 end
 
-function to_system(eqs::MeanFieldEquations; name::Symbol)
+function MTK.System(eqs::MeanFieldEquations; name::Symbol)
     iv = eqs.iv
     iv_uw = SymbolicUtils.unwrap(iv)
     D = Symbolics.Differential(iv)
@@ -168,7 +171,7 @@ function to_system(eqs::MeanFieldEquations; name::Symbol)
 end
 
 # Build a substitution `⟨op†⟩ → conj(state_var(⟨op⟩))` for every state
-# whose conjugate is *not* itself a state. This lets `to_system` codegen
+# whose conjugate is *not* itself a state. This lets `System` codegen
 # substitute the conjugate of a state without needing the conjugate to
 # also be added to `eqs.states`. (See completion.jl::find_missing: by
 # default, conjugates of states are excluded from missing-state scans.)
@@ -250,7 +253,7 @@ end
 
 Map a numeric initial-condition vector aligned with `eqs.states` to a
 `Dict{Symbolics.Num, ComplexF64}` keyed by the MTK state variables produced
-by `to_system`. Equivalent to building the dict via `unknowns(sys) .=> u0`.
+by `System(eqs)`. Equivalent to building the dict via `unknowns(sys) .=> u0`.
 """
 function initial_values(
         eqs::AbstractMeanFieldEquations, u0::AbstractVector{<:Number};

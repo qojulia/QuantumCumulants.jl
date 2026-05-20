@@ -24,7 +24,7 @@ using Test
     @test isempty(find_missing(eqs))
 
     ps = [Δ_, g, κ, η]
-    @named sys = to_system(eqs)
+    @named sys = System(eqs)
     sys_c = mtkcompile(sys)
     u0 = Dict(unknowns(sys_c) .=> zeros(ComplexF64, length(unknowns(sys_c))))
     p0 = [0.5, 1.0, 1.25, 0.85]
