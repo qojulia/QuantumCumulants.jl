@@ -28,4 +28,4 @@ JET = "0.9, 0.10, 0.11"
 ParallelTestRunner = "2"
 
 [sources]
-SecondQuantizedAlgebra = {url = "/home/oameye/Documents/SecondQuantizedAlgebra.jl", rev = "redesign-v2"}
+SecondQuantizedAlgebra = {url = "https://github.com/qojulia/SecondQuantizedAlgebra.jl", rev = "redesign-v2"}

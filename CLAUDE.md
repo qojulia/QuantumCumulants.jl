@@ -19,7 +19,7 @@ Running a single test file: pass a name filter to `ParallelTestRunner` via `Pkg.
 ## Project layout and dependencies
 
 - The package is a thin symbolic layer on top of [SecondQuantizedAlgebra.jl](https://github.com/qojulia/SecondQuantizedAlgebra.jl) (SQA), which provides the operator algebra (`FockSpace`, `NLevelSpace`, `Destroy`, `Transition`, `Index`, `Σ`, …). `QuantumCumulants` `@reexport`s SQA, so users `using QuantumCumulants` get the full algebra surface.
-- `Project.toml` pins SQA via a local `[sources]` path (`/home/oameye/Documents/SecondQuantizedAlgebra.jl`). When debugging issues that look algebraic (commutators, indexed sums, operator ordering), check whether the bug actually lives in SQA, not here.
+- `Project.toml` pins SQA via a local `[sources]` path (`https://github.com/qojulia/SecondQuantizedAlgebra.jl`). When debugging issues that look algebraic (commutators, indexed sums, operator ordering), check whether the bug actually lives in SQA, not here.
 - MTK conversion uses `ModelingToolkitBase` (aliased `const MTK`), not full `ModelingToolkit`. Examples and docs say `using ModelingToolkitBase`.
 
 ## Architecture (big picture)
@@ -48,7 +48,7 @@ When in doubt about whether something is "missing" vs. "moved," check [CHANGELOG
 
 ## What the v1 rewrite is *for*
 
-The point of the rewrite is **not** to reproduce master line-by-line on top of new dependency versions. The point is a **maintainable, scalable, performant** implementation that uses SQA's new data model natively. The starting reading list is SQA's [docs/src/devdocs.md](/home/oameye/Documents/SecondQuantizedAlgebra.jl/docs/src/devdocs.md) (architecture, naming policy, canonicalisation pipeline, diagonal splitting) and [docs/src/symbolic_sums.md](/home/oameye/Documents/SecondQuantizedAlgebra.jl/docs/src/symbolic_sums.md). Read these *first* before porting anything from master; the answers to "what should this function do" come from there, not from master's source.
+The point of the rewrite is **not** to reproduce master line-by-line on top of new dependency versions. The point is a **maintainable, scalable, performant** implementation that uses SQA's new data model natively. The starting reading list is SQA's [docs/src/devdocs.md](https://github.com/qojulia/SecondQuantizedAlgebra.jl/docs/src/devdocs.md) (architecture, naming policy, canonicalisation pipeline, diagonal splitting) and [docs/src/symbolic_sums.md](https://github.com/qojulia/SecondQuantizedAlgebra.jl/docs/src/symbolic_sums.md). Read these *first* before porting anything from master; the answers to "what should this function do" come from there, not from master's source.
 
 ### Key SQA invariants QC code must respect
 

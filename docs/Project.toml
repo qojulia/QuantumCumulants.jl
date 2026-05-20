@@ -27,4 +27,4 @@ SymbolicUtils = "3.26.0"
 Symbolics = "6"
 
 [sources]
-SecondQuantizedAlgebra = {url = "/home/oameye/Documents/SecondQuantizedAlgebra.jl", rev = "redesign-v2"}
+SecondQuantizedAlgebra = {url = "https://github.com/qojulia/SecondQuantizedAlgebra.jl", rev = "redesign-v2"}
