@@ -225,7 +225,7 @@ function initial_values(
 end
 
 """
-    initial_values(eqs::AbstractMeanFieldEquations, state; kwargs...)
+    initial_values(eqs::AbstractMeanFieldEquations, state)
 
 For a set of symbolic equations `eqs` compute the initial state-average values
 corresponding to the numeric quantum state `state` of the system. `state` can
@@ -237,13 +237,10 @@ Returns a `Vector{ComplexF64}` aligned with `eqs.states`.
 
 See also: [`to_numeric`](@ref), [`numeric_average`](@ref).
 """
-function initial_values(
-        eqs::AbstractMeanFieldEquations, state;
-        kwargs...
-    )
+function initial_values(eqs::AbstractMeanFieldEquations, state)
     vals = ComplexF64[]
     for v in eqs.states
-        push!(vals, ComplexF64(SQA.numeric_average(v, state; kwargs...)))
+        push!(vals, ComplexF64(SQA.numeric_average(v, state)))
     end
     return vals
 end

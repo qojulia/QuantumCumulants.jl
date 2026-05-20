@@ -4,7 +4,7 @@ using Symbolics: @variables
 using Random
 using Test
 
-# v1 surface: `initial_values(eqs, ψ::Ket; level_map)` plumbing.
+# v1 surface: `initial_values(eqs, ψ::Ket)` plumbing.
 # Lower-level `to_numeric` / `numeric_average` tests belong in
 # SecondQuantizedAlgebra.jl (per CLAUDE.md).
 

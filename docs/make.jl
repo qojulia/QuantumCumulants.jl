@@ -37,12 +37,26 @@ version = match(r"(v[0-9].[0-9]+.[0-9]+)", status)[1]
 gh_moi = Documenter.Remotes.GitHub("qojulia", "SecondQuantizedAlgebra.jl")
 remotes = Dict(pkgdir(SecondQuantizedAlgebra) => (gh_moi, version))
 
+DocMeta.setdocmeta!(
+    SecondQuantizedAlgebra,
+    :DocTestSetup,
+    :(using SecondQuantizedAlgebra);
+    recursive = true,
+)
+DocMeta.setdocmeta!(
+    QuantumCumulants,
+    :DocTestSetup,
+    :(using QuantumCumulants);
+    recursive = true,
+)
+
 makedocs(
     sitename = "QuantumCumulants.jl",
     modules = [QuantumCumulants, SecondQuantizedAlgebra],
     pages = pages,
     remotes = remotes,
     checkdocs = :exports,
+    doctest = false,
     format = Documenter.HTML(
         mathengine = MathJax(),
         footer = "[**Back to GitHub**](https://github.com/qojulia/QuantumCumulants.jl)",

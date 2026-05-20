@@ -74,8 +74,7 @@ function _evaluate_unroll(eqs::MeanFieldEquations, sub_dict, h_set::Set{Int})
         op_k = eqs.operators[k]
         free = _free_lhs_indices(op_k, sub_dict, h_set)
         ranges = [sub_dict[SymbolicUtils.unwrap(idx.range)] for idx in free]
-        iter = isempty(free) ? ((),) :
-            Iterators.product([1:r for r in ranges]...)
+        iter = Iterators.product([1:r for r in ranges]...)
         for tup in iter
             idx_sub = Dict{SQA.Index, SQA.Index}(
                 zip(free, (_fresh_index(b, v, canon) for (b, v) in zip(free, tup)))

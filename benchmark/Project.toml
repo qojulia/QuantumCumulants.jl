@@ -1,4 +1,5 @@
 [deps]
+BenchmarkTools = "6e4b80f9-dd63-53aa-95a3-0cdb28fa8baf"
 DiffEqNoiseProcess = "77a26b50-5914-5dd7-bc55-306e6241c503"
 InteractiveUtils = "b77e0a4c-d291-57a0-90e8-8db25a27a240"
 Latexify = "23fbe1c1-3f47-55db-b15f-69d7ec21a316"
@@ -17,7 +18,7 @@ SymbolicUtils = "d1185830-fcd6-423d-90d6-eec64667417b"
 Symbolics = "0c5d862f-8b57-4792-8d23-62f2024744c7"
 
 [sources]
-SecondQuantizedAlgebra = {url = "https://github.com/qojulia/SecondQuantizedAlgebra.jl", rev = "redesign-v2"}
+SecondQuantizedAlgebra = {rev = "redesign-v2", url = "https://github.com/qojulia/SecondQuantizedAlgebra.jl"}
 
 [compat]
 Latexify = "0.16"
