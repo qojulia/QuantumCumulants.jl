@@ -143,14 +143,15 @@ cumulant_expansion(x::Symbolics.Num, order; kw...) =
     cumulant_expansion(SymbolicUtils.unwrap(x), order; kw...)
 
 function _expand_average(ops::QField, order::Int)
-    qa = ops isa QAdd ? ops : ops
     out = 0
-    if qa isa QAdd
-        for (term, coeff) in qa.arguments
-            out = out + coeff * _expand_product(term.ops, order)
+    if ops isa QAdd
+        for (term, coeff) in ops.arguments
+            piece = coeff * _expand_product(term.ops, order)
+            piece = _stamp_sum_to_first_leaves(piece, ops.indices, term.ne)
+            out = out + piece
         end
     else
-        out = average(qa)
+        out = average(ops)
     end
     return out
 end
@@ -163,12 +164,97 @@ function _expand_average(ops::QField, order::Vector{Int}; mix_choice = maximum)
     out = 0
     if ops isa QAdd
         for (term, coeff) in ops.arguments
-            out = out + coeff * _expand_product(term.ops, order; mix_choice)
+            piece = coeff * _expand_product(term.ops, order; mix_choice)
+            piece = _stamp_sum_to_first_leaves(piece, ops.indices, term.ne)
+            out = out + piece
         end
     else
         out = average(ops)
     end
     return out
+end
+
+# After cumulant factorization, `Σ_{i_1,...,i_k} ⟨A_1⟩⟨A_2⟩⋯` would lose the
+# outer sum scope (Σ is encoded as `SumIndices`/`SumNonEqual` metadata on the
+# average sym, and the factored-out product is no longer a single average).
+# Re-attach the sum scope by stamping each bound index onto the first averaged
+# leaf in the product that references it. Bound indices that do not appear in
+# any leaf are treated as "spurious" (factor 1 in `scale`'s prefactor logic),
+# matching SQA's pre-existing convention for `_accumulate_with_diag!`-produced
+# leftover scope.
+function _stamp_sum_to_first_leaves(piece, indices::Vector{SQA.Index}, ne)
+    isempty(indices) && return piece
+    piece isa SymbolicUtils.BasicSymbolic || return piece
+    leaves = SymbolicUtils.BasicSymbolic[]
+    _collect_avg_leaves!(leaves, piece)
+    isempty(leaves) && return piece
+    leaf_idx_assign = [SQA.Index[] for _ in leaves]
+    leaf_ne_assign = [Tuple{SQA.Index, SQA.Index}[] for _ in leaves]
+    for idx in indices
+        slot = _first_leaf_using(leaves, idx)
+        slot === nothing && continue
+        push!(leaf_idx_assign[slot], idx)
+        # Carry along NE pairs that involve only indices already assigned to
+        # this leaf (so the metadata stays self-consistent per leaf).
+        for pair in ne
+            (pair[1] == idx || pair[2] == idx) || continue
+            (pair[1] in leaf_idx_assign[slot] && pair[2] in leaf_idx_assign[slot]) ||
+                continue
+            push!(leaf_ne_assign[slot], pair)
+        end
+    end
+    sub = IdDict{Any, Any}()
+    for (i, leaf) in enumerate(leaves)
+        isempty(leaf_idx_assign[i]) && continue
+        new_leaf = SymbolicUtils.setmetadata(
+            leaf, SQA.SumIndices, copy(leaf_idx_assign[i]),
+        )
+        new_leaf = SymbolicUtils.setmetadata(
+            new_leaf, SQA.SumNonEqual, copy(leaf_ne_assign[i]),
+        )
+        sub[leaf] = new_leaf
+    end
+    isempty(sub) && return piece
+    return _substitute_by_identity(piece, sub)
+end
+
+function _collect_avg_leaves!(out, x)
+    x isa SymbolicUtils.BasicSymbolic || return out
+    if _is_leaf_average(x)
+        push!(out, x)
+        return out
+    end
+    SymbolicUtils.iscall(x) || return out
+    for a in SymbolicUtils.arguments(x)
+        _collect_avg_leaves!(out, a)
+    end
+    return out
+end
+
+function _first_leaf_using(leaves, idx::SQA.Index)
+    for (i, leaf) in enumerate(leaves)
+        op = SQA.undo_average(leaf)
+        if op isa QAdd
+            for (term, _) in op.arguments, o in term.ops
+                if SQA.has_index(o.index) && o.index == idx
+                    return i
+                end
+            end
+        end
+    end
+    return nothing
+end
+
+# Substitute by object identity (the leaves were obtained from `piece` itself).
+function _substitute_by_identity(x, sub::IdDict)
+    haskey(sub, x) && return sub[x]
+    x isa SymbolicUtils.BasicSymbolic || return x
+    SymbolicUtils.iscall(x) || return x
+    op = SymbolicUtils.operation(x)
+    args = SymbolicUtils.arguments(x)
+    new_args = Any[_substitute_by_identity(a, sub) for a in args]
+    all(((a, b),) -> a === b, zip(args, new_args)) && return x
+    return op(new_args...)
 end
 
 function _expand_product(args::Vector, order::Int)

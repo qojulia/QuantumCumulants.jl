@@ -8,6 +8,18 @@ Breaking release: clean rewrite atop SecondQuantizedAlgebra v0.5 and ModelingToo
 
 ### Fixed
 
+- `scale` undercounted an `N` factor on cumulant-factorised products of averages
+  derived from multi-index sums (`Σ_{i_1,…,i_k}`). After cumulant expansion the
+  outer Σ scope (stored as `SumIndices`/`SumNonEqual` metadata on the original
+  averaged term) was lost when `⟨A_{i_1}·B_{i_2}⟩` factorised to `⟨A_{i_1}⟩·⟨B_{i_2}⟩`,
+  so `scale` saw a bare product with no sum information to translate into a
+  range prefactor. `cumulant_expansion` now redistributes the metadata onto the
+  resulting product by stamping each bound index onto the first averaged leaf
+  whose op references it; bound indices that no leaf uses keep SQA's existing
+  "spurious bound idx → factor 1" convention. The Ising-XX nonlinear-interaction
+  agreement test in `test/indexed_scale_test.jl` (three assertions previously
+  `@test_broken`) now passes.
+
 - `to_system`'s conjugate substitution `⟨op†⟩ → conj(avg_op(t))` previously folded to `⟨op†⟩ → avg_op(t)` because the state variable carries `SymReal` symtype and Symbolics simplifies `conj(::Real)` to identity. This silently zeroed every `⟨X⟩ - ⟨X†⟩` driving term on the RHS of the compiled ODE, breaking driven cavities and any dissipative system with phase-sensitive coherent drive. Fix: build the conjugate via `SymbolicUtils.term(conj, var; type=Number)` instead of `Base.conj(var)`, bypassing the simplifier so the conj node survives through `mtkcompile` and `build_function`. ModelingToolkit's lack of a clean complex-state interface is tracked at https://github.com/SciML/ModelingToolkit.jl/issues/4548.
 
 ### Removed

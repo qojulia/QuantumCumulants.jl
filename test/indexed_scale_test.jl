@@ -118,19 +118,9 @@ end
     val_ev_1 = get_solution(sol_ev, obs_op_ev_1, eqs_ev)(sol_ev.t[end])
     val_ev_2 = get_solution(sol_ev, obs_op_ev_2, eqs_ev)(sol_ev.t[end])
     val_ev_3 = get_solution(sol_ev, obs_op_ev_3, eqs_ev)(sol_ev.t[end])
-    # KNOWN BUG: `scale` undercounts a factor of N on the nonlinear
-    # interaction term from `Σ_{i1, i2}` double sums (see TODO.md). At
-    # order=1 with `Σ_{i,j} s+(i)s-(j) - Σ_i s+(i)s-(i)` (the Ising-XX
-    # interaction), evaluate's ⟨S₁₂⟩ equation gets `+ 6V·im·⟨S₁₂⟩·⟨S₂₂⟩`
-    # (= 2V·N at N=3), whereas scale gets `+ 2V·im·⟨S₁₂⟩·⟨S₂₂⟩` (missing
-    # the N factor). The previous version of this assertion passed because
-    # the conjugate-substitution bug in `to_system` zeroed ⟨S₂₂⟩ in both
-    # paths (the `⟨X⟩ - ⟨X†⟩` Ω-driving term collapsed under SymRealsymtype
-    # folding of `conj`), masking the N-factor mismatch. Fixing the conj
-    # substitution unzeroes ⟨S₂₂⟩ and exposes the scale bug.
-    @test_broken isapprox(val_ev_1, val_sc_end; atol = 1.0e-6)
-    @test_broken isapprox(val_ev_2, val_sc_end; atol = 1.0e-6)
-    @test_broken isapprox(val_ev_3, val_sc_end; atol = 1.0e-6)
+    @test isapprox(val_ev_1, val_sc_end; atol = 1.0e-6)
+    @test isapprox(val_ev_2, val_sc_end; atol = 1.0e-6)
+    @test isapprox(val_ev_3, val_sc_end; atol = 1.0e-6)
     # Permutation symmetry: the three atoms must give the same value.
     @test isapprox(val_ev_1, val_ev_2; atol = 1.0e-8)
     @test isapprox(val_ev_2, val_ev_3; atol = 1.0e-8)
