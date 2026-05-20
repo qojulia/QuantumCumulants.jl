@@ -39,6 +39,36 @@ using Test
     @test length(unknowns(sys_c)) >= 1
 end
 
+@testset "indexed_scale: per-Hilbert-space scale order independence" begin
+    # Two indexed subspaces, scaling each separately in either order must
+    # produce systems of equal size. From the pending port of master's
+    # `test_indexed_scale.jl`.
+    @variables N::Real N2::Real Δ::Real g::Real κ::Real Γ::Real R::Real ν::Real
+
+    hc = FockSpace(:cavity)
+    ha = NLevelSpace(:atom, 2)
+    h = hc ⊗ ha
+
+    k = Index(h, :k, N, ha)
+    l = Index(h, :l, N, ha)
+    m = Index(h, :m, N2, hc)
+    n = Index(h, :n, N2, hc)
+
+    σ(i, j, k) = IndexedOperator(Transition(h, :σ, i, j), k)
+    ai(k) = IndexedOperator(Destroy(h, :a), k)
+
+    H_2 = -Δ * ∑(ai(m)' * ai(m), m) +
+          g * (∑(Σ(ai(m)' * σ(1, 2, k), k), m) + ∑(Σ(ai(m) * σ(2, 1, k), k), m))
+    J_2 = [ai(m), σ(1, 2, k), σ(2, 1, k), σ(2, 2, k)]
+    rates_2 = [κ, Γ, R, ν]
+    ops_2 = [ai(n)' * ai(n), σ(2, 2, l)]
+    eqs_com = complete(meanfield(ops_2, H_2, J_2; rates = rates_2, order = 2))
+
+    s_full_a = scale(scale(eqs_com; h = [1]); h = [2])
+    s_full_b = scale(scale(eqs_com; h = [2]); h = [1])
+    @test length(s_full_a.equations) == length(s_full_b.equations)
+end
+
 @testset "indexed_scale: Ising-XX scale vs evaluate ODE numerical equality" begin
     h2 = NLevelSpace(:spin, 2)
     @variables V::Real Ω::Real N3::Real

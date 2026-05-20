@@ -3,7 +3,7 @@
 Outstanding work on the v1 rewrite. See [DESIGN.md](DESIGN.md) for the
 target architecture and [CHANGELOG.md](CHANGELOG.md) for what has landed.
 
-Current state: 636 pass + 1 broken / 637 total (`make test 2>&1 | tee /tmp/maketest.log`).
+Current state: 649 pass + 1 broken / 650 total (`make test 2>&1 | tee /tmp/maketest.log`).
 All 14 examples run end-to-end. All non-SQA master tests are ported,
 test-strengthening pass is done (noise, parameters, higher_order,
 meanfield, indexed_scale, indexed_correlation, indexed_scope all
@@ -21,12 +21,6 @@ gaps and a small set of SQA primitive promotions.
 
 ## Open v1 feature gaps that block deeper test ports
 
-- **`evaluate(eqs; h = [hilb])` per-Hilbert-space filter**: master
-  accepts `h::Vector` to evaluate only specific Hilbert subspaces. v1
-  emits a warning and ignores `h`.
-- **`scale(eqs; h = [k])` per-Hilbert-space scaling**: master accepts
-  `h::Vector` to scale a subset of Hilbert subspaces, leaving others as
-  symbolic indices.
 - **`complete!` mixed-order parity**: for `order = [1, 2]` on the
   indexed JC laser, v1 derives more equations than master (23 vs 8).
   Both are valid closures; the assertion-count divergence blocks

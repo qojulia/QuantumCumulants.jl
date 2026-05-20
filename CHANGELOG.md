@@ -15,6 +15,8 @@ Breaking release: clean rewrite atop SecondQuantizedAlgebra v0.5 and ModelingToo
 ### Changed
 
 - `meanfield(ops, H, J; ...)` is the single derivation entry. Noise is opt-in via `efficiencies=...`; retrodiction via `direction=Backward()`.
+- `scale(eqs; h=Int[])` and `evaluate(eqs; limits, h=Int[])` accept a `h::Vector{Int}` of `space_index` values selecting which Hilbert subspaces are collapsed / unrolled. The empty default targets every subspace (previous behaviour). Hybrid systems can unroll some subspaces with `evaluate` and collapse others with `scale` in any order.
+- `scale` now drops additive constants from the LHS when SQA's commutator pipeline produces a `c + ⟨...⟩` shape (e.g. `⟨a*a'⟩` renamed to a same-index pair collapses to `1 + ⟨a'a⟩`). The constant-offset equation deduplicates against its normal-ordered sibling.
 - Equation LHS in the user-facing struct is the raw `Average` BasicSymbolic. The `Differential(t)(u(t))` form is built only inside `to_system(...)`.
 - Quality gates (Aqua + ExplicitImports + CheckConcreteStructs + JET) are part of CI.
 - Updated to ModelingToolkitBase 1.36, SymbolicUtils 4, Symbolics 7, SecondQuantizedAlgebra 0.5.

@@ -1,6 +1,6 @@
 """
-    evaluate(eqs::MeanFieldEquations; limits=nothing, h=nothing, simplify=true, kwargs...)
-    evaluate(c::CorrelationFunction; limits=nothing, kwargs...)
+    evaluate(eqs::MeanFieldEquations; limits=nothing, h::Vector{Int}=Int[], simplify=true, kwargs...)
+    evaluate(c::CorrelationFunction; limits=nothing, h::Vector{Int}=Int[], kwargs...)
 
 Materialise symbolic indexed mean-field equations into concrete-size systems.
 
@@ -8,8 +8,8 @@ Materialise symbolic indexed mean-field equations into concrete-size systems.
 For every `Index` whose `range` matches a limits key:
 
   1. Sums `Σ_i^N f(i)` (carried as `QAdd.indices` metadata) are unrolled to
-     `f(e_s_1) + f(e_s_2) + … + f(e_s_n)`, where `e_s_k` is a fresh per-value
-     `Index` shared across all enumerations of "position k in space s" — so
+     `f(e_s_1) + f(e_s_2) + ... + f(e_s_n)`, where `e_s_k` is a fresh per-value
+     `Index` shared across all enumerations of "position k in space s", so
      `i_k` and `j_k` from different source names collapse to the same physical
      atom. NE-violated terms drop out of `_canonicalize!`.
 
@@ -19,6 +19,13 @@ For every `Index` whose `range` matches a limits key:
 The result is a system whose `QAdd`s have empty `.indices`, ready for `to_system`
 and `mtkcompile`.
 
+`h` further restricts unrolling to Hilbert subspaces whose `space_index` is in
+the vector (the 1-based tensor-product position). The empty default unrolls
+every index covered by `limits`. Indices on unselected subspaces keep their
+symbolic names and sum-scope, even if `limits` covers their range. Useful for
+hybrid systems: unroll a filter cavity array via `evaluate(...; limits, h=[2])`
+while leaving the atom ensemble symbolic for `scale`.
+
 Implementation: this is a thin layer over `SQA.change_index`. All algebraic
 normalisation (commuting-op sort, projector squashing, ne-violated drop,
 diagonal splitting) is delegated to SQA primitives.
@@ -26,18 +33,18 @@ diagonal splitting) is delegated to SQA primitives.
 function evaluate(
         eqs::MeanFieldEquations;
         limits = nothing,
-        h = nothing,
+        h::Vector{Int} = Int[],
         simplify::Bool = true,
         kwargs...,
     )
-    h === nothing || @warn "`h` kwarg not yet implemented in v1 evaluate; ignored"
     sub_dict = _build_limits_dict(limits)
     isempty(sub_dict) && return _copy(eqs)
-    return _evaluate_unroll(eqs, sub_dict; simplify)
+    h_set = Set{Int}(h)
+    return _evaluate_unroll(eqs, sub_dict, h_set; simplify)
 end
 
-function evaluate(c::CorrelationFunction; limits = nothing, kwargs...)
-    new_eqs = evaluate(c.eqs; limits = limits, kwargs...)
+function evaluate(c::CorrelationFunction; limits = nothing, h::Vector{Int} = Int[], kwargs...)
+    new_eqs = evaluate(c.eqs; limits = limits, h = h, kwargs...)
     return CorrelationFunction(
         c.op1, c.op2, c.op2_anc, c.aon_anc,
         new_eqs, c.eqs0, c.τ, c.steady_state,
@@ -47,7 +54,7 @@ end
 # ---------------------------------------------------------------------------
 # Driver
 
-function _evaluate_unroll(eqs::MeanFieldEquations, sub_dict; simplify::Bool)
+function _evaluate_unroll(eqs::MeanFieldEquations, sub_dict, h_set::Set{Int}; simplify::Bool)
     coeff_sub = Dict{Any, Any}(k => v for (k, v) in sub_dict)
     canon = _build_canonical_indices(eqs)
     # Normalise scope: lift SumIndices metadata from average leaves onto
@@ -66,7 +73,7 @@ function _evaluate_unroll(eqs::MeanFieldEquations, sub_dict; simplify::Bool)
 
     for k in eachindex(eqs.equations)
         op_k = eqs.operators[k]
-        free = _free_lhs_indices(op_k, sub_dict)
+        free = _free_lhs_indices(op_k, sub_dict, h_set)
         ranges = [sub_dict[SymbolicUtils.unwrap(idx.range)] for idx in free]
         iter = isempty(free) ? ((),) :
                Iterators.product([1:r for r in ranges]...)
@@ -85,11 +92,11 @@ function _evaluate_unroll(eqs::MeanFieldEquations, sub_dict; simplify::Bool)
                     SymbolicUtils.unwrap(b.sym) => SymbolicUtils.unwrap(t.sym)
                     for (b, t) in idx_sub
                 )
-            new_lhs = _materialise(lifted_lhs[k], idx_sub, sub_dict, canon, sym_sub)
-            new_rhs = _materialise(lifted_rhs[k], idx_sub, sub_dict, canon, sym_sub)
-            new_op = _materialise_qfield(op_k, idx_sub, sub_dict, canon)
-            new_op_eq = _materialise(lifted_op_eq_lhs[k], idx_sub, sub_dict, canon, sym_sub) ~
-                _materialise(lifted_op_eq_rhs[k], idx_sub, sub_dict, canon, sym_sub)
+            new_lhs = _materialise(lifted_lhs[k], idx_sub, sub_dict, canon, sym_sub, h_set)
+            new_rhs = _materialise(lifted_rhs[k], idx_sub, sub_dict, canon, sym_sub, h_set)
+            new_op = _materialise_qfield(op_k, idx_sub, sub_dict, canon, h_set)
+            new_op_eq = _materialise(lifted_op_eq_lhs[k], idx_sub, sub_dict, canon, sym_sub, h_set) ~
+                _materialise(lifted_op_eq_rhs[k], idx_sub, sub_dict, canon, sym_sub, h_set)
             key = _dedup_key(new_lhs)
             (key in seen) && continue
             push!(seen, key)
@@ -244,14 +251,15 @@ end
 # ---------------------------------------------------------------------------
 # Free-index discovery (only those whose range is in `sub_dict`)
 
-_free_lhs_indices(::Number, _) = SQA.Index[]
-function _free_lhs_indices(op::SQA.QSym, sub_dict)
+_free_lhs_indices(::Number, _, _) = SQA.Index[]
+function _free_lhs_indices(op::SQA.QSym, sub_dict, h_set::Set{Int})
     idx = op.index
     SQA.has_index(idx) || return SQA.Index[]
     SymbolicUtils.unwrap(idx.range) in keys(sub_dict) || return SQA.Index[]
+    _in_h(h_set, idx.space_index) || return SQA.Index[]
     return SQA.Index[idx]
 end
-function _free_lhs_indices(op::QAdd, sub_dict)
+function _free_lhs_indices(op::QAdd, sub_dict, h_set::Set{Int})
     out = SQA.Index[]
     bound = Set(op.indices)
     for (term, _) in op.arguments
@@ -260,6 +268,7 @@ function _free_lhs_indices(op::QAdd, sub_dict)
             SQA.has_index(idx) || continue
             idx in bound && continue
             SymbolicUtils.unwrap(idx.range) in keys(sub_dict) || continue
+            _in_h(h_set, idx.space_index) || continue
             idx in out || push!(out, idx)
         end
     end
@@ -331,10 +340,10 @@ end
 
 const _EMPTY_SYM_SUB = Dict{Any, Any}()
 
-function _materialise(x, idx_sub, sub_dict, canon, sym_sub = _EMPTY_SYM_SUB)
+function _materialise(x, idx_sub, sub_dict, canon, sym_sub, h_set::Set{Int})
     x isa SymbolicUtils.BasicSymbolic || return x
     if _is_leaf_average(x)
-        return _materialise_avg(x, idx_sub, sub_dict, canon)
+        return _materialise_avg(x, idx_sub, sub_dict, canon, h_set)
     end
     if !SymbolicUtils.iscall(x)
         # Leaf Sym: substitute Symbolics-side index references (e.g. the
@@ -346,11 +355,11 @@ function _materialise(x, idx_sub, sub_dict, canon, sym_sub = _EMPTY_SYM_SUB)
        SymbolicUtils.hasmetadata(x, SQA.SumIndices)
         bound = SymbolicUtils.getmetadata(x, SQA.SumIndices)
         bound isa Vector{SQA.Index} && !isempty(bound) &&
-            return _materialise_scoped(x, bound, idx_sub, sub_dict, canon, sym_sub)
+            return _materialise_scoped(x, bound, idx_sub, sub_dict, canon, sym_sub, h_set)
     end
     op = SymbolicUtils.operation(x)
     args = SymbolicUtils.arguments(x)
-    new_args = Any[_materialise(a, idx_sub, sub_dict, canon, sym_sub) for a in args]
+    new_args = Any[_materialise(a, idx_sub, sub_dict, canon, sym_sub, h_set) for a in args]
     # Identity comparison: `isequal` ignores BasicSymbolic metadata and may
     # collapse averages whose inner QFields differ, causing the rebuilt
     # parent to silently reuse the stale child. See `_lift_sum_scope` for
@@ -374,7 +383,7 @@ end
 # `local_sub` / `local_sym` extensions. `_materialise` propagates `local_sub`
 # to operator leaves via `change_index` and `local_sym` to Symbolics leaves
 # (e.g. the `i.sym` arg inside `IndexedVariable(:g, i)`).
-function _materialise_scoped(x, bound::Vector{SQA.Index}, idx_sub, sub_dict, canon, sym_sub)
+function _materialise_scoped(x, bound::Vector{SQA.Index}, idx_sub, sub_dict, canon, sym_sub, h_set::Set{Int})
     substituted = Set{SQA.Index}()
     for (from, to) in idx_sub
         push!(substituted, from); push!(substituted, to)
@@ -384,15 +393,18 @@ function _materialise_scoped(x, bound::Vector{SQA.Index}, idx_sub, sub_dict, can
     # the bound index (e.g. `κ⟨a'a⟩` inside a sum-over-i Hamiltonian).
     # Filter `to_unroll` to bound indices whose name actually appears in
     # the subtree, otherwise enumeration produces N identical copies.
+    # `h_set` skips indices on unselected subspaces so their sum stays
+    # symbolic, matching `_materialise_qfield`'s gate.
     to_unroll = SQA.Index[
         b for b in bound
         if SymbolicUtils.unwrap(b.range) in keys(sub_dict) &&
+           _in_h(h_set, b.space_index) &&
            !(b in substituted) &&
            _references_index(x, b)
     ]
     stripped = SymbolicUtils.setmetadata(x, SQA.SumIndices, SQA.Index[])
     if isempty(to_unroll)
-        return _materialise(stripped, idx_sub, sub_dict, canon, sym_sub)
+        return _materialise(stripped, idx_sub, sub_dict, canon, sym_sub, h_set)
     end
     ranges = [sub_dict[SymbolicUtils.unwrap(b.range)] for b in to_unroll]
     terms = Any[]
@@ -404,7 +416,7 @@ function _materialise_scoped(x, bound::Vector{SQA.Index}, idx_sub, sub_dict, can
             local_sub[b] = fresh
             local_sym[SymbolicUtils.unwrap(b.sym)] = SymbolicUtils.unwrap(fresh.sym)
         end
-        push!(terms, _materialise(stripped, local_sub, sub_dict, canon, local_sym))
+        push!(terms, _materialise(stripped, local_sub, sub_dict, canon, local_sym, h_set))
     end
     isempty(terms) && return 0
     length(terms) == 1 && return terms[1]
@@ -446,23 +458,23 @@ _qfield_references_index(op::SQA.QSym, b::SQA.Index) =
     SQA.has_index(op.index) && op.index === b
 _qfield_references_index(_, ::SQA.Index) = false
 
-function _materialise_avg(avg::SymbolicUtils.BasicSymbolic, idx_sub, sub_dict, canon)
+function _materialise_avg(avg::SymbolicUtils.BasicSymbolic, idx_sub, sub_dict, canon, h_set::Set{Int})
     op = SQA.undo_average(avg)
-    new_op = _materialise_qfield(op, idx_sub, sub_dict, canon)
+    new_op = _materialise_qfield(op, idx_sub, sub_dict, canon, h_set)
     new_op isa SQA.QField && return average(new_op)
     return new_op  # already a numeric sum-of-averages from unrolling
 end
 
 # Materialise a `QField` (or `Number`). Two passes: first apply free-index
 # substitution via SQA.change_index, then unroll any sum-metadata bound indices
-# whose range matches `sub_dict`.
+# whose range matches `sub_dict` and whose Hilbert subspace is in `h_set`.
 
-_materialise_qfield(x::Number, _, _, _) = x
-function _materialise_qfield(op::SQA.QSym, idx_sub, _, _)
+_materialise_qfield(x::Number, _, _, _, _) = x
+function _materialise_qfield(op::SQA.QSym, idx_sub, _, _, _)
     haskey(idx_sub, op.index) || return op
     return SQA.change_index(op, op.index, idx_sub[op.index])
 end
-function _materialise_qfield(op::QAdd, idx_sub, sub_dict, canon)
+function _materialise_qfield(op::QAdd, idx_sub, sub_dict, canon, h_set::Set{Int})
     after_free = _apply_free_sub(op, idx_sub)
     # Two sources of "bound indices to unroll" in this leaf:
     #  (a) explicit sum-scope `.indices` metadata that actually appears in
@@ -505,23 +517,27 @@ function _materialise_qfield(op::QAdd, idx_sub, sub_dict, canon)
     # Indices we KEEP: those whose range is outside `sub_dict` (different
     # bound subspace) AND which appear in some operator AND which are not
     # substituted.
+    # "Targeted" = range covered by sub_dict AND on a subspace selected by
+    # h_set. Indices on unselected subspaces stay in `.indices` as symbolic
+    # sum scope, matching `_materialise_scoped`'s gate.
+    _targeted(idx) = SymbolicUtils.unwrap(idx.range) in keys(sub_dict) &&
+        _in_h(h_set, idx.space_index)
     stripped_indices = SQA.Index[
         b for b in after_free.indices
-        if (!(SymbolicUtils.unwrap(b.range) in keys(sub_dict)) || b in op_indices) &&
-           !(b in substituted)
+        if (!_targeted(b) || b in op_indices) && !(b in substituted)
     ]
     if length(stripped_indices) != length(after_free.indices)
         after_free = QAdd(after_free.arguments, stripped_indices)
     end
     bound = SQA.Index[]
     for b in stripped_indices
-        SymbolicUtils.unwrap(b.range) in keys(sub_dict) || continue
+        _targeted(b) || continue
         b in substituted && continue
         b in bound || push!(bound, b)
     end
     for idx in op_indices
         idx in substituted && continue
-        SymbolicUtils.unwrap(idx.range) in keys(sub_dict) || continue
+        _targeted(idx) || continue
         idx in bound || push!(bound, idx)
     end
     isempty(bound) && return after_free
