@@ -3,6 +3,8 @@ ket = "ket"
 Ket = "Ket"
 pn = "pn"
 ba = "ba"
+anc = "anc"
+iz = "iz"
 
 [type.ipynb]
 extend-glob = ["*.ipynb"]
