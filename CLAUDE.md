@@ -69,6 +69,7 @@ The point of the rewrite is **not** to reproduce master line-by-line on top of n
 - **`_canonical_key` in completion.jl is for bound-index alpha-equivalence**, not for distinguishing concrete positions. After `evaluate`, the indices are *concrete* (the user constructed them, or we minted them from the user's vocabulary), and the dedup key should be the operator itself, optionally normalised for commuting-op ordering — not `_canonical_key`.
 - **Don't keep parallel copies of master helpers.** If SQA is missing a primitive QC genuinely needs, add it to SQA (or write a one-liner here that composes existing ones). Do not duplicate.
 - **Failure mode to watch for**: building a `QAdd` by hand and then being surprised that `σ_ee² ≠ σ_ee`, or that `σ_2 σ_1 ≠ σ_1 σ_2`. The fix is to route through SQA's product (`*`) or `change_index`, which run the canonicalisation pipeline; never to hand-roll a sort.
+- **Use `Symbolics.IM`, not Julia's `im`, in symbolic expressions.** The meanfield codepath emits the symbolic imaginary unit; Julia's `im` becomes a `complex(0, …)` literal that SymbolicUtils does not unify with the factored form, so `simplify(rhs - expected)` will not cancel even when the two are numerically identical. Tests asserting symbolic equality of RHS expressions must write `2 * Symbolics.IM * Δ * ⟨…⟩`, not `2im * Δ * ⟨…⟩`.
 
 ## Test layout
 

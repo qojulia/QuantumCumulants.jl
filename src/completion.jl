@@ -177,8 +177,10 @@ end
 # the ones produced by `average(op)` directly, where the head is `sym_average`.
 function _is_leaf_average(x::SymbolicUtils.BasicSymbolic)
     SQA.is_average(x) || return false
+    SymbolicUtils.iscall(x) || return false
     return SymbolicUtils.operation(x) === SQA.sym_average
 end
+_is_leaf_average(::Any) = false
 
 """
     complete!(eqs::AbstractMeanFieldEquations; max_iter=200, simplify=true,

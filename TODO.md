@@ -3,7 +3,7 @@
 Outstanding work on the v1 rewrite. See [DESIGN.md](DESIGN.md) for the
 target architecture and [CHANGELOG.md](CHANGELOG.md) for what has landed.
 
-Current state: 649 pass + 1 broken / 650 total (`make test 2>&1 | tee /tmp/maketest.log`).
+Current state: 658 pass / 658 total (`make test 2>&1 | tee /tmp/maketest.log`).
 All 14 examples run end-to-end. All non-SQA master tests are ported,
 test-strengthening pass is done (noise, parameters, higher_order,
 meanfield, indexed_scale, indexed_correlation, indexed_scope all
@@ -13,18 +13,8 @@ are correctly scoped to algebraic/structural properties; downstream
 physics is covered by the strong files. Remaining work is feature
 gaps and a small set of SQA primitive promotions.
 
-### Known representation-diff blocker
-
-| File | What's not reachable | Why |
-|---|---|---|
-| `test/parameters_test.jl::detuned two-level commutator sign` (currently `@test_broken`) | `iszero(simplify(rhs + 2im * Δ * ⟨s₁₂⟩))` | SymbolicUtils stores `2im * Δ` as `complex(0, 2Δ)` literal vs our factored form. Both code-gen to the same numeric values but the symbolic difference doesn't simplify. Leave `@test_broken` until SymbolicUtils representation settles. |
-
 ## Open v1 feature gaps that block deeper test ports
 
-- **`complete!` mixed-order parity**: for `order = [1, 2]` on the
-  indexed JC laser, v1 derives more equations than master (23 vs 8).
-  Both are valid closures; the assertion-count divergence blocks
-  straight equation-count ports.
 - **`Spectrum` numerical stability** for higher-order cumulants. Affects
   spectral-equality assertions; ODE-steady-state convergence still works.
 - **`numeric_average(op, state; level_map=…)` kwarg passthrough**:

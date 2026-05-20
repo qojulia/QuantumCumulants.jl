@@ -121,19 +121,9 @@ end
     s(i, j) = Transition(h2, :s, i, j)
     H = Δ * s(2, 2) - Δ * s(1, 1)
     eqs = meanfield(s(1, 2), H)
-    # SymbolicUtils stores `2im * Δ` as `complex(0, 2Δ)` literal vs our
-    # stored `-2im * Δ` as `2im * Δ` factored; their difference doesn't
-    # simplify symbolically. Verify numerically by substituting Δ → 1 and
-    # ⟨s₁₂⟩ → 1, then asserting the numeric difference is zero.
-    # Round-trip via build_function to a Julia closure, then evaluate
-    # numerically. This sidesteps SymbolicUtils's `complex(0, 2Δ)` vs
-    # `2im * Δ` representation mismatch which doesn't simplify by hand.
-    # SymbolicUtils represents `2im * Δ` as `complex(0, 2Δ)` literal vs our
-    # stored `-2im * Δ * ⟨s₁₂⟩` factored; both code-gen to the same numeric
-    # values but neither symbolic simplification nor `build_function` bridges
-    # the representations cleanly (see Symbolics.jl issue tracker; SymReal
-    # vs Complex literal interaction). Use @test_broken until the SymbolicUtils
-    # representation settles.
-    diff = eqs.equations[1].rhs + 2im * Δ * average(s(1, 2))
-    @test_broken _is_zero(simplify(diff; expand = true))
+    # Use `Symbolics.IM` (symbolic imaginary unit) so the literal matches the
+    # form the meanfield codepath emits; Julia's `im` becomes a `complex(0, …)`
+    # literal that SymbolicUtils does not unify with the factored form.
+    diff = eqs.equations[1].rhs + 2 * Symbolics.IM * Δ * average(s(1, 2))
+    @test _is_zero(simplify(diff; expand = true))
 end

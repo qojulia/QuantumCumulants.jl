@@ -105,7 +105,7 @@ function cumulant_expansion(
         x::SymbolicUtils.BasicSymbolic, order::Int;
         simplify::Bool = true, mix_choice = maximum
     )
-    if SQA.is_average(x)
+    if _is_leaf_average(x)
         get_order(x) <= order && return x
         return _expand_average(SQA.undo_average(x), order)
     end
@@ -122,12 +122,12 @@ function cumulant_expansion(
         x::SymbolicUtils.BasicSymbolic, order::Vector{Int};
         simplify::Bool = true, mix_choice = maximum
     )
-    if SQA.is_average(x)
+    if _is_leaf_average(x)
         ops = SQA.undo_average(x)
-        aons = collect(SQA.acts_on(ops))
+        aons = SQA.acts_on(ops)
         ord = isempty(aons) ? maximum(order) : mix_choice(order[k] for k in aons)
         get_order(x) <= ord && return x
-        return _expand_average(ops, ord)
+        return _expand_average(ops, order; mix_choice)
     end
     if SymbolicUtils.iscall(x) && _has_average(x)
         op = SymbolicUtils.operation(x)
@@ -154,6 +154,22 @@ function _expand_average(ops::QField, order::Int)
     return out
 end
 
+# Per-Hilbert-space variant: each emitted sub-block picks its own per-subspace
+# `ord` from `acts_on(block)`, not the outer aggregate. Required for mixed
+# `order = [m, n]` truncation where an atom-only length-2 block emitted from a
+# mixed expansion still needs to expand under the atom cap.
+function _expand_average(ops::QField, order::Vector{Int}; mix_choice = maximum)
+    out = 0
+    if ops isa QAdd
+        for (term, coeff) in ops.arguments
+            out = out + coeff * _expand_product(term.ops, order; mix_choice)
+        end
+    else
+        out = average(ops)
+    end
+    return out
+end
+
 function _expand_product(args::Vector, order::Int)
     n = length(args)
     n <= order && return average(_prod_ops(args))
@@ -168,6 +184,31 @@ function _expand_product(args::Vector, order::Int)
                     prod = prod * _expand_product(block, order)
                 else
                     prod = prod * average(_prod_ops(block))
+                end
+            end
+            acc = acc + coeff * prod
+        end
+    end
+    return acc
+end
+
+function _expand_product(args::Vector, order::Vector{Int}; mix_choice = maximum)
+    p = _prod_ops(args)
+    aons = SQA.acts_on(p)
+    ord = isempty(aons) ? maximum(order) : mix_choice(order[k] for k in aons)
+    n = length(args)
+    n <= ord && return average(p)
+    acc = 0
+    for k in 2:n
+        for part in partitions(args, k)
+            m = length(part)
+            coeff = -factorial(m - 1) * (-1)^(m - 1)
+            prod = 1
+            for block in part
+                prod = if length(block) == 1
+                    prod * average(block[1])
+                else
+                    prod * _expand_product(block, order; mix_choice)
                 end
             end
             acc = acc + coeff * prod

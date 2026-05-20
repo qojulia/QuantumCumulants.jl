@@ -5,11 +5,11 @@ using ModelingToolkitBase: ModelingToolkitBase, @named, mtkcompile, ODEProblem, 
 using OrdinaryDiffEq: Tsit5, solve, ReturnCode
 using Test
 
-# v1 surface: mixed-order cumulant on an indexed JC laser. Master's
-# `length(eqs.equations) == 8` assertion is master-specific (v1's cumulant
-# expansion at order=[1,2] derives more equations under the same input;
-# both are valid closures). We assert pipeline correctness instead:
-# meanfield builds, complete! closes the system, find_missing is empty.
+# v1 surface: mixed-order cumulant on an indexed JC laser. Master's expected
+# closure size (8 equations after complete! with get_adjoints=false; 18 after
+# evaluate at N=3) is reproduced once cumulant_expansion under a per-Hilbert
+# order vector recurses into sub-blocks whose subspace has lower per-space
+# order (see src/cumulant.jl).
 
 @testset "mixed-order: indexed 1-atom-cavity collective closes under order=[1,2]" begin
     ha = NLevelSpace(:atom, 2)
@@ -34,12 +34,11 @@ using Test
     rates = [Γ, κ, ξ, ν]
 
     eqs = meanfield(a * σ(2, 2, j), H, J; rates = rates, order = [1, 2])
-    complete!(eqs)
+    complete!(eqs; get_adjoints = false)
     @test eqs.order == [1, 2]
-    @test length(eqs.equations) > 0
+    @test length(eqs.equations) == 8
     @test isempty(find_missing(eqs; get_adjoints = false))
 
-    # Mixed-order tagging propagates through composition.
     SQA = QuantumCumulants.SecondQuantizedAlgebra
     for state in eqs.states
         @test SQA.is_average(state)
@@ -69,11 +68,23 @@ end
     rates = [Γ, κ, ξ, ν]
 
     eqs = meanfield(a * σ(2, 2, j), H, J; rates = rates, order = [1, 2])
-    complete!(eqs)
-    n_before = length(eqs.equations)
+    complete!(eqs; get_adjoints = false)
+    @test length(eqs.equations) == 8
     evaled = evaluate(eqs; limits = (N => 3))
-    @test length(evaled.equations) >= n_before
+    @test length(evaled.equations) == 18
+    @test isempty(find_missing(evaled; get_adjoints = false))
     @test evaled.order == [1, 2]
+
+    SQA = QuantumCumulants.SecondQuantizedAlgebra
+    for state in evaled.states
+        op = SQA.undo_average(state)
+        len = if op isa SQA.QAdd && length(op.arguments) == 1
+            length(first(op.arguments)[1].ops)
+        else
+            1
+        end
+        @test len <= 2
+    end
 end
 
 @testset "mixed-order: ODE integration, photon-number physicality (N=2)" begin
