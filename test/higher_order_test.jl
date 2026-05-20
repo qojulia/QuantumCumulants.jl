@@ -6,10 +6,8 @@ using OrdinaryDiffEq: Tsit5, solve, ReturnCode
 using Test
 
 # v1 surface: higher-order cumulant closure of a damped JC system.
-# Master's spectrum-comparison assertion (`maximum(abs.(s6 .- s4)) < 0.2`)
-# remains in test/pending/higher_order_test.jl until v1's `Spectrum`
-# numerical-stability path is finalised. The 4th- and 6th-order closures
-# themselves run cleanly here.
+# The 4th/6th-order steady-state and Spectrum agreement assertions live
+# in test/higher_order_agreement_test.jl.
 
 @testset "higher-order: 4th-order cumulant closure of JC laser" begin
     @variables Δ::Real g::Real γ::Real κ::Real ν::Real

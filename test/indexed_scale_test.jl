@@ -5,9 +5,8 @@ using OrdinaryDiffEq: Tsit5, solve, ReturnCode
 using Test
 
 # v1 surface: indexed `scale!` over a permutation-symmetric atom subspace.
-# Master's `scale(eqs; h = [k])` per-Hilbert-space variant is not yet
-# implemented in v1; see test/pending/README.md and TODO.md. The full-
-# system scale (no `h` kwarg) is exercised below.
+# Both the full-system scale (no `h` kwarg) and the per-Hilbert-space
+# variant (`scale(eqs; h = [k])`) are exercised below.
 
 @testset "indexed_scale: Tavis-Cummings closure + scale + ODE" begin
     @variables N::Real Δ::Real g::Real κ::Real Γ::Real R::Real ν::Real
@@ -41,7 +40,7 @@ end
 
 @testset "indexed_scale: per-Hilbert-space scale order independence" begin
     # Two indexed subspaces, scaling each separately in either order must
-    # produce systems of equal size. From the pending port of master's
+    # produce systems of equal size. Ported from master's
     # `test_indexed_scale.jl`.
     @variables N::Real N2::Real Δ::Real g::Real κ::Real Γ::Real R::Real ν::Real
 

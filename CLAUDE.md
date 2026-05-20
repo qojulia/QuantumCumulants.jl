@@ -13,7 +13,6 @@ All workflows go through the `Makefile`. Drive the whole test suite via `make te
 
 Running a single test file: pass a name filter to `ParallelTestRunner` via `Pkg.test` args, e.g.
 `julia --project -e 'using Pkg; Pkg.test(test_args=["completion"])'`.
-The runner skips anything under [test/pending/](test/pending/) (ports blocked on v1 regressions, see [TODO.md](TODO.md)).
 
 **Always log `make test` output to a file** (e.g. `make test 2>&1 | tee /tmp/maketest.log`) so follow-up filters and triage queries grep the log instead of re-running the suite. The full run takes 90+ seconds; rerunning to extract one stack trace is wasteful. Same applies for `make jet` / `make format` if you need to inspect their output more than once.
 
@@ -31,7 +30,7 @@ Entry point: [src/QuantumCumulants.jl](src/QuantumCumulants.jl). The pipeline is
 - [meanfield.jl](src/meanfield.jl) — unified `meanfield(ops, H, J; rates, order, efficiencies, direction)`. There is no longer a separate `indexed_meanfield`; indexed and scalar systems share one entry point. Noise is opt-in via `efficiencies=...`; retrodiction via `direction=Backward()`.
 - [cumulant.jl](src/cumulant.jl) — `cumulant_expansion`, `cumulant`, `get_order` (Wick-style factorization to a given order).
 - [completion.jl](src/completion.jl) — `complete`/`complete!`/`find_missing` close the system by deriving equations for any averages appearing on the RHS but missing from the LHS.
-- [scaling.jl](src/scaling.jl) — `scale`/`scale!` for permutation-symmetric (indexed) systems. Currently only defined for `MeanFieldEquations`; scaling `NoiseMeanFieldEquations` is a known gap (see [TODO.md](TODO.md)).
+- [scaling.jl](src/scaling.jl) — `scale`/`scale!` for permutation-symmetric (indexed) systems. Defined for both `MeanFieldEquations` and `NoiseMeanFieldEquations`.
 - [mtk.jl](src/mtk.jl) — `to_system(eqs; name)` builds the MTK `System`; `initial_values(eqs, u0)`, `get_solution(sol, op, eqs)(t)` are the user-facing bridges to numerical solutions. `sol[op]` indexing is gone; always go through `get_solution`.
 - [correlation.jl](src/correlation.jl) — `CorrelationFunction`, `Spectrum`, `correlation_u0`, `correlation_p0` (unified, no separate `IndexedCorrelationFunction`).
 - [noise.jl](src/noise.jl) — diffusion/noise machinery for `NoiseMeanFieldEquations`.
@@ -45,7 +44,7 @@ This is the `rewrite` branch building the breaking 1.0 release on top of SQA v0.
 - `MeanfieldNoiseEquations`, `IndexedMeanfieldNoiseEquations`, `BackwardMeanfieldNoiseEquations` → `NoiseMeanFieldEquations{...,Direction}`.
 - `ClusterSpace` removed (SQA v0.5); use `Index` + `Σ` directly.
 
-When in doubt about whether something is "missing" vs. "moved," check [CHANGELOG.md](CHANGELOG.md) Migration section and [TODO.md](TODO.md) (lists known v1 regressions still to port: `non_equal=true` kwarg, `scale(::NoiseMeanFieldEquations)`, `evaluate(eqs; limits=...)`, `meanfield_backward`, rate-matrix collective decay, etc.).
+When in doubt about whether something is "missing" vs. "moved," check [CHANGELOG.md](CHANGELOG.md) Migration section.
 
 ## What the v1 rewrite is *for*
 
@@ -73,8 +72,7 @@ The point of the rewrite is **not** to reproduce master line-by-line on top of n
 
 ## Test layout
 
-- [test/runtests.jl](test/runtests.jl) — autodiscovers via `ParallelTestRunner.find_tests` and excludes [test/pending/](test/pending/).
+- [test/runtests.jl](test/runtests.jl) — autodiscovers via `ParallelTestRunner.find_tests`.
 - [test/systems/](test/systems/) — end-to-end physical models (cavity, Dicke, two-level laser, spectrum, multilevel) used as regression scenarios.
 - [test/quality/](test/quality/) — `quality_test.jl` (Aqua + ExplicitImports + CheckConcreteStructs) and `JET.jl` (run separately via `make jet`; skipped from the default suite when filtered).
-- [test/pending/](test/pending/) — kept in-tree as a porting source-of-truth; do not enable until the corresponding v1 feature lands.
 - Operator-algebra/index/sum unit tests belong in **SecondQuantizedAlgebra.jl**, not here. Tests in this repo should exercise the QC surface (mean-field derivation, cumulant expansion, completion, scaling, MTK bridge, correlation/spectrum), not low-level SQA behavior.

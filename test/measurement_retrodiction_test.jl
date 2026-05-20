@@ -9,8 +9,8 @@ using Test
 # v1 surface: Kalman-style continuous-measurement scenario for the
 # harmonic oscillator under continuous position monitoring. Master's
 # full smoothing comparison (forward + backward Kalman + past-quantum
-# combination) lives in test/pending/measurement_retrodiction_test.jl.
-# What we assert here is the v1 pipeline that already works: NoiseMeanFieldEquations
+# combination) is not ported. What we assert here is the v1 pipeline
+# that already works: NoiseMeanFieldEquations
 # build, SDE forward solves, `translate_W_to_Y` augments the drift,
 # `modify_equations` accepts a measurement-record callback, and the
 # resulting deterministic Kalman ODE driven by the measurement record

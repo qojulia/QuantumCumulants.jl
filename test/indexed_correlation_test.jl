@@ -6,19 +6,10 @@ using OrdinaryDiffEq: ODEProblem, Tsit5, solve
 using Test
 
 # v1 surface: indexed `CorrelationFunction` (unified API, no separate
-# `IndexedCorrelationFunction` type). Master's full test exercises
-# `IndexedCorrelationFunction`, `evaluate(corr, 1, 2; limits=...)`,
-# `scale(corr)`, `split_sums`, and several SQA helpers (`DoubleNumberedVariable`,
-# `SingleNumberedVariable`, `value_map`) that don't exist in v1; those parts
-# stay in test/pending/indexed_correlation_test.jl until the order=2 indexed
-# JC closure speeds up (the same `complete!` mixed-order issue blocks
-# indexed_mixed_order_test).
-
-# Master also exercises an order=2 JC closure with a `phase_invariant`
-# filter and `split_sums` to chop the symmetric atom block; in v1 the
-# mixed-order `complete!` does not close that system within reasonable
-# iteration bounds (see TODO.md "Open v1 feature gaps"). The order=1
-# tests below exercise the phase filter on the available surface.
+# `IndexedCorrelationFunction` type). Master's full test additionally
+# exercises `split_sums` and SQA helpers (`DoubleNumberedVariable`,
+# `SingleNumberedVariable`, `value_map`) that are intentionally absent
+# in v1. The order=1 tests below exercise the v1 phase-filter surface.
 
 const _SQA = QuantumCumulants.SecondQuantizedAlgebra
 
