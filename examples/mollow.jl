@@ -19,7 +19,7 @@ h = NLevelSpace(:atom, (:g, :e)) # Hilbert space
 
 @variables Δ Ω γ # Operators
 σ(i, j) = Transition(h, :σ, i, j) # (v1: @qnumbers σ::Transition(h) replaced by explicit constructor)
-H = Δ*σ(:e, :e) + Ω*(σ(:g, :e) + σ(:e, :g))
+H = Δ * σ(:e, :e) + Ω * (σ(:g, :e) + σ(:e, :g))
 J = [σ(:g, :e)]
 
 

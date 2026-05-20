@@ -15,8 +15,15 @@ gaps and a small set of SQA primitive promotions.
 
 ## Open v1 feature gaps that block deeper test ports
 
-- **`Spectrum` numerical stability** for higher-order cumulants. Affects
-  spectral-equality assertions; ODE-steady-state convergence still works.
+- **`scale` undercounts an N factor on nonlinear `Σ_{i₁, i₂}` interactions.**
+  For the Ising-XX system at order=1 (see
+  `test/indexed_scale_test.jl::Ising-XX scale vs evaluate ODE numerical
+  equality`), `evaluate` produces `+ 2N·V·im·⟨S₁₂⟩·⟨S₂₂⟩` while `scale`
+  produces `+ 2V·im·⟨S₁₂⟩·⟨S₂₂⟩` (missing the `N` from the second
+  bound-index sum). The mismatch was masked for a long time by the
+  conjugate-folding bug in `to_system` (which zeroed `⟨S₂₂⟩` in both
+  paths). The three failing assertions are marked `@test_broken`.
+
 - **`numeric_average(op, state; level_map=…)` kwarg passthrough**:
   master's `initial_values(eqs, ψ::Ket; level_map=…)` translates symbolic
   level names (`:g`, `:e`) to integer indices in `NLevelBasis`. v1

@@ -1,5 +1,5 @@
 """
-    evaluate(eqs::MeanFieldEquations; limits=nothing, h::Vector{Int}=Int[], simplify=true, kwargs...)
+    evaluate(eqs::MeanFieldEquations; limits=nothing, h::Vector{Int}=Int[], kwargs...)
     evaluate(c::CorrelationFunction; limits=nothing, h::Vector{Int}=Int[], kwargs...)
 
 Materialise symbolic indexed mean-field equations into concrete-size systems.
@@ -34,13 +34,12 @@ function evaluate(
         eqs::MeanFieldEquations;
         limits = nothing,
         h::Vector{Int} = Int[],
-        simplify::Bool = true,
         kwargs...,
     )
     sub_dict = _build_limits_dict(limits)
     isempty(sub_dict) && return _copy(eqs)
     h_set = Set{Int}(h)
-    return _evaluate_unroll(eqs, sub_dict, h_set; simplify)
+    return _evaluate_unroll(eqs, sub_dict, h_set)
 end
 
 function evaluate(c::CorrelationFunction; limits = nothing, h::Vector{Int} = Int[], kwargs...)
@@ -54,7 +53,7 @@ end
 # ---------------------------------------------------------------------------
 # Driver
 
-function _evaluate_unroll(eqs::MeanFieldEquations, sub_dict, h_set::Set{Int}; simplify::Bool)
+function _evaluate_unroll(eqs::MeanFieldEquations, sub_dict, h_set::Set{Int})
     coeff_sub = Dict{Any, Any}(k => v for (k, v) in sub_dict)
     canon = _build_canonical_indices(eqs)
     # Normalise scope: lift SumIndices metadata from average leaves onto
@@ -76,7 +75,7 @@ function _evaluate_unroll(eqs::MeanFieldEquations, sub_dict, h_set::Set{Int}; si
         free = _free_lhs_indices(op_k, sub_dict, h_set)
         ranges = [sub_dict[SymbolicUtils.unwrap(idx.range)] for idx in free]
         iter = isempty(free) ? ((),) :
-               Iterators.product([1:r for r in ranges]...)
+            Iterators.product([1:r for r in ranges]...)
         for tup in iter
             idx_sub = Dict{SQA.Index, SQA.Index}(
                 zip(free, (_fresh_index(b, v, canon) for (b, v) in zip(free, tup)))
@@ -102,11 +101,6 @@ function _evaluate_unroll(eqs::MeanFieldEquations, sub_dict, h_set::Set{Int}; si
             push!(seen, key)
             push!(seen, _dedup_key_conj(new_lhs))
             final_rhs = _safe_substitute(new_rhs, coeff_sub)
-            simplify && (final_rhs = try
-                SymbolicUtils.simplify(final_rhs)
-            catch
-                final_rhs
-            end)
             push!(new_states, new_lhs)
             push!(new_eqs, new_lhs ~ final_rhs)
             push!(new_ops, _as_qadd(new_op))
@@ -123,7 +117,7 @@ function _evaluate_unroll(eqs::MeanFieldEquations, sub_dict, h_set::Set{Int}; si
     if !isempty(arr_sub)
         for k in eachindex(new_eqs)
             new_eqs[k] = _safe_substitute(new_eqs[k].lhs, arr_sub) ~
-                         _safe_substitute(new_eqs[k].rhs, arr_sub)
+                _safe_substitute(new_eqs[k].rhs, arr_sub)
         end
         for k in eachindex(new_states)
             new_states[k] = _safe_substitute(new_states[k], arr_sub)
@@ -186,9 +180,9 @@ function _collect_callable_uses!(uses, x)
     # 1-arg FnType callable with a leaf Sym arg whose name encodes a slot:
     # this is the `IndexedVariable` shape we want to rewrite.
     if op isa SymbolicUtils.BasicSymbolic &&
-       !SymbolicUtils.iscall(op) &&
-       length(args) == 1 &&
-       _is_fntype(SymbolicUtils.symtype(op))
+            !SymbolicUtils.iscall(op) &&
+            length(args) == 1 &&
+            _is_fntype(SymbolicUtils.symtype(op))
         a = args[1]
         if a isa SymbolicUtils.BasicSymbolic && !SymbolicUtils.iscall(a)
             slot = _parse_slot(Base.nameof(a))
@@ -352,7 +346,7 @@ function _materialise(x, idx_sub, sub_dict, canon, sym_sub, h_set::Set{Int})
         return get(sym_sub, x, x)
     end
     if SymbolicUtils.operation(x) === (*) &&
-       SymbolicUtils.hasmetadata(x, SQA.SumIndices)
+            SymbolicUtils.hasmetadata(x, SQA.SumIndices)
         bound = SymbolicUtils.getmetadata(x, SQA.SumIndices)
         bound isa Vector{SQA.Index} && !isempty(bound) &&
             return _materialise_scoped(x, bound, idx_sub, sub_dict, canon, sym_sub, h_set)
@@ -397,10 +391,10 @@ function _materialise_scoped(x, bound::Vector{SQA.Index}, idx_sub, sub_dict, can
     # symbolic, matching `_materialise_qfield`'s gate.
     to_unroll = SQA.Index[
         b for b in bound
-        if SymbolicUtils.unwrap(b.range) in keys(sub_dict) &&
-           _in_h(h_set, b.space_index) &&
-           !(b in substituted) &&
-           _references_index(x, b)
+            if SymbolicUtils.unwrap(b.range) in keys(sub_dict) &&
+            _in_h(h_set, b.space_index) &&
+            !(b in substituted) &&
+            _references_index(x, b)
     ]
     stripped = SymbolicUtils.setmetadata(x, SQA.SumIndices, SQA.Index[])
     if isempty(to_unroll)
@@ -524,7 +518,7 @@ function _materialise_qfield(op::QAdd, idx_sub, sub_dict, canon, h_set::Set{Int}
         _in_h(h_set, idx.space_index)
     stripped_indices = SQA.Index[
         b for b in after_free.indices
-        if (!_targeted(b) || b in op_indices) && !(b in substituted)
+            if (!_targeted(b) || b in op_indices) && !(b in substituted)
     ]
     if length(stripped_indices) != length(after_free.indices)
         after_free = QAdd(after_free.arguments, stripped_indices)

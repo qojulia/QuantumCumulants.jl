@@ -153,21 +153,28 @@ end
     pmap = Dict{Any, Any}()
     for p in pars
         ps = string(p)
-        if occursin("κ", ps); pmap[p] = 0.1
-        elseif occursin("g",  ps); pmap[p] = 1.0
-        elseif occursin("R",  ps); pmap[p] = 0.3
-        elseif occursin("Γ",  ps); pmap[p] = 0.05
-        elseif occursin("ν",  ps); pmap[p] = 0.0
-        elseif occursin("Δ",  ps); pmap[p] = 0.0
-        else;                       pmap[p] = 0.0
+        if occursin("κ", ps)
+            pmap[p] = 0.1
+        elseif occursin("g", ps)
+            pmap[p] = 1.0
+        elseif occursin("R", ps)
+            pmap[p] = 0.3
+        elseif occursin("Γ", ps)
+            pmap[p] = 0.05
+        elseif occursin("ν", ps)
+            pmap[p] = 0.0
+        elseif occursin("Δ", ps)
+            pmap[p] = 0.0
+        else
+            pmap[p] = 0.0
         end
     end
     u0 = Dict(unknowns(sys_c) .=> zeros(ComplexF64, length(unknowns(sys_c))))
     prob = ODEProblem(sys_c, merge(u0, pmap), (0.0, 20.0))
-    sol = solve(prob, Tsit5(); abstol = 1e-9, reltol = 1e-9)
+    sol = solve(prob, Tsit5(); abstol = 1.0e-9, reltol = 1.0e-9)
     @test sol.retcode == ReturnCode.Success
 
     a_op = SQA.undo_average(eqs_ev.states[1])
-    assert_real(sol, a_op, eqs_ev; atol = 1e-7)
-    assert_nonneg(sol, a_op, eqs_ev; atol = 1e-7)
+    assert_real(sol, a_op, eqs_ev; atol = 1.0e-7)
+    assert_nonneg(sol, a_op, eqs_ev; atol = 1.0e-7)
 end

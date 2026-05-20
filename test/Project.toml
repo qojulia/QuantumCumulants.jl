@@ -1,5 +1,6 @@
 [deps]
 Aqua = "4c88cf16-eb10-579e-8560-4a9242c79595"
+BenchmarkTools = "6e4b80f9-dd63-53aa-95a3-0cdb28fa8baf"
 CheckConcreteStructs = "73c92db5-9da6-4938-911a-6443a7e94a58"
 DiffEqNoiseProcess = "77a26b50-5914-5dd7-bc55-306e6241c503"
 ExplicitImports = "7d51a73a-1435-4ff3-83d9-f097790105c7"

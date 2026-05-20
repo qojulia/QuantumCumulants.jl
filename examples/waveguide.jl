@@ -29,15 +29,15 @@ M_np = 2 # number of non-pumped spins
 M = M_p + M_np
 
 h_spin(i) = SpinSpace(Symbol("spin_$(i)")) # Hilbert space
-h = tensor([h_spin(i) for i = 1:M]...)
+h = tensor([h_spin(i) for i in 1:M]...)
 
 Sx(i) = Spin(h, Symbol("S$(i)"), 1, i) # Operators
 
 Sy(i) = Spin(h, Symbol("S$(i)"), 2, i)
 Sz(i) = Spin(h, Symbol("S$(i)"), 3, i)
 
-Sm(i) = (Sx(i) - 1im*Sy(i))
-Sp(i) = (Sx(i) + 1im*Sy(i))
+Sm(i) = (Sx(i) - 1im * Sy(i))
+Sp(i) = (Sx(i) + 1im * Sy(i))
 
 ## Note: QuantumCumulants re-exports symbols `Ω` and `Γ`, so we use `Ωp`/`Γp` here.
 function _make_param(name::Symbol) # Parameter constructor
@@ -48,13 +48,13 @@ const _Ω_cache = Dict{Tuple{Int, Int}, Any}()
 const _Γ_cache = Dict{Tuple{Int, Int}, Any}()
 function Ωp(i, j) # Parameter Ω_{i,j} symmetric
     key = i > j ? (j, i) : (i, j)
-    get!(_Ω_cache, key) do
+    return get!(_Ω_cache, key) do
         _make_param(Symbol("Ω_$(key[1])_$(key[2])"))
     end
 end
 function Γp(i, j) # Parameter Γ_{i,j} symmetric
     key = i > j ? (j, i) : (i, j)
-    get!(_Γ_cache, key) do
+    return get!(_Γ_cache, key) do
         _make_param(Symbol("Γ_$(key[1])_$(key[2])"))
     end
 end
@@ -67,12 +67,12 @@ nothing # hide
 # with the jump operator $J_i$ and the corresponding decay rate matrix $R_{ij}$. This implementation is similar to the one in [QuantumOptics.jl](https://docs.qojulia.org/timeevolution/master/) for collective dissipation.
 
 
-H = sum((i≠j)*Ωp(i, j)*Sp(i)*Sm(j) for i = 1:M for j = 1:M) # Hamiltonian
+H = sum((i ≠ j) * Ωp(i, j) * Sp(i) * Sm(j) for i in 1:M for j in 1:M) # Hamiltonian
 
-J = [Sm(c1) for c1 = 1:M] # Jump operators and rate matrix
+J = [Sm(c1) for c1 in 1:M] # Jump operators and rate matrix
 # TODO(v1): Rate-matrix collective decay — see TODO.md
 # rates = [Γp(c1, c2) for c1 = 1:M, c2 = 1:M]
-rates = [Γp(c1, c1) for c1 = 1:M] # fallback: diagonal rates only
+rates = [Γp(c1, c1) for c1 in 1:M] # fallback: diagonal rates only
 nothing # hide
 
 # Now we create a complete list of operators, which we use to derive the second-order equations. This is considerable faster than to automatically complete the equations. We only show one of the 90 rather lengthy equations.
@@ -81,12 +81,12 @@ nothing # hide
 S(i) = [Sx(i), Sy(i), Sz(i)] # create list of operators
 SiSi(i) = [Sx(i)Sx(i), Sx(i)Sy(i), Sx(i)Sz(i), Sy(i)Sy(i), Sy(i)Sz(i), Sz(i)Sz(i)]
 ops = [];
-[push!(ops, S(i)...) for i = 1:M]
-[push!(ops, SiSi(i)...) for i = 1:M]
-for i = 1:M, j = i:M
-    if i≠j
-        for α = 1:3, β = 1:3
-            push!(ops, S(i)[α]*S(j)[β])
+[push!(ops, S(i)...) for i in 1:M]
+[push!(ops, SiSi(i)...) for i in 1:M]
+for i in 1:M, j in i:M
+    if i ≠ j
+        for α in 1:3, β in 1:3
+            push!(ops, S(i)[α] * S(j)[β])
         end
     end
 end
@@ -108,18 +108,18 @@ nothing # hide
 
 
 Γ_ = 1.0  # Γ1D # System Parameters
-Ω_ = Γ_/2 # Ω1D
+Ω_ = Γ_ / 2 # Ω1D
 
-x_p = [i/M_p for i = 0:(M_p-1)]*2π # positions
-x_np = [i/M_np for i = 0:(M_np-1)]*2π
+x_p = [i / M_p for i in 0:(M_p - 1)] * 2π # positions
+x_np = [i / M_np for i in 0:(M_np - 1)] * 2π
 x_ls = [x_p; x_np]
 
 Γij(i, j) = cos(abs(x_ls[i] - x_ls[j]))
-Γ_ls = [Γij(i, j) for i = 1:M for j = 1:M]*Γ_
+Γ_ls = [Γij(i, j) for i in 1:M for j in 1:M] * Γ_
 Ωij(i, j) = sin(abs(x_ls[i] - x_ls[j]))
-Ω_ls = [Ωij(i, j) for i = 1:M for j = 1:M]*Ω_
+Ω_ls = [Ωij(i, j) for i in 1:M for j in 1:M] * Ω_
 
-ps = [[Γp(i, j) for i = 1:M for j = 1:M]; [Ωp(i, j) for i = 1:M for j = 1:M];]
+ps = [[Γp(i, j) for i in 1:M for j in 1:M]; [Ωp(i, j) for i in 1:M for j in 1:M];]
 p0 = [Γ_ls; Ω_ls;]
 nothing # hide
 
@@ -128,14 +128,14 @@ nothing # hide
 
 N_p = 8000 # number of pumped atoms
 N_np = 2000 # number of non-pumped atoms
-bs1 = SpinBasis(N_p/2/M_p) # spin basis for pumped atoms
-bs2 = SpinBasis(N_np/2/M_np) # spin basis for non-pumped atoms
-b = tensor([bs1 for i = 1:M_p]..., [bs2 for i = 1:M_np]...)
+bs1 = SpinBasis(N_p / 2 / M_p) # spin basis for pumped atoms
+bs2 = SpinBasis(N_np / 2 / M_np) # spin basis for non-pumped atoms
+b = tensor([bs1 for i in 1:M_p]..., [bs2 for i in 1:M_np]...)
 
-Θ = π/3 # corresponds to an excitation of 75%
+Θ = π / 3 # corresponds to an excitation of 75%
 ψ_p = coherentspinstate(bs1, Θ, 0.0) # initially pumped atoms
 ψ_np = spindown(bs2) # initially non-pumped atoms
-ψ0 = LazyKet(b, ([ψ_p for i = 1:M_p]..., [ψ_np for i = 1:M_np]...))
+ψ0 = LazyKet(b, ([ψ_p for i in 1:M_p]..., [ψ_np for i in 1:M_np]...))
 # TODO(v1): initial_values(eqs, ψ::Ket) — not yet ported, see TODO.md
 # u0 = initial_values(eqs, ψ0)  # initial state
 nothing # hide

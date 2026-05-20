@@ -35,8 +35,10 @@ using Test
     end
     phase_invariant(x) = iszero(ϕ(x))
 
-    he6 = complete(meanfield(a' * a, H, J; rates = rates);
-                    order = 6, filter_func = phase_invariant)
+    he6 = complete(
+        meanfield(a' * a, H, J; rates = rates);
+        order = 6, filter_func = phase_invariant
+    )
     @test length(he6.equations) > 0
     @test isempty(find_missing(he6; filter_func = phase_invariant))
 end

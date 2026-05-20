@@ -4,3 +4,4 @@ Manifest.toml
 docs/src/examples/jupyter_notebooks/.ipynb_checkpoints
 docs/Manifest.toml
 *.ipynb
+*.claude/

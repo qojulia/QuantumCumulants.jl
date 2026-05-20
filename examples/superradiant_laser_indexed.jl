@@ -39,7 +39,7 @@ j = Index(h, :j, N, ha)
 # We define the Hamiltonian using symbolic sums and define the individual dissipative processes. For an indexed jump operator the (symbolic) sum is build in the Liouvillian.
 
 
-H = -Δ*a'a + Σ(g(i)*(a'*σ(1, 2, i) + a*σ(2, 1, i)), i) # Hamiltonian
+H = -Δ * a'a + Σ(g(i) * (a' * σ(1, 2, i) + a * σ(2, 1, i)), i) # Hamiltonian
 
 J = [a, σ(1, 2, i), σ(2, 1, i), σ(2, 2, i)] # Jump operators with corresponding rates
 rates = [κ, Γ, R, ν]
@@ -47,10 +47,9 @@ nothing # hide
 
 # First we want to derive the equation for $\langle a^\dagger a \rangle$ and $\langle \sigma_j^{22} \rangle$. Note that you can only use indices on the LHS which haven't been used for the Hamiltonian and the jumps.
 
-ops = [a'*a, σ(2, 2, j)] # Derive equations
+ops = [a' * a, σ(2, 2, j)] # Derive equations
 eqs = meanfield(ops, H, J; rates = rates, order = 2)
 nothing # hide
-
 
 
 # ```math
@@ -120,11 +119,11 @@ nothing # hide
 
 u0 = initial_values(eqs_sc) # Initial state
 
-N_ = 2e5 # System parameters
+N_ = 2.0e5 # System parameters
 Γ_ = 1.0 #Γ=1mHz
 Δ_ = 2500Γ_ #Δ=2.5Hz
 g_ = 1000Γ_ #g=1Hz
-κ_ = 5e6*Γ_ #κ=5kHz
+κ_ = 5.0e6 * Γ_ #κ=5kHz
 R_ = 1000Γ_ #R=1Hz
 ν_ = 1000Γ_ #ν=1Hz
 
@@ -136,11 +135,11 @@ ps = [N, Δ, g_sym, κ, Γ, R, ν]
 p0 = [N_, Δ_, g_, κ_, Γ_, R_, ν_]
 
 dict = merge(u0, Dict(ps .=> p0))
-prob = ODEProblem(sys_c, dict, (0.0, 1.0/50Γ_))
+prob = ODEProblem(sys_c, dict, (0.0, 1.0 / 50Γ_))
 nothing # hide
 
 #
-sol = solve(prob, Tsit5(), maxiters = 1e7) # Solve the numeric problem
+sol = solve(prob, Tsit5(), maxiters = 1.0e7) # Solve the numeric problem
 
 t = sol.t # Plot time evolution
 n = real.(get_solution(sol, a'a, eqs_sc).(t))
@@ -163,7 +162,6 @@ nothing # hide
 
 corr_sc.eqs # (v1: was `corr_sc.de`)
 nothing # hide
-
 
 
 # ```math

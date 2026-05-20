@@ -125,21 +125,23 @@ end
     # Below-threshold parameter point. Above threshold (strong η, large ν)
     # the cumulant closure is not bounded; this is a physics constraint,
     # not a numerical one.
-    pmap = parameter_map(evaled, Dict(
-        g(i)  => 0.1,
-        Δa(i) => 0.0,
-        Δc    => 0.0,
-        κ     => 1.0,
-        Γ     => 0.25,
-        ν     => 0.0,
-        η     => 0.5,
-    ))
+    pmap = parameter_map(
+        evaled, Dict(
+            g(i) => 0.1,
+            Δa(i) => 0.0,
+            Δc => 0.0,
+            κ => 1.0,
+            Γ => 0.25,
+            ν => 0.0,
+            η => 0.5,
+        )
+    )
     u0 = Dict(unknowns(sys_c) .=> zeros(ComplexF64, length(unknowns(sys_c))))
     prob = ODEProblem(sys_c, merge(u0, pmap), (0.0, 20.0))
-    sol = solve(prob, Tsit5(); abstol = 1e-8, reltol = 1e-8)
+    sol = solve(prob, Tsit5(); abstol = 1.0e-8, reltol = 1.0e-8)
     @test sol.retcode == ReturnCode.Success
 
     a_op = SQA.undo_average(evaled.states[1])
-    assert_real(sol, a_op, evaled; atol = 1e-6)
-    assert_nonneg(sol, a_op, evaled; atol = 1e-6)
+    assert_real(sol, a_op, evaled; atol = 1.0e-6)
+    assert_nonneg(sol, a_op, evaled; atol = 1.0e-6)
 end

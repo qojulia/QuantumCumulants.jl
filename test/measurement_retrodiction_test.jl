@@ -52,10 +52,12 @@ end
     eqs = meanfield([a], H, [a]; rates = [κ])
     SQA = QuantumCumulants.SecondQuantizedAlgebra
     captured = Any[]
-    modify_equations!(eqs, function (lhs, rhs)
-        push!(captured, lhs)
-        return rhs
-    end)
+    modify_equations!(
+        eqs, function (lhs, rhs)
+            push!(captured, lhs)
+            return rhs
+        end
+    )
     @test all(c isa SQA.QField for c in captured)
 end
 
@@ -91,8 +93,10 @@ end
     ops = [x, p, x * x]
 
     fw = meanfield(ops, H, J; rates = [Γ], efficiencies = [η], order = 2)
-    bw = meanfield(ops, H, J; rates = [Γ], efficiencies = [η], order = 2,
-                   direction = Backward())
+    bw = meanfield(
+        ops, H, J; rates = [Γ], efficiencies = [η], order = 2,
+        direction = Backward()
+    )
     @test fw isa NoiseMeanFieldEquations
     @test bw isa NoiseMeanFieldEquations
     @test length(fw.equations) == length(bw.equations)

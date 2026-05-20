@@ -26,10 +26,10 @@ h = NLevelSpace(:atom, 2) # Hilbert space
 σ(i, j) = Transition(h, :σ, i, j) # Operators (v1: drop trailing GS index)
 
 # (v1: seed a meanfield call to grab the MTK-aware iv `t`, then build H against it)
-eqs_seed = meanfield([σ(2, 2), σ(1, 2)], -Δ*σ(2, 2), [σ(1, 2), σ(2, 2)]; rates = [Γ, ν])
+eqs_seed = meanfield([σ(2, 2), σ(1, 2)], -Δ * σ(2, 2), [σ(1, 2), σ(2, 2)]; rates = [Γ, ν])
 t = eqs_seed.iv
 
-H = -Δ*σ(2, 2) + f(t)*Ω/2*(σ(1, 2) + σ(2, 1)) # Hamiltonian
+H = -Δ * σ(2, 2) + f(t) * Ω / 2 * (σ(1, 2) + σ(2, 1)) # Hamiltonian
 
 J = [σ(1, 2), σ(2, 2)] # Jump operators & rates
 rates = [Γ, ν]
@@ -60,11 +60,11 @@ sys_c = mtkcompile(sys)
 Δ_ = 0Γ_
 ν_ = 0.2Γ_
 
-tp = π/2Ω_ # π/2-pulse
-tf = 1/20Γ_ # free evolution without drive
+tp = π / 2Ω_ # π/2-pulse
+tf = 1 / 20Γ_ # free evolution without drive
 
 function f(t)
-    if t<tp || (t>tp+tf && t<2tp+tf)
+    if t < tp || (t > tp + tf && t < 2tp + tf)
         return 1
     else
         0
@@ -81,8 +81,8 @@ nothing # hide
 # Finally, we calculate and plot the time evolution.
 
 dict = merge(Dict(ps .=> p0), Dict(unknowns(sys_c) .=> u0))
-prob = ODEProblem(sys_c, dict, (0.0, 2tp+tf))
-sol = solve(prob, Tsit5(), maxiters = 1e7)
+prob = ODEProblem(sys_c, dict, (0.0, 2tp + tf))
+sol = solve(prob, Tsit5(), maxiters = 1.0e7)
 
 t_arr = sol.t # Plot time evolution
 s22 = real.(get_solution(sol, σ(2, 2), eqs).(t_arr)) # (v1: sol[op] → get_solution(sol, op, eqs)(t))
@@ -93,10 +93,10 @@ plot(t_arr, s22, xlabel = "tΓ", ylabel = "⟨σ22⟩", legend = false, size = (
 Δ_ls = [-2000:4:2000;]Γ_
 s22_ls = zeros(length(Δ_ls))
 
-for i = 1:length(Δ_ls)
+for i in 1:length(Δ_ls)
     dict = merge(Dict(ps .=> [Γ_; Ω_; Δ_ls[i]; ν_]), Dict(unknowns(sys_c) .=> u0))
-    prob_i = ODEProblem(sys_c, dict, (0.0, 2tp+tf))
-    sol_i = solve(prob_i, Tsit5(); adaptive = false, dt = 1e-5)
+    prob_i = ODEProblem(sys_c, dict, (0.0, 2tp + tf))
+    sol_i = solve(prob_i, Tsit5(); adaptive = false, dt = 1.0e-5)
     s22_ls[i] = real(get_solution(sol_i, σ(2, 2), eqs)(sol_i.t[end]))
 end
 

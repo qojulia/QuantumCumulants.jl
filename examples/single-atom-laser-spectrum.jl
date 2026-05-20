@@ -21,7 +21,7 @@ h = hf ⊗ ha
 a = Destroy(h, :a) # Define the fundamental operators
 s = Transition(h, :σ, :g, :e)
 
-H = Δ*a'*a + g*(a'*s + a*s') # Hamiltonian
+H = Δ * a' * a + g * (a' * s + a * s') # Hamiltonian
 
 J = [a, s, s'] # Collapse operators
 rates = [κ, γ, ν]
@@ -30,7 +30,7 @@ nothing # hide
 # The first equation we want to derive is that for the average photon number $\langle a^\dagger a \rangle$.
 
 
-eq_n = meanfield(a'*a, H, J; rates = rates, order = 2) # Derive equation for average photon number
+eq_n = meanfield(a' * a, H, J; rates = rates, order = 2) # Derive equation for average photon number
 nothing # hide
 
 # The remaining equations will be computed automatically using the [`complete`](@ref) function. However, we want to exclude terms such as $\langle a \rangle$ since these are phase-dependent and therefore 0 in our phase-invariant system. To this end, we provide a custom filter function to [`complete`](@ref). This function should return `true`, if the given average should be included, and `false` if it should be excluded (just like Julia's native `filter` function requires). We write a small function $\phi$ that computes the phase of an average, such that $\phi(a) = -1$, $\phi(a^\dagger) = 1$, and $\phi(a^\dagger a) = \phi(a) + \phi(a^\dagger) = 0$. Similarly, we want to have $\phi(\sigma^{eg})=1=-\phi(\sigma^{ge})$, and $\phi(\sigma^{ee})=0$. An average of an operator $x$ is then said to be phase invariant if $\phi(x)=0$.
@@ -43,7 +43,7 @@ import QuantumCumulants.SecondQuantizedAlgebra as SQA # (v1: walk QAdd/QTerm via
 ϕ(::Create) = 1
 function ϕ(t::Transition)
     # (v1: SQA stores level indices as integers; :g=1, :e=2 per NLevelSpace(:atom,(:g,:e)))
-    if (t.i == 2 && t.j == 1)
+    return if (t.i == 2 && t.j == 1)
         1
     elseif (t.i == 1 && t.j == 2)
         -1
@@ -74,7 +74,6 @@ eqs = complete(eq_n; filter_func = phase_invariant) # Complete equations
 # In order to compute the spectrum, we first compute the correlation function $g(\tau) = \langle a^\dagger(t_0 + \tau) a(t_0)\rangle \equiv \langle a^\dagger a_0\rangle.$
 
 # Note that the [`CorrelationFunction`](@ref) finds the equation for $g(\tau)$ and then completes the system of equations by using its own version of the [`complete`](@ref) function. We can also provide the same custom filter function as before to skip over terms that are not phase-invariant. Similarly, setting the keyword `steady_state=true`, we tell the function not to derive equations of motion for operators that do not depend on $\tau$, but only on $t_0$ (if $t_0$ is in steady state, these values do not change with $\tau$).
-
 
 
 c = CorrelationFunction(a', a, eqs; steady_state = true) # Correlation function (v1: no filter_func kwarg; phase filter only applied to parent `eqs`)
@@ -133,7 +132,6 @@ using QuantumOptics.timecorrelations: correlation2spectrum
 nothing # hide
 
 # Now, in order to compare we also compute the spectrum by constructing it directly from the correlation function and plot the results.
-
 
 
 S = Spectrum(c, ps) # Spectrum

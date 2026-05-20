@@ -183,7 +183,17 @@ function _conj_substitution_dict(
         cs === s && continue
         cs in states && continue
         haskey(var_dict, s) || continue
-        conj_dict[cs] = conj(var_dict[s])
+        # Build `conj(avg_var(t))` as a raw `SymbolicUtils.term` rather than
+        # calling `Base.conj` directly. Julia's `conj` invokes Symbolics'
+        # simplifier, which folds `conj(::SymReal)` to identity and silently
+        # zeros every `⟨X⟩ - ⟨X†⟩` driving term on the RHS. Using `term(...)`
+        # with `type=Number` skips the simplifier so the symbolic `conj`
+        # node survives through `_safe_substitute`, `mtkcompile`, and
+        # `build_function` (which generates a real call to `Base.conj` at
+        # runtime). Pairs with the `Symbolics.IM` convention on the RHS
+        # (Julia's `im` literal does not unify with the resulting tree).
+        v = SymbolicUtils.unwrap(var_dict[s])
+        conj_dict[cs] = SymbolicUtils.term(conj, v; type = Number)
     end
     return conj_dict
 end
@@ -249,9 +259,11 @@ function initial_values(
         eqs::AbstractMeanFieldEquations, u0::AbstractVector{<:Number};
         kwargs...
     )
-    length(u0) == length(eqs.states) || throw(DimensionMismatch(
-        "initial value vector length $(length(u0)) does not match number of states $(length(eqs.states))",
-    ))
+    length(u0) == length(eqs.states) || throw(
+        DimensionMismatch(
+            "initial value vector length $(length(u0)) does not match number of states $(length(eqs.states))",
+        )
+    )
     dict_var, _ = _avg_to_var_dict(eqs)
     out = Dict{Symbolics.Num, ComplexF64}()
     for (k, avg) in enumerate(eqs.states)
@@ -282,10 +294,14 @@ function parameter_map(eqs::AbstractMeanFieldEquations, pairs)
     arr_by_name = Dict{Symbol, SymbolicUtils.BasicSymbolic}()
     scalar_by_name = Dict{Symbol, SymbolicUtils.BasicSymbolic}()
     for eq in eqs.equations
-        _collect_named_params!(arr_by_name, scalar_by_name,
-                               SymbolicUtils.unwrap(eq.rhs))
-        _collect_named_params!(arr_by_name, scalar_by_name,
-                               SymbolicUtils.unwrap(eq.lhs))
+        _collect_named_params!(
+            arr_by_name, scalar_by_name,
+            SymbolicUtils.unwrap(eq.rhs)
+        )
+        _collect_named_params!(
+            arr_by_name, scalar_by_name,
+            SymbolicUtils.unwrap(eq.lhs)
+        )
     end
     pmap = Dict{Any, Any}()
     for (k, v) in pairs
@@ -347,6 +363,7 @@ function _collect_named_params!(arr_dict, scalar_dict, x)
     for a in SymbolicUtils.arguments(x)
         _collect_named_params!(arr_dict, scalar_dict, a)
     end
+    return
 end
 
 """

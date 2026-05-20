@@ -27,6 +27,7 @@ export to_system, initial_values, get_solution, parameter_map
 export modify_equations, modify_equations!
 export translate_W_to_Y
 export evaluate
+export simplify!
 
 include("equations.jl")
 include("meanfield.jl")

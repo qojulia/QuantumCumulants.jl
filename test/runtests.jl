@@ -35,9 +35,9 @@ init_code = quote
     observables (number ops, populations), the average must be real along
     the trajectory.
     """
-    function assert_real(sol, op, eqs; atol = 1e-6, ts = sol.t)
+    function assert_real(sol, op, eqs; atol = 1.0e-6, ts = sol.t)
         traj = [get_solution(sol, op, eqs)(t) for t in ts]
-        @test maximum(abs.(imag.(traj))) < atol
+        return @test maximum(abs.(imag.(traj))) < atol
     end
 
     """
@@ -45,10 +45,10 @@ init_code = quote
 
     Assert observable trajectory stays within [lo, hi].
     """
-    function assert_bounded(sol, op, eqs, lo, hi; atol = 1e-6, ts = sol.t)
+    function assert_bounded(sol, op, eqs, lo, hi; atol = 1.0e-6, ts = sol.t)
         traj = [real(get_solution(sol, op, eqs)(t)) for t in ts]
         @test minimum(traj) >= lo - atol
-        @test maximum(traj) <= hi + atol
+        return @test maximum(traj) <= hi + atol
     end
 
     """
@@ -57,7 +57,7 @@ init_code = quote
     Assert observable trajectory stays non-negative. Use for photon number,
     populations, and other physical quantities required to be ≥ 0.
     """
-    assert_nonneg(sol, op, eqs; atol = 1e-6, ts = sol.t) =
+    assert_nonneg(sol, op, eqs; atol = 1.0e-6, ts = sol.t) =
         assert_bounded(sol, op, eqs, 0.0, Inf; atol, ts)
 
     """
@@ -65,7 +65,7 @@ init_code = quote
 
     Assert observable is a valid population: trajectory ⊂ [0, 1].
     """
-    assert_population(sol, op, eqs; atol = 1e-6, ts = sol.t) =
+    assert_population(sol, op, eqs; atol = 1.0e-6, ts = sol.t) =
         assert_bounded(sol, op, eqs, 0.0, 1.0; atol, ts)
 
     """
@@ -74,7 +74,7 @@ init_code = quote
     Assert the trajectory reached a steady state at the END: the numerical
     time-derivative at sol.t[end] is below atol componentwise.
     """
-    function assert_steady(sol; atol = 1e-4, k_last::Int = 2)
+    function assert_steady(sol; atol = 1.0e-4, k_last::Int = 2)
         n = length(sol.t)
         n >= k_last || return
         t_end = sol.t[end]
@@ -85,6 +85,7 @@ init_code = quote
             du = abs(sol.u[end][k] - sol.u[end - k_last + 1][k]) / dt
             @test du < atol
         end
+        return
     end
 
     """

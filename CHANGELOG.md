@@ -6,8 +6,13 @@ All notable changes to QuantumCumulants.jl will be documented in this file.
 
 Breaking release: clean rewrite atop SecondQuantizedAlgebra v0.5 and ModelingToolkitBase. Migration is hand-driven; there are no deprecation shims.
 
+### Fixed
+
+- `to_system`'s conjugate substitution `⟨op†⟩ → conj(avg_op(t))` previously folded to `⟨op†⟩ → avg_op(t)` because the state variable carries `SymReal` symtype and Symbolics simplifies `conj(::Real)` to identity. This silently zeroed every `⟨X⟩ - ⟨X†⟩` driving term on the RHS of the compiled ODE, breaking driven cavities and any dissipative system with phase-sensitive coherent drive. Fix: build the conjugate via `SymbolicUtils.term(conj, var; type=Number)` instead of `Base.conj(var)`, bypassing the simplifier so the conj node survives through `mtkcompile` and `build_function`. ModelingToolkit's lack of a clean complex-state interface is tracked at https://github.com/SciML/ModelingToolkit.jl/issues/4548.
+
 ### Removed
 
+- `simplify` keyword removed from every QC API that exposed it: `meanfield`, `complete!`, `complete`, `cumulant`, `cumulant_expansion`, `evaluate`, `translate_W_to_Y`, `CorrelationFunction`, `Spectrum`. QC never runs `SymbolicUtils.simplify` on its derived RHS expressions; canonical-form post-processing is the user's responsibility (`Symbolics.simplify(eq.rhs; expand=true)`). The default `simplify=true` was a 99% time sink at higher cumulant orders (e.g. order=6 `CorrelationFunction` went from ~100s to ~10ms with this change) for no downstream numerical benefit, and the `Spectrum` kwarg was unused dead code.
 - `indexed_meanfield`, `indexed_complete!`, `IndexedCorrelationFunction`, `scaleME`, `evalME`, `IndexedMeanfieldEquations`, `EvaledMeanfieldEquations`, `ScaledMeanfieldEquations` collapsed into the unified `meanfield`, `complete!`, `CorrelationFunction`, `scale!`, `MeanFieldEquations`.
 - `ClusterSpace` removed in SQA v0.5; use `Index` and `Σ` directly.
 - `MeanfieldNoiseEquations`, `IndexedMeanfieldNoiseEquations`, `BackwardMeanfieldNoiseEquations` collapsed into `NoiseMeanFieldEquations{...,Direction}`.
@@ -38,10 +43,14 @@ smoke run:
 - `ramsey_spectroscopy.jl`, `optomechanical-cooling.jl`, `many-atom-laser.jl`,
   `excitation-transport-chain.jl` — full meanfield → MTK → solve workflow
 - `mollow.jl`, `single-atom-laser-spectrum.jl`, `superradiant_laser_indexed.jl`,
-  `filter-cavity_indexed.jl` — exercise the symbolic + numeric pipeline. The
-  `Spectrum(c, ps)` Laplace machinery is partly re-implemented and accessible
-  via `Spectrum(c, ps)(ω, u_end, p0)`; consumers should verify numerical
-  results against the FFT path as the linear solver tuning is still in flux.
+  `filter-cavity_indexed.jl` exercise the symbolic + numeric pipeline.
+  `Spectrum(c, ps)(ω, u_end, p0)` solves the Laplace-domain system
+  `(iω·I - A) X̃ = u_τ - x_∞` where `A` is the Jacobian of the τ-equations
+  (extracted once via symbolic finite differences), `u_τ` is the τ=0 state
+  built from `u_end`, and `x_∞ = -A⁻¹ b_const` centres on the constant
+  source. The vector overload `S(ω_vec, u_end, p0)` reuses one matrix
+  extraction across all ω; the 4th/6th-cumulant spectrum agreement test
+  in `test/higher_order_agreement_test.jl` matches master's 0.2 tolerance.
 - `cavity_antiresonance_indexed.jl`, `waveguide.jl`, `unique_squeezing.jl` —
   the symbolic equation setup is intact; the heavier downstream features
   (`evaluate(; limits=...)` to unroll N to fixed sizes; `initial_values(eqs, ψ)`

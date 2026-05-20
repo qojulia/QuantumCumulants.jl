@@ -83,7 +83,7 @@ end
             a' * a; [σ(:e, :e, k) for k in 1:N];
             [a' * σ(:g, :e, k) for k in 1:N]
         ], H, J;
-        Jdagger = Jdagger, rates = rates, simplify = true, order = 2
+        Jdagger = Jdagger, rates = rates, order = 2
     )
     @test length(he_ops.equations) == n_eqs
 end

@@ -36,14 +36,14 @@ nothing # hide
 
 # With the symbolic parameters, operators and indices we define the Hamiltonian and Liouvillian of the system. Note, however, that in the strong coupling regime $g \sim g_c\equiv \sqrt{\omega \Omega}$ the driving term and jump operators have to be redefined. For a strongly interacting system, the ground state is very different from the ground state of a non-interacting system. Therefore, using jump operators of a non-interacting system would lead to extraction of energy from the ground state of a strongly interacting system. The correct operators are the ones that diagonalise the Hamiltonian with adiabatiacally eliminated spins.
 
-b = a*cosh(ξ) + a'*sinh(ξ) # Operators diagonalizing the Hamiltonian,i.e. approximate new eigenmodes of the system
+b = a * cosh(ξ) + a' * sinh(ξ) # Operators diagonalizing the Hamiltonian,i.e. approximate new eigenmodes of the system
 
 i = Index(h, :i, N, ha) # Indices
 j = Index(h, :j, N, ha)
 
-Hf = ω*a'*a + η*(b'*exp(-1im*ωd*t) + b*exp(1im*ωd*t))
-Ha = Ω*Σ(σ(2, 2, i)-σ(1, 1, i), i)/2
-Hi = g*Σ((σ(1, 2, i)+σ(2, 1, i))*(a + a'), i)/2
+Hf = ω * a' * a + η * (b' * exp(-1im * ωd * t) + b * exp(1im * ωd * t))
+Ha = Ω * Σ(σ(2, 2, i) - σ(1, 1, i), i) / 2
+Hi = g * Σ((σ(1, 2, i) + σ(2, 1, i)) * (a + a'), i) / 2
 H = Hf + Ha + Hi # Hamiltonian
 
 J = [b, σ(1, 2, i)] # Jump operators & and rates
@@ -88,7 +88,7 @@ sys = mtkcompile(sys)
 u0 = zeros(ComplexF64, length(eqs_sc)); # initial state
 
 ω_ = 1.0 # Parameters
-Ω_ = 2e3ω_
+Ω_ = 2.0e3ω_
 η_ = 4ω_
 κ_ = ω_
 γ_ = ω_
@@ -99,45 +99,45 @@ u0 = zeros(ComplexF64, length(eqs_sc)); # initial state
 # locally per `N_`.
 
 N_global = 100
-gc_ = sqrt(Ω_*ω_/N_global)
+gc_ = sqrt(Ω_ * ω_ / N_global)
 g_ = 0.9gc_
-ωd_ = sqrt(1-g_^2/gc_^2)*ω_
-ξ_ = 1/4*log(1-N_global*g_^2/(ω_*Ω_))
+ωd_ = sqrt(1 - g_^2 / gc_^2) * ω_
+ξ_ = 1 / 4 * log(1 - N_global * g_^2 / (ω_ * Ω_))
 
 # We solve the dynamics for four different numbers of two-level systems $N = [1, 2, 10, 100]$.
 
 sol_ls = []
 N_ls = [1, 2, 10, 100]
 for N_ in N_ls
-    local gc_l = sqrt(Ω_*ω_/N_)
+    local gc_l = sqrt(Ω_ * ω_ / N_)
     local g_l = 0.9gc_l
-    local ωd_l = sqrt(1-g_l^2/gc_l^2)*ω_
-    local ξ_l = 1/4*log(1-N_*g_l^2/(ω_*Ω_))
+    local ωd_l = sqrt(1 - g_l^2 / gc_l^2) * ω_
+    local ξ_l = 1 / 4 * log(1 - N_ * g_l^2 / (ω_ * Ω_))
     local p0 = [ω_, Ω_, ωd_l, g_l, η_, κ_, γ_, N_, ξ_l]
     local u0_dict = Dict{Any, Any}(unknowns(sys) .=> u0)
     local dict = merge(u0_dict, Dict{Any, Any}(ps .=> p0))
-    local prob = ODEProblem(sys, dict, (0.0, 4π/ωd_l))
-    local sol = solve(prob, Tsit5(); saveat = π/30ωd_l, reltol = 1e-10, abstol = 1e-10)
+    local prob = ODEProblem(sys, dict, (0.0, 4π / ωd_l))
+    local sol = solve(prob, Tsit5(); saveat = π / 30ωd_l, reltol = 1.0e-10, abstol = 1.0e-10)
     push!(sol_ls, sol)
 end
 
 #
 
-c_ls=[:black, :red, :blue, :cyan] # plot results
+c_ls = [:black, :red, :blue, :cyan] # plot results
 p1 = plot(xlabel = "ω t", ylabel = "Δ² O")
 p2 = plot(xlabel = "ω t", ylabel = "⟨σz⟩")
-for k = 1:length(N_ls)
+for k in 1:length(N_ls)
     sol = sol_ls[k]
     t_ = sol.t
 
-    adag_a = get_solution(sol, a'*a, eqs_sc)(t_)
-    aa = get_solution(sol, a*a, eqs_sc)(t_)
-    adag_adag = get_solution(sol, a'*a', eqs_sc)(t_)
+    adag_a = get_solution(sol, a' * a, eqs_sc)(t_)
+    aa = get_solution(sol, a * a, eqs_sc)(t_)
+    adag_adag = get_solution(sol, a' * a', eqs_sc)(t_)
     a_ = get_solution(sol, a, eqs_sc)(t_)
     adag = get_solution(sol, a', eqs_sc)(t_)
 
-    sqx = adag_adag + aa + 2*adag_a .+ 1 - (adag + a_) .^ 2
-    sqy = adag_adag + aa - 2*adag_a .- 1 - (adag - a_) .^ 2
+    sqx = adag_adag + aa + 2 * adag_a .+ 1 - (adag + a_) .^ 2
+    sqy = adag_adag + aa - 2 * adag_a .- 1 - (adag - a_) .^ 2
     plot!(p1, t_, real.(sqx), label = "N = $(N_ls[k])", color = c_ls[k])
     plot!(p1, t_, -real.(sqy), ls = :dash, label = nothing, color = c_ls[k])
 
@@ -149,8 +149,8 @@ plot(
     p2,
     layout = (1, 2),
     size = (700, 250),
-    bottom_margin = 5*Plots.mm,
-    left_margin = 5*Plots.mm,
+    bottom_margin = 5 * Plots.mm,
+    left_margin = 5 * Plots.mm,
 )
 
 # ## Effective model
@@ -166,9 +166,9 @@ plot(
 # We calculate now the dynamics for this effective model and compare it with the full system. Note that this Hamiltonian is quadratic, which means that a second order description is exact.
 
 @variables gΩ # g^2/4Ω
-H_a = Hf - N*gΩ*(a + a')^2 # effective Hamiltonian, N is added for the sake of intensitivity
+H_a = Hf - N * gΩ * (a + a')^2 # effective Hamiltonian, N is added for the sake of intensitivity
 
-eqs_a = meanfield([a, a'a, a*a], H_a, [b]; rates = [κ], order = 2)
+eqs_a = meanfield([a, a'a, a * a], H_a, [b]; rates = [κ], order = 2)
 nothing # hide
 
 # ```math
@@ -185,7 +185,7 @@ sys_a = mtkcompile(sys_a)
 
 u0_a = zeros(ComplexF64, length(eqs_a)) # initial state
 
-gΩ_ = g_^2/(4Ω_) # Additional parameter
+gΩ_ = g_^2 / (4Ω_) # Additional parameter
 N_ = 69 # the final result does not depend on N
 
 ps_a = [ω, ωd, η, κ, N, gΩ, ξ] # symbolic parameter list (matches sys_a)
@@ -193,28 +193,28 @@ p0_a = [ω_, ωd_, η_, κ_, N_, gΩ_, ξ_]
 
 u0_a_dict = initial_values(eqs_a, u0_a)
 dict_a = merge(u0_a_dict, Dict(ps_a .=> p0_a))
-prob_a = ODEProblem(sys_a, dict_a, (0.0, 4π/ωd_)) # define and solve numeric ordinary differential equation problem
-sol_a = solve(prob_a, Tsit5(); saveat = π/30ωd_, reltol = 1e-8, abstol = 1e-8)
+prob_a = ODEProblem(sys_a, dict_a, (0.0, 4π / ωd_)) # define and solve numeric ordinary differential equation problem
+sol_a = solve(prob_a, Tsit5(); saveat = π / 30ωd_, reltol = 1.0e-8, abstol = 1.0e-8)
 nothing # hide
 
 sol = sol_ls[4] # plot results
 t_ = sol.t
-adag_a = get_solution(sol, a'*a, eqs_sc)(t_)
-aa = get_solution(sol, a*a, eqs_sc)(t_)
-adag_adag = get_solution(sol, a'*a', eqs_sc)(t_)
+adag_a = get_solution(sol, a' * a, eqs_sc)(t_)
+aa = get_solution(sol, a * a, eqs_sc)(t_)
+adag_adag = get_solution(sol, a' * a', eqs_sc)(t_)
 a_ = get_solution(sol, a, eqs_sc)(t_)
 adag = get_solution(sol, a', eqs_sc)(t_)
-sqx = adag_adag + aa + 2*adag_a .+ 1 - (adag + a_) .^ 2
-sqy = adag_adag + aa - 2*adag_a .- 1 - (adag - a_) .^ 2
+sqx = adag_adag + aa + 2 * adag_a .+ 1 - (adag + a_) .^ 2
+sqy = adag_adag + aa - 2 * adag_a .- 1 - (adag - a_) .^ 2
 
 t_a = sol_a.t
-adag_a_a = get_solution(sol_a, a'*a, eqs_a)(t_a)
-aa_a = get_solution(sol_a, a*a, eqs_a)(t_a)
-adag_adag_a = get_solution(sol_a, a'*a', eqs_a)(t_a)
+adag_a_a = get_solution(sol_a, a' * a, eqs_a)(t_a)
+aa_a = get_solution(sol_a, a * a, eqs_a)(t_a)
+adag_adag_a = get_solution(sol_a, a' * a', eqs_a)(t_a)
 a_a = get_solution(sol_a, a, eqs_a)(t_a)
 adag_a2 = get_solution(sol_a, a', eqs_a)(t_a)
-sqx_a = adag_adag_a + aa_a + 2*adag_a_a .+ 1 - (adag_a2 + a_a) .^ 2
-sqy_a = adag_adag_a + aa_a - 2*adag_a_a .- 1 - (adag_a2 - a_a) .^ 2
+sqx_a = adag_adag_a + aa_a + 2 * adag_a_a .+ 1 - (adag_a2 + a_a) .^ 2
+sqy_a = adag_adag_a + aa_a - 2 * adag_a_a .- 1 - (adag_a2 - a_a) .^ 2
 
 p = plot(xlabel = "ω t", ylabel = "Δ² O")
 plot!(p, t_, real.(sqx), label = "X - Full model")

@@ -24,11 +24,11 @@ m = 1
 @register_symbolic Ydot(t) # measurement current
 @register_symbolic Ydot_rev(t) # time-reverse measurement current
 
-a = (x + 1im*p)*s
+a = (x + 1im * p) * s
 nothing # hide
 
 ## Hamiltonian
-H = p^2/(2m) + 0.5m*Ω^2*x^2
+H = p^2 / (2m) + 0.5m * Ω^2 * x^2
 
 ## Lindblad
 J = [a]
@@ -37,27 +37,27 @@ eff = [η]
 
 # We derive the stochastic differential equation for the measurement backaction and solve the dynamics.
 
-ops = [x, p, x*x, x*p, p*p]
+ops = [x, p, x * x, x * p, p * p]
 eqs = meanfield(ops, H, J; rates = R, efficiencies = eff, order = 2)
 
 # We want to note here that the time evolution of the covariance matrix would in principle be deterministic (no noise term). However, this is not the case for the set of equations we derive her, which makes them not optimal to describe the system. Nevertheless, the numerics is stable and the results are still correct.
 
 ## numerical parameter
 Ω_ = 1
-Γ_ = 1/6
+Γ_ = 1 / 6
 η_ = 0.5
 
-Tend = 3.0/Γ_
-dt = Tend/5e4 # time step
+Tend = 3.0 / Γ_
+dt = Tend / 5.0e4 # time step
 T_saveat = [0:dt:Tend;]
 
 ps = [Ω, Γ, η, s]
-pn = [Ω_, Γ_, η_, 1/√2]
+pn = [Ω_, Γ_, η_, 1 / √2]
 
 ## initial state
 x0 = 5.0;
 p0 = 0.0
-u0 = [x0, p0, 5+x0*x0, im/2+x0*p0, 5+p0*p0] # σx = σpp = 5
+u0 = [x0, p0, 5 + x0 * x0, im / 2 + x0 * p0, 5 + p0 * p0] # σx = σpp = 5
 nothing # hide
 
 ## define numerical SDE
@@ -81,28 +81,28 @@ t_W = noise.t # noise time steps
 W_W = noise.W # noise values
 
 ## calculate measurement record
-N = length(t_W)-1
+N = length(t_W) - 1
 dY_W = zeros(N)
 dYdt_W = zeros(N)
 
 sol_x = real(get_solution(sol_fw, x, eqs)(sol_fw.t))
-for k = 1:N
-    dW = W_W[k+1] - W_W[k]
+for k in 1:N
+    dW = W_W[k + 1] - W_W[k]
     # cd_p_c = (sol_x[k] + sol_x[k+1])/2*√(2)*√(Γ_)
-    cd_p_c = sol_x[k]*√(2)*√(Γ_)
+    cd_p_c = sol_x[k] * √(2) * √(Γ_)
 
-    dYdt_W[k] = dW/dt + √η_*cd_p_c
-    dY_W[k] = dW + √η_*cd_p_c*dt
+    dYdt_W[k] = dW / dt + √η_ * cd_p_c
+    dY_W[k] = dW + √η_ * cd_p_c * dt
 end
 
 ## forward propagation
 dYdt_data = [dYdt_W; dYdt_W[end]]
-dYdt(t) = dYdt_data[Int(round(t/dt))+1] # measurement current
+dYdt(t) = dYdt_data[Int(round(t / dt)) + 1] # measurement current
 Ydot(t) = dYdt(t)
 
 ## backward propagation
 dYdt_data_rev = [reverse(dY_W); dY_W[1]] / dt
-dYdt_rev(t) = dYdt_data_rev[Int(round(t/dt))+1]
+dYdt_rev(t) = dYdt_data_rev[Int(round(t / dt)) + 1]
 Ydot_rev(t) = dYdt_rev(t)
 
 # We modify the noiseless equations with the function [`modify_equations`](@Ref) to add the (deterministic) term from the measurement current.

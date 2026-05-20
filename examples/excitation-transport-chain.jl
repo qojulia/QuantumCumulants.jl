@@ -34,24 +34,24 @@ using Plots
 
 
 N = 10 # Hilbert space for N atoms
-h = ⊗([NLevelSpace(Symbol(:atom, i), (:g, :e)) for i = 1:N]...)
+h = ⊗([NLevelSpace(Symbol(:atom, i), (:g, :e)) for i in 1:N]...)
 
 σ(i, j, k) = Transition(h, Symbol(:σ_, k), i, j, k) # Operators
 
 
 @variables Ω γ w Δ J0 # Define the symbolic parameters and the interaction
-x = [first(@variables $(Symbol("x_$i"))) for i = 1:N]
+x = [first(@variables $(Symbol("x_$i"))) for i in 1:N]
 J(xᵢ, xⱼ) = J0 / abs(xᵢ - xⱼ)^3
 
 H =
-    -Δ*sum(σ(:e, :e, k) for k = 1:N) +
-    Ω*(σ(:e, :g, 1) + σ(:g, :e, 1)) +
+    -Δ * sum(σ(:e, :e, k) for k in 1:N) +
+    Ω * (σ(:e, :g, 1) + σ(:g, :e, 1)) +
     sum(
-        J(x[k], x[k+1])*(σ(:e, :g, k)*σ(:g, :e, k+1) + σ(:g, :e, k)*σ(:e, :g, k+1)) for
-        k = 1:(N-1)
-    )
+    J(x[k], x[k + 1]) * (σ(:e, :g, k) * σ(:g, :e, k + 1) + σ(:g, :e, k) * σ(:e, :g, k + 1)) for
+        k in 1:(N - 1)
+)
 
-c_ops = [σ(:g, :e, k) for k = 1:N]
+c_ops = [σ(:g, :e, k) for k in 1:N]
 nothing # hide
 
 # The above definitions are all we need to derive the set of equations.
@@ -59,7 +59,7 @@ nothing # hide
 # Note, that in order to include noise, we will not need to make any adaptions on a symbolic level.
 # Rather, we only need to derive the equations once and substitute the noisy positions accordingly when performing the numerical solutions.
 
-eqs = meanfield(σ(:g, :e, 1), H, c_ops; rates = [γ for i = 1:N], order = 2) # Derive the equations to second order
+eqs = meanfield(σ(:g, :e, 1), H, c_ops; rates = [γ for i in 1:N], order = 2) # Derive the equations to second order
 complete!(eqs)  # complete the set
 
 sys = to_system(eqs; name = :sys) # Generate the System
@@ -72,7 +72,7 @@ nothing # hide
 
 
 d = 0.75 # Define parameters without noise
-x0 = [d*(k-1) for k = 1:N]
+x0 = [d * (k - 1) for k in 1:N]
 p = Dict([γ => 1.0; Δ => 0.0; Ω => 2.0; J0 => 1.25; x .=> x0;])
 
 
@@ -106,7 +106,7 @@ plot!(graph, sol.t, popN, label = "End of chain", leg = 1)
 
 # In the following, we define the function that sets up the new `ODEProblem` for a realization and solve a specified number of trajectories.
 
-s = d/30  # strength of fluctuations
+s = d / 30  # strength of fluctuations
 function prob_func(prob, ctx)
     x_ = x0 .+ s .* randn(N) # Define the new set of parameters
     p_ = Dict([γ => 1.0; Δ => 0.0; Ω => 2.0; J0 => 1.25; x .=> x_;])
@@ -123,7 +123,7 @@ nothing # hide
 
 tspan = range(0.0, sol.t[end], length = 101)
 pops_avg = zeros(length(tspan), N) # Average resulting excitations
-for i = 1:N, j = 1:trajectories
+for i in 1:N, j in 1:trajectories
     pop = real.(get_solution(sim.u[j], σ(:e, :e, i), eqs).(tspan))
     @. pops_avg[:, i] += pop / trajectories
 end
@@ -141,7 +141,7 @@ plot!(graph, tspan, pops_avg[:, N], color = :orange, ls = :dash, label = nothing
 # Let's look at each trajectory of the excited state population of the atom at the end of the chain.
 
 graph2 = plot(xlabel = "γt", ylabel = "Excitation at end of chain")
-for i = 1:trajectories
+for i in 1:trajectories
     popN_i = real.(get_solution(sim.u[i], σ(:e, :e, N), eqs).(sim.u[i].t))
     plot!(
         graph2,

@@ -83,7 +83,7 @@ end
     hc = FockSpace(:cavity)
     @qnumbers a::Destroy(hc)
     avg3 = average(a' * a' * a)
-    expanded = cumulant_expansion(avg3, 2; simplify = true)
+    expanded = cumulant_expansion(avg3, 2)
     @test get_order(expanded) <= 2
     @test !isequal(expanded, avg3)
 end

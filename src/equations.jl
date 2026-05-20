@@ -57,8 +57,10 @@ struct MeanFieldEquations{
             iv::Symbolics.Num,
             order::O,
             direction::D = Forward(),
-        ) where {O, H <: QField, Op <: QField, Jt, Jdt, R,
-                 S <: SymbolicUtils.BasicSymbolic, D <: EvolutionDirection}
+        ) where {
+            O, H <: QField, Op <: QField, Jt, Jdt, R,
+            S <: SymbolicUtils.BasicSymbolic, D <: EvolutionDirection,
+        }
         n = length(equations)
         @assert n == length(operator_equations) == length(states) == length(operators) (
             "equations/states/operators must have matching lengths"

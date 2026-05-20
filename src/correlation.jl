@@ -1,7 +1,6 @@
 """
     CorrelationFunction(op1, op2, eqs::MeanFieldEquations;
-                        steady_state=true, simplify=true,
-                        filter_func=nothing)
+                        steady_state=true, filter_func=nothing)
 
 Two-time correlation `⟨op1(τ) · op2(0)⟩` in a new independent variable τ.
 
@@ -31,19 +30,27 @@ end
 # `space_index`, so embedding into an extended product space simply means
 # constructing the same operator type with a different space index.
 _embed_on(op::SQA.Destroy, aon::Int) = SQA.Destroy(op.name, aon, op.index)
-_embed_on(op::SQA.Create, aon::Int)  = SQA.Create(op.name, aon, op.index)
+_embed_on(op::SQA.Create, aon::Int) = SQA.Create(op.name, aon, op.index)
 function _embed_on(op::SQA.Transition, aon::Int)
-    return SQA.Transition(op.name, op.i, op.j, aon, op.index,
-        op.ground_state, op.n_levels)
+    return SQA.Transition(
+        op.name, op.i, op.j, aon, op.index,
+        op.ground_state, op.n_levels
+    )
 end
 
 # Pick a fresh subspace index strictly greater than anything in `eqs0`.
 function _ancilla_aon(eqs0::MeanFieldEquations, op1::QField, op2::QField)
     aons = Int[]
     append!(aons, SQA.acts_on(eqs0.hamiltonian))
-    for j in eqs0.jumps;        append!(aons, SQA.acts_on(j));  end
-    for j in eqs0.jumps_dagger; append!(aons, SQA.acts_on(j));  end
-    for op in eqs0.operators;   append!(aons, SQA.acts_on(op)); end
+    for j in eqs0.jumps
+        append!(aons, SQA.acts_on(j))
+    end
+    for j in eqs0.jumps_dagger
+        append!(aons, SQA.acts_on(j))
+    end
+    for op in eqs0.operators
+        append!(aons, SQA.acts_on(op))
+    end
     append!(aons, SQA.acts_on(op1))
     append!(aons, SQA.acts_on(op2))
     return isempty(aons) ? 2 : (maximum(aons) + 1)
@@ -68,8 +75,7 @@ end
 # leaves the rest of the RHS untouched (those are steady-state coefficients).
 function _complete_ancilla!(
         eqs::MeanFieldEquations, aon_anc::Int, steady_state::Bool,
-        user_filter; max_iter::Int = 200, simplify::Bool = true,
-        mix_choice = maximum,
+        user_filter; max_iter::Int = 200, mix_choice = maximum,
     )
     anc_filter = _ancilla_filter(aon_anc)
     closure_filter = if user_filter === nothing
@@ -78,14 +84,18 @@ function _complete_ancilla!(
         x -> anc_filter(x) && user_filter(x)
     end
     for _ in 1:max_iter
-        missing_states = find_missing(eqs; filter_func = closure_filter,
-            get_adjoints = false)
+        missing_states = find_missing(
+            eqs; filter_func = closure_filter,
+            get_adjoints = false
+        )
         # When NOT in steady state we also need equations for the non-ancilla
         # averages (they evolve in τ too). Add those here.
         if !steady_state
-            non_anc_missing = find_missing(eqs;
+            non_anc_missing = find_missing(
+                eqs;
                 filter_func = x -> !anc_filter(x),
-                get_adjoints = false)
+                get_adjoints = false
+            )
             append!(missing_states, non_anc_missing)
         end
         if isempty(missing_states)
@@ -96,9 +106,11 @@ function _complete_ancilla!(
             return eqs
         end
         new_ops = QField[_undo_for_derivation(m) for m in missing_states]
-        new_eqs = _meanfield_deterministic(eqs.direction, new_ops,
+        new_eqs = _meanfield_deterministic(
+            eqs.direction, new_ops,
             eqs.hamiltonian, eqs.jumps, eqs.jumps_dagger, eqs.rates,
-            eqs.order, simplify, mix_choice, eqs.iv)
+            eqs.order, mix_choice, eqs.iv
+        )
         _append!(eqs, new_eqs)
     end
     error("CorrelationFunction completion did not close within $max_iter iterations")
@@ -136,7 +148,6 @@ function CorrelationFunction(
         op1::QField, op2::QField,
         eqs0::MeanFieldEquations;
         steady_state::Bool = true,
-        simplify::Bool = true,
         filter_func = nothing,
     )
     τ = first(MTK.@independent_variables τ)
@@ -160,7 +171,7 @@ function CorrelationFunction(
         Jdagger = eqs0.jumps_dagger,
         rates = eqs0.rates,
         order = order_ext,
-        simplify, iv = τ,
+        iv = τ,
     )
 
     # Iteratively derive equations only for averages that touch the ancilla,
@@ -175,16 +186,21 @@ end
 # ---- spectrum ---------------------------------------------------------------
 
 """
-    Spectrum(c::CorrelationFunction, ps; simplify=true)
+    Spectrum(c::CorrelationFunction, ps)
 
 The Laplace-transformed correlation function as a callable. Calling
 `S(ω, u_end, p0)` returns the (real, normalized) spectrum at frequency `ω`,
 given the steady-state mapping `u_end` (`avg => value`) and the numeric
 parameter values `p0` for `ps`.
 
-Solves the (Laplace-domain) linear system `(iω·I - A) x = b` with the
-ancilla-touching states `x`, where steady-state averages on the RHS are
-treated as constant coefficients (substituted via `u_end`).
+Solves the (Laplace-domain) linear system `(iω·I - A) X̃(ω) = x̃(0)`, where
+`x(τ)` are the ancilla-touching averages, `A` is the Jacobian of the τ-equation
+RHS w.r.t. those states, `x̃(τ) = x(τ) - x_∞` is the centred process (so the
+correlation decays to zero, matching the Wiener-Khinchin assumption), and
+`x_∞ = -A⁻¹ b_const` is the asymptote driven by the constant source from
+ambient steady-state averages. Returns `Re(X̃(ω)[1])`, matching the master
+convention (one-sided FT, normalised so the test parameters from
+test/test_higher-order.jl reproduce master).
 """
 struct Spectrum{C <: CorrelationFunction, P}
     c::C
@@ -192,58 +208,74 @@ struct Spectrum{C <: CorrelationFunction, P}
     ps::P
 end
 
-function Spectrum(c::CorrelationFunction, ps; simplify::Bool = true)
+function Spectrum(c::CorrelationFunction, ps)
     ω = first(@variables ω_spectrum)
     return Spectrum{typeof(c), typeof(ps)}(c, ω, ps)
 end
 
-Spectrum(c::CorrelationFunction; simplify::Bool = true) = Spectrum(c, (); simplify)
+Spectrum(c::CorrelationFunction) = Spectrum(c, ())
 
 function (S::Spectrum)(ω_vals::AbstractVector, u_end, p0)
-    return [S(ω_val, u_end, p0) for ω_val in ω_vals]
+    A, rhs_b, n = _spectrum_kernel(S, u_end, p0)
+    I_n = Matrix{ComplexF64}(I, n, n)
+    out = Vector{Float64}(undef, length(ω_vals))
+    @inbounds for (k, ω_val) in enumerate(ω_vals)
+        M = (im * ω_val) .* I_n .- A
+        x = M \ rhs_b
+        out[k] = real(x[1])
+    end
+    return out
 end
 
-function (S::Spectrum)(ω_val::Real, u_end, p0)
+(S::Spectrum)(ω_val::Real, u_end, p0) = first(S([ω_val], u_end, p0))
+
+# Build (A, rhs_b, n) once per call by symbolic finite differences on the
+# τ-equations (linear in the states, so this is exact). All ω-dependence
+# lives in the per-ω solve below. We deliberately avoid
+# `Symbolics.build_function`: its JIT-compile of expressions containing
+# averaged-operator atoms takes seconds at higher orders, far more than
+# substitution-based extraction for a one-shot Spectrum invocation.
+# `rhs_b = u_τ - x_∞` centres x̃ on the asymptote x_∞ = -A⁻¹ b_const so the
+# one-sided FT converges. For phase-invariant systems b_const = 0.
+function _spectrum_kernel(S::Spectrum, u_end, p0)
     c = S.c
     eqs = c.eqs
     n = length(eqs.equations)
-    A = zeros(ComplexF64, n, n)
-    b = zeros(ComplexF64, n)
+
     rhss_u = [SymbolicUtils.unwrap(eq.rhs) for eq in eqs.equations]
     p_sub = _build_p_sub(S.ps, p0, c.τ, u_end, eqs)
-    # Resolve every ambient average appearing in the RHS. Ancilla-only
-    # averages (⟨op2_anc⟩-shaped) map back to the original subspace via
-    # `_undo_ancilla`; the rest look up directly. Anything absent from
-    # `u_end` defaults to 0 — matching the master-branch behavior where
-    # phase-/symmetry-excluded averages are simply zero.
     u_end_dict = _as_avg_dict(c, u_end)
     for avg in _ambient_avgs(c)
         aons = SQA.acts_on(avg)
         lookup_avg = (c.aon_anc in aons && length(aons) == 1) ?
             _undo_ancilla(c, avg) : avg
-        v = _lookup_avg(u_end_dict, lookup_avg)
-        p_sub[avg] = ComplexF64(v)
+        p_sub[avg] = ComplexF64(_lookup_avg(u_end_dict, lookup_avg))
     end
 
-    # The τ-equations are linear in the ancilla-touching states (ambient
-    # averages are constants), so finite differences recover A exactly.
-    # f(state_k = δ_kj) = A·e_j + b. Then A[:,j] = f(e_j) - b.
     state_us = [SymbolicUtils.unwrap(dv) for dv in eqs.states]
     zero_sub = merge(p_sub, Dict{Any, Any}(s => 0.0 + 0.0im for s in state_us))
 
+    b_const = Vector{ComplexF64}(undef, n)
     @inbounds for (i, rhs) in enumerate(rhss_u)
-        b[i] = _scalarize(SymbolicUtils.substitute(rhs, zero_sub))
+        b_const[i] = _scalarize(SymbolicUtils.substitute(rhs, zero_sub))
     end
+    A = Matrix{ComplexF64}(undef, n, n)
     @inbounds for j in 1:n
         sub_j = merge(zero_sub, Dict{Any, Any}(state_us[j] => 1.0 + 0.0im))
         for (i, rhs) in enumerate(rhss_u)
             f_ej = _scalarize(SymbolicUtils.substitute(rhs, sub_j))
-            A[i, j] = f_ej - b[i]
+            A[i, j] = f_ej - b_const[i]
         end
     end
-    M = (im * ω_val) .* Matrix{ComplexF64}(I, n, n) .- A
-    x = M \ b
-    return real(x[1])
+
+    u_τ = zeros(ComplexF64, n)
+    @inbounds for (i, s) in enumerate(eqs.states)
+        avg0 = _undo_ancilla(c, SymbolicUtils.unwrap(s))
+        u_τ[i] = ComplexF64(_lookup_avg(u_end_dict, avg0))
+    end
+
+    rhs_b = any(!iszero, b_const) ? u_τ .+ (A \ b_const) : u_τ
+    return A, rhs_b, n
 end
 
 function _build_p_sub(ps, p0, τ, u_end, eqs)
@@ -406,9 +438,28 @@ end
 
 function _lookup_avg(dict, avg)
     avg_u = SymbolicUtils.unwrap(avg)
+    # Fast path: leaf average present as-is (or via its conjugate) in `dict`.
     haskey(dict, avg_u) && return dict[avg_u]
-    conj_u = SymbolicUtils.unwrap(_avg_conj_of(avg_u))
-    haskey(dict, conj_u) && return conj(dict[conj_u])
+    avg_u isa Number && return avg_u
+    if avg_u isa SymbolicUtils.BasicSymbolic
+        if _is_leaf_average(avg_u)
+            conj_u = SymbolicUtils.unwrap(_avg_conj_of(avg_u))
+            haskey(dict, conj_u) && return conj(dict[conj_u])
+            return 0
+        end
+        # Compound expression: `_undo_ancilla` rebuilds via SQA arithmetic,
+        # which normal-orders products (e.g. `a·a' → a'·a + 1`). Substitute
+        # every known leaf average (and its conjugate) with its numeric value
+        # and evaluate. Unknown leaves default to 0 via `_scalarize`.
+        sub = Dict{Any, Any}()
+        for (k, v) in dict
+            sub[k] = v
+            k isa SymbolicUtils.BasicSymbolic && _is_leaf_average(k) || continue
+            ck = SymbolicUtils.unwrap(_avg_conj_of(k))
+            haskey(sub, ck) || (sub[ck] = conj(v))
+        end
+        return _scalarize(SymbolicUtils.substitute(avg_u, sub))
+    end
     return 0
 end
 
@@ -474,9 +525,15 @@ function to_system(c::CorrelationFunction; name::Symbol)
         # symtype=Any and stop being recognised by is_average / substitute).
         # So we collapse conj, ambient, and dv substitution into one tree walk.
         merged = Dict{Any, Any}()
-        for (k, v) in conj_dict;     merged[k] = v; end
-        for (k, v) in ambient_subs;  merged[k] = v; end
-        for (k, v) in dict;          merged[k] = v; end
+        for (k, v) in conj_dict
+            merged[k] = v
+        end
+        for (k, v) in ambient_subs
+            merged[k] = v
+        end
+        for (k, v) in dict
+            merged[k] = v
+        end
         rhs = _safe_substitute(eq.rhs, merged)
         new_eqs[i] = D(dict[eq.lhs]) ~ rhs
         _collect_params!(ps_set, rhs, dict, iv_uw)

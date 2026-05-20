@@ -41,8 +41,10 @@ using Test
     end
     phase_invariant(x) = iszero(ϕ(x))
 
-    he4 = complete(meanfield(a' * a, H, J; rates = rates);
-                    order = 4, filter_func = phase_invariant)
+    he4 = complete(
+        meanfield(a' * a, H, J; rates = rates);
+        order = 4, filter_func = phase_invariant
+    )
     @test length(he4.equations) > 0
     @test isempty(find_missing(he4; filter_func = phase_invariant))
 
@@ -54,7 +56,7 @@ using Test
     ps = [Δ, g, γ, κ, ν]
     pn = [1.0, 1.5, 0.25, 1.0, 4.0]
     prob = ODEProblem(sys4_c, merge(u0, Dict(ps .=> pn)), (0.0, 20.0))
-    sol = solve(prob, Tsit5(); abstol = 1e-8, reltol = 1e-8)
+    sol = solve(prob, Tsit5(); abstol = 1.0e-8, reltol = 1.0e-8)
     @test sol.retcode == ReturnCode.Success
     n_ss = real(get_solution(sol, a' * a, he4)(sol.t[end]))
     @test isfinite(n_ss)

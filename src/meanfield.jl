@@ -1,12 +1,15 @@
 """
     meanfield(ops, H, J=QField[]; Jdagger=adjoint.(J), rates=ones(length(J)),
               efficiencies=nothing, direction=Forward(),
-              order=nothing, simplify=true,
-              mix_choice=maximum, iv=Symbolics.variable(:t))
+              order=nothing, mix_choice=maximum, iv=Symbolics.variable(:t))
 
 Compute equations of motion for the averages of `ops` under Hamiltonian `H`
 and collapse operators `J` (with rates `rates`). Returns a `MeanFieldEquations`
 unless `efficiencies` is given (then a `NoiseMeanFieldEquations`).
+
+The returned RHS is left in its raw, unsimplified form. Apply
+`SymbolicUtils.simplify` (e.g. via `Symbolics.simplify(eq.rhs; expand=true)`)
+to the equations you want to inspect.
 """
 _make_iv() = first(MTK.@independent_variables t)
 
@@ -19,7 +22,6 @@ function meanfield(
         efficiencies = nothing,
         direction::EvolutionDirection = Forward(),
         order = nothing,
-        simplify::Bool = true,
         mix_choice::Function = maximum,
         iv::Symbolics.Num = _make_iv(),
     )
@@ -31,13 +33,13 @@ function meanfield(
     if efficiencies === nothing
         return _meanfield_deterministic(
             direction, ops, H, Jn, Jdn, rn,
-            order, simplify, mix_choice, iv,
+            order, mix_choice, iv,
         )
     else
         en = _normalize_rates(efficiencies, length(Jn))
         return _meanfield_noise(
             direction, ops, H, Jn, Jdn, rn, en,
-            order, simplify, mix_choice, iv,
+            order, mix_choice, iv,
         )
     end
 end
@@ -78,13 +80,15 @@ _operator_rhs(::Forward, op, imH, J, Jdagger, rates) =
 
 function _operator_rhs(::Backward, op, imH, J, Jdagger, rates)
     isempty(J) && return commutator(-imH, op)
-    trace_term = Symbolics.Num(sum(
-        rates[i] * (average(Jdagger[i] * J[i]) - average(J[i] * Jdagger[i]))
-        for i in eachindex(J)
-    ))
+    trace_term = Symbolics.Num(
+        sum(
+            rates[i] * (average(Jdagger[i] * J[i]) - average(J[i] * Jdagger[i]))
+                for i in eachindex(J)
+        )
+    )
     return commutator(-imH, op)
-        + _master_lindblad_backward(op, J, Jdagger, rates)
-        + op * trace_term
+    + _master_lindblad_backward(op, J, Jdagger, rates)
+    + op * trace_term
 end
 
 # Operator-level drift derivation shared by every derivation path: build a
@@ -106,34 +110,30 @@ end
 
 # Lift operator drift to the averaged level, optionally adding a per-op
 # correction (e.g. `_dY_dS_extra_term` for backward noise) and applying
-# cumulant truncation + symbolic simplify.
+# cumulant truncation. The output is left unsimplified; callers apply
+# `SymbolicUtils.simplify` themselves if they want a canonical form.
 function _build_avg_drift_eqs(
-        op_rhs, states, ops_qa, extra_term, order_vec, simplify, mix_choice,
+        op_rhs, states, ops_qa, extra_term, order_vec, mix_choice,
     )
     avg_eqs = Vector{Symbolics.Equation}(undef, length(op_rhs))
     @inbounds for i in eachindex(op_rhs)
         rhs = average(op_rhs[i])
         extra_term === nothing || (rhs = rhs + extra_term(ops_qa[i]))
         if order_vec !== nothing
-            rhs = cumulant_expansion(rhs, order_vec; simplify = false, mix_choice)
+            rhs = cumulant_expansion(rhs, order_vec; mix_choice)
         end
-        simplify && (rhs = SymbolicUtils.simplify(rhs))
         avg_eqs[i] = states[i] ~ rhs
     end
     return avg_eqs
 end
 
-# Apply cumulant truncation + simplify to pre-built noise drifts.
-function _finalize_noise_eqs(avg_noise, order_vec, simplify, mix_choice)
+# Apply cumulant truncation to pre-built noise drifts; no symbolic simplify.
+function _finalize_noise_eqs(avg_noise, order_vec, mix_choice)
     if order_vec !== nothing
         avg_noise = [
-            eq.lhs ~ cumulant_expansion(
-                    eq.rhs, order_vec; simplify = false, mix_choice
-                ) for eq in avg_noise
+            eq.lhs ~ cumulant_expansion(eq.rhs, order_vec; mix_choice)
+                for eq in avg_noise
         ]
-    end
-    if simplify
-        avg_noise = [eq.lhs ~ SymbolicUtils.simplify(eq.rhs) for eq in avg_noise]
     end
     return avg_noise
 end
@@ -141,7 +141,7 @@ end
 function _meanfield_deterministic(
         direction::EvolutionDirection,
         ops, H, J, Jdagger, rates, order,
-        simplify, mix_choice, iv,
+        mix_choice, iv,
     )
     ops_qa = QAdd[op * 1 for op in ops]
     op_rhs, operator_eqs = _build_op_drift(direction, ops_qa, H, J, Jdagger, rates)
@@ -149,7 +149,7 @@ function _meanfield_deterministic(
     order_vec = order === nothing ? nothing :
         _normalize_order(order, (; hamiltonian = H))
     avg_eqs = _build_avg_drift_eqs(
-        op_rhs, states, ops_qa, nothing, order_vec, simplify, mix_choice,
+        op_rhs, states, ops_qa, nothing, order_vec, mix_choice,
     )
     return MeanFieldEquations(
         avg_eqs, operator_eqs, states, ops_qa,
@@ -233,7 +233,7 @@ end
 
 function _meanfield_noise(
         direction::EvolutionDirection, ops, H, J, Jdagger, rates,
-        efficiencies, order, simplify, mix_choice, iv,
+        efficiencies, order, mix_choice, iv,
     )
     ops_qa = QAdd[op * 1 for op in ops]
     op_rhs, operator_eqs = _build_op_drift(direction, ops_qa, H, J, Jdagger, rates)
@@ -246,13 +246,13 @@ function _meanfield_noise(
     # drift comes out identical to the deterministic forward path.
     extra = _avg_extra_term(direction, J, Jdagger, efficiencies .* rates)
     avg_eqs = _build_avg_drift_eqs(
-        op_rhs, states, ops_qa, extra, order_vec, simplify, mix_choice,
+        op_rhs, states, ops_qa, extra, order_vec, mix_choice,
     )
 
     op_noise, avg_noise = _noise_builder(direction)(
-        ops_qa, J, Jdagger, rates, efficiencies, simplify
+        ops_qa, J, Jdagger, rates, efficiencies,
     )
-    avg_noise = _finalize_noise_eqs(avg_noise, order_vec, simplify, mix_choice)
+    avg_noise = _finalize_noise_eqs(avg_noise, order_vec, mix_choice)
     return NoiseMeanFieldEquations(
         avg_eqs, avg_noise, operator_eqs, op_noise,
         states, ops_qa, H,
@@ -261,3 +261,39 @@ function _meanfield_noise(
         iv, order_vec, direction,
     )
 end
+
+"""
+    simplify!(eqs::AbstractMeanFieldEquations; kwargs...)
+    simplify(eqs::AbstractMeanFieldEquations; kwargs...)
+
+Run `SymbolicUtils.simplify` on every RHS in `eqs` (and on the noise drift
+RHSs of a `NoiseMeanFieldEquations`). `simplify!` mutates in place; `simplify`
+returns a fresh struct. Extra `kwargs` are forwarded to `SymbolicUtils.simplify`
+(e.g. `expand=true`).
+
+Use this to opt in to canonical-form RHS for inspection or LaTeX rendering;
+the derivation pipeline (`meanfield`, `complete!`, `CorrelationFunction`,
+`evaluate`, …) leaves expressions in their raw form so the heavy cost of
+`SymbolicUtils.simplify` is only paid when explicitly requested.
+"""
+function simplify! end
+
+function simplify!(eqs::MeanFieldEquations; kwargs...)
+    for (i, eq) in enumerate(eqs.equations)
+        eqs.equations[i] = eq.lhs ~ SymbolicUtils.simplify(eq.rhs; kwargs...)
+    end
+    return eqs
+end
+
+function simplify!(eqs::NoiseMeanFieldEquations; kwargs...)
+    for (i, eq) in enumerate(eqs.equations)
+        eqs.equations[i] = eq.lhs ~ SymbolicUtils.simplify(eq.rhs; kwargs...)
+    end
+    for (i, eq) in enumerate(eqs.noise_equations)
+        eqs.noise_equations[i] = eq.lhs ~ SymbolicUtils.simplify(eq.rhs; kwargs...)
+    end
+    return eqs
+end
+
+SymbolicUtils.simplify(eqs::AbstractMeanFieldEquations; kwargs...) =
+    simplify!(_copy(eqs); kwargs...)

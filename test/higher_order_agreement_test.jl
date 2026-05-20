@@ -39,10 +39,14 @@ using Test
     end
     phase_invariant(x) = iszero(ϕ(x))
 
-    he4 = complete(meanfield(a' * a, H, J; rates = rates);
-                    order = 4, filter_func = phase_invariant)
-    he6 = complete(meanfield(a' * a, H, J; rates = rates);
-                    order = 6, filter_func = phase_invariant)
+    he4 = complete(
+        meanfield(a' * a, H, J; rates = rates);
+        order = 4, filter_func = phase_invariant
+    )
+    he6 = complete(
+        meanfield(a' * a, H, J; rates = rates);
+        order = 6, filter_func = phase_invariant
+    )
 
     @named sys4 = to_system(he4); sys4_c = mtkcompile(sys4)
     @named sys6 = to_system(he6); sys6_c = mtkcompile(sys6)
@@ -52,8 +56,8 @@ using Test
     pn = [1.0, 1.5, 0.25, 1.0, 4.0]
     prob4 = ODEProblem(sys4_c, merge(u04, Dict(ps .=> pn)), (0.0, 50.0))
     prob6 = ODEProblem(sys6_c, merge(u06, Dict(ps .=> pn)), (0.0, 50.0))
-    sol4 = solve(prob4, Tsit5(); abstol = 1e-9, reltol = 1e-9)
-    sol6 = solve(prob6, Tsit5(); abstol = 1e-9, reltol = 1e-9)
+    sol4 = solve(prob4, Tsit5(); abstol = 1.0e-9, reltol = 1.0e-9)
+    sol6 = solve(prob6, Tsit5(); abstol = 1.0e-9, reltol = 1.0e-9)
     @test sol4.retcode == ReturnCode.Success
     @test sol6.retcode == ReturnCode.Success
 
@@ -63,10 +67,33 @@ using Test
     @test isfinite(n_ss_6)
     @test n_ss_4 >= 0
     @test n_ss_6 >= 0
-    @test abs(n_ss_4 - n_ss_6) / max(abs(n_ss_6), 1e-3) < 0.05
+    @test abs(n_ss_4 - n_ss_6) / max(abs(n_ss_6), 1.0e-3) < 0.05
 
-    assert_real(sol4, a' * a, he4; atol = 1e-6)
-    assert_nonneg(sol4, a' * a, he4; atol = 1e-6)
-    assert_real(sol6, a' * a, he6; atol = 1e-6)
-    assert_nonneg(sol6, a' * a, he6; atol = 1e-6)
+    assert_real(sol4, a' * a, he4; atol = 1.0e-6)
+    assert_nonneg(sol4, a' * a, he4; atol = 1.0e-6)
+    assert_real(sol6, a' * a, he6; atol = 1.0e-6)
+    assert_nonneg(sol6, a' * a, he6; atol = 1.0e-6)
+
+    # Spectrum agreement (ports master's `maximum(abs.(s6 .- s4)) < 0.2`).
+    # Reuses sol4/sol6 above; the Laplace-domain solve in `Spectrum` is the
+    # only additional work here. Phase-invariant filter is required for the
+    # ancilla completion to close. Call the vector overload directly so the
+    # matrix extraction runs once per order, not once per ω.
+    ω = collect(range(-2pi, 2pi; length = 201))
+    ps_t = (Δ, g, γ, κ, ν)
+    c4 = CorrelationFunction(
+        a', a, he4;
+        steady_state = true, filter_func = phase_invariant
+    )
+    c6 = CorrelationFunction(
+        a', a, he6;
+        steady_state = true, filter_func = phase_invariant
+    )
+    s4 = Spectrum(c4, ps_t)(ω, sol4.u[end], pn)
+    s6 = Spectrum(c6, ps_t)(ω, sol6.u[end], pn)
+    @test all(isfinite, s4)
+    @test all(isfinite, s6)
+    @test all(>=(-1.0e-6), s4)
+    @test all(>=(-1.0e-6), s6)
+    @test maximum(abs.(s6 .- s4)) < 0.2
 end

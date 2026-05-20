@@ -65,8 +65,10 @@ end
     efficiencies = [ξ, 0, 0, 0]
     ops = [a, a' * a, σ(2, 2, k), σ(1, 2, k)]
 
-    stoch_eqs = meanfield(ops, H, J;
-                          rates = rates, efficiencies = efficiencies, order = 2)
+    stoch_eqs = meanfield(
+        ops, H, J;
+        rates = rates, efficiencies = efficiencies, order = 2
+    )
     det_eqs = meanfield(ops, H, J; rates = rates, order = 2)
     stoch_c = complete(stoch_eqs)
     det_c = complete(det_eqs)

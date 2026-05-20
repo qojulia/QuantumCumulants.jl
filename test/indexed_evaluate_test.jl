@@ -13,7 +13,7 @@ using Test
     s(α, β, idx) = IndexedOperator(Transition(h2, :S, α, β), idx)
     sp(idx) = s(2, 1, idx); sm(idx) = s(1, 2, idx)
     int_sum = Σ(sp(i1) * sm(i2) + sm(i1) * sp(i2), i1, i2) -
-              Σ(sp(i1) * sm(i1) + sm(i1) * sp(i1), i1)
+        Σ(sp(i1) * sm(i1) + sm(i1) * sp(i1), i1)
     Hint = V * int_sum + Ω * Σ(sp(i1) + sm(i1), i1)
     eqs = meanfield([s(1, 2, i)], Hint; order = 1)
     eqs_c = complete(eqs)
@@ -64,7 +64,7 @@ end
     s(α, β, idx) = IndexedOperator(Transition(h2, :S, α, β), idx)
     sp(idx) = s(2, 1, idx); sm(idx) = s(1, 2, idx)
     int_sum = Σ(sp(i1) * sm(i2) + sm(i1) * sp(i2), i1, i2) -
-              Σ(sp(i1) * sm(i1) + sm(i1) * sp(i1), i1)
+        Σ(sp(i1) * sm(i1) + sm(i1) * sp(i1), i1)
     Hint = V * int_sum + Ω * Σ(sp(i1) + sm(i1), i1)
     eqs_c = complete(meanfield([s(1, 2, i)], Hint; order = 1))
 

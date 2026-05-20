@@ -27,16 +27,18 @@ const SQA = QuantumCumulants.SecondQuantizedAlgebra
     i = Index(h, :i, N, ha)
     H = -Δc * a' * a +
         ∑(g(i) * (σ(2, 1, i) * a + σ(1, 2, i) * a'), i)
-    eqs = meanfield(a'*a, H, [a]; rates = [κ], order = 2)
+    eqs = meanfield(a' * a, H, [a]; rates = [κ], order = 2)
     complete!(eqs)
     evaled = evaluate(eqs; limits = (N => 3))
 
     # Scalar value → broadcast to N-element vector.
-    pmap = parameter_map(evaled, Dict(
-        g(i) => 0.7,
-        κ    => 1.5,
-        Δc   => 0.25,
-    ))
+    pmap = parameter_map(
+        evaled, Dict(
+            g(i) => 0.7,
+            κ => 1.5,
+            Δc => 0.25,
+        )
+    )
     @test length(pmap) == 3
     arr_entry = first((k, v) for (k, v) in pmap if v isa AbstractArray)
     @test arr_entry[2] == fill(0.7, 3)
@@ -65,27 +67,29 @@ end
         ∑(g(i) * (σ(2, 1, i) * a + σ(1, 2, i) * a'), i) +
         1im * η * (a' - a)
     J = [σ(1, 2, i), a]
-    eqs = meanfield(a'*a, H, J; rates = [Γ, κ], order = [1, 2])
+    eqs = meanfield(a' * a, H, J; rates = [Γ, κ], order = [1, 2])
     complete!(eqs)
     evaled = evaluate(eqs; limits = (N => 2))
 
     @named sys = to_system(evaled)
     sys_c = mtkcompile(sys)
-    pmap = parameter_map(evaled, Dict(
-        g(i) => [0.05, 0.15],   # inhomogeneous on purpose (see below)
-        Δc   => 0.0,
-        κ    => 1.0,
-        Γ    => 0.25,
-        η    => 0.3,
-    ))
+    pmap = parameter_map(
+        evaled, Dict(
+            g(i) => [0.05, 0.15],   # inhomogeneous on purpose (see below)
+            Δc => 0.0,
+            κ => 1.0,
+            Γ => 0.25,
+            η => 0.3,
+        )
+    )
     u0 = Dict(unknowns(sys_c) .=> zeros(ComplexF64, length(unknowns(sys_c))))
     prob = ODEProblem(sys_c, merge(u0, pmap), (0.0, 10.0))
-    sol = solve(prob, Tsit5(); abstol = 1e-8, reltol = 1e-8)
+    sol = solve(prob, Tsit5(); abstol = 1.0e-8, reltol = 1.0e-8)
     @test sol.retcode == ReturnCode.Success
 
     a_op = SQA.undo_average(evaled.states[1])
-    assert_real(sol, a_op, evaled; atol = 1e-6)
-    assert_nonneg(sol, a_op, evaled; atol = 1e-6)
+    assert_real(sol, a_op, evaled; atol = 1.0e-6)
+    assert_nonneg(sol, a_op, evaled; atol = 1.0e-6)
 end
 
 @testset "indexed scope: per-atom couplings produce distinguishable observables" begin
@@ -108,7 +112,7 @@ end
     H = ∑(g(i) * (σ(2, 1, i) * a + σ(1, 2, i) * a'), i) +
         1im * η * (a' - a)
     J = [σ(1, 2, i), a]
-    eqs = meanfield(a'*a, H, J; rates = [Γ, κ], order = [1, 2])
+    eqs = meanfield(a' * a, H, J; rates = [Γ, κ], order = [1, 2])
     complete!(eqs)
     evaled = evaluate(eqs; limits = (N => 2))
 
@@ -140,20 +144,22 @@ end
 
     @named sys = to_system(evaled)
     sys_c = mtkcompile(sys)
-    pmap = parameter_map(evaled, Dict(
-        g(i) => [0.05, 0.20],   # 4× ratio
-        κ    => 1.0,
-        Γ    => 0.1,
-        η    => 0.3,
-    ))
+    pmap = parameter_map(
+        evaled, Dict(
+            g(i) => [0.05, 0.2],   # 4× ratio
+            κ => 1.0,
+            Γ => 0.1,
+            η => 0.3,
+        )
+    )
     u0 = Dict(unknowns(sys_c) .=> zeros(ComplexF64, length(unknowns(sys_c))))
     prob = ODEProblem(sys_c, merge(u0, pmap), (0.0, 20.0))
-    sol = solve(prob, Tsit5(); abstol = 1e-9, reltol = 1e-9)
+    sol = solve(prob, Tsit5(); abstol = 1.0e-9, reltol = 1.0e-9)
     @test sol.retcode == ReturnCode.Success
     @test length(corr_states) == 2
     v1 = get_solution(sol, corr_states[1], evaled)(sol.t[end])
     v2 = get_solution(sol, corr_states[2], evaled)(sol.t[end])
     # The two atom-cavity correlations must differ; the magnitude ratio
     # should reflect the g-coupling asymmetry rather than coincide.
-    @test abs(v1 - v2) > 1e-3
+    @test abs(v1 - v2) > 1.0e-3
 end

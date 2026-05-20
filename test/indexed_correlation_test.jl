@@ -126,19 +126,21 @@ end
     )
     u0 = initial_values(eqs_ev, ComplexF64[0.0 for _ in eqs_ev.states])
     prob = ODEProblem(sys, merge(u0, p_map), (0.0, 50.0))
-    sol = solve(prob, Tsit5(); reltol = 1e-8, abstol = 1e-10, saveat = 50.0)
+    sol = solve(prob, Tsit5(); reltol = 1.0e-8, abstol = 1.0e-10, saveat = 50.0)
 
     n_ss = real(get_solution(sol, a' * a, eqs_ev)(50.0))
-    @test isapprox(n_ss, 0.0; atol = 1e-6)
+    @test isapprox(n_ss, 0.0; atol = 1.0e-6)
 
     # The atom-state observable in eqs_ev is indexed at the concrete atom
     # `k_1` that `evaluate(N=>1)` minted; pull it from the LHS list rather
     # than reconstructing.
-    σ22_lhs = first(eq.lhs for eq in eqs_ev.equations
-                   if startswith(string(eq.lhs), "⟨σ"))
+    σ22_lhs = first(
+        eq.lhs for eq in eqs_ev.equations
+            if startswith(string(eq.lhs), "⟨σ")
+    )
     σ22_op = _SQA.undo_average(σ22_lhs)
     σ22_ss = real(get_solution(sol, σ22_op, eqs_ev)(50.0))
-    @test isapprox(σ22_ss, R_ / (R_ + Γ_); atol = 1e-3)
+    @test isapprox(σ22_ss, R_ / (R_ + Γ_); atol = 1.0e-3)
     @test 0.0 <= σ22_ss <= 1.0
 end
 

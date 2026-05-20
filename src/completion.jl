@@ -183,11 +183,13 @@ end
 _is_leaf_average(::Any) = false
 
 """
-    complete!(eqs::AbstractMeanFieldEquations; max_iter=200, simplify=true,
+    complete!(eqs::AbstractMeanFieldEquations; max_iter=200,
               filter_func=nothing, mix_choice=maximum)
 
 Iteratively derive equations for missing averages until the system is closed
-(or `max_iter` is reached). Mutates `eqs` in place.
+(or `max_iter` is reached). Mutates `eqs` in place. The newly derived RHS
+expressions are left in their raw, unsimplified form; apply
+`SymbolicUtils.simplify` yourself if you want a canonical representation.
 
 The order used for cumulant expansion is the one already stored in
 `eqs.order` (set at `meanfield(...; order=...)` time, or via
@@ -196,7 +198,7 @@ variant additionally accepts an `order` keyword.
 """
 function complete!(
         eqs::MeanFieldEquations; max_iter::Int = 200,
-        simplify::Bool = true, filter_func = nothing,
+        filter_func = nothing,
         mix_choice = maximum, get_adjoints::Bool = true
     )
     for _ in 1:max_iter
@@ -206,7 +208,7 @@ function complete!(
             return eqs
         end
         new_ops = QField[_undo_for_derivation(m) for m in missing_states]
-        new_eqs = _derive_for(eqs, new_ops; simplify, mix_choice)
+        new_eqs = _derive_for(eqs, new_ops; mix_choice)
         if filter_func !== nothing
             _filter_rhs!(new_eqs, filter_func)
         end
@@ -259,39 +261,37 @@ the completion loop runs.
 """
 function MTK.complete(
         eqs::MeanFieldEquations; order = nothing,
-        mix_choice = maximum, simplify::Bool = true, kw...
+        mix_choice = maximum, kw...
     )
     eqs_copy = order === nothing ?
         _copy(eqs) :
-        cumulant_expansion(_copy(eqs), order; simplify, mix_choice)
-    return complete!(eqs_copy; simplify, mix_choice, kw...)
+        cumulant_expansion(_copy(eqs), order; mix_choice)
+    return complete!(eqs_copy; mix_choice, kw...)
 end
 
 function _derive_for(
-        eqs::MeanFieldEquations, new_ops;
-        simplify::Bool, mix_choice = maximum
+        eqs::MeanFieldEquations, new_ops; mix_choice = maximum
     )
     return _meanfield_deterministic(
         eqs.direction, new_ops, eqs.hamiltonian, eqs.jumps,
         eqs.jumps_dagger, eqs.rates, eqs.order,
-        simplify, mix_choice, eqs.iv,
+        mix_choice, eqs.iv,
     )
 end
 
 function _derive_for(
-        eqs::NoiseMeanFieldEquations, new_ops;
-        simplify::Bool, mix_choice = maximum
+        eqs::NoiseMeanFieldEquations, new_ops; mix_choice = maximum
     )
     return _meanfield_noise(
         eqs.direction, new_ops, eqs.hamiltonian, eqs.jumps,
         eqs.jumps_dagger, eqs.rates, eqs.efficiencies,
-        eqs.order, simplify, mix_choice, eqs.iv
+        eqs.order, mix_choice, eqs.iv
     )
 end
 
 function complete!(
         eqs::NoiseMeanFieldEquations; max_iter::Int = 200,
-        simplify::Bool = true, filter_func = nothing,
+        filter_func = nothing,
         mix_choice = maximum, get_adjoints::Bool = true
     )
     for _ in 1:max_iter
@@ -301,7 +301,7 @@ function complete!(
             return eqs
         end
         new_ops = QField[_undo_for_derivation(m) for m in missing_states]
-        new_eqs = _derive_for(eqs, new_ops; simplify, mix_choice)
+        new_eqs = _derive_for(eqs, new_ops; mix_choice)
         if filter_func !== nothing
             _filter_rhs!(new_eqs, filter_func)
         end
@@ -312,13 +312,15 @@ end
 
 function MTK.complete(
         eqs::NoiseMeanFieldEquations; order = nothing,
-        mix_choice = maximum, simplify::Bool = true, kw...
+        mix_choice = maximum, kw...
     )
-    order === nothing || throw(ArgumentError(
-        "`complete(::NoiseMeanFieldEquations; order=...)` is not supported; pass `order` to `meanfield` instead."
-    ))
+    order === nothing || throw(
+        ArgumentError(
+            "`complete(::NoiseMeanFieldEquations; order=...)` is not supported; pass `order` to `meanfield` instead."
+        )
+    )
     eqs_copy = _copy(eqs)
-    return complete!(eqs_copy; simplify, mix_choice, kw...)
+    return complete!(eqs_copy; mix_choice, kw...)
 end
 
 function _append!(a::MeanFieldEquations, b::MeanFieldEquations)

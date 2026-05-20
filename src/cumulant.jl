@@ -34,27 +34,26 @@ get_order(x::Symbolics.Num) = get_order(SymbolicUtils.unwrap(x))
 _prod_ops(block::AbstractVector) = isempty(block) ? 1 : reduce(*, block)
 
 """
-    cumulant(op, n=get_order(op); simplify=true)
+    cumulant(op, n=get_order(op))
 
 The `n`-th joint cumulant of `op` (signed sum over partitions of length n).
+The result is returned in its raw, unsimplified form. Apply
+`SymbolicUtils.simplify` yourself if you want a canonical representation.
 """
-function cumulant(op::SQA.QSym, n::Int = 1; simplify::Bool = true)
-    return n == 1 ? average(op) : 0
-end
+cumulant(op::SQA.QSym, n::Int = 1) = n == 1 ? average(op) : 0
 
-function cumulant(op::QAdd, n::Int = get_order(op); simplify::Bool = true)
+function cumulant(op::QAdd, n::Int = get_order(op))
     n > get_order(op) && return 0
     out = 0
     for (term, coeff) in op.arguments
         out = out + coeff * _term_cumulant(term.ops, n)
     end
-    simplify && (out = SymbolicUtils.simplify(out))
     return out
 end
 
-function cumulant(avg::SymbolicUtils.BasicSymbolic, args...; kw...)
+function cumulant(avg::SymbolicUtils.BasicSymbolic, args...)
     if SQA.is_average(avg)
-        return cumulant(SQA.undo_average(avg), args...; kw...)
+        return cumulant(SQA.undo_average(avg), args...)
     end
     throw(ArgumentError("cumulant expects an Average or QField"))
 end
@@ -79,10 +78,12 @@ function _term_cumulant(ops::Vector, n::Int)
 end
 
 """
-    cumulant_expansion(expr, order; simplify=true, mix_choice=maximum)
+    cumulant_expansion(expr, order; mix_choice=maximum)
 
 Expand averages with order > `order` in terms of lower-order moments using the
-joint-cumulant identity (truncating at the supplied order).
+joint-cumulant identity (truncating at the supplied order). The output is the
+raw expression. Apply `SymbolicUtils.simplify` yourself if you need a canonical
+form.
 """
 cumulant_expansion(x::Number, order; kw...) = x
 cumulant_expansion(x::Number, ::Nothing; kw...) = x
@@ -103,7 +104,7 @@ _has_average(::Any) = false
 
 function cumulant_expansion(
         x::SymbolicUtils.BasicSymbolic, order::Int;
-        simplify::Bool = true, mix_choice = maximum
+        mix_choice = maximum
     )
     if _is_leaf_average(x)
         get_order(x) <= order && return x
@@ -112,7 +113,7 @@ function cumulant_expansion(
     if SymbolicUtils.iscall(x) && _has_average(x)
         op = SymbolicUtils.operation(x)
         args = SymbolicUtils.arguments(x)
-        new_args = Any[cumulant_expansion(a, order; simplify, mix_choice) for a in args]
+        new_args = Any[cumulant_expansion(a, order; mix_choice) for a in args]
         return op(new_args...)
     end
     return x
@@ -120,7 +121,7 @@ end
 
 function cumulant_expansion(
         x::SymbolicUtils.BasicSymbolic, order::Vector{Int};
-        simplify::Bool = true, mix_choice = maximum
+        mix_choice = maximum
     )
     if _is_leaf_average(x)
         ops = SQA.undo_average(x)
@@ -132,7 +133,7 @@ function cumulant_expansion(
     if SymbolicUtils.iscall(x) && _has_average(x)
         op = SymbolicUtils.operation(x)
         args = SymbolicUtils.arguments(x)
-        new_args = Any[cumulant_expansion(a, order; simplify, mix_choice) for a in args]
+        new_args = Any[cumulant_expansion(a, order; mix_choice) for a in args]
         return op(new_args...)
     end
     return x
@@ -225,14 +226,11 @@ struct with the same shape and the supplied order stored in `eqs.order`.
 """
 function cumulant_expansion(
         eqs::MeanFieldEquations, order;
-        simplify::Bool = true, mix_choice = maximum
+        mix_choice = maximum
     )
     order_vec = _normalize_order(order, eqs)
     new_eqs = [
-        eq.lhs ~ cumulant_expansion(
-                eq.rhs, order_vec;
-                simplify, mix_choice
-            )
+        eq.lhs ~ cumulant_expansion(eq.rhs, order_vec; mix_choice)
             for eq in eqs.equations
     ]
     return MeanFieldEquations(

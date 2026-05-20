@@ -9,7 +9,7 @@ function _noise_drift_one(op, J_k, Jd_k, rate, eff)
     return coeff * (Jd_k * op + op * J_k - avg_term * op)
 end
 
-function _build_noise_equations_forward(ops, J, Jdagger, rates, efficiencies, simplify::Bool)
+function _build_noise_equations_forward(ops, J, Jdagger, rates, efficiencies)
     n_ops = length(ops)
     n_J = length(J)
     operator_noise_eqs = Vector{Symbolics.Equation}(undef, n_ops)
@@ -26,16 +26,15 @@ function _build_noise_equations_forward(ops, J, Jdagger, rates, efficiencies, si
             avg_drift = avg_drift + average(d)
         end
         operator_noise_eqs[i] = op ~ op_drift
-        simplify && (avg_drift = SymbolicUtils.simplify(avg_drift))
         noise_eqs[i] = average(op) ~ avg_drift
     end
     return operator_noise_eqs, noise_eqs
 end
 
-function _build_noise_equations_backward(ops, J, Jdagger, rates, efficiencies, simplify::Bool)
+function _build_noise_equations_backward(ops, J, Jdagger, rates, efficiencies)
     # Backward / retrodiction noise drift: same formula as the forward case
     # but with J ↔ J† swapped. Master writes this as
     # `_master_noise(a, adjoint(J), adjoint(Jdagger), ...)` (see master
     # `src/measurement_retrodiction.jl`).
-    return _build_noise_equations_forward(ops, Jdagger, J, rates, efficiencies, simplify)
+    return _build_noise_equations_forward(ops, Jdagger, J, rates, efficiencies)
 end

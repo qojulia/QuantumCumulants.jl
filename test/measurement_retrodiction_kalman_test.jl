@@ -35,7 +35,7 @@ using Test
 
     Ω_, Γ_, η_ = 1.0, 1 / 6, 0.5
     Tend = 0.5 / Γ_
-    dt = Tend / 2e3
+    dt = Tend / 2.0e3
     T_saveat = collect(0:dt:Tend)
     ps = [Ω, Γ, η, s]
     pn = [Ω_, Γ_, η_, 1 / √2]
@@ -82,8 +82,10 @@ using Test
     end
     eqs_kal = modify_equations(eqs_det, f_measure)
     @test eqs_kal isa MeanFieldEquations
-    @test all(!_is_zero(eqs_kal.equations[i].rhs - eqs_det.equations[i].rhs)
-              for i in eachindex(eqs_kal.equations))
+    @test all(
+        !_is_zero(eqs_kal.equations[i].rhs - eqs_det.equations[i].rhs)
+            for i in eachindex(eqs_kal.equations)
+    )
 
     sys_kal = mtkcompile(to_system(eqs_kal; name = :sys_kal))
     dict_kal = merge(Dict(unknowns(sys_kal) .=> u0), Dict(ps .=> pn))

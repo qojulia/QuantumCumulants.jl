@@ -39,10 +39,10 @@ nothing # hide
 # We define the Hamiltonian using symbolic sums and define the individual dissipative processes. For an indexed jump operator the (symbolic) sum is build in the Liouvillian, in this case corresponding to individual decay processes.
 
 H =
-    Δ*Σ(σ(2, 2, j), j) +
-    Σ(δ(i)*b(i)'b(i), i) +
-    gf*(Σ(a'*b(i) + a*b(i)', i)) +
-    g*(Σ(a'*σ(1, 2, j) + a*σ(2, 1, j), j)) # Hamiltonian
+    Δ * Σ(σ(2, 2, j), j) +
+    Σ(δ(i) * b(i)'b(i), i) +
+    gf * (Σ(a' * b(i) + a * b(i)', i)) +
+    g * (Σ(a' * σ(1, 2, j) + a * σ(2, 1, j), j)) # Hamiltonian
 
 J = [a, b(i), σ(1, 2, j), σ(2, 1, j), σ(2, 2, j)] # Jumps & rates
 rates = [κ, κf, Γ, R, ν]
@@ -96,7 +96,7 @@ R_ = 10Γ_
 
 gf_ = 0.1Γ_
 κf_ = 0.1Γ_
-δ_ls = [0:(1/M_):(1-1/M_);]*10Γ_
+δ_ls = [0:(1 / M_):(1 - 1 / M_);] * 10Γ_
 
 # TODO(v1): IndexedVariable(:δ, i::Int) not supported — needs evaluate(eqs; limits=...) to materialize numeric δ_i; see TODO.md
 # ps = [Γ, κ, g, κf, gf, R, [δ(i) for i = 1:M_]..., Δ, ν, N]

@@ -60,8 +60,12 @@ end
         idx = Index(h, idx_name, N, ha)
         H = -Δ * a' * a + g * (Σ(a' * σ(1, 2, idx), idx) + Σ(a * σ(2, 1, idx), idx))
         J = [a, σ(1, 2, idx), σ(2, 1, idx), σ(2, 2, idx)]
-        eqs = complete(meanfield([a' * a, σ(2, 2, idx)], H, J;
-                                 rates = [κ, Γ, R, ν], order = 1))
+        eqs = complete(
+            meanfield(
+                [a' * a, σ(2, 2, idx)], H, J;
+                rates = [κ, Γ, R, ν], order = 1
+            )
+        )
         return length(eqs.equations)
     end
 

@@ -1,5 +1,5 @@
 """
-    translate_W_to_Y(eqs::NoiseMeanFieldEquations; simplify=true, mix_choice=maximum)
+    translate_W_to_Y(eqs::NoiseMeanFieldEquations; mix_choice=maximum)
 
 Rewrite an SDE whose noise drift is parametrised by the underlying Wiener
 process `dW` into one parametrised by the measurement record `dY` instead.
@@ -11,13 +11,14 @@ Concretely, for each equation the RHS is augmented by
     cumulant_expansion(-_dY_dS_extra_term(lhs_op, J, Jdagger, rates .* efficiencies))
 
 cumulant-expanded to `eqs.order` (when set). Returns a fresh
-`NoiseMeanFieldEquations` of the same direction.
+`NoiseMeanFieldEquations` of the same direction. The augmented RHS is left
+unsimplified; apply `SymbolicUtils.simplify` yourself if you want a canonical
+form.
 
 Matches master `src/measurement_backaction.jl::translate_W_to_Y`.
 """
 function translate_W_to_Y(
         eqs::NoiseMeanFieldEquations;
-        simplify::Bool = true,
         mix_choice::Function = maximum,
     )
     out = _copy(eqs)
@@ -34,10 +35,7 @@ function translate_W_to_Y(
         # in the right form, just negate.
         term = -_dY_dS_extra_term(lhs_op, J, Jd, rates_eff)
         if out.order !== nothing
-            term = cumulant_expansion(term, out.order; simplify, mix_choice)
-        end
-        if simplify
-            term = SymbolicUtils.simplify(term)
+            term = cumulant_expansion(term, out.order; mix_choice)
         end
         out.equations[i] = eq_i.lhs ~ eq_i.rhs + term
     end

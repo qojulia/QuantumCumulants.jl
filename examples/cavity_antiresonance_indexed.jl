@@ -56,9 +56,9 @@ nothing # hide
 # The inner dipole-dipole sum excludes the diagonal `i == j` by passing the
 # `non_equal` vector `[i]` to the inner `Σ` (SQA v0.5 replaced the old
 # `non_equal=true` keyword with this explicit form).
-Hc = Δc*a'a + η*(a' + a) # Hamiltonian
-Ha = Δa*Σ(σ(2, 2, i), i) + Σ(Σ(Ω(i, j)*σ(2, 1, i)*σ(1, 2, j), j, [i]), i)
-Hi = Σ(g(i)*(a'*σ(1, 2, i) + a*σ(2, 1, i)), i)
+Hc = Δc * a'a + η * (a' + a) # Hamiltonian
+Ha = Δa * Σ(σ(2, 2, i), i) + Σ(Σ(Ω(i, j) * σ(2, 1, i) * σ(1, 2, j), j, [i]), i)
+Hi = Σ(g(i) * (a' * σ(1, 2, i) + a * σ(2, 1, i)), i)
 H = Hc + Ha + Hi
 
 J = [a, σ(1, 2, i)] # Jump operators

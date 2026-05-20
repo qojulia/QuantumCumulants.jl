@@ -28,7 +28,7 @@ using Test
     @test _is_zero(me_a.equations[1].rhs - expected_det)
     expected_noise = sqrt(η * κ) * (
         average(a' * a) + average(a * a) -
-        average(a)^2 - average(a) * average(a')
+            average(a)^2 - average(a) * average(a')
     )
     @test _is_zero(me_a.noise_equations[1].rhs - expected_noise)
 

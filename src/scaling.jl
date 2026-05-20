@@ -290,8 +290,10 @@ end
 # True when the IndexedVariable's source index sits on a selected subspace.
 # Unknown / unrecognised arg shapes fall back to "selected" so the default
 # `h = []` flattens uniformly as before.
-function _indexed_var_in_h(x::SymbolicUtils.BasicSymbolic, h_set::Set{Int},
-        sym_to_space::Dict{Symbol, Int})
+function _indexed_var_in_h(
+        x::SymbolicUtils.BasicSymbolic, h_set::Set{Int},
+        sym_to_space::Dict{Symbol, Int}
+    )
     isempty(h_set) && return true
     SymbolicUtils.iscall(x) || return true
     args = SymbolicUtils.arguments(x)
@@ -304,8 +306,10 @@ function _indexed_var_in_h(x::SymbolicUtils.BasicSymbolic, h_set::Set{Int},
     return sp in h_set
 end
 
-function _flatten_indexed_vars_in_tree(x, h_set::Set{Int},
-        sym_to_space::Dict{Symbol, Int})
+function _flatten_indexed_vars_in_tree(
+        x, h_set::Set{Int},
+        sym_to_space::Dict{Symbol, Int}
+    )
     x isa SymbolicUtils.BasicSymbolic || return x
     if _is_indexed_var(x) && _indexed_var_in_h(x, h_set, sym_to_space)
         return _flatten_indexed_var(x)
