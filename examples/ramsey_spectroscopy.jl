@@ -10,22 +10,22 @@
 # We start by loading the packages.
 
 using QuantumCumulants
-using OrdinaryDiffEq, ModelingToolkitBase # (v1: ModelingToolkit → ModelingToolkitBase)
+using OrdinaryDiffEq, ModelingToolkitBase
 using Plots
 
 # Beside defining the symbolic parameters we additionally need to [register](https://mtk.sciml.ai/stable/tutorials/ode_modeling/#Specifying-a-time-variable-forcing-function) a time dependent external function $f(t)$ for our driving laser. To this end we first need to define the independent variable $t$ of our time evolution. Due to the registration, $f(t)$ is treated as a parameter in the symbolic equations, but at the numerical evaluation we can assign every function to it.
 
 
-@variables Δ Ω Γ ν # (v1: @cnumbers → @variables)
+@variables Δ Ω Γ ν
 @register_symbolic f(t)
 
 # After defining the Hilbert space and the operator of the two-level atom we construct the time dependent Hamiltonian as well as the jump operator list with the corresponding rates.
 
 h = NLevelSpace(:atom, 2) # Hilbert space
 
-σ(i, j) = Transition(h, :σ, i, j) # Operators (v1: drop trailing GS index)
+σ(i, j) = Transition(h, :σ, i, j) # Operators
 
-# (v1: seed a meanfield call to grab the MTK-aware iv `t`, then build H against it)
+# Seed a meanfield call so we can reuse its MTK-aware iv `t` in the time-dependent Hamiltonian below.
 eqs_seed = meanfield([σ(2, 2), σ(1, 2)], -Δ * σ(2, 2), [σ(1, 2), σ(2, 2)]; rates = [Γ, ν])
 t = eqs_seed.iv
 
@@ -38,7 +38,7 @@ nothing # hide
 # The two-level atom is completely described with the excited state population and the coherence. Therefore, we derive the equations for these two operators.
 
 eqs = meanfield([σ(2, 2), σ(1, 2)], H, J; rates = rates, iv = t)
-complete!(eqs) # (v1: close the system so conj-averages are populated)
+complete!(eqs)
 nothing # hide
 
 # ```math
@@ -51,7 +51,7 @@ nothing # hide
 # To calculate the dynamic of the system we create a system of ordinary differential equations and define the numeric parameters with the time dependent function.
 
 
-sys = System(eqs; name = :sys) # (v1: @named sys = System(eqs) → System(eqs; name=:sys))
+sys = System(eqs; name = :sys)
 sys_c = mtkcompile(sys)
 
 # Parameter
@@ -85,7 +85,7 @@ prob = ODEProblem(sys_c, dict, (0.0, 2tp + tf))
 sol = solve(prob, Tsit5(), maxiters = 1.0e7)
 
 t_arr = sol.t # Plot time evolution
-s22 = real.(get_solution(sol, σ(2, 2), eqs).(t_arr)) # (v1: sol[op] → get_solution(sol, op, eqs)(t))
+s22 = real.(get_solution(sol, σ(2, 2), eqs).(t_arr))
 plot(t_arr, s22, xlabel = "tΓ", ylabel = "⟨σ22⟩", legend = false, size = (600, 300))
 
 # Scanning over the detuning for the excited state population leads to the well-known Ramsey fringes.

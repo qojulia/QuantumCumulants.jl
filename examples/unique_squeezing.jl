@@ -25,7 +25,7 @@ ha = NLevelSpace(Symbol(:spin), 2)
 h = hf ⊗ ha
 
 @variables ω Ω ωd η κ g γ N ξ # Parameter
-t = first(ModelingToolkitBase.@independent_variables t) # time iv (v1: use the same iv that meanfield uses internally)
+t = first(ModelingToolkitBase.@independent_variables t) # time iv used by meanfield internally
 nothing # hide
 
 # On the Hilbert space we create the destroy operator $a$ of the harmonic oscillator and the (indexed) transition operator $\sigma_i^{xy}$ for the $i$-th two-level system.
@@ -130,18 +130,18 @@ for k in 1:length(N_ls)
     sol = sol_ls[k]
     t_ = sol.t
 
-    adag_a = get_solution(sol, a' * a, eqs_sc)(t_)
-    aa = get_solution(sol, a * a, eqs_sc)(t_)
-    adag_adag = get_solution(sol, a' * a', eqs_sc)(t_)
-    a_ = get_solution(sol, a, eqs_sc)(t_)
-    adag = get_solution(sol, a', eqs_sc)(t_)
+    adag_a = get_solution(sol, a' * a, eqs_sc).(t_)
+    aa = get_solution(sol, a * a, eqs_sc).(t_)
+    adag_adag = get_solution(sol, a' * a', eqs_sc).(t_)
+    a_ = get_solution(sol, a, eqs_sc).(t_)
+    adag = get_solution(sol, a', eqs_sc).(t_)
 
     sqx = adag_adag + aa + 2 * adag_a .+ 1 - (adag + a_) .^ 2
     sqy = adag_adag + aa - 2 * adag_a .- 1 - (adag - a_) .^ 2
     plot!(p1, t_, real.(sqx), label = "N = $(N_ls[k])", color = c_ls[k])
     plot!(p1, t_, -real.(sqy), ls = :dash, label = nothing, color = c_ls[k])
 
-    s22 = get_solution(sol, σ(2, 2, i), eqs_sc)(t_)
+    s22 = get_solution(sol, σ(2, 2, i), eqs_sc).(t_)
     plot!(p2, t_, real.(2s22 .- 1), color = c_ls[k], label = nothing)
 end
 plot(
@@ -199,20 +199,20 @@ nothing # hide
 
 sol = sol_ls[4] # plot results
 t_ = sol.t
-adag_a = get_solution(sol, a' * a, eqs_sc)(t_)
-aa = get_solution(sol, a * a, eqs_sc)(t_)
-adag_adag = get_solution(sol, a' * a', eqs_sc)(t_)
-a_ = get_solution(sol, a, eqs_sc)(t_)
-adag = get_solution(sol, a', eqs_sc)(t_)
+adag_a = get_solution(sol, a' * a, eqs_sc).(t_)
+aa = get_solution(sol, a * a, eqs_sc).(t_)
+adag_adag = get_solution(sol, a' * a', eqs_sc).(t_)
+a_ = get_solution(sol, a, eqs_sc).(t_)
+adag = get_solution(sol, a', eqs_sc).(t_)
 sqx = adag_adag + aa + 2 * adag_a .+ 1 - (adag + a_) .^ 2
 sqy = adag_adag + aa - 2 * adag_a .- 1 - (adag - a_) .^ 2
 
 t_a = sol_a.t
-adag_a_a = get_solution(sol_a, a' * a, eqs_a)(t_a)
-aa_a = get_solution(sol_a, a * a, eqs_a)(t_a)
-adag_adag_a = get_solution(sol_a, a' * a', eqs_a)(t_a)
-a_a = get_solution(sol_a, a, eqs_a)(t_a)
-adag_a2 = get_solution(sol_a, a', eqs_a)(t_a)
+adag_a_a = get_solution(sol_a, a' * a, eqs_a).(t_a)
+aa_a = get_solution(sol_a, a * a, eqs_a).(t_a)
+adag_adag_a = get_solution(sol_a, a' * a', eqs_a).(t_a)
+a_a = get_solution(sol_a, a, eqs_a).(t_a)
+adag_a2 = get_solution(sol_a, a', eqs_a).(t_a)
 sqx_a = adag_adag_a + aa_a + 2 * adag_a_a .+ 1 - (adag_a2 + a_a) .^ 2
 sqy_a = adag_adag_a + aa_a - 2 * adag_a_a .- 1 - (adag_a2 - a_a) .^ 2
 

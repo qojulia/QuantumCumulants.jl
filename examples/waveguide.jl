@@ -70,9 +70,7 @@ nothing # hide
 H = sum((i ≠ j) * Ωp(i, j) * Sp(i) * Sm(j) for i in 1:M for j in 1:M) # Hamiltonian
 
 J = [Sm(c1) for c1 in 1:M] # Jump operators and rate matrix
-# TODO(v1): Rate-matrix collective decay — see TODO.md
-# rates = [Γp(c1, c2) for c1 = 1:M, c2 = 1:M]
-rates = [Γp(c1, c1) for c1 in 1:M] # fallback: diagonal rates only
+rates = [Γp(c1, c2) for c1 in 1:M, c2 in 1:M]
 nothing # hide
 
 # Now we create a complete list of operators, which we use to derive the second-order equations. This is considerable faster than to automatically complete the equations. We only show one of the 90 rather lengthy equations.
@@ -136,35 +134,30 @@ b = tensor([bs1 for i in 1:M_p]..., [bs2 for i in 1:M_np]...)
 ψ_p = coherentspinstate(bs1, Θ, 0.0) # initially pumped atoms
 ψ_np = spindown(bs2) # initially non-pumped atoms
 ψ0 = LazyKet(b, ([ψ_p for i in 1:M_p]..., [ψ_np for i in 1:M_np]...))
-# TODO(v1): initial_values(eqs, ψ::Ket) — not yet ported, see TODO.md
-# u0 = initial_values(eqs, ψ0)  # initial state
+u0 = initial_values(eqs, ψ0)  # initial state
 nothing # hide
 
 # Finally, we create the ODE-problem, calculate the dynamics and plot the results. We see a fast transfer of the population from the initially excited to the other atomic ensemble.
 
-
-# TODO(v1): full solve depends on initial_values(eqs, ψ::Ket) and rate-matrix collective decay — see TODO.md
-# sys = System(eqs; name = :sys)
-# sys = mtkcompile(sys)
-# dict = merge(Dict(unknowns(sys) .=> u0), Dict(ps .=> p0))
-# prob = ODEProblem(sys, dict, (0.0, 8e-3))
-# sol = solve(prob, Tsit5(), abstol = 1e-6, reltol = 1e-6)
-nothing # hide
+sys = System(eqs; name = :sys)
+sys = mtkcompile(sys)
+dict = merge(Dict(unknowns(sys) .=> u0), Dict(ps .=> p0))
+prob = ODEProblem(sys, dict, (0.0, 8e-3))
+sol = solve(prob, Tsit5(), abstol = 1e-6, reltol = 1e-6)
 
 #
 
-# TODO(v1): plotting block depends on the blocked solve above — see TODO.md
-# t = sol.t * 1e3
-# Sz_t(i) = real.(get_solution(sol, Sz(i), eqs)(sol.t))
-# N_ls = [[N_p for i = 1:M_p] ./ M_p; [N_np for i = 1:M_np] ./ M_np]
-# σ22_t(i) = Sz_t(i)/N_ls[i] .+ 1/2
-# σ22_p_t = sum(σ22_t(i) for i = 1:M_p) ./ M_p
-# σ22_np_t = sum(σ22_t(i) for i = (M_p+1):(M_p+M_np)) ./ M_np
-#
-# p = plot(xlabel = "Γ1D t ⋅ 10³", ylabel = "⟨σ²²⟩")
-# plot!(p, t, σ22_p_t, label = "pumped")
-# plot!(p, t, σ22_np_t, label = "non-pumped")
-# plot(p, size = (500, 300))
+t = sol.t * 1e3
+Sz_t(i) = real.(get_solution(sol, Sz(i), eqs)(sol.t))
+N_ls = [[N_p for i in 1:M_p] ./ M_p; [N_np for i in 1:M_np] ./ M_np]
+σ22_t(i) = Sz_t(i) / N_ls[i] .+ 1/2
+σ22_p_t = sum(σ22_t(i) for i in 1:M_p) ./ M_p
+σ22_np_t = sum(σ22_t(i) for i in (M_p + 1):(M_p + M_np)) ./ M_np
+
+p = plot(xlabel = "Γ1D t ⋅ 10³", ylabel = "⟨σ²²⟩")
+plot!(p, t, σ22_p_t, label = "pumped")
+plot!(p, t, σ22_np_t, label = "non-pumped")
+plot(p, size = (500, 300))
 
 # ## Package versions
 

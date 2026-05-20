@@ -45,7 +45,31 @@ SecondQuantizedAlgebra.QSym
 ```
 
 ```@docs
+SecondQuantizedAlgebra.QAdd
+```
+
+```@docs
 SecondQuantizedAlgebra.QTerm
+```
+
+```@docs
+SecondQuantizedAlgebra.prefactor
+SecondQuantizedAlgebra.operators
+```
+
+```@docs
+SecondQuantizedAlgebra.normal_order
+SecondQuantizedAlgebra.qadjoint
+SecondQuantizedAlgebra.inner_adjoint
+SecondQuantizedAlgebra.symmetric_to_normal
+SecondQuantizedAlgebra.normal_to_symmetric
+SecondQuantizedAlgebra.expand_completeness
+SecondQuantizedAlgebra.anticommutator
+SecondQuantizedAlgebra.is_average
+SecondQuantizedAlgebra.undo_average
+SymbolicUtils.substitute
+SymbolicUtils.simplify
+SymbolicUtils.expand
 ```
 
 ```@docs
@@ -127,6 +151,10 @@ CorrelationFunction
 ```
 
 ```@docs
+ModelingToolkitBase.System
+```
+
+```@docs
 Spectrum
 ```
 
@@ -166,6 +194,8 @@ change_index
 
 ```@docs
 get_indices
+SecondQuantizedAlgebra.has_index
+SecondQuantizedAlgebra.assume_distinct_index
 ```
 
 ```@docs
@@ -184,6 +214,10 @@ scale!
 
 ```@docs
 NoiseMeanFieldEquations
+```
+
+```@docs
+QuantumCumulants.translate_W_to_Y
 ```
 
 ```@docs
@@ -218,6 +252,10 @@ complete!
 
 ```@docs
 unique_ops
+```
+
+```@docs
+QuantumCumulants.simplify!
 ```
 
 ```@docs

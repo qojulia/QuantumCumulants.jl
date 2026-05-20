@@ -15,15 +15,14 @@ We start by loading the packages.
 
 ````@example ramsey_spectroscopy
 using QuantumCumulants
-using OrdinaryDiffEq, ModelingToolkit
+using OrdinaryDiffEq, ModelingToolkitBase
 using Plots
 ````
 
 Beside defining the symbolic parameters we additionally need to [register](https://mtk.sciml.ai/stable/tutorials/ode_modeling/#Specifying-a-time-variable-forcing-function) a time dependent external function $f(t)$ for our driving laser. To this end we first need to define the independent variable $t$ of our time evolution. Due to the registration, $f(t)$ is treated as a parameter in the symbolic equations, but at the numerical evaluation we can assign every function to it.
 
 ````@example ramsey_spectroscopy
-@cnumbers Δ Ω Γ ν
-@syms t::Real
+@variables Δ Ω Γ ν
 @register_symbolic f(t)
 ````
 
@@ -32,9 +31,16 @@ After defining the Hilbert space and the operator of the two-level atom we const
 ````@example ramsey_spectroscopy
 h = NLevelSpace(:atom, 2) # Hilbert space
 
-σ(i, j) = Transition(h, :σ, i, j, 2) # Operators
+σ(i, j) = Transition(h, :σ, i, j) # Operators
+````
 
-H = -Δ*σ(2, 2) + f(t)*Ω/2*(σ(1, 2) + σ(2, 1)) # Hamiltonian
+Seed a meanfield call so we can reuse its MTK-aware iv `t` in the time-dependent Hamiltonian below.
+
+````@example ramsey_spectroscopy
+eqs_seed = meanfield([σ(2, 2), σ(1, 2)], -Δ * σ(2, 2), [σ(1, 2), σ(2, 2)]; rates = [Γ, ν])
+t = eqs_seed.iv
+
+H = -Δ * σ(2, 2) + f(t) * Ω / 2 * (σ(1, 2) + σ(2, 1)) # Hamiltonian
 
 J = [σ(1, 2), σ(2, 2)] # Jump operators & rates
 rates = [Γ, ν]
@@ -44,7 +50,8 @@ nothing # hide
 The two-level atom is completely described with the excited state population and the coherence. Therefore, we derive the equations for these two operators.
 
 ````@example ramsey_spectroscopy
-eqs = meanfield([σ(2, 2), σ(1, 2)], H, J; rates = rates)
+eqs = meanfield([σ(2, 2), σ(1, 2)], H, J; rates = rates, iv = t)
+complete!(eqs)
 nothing # hide
 ````
 
@@ -58,7 +65,8 @@ nothing # hide
 To calculate the dynamic of the system we create a system of ordinary differential equations and define the numeric parameters with the time dependent function.
 
 ````@example ramsey_spectroscopy
-@named sys = System(eqs)
+sys = System(eqs; name = :sys)
+sys_c = mtkcompile(sys)
 ````
 
 Parameter
@@ -69,11 +77,11 @@ Parameter
 Δ_ = 0Γ_
 ν_ = 0.2Γ_
 
-tp = π/2Ω_ # π/2-pulse
-tf = 1/20Γ_ # free evolution without drive
+tp = π / 2Ω_ # π/2-pulse
+tf = 1 / 20Γ_ # free evolution without drive
 
 function f(t)
-    if t<tp || (t>tp+tf && t<2tp+tf)
+    if t < tp || (t > tp + tf && t < 2tp + tf)
         return 1
     else
         0
@@ -91,13 +99,13 @@ nothing # hide
 Finally, we calculate and plot the time evolution.
 
 ````@example ramsey_spectroscopy
-dict = merge(Dict(ps .=> p0), Dict(unknowns(sys) .=> u0))
-prob = ODEProblem(sys, dict, (0.0, 2tp+tf))
-sol = solve(prob, Tsit5(), maxiters = 1e7)
+dict = merge(Dict(ps .=> p0), Dict(unknowns(sys_c) .=> u0))
+prob = ODEProblem(sys_c, dict, (0.0, 2tp + tf))
+sol = solve(prob, Tsit5(), maxiters = 1.0e7)
 
-t = sol.t # Plot time evolution
-s22 = real.(sol[σ(2, 2)])
-plot(t, s22, xlabel = "tΓ", ylabel = "⟨σ22⟩", legend = false, size = (600, 300))
+t_arr = sol.t # Plot time evolution
+s22 = real.(get_solution(sol, σ(2, 2), eqs).(t_arr))
+plot(t_arr, s22, xlabel = "tΓ", ylabel = "⟨σ22⟩", legend = false, size = (600, 300))
 ````
 
 Scanning over the detuning for the excited state population leads to the well-known Ramsey fringes.
@@ -106,11 +114,11 @@ Scanning over the detuning for the excited state population leads to the well-kn
 Δ_ls = [-2000:4:2000;]Γ_
 s22_ls = zeros(length(Δ_ls))
 
-for i = 1:length(Δ_ls)
-    dict = merge(Dict(ps .=> [Γ_; Ω_; Δ_ls[i]; ν_]), Dict(unknowns(sys) .=> u0))
-    prob_i = ODEProblem(sys, dict, (0.0, 2tp+tf))
-    sol_i = solve(prob_i, RK4(); adaptive = false, dt = 1e-5)
-    s22_ls[i] = real.(sol_i[σ(2, 2)])[end]
+for i in 1:length(Δ_ls)
+    dict = merge(Dict(ps .=> [Γ_; Ω_; Δ_ls[i]; ν_]), Dict(unknowns(sys_c) .=> u0))
+    prob_i = ODEProblem(sys_c, dict, (0.0, 2tp + tf))
+    sol_i = solve(prob_i, Tsit5(); adaptive = false, dt = 1.0e-5)
+    s22_ls[i] = real(get_solution(sol_i, σ(2, 2), eqs)(sol_i.t[end]))
 end
 
 plot(Δ_ls, s22_ls, xlabel = "Δ/Γ", ylabel = "⟨σ22⟩", legend = false, size = (600, 300))

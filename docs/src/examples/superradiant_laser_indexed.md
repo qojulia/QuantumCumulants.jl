@@ -18,7 +18,7 @@ We start by loading the packages.
 
 ````@example superradiant_laser_indexed
 using QuantumCumulants
-using OrdinaryDiffEq, ModelingToolkit
+using OrdinaryDiffEq, ModelingToolkitBase
 using Plots
 ````
 
@@ -38,7 +38,7 @@ nothing # hide
 Now we define the indices and the parameters of the system. An $\texttt{Index}$ needs the system Hilbert space, a symbol, an upper bound and the specific Hilbert space of the indexed operator. $\texttt{IndexedVariable}$ creates indexed variables. Actually we wouldn't need indexed variable in this example, this is just for demonstration purposes.
 
 ````@example superradiant_laser_indexed
-@cnumbers N Δ κ Γ R ν
+@variables N Δ κ Γ R ν
 g(i) = IndexedVariable(:g, i)
 
 i = Index(h, :i, N, ha)
@@ -48,7 +48,7 @@ j = Index(h, :j, N, ha)
 We define the Hamiltonian using symbolic sums and define the individual dissipative processes. For an indexed jump operator the (symbolic) sum is build in the Liouvillian.
 
 ````@example superradiant_laser_indexed
-H = -Δ*a'a + Σ(g(i)*(a'*σ(1, 2, i) + a*σ(2, 1, i)), i) # Hamiltonian
+H = -Δ * a'a + Σ(g(i) * (a' * σ(1, 2, i) + a * σ(2, 1, i)), i) # Hamiltonian
 
 J = [a, σ(1, 2, i), σ(2, 1, i), σ(2, 2, i)] # Jump operators with corresponding rates
 rates = [κ, Γ, R, ν]
@@ -58,7 +58,7 @@ nothing # hide
 First we want to derive the equation for $\langle a^\dagger a \rangle$ and $\langle \sigma_j^{22} \rangle$. Note that you can only use indices on the LHS which haven't been used for the Hamiltonian and the jumps.
 
 ````@example superradiant_laser_indexed
-ops = [a'*a, σ(2, 2, j)] # Derive equations
+ops = [a' * a, σ(2, 2, j)] # Derive equations
 eqs = meanfield(ops, H, J; rates = rates, order = 2)
 nothing # hide
 ````
@@ -72,14 +72,26 @@ nothing # hide
 To get a closed set of equations we automatically complete the system. Since this system is phase invariant we know that all averages with a phase are zero, therefore we exclude these terms with a filter function. To be able to dispatch on all kind of sums containing averages we defined the Union $\texttt{AvgSums}$.
 
 ````@example superradiant_laser_indexed
-φ(x::Average) = φ(x.arguments[1]) # custom filter function
+import QuantumCumulants.SecondQuantizedAlgebra as SQA
+
+φ(x) = 0 # custom filter function
 φ(::Destroy) = -1
 φ(::Create) = 1
-φ(x::QTerm) = sum(map(φ, x.args_nc))
 φ(x::Transition) = x.i - x.j
-φ(x::IndexedOperator) = x.op.i - x.op.j
-φ(x::SingleSum) = φ(x.term)
-φ(x::AvgSums) = φ(arguments(x))
+function φ(q::SQA.QAdd) # walk operator-product expression
+    for (term, _) in q.arguments
+        p = 0
+        for op in term.ops
+            p += φ(op)
+        end
+        return p
+    end
+    return 0
+end
+function φ(avg)
+    SQA.is_average(avg) || return 0
+    return φ(SQA.undo_average(avg))
+end
 phase_invariant(x) = iszero(φ(x))
 
 eqs_c = complete(eqs; filter_func = phase_invariant) # Complete equations
@@ -114,37 +126,38 @@ nothing # hide
 To calculate the dynamics of the system we create a system of ordinary differential equations, which can be used by [DifferentialEquations.jl](https://diffeq.sciml.ai/stable/).
 
 ````@example superradiant_laser_indexed
-@named sys = System(eqs_sc)
+sys = System(eqs_sc; name = :sys)
+sys_c = mtkcompile(sys)
 nothing # hide
 ````
 
 Finally we need to define the numerical parameters and the initial value of the system. We will consider $2 \cdot 10^5$ Strontium atoms which are repumped with a rate of $R = 1\text{Hz}$ on the clock transition ($\Gamma = 1 \text{mHz}$). The atom-cavity coupling rate is $g = 1\text{Hz}$, the cavity has a linewidth of $\kappa = 5\text{kHz}$ and is detuned from the atomic resonance by $\Delta = 2.5\text{Hz}$.
 
 ````@example superradiant_laser_indexed
-u0 = zeros(ComplexF64, length(eqs_sc)) # Initial state
+u0 = initial_values(eqs_sc) # Initial state
 
-N_ = 2e5 # System parameters
+N_ = 2.0e5 # System parameters
 Γ_ = 1.0 #Γ=1mHz
 Δ_ = 2500Γ_ #Δ=2.5Hz
 g_ = 1000Γ_ #g=1Hz
-κ_ = 5e6*Γ_ #κ=5kHz
+κ_ = 5.0e6 * Γ_ #κ=5kHz
 R_ = 1000Γ_ #R=1Hz
 ν_ = 1000Γ_ #ν=1Hz
 
 ps = [N, Δ, g(1), κ, Γ, R, ν]
 p0 = [N_, Δ_, g_, κ_, Γ_, R_, ν_]
 
-dict = merge(Dict(unknowns(sys) .=> u0), Dict(ps .=> p0))
-prob = ODEProblem(sys, dict, (0.0, 1.0/50Γ_))
+dict = merge(u0, Dict(ps .=> p0))
+prob = ODEProblem(sys_c, dict, (0.0, 1.0 / 50Γ_))
 nothing # hide
 ````
 
 ````@example superradiant_laser_indexed
-sol = solve(prob, Tsit5(), maxiters = 1e7) # Solve the numeric problem
+sol = solve(prob, Tsit5(), maxiters = 1.0e7) # Solve the numeric problem
 
 t = sol.t # Plot time evolution
-n = real.(sol[a'a])
-s22 = real.(sol[σ(2, 2, 1)])
+n = real.(get_solution(sol, a'a, eqs_sc).(t))
+s22 = real.(get_solution(sol, σ(2, 2, i), eqs_sc).(t))
 p1 = plot(t, n, xlabel = "tΓ", ylabel = "⟨a⁺a⟩", legend = false) # Plot
 p2 = plot(t, s22, xlabel = "tΓ", ylabel = "⟨σ22⟩", legend = false)
 plot(p1, p2, layout = (1, 2), size = (700, 300))
@@ -164,7 +177,7 @@ nothing # hide
 The set of equations for the correlation function is given by
 
 ````@example superradiant_laser_indexed
-corr_sc.de
+corr_sc.eqs
 nothing # hide
 ````
 

@@ -71,12 +71,74 @@ eqs = meanfield(a, H, J; rates = rates, order = 1)
 complete!(eqs)
 nothing # hide
 
-# To create the equations for a specific number of atoms we use the function $\texttt{evaluate}$.
-# In v1.0 the `evaluate(eqs; limits=(N=>n,))` pass that unrolls the indexed
-# sums for a fixed $N$ is still being ported (see TODO.md), so this port
-# stops at the symbolic equations. The numeric transmission sweep below will
-# be re-enabled once `evaluate` lands.
+# ```math
+# \begin{align}
+# \frac{d}{dt} \langle a\rangle  =& -1 i \eta -1 i \underset{i}{\overset{N}{\sum}} {g}_{i}  \langle {\sigma}_{i}^{{12}}\rangle  -0.5 \kappa \langle a\rangle  -1 i {\Delta}c \langle a\rangle  \\
+# \frac{d}{dt} \langle {\sigma}_{k}^{{12}}\rangle  =& \underset{j{\ne}k}{\overset{N}{\sum}} {\Gamma}_{k,j}  \langle {\sigma}_{j}^{{12}}\rangle   \langle {\sigma}_{k}^{{22}}\rangle  -0.5 \underset{j}{\overset{N}{\sum}} {\Gamma}_{k,j}  \langle {\sigma}_{j}^{{12}}\rangle  -1 i \underset{j{\ne}i,k}{\overset{N}{\sum}} {\Omega}_{k,j}  \langle {\sigma}_{j}^{{12}}\rangle  + 2 i \underset{j{\ne}i,k}{\overset{N}{\sum}} {\Omega}_{k,j}  \langle {\sigma}_{j}^{{12}}\rangle   \langle {\sigma}_{k}^{{22}}\rangle  -1 i {g}_{k} \langle a\rangle  -1 i {\Delta}a \langle {\sigma}_{k}^{{12}}\rangle  + 2 i {g}_{k} \langle a\rangle  \langle {\sigma}_{k}^{{22}}\rangle  \\
+# \frac{d}{dt} \langle {\sigma}_{k}^{{22}}\rangle  =& -0.5 \underset{i{\ne}j,k}{\overset{N}{\sum}} {\Gamma}_{i,k}  \langle {\sigma}_{i}^{{21}}\rangle   \langle {\sigma}_{k}^{{12}}\rangle  + 1 i \underset{i{\ne}j,k}{\overset{N}{\sum}} {\Omega}_{i,k}  \langle {\sigma}_{i}^{{21}}\rangle   \langle {\sigma}_{k}^{{12}}\rangle  -1 i \underset{j{\ne}i,k}{\overset{N}{\sum}} {\Omega}_{k,j}  \langle {\sigma}_{k}^{{21}}\rangle   \langle {\sigma}_{j}^{{12}}\rangle  -0.5 \underset{j{\ne}k}{\overset{N}{\sum}} {\Gamma}_{k,j}  \langle {\sigma}_{k}^{{21}}\rangle   \langle {\sigma}_{j}^{{12}}\rangle  -1.0 {\Gamma}_{k,k} \langle {\sigma}_{k}^{{22}}\rangle  -1 i {g}_{k} \langle a\rangle  \langle {\sigma}_{k}^{{21}}\rangle  + 1 i {g}_{k} \langle a^\dagger\rangle  \langle {\sigma}_{k}^{{12}}\rangle
+# \end{align}
+# ```
 
-# N_ = 2
-# eqs_ = evaluate(eqs; limits = (N=>N_))
-# @named sys = System(eqs_)
+# To create the equations for a specific number of atoms we use the function [`evaluate`](@ref).
+
+N_ = 2
+eqs_ = evaluate(eqs; limits = (N => N_))
+sys = mtkcompile(System(eqs_; name = :sys))
+nothing # hide
+
+# Finally we need to define the initial state of the system and the numerical parameters. In the end we want to obtain the transmission rate $T$ of our system. For this purpose we calculate the steady state photon number in the cavity $|\langle a \rangle|^2$ for different laser frequencies.
+
+u0 = zeros(ComplexF64, length(eqs_.states))
+Γ_ = 1.0 # parameter
+d = 2π * 0.08 #0.08λ
+θ = π / 2
+
+Ωij(i, j) =
+    i == j ? 0 :
+    Γ_*(-3/4)*((1-(cos(θ))^2)*cos(d)/d - (1-3*(cos(θ))^2)*(sin(d)/(d^2)+(cos(d)/(d^3))))
+Γij(i, j) =
+    i == j ? Γ_ :
+    Γ_*(3/2)*((1-(cos(θ))^2)*sin(d)/d + (1-3*(cos(θ))^2)*((cos(d)/(d^2))-(sin(d)/(d^3))))
+
+g_ = 2Γ_
+κ_ = 20Γ_
+Δa_ = 0Γ_
+Δc_ = 0Γ_
+η_ = κ_/100
+
+gi_ = [g_ * (-1)^k for k in 1:N_]
+Γij_ = [Γij(k, l) for k in 1:N_, l in 1:N_]
+Ωij_ = [Ωij(k, l) for k in 1:N_, l in 1:N_]
+
+Δ_ls = [-10:0.05:10;] * Γ_
+n_ls = zeros(length(Δ_ls))
+for k in eachindex(Δ_ls)
+    Δc_i = Δ_ls[k]
+    Δa_i = Δc_i + Ωij(1, 2)
+    p = parameter_map(eqs_, Dict(
+        Δc => Δc_i, η => η_, Δa => Δa_i, κ => κ_,
+        g(i) => gi_, Γ(i, j) => Γij_, Ω(i, j) => Ωij_,
+    ))
+    prob_ = ODEProblem(sys, merge(initial_values(eqs_, u0), Dict(p)), (0.0, 20.0))
+    sol_ = solve(prob_, Tsit5())
+    n_ls[k] = abs2(get_solution(sol_, a, eqs_)(sol_.t[end]))
+end
+nothing # hide
+
+# The transmission rate $T$ with respect to the pump laser detuning is given by the relative steady state intra-cavity photon number $n(\Delta)/n_\mathrm{max}$. We qualitatively reproduce the antiresonance from [D. Plankensteiner, et. al., Phys. Rev. Lett. 119, 093601 (2017)](https://journals.aps.org/prl/abstract/10.1103/PhysRevLett.119.093601) for two atoms.
+
+T = n_ls ./ maximum(n_ls)
+plot(Δ_ls, T, xlabel = "Δ/Γ", ylabel = "T", legend = false)
+
+# ## Package versions
+
+# These results were obtained using the following versions:
+
+using InteractiveUtils
+versioninfo()
+
+using Pkg
+Pkg.status(
+    ["QuantumCumulants", "OrdinaryDiffEq", "ModelingToolkitBase", "Plots"],
+    mode = PKGMODE_MANIFEST,
+)

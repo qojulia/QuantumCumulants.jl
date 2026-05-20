@@ -109,55 +109,49 @@ Ydot_rev(t) = dYdt_rev(t)
 
 ## deterministic Kalman filtering equations
 eqs_det = meanfield(ops, H, J; rates = R, order = 2)
-# TODO(v1): modify_equations — see TODO.md
-# function f_measure(lhs, rhs)
-#     term_ = √(η*Γ)*(lhs*a + a'*lhs - average(a+a')*lhs)*(Ydot(t) - √(η*Γ)*average(a+a'))
-#     term = cumulant_expansion(average(term_), 2)
-#     return rhs + term
-# end
-# eqs_kal = modify_equations(eqs_det, f_measure)
+function f_measure(lhs, rhs)
+    term_ = √(η*Γ) * (lhs*a + a'*lhs - average(a+a')*lhs) * (Ydot(t) - √(η*Γ)*average(a+a'))
+    term = cumulant_expansion(average(term_), 2)
+    return rhs + term
+end
+eqs_kal = modify_equations(eqs_det, f_measure)
 
 #
 
-# TODO(v1): modify_equations — see TODO.md
-# sys_kal = System(eqs_kal; name = :sys_kal)
-# prob_kal = ODEProblem(sys_kal, dict_fw, (0, Tend))
+sys_kal = System(eqs_kal; name = :sys_kal)
+prob_kal = ODEProblem(sys_kal, dict_fw, (0, Tend))
 nothing # hide
 
 #
 
-# TODO(v1): modify_equations — see TODO.md
-# sol_kal = solve(prob_kal, Euler(); dt = dt, saveat = T_saveat)
-
+sol_kal = solve(prob_kal, Euler(); dt = dt, saveat = T_saveat)
 nothing # hide
 
 #
 
-# TODO(v1): modify_equations — see TODO.md
-# x_fw = real(get_solution(sol_kal, x, eqs_det)(sol_kal.t))
-# xx_fw = real(get_solution(sol_kal, x*x, eqs_det)(sol_kal.t))
-# σx_fw = [xx_fw[k] - x_fw[k]*x_fw[k] for k = 1:(N+1)]
-# sqr_σx_fw = sqrt.(σx_fw)
-#
-# p_fw = real(get_solution(sol_kal, p, eqs_det)(sol_kal.t))
-# pp_fw = real(get_solution(sol_kal, p*p, eqs_det)(sol_kal.t))
-# σp_fw = [pp_fw[k] - p_fw[k]*p_fw[k] for k = 1:(N+1)]
-# sqr_σp_fw = sqrt.(σp_fw)
+x_fw = real(get_solution(sol_kal, x, eqs_det)(sol_kal.t))
+xx_fw = real(get_solution(sol_kal, x*x, eqs_det)(sol_kal.t))
+σx_fw = [xx_fw[k] - x_fw[k]*x_fw[k] for k in 1:(N+1)]
+sqr_σx_fw = sqrt.(σx_fw)
+
+p_fw = real(get_solution(sol_kal, p, eqs_det)(sol_kal.t))
+pp_fw = real(get_solution(sol_kal, p*p, eqs_det)(sol_kal.t))
+σp_fw = [pp_fw[k] - p_fw[k]*p_fw[k] for k in 1:(N+1)]
+sqr_σp_fw = sqrt.(σp_fw)
 
 #
 
-# TODO(v1): modify_equations — see TODO.md
-# p1 = plot(
-#     t_W*Γ_,
-#     x_fw;
-#     size = (500, 250),
-#     label = "",
-#     xlabel = "Γt",
-#     ylabel = "⟨x⟩",
-#     ylim = (-10, 10),
-#     grid = true,
-# )
-# plot!(t_W .* Γ_, x_fw; ribbon = sqr_σx_fw, fillalpha = 0.2, label = "")
+p1 = plot(
+    t_W*Γ_,
+    x_fw;
+    size = (500, 250),
+    label = "",
+    xlabel = "Γt",
+    ylabel = "⟨x⟩",
+    ylim = (-10, 10),
+    grid = true,
+)
+plot!(t_W .* Γ_, x_fw; ribbon = sqr_σx_fw, fillalpha = 0.2, label = "")
 
 # We can see that the same dynamics as before is obtained.
 
@@ -167,92 +161,80 @@ eqs_back_kal = meanfield(ops, -H, J; rates = R, order = 2, direction = Backward(
 eqs_back_kal_c = complete(eqs_back_kal)
 
 ## adjust recycling term for the back propagation
-# TODO(v1): modify_equations — see TODO.md
-# function f_back_lind(lhs, rhs)
-#     term_1 = Γ*a*lhs*a' - Γ*a'lhs*a # adapt recycling term
-#     term_2 = -Γ*(average(a*a') - average(a'a))*lhs
-#     term = cumulant_expansion(average(term_1 + term_2), 2)
-#     return rhs + term
-# end
-# eqs_back_kal_c1 = modify_equations(eqs_back_kal_c, f_back_lind)
+function f_back_lind(lhs, rhs)
+    term_1 = Γ*a*lhs*a' - Γ*a'lhs*a # adapt recycling term
+    term_2 = -Γ*(average(a*a') - average(a'a))*lhs
+    term = cumulant_expansion(average(term_1 + term_2), 2)
+    return rhs + term
+end
+eqs_back_kal_c1 = modify_equations(eqs_back_kal_c, f_back_lind)
 
 ## include measurement backaction
-# TODO(v1): modify_equations — see TODO.md
-# function f_back_kal(lhs, rhs)
-#     term_ = √(η*Γ)*(lhs*a' + a*lhs - average(a+a')*lhs)*(Ydot_rev(t) - √(η*Γ)*average(a+a'))
-#     term = cumulant_expansion(average(term_), 2)
-#     return rhs + term
-# end
-# eqs_back_kal_c2 = modify_equations(eqs_back_kal_c1, f_back_kal)
+function f_back_kal(lhs, rhs)
+    term_ = √(η*Γ) * (lhs*a' + a*lhs - average(a+a')*lhs) * (Ydot_rev(t) - √(η*Γ)*average(a+a'))
+    term = cumulant_expansion(average(term_), 2)
+    return rhs + term
+end
+eqs_back_kal_c2 = modify_equations(eqs_back_kal_c1, f_back_kal)
 
 #
 
 # deterministic smoothing equations
-# TODO(v1): modify_equations — see TODO.md
-# sys_back_kal = System(eqs_back_kal_c2; name = :sys_back_kal)
-# u0_bw = [0.0+0im, 0, 100, 0, 100]
-# dict_bw = merge(Dict(unknowns(sys_back_kal) .=> u0_bw), Dict(ps .=> pn))
-# prob_bw_kal = ODEProblem(sys_back_kal, dict_bw, (0, Tend))
-nothing # hide
+sys_back_kal = System(eqs_back_kal_c2; name = :sys_back_kal)
+u0_bw = [0.0 + 0im, 0, 100, 0, 100]
+dict_bw = merge(Dict(unknowns(sys_back_kal) .=> u0_bw), Dict(ps .=> pn))
+prob_bw_kal = ODEProblem(sys_back_kal, dict_bw, (0, Tend))
 
 #
 
-# TODO(v1): modify_equations — see TODO.md
-# sol_bw = solve(prob_bw_kal, Euler(); dt = dt, saveat = T_saveat)
-nothing # hide
+sol_bw = solve(prob_bw_kal, Euler(); dt = dt, saveat = T_saveat)
 
 #
 
-# TODO(v1): modify_equations — see TODO.md
-# x_bw = reverse(real(get_solution(sol_bw, x, eqs_back_kal_c2)(sol_bw.t)))
-# xx_bw = reverse(real(get_solution(sol_bw, x*x, eqs_back_kal_c2)(sol_bw.t)))
-# σx_bw = [xx_bw[k] - x_bw[k]*x_bw[k] for k = 1:(N+1)]
-# sqr_σx_bw = sqrt.(σx_bw)
-#
-# p_bw = reverse(real(get_solution(sol_bw, p, eqs_back_kal_c2)(sol_bw.t)))
-# pp_bw = reverse(real(get_solution(sol_bw, p*p, eqs_back_kal_c2)(sol_bw.t)))
-# σp_bw = [pp_bw[k] - p_bw[k]*p_bw[k] for k = 1:(N+1)]
-# sqr_σp_bw = sqrt.(σp_bw)
-nothing # hide
+x_bw = reverse(real(get_solution(sol_bw, x, eqs_back_kal_c2)(sol_bw.t)))
+xx_bw = reverse(real(get_solution(sol_bw, x*x, eqs_back_kal_c2)(sol_bw.t)))
+σx_bw = [xx_bw[k] - x_bw[k]*x_bw[k] for k in 1:(N+1)]
+sqr_σx_bw = sqrt.(σx_bw)
+
+p_bw = reverse(real(get_solution(sol_bw, p, eqs_back_kal_c2)(sol_bw.t)))
+pp_bw = reverse(real(get_solution(sol_bw, p*p, eqs_back_kal_c2)(sol_bw.t)))
+σp_bw = [pp_bw[k] - p_bw[k]*p_bw[k] for k in 1:(N+1)]
+sqr_σp_bw = sqrt.(σp_bw)
 
 #
 
-# TODO(v1): modify_equations — see TODO.md
-# p2 = plot(
-#     t_W*Γ_,
-#     x_bw;
-#     size = (500, 250),
-#     label = "",
-#     xlabel = "Γt",
-#     ylabel = "⟨x⟩",
-#     ylim = (-10, 10),
-#     grid = true,
-# )
-# plot!(t_W*Γ_, x_bw; ribbon = sqr_σx_bw, fillalpha = 0.2, label = "")
+p2 = plot(
+    t_W*Γ_,
+    x_bw;
+    size = (500, 250),
+    label = "",
+    xlabel = "Γt",
+    ylabel = "⟨x⟩",
+    ylim = (-10, 10),
+    grid = true,
+)
+plot!(t_W*Γ_, x_bw; ribbon = sqr_σx_bw, fillalpha = 0.2, label = "")
 
 
-# For a Gaussian system we can combine the mean values and covariances of the forward and backward equations in the following way to determine the retrodicted expressions: # TODO
+# For a Gaussian system we can combine the mean values and covariances of the forward and backward equations in the following way to determine the retrodicted expressions:
 
-# TODO(v1): modify_equations — see TODO.md
-# x_pq = (x_fw .* σx_bw + x_bw .* σx_fw) ./ (σx_fw .+ σx_bw)
-# σx_pq = [1/(1/σx_fw[i] + 1/σx_bw[i]) for i = 1:length(σx_bw)]
-# sqr_σx_pq = sqrt.(σx_pq)
-nothing # hide
+x_pq = (x_fw .* σx_bw + x_bw .* σx_fw) ./ (σx_fw .+ σx_bw)
+σx_pq = [1/(1/σx_fw[i] + 1/σx_bw[i]) for i in 1:length(σx_bw)]
+sqr_σx_pq = sqrt.(σx_pq)
 
 #
 
-# TODO(v1): modify_equations — see TODO.md
-# p3 = plot(
-#     t_W*Γ_,
-#     x_pq;
-#     size = (500, 250),
-#     label = "",
-#     xlabel = "Γt",
-#     ylabel = "⟨x⟩",
-#     ylim = (-10, 10),
-#     grid = true,
-# )
-# plot!(t_W*Γ_, x_pq; ribbon = sqr_σx_pq, fillalpha = 0.2, label = "")
+p3 = plot(
+    t_W*Γ_,
+    x_pq;
+    size = (500, 250),
+    label = "",
+    xlabel = "Γt",
+    ylabel = "⟨x⟩",
+    ylim = (-10, 10),
+    grid = true,
+)
+plot!(t_W*Γ_, x_pq; ribbon = sqr_σx_pq, fillalpha = 0.2, label = "")
 
 # Note that the uncertainty of the retrodicted position is reduced.
 

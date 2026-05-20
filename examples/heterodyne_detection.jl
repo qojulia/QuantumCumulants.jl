@@ -27,7 +27,6 @@ k = Index(h, :k, N, ha)
 @qnumbers a::Destroy(h, 1)
 σ(α, β, k) = IndexedOperator(Transition(h, :σ, α, β, 2), k)
 
-# (v1: seed a meanfield call to grab the MTK-aware iv `t`, then build H/J against it)
 eqs_seed = meanfield(a, ωc * a' * a, [a]; rates = [κ])
 t = eqs_seed.iv
 
@@ -69,9 +68,7 @@ nothing # hide
 # The completion and scaling as previously discussed in other examples work exactly the same way for equations including noise terms.
 
 eqs_c = complete(eqs)
-# TODO(v1): scale(::NoiseMeanFieldEquations) not yet ported — see TODO.md
-# scaled_eqs = scale(eqs_c)
-scaled_eqs = eqs_c
+scaled_eqs = scale(eqs_c)
 nothing # hide
 
 # Here we define the actual values for the system parameters. We then show that the deterministic time evolution without the noise terms is still accessible by using the constructor `System` for the stochastic system of equations and the syntax for the simulation of the time evolution is as usual.
@@ -93,89 +90,85 @@ p = [N, ωa, γ, η, χ, ωc, κ, g, ξ, ωl]
 p0 = [N_, ωa_, γ_, η_, χ_, ωc_, κ_, g_, ξ_, ωl_]
 T_end = 0.1 # 0.1ms
 
-# TODO(v1): deterministic System build from NoiseMeanFieldEquations + scaling not yet supported — see TODO.md
-# sys = System(scaled_eqs; name = :sys)
-# u0 = zeros(ComplexF64, length(scaled_eqs))
-# dict = merge(Dict(unknowns(sys) .=> u0), Dict(p .=> p0))
-# prob = ODEProblem(sys, dict, (0.0, T_end))
-# sol_det = solve(prob, RK4(), dt = T_end/2e5)
-#
-# graph = plot(xlabel = "Time (ms)", ylabel = "Cavity photon number")
-# plot!(graph, sol_det.t, real(get_solution(sol_det, a'a, scaled_eqs)(sol_det.t)), legend = false)
+sys = System(scaled_eqs; name = :sys)
+u0 = zeros(ComplexF64, length(scaled_eqs))
+dict = merge(Dict(unknowns(sys) .=> u0), Dict(p .=> p0))
+prob = ODEProblem(sys, dict, (0.0, T_end))
+sol_det = solve(prob, Tsit5(), dt = T_end / 2e5)
+
+graph = plot(xlabel = "Time (ms)", ylabel = "Cavity photon number")
+plot!(graph, sol_det.t, real(get_solution(sol_det, a'a, scaled_eqs)(sol_det.t)), legend = false)
 
 # The stochastic time evolution is accessible via the constructor `SDESystem`, whose syntax is exactly the same as for the System, but with keyword args as defined in the [SDE tutorial](https://docs.sciml.ai/DiffEqDocs/stable/tutorials/sde_example/). We need to provide a noise process for the measurement. If the noise is white the appropriate noise process is a Wiener process. The `SDEProblem` is constructed just as the `ODEProblem`, but with an additional noise argument.
 
 # We can then make use of the `EnsembleProblem`, which automatically runs multiple instances of the stochastic equations of motion. The number of trajectories can be set in the solve call. See the tutorial linked above for more details of the function calls here.
 
-# TODO(v1): SDESystem construction from NoiseMeanFieldEquations not yet wired — see TODO.md
-# sys_st = System(scaled_eqs; name = :sys_st)  # should produce an SDESystem when direction = Forward()
-#
-# Random.seed!(2) # hide
-# noise = StochasticDiffEq.RealWienerProcess(0.0, 0.0)
-# prob_st = SDEProblem(sys_st, dict, (0.0, T_end); noise = noise)
-# sol_test = solve(prob_st, EM(); dt = T_end/2e5);
-#
-# plot(
-#     sol_test.t,
-#     real(get_solution(sol_test, a'a, scaled_eqs)(sol_test.t)),
-#     xlabel = "Time (ms)",
-#     ylabel = "Cavity photon number",
-#     legend = false,
-# )
-#
-# Random.seed!(1) # hide
-# eprob = EnsembleProblem(prob_st)
-# traj = 200
-# tspan = range(0.0, T_end, length = 201)
-# sol = solve(
-#     eprob,
-#     StochasticDiffEq.EM(),
-#     dt = T_end/2e5,
-#     save_noise = true,
-#     trajectories = traj,
-#     saveat = tspan,
-# )
-# nothing # hide
+sys_st = System(scaled_eqs; name = :sys_st)
+
+Random.seed!(2) # hide
+noise = StochasticDiffEq.RealWienerProcess(0.0, 0.0)
+prob_st = SDEProblem(sys_st, dict, (0.0, T_end); noise = noise)
+sol_test = solve(prob_st, EM(); dt = T_end / 2e5);
+
+plot(
+    sol_test.t,
+    real(get_solution(sol_test, a'a, scaled_eqs)(sol_test.t)),
+    xlabel = "Time (ms)",
+    ylabel = "Cavity photon number",
+    legend = false,
+)
+
+Random.seed!(1) # hide
+eprob = EnsembleProblem(prob_st)
+traj = 200
+tspan = range(0.0, T_end, length = 201)
+sol = solve(
+    eprob,
+    StochasticDiffEq.EM(),
+    dt = T_end / 2e5,
+    save_noise = true,
+    trajectories = traj,
+    saveat = tspan,
+)
+nothing # hide
 
 # We plot the average of the cavity photon number for the stochastic and deterministic equation of motion with the trajectories in gray in the background. We can see that the dynamics of the system is indeed modified by the measurement backaction.
 
-# TODO(v1): EnsembleProblem post-processing depends on SDESystem path above — see TODO.md
-# n_avg_ = zeros(length(tspan)) # average photon number
-# a_real_avg_ = zeros(length(tspan)) # average field (real part)
-# traj_succ = zeros(traj) # trajectories can be numerically unstable
-# for i = 1:traj
-#     sol_ = sol.u[i]
-#     if length(sol_) == length(tspan)
-#         n_avg_ .+= real(get_solution(sol_, a'a, scaled_eqs)(sol_.t))
-#         a_real_avg_ .+= real(get_solution(sol_, a, scaled_eqs)(sol_.t))
-#         traj_succ[i] = 1
-#     end
-# end
-#
-# @show sum(traj_succ)
-# n_avg = n_avg_ / sum(traj_succ)
-# a_real_avg = a_real_avg_ / sum(traj_succ)
-# graph1 = plot(xlabel = "Time (ms)", ylabel = "Cavity photon number")
-# for i = 1:traj
-#     plot!(
-#         graph1,
-#         sol.u[i].t,
-#         real(get_solution(sol.u[i], a'a, scaled_eqs)(sol.u[i].t)),
-#         color = :grey,
-#         alpha = 0.75,
-#         label = nothing,
-#     )
-# end
-# plot!(graph1, tspan, n_avg, color = :red, label = nothing)
+n_avg_ = zeros(length(tspan)) # average photon number
+a_real_avg_ = zeros(length(tspan)) # average field (real part)
+traj_succ = zeros(traj) # trajectories can be numerically unstable
+for i in 1:traj
+    sol_ = sol.u[i]
+    if length(sol_) == length(tspan)
+        n_avg_ .+= real(get_solution(sol_, a'a, scaled_eqs)(sol_.t))
+        a_real_avg_ .+= real(get_solution(sol_, a, scaled_eqs)(sol_.t))
+        traj_succ[i] = 1
+    end
+end
+
+@show sum(traj_succ)
+n_avg = n_avg_ / sum(traj_succ)
+a_real_avg = a_real_avg_ / sum(traj_succ)
+graph1 = plot(xlabel = "Time (ms)", ylabel = "Cavity photon number")
+for i in 1:traj
+    plot!(
+        graph1,
+        sol.u[i].t,
+        real(get_solution(sol.u[i], a'a, scaled_eqs)(sol.u[i].t)),
+        color = :grey,
+        alpha = 0.75,
+        label = nothing,
+    )
+end
+plot!(graph1, tspan, n_avg, color = :red, label = nothing)
 
 # For the following cavity field amplitude we see that the ensemble average becomes zero, but the trajectories have finite cavity field amplitude.
 
-# TODO(v1): see above — depends on SDESystem path
-# graph2 = plot(xlabel = "Time (ms)", ylabel = "Real part cavity field")
-# for i = 1:traj
-#     plot!(graph2, tspan, real(get_solution(sol.u[i], a', scaled_eqs)(tspan)), color = :grey, alpha = 0.75, label = nothing)
-# end
-# plot!(graph2, tspan, a_real_avg, color = :red, label = nothing)
+graph2 = plot(xlabel = "Time (ms)", ylabel = "Real part cavity field")
+for i in 1:traj
+    plot!(graph2, tspan, real(get_solution(sol.u[i], a', scaled_eqs)(tspan)), color = :grey, alpha = 0.75, label = nothing)
+end
+plot!(graph2, tspan, a_real_avg, color = :red, label = nothing)
 
 # ## Package versions
 

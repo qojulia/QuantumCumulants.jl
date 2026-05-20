@@ -14,7 +14,7 @@ In principle we can write down and derive the equations for all $N$ atoms explic
 
 ### Index
 
-The main tool to use symbolic summations is the [`Index`](@ref) object. An index is constructed from the full [`HilbertSpace`](@ref) `h`, a `name` (a `Symbol`), a `range` (a `Symbol`, a concrete `Int`, or a symbolic `Num`), and the specific subspace `space` (or its integer `space_index`) the index acts on. This means an index for a [`NLevelSpace`](@ref) can only be used by [`Transition`](@ref) operators. In the example below, two indices are defined equivalently, and a third one is defined on the [`FockSpace`](@ref) of the same [`ProductSpace`](@ref) `h`.
+The main tool to use symbolic summations is the [`Index`](@ref) object. An index is constructed from the full [`HilbertSpace`](@ref SecondQuantizedAlgebra.HilbertSpace) `h`, a `name` (a `Symbol`), a `range` (a `Symbol`, a concrete `Int`, or a symbolic `Num`), and the specific subspace `space` (or its integer `space_index`) the index acts on. This means an index for a [`NLevelSpace`](@ref) can only be used by [`Transition`](@ref) operators. In the example below, two indices are defined equivalently, and a third one is defined on the [`FockSpace`](@ref) of the same [`ProductSpace`](@ref) `h`.
 
 
 ```@example symbolic_sums

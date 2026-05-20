@@ -66,24 +66,19 @@ nothing # hide
 # Now we assume that all atoms behave identically, but we want to obtain the equations for 20 different filter cavities. To this end we $\texttt{scale}$ the Hilbert space of the atoms and $\texttt{evaluate}$ the filter cavities. Specifying the Hilbert space is done with the kwarg $\texttt{h}$, which can either be the specific Hilbert space or its acts-on number. Evaluating the filter cavities requires a numeric upper bound for the used $\texttt{Index}$, we provide this with a dictionary on the kwarg $\texttt{limits}$.
 
 M_ = 20
-# TODO(v1): scale with `h=` kwarg (partial Hilbert-space scaling) not yet ported — see TODO.md
-# eqs_sc = scale(eqs_c; h = [ha]) #h=[3]
-# TODO(v1): evaluate(eqs; limits=...) — not yet ported, see TODO.md
-# eqs_eval = evaluate(eqs_sc; limits = Dict(M=>M_)) #h=[hf]
-# println("Number of eqs.: $(length(eqs_eval))")
+eqs_sc = scale(eqs_c; h = [3])
+eqs_eval = evaluate(eqs_sc; limits = Dict(M => M_))
+println("Number of eqs.: $(length(eqs_eval))")
 
 # To calculate the dynamics of the system we create a system of ordinary differential equations, which can be used by [DifferentialEquations.jl](https://diffeq.sciml.ai/stable/). Finally we need to define the numerical parameters and the initial state of the system.
 
-
-# TODO(v1): evaluate(eqs; limits=...) — not yet ported, see TODO.md
-# sys = System(eqs_eval; name = :sys)
-# sys_c = mtkcompile(sys)
-# nothing # hide
+sys = System(eqs_eval; name = :sys)
+sys_c = mtkcompile(sys)
+nothing # hide
 
 #
 
-# TODO(v1): evaluate(eqs; limits=...) — not yet ported, see TODO.md
-# u0 = zeros(ComplexF64, length(eqs_eval)) # Initial state
+u0 = zeros(ComplexF64, length(eqs_eval)) # Initial state
 
 
 N_ = 200 # System parameters
@@ -98,43 +93,39 @@ gf_ = 0.1Γ_
 κf_ = 0.1Γ_
 δ_ls = [0:(1 / M_):(1 - 1 / M_);] * 10Γ_
 
-# TODO(v1): IndexedVariable(:δ, i::Int) not supported — needs evaluate(eqs; limits=...) to materialize numeric δ_i; see TODO.md
-# ps = [Γ, κ, g, κf, gf, R, [δ(i) for i = 1:M_]..., Δ, ν, N]
-# p0 = [Γ_, κ_, g_, κf_, gf_, R_, δ_ls..., Δ_, ν_, N_]
+ps = [Γ, κ, g, κf, gf, R, [δ(i) for i in 1:M_]..., Δ, ν, N]
+p0 = [Γ_, κ_, g_, κf_, gf_, R_, δ_ls..., Δ_, ν_, N_]
 
-# TODO(v1): evaluate(eqs; limits=...) — not yet ported, see TODO.md
-# dict = merge(Dict(unknowns(sys_c) .=> u0), Dict(ps .=> p0))
-# prob = ODEProblem(sys_c, dict, (0.0, 10.0/κf_))
-# nothing # hide
+dict = merge(initial_values(eqs_eval, u0), Dict(ps .=> p0))
+prob = ODEProblem(sys_c, dict, (0.0, 10.0 / κf_))
+nothing # hide
 
 #
 
-# TODO(v1): evaluate(eqs; limits=...) — not yet ported, see TODO.md
-# sol = solve(prob, Tsit5(); abstol = 1e-10, reltol = 1e-10, maxiters = 1e7) # Solve the numeric problem
-#
-# t = sol.t
-# n = abs.(get_solution(sol, a'a, eqs_eval).(t))
-# n_b(i) = abs.(get_solution(sol, b(i)'b(i), eqs_eval).(t))
-# n_f = [abs(get_solution(sol, b(i)'b(i), eqs_eval)(t[end])) for i = 1:M_] ./ (abs(get_solution(sol, b(1)'b(1), eqs_eval)(t[end])))
-# nothing # hide
+sol = solve(prob, Tsit5(); abstol = 1e-10, reltol = 1e-10, maxiters = 1e7) # Solve the numeric problem
+
+t = sol.t
+n = abs.(get_solution(sol, a'a, eqs_eval).(t))
+n_b(i) = abs.(get_solution(sol, b(i)'b(i), eqs_eval).(t))
+n_f = [abs(get_solution(sol, b(i)'b(i), eqs_eval)(t[end])) for i in 1:M_] ./
+    (abs(get_solution(sol, b(1)'b(1), eqs_eval)(t[end])))
+nothing # hide
 
 #
 
+p1 = plot(t, n_b(1), alpha = 0.5, ylabel = "⟨bᵢ⁺bᵢ⟩", legend = false) # Plot results
+for i in 2:M_
+    plot!(t, n_b(i), alpha = 0.5, legend = false)
+end
 
-# TODO(v1): evaluate(eqs; limits=...) — not yet ported, see TODO.md
-# p1 = plot(t, n_b(1), alpha = 0.5, ylabel = "⟨bᵢ⁺bᵢ⟩", legend = false) # Plot results
-# for i = 2:M_
-#     plot!(t, n_b(i), alpha = 0.5, legend = false)
-# end
-#
-# p2 = plot(
-#     [-reverse(δ_ls); δ_ls],
-#     [reverse(n_f); n_f],
-#     xlabel = "δ/Γ",
-#     ylabel = "intensity",
-#     legend = false,
-# )
-# plot(p1, p2, layout = (1, 2), size = (700, 300))
+p2 = plot(
+    [-reverse(δ_ls); δ_ls],
+    [reverse(n_f); n_f],
+    xlabel = "δ/Γ",
+    ylabel = "intensity",
+    legend = false,
+)
+plot(p1, p2, layout = (1, 2), size = (700, 300))
 
 # ## Package versions
 

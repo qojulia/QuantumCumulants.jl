@@ -13,7 +13,7 @@ We start by loading the needed packages and specifying the model.
 
 ````@example optomechanical-cooling
 using QuantumCumulants
-using OrdinaryDiffEq, ModelingToolkit
+using OrdinaryDiffEq, ModelingToolkitBase
 using Plots
 
 hc = FockSpace(:cavity) # Hilbertspace
@@ -23,10 +23,10 @@ h = hc ⊗ hm
 @qnumbers a::Destroy(h, 1) b::Destroy(h, 2) # Operators
 
 
-@cnumbers Δ ωm E G κ # Parameters
+@variables Δ ωm E G κ # Parameters
 
 
-H = -Δ*a'*a + ωm*b'*b + G*a'*a*(b + b') + E*(a + a') # Hamiltonian
+H = -Δ * a' * a + ωm * b' * b + G * a' * a * (b + b') + E * (a + a') # Hamiltonian
 
 
 J = [a] # Jump operators & rates
@@ -37,7 +37,7 @@ nothing # hide
 We are specifically interested in the average number of photons $\langle a^\dagger a \rangle$ and phonons $\langle b^\dagger b \rangle$. Thus, we first derive the equations for these two averages. We restrict our description to a second order cumulant expansion.
 
 ````@example optomechanical-cooling
-ops = [a'*a, b'*b] # Derive equations
+ops = [a' * a, b' * b] # Derive equations
 eqs = meanfield(ops, H, J; rates = rates, order = 2)
 nothing # hide
 ````
@@ -52,7 +52,7 @@ nothing # hide
 To get a closed set of equations we automatically complete the system.
 
 ````@example optomechanical-cooling
-eqs_completed = complete(eqs) # Complete equations
+eqs_completed = complete!(deepcopy(eqs)) # Complete equations
 nothing # hide
 ````
 
@@ -72,28 +72,27 @@ nothing # hide
 To calculate the dynamics we create a system of ordinary differential equations, which can be used by [DifferentialEquations.jl](https://diffeq.sciml.ai/stable/).
 
 ````@example optomechanical-cooling
-@named sys = System(eqs_completed)
+sys = System(eqs_completed; name = :sys)
+sys_c = mtkcompile(sys)
 nothing # hide
 ````
 
 Finally, we need to define the numerical parameters and the initial state of the system. We will consider the membrane at room temperature. Its vibrational mode is in a thermal state with an average number of phonons that can be estimated from $k_B T = n_\mathrm{vib}\hbar \omega_m$. If the resonator has a resonance frequency of $\omega_m = 10\mathrm{MHz}$, then the number of phonons at room temperature ($T\approx 300K$) is approximately $n_\mathrm{vib} \approx 4\times 10^6$.
 
 ````@example optomechanical-cooling
-u0 = zeros(ComplexF64, length(eqs_completed)) # Initial state
-u0[2] = 4e6 # Initial number of phonons
+u0 = initial_values(eqs_completed; defaults = Dict(average(b' * b) => 4.0e6 + 0im)) # Initial state (4e6 phonons)
 
-p0 = (Δ=>-10, ωm=>1, E=>200, G=>0.0125, κ=>20) # System parameters
-dict = merge(Dict(unknowns(sys) .=> u0), Dict(p0))
-prob = ODEProblem(sys, dict, (0.0, 60000))
-sol = solve(prob, RK4())
+p0 = Dict{Num, ComplexF64}(Δ => -10.0 + 0im, ωm => 1.0 + 0im, E => 200.0 + 0im, G => 0.0125 + 0im, κ => 20.0 + 0im) # System parameters
+prob = ODEProblem(sys_c, merge(u0, p0), (0.0, 60000.0))
+sol = solve(prob, Tsit5())
 nothing # hide
 ````
 
 ````@example optomechanical-cooling
 t = real.(sol.t) # Plot results
-phonons = real.(sol[b'b])
-T = 7.5e-5*phonons
-photons = real.(sol[a'a])
+phonons = real.(get_solution(sol, b'b, eqs_completed).(sol.t))
+T = 7.5e-5 * phonons
+photons = real.(get_solution(sol, a'a, eqs_completed).(sol.t))
 
 p1 = plot(t, T, ylabel = "T in K", legend = false)
 p2 = plot(t, photons, xlabel = "t⋅ωm", ylabel = "⟨a⁺a⟩", legend = false)
@@ -110,7 +109,7 @@ versioninfo()
 
 using Pkg
 Pkg.status(
-    ["QuantumCumulants", "OrdinaryDiffEq", "ModelingToolkit", "Plots"],
+    ["QuantumCumulants", "OrdinaryDiffEq", "ModelingToolkitBase", "Plots"],
     mode = PKGMODE_MANIFEST,
 )
 ````

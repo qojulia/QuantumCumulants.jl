@@ -60,13 +60,13 @@ nothing # hide
 # ```
 # To get a closed set of equations we automatically complete the system. Since this system is phase invariant we know that all averages with a phase are zero, therefore we exclude these terms with a filter function. To be able to dispatch on all kind of sums containing averages we defined the Union $\texttt{AvgSums}$.
 
-import QuantumCumulants.SecondQuantizedAlgebra as SQA # (v1: walk QAdd/QTerm via SQA; no QMul/Average/SingleSum/AvgSums types)
+import QuantumCumulants.SecondQuantizedAlgebra as SQA
 
 φ(x) = 0 # custom filter function
 φ(::Destroy) = -1
 φ(::Create) = 1
 φ(x::Transition) = x.i - x.j
-function φ(q::SQA.QAdd) # walk operator-product expression (v1: was QMul.args_nc)
+function φ(q::SQA.QAdd) # walk operator-product expression
     for (term, _) in q.arguments
         p = 0
         for op in term.ops
@@ -104,13 +104,13 @@ nothing # hide
 # \frac{d}{dt} \langle a^\dagger  a\rangle  =& -1.0 \kappa \langle a^\dagger  a\rangle  -1 i N g_{1} \langle a^\dagger  {\sigma}_{1}^{{12}}\rangle  + 1 i N g_{1} \langle a  {\sigma}_{1}^{{21}}\rangle  \\
 # \frac{d}{dt} \langle {\sigma}_{1}^{{22}}\rangle  =& R -1.0 R \langle {\sigma}_{1}^{{22}}\rangle  -1.0 \Gamma \langle {\sigma}_{1}^{{22}}\rangle  + 1 i g_{1} \langle a^\dagger  {\sigma}_{1}^{{12}}\rangle  -1 i g_{1} \langle a  {\sigma}_{1}^{{21}}\rangle  \\
 # \frac{d}{dt} \langle a^\dagger  {\sigma}_{1}^{{12}}\rangle  =& -0.5 R \langle a^\dagger  {\sigma}_{1}^{{12}}\rangle  -0.5 \Gamma \langle a^\dagger  {\sigma}_{1}^{{12}}\rangle  -0.5 \kappa \langle a^\dagger  {\sigma}_{1}^{{12}}\rangle  -0.5 \nu \langle a^\dagger  {\sigma}_{1}^{{12}}\rangle  + 1 i g_{1} \langle {\sigma}_{1}^{{22}}\rangle  -1 i g_{1} \langle a^\dagger  a\rangle  -1 i \Delta \langle a^\dagger  {\sigma}_{1}^{{12}}\rangle  + 1 i g_{1} \left( -1 + N \right) \langle {\sigma}_{1}^{{12}}  {\sigma}_{2}^{{21}}\rangle  + 2 i g_{1} \langle {\sigma}_{1}^{{22}}\rangle  \langle a^\dagger  a\rangle  \\
-# \frac{d}{dt} \langle {\sigma}_{1}^{{12}}  {\sigma}_{2}^{{21}}\rangle  =& \left( -1.0 R -1.0 Γ \right) \langle {\sigma}_{1}^{{12}}  {\sigma}_{2}^{{21}}\rangle  + 1 i g_{1} \langle a^\dagger  {\sigma}_{1}^{{12}}\rangle  -1 i g_{1} \langle a  {\sigma}_{1}^{{21}}\rangle  -1.0 \nu \langle {\sigma}_{1}^{{12}}  {\sigma}_{2}^{{21}}\rangle  -2 i g_{1} \langle {\sigma}_{1}^{{22}}\rangle  \langle a^\dagger  {\sigma}_{1}^{{12}}\rangle  + 2 i g_{1} \langle {\sigma}_{1}^{{22}}\rangle  \langle a  {\sigma}_{1}^{{21}}\rangle
+# \frac{d}{dt} \langle {\sigma}_{1}^{{12}}  {\sigma}_{2}^{{21}}\rangle  =& \left( -1.0 R -1.0 \Gamma \right) \langle {\sigma}_{1}^{{12}}  {\sigma}_{2}^{{21}}\rangle  + 1 i g_{1} \langle a^\dagger  {\sigma}_{1}^{{12}}\rangle  -1 i g_{1} \langle a  {\sigma}_{1}^{{21}}\rangle  -1.0 \nu \langle {\sigma}_{1}^{{12}}  {\sigma}_{2}^{{21}}\rangle  -2 i g_{1} \langle {\sigma}_{1}^{{22}}\rangle  \langle a^\dagger  {\sigma}_{1}^{{12}}\rangle  + 2 i g_{1} \langle {\sigma}_{1}^{{22}}\rangle  \langle a  {\sigma}_{1}^{{21}}\rangle
 # \end{align}
 # ```
 
 # To calculate the dynamics of the system we create a system of ordinary differential equations, which can be used by [DifferentialEquations.jl](https://diffeq.sciml.ai/stable/).
 
-sys = System(eqs_sc; name = :sys) # (v1: @named sys = System(eqs) → System(eqs; name=:sys))
+sys = System(eqs_sc; name = :sys)
 sys_c = mtkcompile(sys)
 nothing # hide
 
@@ -127,11 +127,7 @@ g_ = 1000Γ_ #g=1Hz
 R_ = 1000Γ_ #R=1Hz
 ν_ = 1000Γ_ #ν=1Hz
 
-# (v1: `scale` flattens the `IndexedVariable(:g, i)` couplings to a
-# scalar `Num g`, so the parameter list uses plain `g` rather than the
-# per-atom `g(1)`.)
-g_sym = Symbolics.Num(SymbolicUtils.Sym{SymbolicUtils.SymReal}(:g; type = Real))
-ps = [N, Δ, g_sym, κ, Γ, R, ν]
+ps = [N, Δ, g(1), κ, Γ, R, ν]
 p0 = [N_, Δ_, g_, κ_, Γ_, R_, ν_]
 
 dict = merge(u0, Dict(ps .=> p0))
@@ -153,14 +149,14 @@ plot(p1, p2, layout = (1, 2), size = (700, 300))
 
 # We calculate the spectrum here with the Laplace transform of the two-time correlation function. This is implemented with the function $\texttt{Spectrum}$.
 
-corr = CorrelationFunction(a', a, eqs_c; steady_state = true) # (v1: no filter_func kwarg; phase filter only applied to parent `eqs_c`)
+corr = CorrelationFunction(a', a, eqs_c; steady_state = true, filter_func = phase_invariant)
 corr_sc = scale(corr)
 S = Spectrum(corr_sc, ps)
 nothing # hide
 
 # The set of equations for the correlation function is given by
 
-corr_sc.eqs # (v1: was `corr_sc.de`)
+corr_sc.eqs
 nothing # hide
 
 

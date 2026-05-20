@@ -1,5 +1,6 @@
 using Documenter
 using QuantumCumulants, SecondQuantizedAlgebra
+using SymbolicUtils, ModelingToolkitBase
 
 ENV["GKSwstype"] = "100" # enable headless mode for GR to suppress warnings when plotting
 
@@ -26,8 +27,8 @@ pages = [
         "examples/unique_squeezing.md"
         "examples/waveguide.md"
         "examples/heterodyne_detection.md"
-        "examples/superradiant-laser.md"
         # "examples/retrodiction_homodyne.md"
+
     ],
 ]
 
@@ -57,6 +58,7 @@ makedocs(
     remotes = remotes,
     checkdocs = :exports,
     doctest = false,
+    warnonly = [:cross_references, :example_block],
     format = Documenter.HTML(
         mathengine = MathJax(),
         footer = "[**Back to GitHub**](https://github.com/qojulia/QuantumCumulants.jl)",

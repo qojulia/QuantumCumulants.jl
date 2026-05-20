@@ -18,13 +18,13 @@ using Plots
 h = NLevelSpace(:atom, (:g, :e)) # Hilbert space
 
 @variables Δ Ω γ # Operators
-σ(i, j) = Transition(h, :σ, i, j) # (v1: @qnumbers σ::Transition(h) replaced by explicit constructor)
+σ(i, j) = Transition(h, :σ, i, j)
 H = Δ * σ(:e, :e) + Ω * (σ(:g, :e) + σ(:e, :g))
 J = [σ(:g, :e)]
 
 
 eqs = meanfield([σ(:e, :g), σ(:e, :e)], H, J; rates = [γ]) # Equations
-complete!(eqs) # (v1: complete the system explicitly before MTK conversion)
+complete!(eqs)
 
 # In order to compute the correlation function given by
 
@@ -39,7 +39,7 @@ nothing # hide
 
 # Note that the above actually derives another set of equations, which might take some time. Specifically, it is deriving the equation of motion for $g(\tau)$ and automatically completes the system of equation deriving the necessary equations of motion for all average values on which $g(\tau)$ depends. Here, the system of equations reads
 
-c.eqs # (v1: c.de → c.eqs)
+c.eqs
 nothing # hide
 
 # ```math
@@ -74,7 +74,7 @@ p0 = (0.0, 2.0, 1.0)
 u0 = zeros(ComplexF64, 2)
 dict = merge(Dict(unknowns(ssys) .=> u0), Dict(ps .=> p0))
 prob = ODEProblem(ssys, dict, (0.0, 20.0))
-sol = solve(prob, Tsit5()) # (v1: RK4 dropped from OrdinaryDiffEq 7 exports)
+sol = solve(prob, Tsit5())
 nothing # hide
 
 #

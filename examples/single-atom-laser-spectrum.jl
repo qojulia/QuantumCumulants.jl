@@ -9,10 +9,10 @@
 using Latexify # hide
 set_default(double_linebreak = true) # hide
 using QuantumCumulants
-using ModelingToolkitBase, OrdinaryDiffEq # (v1: ModelingToolkit → ModelingToolkitBase)
+using ModelingToolkitBase, OrdinaryDiffEq
 using Plots
 
-@variables Δ g γ κ ν # Define parameters (v1: @cnumbers → @variables)
+@variables Δ g γ κ ν # Define parameters
 
 hf = FockSpace(:cavity) # Define hilbert space
 ha = NLevelSpace(:atom, (:g, :e))
@@ -36,13 +36,12 @@ nothing # hide
 # The remaining equations will be computed automatically using the [`complete`](@ref) function. However, we want to exclude terms such as $\langle a \rangle$ since these are phase-dependent and therefore 0 in our phase-invariant system. To this end, we provide a custom filter function to [`complete`](@ref). This function should return `true`, if the given average should be included, and `false` if it should be excluded (just like Julia's native `filter` function requires). We write a small function $\phi$ that computes the phase of an average, such that $\phi(a) = -1$, $\phi(a^\dagger) = 1$, and $\phi(a^\dagger a) = \phi(a) + \phi(a^\dagger) = 0$. Similarly, we want to have $\phi(\sigma^{eg})=1=-\phi(\sigma^{ge})$, and $\phi(\sigma^{ee})=0$. An average of an operator $x$ is then said to be phase invariant if $\phi(x)=0$.
 
 
-import QuantumCumulants.SecondQuantizedAlgebra as SQA # (v1: walk QAdd/QTerm via SQA, no QMul/Average types)
+import QuantumCumulants.SecondQuantizedAlgebra as SQA
 
 ϕ(x) = 0 # Custom filter function -- include only phase-invariant terms
 ϕ(::Destroy) = -1
 ϕ(::Create) = 1
 function ϕ(t::Transition)
-    # (v1: SQA stores level indices as integers; :g=1, :e=2 per NLevelSpace(:atom,(:g,:e)))
     return if (t.i == 2 && t.j == 1)
         1
     elseif (t.i == 1 && t.j == 2)
@@ -51,8 +50,7 @@ function ϕ(t::Transition)
         0
     end
 end
-function ϕ(q::SQA.QAdd) # walk the operator-product expression (v1: was QMul.args_nc)
-    # for phase-invariant single-term products, inspect the first QTerm's ops
+function ϕ(q::SQA.QAdd) # walk the operator-product expression
     for (term, _) in q.arguments
         p = 0
         for op in term.ops
@@ -73,17 +71,17 @@ eqs = complete(eq_n; filter_func = phase_invariant) # Complete equations
 
 # In order to compute the spectrum, we first compute the correlation function $g(\tau) = \langle a^\dagger(t_0 + \tau) a(t_0)\rangle \equiv \langle a^\dagger a_0\rangle.$
 
-# Note that the [`CorrelationFunction`](@ref) finds the equation for $g(\tau)$ and then completes the system of equations by using its own version of the [`complete`](@ref) function. We can also provide the same custom filter function as before to skip over terms that are not phase-invariant. Similarly, setting the keyword `steady_state=true`, we tell the function not to derive equations of motion for operators that do not depend on $\tau$, but only on $t_0$ (if $t_0$ is in steady state, these values do not change with $\tau$).
+# Note that the [`CorrelationFunction`](@ref) finds the equation for $g(\tau)$ and then completes the system of equations by using its own version of the [`complete`](@ref) function. Setting the keyword `steady_state=true`, we tell the function not to derive equations of motion for operators that do not depend on $\tau$, but only on $t_0$ (if $t_0$ is in steady state, these values do not change with $\tau$).
 
 
-c = CorrelationFunction(a', a, eqs; steady_state = true) # Correlation function (v1: no filter_func kwarg; phase filter only applied to parent `eqs`)
+c = CorrelationFunction(a', a, eqs; steady_state = true) # Correlation function
 nothing # hide
 
 # $\langle a^\dagger a_0\rangle$
 
 # As we can see, there are only two equations necessary to obtain the correlation function:
 
-c.eqs # (v1: c.de → c.eqs)
+c.eqs
 nothing # hide
 
 # ```math
@@ -92,31 +90,25 @@ nothing # hide
 # \end{align}
 # ```
 
-
 # The spectrum can now be computed by solving the above system of equations and then taking the Fourier transform, or by taking the Fourier transform directly, which is done by constructing an instance of the [`Spectrum`](@ref Spectrum) type. Here, we will compare both approaches.
 
 # In any case, we need to compute the steady state of the system numerically.
 
 ps = (Δ, g, γ, κ, ν)
-sys = System(eqs; name = :sys) # (v1: @named sys = System(eqs) → System(eqs; name=:sys))
-ssys = mtkcompile(sys)
+sys = mtkcompile(System(eqs; name = :sys))
 p0 = (1.0, 1.5, 0.25, 1.0, 4.0)
-u0 = zeros(ComplexF64, length(unknowns(ssys))) # (v1: zero init via unknowns(ssys))
-dict = merge(Dict(unknowns(ssys) .=> u0), Dict(ps .=> p0))
-prob = ODEProblem(ssys, dict, (0.0, 10.0))
+u0 = zeros(ComplexF64, length(eqs.states))
+prob = ODEProblem(sys, merge(initial_values(eqs, u0), Dict(ps .=> p0)), (0.0, 10.0))
 sol = solve(prob, Tsit5())  # Numerical solution
 nothing # hide
 
 # Now, we can compute the time evolution of the correlation function similarly. Since the initial state of this system does not necessarily depend on all steady-state values, we can use the [`correlation_u0`](@ref) function which automatically generates the correct initial state vector required. Similarly, we use [`correlation_p0`](@ref) which generates the list of parameters including all needed steady-state values.
 
 
-csys = System(c; name = :csys) # Time evolution of correlation function
-cssys = mtkcompile(csys)
-u_ss = Dict(avg => get_solution(sol, avg, eqs)(sol.t[end]) for avg in eqs.states) # (v1: build avg→value dict from solution)
-u0_c = correlation_u0(c, u_ss)
-p0_c = correlation_p0(c, sol.u[end], ps .=> p0)
-dict = merge(Dict(u0_c), Dict(p0_c))
-prob_c = ODEProblem(cssys, dict, (0.0, 500.0))
+csys = mtkcompile(System(c; name = :csys)) # Time evolution of correlation function
+u0_c = correlation_u0(c, sol.u[end])
+p0_c = correlation_p0(c, sol.u[end], collect(ps .=> p0))
+prob_c = ODEProblem(csys, merge(u0_c, Dict(p0_c)), (0.0, 500.0))
 sol_c = solve(prob_c, Tsit5(), save_idxs = 1)
 nothing # hide
 
@@ -135,7 +127,7 @@ nothing # hide
 
 
 S = Spectrum(c, ps) # Spectrum
-s_laplace = S(ω, u_ss, p0) # (v1: pass avg→value dict, not raw vector)
+s_laplace = S(ω, sol.u[end], collect(p0))
 nothing # hide
 
 plot(ω, s_fft, label = "Spectrum (FFT)", xlabel = "ω")
