@@ -25,3 +25,6 @@ QuantumOpticsBase = "0.4"
 StochasticDiffEq = "6"
 SymbolicUtils = "3.26.0"
 Symbolics = "6"
+
+[sources]
+SecondQuantizedAlgebra = {url = "/home/oameye/Documents/SecondQuantizedAlgebra.jl", rev = "redesign-v2"}

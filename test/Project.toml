@@ -26,3 +26,6 @@ CheckConcreteStructs = "0.1"
 ExplicitImports = "1.11"
 JET = "0.9, 0.10, 0.11"
 ParallelTestRunner = "2"
+
+[sources]
+SecondQuantizedAlgebra = {url = "/home/oameye/Documents/SecondQuantizedAlgebra.jl", rev = "redesign-v2"}
