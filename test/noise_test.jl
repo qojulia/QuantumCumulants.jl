@@ -99,6 +99,40 @@ end
     @test _iz(stoch.equations[1].rhs - det.equations[1].rhs)
 end
 
+@testset "MeanFieldEquations(::NoiseMeanFieldEquations) + parameter_map(sys, …)" begin
+    # Mirror the heterodyne-style pattern: build one noisy system and one
+    # deterministic system from the same physical model. `MeanFieldEquations`
+    # strips the noise drift (and any parameters that lived only inside it),
+    # `parameter_map(sys, …)` filters a shared user dict down to the live keys.
+    @variables Δ::Real κ::Real η::Real
+    hc = FockSpace(:cavity)
+    a = Destroy(hc, :a)
+    H = Δ * a' * a
+    # Track the full second-order set so the noise drift's `⟨a'·a⟩` / `⟨a·a⟩`
+    # references reduce to states and the SDE compile sees a linear Brownian.
+    eqs_noise = meanfield(
+        [a, a' * a, a * a], H, [a];
+        rates = [κ], efficiencies = [η], order = 2
+    )
+    eqs_det = MeanFieldEquations(eqs_noise)
+    @test eqs_det isa MeanFieldEquations
+    @test eqs_det.direction === eqs_noise.direction
+    @test length(eqs_det.equations) == length(eqs_noise.equations)
+
+    sys_det = ModelingToolkitBase.mtkcompile(System(eqs_det; name = :det))
+    sys_st = ModelingToolkitBase.mtkcompile(System(eqs_noise; name = :stoch))
+
+    # User dict carries η; deterministic compile dropped it together with the
+    # noise drift. The filter must strip η from the deterministic map and keep
+    # it for the stochastic one.
+    full_pmap = Dict(Δ => 1.0, κ => 0.5, η => 0.3)
+    det_pmap = parameter_map(sys_det, full_pmap)
+    st_pmap = parameter_map(sys_st, full_pmap)
+    @test !haskey(det_pmap, η)
+    @test haskey(det_pmap, Δ) && haskey(det_pmap, κ)
+    @test haskey(st_pmap, η)
+end
+
 @testset "System on noise eqs: substitutes conjugate of state on RHS" begin
     # Driven damped cavity. The drift of ⟨a'a⟩ references ⟨a'⟩, but ⟨a'⟩ is
     # the conjugate of state ⟨a⟩ and is therefore not itself added as a

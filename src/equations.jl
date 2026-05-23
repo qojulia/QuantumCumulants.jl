@@ -140,6 +140,26 @@ struct NoiseMeanFieldEquations{
     end
 end
 
+"""
+    MeanFieldEquations(eqs::NoiseMeanFieldEquations)
+
+Strip the measurement-backaction columns (`noise_equations`,
+`operator_noise_equations`, `efficiencies`) and return a plain
+[`MeanFieldEquations`](@ref) carrying only the deterministic drift. The
+`direction` tag is preserved.
+
+Use this to compare a stochastic simulation against the no-measurement
+evolution: build the noisy system once, then pass `MeanFieldEquations(eqs)`
+to `System` / `ODEProblem` for the deterministic reference.
+"""
+function MeanFieldEquations(eqs::NoiseMeanFieldEquations)
+    return MeanFieldEquations(
+        eqs.equations, eqs.operator_equations, eqs.states, eqs.operators,
+        eqs.hamiltonian, eqs.jumps, eqs.jumps_dagger, eqs.rates,
+        eqs.iv, eqs.order, eqs.direction,
+    )
+end
+
 Base.length(eqs::AbstractMeanFieldEquations) = length(eqs.equations)
 Base.getindex(eqs::AbstractMeanFieldEquations, i) = eqs.equations[i]
 Base.lastindex(eqs::AbstractMeanFieldEquations) = lastindex(eqs.equations)

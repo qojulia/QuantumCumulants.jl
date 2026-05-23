@@ -94,31 +94,30 @@ function _collect_params!(set, x, dict, iv_uw)
 end
 
 """
-    ModelingToolkitBase.System(eqs::AbstractMeanFieldEquations; name::Symbol, noise::Bool=true)
+    ModelingToolkitBase.System(eqs::AbstractMeanFieldEquations; name::Symbol)
     ModelingToolkitBase.System(c::CorrelationFunction; name::Symbol)
 
 Build a `ModelingToolkitBase.System` from the QC equation set. Substitutes
 Averages with real-typed `u(t)` Num variables and passes `dvs`/`ps` explicitly.
 For [`NoiseMeanFieldEquations`](@ref) the result is an SDE system whose
-Brownian column is the aggregated per-jump noise drift. Pass `noise=false`
-to drop the Brownian column and return the deterministic drift alone (useful
-for comparing trajectories to the no-measurement evolution).
+Brownian column is the aggregated per-jump noise drift. To compare against the
+deterministic drift alone, pass `MeanFieldEquations(eqs)` instead.
 """
 function MTK.System(
         eqs::NoiseMeanFieldEquations{O, H, Op, Jt, Jdt, R, E, S, Forward};
-        name::Symbol, noise::Bool = true,
+        name::Symbol,
     ) where {O, H, Op, Jt, Jdt, R, E, S}
-    return _to_system_sde(eqs, name, +1; noise = noise)
+    return _to_system_sde(eqs, name, +1)
 end
 
 function MTK.System(
         eqs::NoiseMeanFieldEquations{O, H, Op, Jt, Jdt, R, E, S, Backward};
-        name::Symbol, noise::Bool = true,
+        name::Symbol,
     ) where {O, H, Op, Jt, Jdt, R, E, S}
-    return _to_system_sde(eqs, name, -1; noise = noise)
+    return _to_system_sde(eqs, name, -1)
 end
 
-function _to_system_sde(eqs::NoiseMeanFieldEquations, name::Symbol, sign::Int; noise::Bool = true)
+function _to_system_sde(eqs::NoiseMeanFieldEquations, name::Symbol, sign::Int)
     iv = eqs.iv
     iv_uw = SymbolicUtils.unwrap(iv)
     D = Symbolics.Differential(iv)
@@ -127,42 +126,29 @@ function _to_system_sde(eqs::NoiseMeanFieldEquations, name::Symbol, sign::Int; n
     # Single Brownian per system: `eqs.noise_equations` already aggregates the
     # per-jump noise drifts into one column. Multiple independent measurement
     # processes would need one Brownian per jump (TODO).
-    w = noise ? first(MTK.@brownians _qc_dW) : nothing
+    w = first(MTK.@brownians _qc_dW)
+    w_uw = SymbolicUtils.unwrap(w)
+    T = typeof(w_uw)
     new_eqs = Vector{Symbolics.Equation}(undef, length(eqs.equations))
     ps_set = Set{SymbolicUtils.BasicSymbolic}()
     merged = merge(conj_dict, dict)
     @inbounds for (i, eq) in enumerate(eqs.equations)
         rhs = _safe_substitute(eq.rhs, merged)
-        if noise
-            noise_eq = eqs.noise_equations[i]
-            noise_rhs = _safe_substitute(noise_eq.rhs, merged)
-            # Substituted noise / drift trees can carry symtype `Any` (mixed
-            # average products). SymbolicUtils refuses arithmetic between
-            # mismatched symtypes, so build the product/sum nodes via `maketerm`,
-            # which preserves structure without dispatching the worker buffer.
-            w_uw = SymbolicUtils.unwrap(w)
-            T = typeof(w_uw)
-            signed_rhs = sign == 1 ? rhs :
-                TermInterface.maketerm(T, *, Any[sign, rhs], nothing)
-            noise_term = TermInterface.maketerm(T, *, Any[noise_rhs, w_uw], nothing)
-            total_rhs = TermInterface.maketerm(T, +, Any[signed_rhs, noise_term], nothing)
-            new_eqs[i] = D(dict[eq.lhs]) ~ total_rhs
-            _collect_params!(ps_set, rhs, dict, iv_uw)
-            _collect_params!(ps_set, noise_rhs, dict, iv_uw)
-        else
-            T = typeof(SymbolicUtils.unwrap(iv))
-            signed_rhs = sign == 1 ? rhs :
-                TermInterface.maketerm(T, *, Any[sign, rhs], nothing)
-            new_eqs[i] = D(dict[eq.lhs]) ~ signed_rhs
-            _collect_params!(ps_set, rhs, dict, iv_uw)
-        end
+        noise_rhs = _safe_substitute(eqs.noise_equations[i].rhs, merged)
+        # Substituted noise / drift trees can carry symtype `Any` (mixed
+        # average products). SymbolicUtils refuses arithmetic between
+        # mismatched symtypes, so build the product/sum nodes via `maketerm`,
+        # which preserves structure without dispatching the worker buffer.
+        signed_rhs = sign == 1 ? rhs :
+            TermInterface.maketerm(T, *, Any[sign, rhs], nothing)
+        noise_term = TermInterface.maketerm(T, *, Any[noise_rhs, w_uw], nothing)
+        total_rhs = TermInterface.maketerm(T, +, Any[signed_rhs, noise_term], nothing)
+        new_eqs[i] = D(dict[eq.lhs]) ~ total_rhs
+        _collect_params!(ps_set, rhs, dict, iv_uw)
+        _collect_params!(ps_set, noise_rhs, dict, iv_uw)
     end
     ps = [MTK.toparam(p) for p in ps_set]
-    if noise
-        return MTK.System(new_eqs, iv, dvs, ps, [w]; name = name)
-    else
-        return MTK.System(new_eqs, iv, dvs, ps; name = name)
-    end
+    return MTK.System(new_eqs, iv, dvs, ps, [w]; name = name)
 end
 
 function MTK.System(eqs::MeanFieldEquations; name::Symbol)
@@ -284,6 +270,42 @@ function initial_values(
         out[dict_var[avg]] = ComplexF64(u0[k])
     end
     return out
+end
+
+"""
+    parameter_map(sys::MTK.System, pairs)
+
+Filter `pairs` (a `Pair` iterable or `Dict`) to entries whose key is a live
+unknown or parameter of the compiled system `sys`. Use when a single
+user-built parameter dict carries entries for several compiles of the same
+physical model (e.g. a noisy / deterministic pair) and some compiles drop
+parameters that the others keep. MTK v10 rejects superfluous entries with an
+`Initial` parameter assertion; this strips them silently.
+
+```julia
+sys = mtkcompile(System(MeanFieldEquations(scaled_eqs); name=:sys))
+dict = parameter_map(sys, merge(
+    Dict(unknowns(sys) .=> u0),
+    Dict(p .=> p0),
+))
+prob = ODEProblem(sys, dict, (0.0, T_end))
+```
+"""
+function parameter_map(sys::MTK.System, pairs)
+    live = Set{SymbolicUtils.BasicSymbolic}()
+    for p in MTK.parameters(sys)
+        push!(live, SymbolicUtils.unwrap(p))
+    end
+    for u in MTK.unknowns(sys)
+        push!(live, SymbolicUtils.unwrap(u))
+    end
+    pmap = Dict{Any, Any}()
+    for (k, v) in pairs
+        if SymbolicUtils.unwrap(k) in live
+            pmap[k] = v
+        end
+    end
+    return pmap
 end
 
 """
