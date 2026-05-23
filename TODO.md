@@ -5,47 +5,6 @@ shows up so the fix can be verified end to end.
 
 ## Numerics / MTK bridge
 
-### `IndexedVariable(::Symbol, ::Int)` accessor missing
-
-Master accepted `g(1)` (where `g(k) = IndexedVariable(:g, k)`) to refer to the
-single collapsed coupling after `scale`. SQA v0.5 only defines
-`IndexedVariable(::Symbol, ::Index)`, so any closure of the form
-`g(k) = IndexedVariable(:g, k)` errors with
-
-```
-MethodError: no method matching IndexedVariable(::Symbol, ::Int64)
-```
-
-as soon as the example calls `g(1)`, `δ(i)`, etc. The `parameter_map(eqs, Dict(g(i) => …))`
-detour works (it resolves the post-scale scalar by name) but every example
-that listed `[δ(i) for i in 1:M_]` or `ps = [..., g(1), ...]` now breaks.
-
-Surfaces in: `examples/superradiant_laser_indexed.jl`,
-`examples/filter-cavity_indexed.jl`.
-
-Fix sketch: add an SQA method `IndexedVariable(name::Symbol, k::Integer)` that
-returns the scalar `Num` produced by `scale` / `evaluate` (looked up by name).
-Alternatively, add a QC-side helper. The examples should then read like master
-again.
-
-### `IndexedOperator(::Destroy, ::Int)` / `IndexedOperator(::Transition, ::Int)` missing
-
-Same story for operators: master allowed `b(1)` (where
-`b(k) = IndexedOperator(Destroy(h, :b, 2), k)`) to query the post-evaluate
-operator on the `k`-th cavity. SQA v0.5 only takes an `Index`, so callers
-that loop `for i in 1:M_; n_b(i); end` error with
-
-```
-MethodError: no method matching IndexedOperator(::Destroy, ::Int64)
-```
-
-Surfaces in: `examples/filter-cavity_indexed.jl` (per-cavity photon number).
-
-Fix sketch: add `IndexedOperator(::Destroy, ::Integer)` etc. on the SQA side
-that synthesises the concrete index (`Symbol(i.name, "_", k)`) the same way
-`evaluate` did when it minted the unrolled states, so `b(k)` and the state
-key in `eqs_eval.states` match.
-
 ### MTK v10 rejects unused-parameter dict entries
 
 Master's MTK (v8/v9) silently ignored entries in the `Dict(ps .=> p0)` that
@@ -172,11 +131,9 @@ function would no longer have two branches at all).
 All twelve docs examples run to the derivation step. Numerical / plotting
 step still blocked on the items above:
 
-- `examples/superradiant_laser_indexed.jl`: blocked on `IndexedVariable(::Symbol, ::Int)`
-  at `ps = [..., g(1), ...]`. After that, the σᵢᵢ·σⱼⱼ idempotency issue would
-  surface unphysical trajectories.
-- `examples/filter-cavity_indexed.jl`: blocked on `IndexedVariable(::Symbol, ::Int)`
-  at `[δ(i) for i in 1:M_]`, then `IndexedOperator(::Destroy, ::Int)` at `n_b(i)`.
+- `examples/superradiant_laser_indexed.jl`: runs end to end; trajectory still
+  anomalous due to the σᵢᵢ·σⱼⱼ idempotency issue above.
+- `examples/filter-cavity_indexed.jl`: runs end to end.
 - `examples/waveguide.jl`: blocked on MTK v10 rejecting `Ω_i_i` (the diagonal
   the Hamiltonian never references).
 - `examples/heterodyne_detection.jl`: blocked on MTK v10 rejecting `ξ` from

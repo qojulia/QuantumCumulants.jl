@@ -33,7 +33,9 @@ j = Index(h, :j, N, ha)
 
 @qnumbers a::Destroy(h, 1)
 b(k) = IndexedOperator(Destroy(h, :b, 2), k)
+b(k::Integer) = IndexedOperator(Destroy(h, :b, 2), i(k))
 σ(α, β, k) = IndexedOperator(Transition(h, :σ, α, β, 3), k)
+σ(α, β, k::Integer) = IndexedOperator(Transition(h, :σ, α, β, 3), j(k))
 nothing # hide
 
 # We define the Hamiltonian using symbolic sums and define the individual dissipative processes. For an indexed jump operator the (symbolic) sum is build in the Liouvillian, in this case corresponding to individual decay processes.
@@ -93,10 +95,12 @@ gf_ = 0.1Γ_
 κf_ = 0.1Γ_
 δ_ls = [0:(1 / M_):(1 - 1 / M_);] * 10Γ_
 
-ps = [Γ, κ, g, κf, gf, R, [δ(i) for i in 1:M_]..., Δ, ν, N]
-p0 = [Γ_, κ_, g_, κf_, gf_, R_, δ_ls..., Δ_, ν_, N_]
-
-dict = merge(initial_values(eqs_eval, u0), Dict(ps .=> p0))
+pmap = parameter_map(eqs_eval, Dict(
+    Γ => Γ_, κ => κ_, g => g_, κf => κf_, gf => gf_, R => R_,
+    δ(i) => δ_ls,
+    Δ => Δ_, ν => ν_, N => N_,
+))
+dict = merge(initial_values(eqs_eval, u0), pmap)
 prob = ODEProblem(sys_c, dict, (0.0, 10.0 / κf_))
 nothing # hide
 

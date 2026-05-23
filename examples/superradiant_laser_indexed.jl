@@ -127,10 +127,13 @@ g_ = 1000Γ_ #g=1Hz
 R_ = 1000Γ_ #R=1Hz
 ν_ = 1000Γ_ #ν=1Hz
 
-ps = [N, Δ, g(1), κ, Γ, R, ν]
-p0 = [N_, Δ_, g_, κ_, Γ_, R_, ν_]
+pmap = parameter_map(eqs_sc, Dict(
+    N => N_, Δ => Δ_, g(i) => g_, κ => κ_, Γ => Γ_, R => R_, ν => ν_,
+))
+ps = collect(keys(pmap))
+p0 = collect(values(pmap))
 
-dict = merge(u0, Dict(ps .=> p0))
+dict = merge(u0, pmap)
 prob = ODEProblem(sys_c, dict, (0.0, 1.0 / 50Γ_))
 nothing # hide
 
