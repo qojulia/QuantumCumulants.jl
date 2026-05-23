@@ -94,29 +94,31 @@ function _collect_params!(set, x, dict, iv_uw)
 end
 
 """
-    ModelingToolkitBase.System(eqs::AbstractMeanFieldEquations; name::Symbol)
+    ModelingToolkitBase.System(eqs::AbstractMeanFieldEquations; name::Symbol, noise::Bool=true)
     ModelingToolkitBase.System(c::CorrelationFunction; name::Symbol)
 
 Build a `ModelingToolkitBase.System` from the QC equation set. Substitutes
 Averages with real-typed `u(t)` Num variables and passes `dvs`/`ps` explicitly.
 For [`NoiseMeanFieldEquations`](@ref) the result is an SDE system whose
-Brownian column is the aggregated per-jump noise drift.
+Brownian column is the aggregated per-jump noise drift. Pass `noise=false`
+to drop the Brownian column and return the deterministic drift alone (useful
+for comparing trajectories to the no-measurement evolution).
 """
 function MTK.System(
         eqs::NoiseMeanFieldEquations{O, H, Op, Jt, Jdt, R, E, S, Forward};
-        name::Symbol
+        name::Symbol, noise::Bool = true,
     ) where {O, H, Op, Jt, Jdt, R, E, S}
-    return _to_system_sde(eqs, name, +1)
+    return _to_system_sde(eqs, name, +1; noise = noise)
 end
 
 function MTK.System(
         eqs::NoiseMeanFieldEquations{O, H, Op, Jt, Jdt, R, E, S, Backward};
-        name::Symbol
+        name::Symbol, noise::Bool = true,
     ) where {O, H, Op, Jt, Jdt, R, E, S}
-    return _to_system_sde(eqs, name, -1)
+    return _to_system_sde(eqs, name, -1; noise = noise)
 end
 
-function _to_system_sde(eqs::NoiseMeanFieldEquations, name::Symbol, sign::Int)
+function _to_system_sde(eqs::NoiseMeanFieldEquations, name::Symbol, sign::Int; noise::Bool = true)
     iv = eqs.iv
     iv_uw = SymbolicUtils.unwrap(iv)
     D = Symbolics.Differential(iv)
@@ -125,30 +127,42 @@ function _to_system_sde(eqs::NoiseMeanFieldEquations, name::Symbol, sign::Int)
     # Single Brownian per system: `eqs.noise_equations` already aggregates the
     # per-jump noise drifts into one column. Multiple independent measurement
     # processes would need one Brownian per jump (TODO).
-    w = first(MTK.@brownians _qc_dW)
+    w = noise ? first(MTK.@brownians _qc_dW) : nothing
     new_eqs = Vector{Symbolics.Equation}(undef, length(eqs.equations))
     ps_set = Set{SymbolicUtils.BasicSymbolic}()
     merged = merge(conj_dict, dict)
     @inbounds for (i, eq) in enumerate(eqs.equations)
         rhs = _safe_substitute(eq.rhs, merged)
-        noise_eq = eqs.noise_equations[i]
-        noise_rhs = _safe_substitute(noise_eq.rhs, merged)
-        # Substituted noise / drift trees can carry symtype `Any` (mixed
-        # average products). SymbolicUtils refuses arithmetic between
-        # mismatched symtypes, so build the product/sum nodes via `maketerm`,
-        # which preserves structure without dispatching the worker buffer.
-        w_uw = SymbolicUtils.unwrap(w)
-        T = typeof(w_uw)
-        signed_rhs = sign == 1 ? rhs :
-            TermInterface.maketerm(T, *, Any[sign, rhs], nothing)
-        noise_term = TermInterface.maketerm(T, *, Any[noise_rhs, w_uw], nothing)
-        total_rhs = TermInterface.maketerm(T, +, Any[signed_rhs, noise_term], nothing)
-        new_eqs[i] = D(dict[eq.lhs]) ~ total_rhs
-        _collect_params!(ps_set, rhs, dict, iv_uw)
-        _collect_params!(ps_set, noise_rhs, dict, iv_uw)
+        if noise
+            noise_eq = eqs.noise_equations[i]
+            noise_rhs = _safe_substitute(noise_eq.rhs, merged)
+            # Substituted noise / drift trees can carry symtype `Any` (mixed
+            # average products). SymbolicUtils refuses arithmetic between
+            # mismatched symtypes, so build the product/sum nodes via `maketerm`,
+            # which preserves structure without dispatching the worker buffer.
+            w_uw = SymbolicUtils.unwrap(w)
+            T = typeof(w_uw)
+            signed_rhs = sign == 1 ? rhs :
+                TermInterface.maketerm(T, *, Any[sign, rhs], nothing)
+            noise_term = TermInterface.maketerm(T, *, Any[noise_rhs, w_uw], nothing)
+            total_rhs = TermInterface.maketerm(T, +, Any[signed_rhs, noise_term], nothing)
+            new_eqs[i] = D(dict[eq.lhs]) ~ total_rhs
+            _collect_params!(ps_set, rhs, dict, iv_uw)
+            _collect_params!(ps_set, noise_rhs, dict, iv_uw)
+        else
+            T = typeof(SymbolicUtils.unwrap(iv))
+            signed_rhs = sign == 1 ? rhs :
+                TermInterface.maketerm(T, *, Any[sign, rhs], nothing)
+            new_eqs[i] = D(dict[eq.lhs]) ~ signed_rhs
+            _collect_params!(ps_set, rhs, dict, iv_uw)
+        end
     end
     ps = [MTK.toparam(p) for p in ps_set]
-    return MTK.System(new_eqs, iv, dvs, ps, [w]; name = name)
+    if noise
+        return MTK.System(new_eqs, iv, dvs, ps, [w]; name = name)
+    else
+        return MTK.System(new_eqs, iv, dvs, ps; name = name)
+    end
 end
 
 function MTK.System(eqs::MeanFieldEquations; name::Symbol)
@@ -379,7 +393,7 @@ function get_solution(
     dict, _ = _avg_to_var_dict(eqs)
     if haskey(dict, avg)
         var = dict[avg]
-        return τ -> sol(τ; idxs = var)
+        return τ -> _eval_at(sol, var, τ)
     end
     # Conjugate fallback: ⟨op†⟩ is not stored explicitly because
     # `complete!` deduplicates conjugate pairs. Look up ⟨op⟩ instead and
@@ -387,9 +401,16 @@ function get_solution(
     conj_avg = _avg_conj_for_codegen(avg)
     if conj_avg !== avg && haskey(dict, conj_avg)
         var = dict[conj_avg]
-        return τ -> conj.(sol(τ; idxs = var))
+        return τ -> conj.(_eval_at(sol, var, τ))
     end
     throw(KeyError(avg))
 end
+
+# `sol(τ; idxs=var)` for vector `τ` returns a plain Vector on ODE solutions
+# but a `RecursiveArrayTools.DiffEqArray` on SDE solutions, which downstream
+# `real.(...)` / broadcasting cannot consume. `Array(...)` materialises both
+# uniformly in one batched interpolator pass.
+_eval_at(sol, var, τ::AbstractVector) = Array(sol(τ; idxs = var))
+_eval_at(sol, var, τ) = sol(τ; idxs = var)
 get_solution(sol, op::QField, eqs::AbstractMeanFieldEquations) =
     get_solution(sol, average(op), eqs)

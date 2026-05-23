@@ -18,13 +18,23 @@ function meanfield(
         H::QField,
         J::AbstractVector = QField[];
         Jdagger = nothing,
-        rates::AbstractVector = ones(length(J)),
+        rates::Union{AbstractVector, AbstractMatrix} = ones(length(J)),
         efficiencies = nothing,
         direction::EvolutionDirection = Forward(),
         order = nothing,
         mix_choice::Function = maximum,
         iv::Symbolics.Num = _make_iv(),
     )
+    # Collective dissipation: wrap a flat `(J, rates::Matrix)` into the
+    # nested-cluster layout `_lindblad_rhs` expects.
+    if rates isa AbstractMatrix
+        size(rates, 1) == size(rates, 2) == length(J) || throw(ArgumentError(
+            "rates::Matrix must be square with side length(J) for collective dissipation",
+        ))
+        J = [collect(J)]
+        Jdagger = Jdagger === nothing ? nothing : [collect(Jdagger)]
+        rates = [rates]
+    end
     if Jdagger === nothing
         Jdagger = _default_jdagger(J)
     end

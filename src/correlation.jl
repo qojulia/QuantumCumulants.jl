@@ -198,9 +198,9 @@ Solves the (Laplace-domain) linear system `(iω·I - A) X̃(ω) = x̃(0)`, where
 RHS w.r.t. those states, `x̃(τ) = x(τ) - x_∞` is the centred process (so the
 correlation decays to zero, matching the Wiener-Khinchin assumption), and
 `x_∞ = -A⁻¹ b_const` is the asymptote driven by the constant source from
-ambient steady-state averages. Returns `Re(X̃(ω)[1])`, matching the master
-convention (one-sided FT, normalised so the test parameters from
-test/test_higher-order.jl reproduce master).
+ambient steady-state averages. Returns `2·Re(X̃(ω)[1])`, the symmetric (two-sided)
+power spectrum `S(ω) = 2 Re{∫₀^∞ g(τ) e^{-iωτ} dτ}` consistent with master and
+with `QuantumOptics.timecorrelations.correlation2spectrum`.
 """
 struct Spectrum{C <: CorrelationFunction, P}
     c::C
@@ -222,7 +222,7 @@ function (S::Spectrum)(ω_vals::AbstractVector, u_end, p0)
     @inbounds for (k, ω_val) in enumerate(ω_vals)
         M = (im * ω_val) .* I_n .- A
         x = M \ rhs_b
-        out[k] = real(x[1])
+        out[k] = 2 * real(x[1])
     end
     return out
 end

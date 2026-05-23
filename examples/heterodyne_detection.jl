@@ -90,7 +90,7 @@ p = [N, ωa, γ, η, χ, ωc, κ, g, ξ, ωl]
 p0 = [N_, ωa_, γ_, η_, χ_, ωc_, κ_, g_, ξ_, ωl_]
 T_end = 0.1 # 0.1ms
 
-sys = System(scaled_eqs; name = :sys)
+sys = mtkcompile(System(scaled_eqs; name = :sys, noise = false))
 u0 = zeros(ComplexF64, length(scaled_eqs))
 dict = merge(Dict(unknowns(sys) .=> u0), Dict(p .=> p0))
 prob = ODEProblem(sys, dict, (0.0, T_end))
@@ -103,7 +103,7 @@ plot!(graph, sol_det.t, real(get_solution(sol_det, a'a, scaled_eqs)(sol_det.t)),
 
 # We can then make use of the `EnsembleProblem`, which automatically runs multiple instances of the stochastic equations of motion. The number of trajectories can be set in the solve call. See the tutorial linked above for more details of the function calls here.
 
-sys_st = System(scaled_eqs; name = :sys_st)
+sys_st = mtkcompile(System(scaled_eqs; name = :sys_st))
 
 Random.seed!(2) # hide
 noise = StochasticDiffEq.RealWienerProcess(0.0, 0.0)

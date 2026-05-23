@@ -53,7 +53,7 @@ using Test
     u04 = Dict(unknowns(sys4_c) .=> zeros(ComplexF64, length(unknowns(sys4_c))))
     u06 = Dict(unknowns(sys6_c) .=> zeros(ComplexF64, length(unknowns(sys6_c))))
     ps = [Δ, g, γ, κ, ν]
-    pn = [1.0, 1.5, 0.25, 1.0, 4.0]
+    pn = [0.5, 1.5, 0.25, 1.0, 4.0]
     prob4 = ODEProblem(sys4_c, merge(u04, Dict(ps .=> pn)), (0.0, 50.0))
     prob6 = ODEProblem(sys6_c, merge(u06, Dict(ps .=> pn)), (0.0, 50.0))
     sol4 = solve(prob4, Tsit5(); abstol = 1.0e-9, reltol = 1.0e-9)

@@ -141,8 +141,7 @@ function _build_callable_to_array_sub(
         eqs::Vector{Symbolics.Equation},
         states::Vector{SymbolicUtils.BasicSymbolic},
     )
-    # name → Dict{slot::Int, Vector{original_term}}.
-    uses = Dict{Symbol, Dict{Int, Vector{SymbolicUtils.BasicSymbolic}}}()
+    uses = Dict{Symbol, Dict{Vector{Int}, Vector{SymbolicUtils.BasicSymbolic}}}()
     for eq in eqs
         _collect_callable_uses!(uses, SymbolicUtils.unwrap(eq.lhs))
         _collect_callable_uses!(uses, SymbolicUtils.unwrap(eq.rhs))
@@ -153,15 +152,16 @@ function _build_callable_to_array_sub(
     isempty(uses) && return Dict{Any, Any}()
     sub = Dict{Any, Any}()
     for (name, slot_map) in uses
-        n = maximum(keys(slot_map))
+        n_args = length(first(keys(slot_map)))
+        max_per_dim = [maximum(k[d] for k in keys(slot_map)) for d in 1:n_args]
         arr = SymbolicUtils.Sym{SymbolicUtils.SymReal}(
             name;
             type = Real,
-            shape = SymbolicUtils.SmallVec{UnitRange{Int}}([1:n]),
+            shape = SymbolicUtils.SmallVec{UnitRange{Int}}([1:m for m in max_per_dim]),
         )
-        for (slot, terms) in slot_map
+        for (slots, terms) in slot_map
             indexed = TermInterface.maketerm(
-                typeof(arr), getindex, Any[arr, slot], nothing,
+                typeof(arr), getindex, Any[arr, slots...], nothing,
             )
             for t in terms
                 sub[t] = indexed
@@ -171,28 +171,27 @@ function _build_callable_to_array_sub(
     return sub
 end
 
+# FnType callable with leaf-Sym arguments whose names encode slots
+# (`g(i_3)`, `Γ(i_1, i_2)`, …): bucket by name + slot tuple so the emitter
+# can mint a Symbolics array of the right rank. Non-matching shapes recurse.
 function _collect_callable_uses!(uses, x)
     x isa SymbolicUtils.BasicSymbolic || return
     SymbolicUtils.iscall(x) || return
     op = SymbolicUtils.operation(x)
     args = SymbolicUtils.arguments(x)
-    # 1-arg FnType callable with a leaf Sym arg whose name encodes a slot:
-    # this is the `IndexedVariable` shape we want to rewrite.
     if op isa SymbolicUtils.BasicSymbolic &&
             !SymbolicUtils.iscall(op) &&
-            length(args) == 1 &&
-            _is_fntype(SymbolicUtils.symtype(op))
-        a = args[1]
-        if a isa SymbolicUtils.BasicSymbolic && !SymbolicUtils.iscall(a)
-            slot = _parse_slot(Base.nameof(a))
-            if slot !== nothing
-                name = Base.nameof(op)
-                bucket = get!(uses, name) do
-                    Dict{Int, Vector{SymbolicUtils.BasicSymbolic}}()
-                end
-                push!(get!(bucket, slot, SymbolicUtils.BasicSymbolic[]), x)
-                return
+            _is_fntype(SymbolicUtils.symtype(op)) &&
+            all(a -> a isa SymbolicUtils.BasicSymbolic && !SymbolicUtils.iscall(a), args)
+        slots = [_parse_slot(Base.nameof(a)) for a in args]
+        if all(!isnothing, slots)
+            slot_key = Int[s for s in slots]
+            name = Base.nameof(op)
+            bucket = get!(uses, name) do
+                Dict{Vector{Int}, Vector{SymbolicUtils.BasicSymbolic}}()
             end
+            push!(get!(bucket, slot_key, SymbolicUtils.BasicSymbolic[]), x)
+            return
         end
     end
     for a in args

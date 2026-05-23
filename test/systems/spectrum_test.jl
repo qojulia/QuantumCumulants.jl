@@ -35,7 +35,8 @@ end
     # Closed-form check on the full pipeline.
     # For H = ωc·a†a, J = [a] with rate κ, vacuum bath:
     #   ⟨a(τ)·a†(0)⟩_ss = exp(-(iωc + κ/2)τ),  initial value ⟨a·a†⟩_ss = 1.
-    #   S(ω) = Re ∫₀^∞ ⟨a(τ)a†(0)⟩ exp(-iωτ) dτ = (κ/2)/((ω + ωc)² + (κ/2)²).
+    # Symmetric two-sided power spectrum (cf. `QuantumOptics.timecorrelations.correlation2spectrum`):
+    #   S(ω) = 2 Re ∫₀^∞ ⟨a(τ)a†(0)⟩ exp(-iωτ) dτ = κ / ((ω + ωc)² + (κ/2)²).
     hc = FockSpace(:cavity)
     a = Destroy(hc, :a)
     @variables ωc::Real κ::Real
@@ -60,7 +61,7 @@ end
     ω = collect(range(-2π, 2π; length = 81))
     S = Spectrum(c, ps)
     s_num = S(ω, u_end, pn)
-    s_an = @. (κ_num / 2) / ((ω + ωc_num)^2 + (κ_num / 2)^2)
+    s_an = @. κ_num / ((ω + ωc_num)^2 + (κ_num / 2)^2)
     @test maximum(abs.(s_num .- s_an)) < 1.0e-10
 end
 
