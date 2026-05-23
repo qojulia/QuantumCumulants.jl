@@ -120,23 +120,16 @@ scale stage before the cumulant truncation runs. Note that
 different atoms; that already implies `σ_ii^{(p)} · σ_jj^{(q≠p)} ≠ 0`, but
 same-site `σ_ii · σ_jj` must still reduce.
 
-### Solver-accuracy follow-ups: tolerances and `conj(cosh(ξ))` in symbolic RHS
+### Solver-accuracy follow-up: `conj(cosh(ξ))` in symbolic RHS
 
-Two examples have agreement / accuracy concerns rather than crashes:
+`examples/unique_squeezing.jl`: full vs. effective-model squeezing should
+agree at large `N`, but the RHS carries unresolved `cosh(ξ)·conj(cosh(ξ))`
+/ `cosh(ξ)*` (conjugate) factors even though `ξ` is real-typed. Check
+whether MTK simplifies `conj(cosh(ξ)) → cosh(ξ)` for `ξ::Real` declared
+via `@variables ξ`, and if not, either pre-simplify in QC's `System`
+builder or document the workaround.
 
-- `examples/excitation-transport-chain.jl`: 434-equation second-order JC
-  chain. The ensemble-average run uses default `Tsit5` tolerances; tighten
-  to `abstol = reltol = 1e-10` and re-render the comparison plot before
-  declaring this "agreement is fine".
-- `examples/unique_squeezing.jl`: full vs. effective-model squeezing should
-  agree at large `N`, but the RHS carries unresolved `cosh(ξ)·conj(cosh(ξ))`
-  / `cosh(ξ)*` (conjugate) factors even though `ξ` is real-typed. Check
-  whether MTK simplifies `conj(cosh(ξ)) → cosh(ξ)` for `ξ::Real` declared
-  via `@variables ξ`, and if not, either pre-simplify in QC's `System`
-  builder or document the workaround.
-
-Surfaces in: `examples/excitation-transport-chain.jl`,
-`examples/unique_squeezing.jl`.
+Surfaces in: `examples/unique_squeezing.jl`.
 
 ## Refactors deferred from the /simplify pass
 

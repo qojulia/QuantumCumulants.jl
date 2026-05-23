@@ -99,7 +99,7 @@ sys = mtkcompile(System(eqs; name = :sys))
 p0 = (1.0, 1.5, 0.25, 1.0, 4.0)
 u0 = zeros(ComplexF64, length(eqs.states))
 prob = ODEProblem(sys, merge(initial_values(eqs, u0), Dict(ps .=> p0)), (0.0, 10.0))
-sol = solve(prob, Tsit5())  # Numerical solution
+sol = solve(prob, RK4())  # Numerical solution
 nothing # hide
 
 # Now, we can compute the time evolution of the correlation function similarly. Since the initial state of this system does not necessarily depend on all steady-state values, we can use the [`correlation_u0`](@ref) function which automatically generates the correct initial state vector required. Similarly, we use [`correlation_p0`](@ref) which generates the list of parameters including all needed steady-state values.
@@ -109,7 +109,7 @@ csys = mtkcompile(System(c; name = :csys)) # Time evolution of correlation funct
 u0_c = correlation_u0(c, sol.u[end])
 p0_c = correlation_p0(c, sol.u[end], collect(ps .=> p0))
 prob_c = ODEProblem(csys, merge(u0_c, Dict(p0_c)), (0.0, 500.0))
-sol_c = solve(prob_c, Tsit5(), save_idxs = 1)
+sol_c = solve(prob_c, RK4(), save_idxs = 1)
 nothing # hide
 
 # Finally, we borrow the FFT function from [QuantumOptics.jl](https://qojulia.org) and compute the spectrum from the solution. Note that this requires an equidistant list of times, and we therefore interpolate the solution from the differential equation.

@@ -74,7 +74,7 @@ u0 = initial_values(eqs_completed; defaults = Dict(average(b' * b) => 4.0e6 + 0i
 
 p0 = Dict{Num, ComplexF64}(Δ => -10.0 + 0im, ωm => 1.0 + 0im, E => 200.0 + 0im, G => 0.0125 + 0im, κ => 20.0 + 0im) # System parameters
 prob = ODEProblem(sys_c, merge(u0, p0), (0.0, 60000.0))
-sol = solve(prob, Tsit5())
+sol = solve(prob, RK4())
 nothing # hide
 
 #

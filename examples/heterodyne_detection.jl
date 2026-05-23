@@ -3,7 +3,7 @@
 
 using QuantumCumulants
 using ModelingToolkitBase
-using OrdinaryDiffEq
+using OrdinaryDiffEqLowOrderRK
 using StochasticDiffEq
 using Plots
 using Random # hide
@@ -94,7 +94,7 @@ sys = mtkcompile(System(scaled_eqs; name = :sys, noise = false))
 u0 = zeros(ComplexF64, length(scaled_eqs))
 dict = merge(Dict(unknowns(sys) .=> u0), Dict(p .=> p0))
 prob = ODEProblem(sys, dict, (0.0, T_end))
-sol_det = solve(prob, Tsit5(), dt = T_end / 2e5)
+sol_det = solve(prob, RK4(), dt = T_end / 2e5)
 
 graph = plot(xlabel = "Time (ms)", ylabel = "Cavity photon number")
 plot!(graph, sol_det.t, real(get_solution(sol_det, a'a, scaled_eqs)(sol_det.t)), legend = false)
