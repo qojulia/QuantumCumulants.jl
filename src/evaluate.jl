@@ -91,6 +91,11 @@ function _evaluate_unroll(eqs::MeanFieldEquations, sub_dict, h_set::Set{Int})
                     for (b, t) in idx_sub
                 )
             new_lhs = _materialise(lifted_lhs[k], idx_sub, sub_dict, canon, sym_sub, h_set)
+            # If the substitution made a same-name pair contradictory under
+            # NE, `change_index` (via SQA's contradiction guard) drops the
+            # term entirely. Skip the iteration in that case: an LHS of `0`
+            # has no state semantics and would trip `_stable_avg_name`.
+            _is_materialised_zero(new_lhs) && continue
             new_rhs = _materialise(lifted_rhs[k], idx_sub, sub_dict, canon, sym_sub, h_set)
             new_op = _materialise_qfield(op_k, idx_sub, sub_dict, canon, h_set)
             new_op_eq = _materialise(lifted_op_eq_lhs[k], idx_sub, sub_dict, canon, sym_sub, h_set) ~
@@ -105,6 +110,25 @@ function _evaluate_unroll(eqs::MeanFieldEquations, sub_dict, h_set::Set{Int})
             push!(new_ops, _as_qadd(new_op))
             push!(new_op_eqs, new_op_eq)
         end
+    end
+
+    # Canonicalise every average leaf in every RHS so the literal symbol
+    # matches the state's literal symbol. `_canonical_key` folds
+    # alpha-equivalent variants (e.g. `⟨σ_{j_2}^{11} σ_{j_1}^{21}⟩` and
+    # `⟨σ_{j_1}^{11} σ_{j_2}^{21}⟩` for permutation-symmetric atoms) so
+    # `find_missing` reports closed, but MTK's codegen uses literal equality
+    # against `unknowns(sys)`. Without this pass the RHS-side leaf has a
+    # different symbol than the state-side leaf and `_stable_avg_name`
+    # treats the RHS leaf as a callable `AvgFunc` at runtime, which crashes.
+    canon_post = _canon_from_states(canon, new_states)
+    state_map = Dict{SQA.QAdd, SymbolicUtils.BasicSymbolic}()
+    for s in new_states
+        key = _canonical_key(s, canon_post)
+        key isa SQA.QAdd && (state_map[key] = s)
+    end
+    for k in eachindex(new_eqs)
+        new_eqs[k] = new_eqs[k].lhs ~
+            _canonicalise_avg_leaves(new_eqs[k].rhs, canon_post, state_map)
     end
 
     # Convert surviving callable-Sym references (e.g. `g(i_k.sym)` from
@@ -277,16 +301,13 @@ end
 # dedup via op equality.
 
 function _fresh_index(b::SQA.Index, k::Int, canon)
-    base_name = _canonical_base_name(b, canon)
-    name = Symbol(base_name, "_", k)
-    sym_var = SymbolicUtils.Sym{SymbolicUtils.SymReal}(name; type = Int)
-    return SQA.Index(name, b.range, b.space_index, Symbolics.Num(sym_var))
+    return _canonical_base(b, canon)(k)
 end
 
-function _canonical_base_name(b::SQA.Index, canon)
+function _canonical_base(b::SQA.Index, canon)
     list = get(canon, b.space_index, SQA.Index[])
-    isempty(list) && return b.name
-    return list[1].name
+    isempty(list) && return b
+    return list[1]
 end
 
 # ---------------------------------------------------------------------------
@@ -608,6 +629,65 @@ end
 # regime); known limitation, see DESIGN.md "canonicalise_undetermined".
 
 _dedup_key(avg::SymbolicUtils.BasicSymbolic) = SQA.undo_average(avg)
+
+# Build a canonical-index registry that includes both the original user
+# vocabulary (from the input `canon`) and every free index appearing in
+# `new_states` (the materialised atom names like `j_1, j_2`). This ensures
+# `_canonical_key` has enough canonical entries to rename all encountered
+# positions in 2-atom and higher correlations.
+function _canon_from_states(canon, states::Vector{SymbolicUtils.BasicSymbolic})
+    out = Dict{Int, Vector{SQA.Index}}()
+    for (sp, v) in canon
+        out[sp] = copy(v)
+    end
+    for s in states
+        op = SQA.undo_average(s)
+        op isa SQA.QAdd || continue
+        for (term, _) in op.arguments, o in term.ops
+            SQA.has_index(o.index) || continue
+            v = get!(out, o.index.space_index, SQA.Index[])
+            o.index in v || push!(v, o.index)
+        end
+    end
+    for v in values(out)
+        sort!(v, by = idx -> idx.name)
+    end
+    return out
+end
+
+# Walk `x` and replace every leaf `average(...)` whose canonical key is in
+# `state_map` with the corresponding state symbol. Leaves whose canonical
+# form is not a state are left untouched.
+function _canonicalise_avg_leaves(x, canon, state_map::Dict{SQA.QAdd, SymbolicUtils.BasicSymbolic})
+    x isa SymbolicUtils.BasicSymbolic || return x
+    if _is_leaf_average(x)
+        key = _canonical_key(x, canon)
+        key isa SQA.QAdd || return x
+        rep = get(state_map, key, nothing)
+        rep === nothing && return x
+        return rep
+    end
+    SymbolicUtils.iscall(x) || return x
+    op = SymbolicUtils.operation(x)
+    args = SymbolicUtils.arguments(x)
+    new_args = Any[_canonicalise_avg_leaves(a, canon, state_map) for a in args]
+    all(((a, b),) -> a === b, zip(args, new_args)) && return x
+    op === complex && length(new_args) == 2 &&
+        return new_args[1] + new_args[2] * Symbolics.IM
+    try
+        return op(new_args...)
+    catch err
+        err isa MethodError || err isa ArgumentError || rethrow()
+        return TermInterface.maketerm(typeof(x), op, new_args, TermInterface.metadata(x))
+    end
+end
+
+_is_materialised_zero(x::Number) = iszero(x)
+function _is_materialised_zero(x::SymbolicUtils.BasicSymbolic)
+    SymbolicUtils.isconst(x) && return iszero(x.val)
+    return false
+end
+_is_materialised_zero(_) = false
 _dedup_key_conj(avg::SymbolicUtils.BasicSymbolic) = adjoint(SQA.undo_average(avg))
 
 # Promote `x` (a QSym, QAdd, or Number) to a QAdd. SQA's `*(::QSym, ::Int)`

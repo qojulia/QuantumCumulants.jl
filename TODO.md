@@ -5,55 +5,56 @@ shows up so the fix can be verified end to end.
 
 ## Numerics / MTK bridge
 
-### `AvgFunc not callable` at solve time after `evaluate` of `DoubleIndexedVariable`
+### Cluster correlations lost: scale collapses distinct atoms to one slot
 
-With `parameter_map`/`evaluate` now flattening `Γ(i, j)` into a 2-D
-Symbolics-array parameter `Γ[i, j]` (fixed in this branch), `ODEProblem`
-builds cleanly but `solve` crashes during RHS codegen with:
+In the superradiant laser, the expected RHS of `d/dt ⟨a' σ_1^{12}⟩` includes
+a two-atom cluster term `+ i g_1 (N-1) ⟨σ_1^{12} σ_2^{21}⟩`. After
+`scale`, this term currently shows up as `(N-1) ⟨σ_i^{22}⟩` because:
 
-```
-MethodError: objects of type SecondQuantizedAlgebra.AvgFunc are not callable
-```
+1. `scale` aliases every cluster-space free `Index` to canonical-first
+   ([src/scaling.jl](src/scaling.jl) `_scale_qadd`). For 2-atom correlations
+   `⟨σ_i^{12} σ_j^{21}⟩` with `i ≠ j`, this renames `j → i`.
+2. The `(i, j)` NE entry on the renamed term becomes `(i, i)`. SQA's
+   [`_substitute_ne`](../SecondQuantizedAlgebra.jl/src/expressions/qterm.jl)
+   silently drops contradictory pairs instead of zeroing the term.
+3. SQA's same-site reduction then fires: `σ_i^{12} σ_i^{21} → σ_i^{22}`.
 
-The `getindex(Γ, i, j)` term inside an averaged operator product is being
-wrapped through `AvgFunc` and then invoked as a function. Likely a
-`_safe_substitute` / averaging-pass issue when the rewrite from
-`Γ(i_1, i_2)` to `Γ[1, 1]` happens inside `⟨…⟩`.
+Net result: a 2-op cluster average is mis-folded into a single-atom
+average. The system still closes and runs but the dynamics is wrong for
+multi-atom correlations.
 
-Surfaces in: `examples/cavity_antiresonance_indexed.jl` (transmission sweep).
+A separate but related problem: when `complete` derives an equation for an
+observable like `⟨a' σ_i^{12}⟩` whose free index `i` collides with `H`/`J`'s
+sum index, SQA's `commutator(im*H, op)` loses the `Σ_{k≠i}` off-diagonal
+contribution (the cluster term never reaches `scale` in the first place).
 
-Fix sketch: trace the codegen of an `⟨op · Γ[1,1]⟩` term through
-`MTK.System(::MeanFieldEquations)`'s `_safe_substitute` / `_collect_params!`
-passes and ensure scalar `getindex(arr, i, j)` is hoisted out of the
-averaged-product wrapper.
+**Sketch of the fix (scope is significant, ~half-day):**
 
-### `σᵢᵢ · σⱼⱼ = 0` simplification missing before cumulant expansion
+- *Scale side:* replace the canonical-first collapse with per-Hilbert-space
+  graph coloring: free indices that any term marks NE-distinct get
+  separate canonical "slot" reps (`i`, `i_2`, `i_3`, ...) minted from the
+  user's first-declared index. Two-atom cluster averages survive as
+  `⟨σ_i^{12} σ_{i_2}^{21}⟩`.
+- *Completion side:* alpha-rename `H`/`J`'s bound sum indices to fresh
+  names before calling `meanfield` in `_derive_for`, so the commutator
+  diagonal split keeps the `Σ_{k≠i}` part.
+- *Dedup side:* `_canonical_key` (used by `find_missing`) and
+  `_scale_state_key` need a normalization step that uses the
+  "different-slot-implies-distinct" convention to fold operator orderings
+  and strip irrelevant NE bookkeeping. Without this, the new cluster
+  states multiply via alpha-equivalence variants.
+- *Test updates:* `indexed_filter_cavity: per-Hilbert-space
+  evaluate/scale commute` expects the *old* collapsed equation count;
+  update to the new count once the design is in.
 
-Orthogonal-projector idempotency (`σ_22·σ_11 = 0` always) is not applied at
-the operator level before the second-order cumulant expansion. Result: the
-RHS of `⟨σ_22⟩` in a scaled, phase-invariant superradiant laser comes out as
+Investigation log on the `rewrite` branch (see git log for the σᵢᵢ leak fix)
+confirmed the diagnosis; a from-scratch implementation pass is what's
+missing. Until then, mean-field results that rely on two-atom cluster
+correlations under scale are quantitatively off.
 
-```
-d/dt ⟨σ22⟩ = -R·⟨σ22⟩ + R·⟨σ22⟩·⟨σ11⟩ + … + (terms with ⟨σ22⟩² and ⟨σ22⟩³)
-```
-
-instead of the expected `R·⟨σ11⟩ - (Γ + ν)·⟨σ22⟩ + …`. Cumulant truncation
-then approximates `⟨σ_22·σ_11⟩ ≈ ⟨σ_22⟩·⟨σ_11⟩` which is numerically
-non-zero even though the exact value is identically 0. The σ22² and σ22³
-terms are the same idempotency leak. `⟨σ_11⟩` also appears as a redundant
-state on completion (master eliminated it via `σ_11 + σ_22 = 1`).
-
-Surfaces in: `examples/superradiant_laser_indexed.jl` (trajectories run but
-σ22 stays at 0 from the default `u0 = 0` initial state).
-
-Fix sketch: per CLAUDE.md's "ground-state projectors stay atomic" guidance,
-this should not auto-expand into `1 - Σ σ_kk`. Instead, ensure SQA's
-`_canonicalize!` collapses `σ_ii · σ_jj → δ_ij σ_ii` for transitions on the
-same site (`acts_on` match), or add the simplification at the meanfield /
-scale stage before the cumulant truncation runs. Note that
-`assume_distinct_index` is the right primitive when the two factors are on
-different atoms; that already implies `σ_ii^{(p)} · σ_jj^{(q≠p)} ≠ 0`, but
-same-site `σ_ii · σ_jj` must still reduce.
+Surfaces in: `examples/superradiant_laser_indexed.jl` (cluster term is
+silently folded into a single-atom average; trajectory shape changes vs.
+master).
 
 ### Solver-accuracy follow-up: `conj(cosh(ξ))` in symbolic RHS
 
@@ -70,14 +71,14 @@ Surfaces in: `examples/unique_squeezing.jl`.
 
 Examples still blocked on a numerical / plotting step:
 
-- `examples/superradiant_laser_indexed.jl`: trajectory anomalous due to the
-  σᵢᵢ·σⱼⱼ idempotency issue above.
+- `examples/superradiant_laser_indexed.jl`: trajectory off-master because
+  `scale` folds the two-atom cluster correlation `⟨σ_1^{12} σ_2^{21}⟩` into
+  a single-atom average (see "Cluster correlations lost" above). The
+  σᵢᵢ·σⱼⱼ idempotency leak that previously affected this example is
+  fixed (per-jump dissipator now correctly summed over the jump index).
 - `examples/waveguide.jl`: MTK v10 rejects `Ω_i_i` (the diagonal the
   Hamiltonian never references). Wrap the param dict in
   `parameter_map(sys, …)` to drop the diagonal entries.
-- `examples/cavity_antiresonance_indexed.jl`: `AvgFunc not callable` at solve
-  time (downstream of the `DoubleIndexedVariable` flattening fixed in this
-  branch).
 - `examples/retrodiction_homodyne.jl`: still commented out of the docs build
   (`docs/make.jl`); depends on the `Backward()` SDE path and `modify_equations`,
   which have not been ported.

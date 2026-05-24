@@ -4,13 +4,21 @@
 
 Permutation-symmetry collapse for indexed mean-field systems.
 
-For every free `Index` on a Hilbert subspace where the user declared multiple
-indices (typical pattern: `i, j ∈ atom space`), rename it to that subspace's
-canonical-first index. Two operators that differ only by which symmetric
-atom they reference therefore collapse to one. Sum-scope `.indices` metadata
-on an averaged `QAdd` collapses to a multiplicative prefactor
-`(range − |constraint pairs|)` only when the bound index actually appears
-in the operator (a spurious annotation otherwise; see SQA `_accumulate_with_diag!`).
+Distinct symbolic free indices on the same cluster Hilbert subspace are
+interpreted as distinct atom slots (the master-style numerical labels
+`1, 2, ...`, expressed in the user's vocabulary as `i, i_2, ...`). Each
+leaf average is rewritten into its cluster-symmetric canonical form: NE
+constraints are saturated among same-space free indices, operator order
+is resolved via SQA's `_canonicalize!` under the NE, and the slot
+assignment is chosen to minimize the rendered form across the `K!`
+permutations of `K` distinct atoms per cluster. Two operators that
+differ only by which symmetric atoms they reference therefore dedup to a
+single state, while genuine two-atom cluster correlations like
+`⟨σ_i^{12} σ_{i_2}^{21}⟩` survive distinct from the single-atom
+`⟨σ_i^{22}⟩`. Sum-scope `.indices` metadata on an averaged `QAdd`
+collapses to a multiplicative prefactor `(range − |constraint pairs|)`
+only when the bound index actually appears in the operator (a spurious
+annotation otherwise; see SQA `_accumulate_with_diag!`).
 
 `IndexedVariable(:g, i)` flattens to a scalar `Num g` (uniform coupling
 under the scale symmetry).
@@ -65,7 +73,7 @@ function scale!(eqs::NoiseMeanFieldEquations; h::Vector{Int} = Int[])
     seen = Set{Any}()
     for (k, eq) in enumerate(eqs.equations)
         new_lhs = _scale_expr(eq.lhs, canon, h_set, sym_to_space)
-        key = _scale_state_key(new_lhs)
+        key = SQA.undo_average(new_lhs)
         key in seen && continue
         push!(seen, key)
         new_nrhs = _scale_expr(eqs.noise_equations[k].rhs, canon, h_set, sym_to_space)
@@ -82,9 +90,6 @@ function scale!(eqs::NoiseMeanFieldEquations; h::Vector{Int} = Int[])
 end
 
 scale(eqs::NoiseMeanFieldEquations; h::Vector{Int} = Int[]) = scale!(_copy(eqs); h)
-
-# Predicate: should we scale Hilbert subspace `sp`?  Empty `h_set` means "all".
-_in_h(h_set::Set{Int}, sp::Int) = isempty(h_set) || sp in h_set
 
 # Build a Symbol -> space_index lookup from the canonical index registry,
 # so `IndexedVariable(:g, i)` (whose Term carries only `i.sym`) can be traced
@@ -113,7 +118,7 @@ function _do_scale(eqs, canon, h_set::Set{Int}, sym_to_space::Dict{Symbol, Int})
         _is_lhs_zero(new_lhs) && continue
         new_rhs = _scale_expr(eqs.equations[k].rhs, canon, h_set, sym_to_space)
         new_lhs_avg = _as_average(new_lhs)
-        key = _scale_state_key(new_lhs_avg)
+        key = SQA.undo_average(new_lhs_avg)
         key in seen && continue
         push!(seen, key)
         push!(new_eqs, new_lhs_avg ~ new_rhs)
@@ -161,32 +166,31 @@ function _scale_avg(avg::SymbolicUtils.BasicSymbolic, canon, h_set, sym_to_space
 end
 
 # Operator-level rewrite: strip sum scope (only for selected subspaces),
-# then for each free Index appearing in operators whose Hilbert subspace is
-# in `h_set`, rename via SQA.change_index to canonical-first for that
-# subspace. SQA's _canonicalize! (invoked by change_index when .indices is
-# empty) handles same-name collapse, ne-violated drop, and projector
-# squashing. Indices on unselected subspaces keep both their names and
-# their sum-scope entries in `.indices`.
-function _scale_qadd(op::QAdd, canon, h_set::Set{Int})
+# then send the result through the cluster-symmetric canonical form on the
+# selected subspaces. The canonical form saturates NE among same-space
+# free indices, resolves operator order via `_canonicalize!`, and picks
+# the permutation-minimal slot assignment so 2-atom cluster correlations
+# survive distinct from single-atom averages, while alpha-equivalent
+# states collapse to one. Indices on unselected subspaces (per `h_set`)
+# keep both their names and their sum-scope entries in `.indices`.
+function _scale_qadd(op::QAdd, canon::_CanonIndex, h_set::Set{Int})
     kept = SQA.Index[b for b in op.indices if !_in_h(h_set, b.space_index)]
     stripped = QAdd(op.arguments, kept)
-    free = _free_op_indices(stripped)
-    result = stripped
-    for idx in free
-        _in_h(h_set, idx.space_index) || continue
-        target = _canon_first(canon, idx.space_index)
-        target === nothing && continue
-        idx == target && continue
-        result = SQA.change_index(result, idx, target)
-    end
-    return result
+    return _scaled_canonical_form(stripped, canon, h_set)
 end
-_scale_qadd(op::SQA.QSym, canon, h_set::Set{Int}) = op
+_scale_qadd(op::SQA.QSym, canon::_CanonIndex, h_set::Set{Int}) = op
 _scale_qadd(op, _, _) = op
 
-_canon_first(canon, space_index) = begin
-    list = get(canon, space_index, nothing)
-    (list === nothing || isempty(list)) ? nothing : first(list)
+function _scaled_canonical_form(op::QAdd, canon::_CanonIndex, h_set::Set{Int})
+    isempty(op.arguments) && return op
+    sat = _saturate_and_canonicalize(op, h_set)
+    free_by_space = _free_indices_by_space(sat)
+    selected = Dict{Int, Vector{SQA.Index}}()
+    for (sp, idxs) in free_by_space
+        _in_h(h_set, sp) && (selected[sp] = idxs)
+    end
+    isempty(selected) && return _strip_all_ne(sat, h_set)
+    return _min_slot_assignment(sat, selected, canon, h_set)
 end
 
 # Sum-scope prefactor: for each bound index `b` in `op.indices` that
@@ -218,13 +222,6 @@ function _sum_scope_prefactor(op::QAdd, h_set::Set{Int})
         prefactor = prefactor isa Number && prefactor == 1 ? factor : prefactor * factor
     end
     return prefactor
-end
-
-# Dedup key: the underlying operator of the scaled state. After scaling,
-# free indices all live at canonical-first names, so op-equality is enough.
-function _scale_state_key(avg::SymbolicUtils.BasicSymbolic)
-    op = SQA.undo_average(avg)
-    return op
 end
 
 # Unwrap a 1*avg product if `_scale_expr` produced one.

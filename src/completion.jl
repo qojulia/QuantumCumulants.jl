@@ -139,9 +139,128 @@ function _canonical_key(x::SymbolicUtils.BasicSymbolic, canon::_CanonIndex)
     return SQA.QAdd(result.arguments, SQA.Index[])
 end
 
-# Collect distinct free indices appearing in operators inside `op`, in
-# encounter order. Used by both `_canonical_key` (alpha-equivalence) and
-# `_scale_qadd` (permutation collapse).
+function _free_indices_by_space(op::SQA.QAdd)
+    out = Dict{Int, Vector{SQA.Index}}()
+    for (term, _) in op.arguments, o in term.ops
+        SQA.has_index(o.index) || continue
+        v = get!(out, o.index.space_index, SQA.Index[])
+        o.index in v || push!(v, o.index)
+    end
+    return out
+end
+
+# Predicate: should Hilbert subspace `sp` participate in scaling? Empty
+# `h_set` means "all subspaces" (the default), matching `scale(; h=Int[])`.
+_in_h(h_set::Set{Int}, sp::Int) = isempty(h_set) || sp in h_set
+
+function _saturate_and_canonicalize(op::SQA.QAdd, h_set::Set{Int})
+    out = SQA.QTermDict()
+    for (term, c) in op.arguments
+        ne = _maximal_pairwise_ne(term.ops, term.ne, h_set)
+        SQA._canonicalize!(out, copy(term.ops), c, ne)
+    end
+    return SQA.QAdd(out, op.indices)
+end
+
+function _maximal_pairwise_ne(
+        ops::Vector{<:SQA.QSym},
+        existing::Vector{SQA.NonEqualPair}, h_set::Set{Int},
+    )
+    by_space = Dict{Int, Vector{SQA.Index}}()
+    for o in ops
+        SQA.has_index(o.index) || continue
+        _in_h(h_set, o.index.space_index) || continue
+        v = get!(by_space, o.index.space_index, SQA.Index[])
+        o.index in v || push!(v, o.index)
+    end
+    out = copy(existing)
+    seen = Set{Tuple{SQA.Index, SQA.Index}}()
+    for (α, β) in existing
+        push!(seen, (α, β))
+        push!(seen, (β, α))
+    end
+    for (_, idxs) in by_space, a in idxs, b in idxs
+        a < b || continue
+        (a, b) in seen && continue
+        push!(out, (a, b))
+        push!(seen, (a, b))
+        push!(seen, (b, a))
+    end
+    return out
+end
+
+# Strip NE entries among same-space indices on selected subspaces (the
+# canonical slot order has absorbed them); preserve NE that touches an
+# unselected subspace or crosses subspaces.
+function _strip_all_ne(op::SQA.QAdd, h_set::Set{Int})
+    out = SQA.QTermDict()
+    for (term, c) in op.arguments
+        kept = SQA.NonEqualPair[]
+        for pair in term.ne
+            sp = pair[1].space_index
+            sp == pair[2].space_index || (push!(kept, pair); continue)
+            _in_h(h_set, sp) && continue
+            push!(kept, pair)
+        end
+        new_term = length(kept) == length(term.ne) ? term :
+            SQA.QTerm(copy(term.ops), kept)
+        out[new_term] = c
+    end
+    return SQA.QAdd(out, op.indices)
+end
+
+# Enumerate slot permutations (Cartesian product across Hilbert subspaces)
+# and pick the lexicographically smallest rendered form. Each space's K
+# free indices map to its K slot reps (slot 1 = user's first-declared
+# index; slot k > 1 minted as `Symbol(first.name, "_", k)`). For two-atom
+# correlations under permutation symmetry, this identifies
+# `⟨σ_a^{12} σ_b^{21}⟩` with `⟨σ_a^{21} σ_b^{12}⟩` (same state under
+# `a ↔ b` swap), matching master's numeric-label canonicalization.
+function _min_slot_assignment(
+        op::SQA.QAdd, free_by_space::Dict{Int, Vector{SQA.Index}},
+        canon::_CanonIndex, h_set::Set{Int},
+    )
+    spaces = sort!(collect(keys(free_by_space)))
+    slot_reps = Dict{Int, Vector{SQA.Index}}()
+    for sp in spaces
+        K = length(free_by_space[sp])
+        canon_list = get(canon, sp, SQA.Index[])
+        first_idx = isempty(canon_list) ? first(free_by_space[sp]) : first(canon_list)
+        slot_reps[sp] = SQA.Index[first_idx(k) for k in 1:K]
+    end
+    perms_per_space = [collect(Combinatorics.permutations(free_by_space[sp])) for sp in spaces]
+    best_op = nothing
+    best_key = nothing
+    for combo in Iterators.product(perms_per_space...)
+        sub = Dict{SQA.Index, SQA.Index}()
+        for (i, sp) in enumerate(spaces)
+            perm = combo[i]
+            for (k, idx) in enumerate(perm)
+                target = slot_reps[sp][k]
+                target == idx && continue
+                sub[idx] = target
+            end
+        end
+        candidate = isempty(sub) ? op : SQA.change_index(op, sub)
+        candidate = _strip_all_ne(candidate, h_set)
+        key = _serialize_for_compare(candidate)
+        if best_key === nothing || key < best_key
+            best_key = key
+            best_op = candidate
+        end
+    end
+    return best_op === nothing ? _strip_all_ne(op, h_set) : best_op
+end
+
+function _serialize_for_compare(op::SQA.QAdd)
+    terms = Vector{Any}()
+    for (term, c) in op.arguments
+        push!(terms, (String[string(o) for o in term.ops], string(c)))
+    end
+    sort!(terms)
+    return terms
+end
+
 function _free_op_indices(op::SQA.QAdd)
     out = SQA.Index[]
     for (term, _) in op.arguments, o in term.ops
@@ -273,9 +392,8 @@ function _derive_for(
         eqs::MeanFieldEquations, new_ops; mix_choice = maximum
     )
     return _meanfield_deterministic(
-        eqs.direction, new_ops, eqs.hamiltonian, eqs.jumps,
-        eqs.jumps_dagger, eqs.rates, eqs.order,
-        mix_choice, eqs.iv,
+        eqs.direction, new_ops, eqs.hamiltonian, eqs.jumps, eqs.jumps_dagger,
+        eqs.rates, eqs.order, mix_choice, eqs.iv,
     )
 end
 
@@ -283,9 +401,8 @@ function _derive_for(
         eqs::NoiseMeanFieldEquations, new_ops; mix_choice = maximum
     )
     return _meanfield_noise(
-        eqs.direction, new_ops, eqs.hamiltonian, eqs.jumps,
-        eqs.jumps_dagger, eqs.rates, eqs.efficiencies,
-        eqs.order, mix_choice, eqs.iv
+        eqs.direction, new_ops, eqs.hamiltonian, eqs.jumps, eqs.jumps_dagger,
+        eqs.rates, eqs.efficiencies, eqs.order, mix_choice, eqs.iv,
     )
 end
 

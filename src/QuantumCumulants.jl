@@ -13,6 +13,7 @@ using Latexify: Latexify, @latexrecipe
 using LaTeXStrings: LaTeXStrings
 using MacroTools: MacroTools
 using OrderedCollections: OrderedCollections
+using Combinatorics: Combinatorics
 using TermInterface: TermInterface
 using LinearAlgebra: I
 const MTK = ModelingToolkitBase

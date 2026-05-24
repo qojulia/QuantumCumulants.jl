@@ -170,6 +170,7 @@ end
 
 function _lindblad_rhs(op, J, Jdagger, rates)
     isempty(J) && return zero(op)
+    op_idx = _op_free_indices(op)
     acc = zero(op)
     @inbounds for k in eachindex(J)
         rk = rates[k]
@@ -184,28 +185,63 @@ function _lindblad_rhs(op, J, Jdagger, rates)
                 )
             end
         else
-            acc += (rk / 2) * (
+            term = (rk / 2) * (
                 Jdagger[k] * commutator(op, J[k]) +
                     commutator(Jdagger[k], op) * J[k]
             )
+            acc += _sum_over_jump_indices(term, J[k], op_idx)
         end
     end
     return acc
+end
+
+# Free indices of an operator that are not bound by a sum scope. An indexed
+# jump σ_i^{21} carries a free `Index` i; wrapping the per-jump dissipator in
+# Σ_i is what produces independent-decay (rather than collective) semantics
+# and lets SQA's diagonal split fire (same-site i = j contributions reduce
+# algebraically, different-site i ≠ j contributions vanish via commutation).
+_op_free_indices(op::SQA.QSym) =
+    SQA.has_index(op.index) ? SQA.Index[op.index] : SQA.Index[]
+function _op_free_indices(op::QAdd)
+    bound = Set(op.indices)
+    free = SQA.Index[]
+    for term in keys(op.arguments), o in term.ops
+        SQA.has_index(o.index) || continue
+        o.index in bound && continue
+        o.index in free && continue
+        push!(free, o.index)
+    end
+    return free
+end
+_op_free_indices(_) = SQA.Index[]
+
+# Wrap `term` in Σ over each free index that originates in the jump and is
+# not already an LHS observable index. Returns `term` unchanged when there
+# are no jump-specific free indices (non-indexed jumps, or user-supplied
+# explicitly Σ-wrapped jumps).
+function _sum_over_jump_indices(term, jump, op_idx)
+    jump_idx = _op_free_indices(jump)
+    isempty(jump_idx) && return term
+    free = SQA.Index[i for i in jump_idx if !(i in op_idx)]
+    isempty(free) && return term
+    return SQA.Σ(term, free[1], free[2:end]...)
 end
 
 # Adjoint-action Lindblad recycling for the backward Heisenberg/Kalman
 # retrodiction picture. Matches master's `_master_lindblad_backward`.
 function _master_lindblad_backward(op, J, Jdagger, rates)
     isempty(J) && return zero(op)
+    op_idx = _op_free_indices(op)
     acc = zero(op)
     @inbounds for k in eachindex(J)
         rk = rates[k]
         rk isa AbstractMatrix && error(
             "Nondiagonal measurements not supported in backward retrodiction",
         )
-        acc += (-rk / 2) * op * Jdagger[k] * J[k]
-        acc += (-rk / 2) * Jdagger[k] * J[k] * op
-        acc += rk * J[k] * op * Jdagger[k]
+        term = (-rk / 2) * op * Jdagger[k] * J[k] +
+            (-rk / 2) * Jdagger[k] * J[k] * op +
+            rk * J[k] * op * Jdagger[k]
+        acc += _sum_over_jump_indices(term, J[k], op_idx)
     end
     return acc
 end

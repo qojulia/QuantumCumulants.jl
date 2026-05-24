@@ -1,6 +1,7 @@
 using QuantumCumulants
 using SecondQuantizedAlgebra: SecondQuantizedAlgebra
 using Symbolics: Symbolics, @variables
+using SymbolicUtils: SymbolicUtils
 using Test
 
 @testset "indexed meanfield: collective atomic emission" begin
@@ -65,14 +66,115 @@ end
     # Every index appearing in the completed system must trace back to the
     # user's declared vocabulary. The completion path canonicalizes leaf
     # averages against the user-provided indices and never invents new
-    # ones (names like `i1`, `_c1`, etc. must not appear).
+    # ones (names like `i1`, `_c1`, etc. must not appear). Slot reps
+    # `Symbol(base, "_", k)` minted by the cluster-symmetric canonical form
+    # also count as user vocabulary since they derive deterministically from
+    # the user's first-declared index per CLAUDE.md naming policy.
     declared = Set([i_ind.name, k_ind.name])
+    function _is_user_derived(name::Symbol)
+        name in declared && return true
+        s = String(name)
+        for d in declared
+            ds = String(d) * "_"
+            startswith(s, ds) || continue
+            tail = s[(length(ds) + 1):end]
+            isempty(tail) && continue
+            all(isdigit, tail) && return true
+        end
+        return false
+    end
     for op in ceqs.operators
         for idx in SecondQuantizedAlgebra.get_indices(op)
-            @test idx.name in declared
+            @test _is_user_derived(idx.name)
         end
     end
 end
+
+@testset "indexed jumps: per-jump dissipator is summed over jump index" begin
+    # Regression for the superradiant-laser σ_j^{22} leak: indexed jumps must
+    # induce independent-decay semantics (Σ_i D[J_i] applied separately for
+    # each atom), so SQA's diagonal split fires and the i ≠ j contribution
+    # vanishes by commutation. Without the Σ-wrap, σ_i^{12} σ_j^{22} σ_i^{21}
+    # and σ_i^{22} σ_j^{22} σ_i^{22} survived in the operator RHS and cumulant
+    # truncation produced spurious ⟨σ_j^{22}⟩², ⟨σ_j^{22}⟩³, ⟨σ_j^{22}⟩⟨σ_i^{11}⟩
+    # terms after scale.
+    hc = FockSpace(:cavity); ha = NLevelSpace(:atom, 2); h = hc ⊗ ha
+    @qnumbers a::Destroy(h)
+    σ(α, β, k) = IndexedOperator(Transition(h, :σ, α, β), k)
+    @variables N Δ R Γ ν
+    g(k) = IndexedVariable(:g, k)
+    i = Index(h, :i, N, ha); j = Index(h, :j, N, ha)
+
+    H = -Δ * a' * a + Σ(g(i) * (a' * σ(1, 2, i) + a * σ(2, 1, i)), i)
+    J = [σ(1, 2, i), σ(2, 1, i), σ(2, 2, i)]
+    rates = [Γ, R, ν]
+
+    eqs = meanfield([σ(2, 2, j)], H, J; rates = rates, order = 2)
+    rhs = eqs.equations[1].rhs
+
+    # The dissipator must collapse to the master-equation form
+    #   R + (-R - Γ) ⟨σ_j^{22}⟩ + i g_j ⟨a' σ_j^{12}⟩ - i g_j ⟨a σ_j^{21}⟩
+    # with no surviving cross-site σ_i*σ_j products on the RHS. order=2 does
+    # not cumulant-truncate anything here (all averages are already ≤ 2-op).
+    expected = R + (-R - Γ) * average(σ(2, 2, j)) +
+        Symbolics.IM * g(j) * average(a' * σ(1, 2, j)) -
+        Symbolics.IM * g(j) * average(a * σ(2, 1, j))
+    diff = rhs - expected
+    @test SymbolicUtils._iszero(SymbolicUtils.simplify(diff; expand = true))
+end
+
+@testset "indexed jumps: σ_jj equation has no σ²/σ³ leak after scale" begin
+    SQA = SecondQuantizedAlgebra
+    hc = FockSpace(:cavity); ha = NLevelSpace(:atom, 2); h = hc ⊗ ha
+    @qnumbers a::Destroy(h)
+    σ(α, β, k) = IndexedOperator(Transition(h, :σ, α, β), k)
+    @variables N Δ κ Γ R ν g
+    i = Index(h, :i, N, ha); j = Index(h, :j, N, ha)
+    g_idx(k) = IndexedVariable(:g, k)
+
+    H = -Δ * a' * a + Σ(g_idx(i) * (a' * σ(1, 2, i) + a * σ(2, 1, i)), i)
+    J = [a, σ(1, 2, i), σ(2, 1, i), σ(2, 2, i)]
+    rates = [κ, Γ, R, ν]
+
+    φ(x) = 0
+    φ(::Destroy) = -1
+    φ(::Create) = 1
+    φ(x::SQA.QSym) = x isa SQA.Transition ? x.i - x.j : 0
+    function φ(q::SQA.QAdd)
+        for (term, _) in q.arguments
+            p = 0
+            for op in term.ops
+                p += φ(op)
+            end
+            return p
+        end
+        return 0
+    end
+    φ(avg) = SQA.is_average(avg) ? φ(SQA.undo_average(avg)) : 0
+    phase_invariant(x) = iszero(φ(x))
+
+    eqs = meanfield([a' * a, σ(2, 2, j)], H, J; rates = rates, order = 2)
+    eqs_c = complete(eqs; filter_func = phase_invariant)
+    eqs_sc = scale(eqs_c)
+
+    # Pick the σ_{i_1}^{22} equation. Under the materialised-index
+    # convention, scale renames all free indices to suffixed slots
+    # (slot 1 = `i(1) == Index(:i_1, …)`), so the canonical free
+    # index in scaled equations is `i(1)`, not bare `i`.
+    i1 = i(1)
+    σ22_op = average(σ(2, 2, i1))
+    σ22_idx = findfirst(eq -> isequal(eq.lhs, σ22_op), eqs_sc.equations)
+    @test σ22_idx !== nothing
+    σ22_rhs = eqs_sc.equations[σ22_idx].rhs
+
+    # `IndexedVariable(:g, i)` flattens to the scalar `g` under scale.
+    expected = R + (-R - Γ) * average(σ(2, 2, i1)) +
+        Symbolics.IM * g * average(a' * σ(1, 2, i1)) -
+        Symbolics.IM * g * average(a * σ(2, 1, i1))
+    diff = σ22_rhs - expected
+    @test SymbolicUtils._iszero(SymbolicUtils.simplify(diff; expand = true))
+end
+
 
 @testset "indexed meanfield: alpha-equivalent leaves are one state" begin
     # When `H` is summed over `i_ind` and the user's `ops` use `k_ind`,
