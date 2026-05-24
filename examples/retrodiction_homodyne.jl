@@ -5,7 +5,9 @@
 
 using QuantumCumulants
 using ModelingToolkitBase
+using ModelingToolkitBase: t_nounits as t
 using OrdinaryDiffEq
+using OrdinaryDiffEqLowOrderRK
 using StochasticDiffEq
 using Plots
 using Random # hide
@@ -20,7 +22,6 @@ p = Momentum(h, :p)
 @variables Ω Γ η s
 m = 1
 
-@syms t::Real
 @register_symbolic Ydot(t) # measurement current
 @register_symbolic Ydot_rev(t) # time-reverse measurement current
 
@@ -118,7 +119,7 @@ eqs_kal = modify_equations(eqs_det, f_measure)
 
 #
 
-sys_kal = System(eqs_kal; name = :sys_kal)
+sys_kal = mtkcompile(System(eqs_kal; name = :sys_kal))
 prob_kal = ODEProblem(sys_kal, dict_fw, (0, Tend))
 nothing # hide
 
@@ -180,7 +181,7 @@ eqs_back_kal_c2 = modify_equations(eqs_back_kal_c1, f_back_kal)
 #
 
 # deterministic smoothing equations
-sys_back_kal = System(eqs_back_kal_c2; name = :sys_back_kal)
+sys_back_kal = mtkcompile(System(eqs_back_kal_c2; name = :sys_back_kal))
 u0_bw = [0.0 + 0im, 0, 100, 0, 100]
 dict_bw = merge(Dict(unknowns(sys_back_kal) .=> u0_bw), Dict(ps .=> pn))
 prob_bw_kal = ODEProblem(sys_back_kal, dict_bw, (0, Tend))

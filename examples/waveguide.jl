@@ -139,9 +139,11 @@ nothing # hide
 
 # Finally, we create the ODE-problem, calculate the dynamics and plot the results. We see a fast transfer of the population from the initially excited to the other atomic ensemble.
 
+# Since `ps`/`p0` carry diagonal entries `Ω_i_i`/`Γ_i_i` that the Hamiltonian never references (it sums over `i ≠ j`), we filter them out with `parameter_map(sys, …)` because MTK v10 rejects superfluous parameter assignments.
+
 sys = System(eqs; name = :sys)
 sys = mtkcompile(sys)
-dict = merge(Dict(unknowns(sys) .=> u0), Dict(ps .=> p0))
+dict = parameter_map(sys, merge(Dict(unknowns(sys) .=> u0), Dict(ps .=> p0)))
 prob = ODEProblem(sys, dict, (0.0, 8e-3))
 sol = solve(prob, Tsit5(), abstol = 1e-6, reltol = 1e-6)
 

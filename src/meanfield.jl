@@ -1,9 +1,9 @@
-_make_iv() = first(MTK.@independent_variables t)
+_make_iv() = MTK.t_nounits
 
 """
     meanfield(ops, H, J=QField[]; Jdagger=adjoint.(J), rates=ones(length(J)),
               efficiencies=nothing, direction=Forward(),
-              order=nothing, mix_choice=maximum, iv=Symbolics.variable(:t))
+              order=nothing, mix_choice=maximum, iv=ModelingToolkitBase.t_nounits)
 
 Compute equations of motion for the averages of `ops` under Hamiltonian `H`
 and collapse operators `J` (with rates `rates`). Returns a `MeanFieldEquations`
