@@ -13,9 +13,10 @@ seen so it isn't returned again on a later RHS scan).
 """
 function find_missing(
         eqs::AbstractMeanFieldEquations; filter_func = nothing,
-        get_adjoints::Bool = true
+        get_adjoints::Bool = true,
+        canon = nothing,
     )
-    canon = _build_canonical_indices(eqs)
+    canon = canon === nothing ? _build_canonical_indices(eqs) : canon
     seen_keys = Set{SQA.QAdd}()
     for s in eqs.states
         push!(seen_keys, _canonical_key(s, canon))
@@ -88,10 +89,68 @@ function _build_canonical_indices(eqs::AbstractMeanFieldEquations)
         v = get!(canon, idx.space_index, SQA.Index[])
         idx in v || push!(v, idx)
     end
-    for v in values(canon)
+    # Restrict canon slots to indices that are NOT bound by a sum in H or
+    # claimed as a collective-jump index. Slots beyond this filtered set are
+    # minted on demand inside `_canonical_key` via `Index(...)(k)`, which
+    # preserves the user's naming root while keeping every canonical slot
+    # disjoint from H/J bound names. If the bound names appeared as canon
+    # slots, `_derive_for` would call `meanfield` on a LHS whose free index
+    # re-clashes with H's bound scope, silently dropping the cross-atom
+    # commutator term.
+    bound = _bound_indices(eqs)
+    for (space, v) in canon
+        original = copy(v)
+        filter!(idx -> !(idx in bound), v)
+        # If every user-declared index on this space is bound (e.g. user
+        # reused both `i` and `j` for two sum scopes and left no free LHS
+        # name on the atom space), mint a single canonical slot as the
+        # successor of the lex-first declared name. Without this fallback,
+        # `complete!` would discover atom states with whatever name the
+        # commutator happened to produce, mixing `i_2`, `j`, etc. across
+        # iterations and breaking dedup.
+        if isempty(v) && !isempty(original)
+            sort!(original, by = idx -> idx.name)
+            push!(v, original[1](2))
+        end
         sort!(v, by = idx -> idx.name)
     end
     return canon
+end
+
+# Indices the Liouvillian treats as bound: either explicitly bound by a sum
+# scope inside H, or appearing on a jump operator (collective decay sums over
+# the jump's index). When `complete!` derives equations for a state whose
+# free index name coincides with one of these, the inner commutator sees a
+# spurious clash and drops cross-atom terms. `_derive_for` alpha-renames the
+# LHS away from these names before calling `meanfield`.
+function _bound_indices(eqs::AbstractMeanFieldEquations)
+    out = Set{SQA.Index}()
+    _collect_indices_from_qadd_bound!(out, eqs.hamiltonian)
+    for j in _flatten_jumps(eqs.jumps)
+        _collect_indices_from_qadd_bound!(out, j)
+    end
+    for j in _flatten_jumps(eqs.jumps_dagger)
+        _collect_indices_from_qadd_bound!(out, j)
+    end
+    return out
+end
+
+# Bound from H's perspective: sum-scope `.indices` and free indices on any
+# atom inside H (the Liouvillian treats J entries as collective sums over
+# their carried index).
+_collect_indices_from_qadd_bound!(::Set{SQA.Index}, ::Any) = nothing
+function _collect_indices_from_qadd_bound!(out::Set{SQA.Index}, q::SQA.QAdd)
+    for idx in q.indices
+        push!(out, idx)
+    end
+    for (term, _) in q.arguments, o in term.ops
+        SQA.has_index(o.index) && push!(out, o.index)
+    end
+    return nothing
+end
+function _collect_indices_from_qadd_bound!(out::Set{SQA.Index}, q::SQA.QSym)
+    SQA.has_index(q.index) && push!(out, q.index)
+    return nothing
 end
 
 _flatten_jumps(js::AbstractVector{<:QField}) = js
@@ -113,8 +172,13 @@ function _canonical_key(x::SymbolicUtils.BasicSymbolic, canon::_CanonIndex)
     # leaf `Σ_i ⟨σ_{i,22}⟩` must dedup against the per-atom state
     # `⟨σ_{i,22}⟩`. `evaluate` later re-materialises the sum at codegen by
     # enumerating the concrete atom states.
-    op = isempty(op_raw.indices) ? op_raw :
-        SQA.QAdd(op_raw.arguments, SQA.Index[])
+    #
+    # Also strip per-term NE pairs that reference an index not present in the
+    # term's operators: such pairs are constraints inherited from a deeper
+    # derivation (e.g. a parent state with two free indices propagating
+    # `i ≠ j` into a sub-product that only mentions `i`) and are physically
+    # irrelevant to the leaf state's identity.
+    op = _strip_irrelevant_metadata(op_raw)
     encountered = _free_op_indices(op)
     pos_by_space = Dict{Int, Int}()
     rename = Dict{SQA.Index, SQA.Index}()
@@ -122,14 +186,18 @@ function _canonical_key(x::SymbolicUtils.BasicSymbolic, canon::_CanonIndex)
         pos = get(pos_by_space, idx.space_index, 0) + 1
         pos_by_space[idx.space_index] = pos
         space_canon = get(canon, idx.space_index, nothing)
-        space_canon === nothing && continue
-        pos <= length(space_canon) || continue
-        target = space_canon[pos]
+        (space_canon === nothing || isempty(space_canon)) && continue
+        # Slot 1 = first user-declared free index on this space; slot k>1 is
+        # minted from the same vocabulary via `Index(...)(k)` (e.g. `j` ↦
+        # `j_2`). Minting on demand keeps canon names disjoint from H/J
+        # bound names regardless of how many free indices a state has.
+        target = pos <= length(space_canon) ? space_canon[pos] :
+            space_canon[1](pos)
         target == idx && continue
         rename[idx] = target
     end
     if isempty(rename)
-        return op === op_raw ? op : SQA.QAdd(op.arguments, SQA.Index[])
+        return SQA.QAdd(op.arguments, SQA.Index[])
     end
     # Batched `change_index` does the rename simultaneously, so a target
     # name that coincides with another encountered index (e.g. swapping
@@ -137,6 +205,25 @@ function _canonical_key(x::SymbolicUtils.BasicSymbolic, canon::_CanonIndex)
     # mid-rename.
     result = SQA.change_index(op, rename)
     return SQA.QAdd(result.arguments, SQA.Index[])
+end
+
+function _strip_irrelevant_metadata(op_raw::SQA.QAdd)
+    new_args = SQA.QTermDict()
+    for (term, c) in op_raw.arguments
+        op_indices = Set{SQA.Index}()
+        for o in term.ops
+            SQA.has_index(o.index) && push!(op_indices, o.index)
+        end
+        kept = SQA.NonEqualPair[]
+        for pair in term.ne
+            (pair[1] in op_indices && pair[2] in op_indices) || continue
+            push!(kept, pair)
+        end
+        new_term = length(kept) == length(term.ne) ? term :
+            SQA.QTerm(copy(term.ops), kept)
+        new_args[new_term] = c
+    end
+    return SQA.QAdd(new_args, SQA.Index[])
 end
 
 function _free_indices_by_space(op::SQA.QAdd)
@@ -391,19 +478,164 @@ end
 function _derive_for(
         eqs::MeanFieldEquations, new_ops; mix_choice = maximum
     )
-    return _meanfield_deterministic(
-        eqs.direction, new_ops, eqs.hamiltonian, eqs.jumps, eqs.jumps_dagger,
+    bound = _bound_indices(eqs)
+    fresh_ops, undo = _alpha_rename_away(new_ops, bound)
+    derived = _meanfield_deterministic(
+        eqs.direction, fresh_ops, eqs.hamiltonian, eqs.jumps, eqs.jumps_dagger,
         eqs.rates, eqs.order, mix_choice, eqs.iv,
     )
+    return isempty(undo) ? derived : _apply_undo(derived, undo)
 end
 
 function _derive_for(
         eqs::NoiseMeanFieldEquations, new_ops; mix_choice = maximum
     )
-    return _meanfield_noise(
-        eqs.direction, new_ops, eqs.hamiltonian, eqs.jumps, eqs.jumps_dagger,
+    bound = _bound_indices(eqs)
+    fresh_ops, undo = _alpha_rename_away(new_ops, bound)
+    derived = _meanfield_noise(
+        eqs.direction, fresh_ops, eqs.hamiltonian, eqs.jumps, eqs.jumps_dagger,
         eqs.rates, eqs.efficiencies, eqs.order, mix_choice, eqs.iv,
     )
+    return isempty(undo) ? derived : _apply_undo(derived, undo)
+end
+
+# Pick fresh names for any LHS free index that clashes with an H/J bound name.
+# The fresh names are minted from the same user-declared index via the
+# `Index(...)(k)` convention so they stay in the user's vocabulary. The undo
+# map flips the rename so derived equations can be reported in canonical
+# (user-facing) names.
+function _alpha_rename_away(ops::AbstractVector, bound::Set{SQA.Index})
+    isempty(bound) && return ops, Dict{SQA.Index, SQA.Index}()
+    rename = Dict{SQA.Index, SQA.Index}()
+    for op in ops
+        for idx in _all_indices(op)
+            (idx in bound) || continue
+            haskey(rename, idx) && continue
+            # Mint a successor name from the same root index that is not in
+            # `bound` nor already a target. We expand k=2,3,... so the chosen
+            # fresh name is deterministic across runs.
+            k = 2
+            local target::SQA.Index
+            while true
+                target = idx(k)
+                (target in bound) || (target in values(rename)) || break
+                k += 1
+            end
+            rename[idx] = target
+        end
+    end
+    isempty(rename) && return ops, Dict{SQA.Index, SQA.Index}()
+    fresh_ops = [_rename_op(op, rename) for op in ops]
+    undo = Dict{SQA.Index, SQA.Index}(v => k for (k, v) in rename)
+    return fresh_ops, undo
+end
+
+_rename_op(op, rename) = op
+_rename_op(op::SQA.QSym, rename) = SQA.change_index(op, rename)
+function _rename_op(op::SQA.QAdd, rename)
+    # If any sum-bound index name collides with a rename target, mint a
+    # successor for the bound index first so the undo of `fresh → orig`
+    # doesn't fuse a free `orig` with the sum's bound scope.
+    isempty(op.indices) && return SQA.change_index(op, rename)
+    bound_renames = Dict{SQA.Index, SQA.Index}()
+    targets = Set{SQA.Index}(values(rename))
+    for bidx in op.indices
+        bidx in targets || continue
+        k = 2
+        local fresh::SQA.Index
+        while true
+            fresh = bidx(k)
+            (fresh in targets) || (fresh in keys(rename)) || (fresh in op.indices) || break
+            k += 1
+        end
+        bound_renames[bidx] = fresh
+    end
+    if isempty(bound_renames)
+        return SQA.change_index(op, rename)
+    end
+    relabelled = SQA.change_index(op, bound_renames)
+    return SQA.change_index(relabelled, rename)
+end
+
+_all_indices(op) = SQA.Index[]
+_all_indices(op::SQA.QSym) = SQA.has_index(op.index) ? SQA.Index[op.index] : SQA.Index[]
+function _all_indices(op::SQA.QAdd)
+    out = SQA.Index[]
+    for idx in op.indices
+        idx in out || push!(out, idx)
+    end
+    for (term, _) in op.arguments, o in term.ops
+        SQA.has_index(o.index) || continue
+        o.index in out || push!(out, o.index)
+    end
+    return out
+end
+
+# Walk a derived MeanFieldEquations and substitute back from fresh names to
+# the user-visible canonical names so eqs.states / eqs.equations / etc.
+# remain in the user's vocabulary.
+function _apply_undo(eqs::MeanFieldEquations, undo::Dict{SQA.Index, SQA.Index})
+    new_equations = [
+        _undo_in_expr(eq.lhs, undo) ~ _undo_in_expr(eq.rhs, undo) for eq in eqs.equations
+    ]
+    new_op_eqs = [
+        _undo_in_op_eq(oe, undo) for oe in eqs.operator_equations
+    ]
+    new_states = [_undo_in_expr(s, undo) for s in eqs.states]
+    new_operators = [_rename_op(o, undo) for o in eqs.operators]
+    return MeanFieldEquations(
+        new_equations, new_op_eqs, new_states, new_operators,
+        eqs.hamiltonian, eqs.jumps, eqs.jumps_dagger, eqs.rates,
+        eqs.iv, eqs.order, eqs.direction,
+    )
+end
+
+function _apply_undo(eqs::NoiseMeanFieldEquations, undo::Dict{SQA.Index, SQA.Index})
+    new_equations = [
+        _undo_in_expr(eq.lhs, undo) ~ _undo_in_expr(eq.rhs, undo) for eq in eqs.equations
+    ]
+    new_noise_eqs = [
+        _undo_in_expr(eq.lhs, undo) ~ _undo_in_expr(eq.rhs, undo) for eq in eqs.noise_equations
+    ]
+    new_op_eqs = [
+        _undo_in_op_eq(oe, undo) for oe in eqs.operator_equations
+    ]
+    new_op_noise_eqs = [
+        _undo_in_op_eq(oe, undo) for oe in eqs.operator_noise_equations
+    ]
+    new_states = [_undo_in_expr(s, undo) for s in eqs.states]
+    new_operators = [_rename_op(o, undo) for o in eqs.operators]
+    return NoiseMeanFieldEquations(
+        new_equations, new_noise_eqs, new_op_eqs, new_op_noise_eqs,
+        new_states, new_operators,
+        eqs.hamiltonian, eqs.jumps, eqs.jumps_dagger, eqs.rates,
+        eqs.efficiencies, eqs.iv, eqs.order, eqs.direction,
+    )
+end
+
+_undo_in_op_eq(oe, undo) = _rename_op(oe.lhs, undo) ~ _rename_op(oe.rhs, undo)
+
+function _undo_in_expr(x, undo::Dict{SQA.Index, SQA.Index})
+    isempty(undo) && return x
+    return _undo_walk(x, undo)
+end
+
+function _undo_walk(x, undo)
+    x isa SymbolicUtils.BasicSymbolic || return x
+    if _is_leaf_average(x)
+        op = SQA.undo_average(x)
+        new_op = _rename_op(op, undo)
+        new_op === op && return x
+        return average(new_op)
+    end
+    SymbolicUtils.iscall(x) || return x
+    f = SymbolicUtils.operation(x)
+    args = SymbolicUtils.arguments(x)
+    new_args = Any[_undo_walk(a, undo) for a in args]
+    if all(==(true), (a === b for (a, b) in zip(args, new_args)))
+        return x
+    end
+    return f(new_args...)
 end
 
 function complete!(

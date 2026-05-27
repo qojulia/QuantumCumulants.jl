@@ -159,3 +159,50 @@ end
     corr_sc = scale(corr)
     @test corr_sc isa CorrelationFunction
 end
+
+
+@testset "indexed CorrelationFunction: ancilla canon threads parent canon" begin
+    # Regression for `_complete_ancilla!`'s `parent_canon` kwarg
+    # (src/correlation.jl). After `scale`, the parent system's
+    # canonical-index pool on the atom subspace is e.g. `[j_2_1, j_2_2]`
+    # (materialised via the fallback `Index(:j)(2)` because user `j` is
+    # bound by H). When the ancilla derivation for the correlation
+    # function builds its own canon from scratch, it must reuse the
+    # parent's vocabulary so that steady-state lookups against
+    # `eqs0.states` succeed. Pre-fix the ancilla would mint fresh
+    # `j_3`-suffixed slots, the lookup missed, and `Spectrum` collapsed
+    # to a constant (superradiant_laser_indexed spectrum bug).
+    @variables Δ::Real g::Real κ::Real Γ::Real R::Real ν::Real N::Real
+    hc = FockSpace(:cavity); ha = NLevelSpace(:atom, 2); h = hc ⊗ ha
+    @qnumbers a::Destroy(h, 1)
+    σ(α, β, k) = IndexedOperator(Transition(h, :σ, α, β, 2), k)
+    j_ind = Index(h, :j, N, ha)
+    H = Δ * Σ(σ(2, 2, j_ind), j_ind) +
+        g * Σ(a' * σ(1, 2, j_ind) + a * σ(2, 1, j_ind), j_ind)
+    J = [a, σ(1, 2, j_ind), σ(2, 1, j_ind), σ(2, 2, j_ind)]
+    eqs_c = complete(meanfield([a' * a], H, J; rates = [κ, Γ, R, ν], order = 2))
+    eqs_sc = scale(eqs_c)
+
+    parent_canon = QuantumCumulants._build_canonical_indices(eqs_sc)
+    corr = CorrelationFunction(a', a, eqs_sc)
+    ancilla_canon = QuantumCumulants._build_canonical_indices(corr.eqs)
+
+    # The ancilla atom-canon list must be a subset of the parent's.
+    atom_space = 2
+    parent_pool = Set(get(parent_canon, atom_space, []))
+    ancilla_pool = Set(get(ancilla_canon, atom_space, []))
+    @test !isempty(parent_pool)
+    @test issubset(ancilla_pool, parent_pool)
+
+    # Stronger: every atom-space index appearing in an ancilla state's
+    # operator must come from the parent's pool, not from a freshly
+    # minted name like `j_3`.
+    SQA = QuantumCumulants.SecondQuantizedAlgebra
+    for s in corr.eqs.states
+        op = SQA.undo_average(s)
+        for idx in QuantumCumulants._all_indices(op)
+            idx.space_index == atom_space || continue
+            @test idx in parent_pool
+        end
+    end
+end

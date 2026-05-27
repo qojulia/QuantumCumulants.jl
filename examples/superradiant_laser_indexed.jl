@@ -142,7 +142,7 @@ sol = solve(prob, Tsit5(), maxiters = 1.0e7) # Solve the numeric problem
 
 t = sol.t # Plot time evolution
 n = real.(get_solution(sol, a'a, eqs_sc).(t))
-s22 = real.(get_solution(sol, σ(2, 2, i), eqs_sc).(t))
+s22 = real.(get_solution(sol, σ(2, 2, j(1)), eqs_sc).(t))
 p1 = plot(t, n, xlabel = "tΓ", ylabel = "⟨a⁺a⟩", legend = false) # Plot
 p2 = plot(t, s22, xlabel = "tΓ", ylabel = "⟨σ22⟩", legend = false)
 plot(p1, p2, layout = (1, 2), size = (700, 300))

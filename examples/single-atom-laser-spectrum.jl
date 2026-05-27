@@ -9,7 +9,7 @@
 using Latexify # hide
 set_default(double_linebreak = true) # hide
 using QuantumCumulants
-using ModelingToolkitBase, OrdinaryDiffEq
+using ModelingToolkitBase, OrdinaryDiffEq, OrdinaryDiffEqLowOrderRK
 using Plots
 
 @variables Δ g γ κ ν # Define parameters

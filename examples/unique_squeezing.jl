@@ -141,7 +141,7 @@ for k in 1:length(N_ls)
     plot!(p1, t_, real.(sqx), label = "N = $(N_ls[k])", color = c_ls[k])
     plot!(p1, t_, -real.(sqy), ls = :dash, label = nothing, color = c_ls[k])
 
-    s22 = get_solution(sol, σ(2, 2, i), eqs_sc).(t_)
+    s22 = get_solution(sol, σ(2, 2, j(1)), eqs_sc).(t_)
     plot!(p2, t_, real.(2s22 .- 1), color = c_ls[k], label = nothing)
 end
 plot(

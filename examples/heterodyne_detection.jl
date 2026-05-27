@@ -106,10 +106,11 @@ plot!(graph, sol_det.t, real(get_solution(sol_det, a'a, scaled_eqs)(sol_det.t)),
 # We can then make use of the `EnsembleProblem`, which automatically runs multiple instances of the stochastic equations of motion. The number of trajectories can be set in the solve call. See the tutorial linked above for more details of the function calls here.
 
 sys_st = mtkcompile(System(scaled_eqs; name = :sys_st))
+dict_st = parameter_map(sys_st, merge(Dict(unknowns(sys_st) .=> u0), Dict(p .=> p0)))
 
 Random.seed!(2) # hide
 noise = StochasticDiffEq.RealWienerProcess(0.0, 0.0)
-prob_st = SDEProblem(sys_st, dict, (0.0, T_end); noise = noise)
+prob_st = SDEProblem(sys_st, dict_st, (0.0, T_end); noise = noise)
 sol_test = solve(prob_st, EM(); dt = T_end / 2e5);
 
 plot(

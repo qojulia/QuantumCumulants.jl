@@ -9,7 +9,7 @@
 
 
 using QuantumCumulants
-using OrdinaryDiffEq, ModelingToolkitBase
+using OrdinaryDiffEq, OrdinaryDiffEqLowOrderRK, ModelingToolkitBase
 using Plots
 
 hc = FockSpace(:cavity) # Hilbertspace

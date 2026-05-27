@@ -124,7 +124,13 @@ function _evaluate_unroll(eqs::MeanFieldEquations, sub_dict, h_set::Set{Int})
     state_map = Dict{SQA.QAdd, SymbolicUtils.BasicSymbolic}()
     for s in new_states
         key = _canonical_key(s, canon_post)
-        key isa SQA.QAdd && (state_map[key] = s)
+        key isa SQA.QAdd && get!(state_map, key, s)
+        # Also key by the literal (no-alpha-rename) form so RHS leaves
+        # whose only difference is an irrelevant NE pair from a parent
+        # sum can still be resolved to their atom-specific state without
+        # being alpha-collapsed to canon slot 1.
+        lit = _literal_key(s)
+        lit isa SQA.QAdd && get!(state_map, lit, s)
     end
     for k in eachindex(new_eqs)
         new_eqs[k] = new_eqs[k].lhs ~
@@ -658,14 +664,51 @@ end
 # Walk `x` and replace every leaf `average(...)` whose canonical key is in
 # `state_map` with the corresponding state symbol. Leaves whose canonical
 # form is not a state are left untouched.
+# Operator-structure key without alpha-renaming concrete indices. Strips
+# sum scope and per-term NE pairs that reference indices not present in
+# the leaf's own operators (constraints inherited from a parent sum that
+# the leaf is a sub-product of). Distinct concrete atom labels stay
+# distinct, so single-atom states `⟨σ_{j_1}⟩` and `⟨σ_{j_2}⟩` do not
+# alpha-collapse into one canonical key.
+function _literal_key(x::SymbolicUtils.BasicSymbolic)
+    op_raw = SQA.undo_average(x)
+    op_raw isa SQA.QAdd || return op_raw
+    return _strip_irrelevant_metadata(op_raw)
+end
+_literal_key(::Any) = nothing
+
 function _canonicalise_avg_leaves(x, canon, state_map::Dict{SQA.QAdd, SymbolicUtils.BasicSymbolic})
     x isa SymbolicUtils.BasicSymbolic || return x
     if _is_leaf_average(x)
+        # Try the literal (no-alpha-rename) key first so atom-distinct
+        # states `⟨σ_{j_1}⟩` and `⟨σ_{j_2}⟩` do not get collapsed onto
+        # canon slot 1 when matching against the state map. This matters
+        # when atoms are distinguishable (per-atom indexed parameters)
+        # or when the leaf carries an irrelevant NE pair from a parent
+        # sum (irrelevant because the leaf's own operators do not
+        # reference both pair members; see `_strip_irrelevant_metadata`).
+        literal = _literal_key(x)
+        if literal isa SQA.QAdd
+            lit_rep = get(state_map, literal, nothing)
+            lit_rep === nothing || return lit_rep
+        end
+        # Fall back to the canon-equivalent key for permutation-symmetric
+        # folds (`⟨σ_a σ_b⟩` vs `⟨σ_b σ_a⟩` under atom-swap symmetry).
         key = _canonical_key(x, canon)
-        key isa SQA.QAdd || return x
-        rep = get(state_map, key, nothing)
-        rep === nothing && return x
-        return rep
+        if key isa SQA.QAdd
+            rep = get(state_map, key, nothing)
+            rep === nothing || return rep
+        end
+        # Lookup missed entirely (the leaf's conjugate or some other
+        # downstream-resolved form will be handled by MTK's System()
+        # via `_conj_substitution_dict`). Rewrite the leaf to its
+        # NE-stripped form so the downstream substitution dicts (which
+        # build their keys from a `_avg_conj_for_codegen`-normalized
+        # operator without NE) can resolve it by literal equality.
+        if literal isa SQA.QAdd
+            return average(literal)
+        end
+        return x
     end
     SymbolicUtils.iscall(x) || return x
     op = SymbolicUtils.operation(x)

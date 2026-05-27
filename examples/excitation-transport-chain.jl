@@ -107,7 +107,7 @@ plot!(graph, sol.t, popN, label = "End of chain", leg = 1)
 # In the following, we define the function that sets up the new `ODEProblem` for a realization and solve a specified number of trajectories.
 
 s = d / 30  # strength of fluctuations
-function prob_func(prob, i, repeat)
+function prob_func(prob, args...)
     x_ = x0 .+ s .* randn(N) # Define the new set of parameters
     p_ = Dict([γ => 1.0; Δ => 0.0; Ω => 2.0; J0 => 1.25; x .=> x_;])
 

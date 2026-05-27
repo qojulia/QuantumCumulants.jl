@@ -76,6 +76,7 @@ end
 function _complete_ancilla!(
         eqs::MeanFieldEquations, aon_anc::Int, steady_state::Bool,
         user_filter; max_iter::Int = 200, mix_choice = maximum,
+        parent_canon = nothing,
     )
     anc_filter = _ancilla_filter(aon_anc)
     closure_filter = if user_filter === nothing
@@ -86,7 +87,7 @@ function _complete_ancilla!(
     for _ in 1:max_iter
         missing_states = find_missing(
             eqs; filter_func = closure_filter,
-            get_adjoints = false
+            get_adjoints = false, canon = parent_canon,
         )
         # When NOT in steady state we also need equations for the non-ancilla
         # averages (they evolve in τ too). Add those here.
@@ -94,7 +95,7 @@ function _complete_ancilla!(
             non_anc_missing = find_missing(
                 eqs;
                 filter_func = x -> !anc_filter(x),
-                get_adjoints = false
+                get_adjoints = false, canon = parent_canon,
             )
             append!(missing_states, non_anc_missing)
         end
@@ -106,11 +107,21 @@ function _complete_ancilla!(
             return eqs
         end
         new_ops = QField[_undo_for_derivation(m) for m in missing_states]
+        # Same alpha-rename dance as `_derive_for(::MeanFieldEquations, ...)`:
+        # if a LHS free index collides with an H/J bound name, the inner
+        # meanfield commutator silently drops cross-atom terms. Rename to a
+        # fresh successor, derive, then undo so the appended equations land
+        # in the canonical (user-visible) names.
+        bound = _bound_indices(eqs)
+        fresh_ops, undo = _alpha_rename_away(new_ops, bound)
         new_eqs = _meanfield_deterministic(
-            eqs.direction, new_ops,
+            eqs.direction, fresh_ops,
             eqs.hamiltonian, eqs.jumps, eqs.jumps_dagger, eqs.rates,
             eqs.order, mix_choice, eqs.iv
         )
+        if !isempty(undo)
+            new_eqs = _apply_undo(new_eqs, undo)
+        end
         _append!(eqs, new_eqs)
     end
     error("CorrelationFunction completion did not close within $max_iter iterations")
@@ -177,8 +188,12 @@ function CorrelationFunction(
     # Iteratively derive equations only for averages that touch the ancilla,
     # leaving non-ancilla averages on the RHS as steady-state coefficients.
     # The user's filter_func (if given) further restricts which ancilla-touching
-    # averages get their own equation.
-    _complete_ancilla!(eqs_c, aon_anc, steady_state, filter_func)
+    # averages get their own equation. We thread the parent eqs0's canonical
+    # index pool so the derived correlation states use the same atom-index
+    # names as eqs0 (otherwise `_ambient_avgs` lookup against eqs0.states
+    # fails and the spectrum collapses to a trivial constant).
+    parent_canon = _build_canonical_indices(eqs0)
+    _complete_ancilla!(eqs_c, aon_anc, steady_state, filter_func; parent_canon)
 
     return CorrelationFunction(op1, op2, op2_anc, aon_anc, eqs_c, eqs0, τ, steady_state)
 end

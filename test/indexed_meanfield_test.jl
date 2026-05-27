@@ -157,20 +157,21 @@ end
     eqs_c = complete(eqs; filter_func = phase_invariant)
     eqs_sc = scale(eqs_c)
 
-    # Pick the σ_{i_1}^{22} equation. Under the materialised-index
+    # Pick the σ_{j_1}^{22} equation. Under the materialised-index
     # convention, scale renames all free indices to suffixed slots
-    # (slot 1 = `i(1) == Index(:i_1, …)`), so the canonical free
-    # index in scaled equations is `i(1)`, not bare `i`.
-    i1 = i(1)
-    σ22_op = average(σ(2, 2, i1))
+    # (slot 1 = `j(1) == Index(:j_1, …)`). Since H/J bind `i`, `j` is
+    # the user's only free LHS atom index, so canonical slot 1 maps to
+    # `j(1)`, not bare `i` or `i(1)`.
+    j1 = j(1)
+    σ22_op = average(σ(2, 2, j1))
     σ22_idx = findfirst(eq -> isequal(eq.lhs, σ22_op), eqs_sc.equations)
     @test σ22_idx !== nothing
     σ22_rhs = eqs_sc.equations[σ22_idx].rhs
 
     # `IndexedVariable(:g, i)` flattens to the scalar `g` under scale.
-    expected = R + (-R - Γ) * average(σ(2, 2, i1)) +
-        Symbolics.IM * g * average(a' * σ(1, 2, i1)) -
-        Symbolics.IM * g * average(a * σ(2, 1, i1))
+    expected = R + (-R - Γ) * average(σ(2, 2, j1)) +
+        Symbolics.IM * g * average(a' * σ(1, 2, j1)) -
+        Symbolics.IM * g * average(a * σ(2, 1, j1))
     diff = σ22_rhs - expected
     @test SymbolicUtils._iszero(SymbolicUtils.simplify(diff; expand = true))
 end

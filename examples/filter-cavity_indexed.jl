@@ -33,7 +33,11 @@ j = Index(h, :j, N, ha)
 
 @qnumbers a::Destroy(h, 1)
 b(k) = IndexedOperator(Destroy(h, :b, 2), k)
-b(k::Integer) = IndexedOperator(Destroy(h, :b, 2), i(k))
+# `i` is bound by the Hamiltonian sums and the dissipator. The canonical
+# free-index slot on the filter Hilbert space mints `i_2` (lex-first
+# declared index, suffix 2) to keep state names disjoint from H's bound
+# scope. Per-atom state lookups thus use `i_2(k) = i_2_k`, not `i(k)`.
+b(k::Integer) = IndexedOperator(Destroy(h, :b, 2), i(2)(k))
 σ(α, β, k) = IndexedOperator(Transition(h, :σ, α, β, 3), k)
 σ(α, β, k::Integer) = IndexedOperator(Transition(h, :σ, α, β, 3), j(k))
 nothing # hide
