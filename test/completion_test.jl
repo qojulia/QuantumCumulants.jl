@@ -1,5 +1,6 @@
 using QuantumCumulants
 using SymbolicUtils: SymbolicUtils
+using ModelingToolkitBase: @named, mtkcompile
 using Test
 
 @testset "find_missing on JC" begin
@@ -99,6 +100,38 @@ end
         QuantumCumulants._avg_conj(only(eqs_a.states)), canon_a,
     )
     @test key_ad == conj_key_a
+end
+
+@testset "find_missing get_adjoints=false: one rep per conjugate pair" begin
+    # Regression for the heterodyne SDE blowup. With the default
+    # `get_adjoints=true`, both ⟨X⟩ and ⟨X†⟩ would be pushed into the
+    # missing-state pool. Under `get_adjoints=false` only one representative
+    # per conjugate pair is emitted; the MTK `_conj_substitution_dict`
+    # rewrites the missing partner at codegen time. The dedup-key strip of
+    # free-LHS-slot NE pairs (in `find_missing`) prevents the same physical
+    # state from being tracked twice under different NE flavors.
+    hc = FockSpace(:resonator); ha = NLevelSpace(:atom, 2); h = hc ⊗ ha
+    @variables N::Real ωc::Real ωa::Real g::Real κ::Real γ::Real
+    j = Index(h, :j, N, ha); k = Index(h, :k, N, ha)
+    @qnumbers a::Destroy(h, 1)
+    σ(α, β, idx) = IndexedOperator(Transition(h, :σ, α, β, 2), idx)
+    H = ωc * a' * a + ωa * Σ(σ(2, 2, j), j) +
+        g * a' * Σ(σ(1, 2, j), j) + g * a * Σ(σ(2, 1, j), j)
+    J = [a, σ(1, 2, j), σ(2, 1, j)]
+    eqs = meanfield(
+        [a', a' * a, σ(2, 2, k), σ(1, 2, k), a * a], H, J;
+        rates = [κ, γ, γ], order = 2,
+    )
+    scaled_full = scale(complete(eqs; get_adjoints = true))
+    scaled = scale(complete(eqs; get_adjoints = false))
+    # `get_adjoints=false` closure is strictly smaller than the get_adjoints=true
+    # one (the conjugate partners are absorbed via `conj(state_var)` at codegen).
+    @test length(scaled.states) < length(scaled_full.states)
+    # And mtkcompile must accept it: every conjugate leaf on the RHS resolves
+    # either literally to a state or via `conj(state_var)`. A failure would
+    # surface as "Brownian appears non-linearly" / unresolved AvgFunc.
+    @named sys = System(scaled)
+    @test mtkcompile(sys) isa Any
 end
 
 @testset "_build_canonical_indices filters H/J-bound indices" begin

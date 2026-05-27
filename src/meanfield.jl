@@ -104,7 +104,20 @@ end
 # Operator-level drift derivation shared by every derivation path: build a
 # `op ~ rhs` equation for each requested observable. The direction selects
 # the coherent + Lindblad recycling formula via `_operator_rhs`.
-function _build_op_drift(direction, ops_qa, H, J, Jdagger, rates)
+#
+# `distinct_indices`, if non-empty, names indices that callers (typically
+# `complete!::_derive_for` minting slot indices for cross-atom moments)
+# know to be distinct from every other atom-space index in the result.
+# `_assume_distinct_atom_indices` then asserts those distinctness
+# constraints so SQA's `_canonicalize!` can reduce cross-atom products
+# (e.g. `σ_k₁₂ · σ_k₂₂₂ · σ_k₂₁` → `σ_k₁₁ · σ_k₂₂₂`, which
+# `expand_completeness` then folds via `σ^gg = 1 - Σ σ^kk`). Without this
+# the cumulant truncation downstream materialises the implicit `σ^gg` as
+# a free state, breaking master-compatibility (see heterodyne_detection).
+function _build_op_drift(
+        direction, ops_qa, H, J, Jdagger, rates;
+        distinct_indices::Vector{SQA.Index} = SQA.Index[],
+    )
     imH = im * H
     op_rhs = Vector{QAdd}(undef, length(ops_qa))
     operator_eqs = Vector{Symbolics.Equation}(undef, length(ops_qa))
@@ -112,11 +125,43 @@ function _build_op_drift(direction, ops_qa, H, J, Jdagger, rates)
         rhs = SQA.expand_completeness(
             _operator_rhs(direction, op, imH, J, Jdagger, rates),
         )
+        rhs = _assume_distinct_atom_indices(rhs, distinct_indices)
         op_rhs[i] = rhs
         operator_eqs[i] = op ~ rhs
     end
     return op_rhs, operator_eqs
 end
+
+# Assert NE between every member of `distinct` and every other distinct
+# atom-space index in `q` that lives on the same Hilbert subspace, then
+# route through `SQA.assume_distinct_index` (which propagates NE,
+# canonicalises, and expands completeness). Returns `q` unchanged when
+# `distinct` is empty.
+function _assume_distinct_atom_indices(q::SQA.QAdd, distinct::Vector{SQA.Index})
+    isempty(distinct) && return q
+    by_space = Dict{Int, Set{SQA.Index}}()
+    for (term, _) in q.arguments, o in term.ops
+        SQA.has_index(o.index) || continue
+        push!(get!(by_space, o.index.space_index, Set{SQA.Index}()), o.index)
+    end
+    for b in q.indices
+        push!(get!(by_space, b.space_index, Set{SQA.Index}()), b)
+    end
+    pairs = Tuple{SQA.Index, SQA.Index}[]
+    seen_pairs = Set{Tuple{SQA.Index, SQA.Index}}()
+    for d in distinct
+        idxs = get(by_space, d.space_index, Set{SQA.Index}())
+        for other in idxs
+            other == d && continue
+            key = d < other ? (d, other) : (other, d)
+            key in seen_pairs && continue
+            push!(seen_pairs, key)
+            push!(pairs, (d, other))
+        end
+    end
+    return isempty(pairs) ? q : SQA.assume_distinct_index(q, pairs)
+end
+_assume_distinct_atom_indices(q, _) = q
 
 # Lift operator drift to the averaged level, optionally adding a per-op
 # correction (e.g. `_dY_dS_extra_term` for backward noise) and applying
@@ -151,10 +196,13 @@ end
 function _meanfield_deterministic(
         direction::EvolutionDirection,
         ops, H, J, Jdagger, rates, order,
-        mix_choice, iv,
+        mix_choice, iv;
+        distinct_indices::Vector{SQA.Index} = SQA.Index[],
     )
     ops_qa = QAdd[op * 1 for op in ops]
-    op_rhs, operator_eqs = _build_op_drift(direction, ops_qa, H, J, Jdagger, rates)
+    op_rhs, operator_eqs = _build_op_drift(
+        direction, ops_qa, H, J, Jdagger, rates; distinct_indices,
+    )
     states = SymbolicUtils.BasicSymbolic[average(op) for op in ops_qa]
     order_vec = order === nothing ? nothing :
         _normalize_order(order, (; hamiltonian = H))
@@ -279,10 +327,13 @@ end
 
 function _meanfield_noise(
         direction::EvolutionDirection, ops, H, J, Jdagger, rates,
-        efficiencies, order, mix_choice, iv,
+        efficiencies, order, mix_choice, iv;
+        distinct_indices::Vector{SQA.Index} = SQA.Index[],
     )
     ops_qa = QAdd[op * 1 for op in ops]
-    op_rhs, operator_eqs = _build_op_drift(direction, ops_qa, H, J, Jdagger, rates)
+    op_rhs, operator_eqs = _build_op_drift(
+        direction, ops_qa, H, J, Jdagger, rates; distinct_indices,
+    )
     states = SymbolicUtils.BasicSymbolic[average(op) for op in ops_qa]
     order_vec = order === nothing ? nothing :
         _normalize_order(order, (; hamiltonian = H))

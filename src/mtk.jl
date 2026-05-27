@@ -170,35 +170,107 @@ function MTK.System(eqs::MeanFieldEquations; name::Symbol)
     return MTK.System(new_eqs, iv, dvs, ps; name = name)
 end
 
-# Build a substitution `⟨op†⟩ → conj(state_var(⟨op⟩))` for every state
-# whose conjugate is *not* itself a state. This lets `System` codegen
-# substitute the conjugate of a state without needing the conjugate to
-# also be added to `eqs.states`. (See completion.jl::find_missing: by
-# default, conjugates of states are excluded from missing-state scans.)
+# Build a substitution `⟨op†⟩ → conj(state_var(⟨op⟩))` for every leaf on
+# the RHS that is the conjugate of a tracked state. completion.jl emits
+# one representative per conjugate-pair by default; this pass rewrites
+# the missing partner before mtkcompile sees it.
+#
+# Direct adjoint (`_avg_conj_for_codegen(s)`) reverses operator order but
+# does NOT re-sort cross-atom commuting ops on the same Hilbert subspace
+# (per SQA's "undetermined free-index pairs stay put" invariant). So an
+# RHS leaf like `⟨σ_k_1₂₁ * σ_k_2₂₂⟩` (constructed in atom-1-first order)
+# does not literal-equal the adjoint of state `⟨σ_k_1₁₂ * σ_k_2₂₂⟩`,
+# which lands as `⟨σ_k_2₂₂ * σ_k_1₂₁⟩` (atom-2-first). We walk RHS leaves
+# and key the lookup on a permutation-canonical op signature so both
+# orderings collapse to the same key.
 function _conj_substitution_dict(
         eqs::AbstractMeanFieldEquations,
         var_dict::AbstractDict
     )
-    states = Set(eqs.states)
-    conj_dict = Dict{SymbolicUtils.BasicSymbolic, Any}()
+    state_set = Set(eqs.states)
+    state_by_canon = Dict{String, Any}()
     for s in eqs.states
-        cs = _avg_conj_for_codegen(s)
-        cs === s && continue
-        cs in states && continue
         haskey(var_dict, s) || continue
-        # Build `conj(avg_var(t))` as a raw `SymbolicUtils.term` rather than
-        # calling `Base.conj` directly. Julia's `conj` invokes Symbolics'
-        # simplifier, which folds `conj(::SymReal)` to identity and silently
-        # zeros every `⟨X⟩ - ⟨X†⟩` driving term on the RHS. Using `term(...)`
-        # with `type=Number` skips the simplifier so the symbolic `conj`
-        # node survives through `_safe_substitute`, `mtkcompile`, and
-        # `build_function` (which generates a real call to `Base.conj` at
-        # runtime). Pairs with the `Symbolics.IM` convention on the RHS
-        # (Julia's `im` literal does not unify with the resulting tree).
         v = SymbolicUtils.unwrap(var_dict[s])
-        conj_dict[cs] = SymbolicUtils.term(conj, v; type = Number)
+        state_by_canon[_perm_canon_key(s)] = v
+    end
+    conj_dict = Dict{SymbolicUtils.BasicSymbolic, Any}()
+    for eq in eqs.equations
+        _collect_conj_subs!(conj_dict, eq.rhs, state_set, var_dict, state_by_canon)
+    end
+    if eqs isa NoiseMeanFieldEquations
+        for eq in eqs.noise_equations
+            _collect_conj_subs!(conj_dict, eq.rhs, state_set, var_dict, state_by_canon)
+        end
     end
     return conj_dict
+end
+
+function _collect_conj_subs!(out, x, state_set, var_dict, state_by_canon)
+    x isa SymbolicUtils.BasicSymbolic || return
+    if SQA.is_average(x) && SymbolicUtils.iscall(x) &&
+            SymbolicUtils.operation(x) === SQA.sym_average
+        haskey(out, x) && return
+        x in state_set && return       # state itself
+        haskey(var_dict, x) && return  # literal match against the var dict
+        # Direct match via permutation-canonical (NE-blind) key: leaves can
+        # carry NE metadata or differ in operator order from the canonical
+        # state form while still being the same physical average. Substitute
+        # the state's var directly so the rhs lookup succeeds.
+        k_direct = _perm_canon_key(x)
+        if haskey(state_by_canon, k_direct)
+            out[x] = state_by_canon[k_direct]
+            return
+        end
+        # Conjugate match: same permutation-canonical key on the adjoint.
+        cs = _avg_conj_for_codegen(x)
+        ck = _perm_canon_key(cs)
+        if haskey(state_by_canon, ck)
+            v = state_by_canon[ck]
+            # Build `conj(avg_var(t))` as a raw `SymbolicUtils.term` rather
+            # than calling `Base.conj` directly. Julia's `conj` invokes
+            # Symbolics' simplifier, which folds `conj(::SymReal)` to
+            # identity and silently zeros every `⟨X⟩ - ⟨X†⟩` driving term
+            # on the RHS. Using `term(...)` with `type=Number` skips the
+            # simplifier so the symbolic `conj` node survives through
+            # `_safe_substitute`, `mtkcompile`, and `build_function`.
+            out[x] = SymbolicUtils.term(conj, v; type = Number)
+        end
+        return
+    end
+    SymbolicUtils.iscall(x) || return
+    for a in SymbolicUtils.arguments(x)
+        _collect_conj_subs!(out, a, state_set, var_dict, state_by_canon)
+    end
+    return
+end
+
+# Permutation-canonical key for an averaged operator. Stable-sort QTerm
+# ops by their `acts_on` tuple then by `string(op)`; ops on the same
+# Hilbert subspace (same acts_on) get a deterministic order based on
+# their printed form, so the cross-atom adjoint reordering becomes
+# invisible to dict-lookup.
+function _perm_canon_key(avg::SymbolicUtils.BasicSymbolic)
+    op = SQA.undo_average(avg)
+    return _perm_canon_key(op)
+end
+function _perm_canon_key(op::SQA.QAdd)
+    parts = String[]
+    for (term, _) in op.arguments
+        sorted = sort(
+            collect(term.ops);
+            by = o -> (Tuple(SQA.acts_on(o)), string(o)),
+            alg = Base.Sort.MergeSort,
+        )
+        # NE-blind: matches `completion._canonical_dedup_key`. Two leaves that
+        # differ only in NE metadata are the same physical state at codegen
+        # time (the algebraic content has already been canonicalised
+        # upstream via `_assume_distinct_atom_indices`).
+        push!(parts, join(string.(sorted), '*'))
+    end
+    sort!(parts)
+    idx_sig = sort(string.(op.indices))
+    return string(join(parts, '+'), '|', idx_sig)
 end
 
 function _avg_conj_for_codegen(x::SymbolicUtils.BasicSymbolic)

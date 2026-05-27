@@ -5,6 +5,7 @@ using QuantumCumulants
 using ModelingToolkitBase
 using OrdinaryDiffEqLowOrderRK
 using StochasticDiffEq
+using StochasticDiffEq.SciMLBase: ReturnCode
 using Plots
 using Random # hide
 
@@ -67,7 +68,7 @@ nothing # hide
 
 # The completion and scaling as previously discussed in other examples work exactly the same way for equations including noise terms.
 
-eqs_c = complete(eqs)
+eqs_c = complete(eqs; get_adjoints = false)
 scaled_eqs = scale(eqs_c)
 nothing # hide
 
@@ -142,9 +143,9 @@ a_real_avg_ = zeros(length(tspan)) # average field (real part)
 traj_succ = zeros(traj) # trajectories can be numerically unstable
 for i in 1:traj
     sol_ = sol.u[i]
-    if length(sol_) == length(tspan)
-        n_avg_ .+= real(get_solution(sol_, a'a, scaled_eqs)(sol_.t))
-        a_real_avg_ .+= real(get_solution(sol_, a, scaled_eqs)(sol_.t))
+    if sol_.retcode == ReturnCode.Success
+        n_avg_ .+= real(get_solution(sol_, a'a, scaled_eqs)(tspan))
+        a_real_avg_ .+= real(get_solution(sol_, a, scaled_eqs)(tspan))
         traj_succ[i] = 1
     end
 end

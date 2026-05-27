@@ -89,8 +89,6 @@ function _complete_ancilla!(
             eqs; filter_func = closure_filter,
             get_adjoints = false, canon = parent_canon,
         )
-        # When NOT in steady state we also need equations for the non-ancilla
-        # averages (they evolve in τ too). Add those here.
         if !steady_state
             non_anc_missing = find_missing(
                 eqs;
@@ -260,26 +258,98 @@ function _spectrum_kernel(S::Spectrum, u_end, p0)
     rhss_u = [SymbolicUtils.unwrap(eq.rhs) for eq in eqs.equations]
     p_sub = _build_p_sub(S.ps, p0, c.τ, u_end, eqs)
     u_end_dict = _as_avg_dict(c, u_end)
+    # Map RHS leaves that are conjugates of a tracked state to that
+    # state's index. `complete!` defaults to one rep per conj-pair, so the
+    # partnered conjugate leaf appears on the RHS without being a state
+    # var. Treating it as ambient (or letting it survive into the
+    # finite-difference RHS as an unsubstituted leaf) would silently zero
+    # the corresponding Jacobian column. Walk every RHS leaf and resolve
+    # via the same permutation-canonical key used by
+    # `src/mtk.jl::_perm_canon_key`.
+    state_idx = Dict{String, Int}()
+    state_us_unwrapped = [SymbolicUtils.unwrap(dv) for dv in eqs.states]
+    for (i, s) in enumerate(eqs.states)
+        state_idx[_perm_canon_key(s)] = i
+    end
+    rhs_leaves_seen = Set{SymbolicUtils.BasicSymbolic}()
+    rhs_leaves = SymbolicUtils.BasicSymbolic[]
+    for rhs in rhss_u
+        _collect_leaf_averages!(rhs_leaves, rhs_leaves_seen, rhs)
+    end
+    state_us_set = Set(state_us_unwrapped)
+    conj_leaf_to_state = Dict{SymbolicUtils.BasicSymbolic, Int}()
+    for avg in rhs_leaves
+        avg in state_us_set && continue
+        # Direct (non-conjugate) permutation-canonical match: literal
+        # state-var lookup may miss when the leaf carries NE metadata or
+        # a permuted operator order that the canonical state form drops.
+        k_direct = _perm_canon_key(avg)
+        if haskey(state_idx, k_direct)
+            conj_leaf_to_state[avg] = state_idx[k_direct]
+            continue
+        end
+        k_conj = _perm_canon_key(_avg_conj_of(avg))
+        if haskey(state_idx, k_conj)
+            conj_leaf_to_state[avg] = state_idx[k_conj]
+            continue
+        end
+    end
     for avg in _ambient_avgs(c)
+        haskey(conj_leaf_to_state, avg) && continue
         aons = SQA.acts_on(avg)
         lookup_avg = (c.aon_anc in aons && length(aons) == 1) ?
             _undo_ancilla(c, avg) : avg
         p_sub[avg] = ComplexF64(_lookup_avg(u_end_dict, lookup_avg))
     end
 
-    state_us = [SymbolicUtils.unwrap(dv) for dv in eqs.states]
+    state_us = state_us_unwrapped
     zero_sub = merge(p_sub, Dict{Any, Any}(s => 0.0 + 0.0im for s in state_us))
+    for leaf in keys(conj_leaf_to_state)
+        zero_sub[leaf] = 0.0 + 0.0im
+    end
 
     b_const = Vector{ComplexF64}(undef, n)
     @inbounds for (i, rhs) in enumerate(rhss_u)
         b_const[i] = _scalarize(SymbolicUtils.substitute(rhs, zero_sub))
     end
-    A = Matrix{ComplexF64}(undef, n, n)
+    # Extract two Jacobians: A_lin = ∂RHS/∂z_j (linear part), A_alin =
+    # ∂RHS/∂conj(z_j) (anti-linear part). Probing with state[j]=1 alone
+    # gives A_lin; probing with conj_partner_j=1 alone gives A_alin. The
+    # old kernel flipped both to 1 simultaneously and read A_lin+A_alin,
+    # which collapses anti-linear coupling and corrupts the spectrum
+    # whenever the τ-system tracks one rep per conjugate pair (the
+    # default since `get_adjoints=false`).
+    A_lin = Matrix{ComplexF64}(undef, n, n)
     @inbounds for j in 1:n
         sub_j = merge(zero_sub, Dict{Any, Any}(state_us[j] => 1.0 + 0.0im))
         for (i, rhs) in enumerate(rhss_u)
             f_ej = _scalarize(SymbolicUtils.substitute(rhs, sub_j))
-            A[i, j] = f_ej - b_const[i]
+            A_lin[i, j] = f_ej - b_const[i]
+        end
+    end
+    leaves_by_state = Dict{Int, Vector{SymbolicUtils.BasicSymbolic}}()
+    for (leaf, partner) in conj_leaf_to_state
+        push!(get!(leaves_by_state, partner, SymbolicUtils.BasicSymbolic[]), leaf)
+    end
+    has_alin = !isempty(leaves_by_state)
+    if !has_alin
+        u_τ = zeros(ComplexF64, n)
+        @inbounds for (i, s) in enumerate(eqs.states)
+            avg0 = _undo_ancilla(c, SymbolicUtils.unwrap(s))
+            u_τ[i] = ComplexF64(_lookup_avg(u_end_dict, avg0))
+        end
+        rhs_b = any(!iszero, b_const) ? u_τ .+ (A_lin \ b_const) : u_τ
+        return A_lin, rhs_b, n
+    end
+    A_alin = zeros(ComplexF64, n, n)
+    @inbounds for (j, leaves) in leaves_by_state
+        sub_j = copy(zero_sub)
+        for leaf in leaves
+            sub_j[leaf] = 1.0 + 0.0im
+        end
+        for (i, rhs) in enumerate(rhss_u)
+            f_ej = _scalarize(SymbolicUtils.substitute(rhs, sub_j))
+            A_alin[i, j] = f_ej - b_const[i]
         end
     end
 
@@ -289,8 +359,16 @@ function _spectrum_kernel(S::Spectrum, u_end, p0)
         u_τ[i] = ComplexF64(_lookup_avg(u_end_dict, avg0))
     end
 
-    rhs_b = any(!iszero, b_const) ? u_τ .+ (A \ b_const) : u_τ
-    return A, rhs_b, n
+    # Augment to a 2n linear system in (X, Y), Y = conj(X). The
+    # second-block equations are the conjugate ODE: x̄˙ = conj(A_lin) x̄ +
+    # conj(A_alin) x + conj(b). Solving (sI - M) ψ = ψ_0 + ψ_∞ at s = iω
+    # gives the correct linear-response amplitude X̃ = ψ[1:n], from which
+    # the spectrum kernel takes `2 Re X̃[1]`.
+    M = [A_lin A_alin; conj.(A_alin) conj.(A_lin)]
+    b_aug = vcat(b_const, conj.(b_const))
+    u_aug = vcat(u_τ, conj.(u_τ))
+    rhs_b = any(!iszero, b_aug) ? u_aug .+ (M \ b_aug) : u_aug
+    return M, rhs_b, 2n
 end
 
 function _build_p_sub(ps, p0, τ, u_end, eqs)
@@ -319,6 +397,18 @@ function _build_p_sub(ps, p0, τ, u_end, eqs)
     end
     sub[SymbolicUtils.unwrap(τ)] = 0.0
     return sub
+end
+
+function _collect_leaf_averages!(out, seen, x)
+    x isa SymbolicUtils.BasicSymbolic || return
+    if SymbolicUtils.iscall(x) && SymbolicUtils.operation(x) === SQA.sym_average
+        x in seen && return
+        push!(seen, x); push!(out, x); return
+    end
+    SymbolicUtils.iscall(x) || return
+    for a in SymbolicUtils.arguments(x)
+        _collect_leaf_averages!(out, seen, a)
+    end
 end
 
 function _avg_conj_of(x)

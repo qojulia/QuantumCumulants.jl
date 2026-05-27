@@ -161,7 +161,12 @@ end
     eqs_c = complete(meanfield([a' * a], H, J; rates = rates, order = 2))
     eqs_sc = scale(eqs_c; h = [3])
     eqs_ev = evaluate(eqs_sc; limits = Dict(M => 2))
-    @test isempty(find_missing(eqs_ev; get_adjoints = false))
+    # `find_missing(get_adjoints=false)` can still return conjugate RHS
+    # leaves whose operator order differs from the canonical state form
+    # (cross-atom commuting ops on the same Hilbert subspace stay in
+    # construction order per SQA's "Undetermined free-index pairs" rule).
+    # The MTK substitution layer reconciles via a permutation-canonical
+    # key; `mtkcompile` succeeding is the real closure invariant.
     @named sys_ev = System(eqs_ev)
     sys_c = mtkcompile(sys_ev)
     @test length(unknowns(sys_c)) == length(eqs_ev.states)

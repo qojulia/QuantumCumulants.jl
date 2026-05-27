@@ -24,8 +24,8 @@ Report at `tmp/report.html`.
   difference is SDE RNG)
 - `superradiant_laser_indexed.jl` (time evolution AND spectrum correct)
 - `unique_squeezing.jl` (after `i(1) -> j(1)` lookup fix)
-- `heterodyne_detection.jl` (deterministic pulse only; SDE part regressed,
-  see below)
+- `heterodyne_detection.jl` (deterministic + SDE; closes at 12 unknowns
+  matching master after the get_adjoints / distinct-atom fixes below)
 - `cavity_antiresonance_indexed.jl` (antiresonance dip restored; the
   literal-key fix in `_canonicalise_avg_leaves` resolved the apparent
   dipole-dipole bug, which was actually an alpha-rename collapse of
@@ -34,92 +34,41 @@ Report at `tmp/report.html`.
   intensity spectrum is a clean Lorentzian; after canon-slot lookup
   update in the example file)
 
-### Open regressions
+### Outstanding test failures (regressions from the dedup fix)
 
-- `heterodyne_detection.jl`: deterministic pulse (plot 1) matches master,
-  every SDE trajectory (plots 2, 3, 4) blows up to ~1e220 within ~0.02 ms.
-
-  Root cause: state-space size mismatch from differing
-  Hermitian-conjugate-pair handling in `find_missing`.
-
-  - Master on its native stack (Julia 1.11 + QC v0.4.3 + ModelingToolkit
-    v10.32.1 + StochasticDiffEq v6.87.0): `scaled_eqs` has **12
-    unknowns**, all 200 trajectories complete, `max n_avg = 442.4`
-    photons. Confirmed by `cd /var/tmp/qc-master && julia +1.11
-    --project=examples examples/heterodyne_detection.jl`.
-  - Rewrite (Julia 1.12 + QC v0.5.0 + MTKBase 1.36.2 + StochasticDiffEq
-    v7.0.0): same operator list compiles to **18 unknowns**. The 6
-    extras are conjugates of states that are already tracked, plus
-    `⟨σ_11⟩`:
-
-  | rewrite extra | partner already tracked |
-  | ------------- | ----------------------- |
-  | `⟨a*σ_12⟩`    | `⟨a†*σ_21⟩` (conj)      |
-  | `⟨a†*σ_21⟩`   | `⟨a*σ_12⟩`              |
-  | `⟨σ_12*σ_12⟩` | `⟨σ_21*σ_21⟩` (conj)    |
-  | `⟨σ_21*σ_21⟩` | `⟨σ_12*σ_12⟩`           |
-  | `⟨σ_22*σ_22⟩` | (Hermitian, redundant)  |
-  | `⟨σ_11⟩`      | `1 - ⟨σ_22⟩`            |
-
-  Master's `find_missing` (`src/utils.jl`) filters conjugates out of
-  the missing-state pool when `get_adjoints=true`. Rewrite's
-  `find_missing` (`src/completion.jl:56-57`) does the opposite: with
-  the default `get_adjoints=true` it explicitly pushes BOTH the state
-  and its conjugate into `missing_states`, doubling the
-  conjugate-active dimension.
-
-  Why this is an SDE blowup and not a drift bug. Drift preserves the
-  conjugate-pair invariant `u_i(t) = conj(u_j(t))` exactly (drifts for
-  `i` and `j` are complex conjugates by construction; plot 1 confirms
-  the ODE is fine). The diffusion column for `i` and `j` is also a
-  symbolic conjugate pair, but at runtime the compiled `g(u, p, t)`
-  evaluates them on two independent floating-point paths. Both terms
-  multiply the same `dW`, so any roundoff between `g[i]` and
-  `conj(g[j])` drifts `u[i] - conj(u[j])` away from zero each step.
-  Atom-cavity coupling `Ng = 2.3e5` amplifies any `1e-12` slip within
-  about 100 steps; once the invariant is broken, drift no longer
-  damps and `⟨a*a⟩` / `⟨σ_12*σ_22⟩` grow exponentially in opposite
-  directions. Master never exhibits the drift because there is no
-  `u[j]` to drift against, only `conj(u[i])`. The instability is
-  laser-regime-specific (stable for `N <= 5000`).
-
-  Hypotheses confirmed-not-the-cause along the way
-  (`/tmp/diag_het*.jl`):
-  noise-formula reordering, dropping `expand_completeness`, adding
-  `Symbolics.simplify` before/after cumulant truncation,
-  `brownians`-vs-`noise_eqs` construction path, RNG seed, `dt`
-  refinement, solver choice (`EM`, `EulerHeun`, `SROCK1`, `SRA1`,
-  `SRA2`, `SOSRI`, `SOSRI2`, `SRIW1`, `ImplicitEM`,
-  `ImplicitEulerHeun`, `SKenCarp`), MTKBase version (1.36.2 vs 1.41.0
-  identical), `exp(0)` / `sin² + cos²` symbolic leftovers,
-  time-dependent jump (`J = a*exp(iωlt)` vs `J = a`), strict Itô vs
-  Stratonovich. Minimal complex SDE with conj() compiles and runs
-  cleanly under the same stack, so the MTKBase pipeline itself works
-  in isolation.
-
-  Concrete fix path:
-  1. Flip the default in `src/completion.jl::find_missing` to
-     `get_adjoints=false` so completion produces only one of each
-     conjugate pair (matches master).
-  2. Tighten `_conj_substitution_dict` in `src/mtk.jl` so it keys on
-     the same canonical form the noise-rhs leaves use (walk via
-     `_canonical_key` instead of raw `_avg_conj_for_codegen`).
-     Without (2), `complete(eqs; get_adjoints=false)` produces 13
-     unknowns but `mtkcompile` then refuses with `Brownian _qc_dW
-     appears non-linearly` because literal `⟨σ_21 σ_22⟩` averages on
-     the noise rhs are not rewritten to
-     `conj(var_for_⟨σ_12 σ_22⟩)`.
-  3. Audit other examples and tests for assumptions that both members
-     of every conjugate pair are tracked as separate states (e.g.
-     `get_solution` lookups, initial-condition mapping). Anywhere that
-     reads `eqs.states[i]` expecting the conjugate to also be there
-     needs to go through `conj(...)` instead.
-
-  Documenting unfixed in this round; plot 1 stays correct, plots 2-4
-  remain a known regression until the above lands.
+- `measurement_backaction_indices_test.jl::indexed measurement backaction:
+  filter cavity drift agrees det vs stoch` and
+  `measurement_backaction_indices_comparison_test.jl::measurement_backaction_indices_comparison:
+  deterministic vs stochastic LHS match`: assert `det_lhs ⊆ stoch_lhs`.
+  After the `_dedup_key_strip_free_ne` change in `find_missing`, det
+  derives an extra `⟨σ_j_2₁₁⟩` equation that stoch does not. Root cause:
+  the operator-level derivation for `⟨σ_j_2₂₂ * σ_j_2_2₂₁⟩` produces a
+  factor-3-different Γ coefficient and uncollapsed 3-op cross-atom
+  terms between det and stoch paths (stoch consolidates, det does not).
+  Some asymmetry in how SQA's `_canonicalize!` / `assume_distinct_index`
+  fires between `_meanfield_deterministic` and `_meanfield_noise`. The
+  symbolic discrepancy then propagates through cumulant truncation and
+  find_missing into one extra (extraneous) σ¹¹ state on the det side.
+  This is not a numerical bug in the example outputs, only the test's
+  subset assertion. Needs a focused SQA-level investigation.
 
 ### Minor numerical divergence
 
+- `unique_squeezing.jl` plot 5: Full model curves are correct (X ≈ 2.29,
+  P ≈ 0.44, matching master). Effective model curves are off by ~20%:
+  X_a ≈ 1.88 (vs master 2.3), P_a ≈ 0.62 (vs master 0.45). The Full and
+  Effective models should overlap exactly (the effective adiabatic
+  Hamiltonian `H_a = Hf - N*gΩ*(a+a')²` is supposed to reproduce the
+  Dicke model in the low-excitation limit). Verified to be PRE-EXISTING
+  on the rewrite branch at clean HEAD (commit 116752a), not introduced
+  by the current Spectrum/dedup work. The Effective model uses
+  `meanfield([a, a'a, a*a], H_a, [b]; rates=[κ], order=2)` with no
+  indexed completion or scaling, so the bug is upstream of all the
+  cross-atom completion logic. Suspects: (a) the squeezed-bath jump
+  handling with cosh/sinh ξ rates, (b) cumulant-order-2 truncation of
+  cross-cavity products under the squeezed bath, or (c) the mtk codegen
+  substitution of `⟨a'·a'⟩` as `conj(state_aa)`. Needs a focused
+  derivation-vs-symbolic-equation comparison (Mathematica check).
 - `excitation-transport-chain.jl`: dashed "end of chain" trace settles at
   ~0.10 on rewrite vs ~0.11 on master. Smaller than pre-fix gap and well
   within the noise of a JumpProblem ensemble; could be a remaining
@@ -127,6 +76,115 @@ Report at `tmp/report.html`.
 - `retrodiction_homodyne.jl`: docs build entry in `docs/make.jl` is still
   commented out to match master (PR #266 history; suspected 5 x 10^4 step
   SDE solve being too heavy for docs).
+
+## Fix landed: heterodyne SDE blowup (conjugate-pair + cross-atom consolidation)
+
+The heterodyne SDE blowup had two intertwined root causes, both now fixed.
+
+**1. Doubled state count from conjugate-pair handling.** Master's
+`find_missing` filtered conjugates of explicit states out of the missing
+pool (effectively `get_adjoints=false` semantics, despite the surface
+default of `true`). The rewrite's `find_missing` literally pushed both
+members of every conjugate pair into `missing_states`, so the laser
+closure produced 18 unknowns instead of 12. The 6 extras were tracked as
+separate ODE/SDE state vars whose drifts preserved the
+`u_i(t) = conj(u_j(t))` invariant exactly but whose diffusion columns
+evaluated `g[i]` and `conj(g[j])` on independent floating-point paths;
+roundoff drifted the invariant and `Ng = 2.3e5` amplified the slip into
+exponential SDE blowup within ~100 steps at high N.
+
+Fix:
+
+- `src/completion.jl::find_missing` defaults to `get_adjoints=false` and
+  emits one representative per conjugate pair. `complete!` propagates the
+  new default.
+- `src/mtk.jl::_conj_substitution_dict` walks RHS leaves directly and
+  matches conjugates via a **permutation-canonical key**
+  (`_perm_canon_key`): stable-sort QTerm ops by `(acts_on, string(op))`
+  so cross-atom commuting ops on the same Hilbert subspace collapse to a
+  deterministic order. Without this the raw adjoint reverses operator
+  order (e.g. state `⟨σ_k₁₁₂ · σ_k₂₂₂⟩` has conjugate
+  `⟨σ_k₂₂₂ · σ_k₁₂₁⟩` while the RHS literal is
+  `⟨σ_k₁₂₁ · σ_k₂₂₂⟩`) and `_safe_substitute`'s literal-key dict misses
+  the leaf, leading `mtkcompile` to refuse with "Brownian appears
+  non-linearly".
+
+**2. Implicit `σ^11` leaked into the closure via cross-atom products.**
+Pre-fix, `expand_completeness` only fired for atomic ground-state
+projectors. A Lindblad commutator like
+`[σ_j_21, σ_k_22 · σ_k_2_22] · σ_j_12` produced
+`σ_k_12 · σ_k_2_22 · σ_k_21` (3 ops, two on atom k, one on atom k_2)
+which SQA refused to reorder per the "Undetermined free-index pairs
+stay put" invariant. The cumulant truncation then factorised this
+across atoms and materialised the implicit `σ_k_12 · σ_k_21 = σ_k_11`
+as a separate state. Master applies the same algebra but its
+`*`/`commutator` knew to reduce same-atom-cross-atom products because
+the algebra layer was simpler; the rewrite, building on SQA's stricter
+distinct-index policy, does not.
+
+Fix:
+
+- `src/meanfield.jl::_assume_distinct_atom_indices` (called from
+  `src/completion.jl::_derive_for`, plumbed via a `distinct_indices`
+  kwarg through `_meanfield_deterministic` / `_meanfield_noise` /
+  `_build_op_drift`) injects NE pairs over the auto-minted slot indices
+  that `_canonical_key` creates for cross-atom moments (e.g. `k_1`,
+  `k_2`), then re-canonicalises via `SQA.assume_distinct_index`. This
+  unlocks SQA's cross-atom commutation + same-site collapse, so
+  `σ_k_1₁₂ · σ_k_2₂₂ · σ_k_1₂₁` reduces to
+  `σ_k_2₂₂ - σ_k_1₂₂ · σ_k_2₂₂` via `σ_12 · σ_21 = σ_11 = 1 - σ_22`
+  applied through `expand_completeness`. Critically, this is only
+  applied inside `_derive_for` (when minted slot indices are introduced
+  by completion), NOT in the top-level `meanfield` call where the user
+  may legitimately want diagonal (`i = j`) contributions in their
+  H-sums.
+
+Additional supporting changes:
+
+- `src/completion.jl::_canonical_key` now stable-sorts `encountered`
+  free indices by `(space_index, string)` so the slot assignment is
+  independent of operator-product order. Without this, adjoint-reversed
+  cross-atom products got swapped index renames vs the originals.
+- `_canonical_key` ALSO strips NE pairs on present indices in the
+  returned QAdd, so the LHS state representation is canonical and
+  doesn't double-up via NE metadata. `_strip_present_ne` does the work.
+- `src/completion.jl::_canonical_dedup_key` builds a permutation-
+  canonical, NE-blind string key for `seen_keys` dedup, matching the
+  signature used by `src/mtk.jl::_perm_canon_key` so RHS leaves and
+  states with permuted same-Hilbert-subspace ops collapse to the same
+  key.
+- `_collect_missing!` deterministically tie-breaks rep choice by
+  lex-smaller `_canonical_dedup_key` (with a fall-through to the
+  conjugate rep if `filter_func` rejects the lex-smaller one). Without
+  this, det-vs-noise paths over the same physical system picked
+  different conjugates as the tracked state, breaking subset invariants.
+- `src/mtk.jl::_collect_conj_subs!` falls back to direct
+  `_perm_canon_key` match (substituting the state's var) before trying
+  the conjugate match, so RHS leaves carrying NE metadata that the
+  matching state lhs doesn't carry still get resolved at codegen time.
+
+Net effect on the heterodyne laser: rewrite now closes at 12 unknowns
+exactly matching master, the SDE solver returns `ReturnCode.Success`,
+and max photon number (`~591` for the rewrite, `~442` for master) is
+within the RNG-trajectory variance.
+
+Regression tests (in `test/completion_test.jl`):
+
+- `find_missing default get_adjoints=false: one rep per conjugate pair`
+  asserts the laser closure is ≤12 unknowns and `mtkcompile` succeeds.
+- `_build_op_drift consolidates cross-atom products` asserts no σ^11
+  state survives in the closure and the size matches master's 12.
+
+Additional fix to make `Spectrum` survive the new dedup policy:
+
+- `src/correlation.jl::_spectrum_kernel` walks every RHS leaf and resolves
+  conjugate-of-state averages via `_perm_canon_key` (matching the codegen
+  policy in `src/mtk.jl::_collect_conj_subs!`). Without this the
+  steady-state Jacobian dropped to rank 1 (out of 6) at order 4 with
+  the phase-invariant filter, because conj leaves like
+  `⟨a' * a * a (ancilla) * σ_21⟩` (touching original + atom + ancilla)
+  were skipped by `_ambient_avgs` and silently zeroed in `zero_sub`,
+  collapsing every column whose state's conjugate appeared on the RHS.
 
 ## Fix landed: indexed atom-cavity coupling regression
 

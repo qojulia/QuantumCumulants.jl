@@ -74,7 +74,7 @@ eqs = complete(eq_n; filter_func = phase_invariant) # Complete equations
 # Note that the [`CorrelationFunction`](@ref) finds the equation for $g(\tau)$ and then completes the system of equations by using its own version of the [`complete`](@ref) function. Setting the keyword `steady_state=true`, we tell the function not to derive equations of motion for operators that do not depend on $\tau$, but only on $t_0$ (if $t_0$ is in steady state, these values do not change with $\tau$).
 
 
-c = CorrelationFunction(a', a, eqs; steady_state = true) # Correlation function
+c = CorrelationFunction(a', a, eqs; steady_state = true, filter_func = phase_invariant) # Correlation function
 nothing # hide
 
 # $\langle a^\dagger a_0\rangle$

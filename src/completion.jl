@@ -15,22 +15,26 @@ function find_missing(
         eqs::AbstractMeanFieldEquations; filter_func = nothing,
         get_adjoints::Bool = true,
         canon = nothing,
+        bound = nothing,
     )
     canon = canon === nothing ? _build_canonical_indices(eqs) : canon
-    seen_keys = Set{SQA.QAdd}()
+    bound = bound === nothing ? _bound_indices(eqs) : bound
+    seen_keys = Set{Any}()
     for s in eqs.states
-        push!(seen_keys, _canonical_key(s, canon))
-        push!(seen_keys, _canonical_key(_avg_conj(s), canon))
+        push!(seen_keys, _dedup_key_strip_free_ne(_canonical_key(s, canon), bound))
+        push!(seen_keys, _dedup_key_strip_free_ne(_canonical_key(_avg_conj(s), canon), bound))
     end
     missing_states = SymbolicUtils.BasicSymbolic[]
     for eq in eqs.equations
-        _collect_missing!(missing_states, seen_keys, canon, eq.rhs, get_adjoints)
+        _collect_missing!(
+            missing_states, seen_keys, canon, bound, eq.rhs, get_adjoints,
+        )
     end
-    # For noise equations, scan the stochastic RHS too so missing states
-    # introduced only by the dW/dt term get derived as well.
     if eqs isa NoiseMeanFieldEquations
         for eq in eqs.noise_equations
-            _collect_missing!(missing_states, seen_keys, canon, eq.rhs, get_adjoints)
+            _collect_missing!(
+                missing_states, seen_keys, canon, bound, eq.rhs, get_adjoints,
+            )
         end
     end
     if filter_func !== nothing
@@ -40,27 +44,26 @@ function find_missing(
 end
 
 function _collect_missing!(
-        missing_states, seen_keys, canon, x, get_adjoints::Bool = true
+        missing_states, seen_keys, canon, bound, x, get_adjoints::Bool = true,
     )
     x isa SymbolicUtils.BasicSymbolic || return
     if _is_leaf_average(x)
-        key = _canonical_key(x, canon)
-        key in seen_keys && return
-        conj_key = _canonical_key(_avg_conj(x), canon)
-        push!(seen_keys, key)
-        push!(seen_keys, conj_key)
-        # Push canonical-form averages: the missing set must be invariant
-        # of RHS scan order, so two passes that encounter different members
-        # of a conjugate pair first still seed identical states.
-        push!(missing_states, average(key))
-        if get_adjoints && conj_key != key
-            push!(missing_states, average(conj_key))
+        key_full = _canonical_key(x, canon)
+        dedup = _dedup_key_strip_free_ne(key_full, bound)
+        dedup in seen_keys && return
+        conj_full = _canonical_key(_avg_conj(x), canon)
+        dedup_conj = _dedup_key_strip_free_ne(conj_full, bound)
+        push!(seen_keys, dedup)
+        push!(seen_keys, dedup_conj)
+        push!(missing_states, average(key_full))
+        if get_adjoints && dedup_conj != dedup
+            push!(missing_states, average(conj_full))
         end
         return
     end
     SymbolicUtils.iscall(x) || return
     for a in SymbolicUtils.arguments(x)
-        _collect_missing!(missing_states, seen_keys, canon, a, get_adjoints)
+        _collect_missing!(missing_states, seen_keys, canon, bound, a, get_adjoints)
     end
     return
 end
@@ -164,20 +167,12 @@ function _flatten_jumps(js::AbstractVector)
     return out
 end
 
-function _canonical_key(x::SymbolicUtils.BasicSymbolic, canon::_CanonIndex)
+function _canonical_key(
+        x::SymbolicUtils.BasicSymbolic, canon::_CanonIndex,
+        bound::Set{SQA.Index} = Set{SQA.Index}(),
+    )
     op_raw = SQA.undo_average(x)
     op_raw isa SQA.QAdd || return op_raw
-    # Strip sum-scope `.indices` for the dedup key: states are stored in the
-    # per-atom template form (see `_undo_for_derivation`), so a sum-scoped RHS
-    # leaf `Σ_i ⟨σ_{i,22}⟩` must dedup against the per-atom state
-    # `⟨σ_{i,22}⟩`. `evaluate` later re-materialises the sum at codegen by
-    # enumerating the concrete atom states.
-    #
-    # Also strip per-term NE pairs that reference an index not present in the
-    # term's operators: such pairs are constraints inherited from a deeper
-    # derivation (e.g. a parent state with two free indices propagating
-    # `i ≠ j` into a sub-product that only mentions `i`) and are physically
-    # irrelevant to the leaf state's identity.
     op = _strip_irrelevant_metadata(op_raw)
     encountered = _free_op_indices(op)
     pos_by_space = Dict{Int, Int}()
@@ -225,6 +220,32 @@ function _strip_irrelevant_metadata(op_raw::SQA.QAdd)
     end
     return SQA.QAdd(new_args, SQA.Index[])
 end
+
+# Build a dedup key for `find_missing` from `_canonical_key`'s output by
+# stripping NE pairs whose BOTH indices are free LHS slots (not bound by
+# an H/J sum). Two distinct LHS slot indices already designate distinct
+# atoms by name; the NE constraint adds no physical identity. Without
+# this strip, the same physical state appears twice in `seen_keys` (once
+# with NE, once without) and the closure doubles, breaking unique_squeezing
+# and other indexed cross-atom systems. Filter-cavity-style NE pairs are
+# preserved because at least one index is H-bound (diagonal-vs-offdiagonal
+# matters).
+function _dedup_key_strip_free_ne(q::SQA.QAdd, bound::Set{SQA.Index})
+    out = SQA.QTermDict()
+    for (term, c) in q.arguments
+        isempty(term.ne) && (out[term] = c; continue)
+        kept = SQA.NonEqualPair[]
+        for pair in term.ne
+            (pair[1] in bound || pair[2] in bound) || continue
+            push!(kept, pair)
+        end
+        new_term = length(kept) == length(term.ne) ? term :
+            SQA.QTerm(copy(term.ops), kept)
+        out[new_term] = c
+    end
+    return SQA.QAdd(out, q.indices)
+end
+_dedup_key_strip_free_ne(x, _) = x
 
 function _free_indices_by_space(op::SQA.QAdd)
     out = Dict{Int, Vector{SQA.Index}}()
@@ -492,11 +513,60 @@ function _derive_for(
     )
     bound = _bound_indices(eqs)
     fresh_ops, undo = _alpha_rename_away(new_ops, bound)
+    distinct = _distinct_atom_indices(fresh_ops)
     derived = _meanfield_noise(
         eqs.direction, fresh_ops, eqs.hamiltonian, eqs.jumps, eqs.jumps_dagger,
-        eqs.rates, eqs.efficiencies, eqs.order, mix_choice, eqs.iv,
+        eqs.rates, eqs.efficiencies, eqs.order, mix_choice, eqs.iv;
+        distinct_indices = distinct,
     )
     return isempty(undo) ? derived : _apply_undo(derived, undo)
+end
+
+# Free LHS indices on `new_ops` that live on an N-level (atom) subspace,
+# deduped. Each is a slot minted by `_canonical_key` to represent a
+# physically distinct atom in a multi-atom cross moment; asserting them
+# distinct enables SQA's same-site collapse via `expand_completeness`
+# (`σ^{gg} = 1 - Σ σ^{kk}`). The distinctness assumption is restricted to
+# Transition-carrying indices because Fock-space (filter, mode) indices
+# refer to physically distinct sites by user construction and do not need
+# (nor benefit from) algebraic same-site collapse; injecting NE on them
+# breaks indexed-filter examples like filter-cavity_indexed.
+function _distinct_atom_indices(new_ops)
+    by_space = Dict{Int, Vector{SQA.Index}}()
+    for op in new_ops
+        _collect_atom_space_indices_by_space!(by_space, op)
+    end
+    # Only assert distinctness when this op-set carries 2+ indices on the
+    # SAME atom space (the configuration that benefits from same-site
+    # collapse). A single atom-space index per derivation (single-atom
+    # moment) does not need NE injection, and triggering SQA's
+    # canonicalisation on such terms changes drift in examples like
+    # unique_squeezing that already produce correct results without it.
+    out = SQA.Index[]
+    seen = Set{SQA.Index}()
+    for (_, idxs) in by_space
+        length(idxs) >= 2 || continue
+        for idx in idxs
+            idx in seen && continue
+            push!(seen, idx); push!(out, idx)
+        end
+    end
+    return out
+end
+
+_collect_atom_space_indices_by_space!(_, ::Any) = nothing
+function _collect_atom_space_indices_by_space!(by_space, op::SQA.QSym)
+    op isa SQA.Transition || return nothing
+    SQA.has_index(op.index) || return nothing
+    v = get!(by_space, op.index.space_index, SQA.Index[])
+    op.index in v || push!(v, op.index)
+    return nothing
+end
+function _collect_atom_space_indices_by_space!(by_space, op::SQA.QAdd)
+    for (term, _) in op.arguments, o in term.ops
+        _collect_atom_space_indices_by_space!(by_space, o)
+    end
+    return nothing
 end
 
 # Pick fresh names for any LHS free index that clashes with an H/J bound name.
