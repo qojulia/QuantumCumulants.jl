@@ -53,10 +53,16 @@ function _collect_missing!(
         dedup in seen_keys && return
         conj_full = _canonical_key(_avg_conj(x), canon)
         dedup_conj = _dedup_key_strip_free_ne(conj_full, bound)
+        # Conjugate must be checked against `seen_keys` BEFORE we push the
+        # primary's keys, otherwise a leaf whose conjugate happens to be
+        # an already-discovered state would push that conjugate again, and
+        # the closure would gain a duplicate equation. The primary side is
+        # gated above; do the same for the conjugate.
+        conj_already_seen = dedup_conj in seen_keys
         push!(seen_keys, dedup)
         push!(seen_keys, dedup_conj)
         push!(missing_states, average(key_full))
-        if get_adjoints && dedup_conj != dedup
+        if get_adjoints && dedup_conj != dedup && !conj_already_seen
             push!(missing_states, average(conj_full))
         end
         return
@@ -501,10 +507,25 @@ function _derive_for(
     )
     bound = _bound_indices(eqs)
     fresh_ops, undo = _alpha_rename_away(new_ops, bound)
+    user_concretes = _user_concrete_atom_indices(eqs)
+    # Mirror noise-path NE injection to fix the det-vs-stoch closure
+    # asymmetry, BUT only when the user has no concrete-site atoms (the
+    # pure permutation-symmetric population case, e.g. filter-cavity).
+    # When the user declared a concrete atom like `j(1)` (e.g.
+    # unique_squeezing), NE injection on the det path blocks the
+    # dissipator's cumulant cross-decay term that bounds the dynamics,
+    # so skip it entirely. After derivation, strip free-atom NE from
+    # LHS so det- and stoch-path closures discover the same physical
+    # state under hashing (state shape is invariant under whichever
+    # iteration first surfaced the leaf).
+    distinct = isempty(user_concretes) ?
+        _distinct_atom_indices(fresh_ops) : SQA.Index[]
     derived = _meanfield_deterministic(
         eqs.direction, fresh_ops, eqs.hamiltonian, eqs.jumps, eqs.jumps_dagger,
-        eqs.rates, eqs.order, mix_choice, eqs.iv,
+        eqs.rates, eqs.order, mix_choice, eqs.iv;
+        distinct_indices = distinct,
     )
+    derived = _strip_lhs_free_atom_ne(derived, bound)
     return isempty(undo) ? derived : _apply_undo(derived, undo)
 end
 
@@ -519,7 +540,146 @@ function _derive_for(
         eqs.rates, eqs.efficiencies, eqs.order, mix_choice, eqs.iv;
         distinct_indices = distinct,
     )
+    derived = _strip_lhs_free_atom_ne(derived, bound)
     return isempty(undo) ? derived : _apply_undo(derived, undo)
+end
+
+# Strip NE pairs between free Transition-carrying atom-space indices from
+# every LHS (and the corresponding `states` / `operators`) of a derived
+# equation set. The matching RHS still carries any NE that was injected
+# by `_assume_distinct_atom_indices`, but the LHS shape is now invariant
+# under whichever RHS path first produced the leaf. Without this, det
+# and stoch completion paths discover the same physical cross-atom state
+# at different iterations (one carrying the slot-pair NE, the other
+# not), producing hash-different state expressions even though they
+# refer to the same physical state. Stripping affects only LHS hashing/
+# equality; scale and evaluate operate on the underlying operator
+# structure, so downstream behaviour is unchanged.
+function _strip_lhs_free_atom_ne(
+        eqs::MeanFieldEquations, bound::Set{SQA.Index}
+    )
+    new_equations = [
+        _avg_strip_atom_ne(eq.lhs, bound) ~ eq.rhs for eq in eqs.equations
+    ]
+    new_states = [_avg_strip_atom_ne(s, bound) for s in eqs.states]
+    new_operators = [_op_strip_atom_ne(o, bound) for o in eqs.operators]
+    new_op_eqs = [
+        _op_strip_atom_ne(oe.lhs, bound) ~ oe.rhs for oe in eqs.operator_equations
+    ]
+    return MeanFieldEquations(
+        new_equations, new_op_eqs, new_states, new_operators,
+        eqs.hamiltonian, eqs.jumps, eqs.jumps_dagger, eqs.rates,
+        eqs.iv, eqs.order, eqs.direction;
+        initial_operators = copy(eqs.initial_operators),
+    )
+end
+
+function _strip_lhs_free_atom_ne(
+        eqs::NoiseMeanFieldEquations, bound::Set{SQA.Index}
+    )
+    new_equations = [
+        _avg_strip_atom_ne(eq.lhs, bound) ~ eq.rhs for eq in eqs.equations
+    ]
+    new_noise_equations = [
+        _avg_strip_atom_ne(eq.lhs, bound) ~ eq.rhs for eq in eqs.noise_equations
+    ]
+    new_states = [_avg_strip_atom_ne(s, bound) for s in eqs.states]
+    new_operators = [_op_strip_atom_ne(o, bound) for o in eqs.operators]
+    new_op_eqs = [
+        _op_strip_atom_ne(oe.lhs, bound) ~ oe.rhs for oe in eqs.operator_equations
+    ]
+    new_op_noise_eqs = [
+        _op_strip_atom_ne(oe.lhs, bound) ~ oe.rhs for oe in eqs.operator_noise_equations
+    ]
+    return NoiseMeanFieldEquations(
+        new_equations, new_noise_equations, new_op_eqs, new_op_noise_eqs,
+        new_states, new_operators,
+        eqs.hamiltonian, eqs.jumps, eqs.jumps_dagger, eqs.rates,
+        eqs.efficiencies, eqs.iv, eqs.order, eqs.direction;
+        initial_operators = copy(eqs.initial_operators),
+    )
+end
+
+function _avg_strip_atom_ne(x::SymbolicUtils.BasicSymbolic, bound::Set{SQA.Index})
+    _is_leaf_average(x) || return x
+    op = SQA.undo_average(x)
+    op isa SQA.QAdd || return x
+    stripped = _op_strip_atom_ne(op, bound)
+    stripped === op && return x
+    return average(stripped)
+end
+_avg_strip_atom_ne(x, _) = x
+
+_op_strip_atom_ne(op, _) = op
+function _op_strip_atom_ne(op::SQA.QAdd, bound::Set{SQA.Index})
+    out = SQA.QTermDict()
+    changed = false
+    for (term, c) in op.arguments
+        new_term = _term_strip_atom_ne(term, bound)
+        new_term === term || (changed = true)
+        out[new_term] = c
+    end
+    changed || return op
+    return SQA.QAdd(out, op.indices)
+end
+
+function _term_strip_atom_ne(term::SQA.QTerm, bound::Set{SQA.Index})
+    isempty(term.ne) && return term
+    atom_idx = Set{SQA.Index}()
+    for o in term.ops
+        o isa SQA.Transition || continue
+        SQA.has_index(o.index) || continue
+        o.index in bound && continue
+        push!(atom_idx, o.index)
+    end
+    isempty(atom_idx) && return term
+    kept = SQA.NonEqualPair[]
+    changed = false
+    for pair in term.ne
+        if pair[1] in atom_idx && pair[2] in atom_idx
+            changed = true
+            continue
+        end
+        push!(kept, pair)
+    end
+    changed || return term
+    return SQA.QTerm(copy(term.ops), kept)
+end
+
+# Atom-space indices declared by the user in `initial_operators` that are
+# not bound by an H/J sum scope. These are concrete-site labels (e.g.
+# `j(1)` from `σ(2,2,j(1))`), not interchangeable slots over an atom
+# population, so they must be excluded from the NE-injection that
+# `_assume_distinct_atom_indices` performs: asserting "user's specific
+# atom ≠ some other slot" blocks the dissipator's same-site cumulant
+# correction term that keeps unique_squeezing's N=1 dynamics bounded.
+function _user_concrete_atom_indices(eqs::AbstractMeanFieldEquations)
+    out = Set{SQA.Index}()
+    bound = _bound_indices(eqs)
+    for op in eqs.initial_operators
+        _collect_atom_indices_set!(out, op, bound)
+    end
+    return out
+end
+
+_collect_atom_indices_set!(::Set{SQA.Index}, ::Any, ::Set{SQA.Index}) = nothing
+function _collect_atom_indices_set!(
+        out::Set{SQA.Index}, op::SQA.QSym, bound::Set{SQA.Index},
+    )
+    op isa SQA.Transition || return nothing
+    SQA.has_index(op.index) || return nothing
+    op.index in bound && return nothing
+    op.index.concrete || return nothing
+    push!(out, op.index)
+    return nothing
+end
+function _collect_atom_indices_set!(
+        out::Set{SQA.Index}, op::SQA.QAdd, bound::Set{SQA.Index},
+    )
+    for (term, _) in op.arguments, o in term.ops
+        _collect_atom_indices_set!(out, o, bound)
+    end
+    return nothing
 end
 
 # Free LHS indices on `new_ops` that live on an N-level (atom) subspace,
@@ -531,7 +691,9 @@ end
 # refer to physically distinct sites by user construction and do not need
 # (nor benefit from) algebraic same-site collapse; injecting NE on them
 # breaks indexed-filter examples like filter-cavity_indexed.
-function _distinct_atom_indices(new_ops)
+function _distinct_atom_indices(
+        new_ops, user_concretes::Set{SQA.Index} = Set{SQA.Index}(),
+    )
     by_space = Dict{Int, Vector{SQA.Index}}()
     for op in new_ops
         _collect_atom_space_indices_by_space!(by_space, op)
@@ -542,11 +704,16 @@ function _distinct_atom_indices(new_ops)
     # moment) does not need NE injection, and triggering SQA's
     # canonicalisation on such terms changes drift in examples like
     # unique_squeezing that already produce correct results without it.
+    # Also exclude indices that the user declared concretely (e.g. `j(1)`):
+    # those denote specific atoms, not interchangeable slots, and NE-
+    # injecting them blocks the dissipator's cumulant-correction term
+    # that bounds the dynamics for those concrete-site states.
     out = SQA.Index[]
     seen = Set{SQA.Index}()
     for (_, idxs) in by_space
         length(idxs) >= 2 || continue
         for idx in idxs
+            idx in user_concretes && continue
             idx in seen && continue
             push!(seen, idx); push!(out, idx)
         end
@@ -770,7 +937,8 @@ function _copy(eqs::MeanFieldEquations)
         copy(eqs.jumps),
         copy(eqs.jumps_dagger),
         copy(eqs.rates),
-        eqs.iv, eqs.order, eqs.direction,
+        eqs.iv, eqs.order, eqs.direction;
+        initial_operators = copy(eqs.initial_operators),
     )
 end
 
@@ -787,6 +955,7 @@ function _copy(eqs::NoiseMeanFieldEquations)
         copy(eqs.jumps_dagger),
         copy(eqs.rates),
         copy(eqs.efficiencies),
-        eqs.iv, eqs.order, eqs.direction,
+        eqs.iv, eqs.order, eqs.direction;
+        initial_operators = copy(eqs.initial_operators),
     )
 end

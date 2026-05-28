@@ -37,6 +37,7 @@ struct MeanFieldEquations{
     operator_equations::Vector{Symbolics.Equation}
     states::Vector{S}
     operators::Vector{Op}
+    initial_operators::Vector{Op}
     hamiltonian::H
     jumps::Vector{Jt}
     jumps_dagger::Vector{Jdt}
@@ -56,7 +57,8 @@ struct MeanFieldEquations{
             rates::Vector{R},
             iv::Symbolics.Num,
             order::O,
-            direction::D = Forward(),
+            direction::D = Forward();
+            initial_operators::Vector{Op} = copy(operators),
         ) where {
             O, H <: QField, Op <: QField, Jt, Jdt, R,
             S <: SymbolicUtils.BasicSymbolic, D <: EvolutionDirection,
@@ -69,7 +71,7 @@ struct MeanFieldEquations{
             "jumps/jumps_dagger/rates must have matching lengths"
         )
         return new{O, H, Op, Jt, Jdt, R, S, D}(
-            equations, operator_equations, states, operators,
+            equations, operator_equations, states, operators, initial_operators,
             hamiltonian, jumps, jumps_dagger, rates, iv, order, direction,
         )
     end
@@ -98,6 +100,7 @@ struct NoiseMeanFieldEquations{
     operator_noise_equations::Vector{Symbolics.Equation}
     states::Vector{S}
     operators::Vector{Op}
+    initial_operators::Vector{Op}
     hamiltonian::H
     jumps::Vector{Jt}
     jumps_dagger::Vector{Jdt}
@@ -121,7 +124,8 @@ struct NoiseMeanFieldEquations{
             efficiencies::Vector{E},
             iv::Symbolics.Num,
             order::O,
-            direction::D,
+            direction::D;
+            initial_operators::Vector{Op} = copy(operators),
         ) where {O, H, Op, Jt, Jdt, R, E, S, D}
         n = length(equations)
         @assert n == length(noise_equations) == length(operator_equations) ==
@@ -133,7 +137,7 @@ struct NoiseMeanFieldEquations{
         )
         return new{O, H, Op, Jt, Jdt, R, E, S, D}(
             equations, noise_equations, operator_equations,
-            operator_noise_equations, states, operators,
+            operator_noise_equations, states, operators, initial_operators,
             hamiltonian, jumps, jumps_dagger, rates,
             efficiencies, iv, order, direction
         )
@@ -156,7 +160,8 @@ function MeanFieldEquations(eqs::NoiseMeanFieldEquations)
     return MeanFieldEquations(
         eqs.equations, eqs.operator_equations, eqs.states, eqs.operators,
         eqs.hamiltonian, eqs.jumps, eqs.jumps_dagger, eqs.rates,
-        eqs.iv, eqs.order, eqs.direction,
+        eqs.iv, eqs.order, eqs.direction;
+        initial_operators = copy(eqs.initial_operators),
     )
 end
 

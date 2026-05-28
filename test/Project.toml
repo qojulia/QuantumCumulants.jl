@@ -7,6 +7,7 @@ ExplicitImports = "7d51a73a-1435-4ff3-83d9-f097790105c7"
 JET = "c3a54625-cd67-489e-a8e7-0a5a0ff4e31b"
 ModelingToolkitBase = "7771a370-6774-4173-bd38-47e70ca0b839"
 OrdinaryDiffEq = "1dea7af3-3e70-54e6-95c3-0bf5283fa5ed"
+OrdinaryDiffEqTsit5 = "b1df2697-797e-41e3-8120-5422d3b24e4a"
 ParallelTestRunner = "d3525ed8-44d0-4b2c-a655-542cee43accc"
 QuantumCumulants = "35bcea6d-e19f-57db-af74-8011de6c7255"
 QuantumOptics = "6e0679c1-51ea-5a7c-ac74-d61b76210b0c"
@@ -28,4 +29,4 @@ JET = "0.9, 0.10, 0.11"
 ParallelTestRunner = "2"
 
 [sources]
-SecondQuantizedAlgebra = {url = "https://github.com/qojulia/SecondQuantizedAlgebra.jl", rev = "redesign-v2"}
+SecondQuantizedAlgebra = {path = "../../SecondQuantizedAlgebra.jl"}

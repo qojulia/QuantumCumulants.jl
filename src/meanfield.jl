@@ -117,6 +117,7 @@ end
 function _build_op_drift(
         direction, ops_qa, H, J, Jdagger, rates;
         distinct_indices::Vector{SQA.Index} = SQA.Index[],
+        user_concretes::Set{SQA.Index} = Set{SQA.Index}(),
     )
     imH = im * H
     op_rhs = Vector{QAdd}(undef, length(ops_qa))
@@ -125,7 +126,7 @@ function _build_op_drift(
         rhs = SQA.expand_completeness(
             _operator_rhs(direction, op, imH, J, Jdagger, rates),
         )
-        rhs = _assume_distinct_atom_indices(rhs, distinct_indices)
+        rhs = _assume_distinct_atom_indices(rhs, distinct_indices, user_concretes)
         op_rhs[i] = rhs
         operator_eqs[i] = op ~ rhs
     end
@@ -137,7 +138,10 @@ end
 # route through `SQA.assume_distinct_index` (which propagates NE,
 # canonicalises, and expands completeness). Returns `q` unchanged when
 # `distinct` is empty.
-function _assume_distinct_atom_indices(q::SQA.QAdd, distinct::Vector{SQA.Index})
+function _assume_distinct_atom_indices(
+        q::SQA.QAdd, distinct::Vector{SQA.Index},
+        user_concretes::Set{SQA.Index} = Set{SQA.Index}(),
+    )
     isempty(distinct) && return q
     by_space = Dict{Int, Set{SQA.Index}}()
     for (term, _) in q.arguments, o in term.ops
@@ -153,6 +157,13 @@ function _assume_distinct_atom_indices(q::SQA.QAdd, distinct::Vector{SQA.Index})
         idxs = get(by_space, d.space_index, Set{SQA.Index}())
         for other in idxs
             other == d && continue
+            # User-declared concrete indices (e.g. `j(1)` in
+            # `σ(2,2,j(1))`) denote specific atoms, not interchangeable
+            # slots. Asserting them distinct from algebra-minted phantom
+            # partners blocks the dissipator's cumulant-correction term
+            # that bounds cross-atom dynamics for those concrete-site
+            # states.
+            other in user_concretes && continue
             key = d < other ? (d, other) : (other, d)
             key in seen_pairs && continue
             push!(seen_pairs, key)
@@ -161,7 +172,7 @@ function _assume_distinct_atom_indices(q::SQA.QAdd, distinct::Vector{SQA.Index})
     end
     return isempty(pairs) ? q : SQA.assume_distinct_index(q, pairs)
 end
-_assume_distinct_atom_indices(q, _) = q
+_assume_distinct_atom_indices(q, _distinct, _concretes = nothing) = q
 
 # Lift operator drift to the averaged level, optionally adding a per-op
 # correction (e.g. `_dY_dS_extra_term` for backward noise) and applying
@@ -198,10 +209,11 @@ function _meanfield_deterministic(
         ops, H, J, Jdagger, rates, order,
         mix_choice, iv;
         distinct_indices::Vector{SQA.Index} = SQA.Index[],
+        user_concretes::Set{SQA.Index} = Set{SQA.Index}(),
     )
     ops_qa = QAdd[op * 1 for op in ops]
     op_rhs, operator_eqs = _build_op_drift(
-        direction, ops_qa, H, J, Jdagger, rates; distinct_indices,
+        direction, ops_qa, H, J, Jdagger, rates; distinct_indices, user_concretes,
     )
     states = SymbolicUtils.BasicSymbolic[average(op) for op in ops_qa]
     order_vec = order === nothing ? nothing :
@@ -329,10 +341,11 @@ function _meanfield_noise(
         direction::EvolutionDirection, ops, H, J, Jdagger, rates,
         efficiencies, order, mix_choice, iv;
         distinct_indices::Vector{SQA.Index} = SQA.Index[],
+        user_concretes::Set{SQA.Index} = Set{SQA.Index}(),
     )
     ops_qa = QAdd[op * 1 for op in ops]
     op_rhs, operator_eqs = _build_op_drift(
-        direction, ops_qa, H, J, Jdagger, rates; distinct_indices,
+        direction, ops_qa, H, J, Jdagger, rates; distinct_indices, user_concretes,
     )
     states = SymbolicUtils.BasicSymbolic[average(op) for op in ops_qa]
     order_vec = order === nothing ? nothing :
