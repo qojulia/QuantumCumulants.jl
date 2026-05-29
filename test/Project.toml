@@ -29,4 +29,4 @@ JET = "0.9, 0.10, 0.11"
 ParallelTestRunner = "2"
 
 [sources]
-SecondQuantizedAlgebra = {path = "../../SecondQuantizedAlgebra.jl"}
+SecondQuantizedAlgebra = {rev = "redesign-v2", url = "https://github.com/qojulia/SecondQuantizedAlgebra.jl"}
