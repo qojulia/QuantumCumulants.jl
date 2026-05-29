@@ -543,9 +543,8 @@ function _derive_for(
     # the noise path keeps the original unconditional NE injection
     # even though that leaves the det/stoch closure shapes
     # asymmetric (see `measurement_backaction_indices_comparison:
-    # deterministic vs stochastic LHS match`). The asymmetry is
-    # algebraic, not physical: drift and diffusion column shapes
-    # differ but the underlying physics is the same.
+    # deterministic vs stochastic LHS match` and TODO §3 for the
+    # parked algebraic-asymmetry investigation).
     distinct = _distinct_atom_indices(fresh_ops)
     derived = _meanfield_noise(
         eqs.direction, fresh_ops, eqs.hamiltonian, eqs.jumps, eqs.jumps_dagger,

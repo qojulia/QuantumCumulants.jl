@@ -78,17 +78,14 @@ end
     # user-named atom indices to preserve the dissipator's cumulant
     # cross-decay correction; stoch always injects NE so its diffusion
     # column folds via `expand_completeness` and stays numerically
-    # bounded). Neither shape is "wrong"; they are two valid cumulant-2
-    # truncations of the same underlying Lindbladian.
-    #
-    # The meaningful invariant is therefore not subset/length but
-    # "shared LHS produce identical drift", asserted below at line ~96.
-    # We still require the LHS sets overlap (otherwise the per-equation
-    # agreement test below would vacuously pass on zero shared keys).
+    # bounded). See TODO §3 for the parked algebraic-asymmetry
+    # investigation; the cumulant-level `expand_completeness` fix
+    # explored in that session turned out to be incomplete (heterodyne
+    # still diverges at the example's full T_end), so the path-
+    # asymmetric NE handling stands and this assertion stays relaxed.
     det_lhs = Set(e.lhs for e in det_c.equations)
     stoch_lhs = Set(e.lhs for e in stoch_c.equations)
     @test !isempty(intersect(det_lhs, stoch_lhs))
-    # Both closures must be non-empty.
     @test !isempty(det_lhs)
     @test !isempty(stoch_lhs)
 

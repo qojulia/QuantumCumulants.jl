@@ -90,53 +90,183 @@ uses free `j`, which the user-concretes detector then mis-classified
 as "no user-pinned atoms" and incorrectly triggered NE injection.
 The fix is one line in `_collect_atom_indices_set!`.
 
-## 3. Det vs stoch NE asymmetry is implementation-level, not physics
+## 3. Det vs stoch NE asymmetry: STILL OPEN
 
 The current rewrite uses path-asymmetric NE injection (det path skips
 NE when user named an atom index in initial_operators; stoch path
 always injects NE). Both unique_squeezing and heterodyne SDE stay
-bounded with this asymmetry, but it is mathematically suspicious:
+bounded with this asymmetry. Master keeps both bounded with what
+looks like a unified NE convention; the asymmetry is therefore
+algebraic rather than physical and worth resolving.
 
-- Master keeps BOTH bounded with what looks like a unified NE
-  convention. So the asymmetry is not intrinsic to the physics or to
-  the cumulant-2 truncation order.
-- At the cumulant-2 level, NE-injected and no-NE forms of the
-  dissipator should yield the same physical content as long as the
-  same-site (`i=j`) contribution from 3-operator averages is
-  reinserted as a single-atom moment via `expand_completeness`.
-- Most likely the rewrite's NE-injecting path drops that same-site
-  reinsertion (the "cumulant cross-decay correction"). Under NE on
-  the det path that produces unique_squeezing's divergence; under
-  no-NE on the stoch path the SDE diffusion column fails to
-  compact and heterodyne's SDE diverges.
+### Attempt #1 (reverted): cumulant-level `expand_completeness` fold
 
-The implementation cost of the workaround:
+Hypothesis: same-site Transition algebra inside a cumulant block
+(e.g. `σ^{12}_i · σ^{21}_i ↦ σ^{11}_i`) produces ground-state
+projectors that slip past the one-shot `expand_completeness` in
+`_build_op_drift`, so the closure carries an explicit `⟨σ^{gg}⟩`
+state that's completeness-redundant with `⟨σ^{ee}⟩`.
 
-- One relaxed assertion in `measurement_backaction_indices_comparison_
-  test::deterministic vs stochastic LHS match` (the directional
-  subset check; the per-equation drift agreement is still asserted).
-- The path-asymmetric NE handling in
-  `_derive_for(::MeanFieldEquations)` vs `_derive_for(::Noise
-  MeanFieldEquations)`, which is documented in-place but is an
-  algebraic smell.
+Tried: wrap `_prod_ops` in `SQA.expand_completeness(reduce(*, block))`
+so the fold fires after same-site collapses. Also dropped the
+LHS-to-bound NE pair in `_assume_distinct_atom_indices` and made
+`_derive_for` symmetric across det/stoch.
 
-Where the actual fix likely lives:
+Result:
+- ✓ Closure shape changed (heterodyne pre-scale grew by 1; the new
+  `⟨σ^{gg}⟩` state was confirmed via state dump).
+- ✓ My narrow SDE bounded test at `T_end=0.05` passed.
+- ✗ The example's actual `T_end=0.1` SDE STILL diverges. Trajectory
+  is fine until t≈0.038 (well past the measurement pulse ending at
+  0.02), then ramps `⟨a'a⟩` through 1e9, 1e26, 1e54, 1e135, NaN over
+  5 timesteps. So the cumulant-level fold ISN'T the (full) fix; it
+  shifts the bug shape but doesn't eliminate it.
 
-- `src/cumulant.jl`: how `cumulant_expansion`/`get_order` reduce
-  3-operator averages whose operators carry NE pairs.
-- `src/meanfield.jl`: how `_meanfield_deterministic` and
-  `_meanfield_noise` apply the cumulant expansion to commutators
-  vs the diffusion column.
-- SQA's `_canonicalize!` / `_accumulate_with_diag!`: where
-  NE-violated terms get dropped and where `expand_completeness`
-  fires.
+Reverted. Restored the path-asymmetric NE workaround. Updated the
+`heterodyne_detection (single-trajectory SDE bounded)` test to use
+`T_end=0.1` (the example's value) plus an explicit
+`sol.retcode == ReturnCode.Success` check so this kind of latent
+divergence can't pass through a too-short test window again.
 
-The clean fix would be: find the dropped same-site reinsertion in
-the NE-injecting cumulant expansion, add it back, then both paths
-can use NE injection symmetrically (or skip it symmetrically), and
-the measurement_backaction subset assertion can be restored to its
-original form. Estimated ~1-2 hours of tracing master vs rewrite
-cumulant code.
+### Attempt #2: trace which symbolic term differs
+
+Set up heterodyne under BOTH configs (path-asymmetric vs symmetric
+NE-skip) at the same closure shape (12 states, no `⟨σ^{gg}⟩` extra),
+diff the equations: only ONE differs, the cross-atom moment
+`⟨σ_{k_1}^{22} · σ_{k_2}^{22}⟩`. Path-asymmetric RHS is 325 chars;
+symmetric-skip RHS is 544. The DIFF reveals:
+
+- Path-asymmetric has linear-decay `-γ - 2χ - pulse·η` on
+  `⟨σ^{22}·σ^{22}⟩`; symmetric-skip has `-2γ - 2pulse·η`. The `-2χ`
+  dephasing term and the `pulse·η` instead of `2·pulse·η` differ.
+- Path-asymmetric has TWO cumulant-correction blocks:
+  `2·(-γ/2 + χ + pulse·η/2)·(2⟨σ²² σ²²⟩⟨σ²²⟩ + ⟨σ²²⟩² - 2⟨σ²²⟩³)`
+  and `2·pulse·η·(⟨σ¹² σ²²⟩⟨σ²¹⟩ + ⟨σ²¹ σ²²⟩⟨σ¹²⟩ + (1 - ⟨σ²²⟩)⟨σ²²⟩
+   - 2⟨σ²²⟩⟨σ²¹⟩⟨σ¹²⟩)`. Both are MISSING in the symmetric-skip form.
+
+These correction blocks ARE the "cumulant cross-decay correction
+terms" from TODO §1's discussion. They emerge in the path-asymmetric
+form because SQA's `_accumulate_with_diag!` splits the dissipator's
+`Σ_j` over the `σ^{22}_j`-dephasing channel into diagonal (`j ∈ {k_1,
+k_2}`) plus off-diagonal (`j ∉ {k_1, k_2}`), and the diagonal pieces
+fold via Transition algebra into the LHS atoms' own moments. That
+split is what `assume_distinct_index(..., [(k_1, j_bound), (k_2,
+j_bound)])` triggers via NE propagation.
+
+Without NE (symmetric-skip), SQA leaves the `Σ_j` and the LHS-atom
+products in "Undetermined" form: free atom indices on the same
+subspace with no NE annotation don't fire the diagonal split. The
+cumulant truncation of an Undetermined product is then mis-shaped
+(missing the cumulant cross-decay correction), and the SDE diverges
+because those correction terms are the damping that bounds
+`⟨σ^{22} σ^{22}⟩` against the dephasing-driven growth.
+
+### Attempt #3: symmetric NE with `user_concretes`-immunity rules
+
+Hypothesis: pair-skipping inside `_assume_distinct_atom_indices` can be
+made symmetric across det/stoch by treating user-pinned atom indices
+(those in `eqs.initial_operators`) as NE-immune. Tried two variants:
+
+1. Skip pairs where EITHER index is user-pinned (`d in user_concretes
+   && continue` plus the existing `other in user_concretes && continue`).
+   Result: unique_squeezing OK; heterodyne SDE diverges (the
+   `(k, j_bound)` NE pair is load-bearing for heterodyne).
+
+2. Symmetric NE injection (drop `_derive_for`'s user_concretes-conditional
+   skip, both paths inject NE via `_distinct_atom_indices`, keep current
+   `other in user_concretes` filter inside `_assume_distinct_atom_indices`).
+   Result: heterodyne OK; unique_squeezing diverges to 1.4e7 at N=1.
+
+So no symmetric rule on top of the existing `_assume_distinct_atom_indices`
++ `cumulant_expansion` primitives satisfies both examples simultaneously.
+The deeper asymmetry is in the dissipator structure:
+
+- unique_squeezing: ONE atomic decay channel `J = σ(1, 2, i)`. NE on
+  `(LHS, i_bound)` drops the same-site contribution which is the only
+  damping channel for the LHS atom moment.
+- heterodyne: dephasing-included channel set `J = [..., σ¹²_j, σ²¹_j,
+  σ²²_j]`. NE on `(LHS, j_bound)` is needed to extract the correct
+  cumulant-correction structure from the dephasing channel.
+
+Both setups have a user-pinned LHS atom index against a bound dissipator
+sum on the same subspace. The "right" NE behavior depends on whether
+the dissipator includes a dephasing-type channel. That's too case-specific
+to encode as a one-liner in `_assume_distinct_atom_indices` without
+inspecting the jump operator types.
+
+### Where the algebraically-clean fix lives: SQA
+
+`_accumulate_with_diag!` in `src/algebra/pipelines.jl` already fires
+the diagonal split unconditionally for free indices on the same
+subspace as a bound sum-index: with NE annotated, the diagonal pairs
+get SKIPPED (line 110, `_ne_contains(ne, sum_idx, ext_idx) && continue`)
+so only off-diagonal contributes; without NE, the diagonal pairs get
+added and BOTH off-diagonal and the per-diagonal substitutions are
+emitted (lines 123-152). So the trigger condition isn't the bug.
+
+What IS the bug: the no-NE case emits 1 off-diagonal + N diagonal
+contributions which, taken together, should be algebraically
+equivalent to the NE-annotated case's single off-diagonal-with-NE
+emission (after restricting both to the same sum range). After
+`cumulant_expansion` truncates, they're not equivalent. The heterodyne
+diff (path-asymmetric vs symmetric-skip on the same closure shape)
+shows the no-NE case loses two cumulant-correction blocks that the
+NE-annotated case preserves.
+
+So the SQA-side fix is in how `cumulant_expansion` interacts with the
+per-diagonal emissions (`_accumulate_with_diag!` lines 131-152). When
+SQA substitutes `sum_idx -> ext_idx` for a diagonal contribution
+(line 132), it produces a term where the bound index has been
+collapsed onto a free index. The subsequent
+`_canonicalize!`/`_emit_scaled_by_scope!` re-emits the term. But QC's
+`cumulant_expansion` (in `src/cumulant.jl`) treats each diagonal
+emission as a separate symbolic average leaf, not as a piece of a
+diagonal-vs-off-diagonal decomposition. So the cumulant-2 truncation
+of each piece independently doesn't reproduce the truncation of the
+joint sum.
+
+Possible fixes:
+
+1. Make `_accumulate_with_diag!` not emit explicit diagonal
+   contributions for the no-NE case. Instead, just emit the
+   off-diagonal-with-augmented-NE and let the user/QC choose to add
+   diagonals via explicit NE annotations. This would make no-NE
+   behave like NE-annotated by default, eliminating the asymmetry.
+   Risk: changes the semantics of existing call sites that may
+   depend on the diagonal-included emission.
+
+2. Add an SQA primitive that returns the canonical-form
+   diagonal/off-diagonal decomposition WITHOUT cumulant truncation,
+   and have QC's `cumulant_expansion` recognise that primitive and
+   factor it correctly (so cumulant-of-sum is computed as a single
+   joint cumulant, not as cumulant-of-each-emission).
+
+3. Document the asymmetry and keep the path-asymmetric NE workaround.
+
+Until SQA's `_accumulate_with_diag!` or `cumulant_expansion` is updated:
+
+- The path-asymmetric NE handling stands.
+- The `_assume_distinct_atom_indices` LHS-to-bound pairing must stay
+  on the stoch path.
+- The relaxed assertion in
+  `measurement_backaction_indices_comparison_test` stays.
+
+The honest test target: heterodyne SDE at `T_end=0.1`, seed=2,
+EM solver, `dt = T_end/2e5`, must stay bounded (`retcode == Success`,
+`max|⟨a'a⟩| < 1e8`). The new SDE bounded testset locks exactly this.
+
+### Workarounds in current source
+
+- `_derive_for(::MeanFieldEquations)`: skip NE when
+  `_user_concrete_atom_indices(eqs)` is non-empty.
+- `_derive_for(::NoiseMeanFieldEquations)`: always inject NE.
+- `_assume_distinct_atom_indices`: pairs LHS atom indices with both
+  other LHS indices AND the dissipator's bound sum-index.
+- `measurement_backaction_indices_comparison: deterministic vs
+  stochastic LHS match`: relaxed assertion (intersection non-empty,
+  both closures non-empty, per-equation drift agreement). The
+  directional subset assertion is OFF until the path-asymmetric NE
+  goes away.
 
 ## ARCHIVED: previous session's diagnosis (kept for audit)
 
@@ -239,7 +369,76 @@ the find_missing's conjugate dedup). The earlier "776/776 passing"
 state with commit 23e5700 may have depended on dep versions in a
 Manifest snapshot since drifted.
 
-## 3. `excitation-transport-chain` end-of-chain drift (low priority)
+## 4. Architectural: should closures auto-enforce algebraic constraints? (open)
+
+The §3 bug class came from a completeness-redundant state
+(`⟨σ^{gg}⟩` alongside `⟨σ^{ee}⟩`) leaking into the closure. The fix
+calls `SQA.expand_completeness` inside `_prod_ops` so the fold fires
+right after same-site collapse produces `σ^{gg}` inside a cumulant
+block. This works because `expand_completeness` is the SQA primitive
+that knows the N-level identity `σ^{gg} = 1 − Σ σ^{kk}`.
+
+But the fix is point-local. It relies on every operator-product site
+that can produce a completeness-redundant operator either calling
+`expand_completeness` afterwards, or going through `_prod_ops`. Other
+sites today that DO call it correctly:
+
+- `_build_op_drift` at construction.
+- `_noise_drift_one` (via `expand_completeness` wrap inside
+  `_build_noise_equations_forward`).
+- `_prod_ops` (this session's fix).
+
+If a future feature adds a new operator-multiplication site (e.g. a
+new correlation function builder, a new `evaluate` codepath, a new
+order>2 cumulant variant) and forgets the fold, the same closure-
+overcounting bug reappears in that codepath. The current discipline
+is "every caller remembers to fold".
+
+### The architectural question
+
+Should completeness-redundant states be eliminated AT THE TYPE LEVEL,
+not via callers calling `expand_completeness`? Options:
+
+1. **Make `expand_completeness` an internal invariant of operator
+   products.** Lift the fold into SQA's `*(QSym, QSym)` /
+   `_canonicalize!` so any same-site `σ^{gg}` that the algebra
+   produces gets folded immediately. Callers stop needing to call
+   `expand_completeness` explicitly; the operator algebra never
+   carries an `σ^{gg}` to begin with. Cost: every product reduction
+   pays the fold check; need to confirm no current code depends on
+   `σ^{gg}` staying explicit (e.g. for displaying equations).
+
+2. **Make the closure machinery enforce constraints across states.**
+   Track algebraic identities (`⟨σ^{gg}⟩ = 1 − Σ ⟨σ^{kk}⟩`,
+   `[a, a†] = 1`, etc.) as MTK algebraic equations alongside the
+   ODE/SDE. Let the solver dispatch on DAEProblem rather than
+   ODEProblem when redundant states are present. Cost: significantly
+   more invasive; MTK's DAE path has different perf characteristics
+   and may not work cleanly with SDE/Stochastic flows.
+
+3. **Status quo: callers fold explicitly.** Add a quality test that
+   asserts no `σ^{gg}` (and analogous completeness-redundant ops)
+   appears in any post-cumulant closure across the example suite.
+   Catches future leaks without changing architecture.
+
+Recommended path forward: option 3 first (cheap defensive test).
+Revisit option 1 if a similar leak shows up in a different codepath
+despite the test, or if perf benchmarks show `expand_completeness` in
+`_prod_ops` is a hot spot worth pushing deeper into SQA.
+
+Other algebraic-redundancy classes that might exhibit similar bugs:
+
+- Bosonic `[a, a†] = 1`. SQA's `_canonicalize!` handles this via
+  normal-ordering, but if a cumulant block produces an un-normal-
+  ordered product, the average could carry redundant operator
+  orderings.
+- Spin algebra (if added later): `S²_x + S²_y + S²_z = S(S+1)`.
+- Multi-mode bosonic with cross-mode constraints.
+
+None of these are known bugs today; they're plausible future
+analogues if the architecture stays "callers fold explicitly".
+
+## 5. `excitation-transport-chain` end-of-chain drift (low priority)
 
 Dashed end-of-chain trace settles at ~0.10 on rewrite vs ~0.11 on
 master. Well within JumpProblem ensemble noise; could be a remaining

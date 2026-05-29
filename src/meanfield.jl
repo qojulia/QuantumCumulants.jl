@@ -157,12 +157,6 @@ function _assume_distinct_atom_indices(
         idxs = get(by_space, d.space_index, Set{SQA.Index}())
         for other in idxs
             other == d && continue
-            # User-declared concrete indices (e.g. `j(1)` in
-            # `σ(2,2,j(1))`) denote specific atoms, not interchangeable
-            # slots. Asserting them distinct from algebra-minted phantom
-            # partners blocks the dissipator's cumulant-correction term
-            # that bounds cross-atom dynamics for those concrete-site
-            # states.
             other in user_concretes && continue
             key = d < other ? (d, other) : (other, d)
             key in seen_pairs && continue

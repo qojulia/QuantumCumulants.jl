@@ -582,6 +582,7 @@ end
     # produces a finite-bounded trajectory (well below the divergence
     # threshold we'd hit if the cumulant fold were dropped).
     using StochasticDiffEq: SDEProblem, EM, RealWienerProcess
+    using StochasticDiffEq.SciMLBase: ReturnCode
     import Random
     @variables N ωa γ η χ ωc κ g ξ ωl
     @register_symbolic _het_pulse2(tt)
@@ -612,7 +613,11 @@ end
     g_ = 2π * 0.73; ωl_ = 2π * 1.0e3
     t0 = 0.0; t1 = 20.0e-3
     _het_pulse2(tt) = (tt > t0 && tt < t0 + t1) * 1.0
-    T_end = 0.05
+    # Match the example's full T_end so this test fails if the SDE
+    # diverges during the post-pulse decay (the bug class found in TODO
+    # §3's attempt: cumulant fold inside `_prod_ops` was bounded at
+    # T_end=0.05 but diverged at the example's full T_end=0.1).
+    T_end = 0.1
     p_pairs = Dict(
         N => N_, ωa => ωa_, γ => γ_, η => η_, χ => χ_,
         ωc => ωc_, κ => κ_, g => g_, ξ => ξ_, ωl => ωl_,
@@ -633,6 +638,7 @@ end
     # while tolerating legitimate transient excursions during the
     # heterodyne measurement pulse (peaks in the example are ~600).
     adag_a_traj = real.(get_solution(sol, a' * a, eqs_sc).(sol.t))
+    @test sol.retcode == ReturnCode.Success
     @test all(isfinite, adag_a_traj)
     @test maximum(abs, adag_a_traj) < 1.0e8
 end
@@ -812,6 +818,7 @@ end
 
 @testset "retrodiction_homodyne (forward, noise)" begin
     using StochasticDiffEq: SDEProblem, EM, RealWienerProcess
+    using StochasticDiffEq.SciMLBase: ReturnCode
     import Random
     h = PhaseSpace(:motion)
     @qnumbers x::Position(h)
