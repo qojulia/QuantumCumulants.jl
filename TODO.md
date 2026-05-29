@@ -24,59 +24,220 @@ artifact this session removed, see below).
    to 22 once the bug was fixed; eqs_sc count (19) and the numerical
    end-state (30.15) are unchanged.
 
-2. **SQA gained `Index.concrete::Bool`**
-   ([SecondQuantizedAlgebra/src/expressions/index_types.jl]). The 4-arg
-   `Index(name, range, space_index, sym)` ctor defaults `concrete=false`;
-   `(::Index)(::Integer)` (user-facing slot-mint) sets `concrete=true`.
-   `Base.isequal(::Index, ::Index) = (a == b)` ignores the flag so
-   substitution and dedup behave identically to before. Equality and
-   hash already ignored the flag; the explicit isequal override is
-   needed because `Base.:(==)(a::Transition, b::Transition) = isequal(a,b)`
-   falls back to structural isequal across all fields if not overridden.
+2. **`_collect_atom_indices_set!` discriminator**
+   ([src/completion.jl](src/completion.jl)). The "is this index a
+   user-pinned slot?" check now reads only QC state: any atom-space
+   index that appears in `eqs.initial_operators` and isn't H/J-bound
+   qualifies. This covers both free `j` (from `Index(h, :j, N, ha)`)
+   and slot-minted `j(1)` shapes uniformly.
 
-3. **QC reads `idx.concrete` directly** instead of the previous
-   "non-bound atom index in initial_operators" heuristic that
-   mis-classified user-free `k = Index(...)` as concrete. The
-   classification is now exact: an atom index is treated as a
-   concrete-site label iff it was minted via `(::Index)(::Integer)`.
+   (An earlier attempt added an `Index.concrete::Bool` flag to SQA to
+   drive the discrimination at construction time. That flag turned out
+   to be the wrong discriminator: the unique_squeezing example uses
+   free `j`, which would have read `.concrete = false`, so the flag
+   could not distinguish "user named this index" from "algebra minted
+   this index" the way unique_squeezing needed. The flag was removed
+   from SQA; the discriminator now reads `initial_operators` directly.)
 
 The previous belief that "`Base.isequal` override breaks filter-cavity"
 was a wrong conclusion; the actual breakage was the conjugate dedup
-bug, which the SQA changes exposed by altering canonical-key output
-enough to make the latent conjugate-collision reachable in
-filter-cavity. With the dedup fix in place, the SQA `concrete` design
-works as intended.
+bug. With the dedup fix in place, no SQA-side change is needed at all.
 
-## 2. `unique_squeezing.jl` Full model oscillates (pre-existing)
+## 2. `unique_squeezing.jl`: FIXED (free-`j` shape was broken)
 
-Plot 5 at N=100: the **Full model** oscillates between roughly -8 and
-+5 instead of settling at the X ≈ 2.29 / P ≈ 0.44 plateau that master
-and the Effective model both produce. The N=1 anchor `⟨a'a⟩ ≈ 30.15`
-locked in `test/examples_regression_test.jl` is the barely-stable
-manifestation of the cumulant cross-decay cancellation that this
-session's Bug 2 conditional preserves (NE injection on det path is
-suppressed when `j(1)` is detected as user-concrete).
+The example file uses `meanfield([a, a'a, σ(2,2,j)], H, J; ...)` with
+free `j` (declared via `Index(h, :j, N, ha)`); the TEST file uses
+`σ(2,2,j(1))` (slot-minted via `(::Index)(::Integer)`). These two
+shapes were not equivalent in the rewrite: an early attempt at a
+construction-time tag (an SQA `Index.concrete` boolean flag) routed
+the two shapes through different paths. The slot-mint path
+correctly skipped NE injection in `_derive_for` (because NE blocks
+the dissipator's cumulant cross-decay correction that bounds the
+dynamics), while the free-`j` path triggered NE injection because
+the construction-time tag was `false`, so `_user_concrete_atom_indices`
+returned an empty set for it.
 
-The Full model uses
-`meanfield([a, a'a, σ(2,2,j(1))], H, [b, σ(1,2,i)]; rates=[κ, γ],
-order=2)` then `complete` then `scale`, with the squeezed-bath jump
-`b = a cosh(ξ) + a' sinh(ξ)`. The cavity-only Effective model uses
-the **same** `b` jump and is correct, narrowing the suspect surface
-to the atom-cavity coupling.
+Fix: read QC state, not the construction-time tag. Any atom-space
+index the user named in `initial_operators` that isn't H/J-bound is a
+"user-pinned slot" regardless of whether the user wrote `j` or `j(1)`.
+Both representations now yield the same closure shape and the same
+numerical result (X=2.29, P=0.44 at N=100, matching master and the
+Effective model).
 
-The bounded-but-wrong-physics behaviour at N=1 (30.15) and the
-oscillation at N=100 share the same root: derived cross-atom states
-involve algebra-minted phantom slot indices (e.g. `j_1_2`) whose
-dynamics aren't physically correct for a model where atom 1 is the
-only specified concrete atom. Cumulant truncation produces a closure
-where the phantom states' dynamics is bounded near zero by a delicate
-cross-decay cancellation; small perturbations to the dissipator
-algebra (e.g. NE injection) break the cancellation. The Bug 2
-conditional avoids the perturbation; the underlying phantom-state
-representation remains. Real fix probably needs either
-`expand_completeness` to fire selectively (only for permutation-
-symmetric atom subspaces), or sum-wrapping cross-atom moments instead
-of materialising them as independent states.
+Re-investigation (test parameters, j(1) shape):
+
+- N=1: `⟨a'a⟩(t_end) = 30.149750050640776` with test parameters
+  (`tend = 2π/ωd`, `reltol = 1e-8`). The locked value 30.149750050640534
+  is matched to within `rtol = 1e-3`. The N=1 Full model legitimately
+  differs from the Effective model (which is the high-N adiabatic limit
+  at N_=69), so comparing the two at N=1 is not meaningful.
+- N=100: X plateau `2.292`, P plateau `0.437`, settling smoothly over
+  `[0, 4π/ωd]`. These are exactly the values that the previous session
+  claimed only master and the Effective model produce. The rewrite
+  reproduces them.
+- Scale already emits the correct `(N-1)` prefactor on cross-atom
+  moments (e.g. eq 6 of the post-scale system has
+  `-0.5(-1+N)*g*im*⟨σ_{j_1_1}^{12} σ_{j_1_2}^{21}⟩`). The pre-scale
+  user-concrete `j_1` is gracefully renamed to canonical slot `j_1_1`
+  and the post-scale model is fully permutation-symmetric, as it
+  should be (the Hamiltonian and jumps are symmetric across all N
+  atoms; the user-concrete `j(1)` in `σ(2,2,j(1))` is just a readout
+  label).
+
+My initial "no fix needed" diagnosis was wrong because I had been
+running the j(1) (test) variant via the MCP. The actual example file
+uses free `j`, which the user-concretes detector then mis-classified
+as "no user-pinned atoms" and incorrectly triggered NE injection.
+The fix is one line in `_collect_atom_indices_set!`.
+
+## 3. Det vs stoch NE asymmetry is implementation-level, not physics
+
+The current rewrite uses path-asymmetric NE injection (det path skips
+NE when user named an atom index in initial_operators; stoch path
+always injects NE). Both unique_squeezing and heterodyne SDE stay
+bounded with this asymmetry, but it is mathematically suspicious:
+
+- Master keeps BOTH bounded with what looks like a unified NE
+  convention. So the asymmetry is not intrinsic to the physics or to
+  the cumulant-2 truncation order.
+- At the cumulant-2 level, NE-injected and no-NE forms of the
+  dissipator should yield the same physical content as long as the
+  same-site (`i=j`) contribution from 3-operator averages is
+  reinserted as a single-atom moment via `expand_completeness`.
+- Most likely the rewrite's NE-injecting path drops that same-site
+  reinsertion (the "cumulant cross-decay correction"). Under NE on
+  the det path that produces unique_squeezing's divergence; under
+  no-NE on the stoch path the SDE diffusion column fails to
+  compact and heterodyne's SDE diverges.
+
+The implementation cost of the workaround:
+
+- One relaxed assertion in `measurement_backaction_indices_comparison_
+  test::deterministic vs stochastic LHS match` (the directional
+  subset check; the per-equation drift agreement is still asserted).
+- The path-asymmetric NE handling in
+  `_derive_for(::MeanFieldEquations)` vs `_derive_for(::Noise
+  MeanFieldEquations)`, which is documented in-place but is an
+  algebraic smell.
+
+Where the actual fix likely lives:
+
+- `src/cumulant.jl`: how `cumulant_expansion`/`get_order` reduce
+  3-operator averages whose operators carry NE pairs.
+- `src/meanfield.jl`: how `_meanfield_deterministic` and
+  `_meanfield_noise` apply the cumulant expansion to commutators
+  vs the diffusion column.
+- SQA's `_canonicalize!` / `_accumulate_with_diag!`: where
+  NE-violated terms get dropped and where `expand_completeness`
+  fires.
+
+The clean fix would be: find the dropped same-site reinsertion in
+the NE-injecting cumulant expansion, add it back, then both paths
+can use NE injection symmetrically (or skip it symmetrically), and
+the measurement_backaction subset assertion can be restored to its
+original form. Estimated ~1-2 hours of tracing master vs rewrite
+cumulant code.
+
+## ARCHIVED: previous session's diagnosis (kept for audit)
+
+**Root cause (this session's investigation)**: scale collapses
+user-pinned atoms together with population slots, treating the mixed
+model (one specific atom + N-1 symmetric atoms) as fully-symmetric.
+
+Concretely, for unique_squeezing the RHS of `d⟨a⟩/dt` has
+`Σ(i=1:N) ⟨σ_i₁₂⟩` (correct from meanfield: collective sum over all
+N atoms). After `scale`, this becomes `N * ⟨σ_j_1_1₁₂⟩` (multiply by
+range N, then canonical-rename `i` to `j_1_1`). The leaf
+`⟨σ_j_1_1₁₂⟩` corresponds to the user's pinned atom 1 (via
+`σ(2, 2, j(1))`). So the scaled expression says "N copies of atom 1's
+dynamics" rather than the physically correct
+`⟨σ_j_1⟩ + (N-1) ⟨σ_pop⟩` (atom 1 plus N-1 symmetric others).
+
+At N=1 the bug is masked numerically (N=1·⟨σ_j_1⟩ is correct since
+atom 1 is the only atom), but the closure still carries phantom
+cross-atom states (`⟨σ_j_1 σ_j_1_2⟩`) that have spurious dynamics
+contributing through ⟨a⟩, ⟨a'a⟩. At N=100, the all-atoms-equal-atom-1
+approximation breaks completely, hence the oscillation.
+
+**Fix surface (proposed, not yet implemented)**:
+
+1. In SQA, the `concrete` flag distinguishes user-minted slot labels
+   (`j(1)`) from algebra-internal phantoms, BUT QC's algebra-internal
+   phantom mint sites all go through `(::Index)(::Integer)`, so they
+   also set `concrete=true` and are indistinguishable from user
+   atoms. Either:
+   (a) Switch QC's phantom mints to the 4-arg `SQA.Index(name, range,
+       space_index, sym)` shim (defaults `concrete=false`), turning
+       `.concrete` into the discriminator.
+   (b) Track user-concretes via `eqs.initial_operators` and pass them
+       explicitly through scale/canonical-key.
+2. `_min_slot_assignment` in [src/completion.jl](src/completion.jl)
+   must NOT permute through user-concretes. Currently it does
+   `slot_reps[sp][k] = first_idx(k)` for all `k`, renaming everything
+   to phantoms; user-concretes (like `j_1`) should occupy fixed slots
+   and only the algebra-phantom companions should permute.
+3. `_scale_avg` in [src/scaling.jl](src/scaling.jl) must split sums
+   against user-concretes BEFORE computing the `(range - |NE|)`
+   prefactor:
+     `Σ_b expr_b` becomes `expr_{b↦c} + assume_distinct_index(Σ_b
+     expr_b, [(b, c)])` for each user-concrete `c` on `b`'s subspace.
+   Then the prefactor on the constrained sum becomes `N - 1` and the
+   `expr_{b↦c}` term emits the user-concrete contribution explicitly.
+
+**Scope warning**: this change affects every example with a mixed
+(concrete + population) shape, at least `heterodyne_detection` (uses
+`σ(2,2,k(1))` concrete + `Σ_j` in H, same shape as unique_squeezing).
+Heterodyne's current "12 states" lock would shift; the new closure
+shape is *physically more correct* but the existing numerical-
+end-state tests may need their locked values updated, with the
+update justified by physics (compare master).
+
+**Caveat for any reattempt**: the test's N=1 lock at 30.15 is a
+broken-but-stable value. The example's *Effective model* (cavity-only
+adiabatic-elimination Hamiltonian, exact at this order) gives
+`⟨a'a⟩(t_end) = 28.038` at N=1 with the test's parameters; that is
+the fix target.
+
+**Status from this session's attempt (reverted)**:
+
+Tried implementing steps 1-3 in src. Got the closure to split sums
+correctly in `_scale_avg` (scaled `d⟨a⟩/dt` RHS shows
+`⟨σ_j_1⟩ + (N-1)·⟨σ_j_1_1⟩` instead of `N·⟨σ_canon⟩`), but `mtkcompile`
+then errors because the post-split RHS references `⟨σ_j_1_1⟩` (the
+population representative) as a state, and that state isn't in the
+pre-scale closure. To add it, `_canonical_key` must distinguish a
+sum-bound leaf (`Σ_i ⟨σ_i⟩`) from an unbound leaf (`⟨σ_j_1⟩`) and
+emit the sum-bound case as a separate missing state (Σ-wrapped LHS).
+Tried this too: the closure no longer converges in 200 iterations
+because deriving a Σ-wrapped LHS generates more Σ-wrapped RHS leaves
+(at cumulant order 2: Σ-Σ cross moments). Those should still close
+deterministically but the dedup keys for two-bound-index leaves
+fail to coalesce, growing ~21 new states per iteration past iter 6.
+
+The architectural problem: QC's current closure mechanism is built on
+"every leaf is a single-atom moment (possibly cross-atom with
+multiple specific indices)". Supporting "Σ-wrapped LHS state for the
+population" requires the closure machinery to track sum-scope as a
+first-class part of state identity, which spans:
+- `_canonical_key` and `_dedup_key_strip_free_ne` (state identity).
+- `_undo_for_derivation` (derive Σ-wrapped LHS).
+- `_meanfield_deterministic` derivation of Σ-wrapped ops.
+- Cumulant expansion of Σ-Σ cross moments.
+- Scale handling of Σ-wrapped equations.
+- `find_missing` dedup of multi-bound canonical keys.
+
+This is a multi-file refactor; an isolated session focused on a
+clean redesign is the right call, not incremental patches.
+
+**Side-finding**: after reverting the unique_squeezing attempt to the
+session's commit state (23e5700), `make test` shows heterodyne at
+13/12 (one extra state) instead of the 12/12 the commit's
+`make test` run logged. The standalone heterodyne reproducer
+(`/tmp/het.jl`) gives 12. Likely a test-context state effect
+(precompile cache, Manifest resolution, or test-ordering through
+the find_missing's conjugate dedup). The earlier "776/776 passing"
+state with commit 23e5700 may have depended on dep versions in a
+Manifest snapshot since drifted.
 
 ## 3. `excitation-transport-chain` end-of-chain drift (low priority)
 

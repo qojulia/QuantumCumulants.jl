@@ -534,6 +534,18 @@ function _derive_for(
     )
     bound = _bound_indices(eqs)
     fresh_ops, undo = _alpha_rename_away(new_ops, bound)
+    # Noise path always injects NE between same-atom-space free
+    # indices. Mirroring the det-path skip on user-named atom indices
+    # (which is correct for unique_squeezing's free-j) makes the
+    # heterodyne SDE diverge to ~1e220, because the noise diffusion
+    # column's cumulant-2 truncation only stays bounded when the
+    # `σ^gg = 1 - σ^ee` fold compacts cross-atom decay terms. So
+    # the noise path keeps the original unconditional NE injection
+    # even though that leaves the det/stoch closure shapes
+    # asymmetric (see `measurement_backaction_indices_comparison:
+    # deterministic vs stochastic LHS match`). The asymmetry is
+    # algebraic, not physical: drift and diffusion column shapes
+    # differ but the underlying physics is the same.
     distinct = _distinct_atom_indices(fresh_ops)
     derived = _meanfield_noise(
         eqs.direction, fresh_ops, eqs.hamiltonian, eqs.jumps, eqs.jumps_dagger,
@@ -669,7 +681,12 @@ function _collect_atom_indices_set!(
     op isa SQA.Transition || return nothing
     SQA.has_index(op.index) || return nothing
     op.index in bound && return nothing
-    op.index.concrete || return nothing
+    # Any atom index on initial_operators that the user named and isn't
+    # bound by an H/J sum is a "user-pinned slot": NE injection between
+    # this slot and an algebra-minted phantom partner blocks the
+    # dissipator's cumulant cross-decay correction that bounds the
+    # dynamics. This covers both free `j` (from `Index(h, :j, N, ha)`)
+    # and slot-minted `j(1)` shapes.
     push!(out, op.index)
     return nothing
 end

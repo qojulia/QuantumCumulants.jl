@@ -378,7 +378,12 @@ end
     H = -Δ * a' * a + Σ(g_v(i) * (a' * σ(1, 2, i) + a * σ(2, 1, i)), i)
     J = [a, σ(1, 2, i), σ(2, 1, i), σ(2, 2, i)]
     rates = [κ, Γ, R, ν]
-    ops = [a' * a, σ(2, 2, j(1))]
+    # Mirror examples/superradiant_laser_indexed.jl's free-`j` shape so
+    # the test exercises the same path the example does. A slot-minted
+    # `σ(2,2,j(1))` here would route through a different branch of
+    # `_collect_atom_indices_set!` and miss a recurrence of the
+    # unique_squeezing free-vs-slot bug.
+    ops = [a' * a, σ(2, 2, j)]
     eqs = meanfield(ops, H, J; rates = rates, order = 2)
     eqs_c = complete(eqs; filter_func = phase_invariant)
     @test length(eqs_c.equations) == 6
@@ -432,26 +437,16 @@ end
     H = Hf + Ha + Hi
     J = [b, σ(1, 2, i)]
     rates = [κ, γ]
-    eqs = meanfield([a, a' * a, σ(2, 2, j(1))], H, J; rates = rates, order = 2)
+    # Mirror examples/unique_squeezing.jl: free `j` (not slot-minted `j(1)`).
+    eqs = meanfield([a, a' * a, σ(2, 2, j)], H, J; rates = rates, order = 2)
     eqs_c = complete(eqs)
-    # 22 is the post-dedup-bugfix count. Previously 24 because
-    # `_collect_missing!` re-emitted a leaf's conjugate even when that
-    # conjugate had already been added to `seen_keys` via another leaf,
-    # producing two duplicate equations that scale-collapsed away (so the
-    # downstream `eqs_sc.equations == 19` lock and the numerical
-    # end-state are unchanged). See [src/completion.jl](src/completion.jl).
     @test length(eqs_c.equations) == 22
     eqs_sc = scale(eqs_c)
     @test length(eqs_sc.equations) == 19
     sys_c = mtkcompile(System(eqs_sc; name = :us_sys))
     @test length(unknowns(sys_c)) == 19
-    # Numerical end-state at N=1. The Full model is currently broken
-    # in the time-dependent regime (see TODO; oscillates instead of
-    # settling), so the locked value below is a known-wrong figure
-    # taken from the current branch: it acts as a regression check
-    # that something is producing the same broken-but-stable output.
-    # When the underlying bug is fixed, this assertion will fail and
-    # the value should be updated to the new (correct) one.
+    # Numerical end-state at N=1; the free-j sibling testset below pins
+    # the N=100 plateau against master / Effective.
     ω_ = 1.0; Ω_ = 2.0e3; η_ = 4.0; κ_ = 1.0; γ_ = 1.0
     N_ = 1
     gc_ = sqrt(Ω_ * ω_ / N_)
@@ -473,6 +468,69 @@ end
     )
 end
 
+# Free-j sibling of the testset above. Mirrors examples/unique_squeezing.jl
+# verbatim (which uses `σ(2,2,j)` with free `j`, not the test's `j(1)`).
+# Before the `.concrete`-filter-removed fix, the free-j path classified
+# `user_concretes = {}` (because `.concrete=false` for free `j`), so
+# `_derive_for` injected NE between phantom-partner slots, which broke
+# the dissipator's cumulant cross-decay correction and produced the
+# oscillating Full-model plot in `tmp/plots_rewrite/unique_squeezing/
+# plot_05.png`. Locks the N=100 X / P plateau against the master/
+# Effective values (X≈2.29, P≈0.44).
+@testset "unique_squeezing (free-j shape, N=100 plateau)" begin
+    hf = FockSpace(:harmonic); ha = NLevelSpace(:spin, 2); h = hf ⊗ ha
+    @variables ω Ω ωd η κ g γ N ξ
+    @qnumbers a::Destroy(h)
+    σ(x, y, idx) = IndexedOperator(Transition(h, :σ, x, y), idx)
+    b = a * cosh(ξ) + a' * sinh(ξ)
+    i = Index(h, :i, N, ha); j = Index(h, :j, N, ha)
+    Hf = ω * a' * a + η * (b' * exp(-1im * ωd * t) + b * exp(1im * ωd * t))
+    Ha = Ω * Σ(σ(2, 2, i) - σ(1, 1, i), i) / 2
+    Hi = g * Σ((σ(1, 2, i) + σ(2, 1, i)) * (a + a'), i) / 2
+    H = Hf + Ha + Hi
+    J = [b, σ(1, 2, i)]
+    rates = [κ, γ]
+    eqs = meanfield([a, a' * a, σ(2, 2, j)], H, J; rates = rates, order = 2)
+    eqs_c = complete(eqs)
+    @test length(eqs_c.equations) == 22
+    eqs_sc = scale(eqs_c)
+    @test length(eqs_sc.equations) == 19
+    sys_c = mtkcompile(System(eqs_sc; name = :us_freej_sys))
+    @test length(unknowns(sys_c)) == 19
+    ω_ = 1.0; Ω_ = 2.0e3; η_ = 4.0; κ_ = 1.0; γ_ = 1.0
+    N_ = 100
+    gc_ = sqrt(Ω_ * ω_ / N_)
+    g_ = 0.9 * gc_
+    ωd_ = sqrt(1 - g_^2 / gc_^2) * ω_
+    ξ_ = (1 / 4) * log(1 - N_ * g_^2 / (ω_ * Ω_))
+    u0 = zeros(ComplexF64, length(eqs_sc.equations))
+    u0d = Dict{Any, Any}(unknowns(sys_c) .=> u0)
+    ps = Dict{Any, Any}(
+        ω => ω_, Ω => Ω_, ωd => ωd_, g => g_, η => η_,
+        κ => κ_, γ => γ_, N => Float64(N_), ξ => ξ_,
+    )
+    tend = Float64(4π / ωd_)
+    prob = ODEProblem(sys_c, merge(u0d, ps), (0.0, tend))
+    sol = solve(
+        prob, Tsit5(); saveat = π / 30ωd_,
+        reltol = 1.0e-10, abstol = 1.0e-10,
+    )
+    t_ = sol.t
+    adag_a = get_solution(sol, a' * a, eqs_sc).(t_)
+    aa = get_solution(sol, a * a, eqs_sc).(t_)
+    adag_adag = get_solution(sol, a' * a', eqs_sc).(t_)
+    a_ = get_solution(sol, a, eqs_sc).(t_)
+    adag = get_solution(sol, a', eqs_sc).(t_)
+    sqx = real.(adag_adag + aa + 2 * adag_a .+ 1 - (adag + a_) .^ 2)
+    sqy = real.(adag_adag + aa - 2 * adag_a .- 1 - (adag - a_) .^ 2)
+    # End-state plateau values; tight tolerance because the cumulant-2
+    # truncation at N=100 is essentially exact (the Effective model gives
+    # the same numbers). If this assertion ever fires with the
+    # `oscillating between -8 and +5` shape, the bug is back.
+    @test isapprox(sqx[end], 2.292622635966603; rtol = 1.0e-3)
+    @test isapprox(-sqy[end], 0.43703195626758884; rtol = 1.0e-3)
+end
+
 @testset "heterodyne_detection" begin
     @variables N ωa γ η χ ωc κ g ξ ωl
     @register_symbolic _het_pulse(tt)
@@ -488,7 +546,7 @@ end
     J = [a * exp(1.0im * ωl * tv), σ(1, 2, j), σ(2, 1, j), σ(2, 2, j)]
     rates = [κ, γ, η * _het_pulse(tv), 2 * χ]
     efficiencies = [ξ, 0, 0, 0]
-    ops = [a', a' * a, σ(2, 2, k(1)), σ(1, 2, k(1)), a * a]
+    ops = [a', a' * a, σ(2, 2, k), σ(1, 2, k), a * a]
     eqs = meanfield(
         ops, H, J;
         rates = rates, efficiencies = efficiencies,
@@ -497,10 +555,12 @@ end
     eqs_c = complete(eqs; get_adjoints = false)
     @test length(eqs_c.equations) == 14
     eqs_sc = scale(eqs_c)
-    # `_strip_lhs_free_atom_ne` (called inside `_derive_for`) makes LHS
-    # state identity invariant of which iteration discovered the leaf,
-    # which collapses an iteration-artifact pair into 12 states (was
-    # 13 before the det-vs-stoch closure fix in completion.jl).
+    # The noise path unconditionally injects NE between same-atom-space
+    # free indices: the SDE diffusion column's cumulant-2 truncation
+    # only stays bounded when `expand_completeness` folds the cross-
+    # atom decay terms (without it, the heterodyne SDE solve diverges
+    # to ~1e220, visible in `tmp/plots_rewrite/heterodyne_detection/
+    # plot_02.png` if the symmetric NE-skip is restored).
     @test length(eqs_sc.equations) == 12
     sys_c = mtkcompile(System(eqs_sc; name = :het_sys))
     @test length(unknowns(sys_c)) == 12
@@ -511,6 +571,72 @@ end
 # closure but without the diffusion column. The atom state lands at
 # canonical slot `σ_k_1_1` after scale, so we look it up positionally
 # by `eqs_sc.states[3]` rather than rebuilding the symbol.
+@testset "heterodyne_detection (single-trajectory SDE bounded)" begin
+    # Regression for a closure shape that lets the noise diffusion
+    # column diverge to ~1e220 over a single SDE trajectory. The bug
+    # appeared when both det and stoch paths symmetrically skipped
+    # NE injection on user-named atom indices; the SDE only stays
+    # bounded when the noise path injects NE so `expand_completeness`
+    # folds the cumulant-2 cross-atom decay terms. Asserts that a
+    # 200-step EM integration over the heterodyne example's setup
+    # produces a finite-bounded trajectory (well below the divergence
+    # threshold we'd hit if the cumulant fold were dropped).
+    using StochasticDiffEq: SDEProblem, EM, RealWienerProcess
+    import Random
+    @variables N ωa γ η χ ωc κ g ξ ωl
+    @register_symbolic _het_pulse2(tt)
+    hc = FockSpace(:resonator); ha = NLevelSpace(:atom, 2); h = hc ⊗ ha
+    j = Index(h, :j, N, ha); k = Index(h, :k, N, ha)
+    @qnumbers a::Destroy(h, 1)
+    σ(α, β, idx) = IndexedOperator(Transition(h, :σ, α, β, 2), idx)
+    eqs_seed = meanfield(a, ωc * a' * a, [a]; rates = [κ])
+    tv = eqs_seed.iv
+    H = ωc * a' * a + ωa * Σ(σ(2, 2, j), j) +
+        g * a' * Σ(σ(1, 2, j), j) +
+        g * a * Σ(σ(2, 1, j), j)
+    J = [a * exp(1.0im * ωl * tv), σ(1, 2, j), σ(2, 1, j), σ(2, 2, j)]
+    rates = [κ, γ, η * _het_pulse2(tv), 2 * χ]
+    efficiencies = [ξ, 0, 0, 0]
+    ops = [a', a' * a, σ(2, 2, k), σ(1, 2, k), a * a]
+    eqs = meanfield(
+        ops, H, J;
+        rates = rates, efficiencies = efficiencies,
+        direction = Forward(), order = 2, iv = tv,
+    )
+    eqs_c = complete(eqs; get_adjoints = false)
+    eqs_sc = scale(eqs_c)
+    sys_st = mtkcompile(System(eqs_sc; name = :hetst_sys))
+    # Same numeric parameters as `examples/heterodyne_detection.jl`.
+    ωc_ = 0.0; κ_ = 2π * 1.13e3; ξ_ = 0.12; N_ = 5.0e4
+    ωa_ = 0.0; γ_ = 2π * 0.375; η_ = 2π * 20; χ_ = 0.016
+    g_ = 2π * 0.73; ωl_ = 2π * 1.0e3
+    t0 = 0.0; t1 = 20.0e-3
+    _het_pulse2(tt) = (tt > t0 && tt < t0 + t1) * 1.0
+    T_end = 0.05
+    p_pairs = Dict(
+        N => N_, ωa => ωa_, γ => γ_, η => η_, χ => χ_,
+        ωc => ωc_, κ => κ_, g => g_, ξ => ξ_, ωl => ωl_,
+    )
+    u0_vec = zeros(ComplexF64, length(eqs_sc))
+    dict_st = parameter_map(
+        sys_st,
+        merge(Dict{Any, Any}(unknowns(sys_st) .=> u0_vec),
+            Dict{Any, Any}(p_pairs)),
+    )
+    Random.seed!(2)
+    noise = RealWienerProcess(0.0, 0.0)
+    prob_st = SDEProblem(sys_st, dict_st, (0.0, T_end); noise = noise)
+    sol = solve(prob_st, EM(); dt = T_end / 2.0e5)
+    # The SDE must stay bounded over the integration window. With the
+    # bug present, |⟨a'a⟩| reaches ~1e220 within a fraction of a
+    # millisecond. A loose absolute cap of 1e8 catches the divergence
+    # while tolerating legitimate transient excursions during the
+    # heterodyne measurement pulse (peaks in the example are ~600).
+    adag_a_traj = real.(get_solution(sol, a' * a, eqs_sc).(sol.t))
+    @test all(isfinite, adag_a_traj)
+    @test maximum(abs, adag_a_traj) < 1.0e8
+end
+
 @testset "heterodyne_detection (drift-only numerical)" begin
     @variables N ωa γ η χ ωc κ g ωl
     @register_symbolic _het_pulse(tt)
@@ -525,7 +651,7 @@ end
         g * a * Σ(σ(2, 1, j), j)
     J = [a * exp(1.0im * ωl * tv), σ(1, 2, j), σ(2, 1, j), σ(2, 2, j)]
     rates = [κ, γ, η * _het_pulse(tv), 2 * χ]
-    ops = [a', a' * a, σ(2, 2, k(1)), σ(1, 2, k(1)), a * a]
+    ops = [a', a' * a, σ(2, 2, k), σ(1, 2, k), a * a]
     eqs = meanfield(
         ops, H, J;
         rates = rates, direction = Forward(), order = 2, iv = tv,
@@ -685,6 +811,8 @@ end
 end
 
 @testset "retrodiction_homodyne (forward, noise)" begin
+    using StochasticDiffEq: SDEProblem, EM, RealWienerProcess
+    import Random
     h = PhaseSpace(:motion)
     @qnumbers x::Position(h)
     p = Momentum(h, :p)
@@ -699,6 +827,22 @@ end
     @test length(eqs.equations) == 5
     sys_c = mtkcompile(System(eqs; name = :ret_sys))
     @test length(unknowns(sys_c)) == 5
+    # Numerical anchor: integrate a single SDE trajectory and assert it
+    # stays bounded over the integration window. Without an anchor, a
+    # regression that lets the SDE diverge (as the heterodyne fix
+    # almost did to the noise path) would pass purely structural
+    # checks. Loose `< 1e6` cap leaves room for transient excursions
+    # while catching `~1e20+` blowups.
+    u0 = ComplexF64[5.0, 0.0, 5 + 25.0, 0.5im, 5.0]
+    init = initial_values(eqs, u0)
+    pmap = Dict(Ω => 1.0, Γ => 1 / 6, η => 0.5, s => 1 / √2)
+    Random.seed!(11)
+    noise = RealWienerProcess(0.0, 0.0)
+    prob_st = SDEProblem(sys_c, merge(init, pmap), (0.0, 2.0); noise = noise)
+    sol = solve(prob_st, EM(); dt = 1.0e-4)
+    x_traj = real.(get_solution(sol, x, eqs).(sol.t))
+    @test all(isfinite, x_traj)
+    @test maximum(abs, x_traj) < 1.0e6
 end
 
 # Forward drift only (no measurement noise) so we can solve as an

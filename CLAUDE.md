@@ -19,7 +19,7 @@ Running a single test file: pass a name filter to `ParallelTestRunner` via `Pkg.
 ## Project layout and dependencies
 
 - The package is a thin symbolic layer on top of [SecondQuantizedAlgebra.jl](https://github.com/qojulia/SecondQuantizedAlgebra.jl) (SQA), which provides the operator algebra (`FockSpace`, `NLevelSpace`, `Destroy`, `Transition`, `Index`, `Σ`, …). `QuantumCumulants` `@reexport`s SQA, so users `using QuantumCumulants` get the full algebra surface.
-- `Project.toml` pins SQA via a local `[sources]` path (`https://github.com/qojulia/SecondQuantizedAlgebra.jl`). When debugging issues that look algebraic (commutators, indexed sums, operator ordering), check whether the bug actually lives in SQA, not here.
+- `Project.toml` pins SQA via `[sources]` to the `redesign-v2` branch on `https://github.com/qojulia/SecondQuantizedAlgebra.jl`. When debugging issues that look algebraic (commutators, indexed sums, operator ordering), check whether the bug actually lives in SQA, not here.
 - MTK conversion uses `ModelingToolkitBase` (aliased `const MTK`), not full `ModelingToolkit`. Examples and docs say `using ModelingToolkitBase`.
 
 ## Architecture (big picture)
