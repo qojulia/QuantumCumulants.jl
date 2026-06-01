@@ -173,6 +173,26 @@ function _flatten_jumps(js::AbstractVector)
     return out
 end
 
+# Distinct-slot pairs among the free, atom-space (Transition-carrying) indices
+# of `op`. The framework convention (see `_dedup_key_strip_free_ne`) is that two
+# distinct free LHS indices designate distinct atoms; asserting that lets SQA
+# order-canonicalise commuting cross-atom factors so a state and its (operator-
+# order-reversed) conjugate land in the same arrangement.
+function _atomspace_distinct_pairs(op::SQA.QAdd)
+    idxs = SQA.Index[]
+    for (term, _) in op.arguments, o in term.ops
+        o isa SQA.Transition || continue
+        SQA.has_index(o.index) || continue
+        o.index in idxs || push!(idxs, o.index)
+    end
+    pairs = Tuple{SQA.Index, SQA.Index}[]
+    @inbounds for a in 1:length(idxs), b in (a + 1):length(idxs)
+        idxs[a].space_index == idxs[b].space_index || continue
+        push!(pairs, (idxs[a], idxs[b]))
+    end
+    return pairs
+end
+
 function _canonical_key(
         x::SymbolicUtils.BasicSymbolic, canon::_CanonIndex,
         bound::Set{SQA.Index} = Set{SQA.Index}(),
@@ -180,6 +200,12 @@ function _canonical_key(
     op_raw = SQA.undo_average(x)
     op_raw isa SQA.QAdd || return op_raw
     op = _strip_irrelevant_metadata(op_raw)
+    # Canonicalise operator order under mutual distinctness of free atom slots
+    # BEFORE the encounter-order rename, so a cross-atom moment and its
+    # conjugate (whose adjoint reverses the factor order) dedup to one key.
+    # The added NE is stripped downstream by `_dedup_key_strip_free_ne`.
+    distinct_pairs = _atomspace_distinct_pairs(op)
+    isempty(distinct_pairs) || (op = SQA.assume_distinct_index(op, distinct_pairs))
     encountered = _free_op_indices(op)
     pos_by_space = Dict{Int, Int}()
     rename = Dict{SQA.Index, SQA.Index}()
