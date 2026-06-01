@@ -553,7 +553,13 @@ end
         direction = Forward(), order = 2, iv = tv,
     )
     eqs_c = complete(eqs; get_adjoints = false)
-    @test length(eqs_c.equations) == 14
+    # 13, not 14: `_canonical_key` now order-canonicalises cross-atom moments
+    # under free-slot distinctness, so a moment and its operator-order-reversed
+    # conjugate (e.g. ⟨σ¹²_k σ²²_k'⟩ and ⟨σ²¹_k σ²²_k'⟩) dedup to one state
+    # under `get_adjoints=false`. Previously both survived (the conjugate's
+    # adjoint reverses factor order, which the encounter-order rename keyed
+    # differently), leaving a redundant 14th state that only collapsed at scale.
+    @test length(eqs_c.equations) == 13
     eqs_sc = scale(eqs_c)
     # The noise path unconditionally injects NE between same-atom-space
     # free indices: the SDE diffusion column's cumulant-2 truncation

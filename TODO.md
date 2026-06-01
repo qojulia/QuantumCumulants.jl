@@ -99,6 +99,191 @@ bounded with this asymmetry. Master keeps both bounded with what
 looks like a unified NE convention; the asymmetry is therefore
 algebraic rather than physical and worth resolving.
 
+### INVESTIGATION (2026-06-01): two layers — a σ^gg fold leak AND an irreducible truncation asymmetry
+
+Investigated whether §3 is really an SQA problem. Verdict: the
+"fix lives in SQA's `_accumulate_with_diag!` / `cumulant_expansion`
+interaction" framing (the SUPERSEDED section below) is the wrong target
+— `_accumulate_with_diag!` is algebraically correct. But the simpler
+"it's purely a completeness-fold coverage bug" hypothesis is ALSO
+wrong: it was tried in source and the heterodyne SDE still diverged.
+The asymmetry has two distinct layers.
+
+**Layer 1 — a real σ^gg fold leak (cosmetic, fold-fixable).** Direct
+reproduction on an isolated cross-atom moment `⟨σ²²_{k1} σ²²_{k2}⟩`
+under the heterodyne channel set `J=[σ¹²_j, σ²¹_j, σ²²_j]` (summed over
+`j`):
+
+1. The diagonal split is UNCONDITIONAL — `Σ_j` construction
+   (`_accumulate_with_diag!`) emits diagonal self-terms regardless of
+   NE. `assume_distinct_index` on an already-built sum is a no-op on
+   the emitted diagonals; it only changes NE metadata. "NE toggles the
+   diagonal split" (Attempt #2's mechanism story) is NOT what happens.
+2. Single channel on a population moment → off-diagonal vanishes by
+   commutation → NE vs no-NE cumulant(2) diff EXACTLY 0.
+3. Full channel set → NE and no-NE differ, and the diff is entirely
+   ground-state projectors (no-NE carries `⟨σ²²_{k1} σ^{11}_{k1}⟩`,
+   `⟨σ^{11}⟩`, `−4⟨σσ⟩`; NE is pure `σ²²` with `−6⟨σσ⟩`).
+4. `SQA.expand_completeness` applied to both forms makes the cumulant(2)
+   of THIS term identical. Confirmed at the system level: with
+   `get_adjoints=true`, the no-NE heterodyne closure leaks an explicit
+   `⟨σ_k₁₁⟩` state (19 states vs NE's 18). It enters during cumulant
+   factorisation: `_prod_ops([σ²¹_k, σ¹²_k]) = σ^{11}_k`, multiplied
+   AFTER `_build_op_drift`'s one-shot `expand_completeness`, so never
+   folded. Wrapping `_prod_ops` in `expand_completeness` removes the
+   leak (19→18, no `σ^gg`) and is fast (0.025s vs 0.36s; the in-loop
+   cost is negligible).
+
+**Layer 2 — an irreducible cumulant-truncation asymmetry (NOT
+fold-fixable).** After the `_prod_ops` fold, diffing the NE vs no-NE
+heterodyne closures (`get_adjoints=true`, 18 states each, same state
+set, no `σ^gg`) leaves EXACTLY ONE differing equation: the cross-atom
+population moment `⟨σ²²_k σ²²_{k'}⟩`. The no-NE form keeps the diagonal
+self-dephasing `(1−⟨σ²²⟩)` terms (the `j=k`, `j=k'` contributions of
+the `σ²²_j` dephasing channel — physically complete); the NE form drops
+them. These are two genuinely different order-2 closures of the same
+operator, and `expand_completeness` does NOT reconcile them.
+
+**Decisive experiment (reverted).** Applied BOTH the `_prod_ops` fold
+AND symmetrised the noise path (`_derive_for(::NoiseMeanFieldEquations)`
+to mirror the det rule, no-NE when `user_concretes` non-empty —
+heterodyne's free `k` counts as user-concrete). Closure state sets
+matched the NE config (14 eqs, no `σ^gg`). But the heterodyne SDE
+DIVERGED: `ReturnCode.Unstable`, `⟨a'a⟩ → NaN` (suite went 785/2 →
+782/5, the 3 SDE-bounded tests failing). So the single differing
+`⟨σ²²σ²²⟩` equation is load-bearing: the NE form (dropping the dephasing
+channel's diagonal self-terms) is the order-2 truncation that stays
+BOUNDED; the physically-complete no-NE form is unstable under order-2
+cumulant truncation.
+
+**Conclusion.** It is NOT primarily an SQA problem, and NOT merely a
+fold-coverage bug. It is an intrinsic cumulant-truncation STABILITY
+tradeoff: for a dephasing-type channel, the order-2 closure that keeps
+the diagonal self-action diverges, and dropping it (via NE) is what
+bounds the SDE; for unique_squeezing's single decay channel the
+opposite holds (NE drops the only damping → divergence). Neither
+choice is "the algebra being wrong"; the path-asymmetric NE workaround
+is effectively SELECTING the stable truncation per dissipator shape.
+Master's "unified convention" corresponds to the NE-like choice applied
+uniformly (it kept sums symbolic through `cumulant_expansion` and
+expanded only at `evaluate`, so the truncation saw the full sum as one
+unit). A genuine unification would need QC to pick the stable order-2
+closure structurally (e.g. defer the diagonal split like master's
+`evaluate`, or detect dephasing-type channels), not a fold.
+
+### Redesign blueprint (2026-06-01): the defer-the-split path
+
+Pinned the exact mechanism that makes master stable where the rewrite's
+no-NE form diverges. It is an ORDER-OF-OPERATIONS difference on the
+dissipator's diagonal (`j=k`) contribution:
+
+- **Rewrite (eager):** SQA's `*`/`Σ` runs `_accumulate_with_diag!` at
+  Σ-construction, so the diagonal substitution `j→k` happens at the
+  OPERATOR level — `σ²¹_j σ²²_k σ¹²_j |_{j=k}` COLLAPSES via Transition
+  algebra to a lower-order operator FIRST, and `cumulant_expansion`
+  truncates that. → "collapse-then-truncate".
+- **Master (deferred):** `cumulant_expansion(::IndexedAverageSum)`
+  (master `src/cumulant_expansion.jl:195`) keeps `Σ_j` SYMBOLIC and
+  truncates the generic-`j` inner moment (`j` treated distinct from the
+  LHS atoms); `evaluate` (master `src/index_average.jl`) materialises
+  `Σ_j` LAST, substituting `j→k` into the already-FACTORISED averages.
+  → "truncate-then-substitute".
+
+For a single-decay channel these agree; for a dephasing-type channel
+they differ, and master's truncate-then-substitute diagonal is the one
+that stays bounded under order-2 truncation. So master does NOT "drop
+the diagonal" (that was an imprecise reading in the Conclusion above) —
+it keeps a DIFFERENT, stable diagonal. The current NE workaround drops
+the diagonal entirely; it happens to be stable too, but only because
+dropping ≈ master's bounded diagonal for these channels, and the
+path-asymmetry is needed because unique_squeezing's single channel
+needs the diagonal KEPT.
+
+**What a real fix requires (defer the split):**
+
+1. Build the dissipator with the jump index FREE (no `Σ` wrap) so SQA
+   does not eager-split: keep `D[σ_j](op)` as a free-`j` product. (QC
+   already forms `Jdagger·comm(op,J)` with free `j` in `_lindblad_rhs`
+   BEFORE `_sum_over_jump_indices` wraps it — the split fires only at
+   that wrap.)
+2. `average` + `cumulant_expansion` the free-`j` summand (generic `j`,
+   standard factorisation; `j` distinct from LHS atoms). Verified: this
+   produces a clean truncated expression (no eager diagonal collapse).
+3. Re-attach `Σ_j` and perform the diagonal/off-diagonal split at the
+   AVERAGE level: `Σ_j E(j) ↦ [Σ_{j∉LHS} E(j)] + Σ_c E(j→c)` for each
+   LHS atom `c` on `j`'s subspace, where `E(j→c)` is `change_index` on
+   the average LEAVES (collapse allowed there, post-truncation). This
+   is master's `evaluate`. The off-diagonal sum carries range `N−|LHS|`.
+4. Make `scale`/`evaluate` and `find_missing` treat a `Σ`-wrapped
+   average leaf as first-class state identity.
+
+**Known failure mode (must be designed around):** the ARCHIVED attempt
+below hit non-convergence — deriving a `Σ`-wrapped LHS generates `Σ`–`Σ`
+cross-moment RHS leaves whose dedup keys (two bound indices) fail to
+coalesce in `find_missing`, growing ~21 states/iteration past iter 6.
+So step 4's multi-bound `_canonical_key`/`_dedup_key_strip_free_ne`
+must canonicalise two-bound-index sum scopes, or the closure never
+terminates. This is the load-bearing hard part, not the algebra.
+
+**Validation gate:** the payoff (stability) is NOT symbolically
+checkable. It requires implementing steps 1–4, then SOLVING the
+heterodyne SDE at `T_end=0.1` (seed 2, EM, `dt=T_end/2e5`) and
+confirming `retcode==Success`, `max|⟨a'a⟩|<1e8`, AND unique_squeezing
+N=1 `⟨a'a⟩≈30.15` / N=100 plateaus stay bounded — under ONE unified
+(NE-free) path. Until both pass under the unified path, the
+path-asymmetric workaround stays.
+
+**Scope/architecture note:** this reintroduces a symbolic-sum-through-
+cumulant path (master's `IndexedAverageSum` model) on top of SQA's
+eager-split data model — in tension with the rewrite's "use SQA's data
+model natively" principle (CLAUDE.md). Worth weighing whether the fix
+belongs in SQA (a lazy/deferred `Σ` that skips `_accumulate_with_diag!`
+until an explicit `evaluate`) rather than QC. A dedicated session on an
+isolated branch is the right vehicle; do NOT attempt incrementally on a
+green tree.
+
+**What's worth keeping anyway:** the `_prod_ops` `expand_completeness`
+fold is an independent correctness improvement (kills the `get_adjoints
+=true` `⟨σ^gg⟩` leak, cheap) and is the right home for §4's defensive
+concern — but on its own it does NOT change the suite result (still
+785/2) and does NOT resolve §3. The path-asymmetric workaround stays.
+
+(NOTE: the heterodyne `13 vs 12` regression failure in
+`examples_regression_test` was a SEPARATE, pre-existing dedup bug, NOT
+the NE asymmetry: with `get_adjoints=false` the scaled closure was 13
+states with NO `σ^gg`, and the fold does not change it. RESOLVED
+2026-06-01 — see §6.)
+
+## 6. Heterodyne `13 vs 12` conjugate-dedup bug: RESOLVED (2026-06-01)
+
+Root cause: under `get_adjoints=false`, a cross-atom moment and its
+conjugate should dedup to one state. The conjugate's adjoint reverses
+the operator factor order (`⟨σ¹²_k σ²²_{k'}⟩` → `⟨σ²²_{k'} σ²¹_k⟩`), and
+`_canonical_key`'s encounter-order rename then assigned slot names by
+position, so the two keyed to *different* operator arrangements
+(`σ²²·σ²¹` vs `σ²¹·σ²²`) and both survived. They are equal only after
+recognising the free atom slots are mutually distinct (the framework
+convention already stated in `_dedup_key_strip_free_ne`): distinct
+atoms commute, so SQA can reorder the factors to a canonical
+arrangement.
+
+Fix ([src/completion.jl](src/completion.jl)): `_canonical_key` now
+calls `SQA.assume_distinct_index` over the free atom-space (Transition)
+slots BEFORE the encounter-order rename, via the new
+`_atomspace_distinct_pairs` helper. The injected NE is stripped
+downstream by `_dedup_key_strip_free_ne`, so the key stays NE-free.
+This makes a moment and its order-reversed conjugate land in the same
+arrangement and dedup. Heterodyne pre-scale drops 14 → 13 (the genuine
+minimal `get_adjoints=false` count; the redundant conjugate is gone)
+and scaled 13 → 12. The pre-scale lock in
+`examples_regression_test.jl` was updated 14 → 13 with the mechanism
+documented inline.
+
+Result: full suite 792/792 (was 785/2), JET clean. The change is
+restricted to the dedup key, not the stored states, and only fires on
+products carrying ≥2 free atom-space indices on the same subspace, so
+single-atom and Fock-only states are untouched.
+
 ### Attempt #1 (reverted): cumulant-level `expand_completeness` fold
 
 Hypothesis: same-site Transition algebra inside a cumulant block
@@ -194,7 +379,7 @@ the dissipator includes a dephasing-type channel. That's too case-specific
 to encode as a one-liner in `_assume_distinct_atom_indices` without
 inspecting the jump operator types.
 
-### Where the algebraically-clean fix lives: SQA
+### Where the algebraically-clean fix lives: SQA (SUPERSEDED — see CORRECTED DIAGNOSIS above)
 
 `_accumulate_with_diag!` in `src/algebra/pipelines.jl` already fires
 the diagonal split unconditionally for free indices on the same
@@ -369,7 +554,7 @@ the find_missing's conjugate dedup). The earlier "776/776 passing"
 state with commit 23e5700 may have depended on dep versions in a
 Manifest snapshot since drifted.
 
-## 4. Architectural: should closures auto-enforce algebraic constraints? (open)
+## 4. Architectural: should closures auto-enforce algebraic constraints? (option 3 done; deeper options deferred)
 
 The §3 bug class came from a completeness-redundant state
 (`⟨σ^{gg}⟩` alongside `⟨σ^{ee}⟩`) leaking into the closure. The fix
@@ -379,14 +564,18 @@ block. This works because `expand_completeness` is the SQA primitive
 that knows the N-level identity `σ^{gg} = 1 − Σ σ^{kk}`.
 
 But the fix is point-local. It relies on every operator-product site
-that can produce a completeness-redundant operator either calling
-`expand_completeness` afterwards, or going through `_prod_ops`. Other
-sites today that DO call it correctly:
+that can produce a completeness-redundant operator calling
+`expand_completeness` afterwards. Sites today that DO call it correctly:
 
 - `_build_op_drift` at construction.
 - `_noise_drift_one` (via `expand_completeness` wrap inside
   `_build_noise_equations_forward`).
-- `_prod_ops` (this session's fix).
+
+(The `_prod_ops` fold was tried — see §3 Layer 1 — but reverted: no
+current config leaks `σ^{gg}` into a closure, and folding inside every
+cumulant block product adds hot-loop cost for no observable benefit.
+Per the recommendation below, it stays out until a leak actually
+appears.)
 
 If a future feature adds a new operator-multiplication site (e.g. a
 new correlation function builder, a new `evaluate` codepath, a new
@@ -426,6 +615,18 @@ Revisit option 1 if a similar leak shows up in a different codepath
 despite the test, or if perf benchmarks show `expand_completeness` in
 `_prod_ops` is a hot spot worth pushing deeper into SQA.
 
+**DONE (2026-06-01): option 3 implemented.**
+[test/completeness_invariant_test.jl](test/completeness_invariant_test.jl)
+asserts no ground-state projector `σ^{gg}` (a Transition with
+`i == j == ground_state`) survives into any state or drift/noise RHS
+leaf, across representative scalar + indexed (2-level, Dicke, 3-level)
+models, both `get_adjoints` settings, pre- and post-scale. Detection
+guards on `_is_leaf_average` so a *product* of averages (whose
+`undo_average` would reassemble a spurious same-site `σ^{gg}`) is not a
+false positive. Currently 9/9 green on all configs, so option 1 (the
+`_prod_ops` fold / lifting the fold into SQA) is deferred per the rule
+above. §4 is parked here unless the test fires.
+
 Other algebraic-redundancy classes that might exhibit similar bugs:
 
 - Bosonic `[a, a†] = 1`. SQA's `_canonicalize!` handles this via
@@ -437,15 +638,6 @@ Other algebraic-redundancy classes that might exhibit similar bugs:
 
 None of these are known bugs today; they're plausible future
 analogues if the architecture stays "callers fold explicitly".
-
-## 5. `excitation-transport-chain` end-of-chain drift (low priority)
-
-Dashed end-of-chain trace settles at ~0.10 on rewrite vs ~0.11 on
-master. Well within JumpProblem ensemble noise; could be a remaining
-algebraic difference. Low priority. The current locked value in
-`test/examples_regression_test.jl` (at N=4, deterministic) is on the
-rewrite-current side, so any improvement that brings the rewrite
-closer to master will fire the test and prompt an update.
 
 ## Reproduction recipes
 
