@@ -73,35 +73,25 @@ end
     stoch_c = complete(stoch_eqs)
     det_c = complete(det_eqs)
 
-    # det and stoch close to legitimately-different LHS sets because the
-    # two paths use different NE-injection policies (det skips NE on
-    # user-named atom indices to preserve the dissipator's cumulant
-    # cross-decay correction; stoch always injects NE so its diffusion
-    # column folds via `expand_completeness` and stays numerically
-    # bounded). See TODO §3 for the parked algebraic-asymmetry
-    # investigation; the cumulant-level `expand_completeness` fix
-    # explored in that session turned out to be incomplete (heterodyne
-    # still diverges at the example's full T_end), so the path-
-    # asymmetric NE handling stands and this assertion stays relaxed.
+    # det and stoch now select ONE structural NE policy (population iff the
+    # channel set contains a dephasing jump `σ^{αα}`), injected per-derived-op
+    # (independent of completion-iteration order), applied identically to both
+    # pipelines. So they reach the SAME closure with identical drifts.
     det_lhs = Set(e.lhs for e in det_c.equations)
     stoch_lhs = Set(e.lhs for e in stoch_c.equations)
-    @test !isempty(intersect(det_lhs, stoch_lhs))
+    @test det_lhs == stoch_lhs
     @test !isempty(det_lhs)
-    @test !isempty(stoch_lhs)
 
-    # Stronger: per-equation deterministic drift must agree symbolically.
-    # The noise meanfield's `equations` are the *deterministic* drift terms;
-    # only `noise_equations` carry the stochastic part. So for each LHS that
-    # is shared, the rhs of stoch_c.equations and det_c.equations should
-    # differ by zero. We verify a handful (first three) to keep the
-    # simplification cost bounded.
+    # Every shared deterministic drift agrees symbolically. The noise
+    # meanfield's `equations` are the deterministic drift terms; only
+    # `noise_equations` carry the stochastic part. So for each shared LHS the
+    # stoch and det rhs must differ by zero.
     det_by_lhs = Dict(e.lhs => e.rhs for e in det_c.equations)
     n_checked = 0
     for eq in stoch_c.equations
         haskey(det_by_lhs, eq.lhs) || continue
         @test _is_zero(eq.rhs - det_by_lhs[eq.lhs])
         n_checked += 1
-        n_checked >= 3 && break
     end
-    @test n_checked >= 1
+    @test n_checked == length(stoch_c.equations)
 end

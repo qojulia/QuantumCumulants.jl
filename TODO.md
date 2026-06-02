@@ -90,9 +90,71 @@ uses free `j`, which the user-concretes detector then mis-classified
 as "no user-pinned atoms" and incorrectly triggered NE injection.
 The fix is one line in `_collect_atom_indices_set!`.
 
-## 3. Det vs stoch NE asymmetry: STILL OPEN
+## 3. Det vs stoch NE asymmetry: RESOLVED (2026-06-02, structural discriminator)
 
-The current rewrite uses path-asymmetric NE injection (det path skips
+**Resolution.** The path-asymmetric NE policy (det skips NE when the user
+named an atom index; stoch always injects) is replaced by ONE policy selected
+by a STRUCTURAL property of the channel set, applied identically to the
+deterministic and noise paths:
+
+> A system whose dissipators include a **dephasing channel** (a diagonal
+> atomic jump `σ^{αα}`) is a *population* system and gets cross-atom NE
+> injection (so SQA folds `σ^gg = 1 − Σ σ^kk` and the order-2 closure stays
+> compact/bounded). A system with **no** dephasing channel (e.g.
+> unique_squeezing's single `σ^{12}` decay) is a *concrete-site* system and
+> skips NE (retaining the dissipator's cumulant cross-decay correction).
+
+Implementation: `_has_dephasing_channel(jumps)` in
+[completion.jl](src/completion.jl) inspects the (flattened) jump list once for
+an indexed `σ^{αα}`; `meanfield` and both `_derive_for` methods pass it as the
+`cross_ne` flag to `_build_op_drift`, which injects the NE per derived operator
+(`_distinct_atom_indices([op])`, see Order-independence below). The
+`user_concretes` heuristic (`_user_concrete_atom_indices` /
+`_collect_atom_indices_set!`) is **deleted**.
+
+Why this works where the heuristic was fragile: the old `isempty(user_concretes)`
+discriminator mis-read a free population index like `k` (it appears in
+`initial_operators` without a sum binding) as "concrete". The structural
+signal does not depend on index naming. Under it, superradiant and
+heterodyne-det FLIP from the heuristic's "concrete" to "population" and every
+regression lock + numeric still holds, confirming the structural classifier is
+the correct one.
+
+Crucially this is NOT the per-channel "drop the diagonal" idea (which deleted
+physical dephasing, see the reverted attempt below). The policy is the existing
+post-hoc population NE, which drives the `σ^gg` fold and is a no-op on
+already-emitted diagonals; `χ`/`ν` stay in every closure.
+
+**Validated:** full suite `818/818`, JET clean (5/5). unique_squeezing N=1 =
+30.1497; heterodyne SDE (seed 2, `T_end=0.1`) bounded (max ≈ 591); heterodyne
+drift-only bounded; superradiant / filter-cavity / unique_squeezing closure
+shapes unchanged (23-20 / 54-48 / 22-19). Tests:
+`measurement_backaction_indices_comparison` is tightened to assert det and stoch
+reach the SAME closure (`det_lhs == stoch_lhs`) AND every shared drift agrees;
+new `test/dephasing_discriminator_test.jl` locks the discriminator classification
+and the free-`j`-vs-slot-`j(1)` readout-shape invariance (the exact case the old
+heuristic mis-classified).
+
+**Order-independence (also fixed).** The NE is injected PER DERIVED OPERATOR:
+`_build_op_drift` computes `_distinct_atom_indices([op])` from each op alone,
+not from the whole `complete!` batch. Previously the batch-wide distinct set
+let a sibling op's cross-atom indices leak NE into an unrelated equation (e.g.
+`⟨aa⟩`'s coherent sum `Σ_j⟨aσ_j⟩` picked up a spurious `(j≠k, j≠k_2)` because
+`k, k_2` came from a cross-atom moment derived in the same batch), and det/stoch
+batch differently, so a handful of drifts differed in sum-split form. With
+per-op injection det and stoch derive byte-identical drifts (the comparison
+test now asserts ALL shared drifts agree, not a sample).
+
+What did NOT work (kept for the record; see detail below): a single policy for
+both regimes. The concrete-site and population regimes genuinely need opposite
+diagonal treatment under order-2 truncation, and the only way to serve both
+with one policy is master's lazy-moment / deferred-sum model, which is ruled
+out for this rewrite. The structural discriminator instead selects the correct
+one of the two existing (working) policies per system, robustly.
+
+### Historical: path-asymmetric framing (superseded by the structural discriminator above)
+
+The current rewrite used path-asymmetric NE injection (det path skips
 NE when user named an atom index in initial_operators; stoch path
 always injects NE). Both unique_squeezing and heterodyne SDE stay
 bounded with this asymmetry. Master keeps both bounded with what
@@ -199,6 +261,47 @@ dropping ≈ master's bounded diagonal for these channels, and the
 path-asymmetry is needed because unique_squeezing's single channel
 needs the diagonal KEPT.
 
+### Bedrock (2026-06-02): the QC-level defer-the-split is BLOCKED by eager SQA evaluation
+
+Pushed the defer-the-split all the way to the algebra and hit a hard wall.
+The plan was: build the dissipator summand with a FREE jump index `j`,
+`average` + `cumulant_expansion` the generic summand, then materialize the
+diagonal by substituting `j → c` for each LHS atom `c` (master's
+truncate-then-substitute). This CANNOT work on top of SQA's eager model:
+
+- SQA evaluates a commutator of two differently-named free indices on the
+  same subspace as ZERO at construction (it treats `j ≠ k` by default). So
+  the generic decay summand `(γ/2)(σ²¹_j[σ²²_k, σ¹²_j] + [σ²¹_j, σ²²_k]σ¹²_j)`
+  evaluates to `0` for the free-`j` form. Verified directly:
+  `cumulant_expansion(average(generic decay summand)) == 0`, while the
+  same-atom (`j→k` first) term is correctly `−γ σ²²_k`.
+- Therefore substituting `j → k` INTO the truncated generic (which is `0`)
+  yields `0`, not the physical `−γ⟨σ²²_k⟩`. The diagonal only exists if the
+  `j = c` substitution happens BEFORE the commutator is evaluated (so the two
+  operators are recognised as same-site). That is exactly eager
+  collapse-then-truncate, the unstable order.
+- Inconsistently, the dephasing summand's generic form is NONZERO (its
+  `σ²²_j … σ²²_j` sandwich is a product, not a vanishing commutator), and it
+  carries two-`j`-factor terms. So even where the generic survives, it needs a
+  sum-over-products representation.
+
+master sidesteps both by keeping the inner moment `⟨σ_j …⟩` UNEVALUATED and
+symbolic through `cumulant_expansion` (its `IndexedAverageSum`), so the
+same-site product is only formed at `evaluate` time AFTER the `j → c`
+substitution. SQA v0.5 deliberately removed that lazy-moment machinery (the
+rewrite evaluates products eagerly). So a correct unified fix requires
+RE-INTRODUCING a lazy/symbolic indexed-moment representation into SQA (the
+`IndexedAverageSum` model) and threading it through QC's `cumulant_expansion`
+/ `complete!` / `scale` / `evaluate` / codegen. That is a major SQA + QC
+re-architecture that walks back a central rewrite simplification, not a
+localized patch.
+
+**What IS banked toward that fix:** the sum-scope canonical key
+(`_canonical_key_sum`, landed dormant + unit-tested) solves the dedup-
+convergence blocker that previously made Σ-wrapped-state closures
+non-terminating. When the SQA lazy-moment work is done, the dedup primitive
+is ready to wire in.
+
 **What a real fix requires (defer the split):**
 
 1. Build the dissipator with the jump index FREE (no `Σ` wrap) so SQA
@@ -224,6 +327,37 @@ coalesce in `find_missing`, growing ~21 states/iteration past iter 6.
 So step 4's multi-bound `_canonical_key`/`_dedup_key_strip_free_ne`
 must canonicalise two-bound-index sum scopes, or the closure never
 terminates. This is the load-bearing hard part, not the algebra.
+
+**SOLVED in prototype (2026-06-02): the sum-scope canonical key.** The
+blocker is tractable. A prototype `_canonical_key` extension coalesces
+alpha-equivalent `Σ`-wrapped leaves (including the two-bound permutation
+symmetry that defeated prior attempts). Verified on real off-diagonal
+`Σ`-wrapped leaves: 1-bound alpha-equivalence, 2-bound alpha-equivalence,
+2-bound permutation / operator-swap invariance
+(`Σ_{a≠b}σ^{12}_aσ^{21}_b` ≡ `Σ_{a≠b}σ^{21}_aσ^{12}_b`), and
+1-bound-vs-2-bound distinctness all hold. Recipe:
+
+1. `SQA.assume_distinct_index` over ALL atom-space (Transition) indices
+   (free + bound) so SQA order-canonicalises commuting cross-atom factors
+   (the same trick §6 used for conjugate dedup, extended to bound indices).
+2. Rename free indices to canonical free-slots and bound indices to
+   canonical bound-slots, both minted from a per-subspace ANCHOR (a
+   deterministic index independent of the input's names, e.g. the
+   lex-first declared index on that subspace), in DISJOINT namespaces
+   (e.g. `anchor(900+p)` free, `anchor(500+rank)` bound).
+3. Brute-force over all `k!` permutations of the bound indices (k ≤ 3 for
+   order ≤ 3 cumulants, so ≤ 6 perms; cheap).
+4. Signature = `(sorted bound-slot names, op-term string with the Σ-scope
+   ORDER stripped)`. Stripping scope order is essential: `Σ_aΣ_b = Σ_bΣ_a`,
+   so `.indices` must be treated as a SET, not a vector. Take the
+   lexicographic min over permutations.
+
+Why prior attempts failed: `_canonical_key` discarded `.indices`
+entirely (`return QAdd(args, Index[])`), so it could neither keep the
+scope nor canonicalise its permutation symmetry. With this key, find_missing
+dedup of `Σ`-wrapped leaves terminates. (Proven for the canonical-key
+primitive; end-to-end closure convergence still requires building steps
+1-3, but the documented load-bearing blocker is retired.)
 
 **Validation gate:** the payoff (stability) is NOT symbolically
 checkable. It requires implementing steps 1–4, then SOLVING the
@@ -440,18 +574,75 @@ The honest test target: heterodyne SDE at `T_end=0.1`, seed=2,
 EM solver, `dt = T_end/2e5`, must stay bounded (`retcode == Success`,
 `max|⟨a'a⟩| < 1e8`). The new SDE bounded testset locks exactly this.
 
-### Workarounds in current source
+### Attempt (2026-06-02, reverted): per-channel diagonal split keyed on jump type
 
-- `_derive_for(::MeanFieldEquations)`: skip NE when
-  `_user_concrete_atom_indices(eqs)` is non-empty.
-- `_derive_for(::NoiseMeanFieldEquations)`: always inject NE.
-- `_assume_distinct_atom_indices`: pairs LHS atom indices with both
-  other LHS indices AND the dissipator's bound sum-index.
-- `measurement_backaction_indices_comparison: deterministic vs
-  stochastic LHS match`: relaxed assertion (intersection non-empty,
-  both closures non-empty, per-equation drift agreement). The
-  directional subset assertion is OFF until the path-asymmetric NE
-  goes away.
+Hypothesis (genuinely new; every prior attempt keyed on *index*
+classification, this keyed on the *jump operator's type*): a DEPHASING
+channel (diagonal jump `σ^{αα}`) needs the dissipator-sum diagonal
+(`j = LHS atom`) dropped, a DECAY/ladder channel (`σ^{αβ}, α≠β`) needs it
+kept. Implement uniformly (no det/stoch branch, no `user_concretes`) by
+injecting NE between the bound jump index and the LHS atom indices, inside
+`_sum_over_jump_indices` *before* the `Σ` wrap, only for diagonal jumps.
+
+What looked promising (live-session, monkeypatched): unique_squeezing N=1
+= 30.1497 and N=100 X/P = 2.29/0.44 (both correct); heterodyne single-traj
+SDE bounded (max 591, close to the example's ~600); superradiant and
+filter-cavity closures byte-identical to baseline (23/20, 54/48); det vs
+stoch fully symmetric (21=21, 0 drift mismatch). It looked like a clean §3
+resolution, so it was implemented in source and the path-asymmetric
+machinery deleted.
+
+Why it is WRONG (caught by `make test`: 797 pass, **5 errors**). All five
+fail with `AssertionError: Expected an Initial parameter to exist for
+variable ν` (or `χ`) at `ODEProblem` build: the dephasing rate vanished
+from the compiled system entirely. Direct check: under the patch the
+superradiant closure has NO `ν` anywhere. Two compounding mistakes:
+
+1. **Pre-Σ NE deletes physical terms; post-hoc NE does not.** Injecting NE
+   *before* `Σ`-construction makes `_accumulate_with_diag!` skip the
+   diagonal, so the `j = k` term is never emitted. For a dephasing channel
+   on a single-atom coherence that term IS the physical dephasing:
+   `(ν/2)(σ²²·[σ¹²,σ²²] + [σ²²,σ¹²]·σ²²) = −(ν/2)σ¹²_k`. Dropping it deletes
+   the coherence's dephasing, so `ν` disappears from the system. The OLD
+   workaround's `_assume_distinct_atom_indices` runs *after* `Σ` is built,
+   where (per Layer 1 above) it is a no-op on already-emitted diagonals and
+   only changes NE metadata to drive the `σ^gg` fold + dedup. The two are
+   not interchangeable; the pre-Σ form is lossy.
+
+2. **Diagonal-jump-type targets the wrong channel.** For heterodyne's
+   unstable moment `⟨σ²²_{k1} σ²²_{k2}⟩` the dephasing channel `σ²²`
+   contributes ZERO (populations are dephasing-invariant: both diagonal and
+   off-diagonal terms vanish by commutation). The load-bearing
+   `(1−⟨σ²²⟩)` diagonal of Layer 2 comes from the off-diagonal PUMP channel
+   `σ²¹` (`α≠β`), which `_is_diag_atom_jump` returns false for. So the rule
+   never touched the channel that actually matters; heterodyne only
+   "bounded" because deleting the χ dephasing happened to keep `⟨a'a⟩`
+   finite. Boundedness is not correctness; the SDE bound was a false
+   positive, and the drift-only physics test correctly rejected it.
+
+Lesson: validate a closure-shape change against the *physics* regression
+tests (drift-only numerics, locked master values), not just SDE
+boundedness. The path-asymmetric workaround stands; defer-the-split remains
+the only correct unification.
+
+### Current source (after the 2026-06-02 structural-discriminator resolution)
+
+- `meanfield` / both `_derive_for` methods: pass one `cross_ne =
+  _has_dephasing_channel(jumps)` flag to `_build_op_drift` (identical for det
+  and stoch).
+- `_build_op_drift(...; cross_ne)`: when `cross_ne`, injects NE PER OP via
+  `_assume_distinct_atom_indices(rhs, _distinct_atom_indices([op]))` (the op
+  alone, never the `complete!` batch) → order-independent.
+- `_has_dephasing_channel(jumps)` / `_is_diag_atom_jump`: the structural
+  discriminator (indexed `σ^{αα}` jump present?).
+- `_distinct_atom_indices(new_ops)`: unchanged logic (2+ atom-space indices on
+  a subspace); `user_concretes` param removed.
+- `_assume_distinct_atom_indices(q, distinct)`: `user_concretes` param removed.
+- `_user_concrete_atom_indices` / `_collect_atom_indices_set!`: DELETED.
+- Tests: `measurement_backaction_indices_comparison` TIGHTENED to
+  `det_lhs == stoch_lhs` + every shared drift agrees; new
+  `test/dephasing_discriminator_test.jl` (classification + readout-shape
+  invariance).
 
 ## ARCHIVED: previous session's diagnosis (kept for audit)
 
@@ -670,6 +861,7 @@ Each row is a fix that was tried, what it broke, and why.
 | NE-injection filter = `user_concretes` only | unique_squeezing → 1.25e8 | Doesn't block the j_1_2 ↔ i (bound) assertion that splits the dissipator sum. |
 | NE-injection filter = `user_concretes ∪ bound` (unconditional) | unique_squeezing OK; heterodyne +1 state; filter-cavity cascade errors in `evaluate`/`mtkcompile` | Filters too aggressively for population-symmetric models. |
 | NE-injection filter = `user_concretes ∪ bound` conditional on `!isempty(user_concretes)` + LHS strip | **Current state**: unique_squeezing OK; 3 of 4 measurement_backaction resolved; closures sealed (no cascade); 2 fails remain because `k = Index(...)` mis-classifies as concrete | Limitation: heuristic can't distinguish user-free `k` from user-concrete `j(1)`. |
+| Per-channel pre-`Σ` NE for diagonal jumps `σ^{αα}` (unified path) | US N=1/N=100 + heterodyne SDE bounded, superradiant/filter-cavity closures identical, det/stoch symmetric; but **5 `make test` errors**: `ν`/`χ` vanish from compiled systems | Pre-`Σ` NE removes the `j=k` diagonal, which for a dephasing channel IS the physical single-atom dephasing `−(ν/2)σ¹²`; and the load-bearing diagonal for `⟨σ²²σ²²⟩` is the off-diagonal PUMP `σ²¹`, not the diagonal `σ²²`. Boundedness ≠ correctness. See the 2026-06-02 writeup above. |
 
 ## Conceptual map: which models need which dissipator algebra?
 

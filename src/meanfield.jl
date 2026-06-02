@@ -40,16 +40,17 @@ function meanfield(
     end
     Jn, Jdn = _normalize_jumps(J, Jdagger)
     rn = _normalize_rates(rates, length(Jn))
+    cross_ne = _has_dephasing_channel(Jn)
     if efficiencies === nothing
         return _meanfield_deterministic(
             direction, ops, H, Jn, Jdn, rn,
-            order, mix_choice, iv,
+            order, mix_choice, iv; cross_ne,
         )
     else
         en = _normalize_rates(efficiencies, length(Jn))
         return _meanfield_noise(
             direction, ops, H, Jn, Jdn, rn, en,
-            order, mix_choice, iv,
+            order, mix_choice, iv; cross_ne,
         )
     end
 end
@@ -105,20 +106,18 @@ end
 # `op ~ rhs` equation for each requested observable. The direction selects
 # the coherent + Lindblad recycling formula via `_operator_rhs`.
 #
-# `distinct_indices`, if non-empty, names indices that callers (typically
-# `complete!::_derive_for` minting slot indices for cross-atom moments)
-# know to be distinct from every other atom-space index in the result.
-# `_assume_distinct_atom_indices` then asserts those distinctness
-# constraints so SQA's `_canonicalize!` can reduce cross-atom products
-# (e.g. `σ_k₁₂ · σ_k₂₂₂ · σ_k₂₁` → `σ_k₁₁ · σ_k₂₂₂`, which
-# `expand_completeness` then folds via `σ^gg = 1 - Σ σ^kk`). Without this
-# the cumulant truncation downstream materialises the implicit `σ^gg` as
-# a free state, breaking master-compatibility (see heterodyne_detection).
-function _build_op_drift(
-        direction, ops_qa, H, J, Jdagger, rates;
-        distinct_indices::Vector{SQA.Index} = SQA.Index[],
-        user_concretes::Set{SQA.Index} = Set{SQA.Index}(),
-    )
+# When `cross_ne` is set (the system is a "population" system, i.e. its channel
+# set has a dephasing jump, see `_has_dephasing_channel`), each op's own
+# cross-atom free slots are asserted mutually distinct via
+# `_assume_distinct_atom_indices`, so SQA's `_canonicalize!` reduces cross-atom
+# products (e.g. `σ_k₁₂ · σ_k₂₂₂ · σ_k₂₁` → `σ_k₁₁ · σ_k₂₂₂`, which
+# `expand_completeness` folds via `σ^gg = 1 - Σ σ^kk`). The distinct set is
+# computed PER OP from that op alone (`_distinct_atom_indices([op])`), never
+# from sibling ops in the same `complete!` batch, so the result is independent
+# of completion-iteration order. Without the fold the cumulant truncation
+# materialises the implicit `σ^gg` as a free state, breaking
+# master-compatibility (see heterodyne_detection).
+function _build_op_drift(direction, ops_qa, H, J, Jdagger, rates; cross_ne::Bool = false)
     imH = im * H
     op_rhs = Vector{QAdd}(undef, length(ops_qa))
     operator_eqs = Vector{Symbolics.Equation}(undef, length(ops_qa))
@@ -126,7 +125,9 @@ function _build_op_drift(
         rhs = SQA.expand_completeness(
             _operator_rhs(direction, op, imH, J, Jdagger, rates),
         )
-        rhs = _assume_distinct_atom_indices(rhs, distinct_indices, user_concretes)
+        if cross_ne
+            rhs = _assume_distinct_atom_indices(rhs, _distinct_atom_indices([op]))
+        end
         op_rhs[i] = rhs
         operator_eqs[i] = op ~ rhs
     end
@@ -138,10 +139,7 @@ end
 # route through `SQA.assume_distinct_index` (which propagates NE,
 # canonicalises, and expands completeness). Returns `q` unchanged when
 # `distinct` is empty.
-function _assume_distinct_atom_indices(
-        q::SQA.QAdd, distinct::Vector{SQA.Index},
-        user_concretes::Set{SQA.Index} = Set{SQA.Index}(),
-    )
+function _assume_distinct_atom_indices(q::SQA.QAdd, distinct::Vector{SQA.Index})
     isempty(distinct) && return q
     by_space = Dict{Int, Set{SQA.Index}}()
     for (term, _) in q.arguments, o in term.ops
@@ -157,7 +155,6 @@ function _assume_distinct_atom_indices(
         idxs = get(by_space, d.space_index, Set{SQA.Index}())
         for other in idxs
             other == d && continue
-            other in user_concretes && continue
             key = d < other ? (d, other) : (other, d)
             key in seen_pairs && continue
             push!(seen_pairs, key)
@@ -202,12 +199,11 @@ function _meanfield_deterministic(
         direction::EvolutionDirection,
         ops, H, J, Jdagger, rates, order,
         mix_choice, iv;
-        distinct_indices::Vector{SQA.Index} = SQA.Index[],
-        user_concretes::Set{SQA.Index} = Set{SQA.Index}(),
+        cross_ne::Bool = false,
     )
     ops_qa = QAdd[op * 1 for op in ops]
     op_rhs, operator_eqs = _build_op_drift(
-        direction, ops_qa, H, J, Jdagger, rates; distinct_indices, user_concretes,
+        direction, ops_qa, H, J, Jdagger, rates; cross_ne,
     )
     states = SymbolicUtils.BasicSymbolic[average(op) for op in ops_qa]
     order_vec = order === nothing ? nothing :
@@ -334,12 +330,11 @@ end
 function _meanfield_noise(
         direction::EvolutionDirection, ops, H, J, Jdagger, rates,
         efficiencies, order, mix_choice, iv;
-        distinct_indices::Vector{SQA.Index} = SQA.Index[],
-        user_concretes::Set{SQA.Index} = Set{SQA.Index}(),
+        cross_ne::Bool = false,
     )
     ops_qa = QAdd[op * 1 for op in ops]
     op_rhs, operator_eqs = _build_op_drift(
-        direction, ops_qa, H, J, Jdagger, rates; distinct_indices, user_concretes,
+        direction, ops_qa, H, J, Jdagger, rates; cross_ne,
     )
     states = SymbolicUtils.BasicSymbolic[average(op) for op in ops_qa]
     order_vec = order === nothing ? nothing :

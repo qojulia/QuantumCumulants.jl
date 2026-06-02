@@ -115,7 +115,8 @@ function _complete_ancilla!(
         new_eqs = _meanfield_deterministic(
             eqs.direction, fresh_ops,
             eqs.hamiltonian, eqs.jumps, eqs.jumps_dagger, eqs.rates,
-            eqs.order, mix_choice, eqs.iv
+            eqs.order, mix_choice, eqs.iv;
+            cross_ne = _has_dephasing_channel(eqs.jumps),
         )
         if !isempty(undo)
             new_eqs = _apply_undo(new_eqs, undo)

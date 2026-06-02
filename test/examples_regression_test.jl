@@ -379,10 +379,10 @@ end
     J = [a, σ(1, 2, i), σ(2, 1, i), σ(2, 2, i)]
     rates = [κ, Γ, R, ν]
     # Mirror examples/superradiant_laser_indexed.jl's free-`j` shape so
-    # the test exercises the same path the example does. A slot-minted
-    # `σ(2,2,j(1))` here would route through a different branch of
-    # `_collect_atom_indices_set!` and miss a recurrence of the
-    # unique_squeezing free-vs-slot bug.
+    # the test exercises the same path the example does. The NE policy is now
+    # selected structurally (`_has_dephasing_channel`: this system's `σ(2,2,i)`
+    # makes it a population system), independent of whether the readout index
+    # is written free (`j`) or slot-minted (`j(1)`).
     ops = [a' * a, σ(2, 2, j)]
     eqs = meanfield(ops, H, J; rates = rates, order = 2)
     eqs_c = complete(eqs; filter_func = phase_invariant)

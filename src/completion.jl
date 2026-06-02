@@ -528,28 +528,38 @@ function MTK.complete(
     return complete!(eqs_copy; mix_choice, kw...)
 end
 
+# Cross-atom NE policy, selected by a STRUCTURAL property of the channel set
+# (not by index naming or det/stoch path):
+#
+#  - A system whose dissipators include a DEPHASING channel (a diagonal atomic
+#    jump `σ^{αα}`, e.g. heterodyne / filter-cavity / superradiant) is a
+#    "population" system: inject NE between cross-atom free slots so SQA's
+#    canonicalisation folds the cross-atom decay terms via `σ^gg = 1 - Σ σ^kk`
+#    and the order-2 closure stays compact and bounded.
+#  - A system with no dephasing channel (e.g. unique_squeezing's single
+#    `σ^{12}` decay) is a "concrete-site" system: skip NE so the dissipator's
+#    cumulant cross-decay correction is retained (NE injection would drop it
+#    and the dynamics would diverge).
+#
+# The same policy is applied to the deterministic and noise paths (no
+# det/stoch asymmetry). The NE is injected PER DERIVED OPERATOR (see
+# `_build_op_drift`): each op's cross-atom slots are asserted distinct using
+# only that op's own indices, never the other ops discovered in the same
+# `complete!` batch. That keeps the result independent of completion-iteration
+# order (det and stoch derive identical drifts). The post-hoc
+# `_assume_distinct_atom_indices` it drives is a no-op on already-emitted
+# diagonals (it drives the `σ^gg` fold, it does NOT delete a channel's physical
+# diagonal/dephasing terms). `_strip_lhs_free_atom_ne` then normalises the LHS
+# so a cross-atom state hashes the same regardless of which iteration found it.
 function _derive_for(
         eqs::MeanFieldEquations, new_ops; mix_choice = maximum
     )
     bound = _bound_indices(eqs)
     fresh_ops, undo = _alpha_rename_away(new_ops, bound)
-    user_concretes = _user_concrete_atom_indices(eqs)
-    # Mirror noise-path NE injection to fix the det-vs-stoch closure
-    # asymmetry, BUT only when the user has no concrete-site atoms (the
-    # pure permutation-symmetric population case, e.g. filter-cavity).
-    # When the user declared a concrete atom like `j(1)` (e.g.
-    # unique_squeezing), NE injection on the det path blocks the
-    # dissipator's cumulant cross-decay term that bounds the dynamics,
-    # so skip it entirely. After derivation, strip free-atom NE from
-    # LHS so det- and stoch-path closures discover the same physical
-    # state under hashing (state shape is invariant under whichever
-    # iteration first surfaced the leaf).
-    distinct = isempty(user_concretes) ?
-        _distinct_atom_indices(fresh_ops) : SQA.Index[]
     derived = _meanfield_deterministic(
         eqs.direction, fresh_ops, eqs.hamiltonian, eqs.jumps, eqs.jumps_dagger,
         eqs.rates, eqs.order, mix_choice, eqs.iv;
-        distinct_indices = distinct,
+        cross_ne = _has_dephasing_channel(eqs.jumps),
     )
     derived = _strip_lhs_free_atom_ne(derived, bound)
     return isempty(undo) ? derived : _apply_undo(derived, undo)
@@ -560,25 +570,33 @@ function _derive_for(
     )
     bound = _bound_indices(eqs)
     fresh_ops, undo = _alpha_rename_away(new_ops, bound)
-    # Noise path always injects NE between same-atom-space free
-    # indices. Mirroring the det-path skip on user-named atom indices
-    # (which is correct for unique_squeezing's free-j) makes the
-    # heterodyne SDE diverge to ~1e220, because the noise diffusion
-    # column's cumulant-2 truncation only stays bounded when the
-    # `σ^gg = 1 - σ^ee` fold compacts cross-atom decay terms. So
-    # the noise path keeps the original unconditional NE injection
-    # even though that leaves the det/stoch closure shapes
-    # asymmetric (see `measurement_backaction_indices_comparison:
-    # deterministic vs stochastic LHS match` and TODO §3 for the
-    # parked algebraic-asymmetry investigation).
-    distinct = _distinct_atom_indices(fresh_ops)
     derived = _meanfield_noise(
         eqs.direction, fresh_ops, eqs.hamiltonian, eqs.jumps, eqs.jumps_dagger,
         eqs.rates, eqs.efficiencies, eqs.order, mix_choice, eqs.iv;
-        distinct_indices = distinct,
+        cross_ne = _has_dephasing_channel(eqs.jumps),
     )
     derived = _strip_lhs_free_atom_ne(derived, bound)
     return isempty(undo) ? derived : _apply_undo(derived, undo)
+end
+
+# A dissipator carries a dephasing channel when any (flattened) jump operator
+# is an indexed diagonal atomic transition `σ^{αα}`. Bosonic and off-diagonal
+# (ladder/decay) jumps do not count.
+_is_diag_atom_jump(j::SQA.QSym) =
+    (j isa SQA.Transition) && SQA.has_index(j.index) && (j.i == j.j)
+function _is_diag_atom_jump(j::SQA.QAdd)
+    for (term, _) in j.arguments, o in term.ops
+        _is_diag_atom_jump(o) && return true
+    end
+    return false
+end
+_is_diag_atom_jump(::Any) = false
+
+function _has_dephasing_channel(jumps)
+    for j in _flatten_jumps(jumps)
+        _is_diag_atom_jump(j) && return true
+    end
+    return false
 end
 
 # Strip NE pairs between free Transition-carrying atom-space indices from
@@ -683,47 +701,6 @@ function _term_strip_atom_ne(term::SQA.QTerm, bound::Set{SQA.Index})
     return SQA.QTerm(copy(term.ops), kept)
 end
 
-# Atom-space indices declared by the user in `initial_operators` that are
-# not bound by an H/J sum scope. These are concrete-site labels (e.g.
-# `j(1)` from `σ(2,2,j(1))`), not interchangeable slots over an atom
-# population, so they must be excluded from the NE-injection that
-# `_assume_distinct_atom_indices` performs: asserting "user's specific
-# atom ≠ some other slot" blocks the dissipator's same-site cumulant
-# correction term that keeps unique_squeezing's N=1 dynamics bounded.
-function _user_concrete_atom_indices(eqs::AbstractMeanFieldEquations)
-    out = Set{SQA.Index}()
-    bound = _bound_indices(eqs)
-    for op in eqs.initial_operators
-        _collect_atom_indices_set!(out, op, bound)
-    end
-    return out
-end
-
-_collect_atom_indices_set!(::Set{SQA.Index}, ::Any, ::Set{SQA.Index}) = nothing
-function _collect_atom_indices_set!(
-        out::Set{SQA.Index}, op::SQA.QSym, bound::Set{SQA.Index},
-    )
-    op isa SQA.Transition || return nothing
-    SQA.has_index(op.index) || return nothing
-    op.index in bound && return nothing
-    # Any atom index on initial_operators that the user named and isn't
-    # bound by an H/J sum is a "user-pinned slot": NE injection between
-    # this slot and an algebra-minted phantom partner blocks the
-    # dissipator's cumulant cross-decay correction that bounds the
-    # dynamics. This covers both free `j` (from `Index(h, :j, N, ha)`)
-    # and slot-minted `j(1)` shapes.
-    push!(out, op.index)
-    return nothing
-end
-function _collect_atom_indices_set!(
-        out::Set{SQA.Index}, op::SQA.QAdd, bound::Set{SQA.Index},
-    )
-    for (term, _) in op.arguments, o in term.ops
-        _collect_atom_indices_set!(out, o, bound)
-    end
-    return nothing
-end
-
 # Free LHS indices on `new_ops` that live on an N-level (atom) subspace,
 # deduped. Each is a slot minted by `_canonical_key` to represent a
 # physically distinct atom in a multi-atom cross moment; asserting them
@@ -733,9 +710,7 @@ end
 # refer to physically distinct sites by user construction and do not need
 # (nor benefit from) algebraic same-site collapse; injecting NE on them
 # breaks indexed-filter examples like filter-cavity_indexed.
-function _distinct_atom_indices(
-        new_ops, user_concretes::Set{SQA.Index} = Set{SQA.Index}(),
-    )
+function _distinct_atom_indices(new_ops)
     by_space = Dict{Int, Vector{SQA.Index}}()
     for op in new_ops
         _collect_atom_space_indices_by_space!(by_space, op)
@@ -746,18 +721,14 @@ function _distinct_atom_indices(
     # moment) does not need NE injection, and triggering SQA's
     # canonicalisation on such terms changes drift in examples like
     # unique_squeezing that already produce correct results without it.
-    # Also exclude indices that the user declared concretely (e.g. `j(1)`):
-    # those denote specific atoms, not interchangeable slots, and NE-
-    # injecting them blocks the dissipator's cumulant-correction term
-    # that bounds the dynamics for those concrete-site states.
     out = SQA.Index[]
     seen = Set{SQA.Index}()
     for (_, idxs) in by_space
         length(idxs) >= 2 || continue
         for idx in idxs
-            idx in user_concretes && continue
             idx in seen && continue
-            push!(seen, idx); push!(out, idx)
+            push!(seen, idx)
+            push!(out, idx)
         end
     end
     return out
