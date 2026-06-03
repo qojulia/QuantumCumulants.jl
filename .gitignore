@@ -7,3 +7,4 @@ docs/Manifest.toml
 *.claude/
 tmp/*
 tools/*
+docs/superpowers

@@ -6,10 +6,7 @@ using OrdinaryDiffEq: Tsit5, solve, ReturnCode
 using Test
 
 # Steady-state agreement between 4th- and 6th-order cumulant closures of
-# the damped JC laser. Split out of higher_order_test.jl because the two
-# MTK compiles plus two long ODE solves dominate the file's wall-clock;
-# isolating it lets ParallelTestRunner schedule it independently of the
-# closure-only testsets.
+# the damped JC laser.
 
 @testset "higher-order: order=4 vs order=6 steady-state agreement" begin
     @variables Δ::Real g::Real γ::Real κ::Real ν::Real
@@ -74,11 +71,6 @@ using Test
     assert_real(sol6, a' * a, he6; atol = 1.0e-6)
     assert_nonneg(sol6, a' * a, he6; atol = 1.0e-6)
 
-    # Spectrum agreement (ports master's `maximum(abs.(s6 .- s4)) < 0.2`).
-    # Reuses sol4/sol6 above; the Laplace-domain solve in `Spectrum` is the
-    # only additional work here. Phase-invariant filter is required for the
-    # ancilla completion to close. Call the vector overload directly so the
-    # matrix extraction runs once per order, not once per ω.
     ω = collect(range(-2pi, 2pi; length = 201))
     ps_t = (Δ, g, γ, κ, ν)
     c4 = CorrelationFunction(

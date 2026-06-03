@@ -15,7 +15,5 @@ using Test
 
     h = hc ⊗ ha
     ops_prod = find_operators(h, 2)
-    # Same coverage works on a product space; closure under the cumulant
-    # expansion is checked elsewhere. Here we just sanity-check the call.
     @test !isempty(ops_prod)
 end

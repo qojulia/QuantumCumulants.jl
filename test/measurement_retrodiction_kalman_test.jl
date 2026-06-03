@@ -7,16 +7,10 @@ using Statistics: cor
 using Random
 using Test
 
-# Continuous monitoring of a harmonic oscillator: simulate the forward
-# SDE, extract the measurement record dY from the realised Wiener path,
-# then build the deterministic Kalman ODE that is driven by dY via
-# `modify_equations`. On the *same* noise realisation, the Kalman ODE
-# must track the SDE trajectory (perfect agreement modulo integration
-# scheme: EM vs RK; we assert correlation >= 0.95 and relative endpoint
-# error < 0.2). Split out of measurement_retrodiction_test.jl: this
-# testset's SDE forward solve + MTK compile + ODE solve dominates the
-# file's wall-clock, isolating it lets ParallelTestRunner schedule it on
-# its own worker.
+# Continuous monitoring of a harmonic oscillator: simulate the forward SDE,
+# extract the measurement record dY from the realised Wiener path, then build
+# the deterministic Kalman ODE driven by dY. On the same noise realisation the
+# Kalman ODE tracks the SDE trajectory up to integration scheme.
 @testset "Kalman: forward SDE tracked by measurement-record-driven ODE" begin
     h = PhaseSpace(:motion)
     @qnumbers x::Position(h)

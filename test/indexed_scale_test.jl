@@ -4,10 +4,6 @@ using ModelingToolkitBase: @named, mtkcompile, ODEProblem, unknowns
 using OrdinaryDiffEq: Tsit5, solve, ReturnCode
 using Test
 
-# v1 surface: indexed `scale!` over a permutation-symmetric atom subspace.
-# Both the full-system scale (no `h` kwarg) and the per-Hilbert-space
-# variant (`scale(eqs; h = [k])`) are exercised below.
-
 @testset "indexed_scale: Tavis-Cummings closure + scale + ODE" begin
     @variables N::Real Δ::Real g::Real κ::Real Γ::Real R::Real ν::Real
 
@@ -28,7 +24,6 @@ using Test
     eqs_c = complete(eqs)
     @test length(eqs_c.equations) >= 2
 
-    # Scale collapses the permutation-symmetric atom subspace.
     eqs_sc = scale(eqs_c)
     @test length(eqs_sc.equations) >= 1
     @test isempty(find_missing(eqs_sc; get_adjoints = false))
@@ -39,9 +34,7 @@ using Test
 end
 
 @testset "indexed_scale: per-Hilbert-space scale order independence" begin
-    # Two indexed subspaces, scaling each separately in either order must
-    # produce systems of equal size. Ported from master's
-    # `test_indexed_scale.jl`.
+    # Scaling two indexed subspaces in either order must produce systems of equal size.
     @variables N::Real N2::Real Δ::Real g::Real κ::Real Γ::Real R::Real ν::Real
 
     hc = FockSpace(:cavity)
@@ -94,23 +87,17 @@ end
     u0_ev = Dict(unknowns(sys_ev_c) .=> zeros(ComplexF64, length(unknowns(sys_ev_c))))
 
     prob_sc = ODEProblem(sys_sc_c, merge(u0_sc, Dict([N3, V, Ω] .=> [N_, V_, Ω_])), (0.0, 2.0))
-    # post-evaluate, N3 baked in; only V, Ω remain symbolic.
     prob_ev = ODEProblem(sys_ev_c, merge(u0_ev, Dict([V, Ω] .=> [V_, Ω_])), (0.0, 2.0))
     sol_sc = solve(prob_sc, Tsit5(); abstol = 1.0e-10, reltol = 1.0e-10)
     sol_ev = solve(prob_ev, Tsit5(); abstol = 1.0e-10, reltol = 1.0e-10)
     @test sol_sc.retcode == ReturnCode.Success
     @test sol_ev.retcode == ReturnCode.Success
 
-    # Master's actual assertion: the two derivation paths must produce
-    # the same physics. Compare the observable ⟨s_12⟩ at the same time
-    # points; the canonical state lives at atom position 1 in both cases.
+    # The scale and evaluate paths must produce the same physics. Compare ⟨s_12⟩
+    # at the same time points.
     SQA = QuantumCumulants.SecondQuantizedAlgebra
-    # `eqs_sc` has the LHS state ⟨s_(canon)₁₂⟩; the underlying op uses the
-    # canonical first-declared atom index.
     obs_op = SQA.undo_average(eqs_sc.states[1])
     val_sc_end = get_solution(sol_sc, obs_op, eqs_sc)(sol_sc.t[end])
-    # Evaluate produces ⟨s_(i_1)₁₂⟩, ⟨s_(i_2)₁₂⟩, ⟨s_(i_3)₁₂⟩; by symmetry
-    # all three should equal val_sc_end up to numerical noise.
     obs_op_ev_1 = SQA.undo_average(eqs_ev.states[1])
     obs_op_ev_2 = SQA.undo_average(eqs_ev.states[2])
     obs_op_ev_3 = SQA.undo_average(eqs_ev.states[3])
@@ -120,7 +107,72 @@ end
     @test isapprox(val_ev_1, val_sc_end; atol = 1.0e-6)
     @test isapprox(val_ev_2, val_sc_end; atol = 1.0e-6)
     @test isapprox(val_ev_3, val_sc_end; atol = 1.0e-6)
-    # Permutation symmetry: the three atoms must give the same value.
+    # Permutation symmetry: the three atoms give the same value.
     @test isapprox(val_ev_1, val_ev_2; atol = 1.0e-8)
     @test isapprox(val_ev_2, val_ev_3; atol = 1.0e-8)
+end
+
+@testset "indexed vs explicit: Tavis-Cummings physics agreement" begin
+    # Build the same 2-atom driven Tavis-Cummings system explicitly (two atom
+    # Hilbert spaces, no `Index`) and indexed (one atom space + `Index`, reduced
+    # via `scale` and via `evaluate(N => 2)`), then require the cavity observables
+    # ⟨a'a⟩ and ⟨a⟩ to agree across all three.
+    @variables Δ::Real g::Real κ::Real γ::Real η::Real N::Real
+
+    # (a) explicit two-atom build
+    hc = FockSpace(:cavity); ha1 = NLevelSpace(:atom1, 2); ha2 = NLevelSpace(:atom2, 2)
+    hx = hc ⊗ ha1 ⊗ ha2
+    ax = Destroy(hx, :a, 1)
+    sx1(α, β) = Transition(hx, :σ1, α, β, 2)
+    sx2(α, β) = Transition(hx, :σ2, α, β, 3)
+    Hx = -Δ * ax' * ax + η * (ax' + ax) +
+        g * (ax' * sx1(1, 2) + ax * sx1(2, 1)) +
+        g * (ax' * sx2(1, 2) + ax * sx2(2, 1))
+    eqs_ex = complete(
+        meanfield(
+            [ax' * ax, sx1(2, 2), sx2(2, 2)], Hx,
+            [ax, sx1(1, 2), sx2(1, 2)]; rates = [κ, γ, γ], order = 2
+        )
+    )
+
+    # (b) indexed build
+    hci = FockSpace(:cavity); hai = NLevelSpace(:atom, 2); hi = hci ⊗ hai
+    ii = Index(hi, :i, N, hai)
+    ai = Destroy(hi, :a, 1)
+    σi(α, β, k) = IndexedOperator(Transition(hi, :σ, α, β, 2), k)
+    Hi = -Δ * ai' * ai + η * (ai' + ai) +
+        g * Σ(ai' * σi(1, 2, ii) + ai * σi(2, 1, ii), ii)
+    eqs_i = complete(
+        meanfield(
+            [ai' * ai, σi(2, 2, ii)], Hi,
+            [ai, σi(1, 2, ii)]; rates = [κ, γ], order = 2
+        )
+    )
+    eqs_sc = scale(eqs_i)
+    eqs_ev = evaluate(eqs_i; limits = (N => 2))
+
+    function _solve(eqs, pvals)
+        sys = mtkcompile(System(eqs; name = :s))
+        u0 = Dict(unknowns(sys) .=> zeros(ComplexF64, length(unknowns(sys))))
+        prob = ODEProblem(sys, merge(u0, pvals), (0.0, 3.0))
+        return solve(prob, Tsit5(); reltol = 1.0e-10, abstol = 1.0e-12)
+    end
+
+    base = Dict(Δ => 0.0, g => 1.5, κ => 0.7, γ => 0.3, η => 1.2)
+    sol_ex = _solve(eqs_ex, base)
+    sol_ev = _solve(eqs_ev, base)
+    sol_sc = _solve(eqs_sc, merge(base, Dict(N => 2.0)))
+    @test sol_ex.retcode == ReturnCode.Success
+    @test sol_ev.retcode == ReturnCode.Success
+    @test sol_sc.retcode == ReturnCode.Success
+
+    # Cavity observables must agree across all three representations.
+    for τ in (0.5, 1.0, 2.0, 3.0)
+        n_ex = get_solution(sol_ex, ax' * ax, eqs_ex)(τ)
+        a_ex = get_solution(sol_ex, ax, eqs_ex)(τ)
+        @test isapprox(get_solution(sol_ev, ai' * ai, eqs_ev)(τ), n_ex; atol = 1.0e-8)
+        @test isapprox(get_solution(sol_sc, ai' * ai, eqs_sc)(τ), n_ex; atol = 1.0e-8)
+        @test isapprox(get_solution(sol_ev, ai, eqs_ev)(τ), a_ex; atol = 1.0e-8)
+        @test isapprox(get_solution(sol_sc, ai, eqs_sc)(τ), a_ex; atol = 1.0e-8)
+    end
 end

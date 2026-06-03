@@ -18,25 +18,20 @@ using Test
     eqs = meanfield([s(1, 2, i)], Hint; order = 1)
     eqs_c = complete(eqs)
 
-    # Pre-evaluate symbolic count (single equation closes under cumulant=1).
     @test length(eqs_c.equations) == 2
 
-    # Evaluate at N=3: one symbolic LHS state with one free atom-space index
-    # gets enumerated into three concrete-position equations per state.
+    # At N=3, each symbolic state with one free atom-space index enumerates
+    # into three concrete-position equations.
     eqs_ev = evaluate(eqs_c; limits = (N3 => 3))
     @test length(eqs_ev.equations) == 6
     @test isempty(find_missing(eqs_ev; get_adjoints = false))
 
-    # Round-trip through MTK: mtkcompile must accept the result without
-    # Σ-typed residual shapes leaking into MTK's fixpoint substitution.
     @named sys = System(eqs_ev)
     sys_c = mtkcompile(sys)
     @test length(unknowns(sys_c)) == 6
 
-    # Numeric solve at one parameter point.
     N_, V_, Ω_ = 3, 4.79 / 2, 1.0
     u0 = Dict(unknowns(sys_c) .=> zeros(ComplexF64, length(unknowns(sys_c))))
-    # N3 is now baked-in (no longer a parameter post-evaluate).
     prob = ODEProblem(
         sys_c, merge(u0, Dict([V, Ω] .=> [V_, Ω_])), (0.0, 2.0)
     )
@@ -54,7 +49,7 @@ using Test
 end
 
 @testset "evaluate: scale agreement at the steady-state limit" begin
-    # Scale-first vs evaluate-first should give the same dynamics on a
+    # Scale-first and evaluate-first give the same dynamics on a
     # permutation-symmetric system.
     h2 = NLevelSpace(:spin, 2)
     @variables V::Real Ω::Real N3::Real
@@ -78,14 +73,13 @@ end
     u0_ev = Dict(unknowns(sys_ev_c) .=> zeros(ComplexF64, length(unknowns(sys_ev_c))))
 
     prob_sc = ODEProblem(sys_sc_c, merge(u0_sc, Dict([N3, V, Ω] .=> [N_, V_, Ω_])), (0.0, 2.0))
-    # post-evaluate, N3 is baked in (only V, Ω remain symbolic).
     prob_ev = ODEProblem(sys_ev_c, merge(u0_ev, Dict([V, Ω] .=> [V_, Ω_])), (0.0, 2.0))
-    sol_sc = solve(prob_sc, Tsit5())
-    sol_ev = solve(prob_ev, Tsit5())
+    sol_sc = solve(prob_sc, Tsit5(); reltol = 1.0e-10, abstol = 1.0e-12)
+    sol_ev = solve(prob_ev, Tsit5(); reltol = 1.0e-10, abstol = 1.0e-12)
     @test sol_sc.retcode == ReturnCode.Success
     @test sol_ev.retcode == ReturnCode.Success
 
-    # Physicality: coherence magnitudes bounded by 1 in both representations.
+    # Coherence magnitudes are bounded by 1 in both representations.
     SQA = QuantumCumulants.SecondQuantizedAlgebra
     for op_avg in eqs_sc.states
         op = SQA.undo_average(op_avg)
@@ -97,17 +91,23 @@ end
         mag = [abs(get_solution(sol_ev, op, eqs_ev)(t)) for t in sol_ev.t]
         @test maximum(mag) <= 1.0 + 1.0e-9
     end
+
+    # Both state lists are seeded by `s(1,2,i)` and materialise canonical slot
+    # 1 to the same rep, so `states[1]` is the same physical coherence ⟨S^{12}⟩
+    # in each; the two solves must agree there.
+    @test isequal(eqs_sc.states[1], eqs_ev.states[1])
+    sc_op = SQA.undo_average(eqs_sc.states[1])
+    ev_op = SQA.undo_average(eqs_ev.states[1])
+    for τ in (0.25, 0.5, 1.0, 1.5, 2.0)
+        v_sc = get_solution(sol_sc, sc_op, eqs_sc)(τ)
+        v_ev = get_solution(sol_ev, ev_op, eqs_ev)(τ)
+        @test isapprox(v_sc, v_ev; atol = 1.0e-8)
+    end
 end
 
 @testset "evaluate: literal-key lookup beats alpha-canonical collapse" begin
-    # Regression for `_canonicalise_avg_leaves`'s literal-then-canon
-    # fallback. Per-atom states `⟨σ_{j_1}^{12}⟩` and `⟨σ_{j_2}^{12}⟩`
-    # are physically distinct after `evaluate(... ; limits = N => 2)`
-    # populates the index. Pre-fix the leaf canonicaliser collapsed
-    # both onto canon slot 1, so the materialised system had a single
-    # equation per logical index and reading state 2 returned state 1's
-    # numeric value (and the `unique_squeezing` example produced a
-    # wrong steady-state).
+    # Per-atom states ⟨σ_{j_1}^{12}⟩ and ⟨σ_{j_2}^{12}⟩ are physically distinct
+    # after `evaluate(...; limits = N => 2)` populates the index.
     h2 = NLevelSpace(:spin, 2)
     @variables Ω::Real N3::Real
     i = Index(h2, :i, N3, h2)
@@ -116,13 +116,11 @@ end
     eqs_c = complete(meanfield([s(1, 2, i)], H; order = 1))
     eqs_ev = evaluate(eqs_c; limits = (N3 => 2))
 
-    # Two atoms must produce two distinct concrete states.
+    # Two atoms produce two distinct concrete states.
     @test length(eqs_ev.states) == 2
     @test !isequal(eqs_ev.states[1], eqs_ev.states[2])
 
-    # The states' RHSes must reference DISTINCT averaged atoms, not the
-    # same canon-collapsed leaf. Pre-fix the bug, both RHSes resolved
-    # to the same alpha-canonical leaf and the state-set degenerated.
+    # The states' RHSes reference distinct averaged atoms.
     SQA = QuantumCumulants.SecondQuantizedAlgebra
     op1 = SQA.undo_average(eqs_ev.states[1])
     op2 = SQA.undo_average(eqs_ev.states[2])
@@ -130,18 +128,9 @@ end
 end
 
 @testset "evaluate + mtkcompile: NE-stripped fallback path closes" begin
-    # Regression for `_canonicalise_avg_leaves`'s third branch: when a
-    # leaf in a cross-atom sum inherits an NE pair from its parent
-    # derivation but the leaf's operator atoms do not actually
-    # constrain the NE indices, the leaf is rewritten to its bare
-    # `average(literal)` form so the downstream MTK conj-substitution
-    # dict can match it. Pre-fix this presented as an `AvgFunc is not
-    # callable` error during `mtkcompile` for the filter-cavity scenario.
-    #
-    # Reproduction: a 2-Hilbert-space indexed system (filter +
-    # 2-level atom) at order 2. `scale` over the atom space leaves
-    # filter-side per-atom NE pairs that the leaf canonicaliser must
-    # strip before the conj-dict lookup.
+    # A 2-Hilbert-space indexed system (filter + 2-level atom) at order 2.
+    # `scale` over the atom space leaves filter-side per-atom NE pairs; the
+    # result must still close through `mtkcompile`.
     @variables κ::Real κf::Real g::Real gf::Real R::Real Γ::Real
     @variables Δ::Real ν::Real N::Real M::Real
     δ(k) = IndexedVariable(:δ, k)
@@ -161,12 +150,6 @@ end
     eqs_c = complete(meanfield([a' * a], H, J; rates = rates, order = 2))
     eqs_sc = scale(eqs_c; h = [3])
     eqs_ev = evaluate(eqs_sc; limits = Dict(M => 2))
-    # `find_missing(get_adjoints=false)` can still return conjugate RHS
-    # leaves whose operator order differs from the canonical state form
-    # (cross-atom commuting ops on the same Hilbert subspace stay in
-    # construction order per SQA's "Undetermined free-index pairs" rule).
-    # The MTK substitution layer reconciles via a permutation-canonical
-    # key; `mtkcompile` succeeding is the real closure invariant.
     @named sys_ev = System(eqs_ev)
     sys_c = mtkcompile(sys_ev)
     @test length(unknowns(sys_c)) == length(eqs_ev.states)

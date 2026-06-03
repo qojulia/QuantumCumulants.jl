@@ -8,10 +8,9 @@ using ExplicitImports
     @testset "Aqua" begin
         Aqua.test_all(
             QuantumCumulants;
-            # The Aqua persistent-task probe shells out to a precompile sandbox
-            # for the full dependency stack (MTKBase, Symbolics, ...); on this
-            # rewrite branch it routinely exceeds Aqua's 5-minute timeout, even
-            # though the package itself has no persistent tasks.
+            # The persistent-task probe precompiles the full dependency stack
+            # (MTKBase, Symbolics, ...) and exceeds Aqua's 5-minute timeout; the
+            # package itself has no persistent tasks.
             persistent_tasks = false,
         )
     end

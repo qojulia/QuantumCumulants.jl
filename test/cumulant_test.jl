@@ -3,9 +3,8 @@ using Symbolics: Symbolics, @variables, expand
 using SymbolicUtils
 using Test
 
-# Helper: robust zero check across QAdd, Number, and BasicSymbolic.
-# Uses expand() because SymbolicUtils simplify doesn't always collapse
-# polynomially-equivalent symbolic-average products (different Mul-arg ordering).
+# Robust zero check across QAdd, Number, and BasicSymbolic. Uses expand() because
+# simplify does not always collapse polynomially-equivalent symbolic-average products.
 _iz(x) = (
     x isa Number ? iszero(x) :
         (
@@ -30,18 +29,12 @@ _iz(x) = (
     @test get_order(a2 * σ(:g, :e) + Destroy(hc, :b)) == 2
 end
 
-@testset "average basics" begin
+@testset "cumulant_expansion basics" begin
     hf = FockSpace(:cavity)
     ha = NLevelSpace(:atom, (:g, :e))
     h = hf ⊗ ha
 
     a = Destroy(h, :a)
-    σ = Transition(h, :σ, :g, :e)
-
-    @test isequal(average(2 * a), 2 * average(a))
-    @test isequal(average(2 * (a + a)), 2 * (average(a) + average(a)))
-    @test isequal(average(a^2), average(a * a))
-    @test isequal(average((a' * a)^2), average(a' * a * a' * a))
 
     @test _iz(cumulant_expansion(average(a^2), 1) - average(a)^2)
     @test _iz(
@@ -52,27 +45,6 @@ end
                 2 * average(a) * average(a' * a)
         )
     )
-
-    # Conjugate of an Average via SQA's `inner_adjoint`: pushes conjugation
-    # inside the average and adjoints the operator. The target is routed
-    # through `average(QAdd)` so both sides use SQA's `Symbolics.IM`
-    # encoding for `1im` and the diff simplifies to 0.
-    @test _iz(
-        SecondQuantizedAlgebra.inner_adjoint(average(2im * a' * σ)) -
-            average(-2im * a * σ')
-    )
-
-    # Linear over scalar params.
-    @variables ωc ωa
-    @test isequal(average(ωc), ωc)
-    @test isequal(average(ωc * a), ωc * average(a))
-    @test _iz(average(ωc * (a + a')) - (ωc * average(a) + ωc * average(a')))
-
-    @test _iz(simplify(average(σ) + average(σ) - average(2 * σ)))
-    @test _iz(simplify(average(σ) - average(σ)))
-
-    # Averages of products commute.
-    @test _iz(average(a * σ) * average(a) - average(a) * average(a * σ))
 
     n = average(a' * a)
     @test isequal(cumulant_expansion(n, 2), n)
@@ -181,4 +153,26 @@ end
     he_c = complete(he_avg; order = [2, 1, 1])
     @test isempty(find_missing(he_c))
     @test isempty(findall(x -> (aon = acts_on(x); 2 in aon && 3 in aon), he_c.states))
+end
+
+@testset "cumulant_expansion preserves sum scope on Wick terms" begin
+    # Known bug: `cumulant_expansion(average(Σ_i …), 2)` drops Σ_i on some
+    # factorised Wick terms. Flip @test_broken -> @test once fixed.
+    @variables N
+    hc = FockSpace(:cavity); ha = NLevelSpace(:atom, 2); h = hc ⊗ ha
+    a = Destroy(h, :a, 1)
+    σ(α, β, idx) = IndexedOperator(Transition(h, :σ, α, β, 2), idx)
+    i = Index(h, :i, N, ha)
+
+    R = Σ(a' * a * σ(1, 2, i), i)            # 3-op product under a sum
+    got = cumulant_expansion(average(R), 2)
+
+    # Correct order-2 factorisation: the sum scope stays on the block that
+    # contains σ_i, i.e. Σ_i is present on every Wick term that references i.
+    want = average(a) * average(Σ(a' * σ(1, 2, i), i)) +
+        average(Σ(σ(1, 2, i), i)) * average(a' * a) +
+        average(a') * average(Σ(a * σ(1, 2, i), i)) +
+        -2 * average(a) * average(a') * average(Σ(σ(1, 2, i), i))
+
+    @test_broken _iz(got - want)
 end

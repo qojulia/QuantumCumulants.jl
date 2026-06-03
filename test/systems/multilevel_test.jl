@@ -26,8 +26,6 @@ using Test
     he_c_full = complete(he_avg)
     @test isempty(find_missing(he_c_full))
 
-    # `expand_completeness` rewrites σ_11 = 1 - σ_22 - σ_33 on every RHS,
-    # so `get_adjoints=false` reaches 16-eq closure.
     he_c_canon = complete(he_avg; get_adjoints = false)
     @test isempty(find_missing(he_c_canon; get_adjoints = false))
     @test length(he_c_canon.equations) == 16
@@ -73,8 +71,7 @@ end
     he = meanfield(a' * a, H, J; Jdagger = Jdagger, rates = rates, order = 2)
     complete!(he; filter_func = phase_invariant)
     @test isempty(find_missing(he; filter_func = phase_invariant))
-    # Completeness absorbs the σ_i'σ_j inter-atom coherences into the
-    # ⟨a'a⟩ + ⟨σee_k⟩ + ⟨a'σ_k⟩ basis.
+    # Closure basis: ⟨a'a⟩ + ⟨σee_k⟩ + ⟨a'σ_k⟩ gives 2N+1 equations.
     n_eqs = 2N + 1
     @test length(he.equations) == n_eqs
 

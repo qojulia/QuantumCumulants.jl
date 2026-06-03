@@ -6,21 +6,9 @@ using OrdinaryDiffEqTsit5: ODEProblem, solve, Tsit5
 using Test
 
 # Regression tests for every example in `examples/`.
-# Each `@testset` rebuilds the symbolic pipeline (meanfield + complete +
-# scale/evaluate where applicable) up to `mtkcompile` and asserts
-# equation counts at each stage. Where parameters are simple enough,
-# also integrates the deterministic ODE over a short tspan with a
-# tight tolerance and pins one or two observables at the endpoint via
-# `isapprox` against values recorded from the current rewrite branch.
-# The end-state check is what catches coefficient or sign regressions
-# that leave the structural counts intact.
-#
-# Recorded values are from rewrite-branch HEAD, not master.
 
 import QuantumCumulants.SecondQuantizedAlgebra as SQA
 
-# Phase-invariant filter used by single-atom-laser-spectrum,
-# superradiant_laser_indexed, etc.
 _phase_inv(x) = 0
 _phase_inv(::Destroy) = -1
 _phase_inv(::Create) = 1
@@ -52,9 +40,6 @@ phase_invariant(x) = iszero(_phase_inv(x))
     @test length(eqs.equations) == 2
     sys_c = mtkcompile(System(eqs; name = :mollow_sys))
     @test length(unknowns(sys_c)) == 2
-    # Numerical end-state subsumes the Jacobian rank check; a correct
-    # end state at t=80 with rtol=1e-5 implies the dynamics matrix is
-    # right at t=0 too.
     u0 = zeros(ComplexF64, length(eqs.equations))
     init = initial_values(eqs, u0)
     ps = Dict(Δ => 1.0, Ω => 0.5, γ => 0.1)
@@ -68,10 +53,6 @@ phase_invariant(x) = iszero(_phase_inv(x))
         get_solution(sol, σ(:e, :g), eqs).(sol.t[end]),
         -0.33088938061453155 + 0.016559911920571824im; rtol = 1.0e-5,
     )
-    # Spectrum / CorrelationFunction path (Mollow triplet). The corr
-    # closure adds 3 cross-time equations; evaluating S at three
-    # frequencies catches regressions in the Laplace-transform setup,
-    # the steady-state lookup, and the conjugate-leaf resolution.
     c = CorrelationFunction(σ(:e, :g), σ(:g, :e), eqs; steady_state = true)
     @test length(c.eqs.equations) == 3
     ps_tup = (Δ, Ω, γ)
@@ -85,6 +66,7 @@ phase_invariant(x) = iszero(_phase_inv(x))
     s_vals = S([0.0, 2.0, -2.0], sol_ss.u[end], p0)
     @test isapprox(s_vals[1], 1.0257952485186328; rtol = 1.0e-5)
     @test isapprox(s_vals[2], 0.14359486828829415; rtol = 1.0e-5)
+    # spectrum symmetry S(ω) = S(-ω)
     @test isapprox(s_vals[2], s_vals[3]; rtol = 1.0e-10)
 end
 
@@ -108,8 +90,6 @@ end
         real(get_solution(sol, a' * a, eqs).(sol.t[end])),
         1.4835417514686384; rtol = 1.0e-5,
     )
-    # Spectrum / CorrelationFunction path with phase-invariant filter.
-    # This is the example whose entire purpose is the laser spectrum.
     c = CorrelationFunction(
         a', a, eqs; steady_state = true, filter_func = phase_invariant,
     )
@@ -125,6 +105,7 @@ end
     s_vals = S([-0.5, 0.0, 0.5], sol_ss.u[end], p0)
     @test isapprox(s_vals[2], 12.01916023864571; rtol = 1.0e-4)
     @test isapprox(s_vals[1], 2.683110742979243; rtol = 1.0e-4)
+    # spectrum symmetry S(ω) = S(-ω)
     @test isapprox(s_vals[1], s_vals[3]; rtol = 1.0e-10)
 end
 
@@ -147,10 +128,6 @@ end
     @test length(eqs.equations) == 2
     sys_c = mtkcompile(System(eqs; name = :ramsey_sys))
     @test length(unknowns(sys_c)) == 2
-    # Constant drive `f(t) = 1.0` reduces this to a coherent drive and lets
-    # us pin numerical end values; the time-dependent path is still
-    # exercised symbolically because `_ramsey_f(t)` flows through every
-    # commutator.
     _ramsey_f(_) = 1.0
     u0 = zeros(ComplexF64, length(eqs.equations))
     init = initial_values(eqs, u0)
@@ -267,12 +244,6 @@ end
     @test length(eqs.equations) == 90
     sys_c = mtkcompile(System(eqs; name = :wg_sys))
     @test length(unknowns(sys_c)) == 90
-    # Numerical end-state. `initial_values(...; defaults = Dict(average(Sz)
-    # => 0.5))` does not stick (the symbolic key is not stable under
-    # re-construction in this Hilbert space), so build u0 positionally by
-    # string-matching `eqs.states`. Off-diagonal Ω only; diagonal Ω_kk is
-    # absent from the system. Jacobian rank skipped: 22 parameters make
-    # the symbolic substitute slow.
     u0 = zeros(ComplexF64, length(eqs.equations))
     for k in 1:M
         for (idx, s) in enumerate(eqs.states)
@@ -327,11 +298,7 @@ end
     @test length(unknowns(sys_c)) == 434
 end
 
-# Same chain at N=4 so we can afford to integrate the mean-field ODE
-# and pin the end-of-chain population. This is where the attempted
-# det-vs-stoch fix produced a small (~2%) shift relative to clean HEAD,
-# and that shift was invisible at the structural level. The N=4 system
-# closes at 65 equations.
+# N=4 chain integrated as a mean-field ODE, pinning the end-of-chain population.
 @testset "excitation-transport-chain (N=4 numerical)" begin
     N = 4
     h_chain = ⊗([NLevelSpace(Symbol(:atom, i), (:g, :e)) for i in 1:N]...)
@@ -378,11 +345,6 @@ end
     H = -Δ * a' * a + Σ(g_v(i) * (a' * σ(1, 2, i) + a * σ(2, 1, i)), i)
     J = [a, σ(1, 2, i), σ(2, 1, i), σ(2, 2, i)]
     rates = [κ, Γ, R, ν]
-    # Mirror examples/superradiant_laser_indexed.jl's free-`j` shape so
-    # the test exercises the same path the example does. The NE policy is now
-    # selected structurally (`_has_dephasing_channel`: this system's `σ(2,2,i)`
-    # makes it a population system), independent of whether the readout index
-    # is written free (`j`) or slot-minted (`j(1)`).
     ops = [a' * a, σ(2, 2, j)]
     eqs = meanfield(ops, H, J; rates = rates, order = 2)
     eqs_c = complete(eqs; filter_func = phase_invariant)
@@ -391,9 +353,6 @@ end
     @test length(eqs_sc.equations) == 5
     sys_c = mtkcompile(System(eqs_sc; name = :sr_sys))
     @test length(unknowns(sys_c)) == 5
-    # Skip Jacobian: `g_1` (indexed-variable evaluation) needs
-    # `parameter_map` resolution. Numerical end-state via ODE solve below
-    # catches the same regressions plus coefficient/sign flips.
     u0 = zeros(ComplexF64, length(eqs_sc.equations))
     init = initial_values(eqs_sc, u0)
     pmap = parameter_map(eqs_sc, Dict(
@@ -406,9 +365,6 @@ end
         real(get_solution(sol, a' * a, eqs_sc).(sol.t[end])),
         91.96090096151146; rtol = 1.0e-4,
     )
-    # Spectrum / CorrelationFunction path. Build on the unscaled eqs_c,
-    # then `scale(corr)`. Locks in the Laplace-domain spectrum at 3
-    # frequencies; the phase-filter ensures the corr equations close.
     corr = CorrelationFunction(
         a', a, eqs_c; steady_state = true, filter_func = phase_invariant,
     )
@@ -418,9 +374,8 @@ end
     p0 = (0.0, 1.0, 0.25, 4.0, 0.0, 50.0, 1.0)
     S = Spectrum(corr_sc, ps_tup)
     s_vals = S([-0.5, 0.0, 0.5], sol.u[end], p0)
-    # All three should be finite and the spectrum should be symmetric
-    # under ω → −ω for this phase-invariant configuration.
     @test all(isfinite, s_vals)
+    # spectrum symmetry S(ω) = S(-ω)
     @test isapprox(s_vals[1], s_vals[3]; rtol = 1.0e-6)
 end
 
@@ -437,7 +392,6 @@ end
     H = Hf + Ha + Hi
     J = [b, σ(1, 2, i)]
     rates = [κ, γ]
-    # Mirror examples/unique_squeezing.jl: free `j` (not slot-minted `j(1)`).
     eqs = meanfield([a, a' * a, σ(2, 2, j)], H, J; rates = rates, order = 2)
     eqs_c = complete(eqs)
     @test length(eqs_c.equations) == 22
@@ -445,8 +399,6 @@ end
     @test length(eqs_sc.equations) == 19
     sys_c = mtkcompile(System(eqs_sc; name = :us_sys))
     @test length(unknowns(sys_c)) == 19
-    # Numerical end-state at N=1; the free-j sibling testset below pins
-    # the N=100 plateau against master / Effective.
     ω_ = 1.0; Ω_ = 2.0e3; η_ = 4.0; κ_ = 1.0; γ_ = 1.0
     N_ = 1
     gc_ = sqrt(Ω_ * ω_ / N_)
@@ -468,15 +420,6 @@ end
     )
 end
 
-# Free-j sibling of the testset above. Mirrors examples/unique_squeezing.jl
-# verbatim (which uses `σ(2,2,j)` with free `j`, not the test's `j(1)`).
-# Before the `.concrete`-filter-removed fix, the free-j path classified
-# `user_concretes = {}` (because `.concrete=false` for free `j`), so
-# `_derive_for` injected NE between phantom-partner slots, which broke
-# the dissipator's cumulant cross-decay correction and produced the
-# oscillating Full-model plot in `tmp/plots_rewrite/unique_squeezing/
-# plot_05.png`. Locks the N=100 X / P plateau against the master/
-# Effective values (X≈2.29, P≈0.44).
 @testset "unique_squeezing (free-j shape, N=100 plateau)" begin
     hf = FockSpace(:harmonic); ha = NLevelSpace(:spin, 2); h = hf ⊗ ha
     @variables ω Ω ωd η κ g γ N ξ
@@ -523,10 +466,7 @@ end
     adag = get_solution(sol, a', eqs_sc).(t_)
     sqx = real.(adag_adag + aa + 2 * adag_a .+ 1 - (adag + a_) .^ 2)
     sqy = real.(adag_adag + aa - 2 * adag_a .- 1 - (adag - a_) .^ 2)
-    # End-state plateau values; tight tolerance because the cumulant-2
-    # truncation at N=100 is essentially exact (the Effective model gives
-    # the same numbers). If this assertion ever fires with the
-    # `oscillating between -8 and +5` shape, the bug is back.
+    # N=100 squeezing plateau, Gietka et al., PRL 131, 223604: X ≈ 2.29, P ≈ 0.44.
     @test isapprox(sqx[end], 2.292622635966603; rtol = 1.0e-3)
     @test isapprox(-sqy[end], 0.43703195626758884; rtol = 1.0e-3)
 end
@@ -553,40 +493,14 @@ end
         direction = Forward(), order = 2, iv = tv,
     )
     eqs_c = complete(eqs; get_adjoints = false)
-    # 13, not 14: `_canonical_key` now order-canonicalises cross-atom moments
-    # under free-slot distinctness, so a moment and its operator-order-reversed
-    # conjugate (e.g. ⟨σ¹²_k σ²²_k'⟩ and ⟨σ²¹_k σ²²_k'⟩) dedup to one state
-    # under `get_adjoints=false`. Previously both survived (the conjugate's
-    # adjoint reverses factor order, which the encounter-order rename keyed
-    # differently), leaving a redundant 14th state that only collapsed at scale.
     @test length(eqs_c.equations) == 13
     eqs_sc = scale(eqs_c)
-    # The noise path unconditionally injects NE between same-atom-space
-    # free indices: the SDE diffusion column's cumulant-2 truncation
-    # only stays bounded when `expand_completeness` folds the cross-
-    # atom decay terms (without it, the heterodyne SDE solve diverges
-    # to ~1e220, visible in `tmp/plots_rewrite/heterodyne_detection/
-    # plot_02.png` if the symmetric NE-skip is restored).
     @test length(eqs_sc.equations) == 12
     sys_c = mtkcompile(System(eqs_sc; name = :het_sys))
     @test length(unknowns(sys_c)) == 12
 end
 
-# Drift-only ODE variant (no efficiencies) so we can integrate without
-# the SDE machinery. Tests the same indexed + scale + cumulant-2
-# closure but without the diffusion column. The atom state lands at
-# canonical slot `σ_k_1_1` after scale, so we look it up positionally
-# by `eqs_sc.states[3]` rather than rebuilding the symbol.
 @testset "heterodyne_detection (single-trajectory SDE bounded)" begin
-    # Regression for a closure shape that lets the noise diffusion
-    # column diverge to ~1e220 over a single SDE trajectory. The bug
-    # appeared when both det and stoch paths symmetrically skipped
-    # NE injection on user-named atom indices; the SDE only stays
-    # bounded when the noise path injects NE so `expand_completeness`
-    # folds the cumulant-2 cross-atom decay terms. Asserts that a
-    # 200-step EM integration over the heterodyne example's setup
-    # produces a finite-bounded trajectory (well below the divergence
-    # threshold we'd hit if the cumulant fold were dropped).
     using StochasticDiffEq: SDEProblem, EM, RealWienerProcess
     using StochasticDiffEq.SciMLBase: ReturnCode
     import Random
@@ -613,16 +527,11 @@ end
     eqs_c = complete(eqs; get_adjoints = false)
     eqs_sc = scale(eqs_c)
     sys_st = mtkcompile(System(eqs_sc; name = :hetst_sys))
-    # Same numeric parameters as `examples/heterodyne_detection.jl`.
     ωc_ = 0.0; κ_ = 2π * 1.13e3; ξ_ = 0.12; N_ = 5.0e4
     ωa_ = 0.0; γ_ = 2π * 0.375; η_ = 2π * 20; χ_ = 0.016
     g_ = 2π * 0.73; ωl_ = 2π * 1.0e3
     t0 = 0.0; t1 = 20.0e-3
     _het_pulse2(tt) = (tt > t0 && tt < t0 + t1) * 1.0
-    # Match the example's full T_end so this test fails if the SDE
-    # diverges during the post-pulse decay (the bug class found in TODO
-    # §3's attempt: cumulant fold inside `_prod_ops` was bounded at
-    # T_end=0.05 but diverged at the example's full T_end=0.1).
     T_end = 0.1
     p_pairs = Dict(
         N => N_, ωa => ωa_, γ => γ_, η => η_, χ => χ_,
@@ -638,11 +547,7 @@ end
     noise = RealWienerProcess(0.0, 0.0)
     prob_st = SDEProblem(sys_st, dict_st, (0.0, T_end); noise = noise)
     sol = solve(prob_st, EM(); dt = T_end / 2.0e5)
-    # The SDE must stay bounded over the integration window. With the
-    # bug present, |⟨a'a⟩| reaches ~1e220 within a fraction of a
-    # millisecond. A loose absolute cap of 1e8 catches the divergence
-    # while tolerating legitimate transient excursions during the
-    # heterodyne measurement pulse (peaks in the example are ~600).
+    # The SDE must stay bounded; example trajectory peaks are ~600.
     adag_a_traj = real.(get_solution(sol, a' * a, eqs_sc).(sol.t))
     @test sol.retcode == ReturnCode.Success
     @test all(isfinite, adag_a_traj)
@@ -684,8 +589,6 @@ end
         real(get_solution(sol, a' * a, eqs_sc).(sol.t[end])),
         1.906585813419867; rtol = 1.0e-4,
     )
-    # σ22 state is canonical slot `σ_k_1_1` after scale; look up by
-    # position to avoid rebuilding the slot name.
     @test isapprox(
         real(get_solution(sol, eqs_sc.states[3], eqs_sc).(sol.t[end])),
         0.4702676694506166; rtol = 1.0e-4,
@@ -715,10 +618,6 @@ end
     @test length(eqs_.equations) == 5
     sys_c = mtkcompile(System(eqs_; name = :ca_sys))
     @test length(unknowns(sys_c)) == 5
-    # After `evaluate(...; limits = (N => 2))` the `DoubleIndexedVariable`
-    # Γ_v / Ω_v collapse to array-valued MTK parameters of shape 2×2;
-    # `parameter_map` does not handle the indexed key, so the test
-    # provides the array values directly per parameter symbol.
     u0 = zeros(ComplexF64, length(eqs_.equations))
     init = initial_values(eqs_, u0)
     pmap_dict = Dict{Any, Any}()
@@ -760,12 +659,7 @@ end
     rates = [κ, κf, Γ, R, ν]
     eqs = meanfield(a' * a, H, J; rates = rates, order = 2)
     eqs_c = complete!(deepcopy(eqs))
-    # NE injection on the det path (mirroring stoch) folds σ^gg via
-    # `expand_completeness` for cross-atom slot pairs, removing one
-    # redundant state vs. the pre-fix baseline (43, 40, 555). The fold
-    # is the same algebraic step the noise path always did; with the
-    # det-vs-stoch closure fix in completion.jl the deterministic path
-    # now mirrors it.
+    # closure: 42 equations, 39 after scale, 554 after evaluate at M=20.
     @test length(eqs_c.equations) == 42
     eqs_sc = scale(eqs_c; h = [3])
     @test length(eqs_sc.equations) == 39
@@ -775,10 +669,7 @@ end
     @test length(unknowns(sys_c)) == 554
 end
 
-# Reduced-M variant so we can afford to integrate the mean-field ODE.
-# M=3 closes at 45 equations and finishes in ~1 s; the structural
-# M=20 test above asserts the scale/evaluate counts at the example's
-# original setting.
+# Reduced M=3 variant integrated as a mean-field ODE.
 @testset "filter-cavity_indexed (M=3 numerical)" begin
     @variables κ g gf κf R Γ Δ ν N M
     δ_v(idx) = IndexedVariable(:δ, idx)
@@ -840,12 +731,6 @@ end
     @test length(eqs.equations) == 5
     sys_c = mtkcompile(System(eqs; name = :ret_sys))
     @test length(unknowns(sys_c)) == 5
-    # Numerical anchor: integrate a single SDE trajectory and assert it
-    # stays bounded over the integration window. Without an anchor, a
-    # regression that lets the SDE diverge (as the heterodyne fix
-    # almost did to the noise path) would pass purely structural
-    # checks. Loose `< 1e6` cap leaves room for transient excursions
-    # while catching `~1e20+` blowups.
     u0 = ComplexF64[5.0, 0.0, 5 + 25.0, 0.5im, 5.0]
     init = initial_values(eqs, u0)
     pmap = Dict(Ω => 1.0, Γ => 1 / 6, η => 0.5, s => 1 / √2)
@@ -858,10 +743,8 @@ end
     @test maximum(abs, x_traj) < 1.0e6
 end
 
-# Forward drift only (no measurement noise) so we can solve as an
-# ODE and pin numerical end values. Exercises the `PhaseSpace` /
-# `Position`/`Momentum` operator path that is not used by any other
-# example.
+# Forward drift only (no measurement noise), solved as an ODE over the
+# PhaseSpace / Position / Momentum operator path.
 @testset "retrodiction_homodyne (forward drift only)" begin
     h = PhaseSpace(:motion)
     @qnumbers x::Position(h)

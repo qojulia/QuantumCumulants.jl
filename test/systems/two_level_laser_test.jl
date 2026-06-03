@@ -6,7 +6,6 @@ using OrdinaryDiffEq: Tsit5, solve, ReturnCode
 using Test
 
 @testset "JC model: cumulant_expansion ≡ meanfield(order=2)" begin
-    # Verify that cumulant-expansion at order 2 commutes with the order kwarg
     hf = FockSpace(:cavity)
     ha = NLevelSpace(:atom, (:g, :e))
     h = hf ⊗ ha
@@ -86,7 +85,7 @@ end
     sol = solve(prob, Tsit5())
     @test sol.retcode == ReturnCode.Success
 
-    # Photon population stays real and non-negative; atomic excitation real and in [0, 1].
+    # Photon population real and non-negative; atomic excitation real and in [0, 1].
     assert_real(sol, a' * a, he_comp)
     assert_nonneg(sol, a' * a, he_comp)
     assert_real(sol, σ' * σ, he_comp)

@@ -66,11 +66,8 @@ end
     da = commutator(1im * H, a)
     @test iszero(simplify(da - ((-1im * g) * σ + (-1im * ωc) * a)))
 
-    # v1's commutator does not apply the level-completeness rewrite
-    # σ_gg + σ_ee = 1, so the result of [iH, σ] is the unreduced form
-    # `(-iωa)σ + (-ig)a·σ_gg + (ig)a·σ_ee`. The master target was the
-    # reduced form `(-ig)a + (-iωa)σ + (2ig)a·σ_ee`; here we write the
-    # equivalent unreduced target so the assertion passes literally.
+    # `commutator` does not apply the level-completeness rewrite σ_gg + σ_ee = 1,
+    # so [iH, σ] is the unreduced form `(-iωa)σ + (-ig)a·σ_gg + (ig)a·σ_ee`.
     ds = commutator(1im * H, σ)
     @test iszero(
         simplify(
@@ -113,12 +110,9 @@ end
     dn = commutator(im * H, a' * a)
     @test iszero(simplify(dn - ((-im * g) * a' * σ + (im * g) * a * σ')))
 
-    # operator_equations[i].rhs is stored as a SymbolicUtils symbolic in
-    # v1, not a QAdd (see TODO.md). The equivalent assertion uses the
-    # averaged form on `eqs.equations[i].rhs` against `average(da)`.
-    # `meanfield` applies SQA's `expand_completeness`, so analytic targets
-    # that reference σ_gg explicitly must do the same to land in the same
-    # basis before subtracting.
+    # `meanfield` applies SQA's `expand_completeness`, so analytic targets that
+    # reference σ_gg explicitly must do the same to land in the same basis before
+    # subtracting.
     he = meanfield([a, σ, a' * a], H)
     @test _iz(he.equations[1].rhs - average(expand_completeness(da)))
     @test _iz(he.equations[2].rhs - average(expand_completeness(ds)))
@@ -246,8 +240,6 @@ end
 end
 
 @testset "meanfield: collective decay rate matrix" begin
-    # Master `J = [[J1, J2]]; rates = [[matrix]]` rate-matrix form, ported
-    # from master test_meanfield.jl lines 87-112.
     N = 2
     @variables G11::Real G12::Real G21::Real G22::Real δ::Real
     h = ⊗([NLevelSpace(Symbol(:atom, i), 2) for i in 1:N]...)

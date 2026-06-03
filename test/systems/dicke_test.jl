@@ -33,9 +33,7 @@ using Test
     sol = solve(prob, Tsit5())
     @test sol.retcode == ReturnCode.Success
 
-    # Physicality: Pauli-Z expectation is Hermitian (real) and bounded in
-    # [-1, 1] for each spin. ⟨a'a⟩ is not guaranteed to land in the
-    # order-2 closure, so we don't assert on it here.
+    # Pauli-Z expectation is real and bounded in [-1, 1] for each spin.
     assert_real(sol, σ(1, 3), eqs)
     assert_bounded(sol, σ(1, 3), eqs, -1.0, 1.0)
     assert_real(sol, σ(2, 3), eqs)

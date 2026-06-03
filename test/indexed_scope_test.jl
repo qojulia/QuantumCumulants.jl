@@ -8,17 +8,7 @@ using Test
 
 const SQA = QuantumCumulants.SecondQuantizedAlgebra
 
-# Behavioural regressions for the bound-index coefficient orphaning fix.
-# Each testset verifies a user-observable outcome (parameter_map shape,
-# ODE retcode, per-atom population, cavity decay rate). Internal helpers
-# (`_lift_sum_scope`, `_materialise_scoped`, `_is_leaf_average`, …) are
-# exercised indirectly through these surfaces; their structure is free
-# to change as long as the observed behaviour holds.
-
 @testset "indexed scope: parameter_map shapes" begin
-    # Smallest possible indexed JC. We only need an `IndexedVariable`
-    # `g(i)` and a finite N to drive `parameter_map` through both code
-    # paths (scalar broadcast + per-atom vector).
     ha = NLevelSpace(:atom, 2); hf = FockSpace(:cavity); h = ha ⊗ hf
     a = Destroy(h, :a)
     σ(α, β, i) = IndexedOperator(Transition(h, :σ, α, β), i)
@@ -31,7 +21,7 @@ const SQA = QuantumCumulants.SecondQuantizedAlgebra
     complete!(eqs)
     evaled = evaluate(eqs; limits = (N => 3))
 
-    # Scalar value → broadcast to N-element vector.
+    # Scalar value broadcasts to an N-element vector.
     pmap = parameter_map(
         evaled, Dict(
             g(i) => 0.7,
@@ -46,17 +36,12 @@ const SQA = QuantumCumulants.SecondQuantizedAlgebra
     @test scalars["κ"] == 1.5
     @test scalars["Δc"] == 0.25
 
-    # Per-atom vector value → pass through unchanged.
+    # Per-atom vector value passes through unchanged.
     pmap2 = parameter_map(evaled, Dict(g(i) => [0.1, 0.2, 0.3]))
     @test only(values(pmap2)) == [0.1, 0.2, 0.3]
 end
 
 @testset "indexed scope: end-to-end inhomogeneous JC integrates" begin
-    # Drives the full pipeline (meanfield → complete! → evaluate →
-    # System → ODEProblem → solve) with per-atom inhomogeneous
-    # coupling. A successful solve here confirms: lifted scope reaches
-    # the operator-side substitution, IndexedVariable coefficients track
-    # the rename, and MTK accepts the resulting array-parameter system.
     ha = NLevelSpace(:atom, 2); hf = FockSpace(:cavity); h = ha ⊗ hf
     a = Destroy(h, :a)
     σ(α, β, i) = IndexedOperator(Transition(h, :σ, α, β), i)
@@ -75,7 +60,7 @@ end
     sys_c = mtkcompile(sys)
     pmap = parameter_map(
         evaled, Dict(
-            g(i) => [0.05, 0.15],   # inhomogeneous on purpose (see below)
+            g(i) => [0.05, 0.15],   # inhomogeneous per-atom coupling
             Δc => 0.0,
             κ => 1.0,
             Γ => 0.25,
@@ -93,16 +78,10 @@ end
 end
 
 @testset "indexed scope: per-atom couplings produce distinguishable observables" begin
-    # With inhomogeneous coupling `g(i_1) ≠ g(i_2)`, atom-cavity
-    # correlation observables `⟨a σ_22(i_k)⟩` must differ between
-    # atoms. With the orphaned-coefficient bug, both atoms would share
-    # the SAME un-substituted `g(i)` factor and the two correlations
-    # would coincide at the symbolic level (and hence numerically).
-    #
-    # We use `⟨a σ_22(i_k)⟩` rather than bare `⟨σ_22(i_k)⟩` because
-    # the order=[1,2] cumulant closure can pin pure-atom populations to
-    # zero at finite drive while the mixed-observable still tracks the
-    # per-atom coupling difference.
+    # With inhomogeneous coupling `g(i_1) ≠ g(i_2)`, the atom-cavity correlation
+    # observables `⟨a σ_22(i_k)⟩` must differ between atoms. The mixed observable
+    # is used rather than bare `⟨σ_22(i_k)⟩` because the order=[1,2] closure can
+    # pin pure-atom populations to zero at finite drive.
     ha = NLevelSpace(:atom, 2); hf = FockSpace(:cavity); h = ha ⊗ hf
     a = Destroy(h, :a)
     σ(α, β, i) = IndexedOperator(Transition(h, :σ, α, β), i)
@@ -116,13 +95,9 @@ end
     complete!(eqs)
     evaled = evaluate(eqs; limits = (N => 2))
 
-    # Locate the two atom-cavity correlation states `⟨a σ_22(i_k)⟩`.
-    # Computed BEFORE `System` so the filter sees the un-substituted
-    # average leaves.
-    # `complete!` non-deterministically picks one of each conjugate pair,
-    # so atom-cavity correlations may appear as ⟨a σ_22⟩ OR ⟨a' σ_22⟩.
-    # Accept either: 2-op term whose σ-piece is the population
-    # `Transition(_, 2, 2, i_k)` paired with a cavity field operator.
+    # Locate the two atom-cavity correlation states. They may appear as
+    # ⟨a σ_22⟩ or ⟨a' σ_22⟩, so accept any 2-op term whose σ-piece is the
+    # population `Transition(_, 2, 2, i_k)` paired with a cavity field operator.
     corr_states = SymbolicUtils.BasicSymbolic[]
     for s in evaled.states
         op = SQA.undo_average(s)
@@ -146,7 +121,7 @@ end
     sys_c = mtkcompile(sys)
     pmap = parameter_map(
         evaled, Dict(
-            g(i) => [0.05, 0.2],   # 4× ratio
+            g(i) => [0.05, 0.2],
             κ => 1.0,
             Γ => 0.1,
             η => 0.3,
@@ -159,7 +134,6 @@ end
     @test length(corr_states) == 2
     v1 = get_solution(sol, corr_states[1], evaled)(sol.t[end])
     v2 = get_solution(sol, corr_states[2], evaled)(sol.t[end])
-    # The two atom-cavity correlations must differ; the magnitude ratio
-    # should reflect the g-coupling asymmetry rather than coincide.
+    # The two atom-cavity correlations must differ under the g-coupling asymmetry.
     @test abs(v1 - v2) > 1.0e-3
 end

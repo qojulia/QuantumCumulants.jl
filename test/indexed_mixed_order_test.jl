@@ -5,11 +5,9 @@ using ModelingToolkitBase: ModelingToolkitBase, @named, mtkcompile, ODEProblem, 
 using OrdinaryDiffEq: Tsit5, solve, ReturnCode
 using Test
 
-# v1 surface: mixed-order cumulant on an indexed JC laser. Master's expected
-# closure size (8 equations after complete! with get_adjoints=false; 18 after
-# evaluate at N=3) is reproduced once cumulant_expansion under a per-Hilbert
-# order vector recurses into sub-blocks whose subspace has lower per-space
-# order (see src/cumulant.jl).
+# Mixed-order cumulant on an indexed JC laser: a per-Hilbert order vector
+# closes at 8 equations after complete! (get_adjoints=false), 18 after
+# evaluate at N=3.
 
 @testset "mixed-order: indexed 1-atom-cavity collective closes under order=[1,2]" begin
     ha = NLevelSpace(:atom, 2)
@@ -88,13 +86,9 @@ end
 end
 
 @testset "mixed-order: ODE integration, photon-number physicality (N=2)" begin
-    # Strengthening: master's count assertion (`length(eqs) == 8`,
-    # `length(evaled) == 18`) is sensitive to v1's cumulant expansion
-    # tagging (a valid alternative closure derives more equations). What
-    # we CAN verify across both branches: the resulting ODE integrates,
-    # the steady-state cavity number is finite and non-negative, and the
-    # trajectory is physical (real photon number, non-negative). Uses the
-    # per-atom inhomogeneous g(i), Δa(i) IndexedVariables from master.
+    # The resulting ODE integrates and the cavity photon number stays real and
+    # non-negative along the trajectory, with per-atom inhomogeneous g(i),
+    # Δa(i).
     ha = NLevelSpace(:atom, 2)
     hf = FockSpace(:cavity)
     h = ha ⊗ hf
@@ -122,9 +116,8 @@ end
     SQA = QuantumCumulants.SecondQuantizedAlgebra
     @named sys = System(evaled)
     sys_c = mtkcompile(sys)
-    # Below-threshold parameter point. Above threshold (strong η, large ν)
-    # the cumulant closure is not bounded; this is a physics constraint,
-    # not a numerical one.
+    # Below-threshold parameter point; above threshold the cumulant closure is
+    # not bounded.
     pmap = parameter_map(
         evaled, Dict(
             g(i) => 0.1,

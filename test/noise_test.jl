@@ -70,25 +70,22 @@ end
     a = Destroy(hc, :a)
 
     me_a = meanfield(a, Δ * a' * a, [a]; rates = [κ], efficiencies = [η], order = 2)
-    # Build comparison targets by averaging an operator-level expression rather
-    # than multiplying averages by complex scalars. The latter promotes through
-    # `Complex{Num}` and Symbolics materialises the literal `complex(re, im)`
-    # symbolic term, which is opaque to `simplify`/`expand`. Going via
-    # `average(op-with-complex-coeff)` routes through SQA's `average(::QAdd)`,
-    # which composes the imaginary unit using `Symbolics.IM`.
+    # Build comparison targets via `average` of an operator-level expression so
+    # the imaginary unit is composed with `Symbolics.IM` and stays comparable
+    # under `simplify`/`expand`.
     test_eq_a = average(-1im * Δ * a - (1 // 2) * κ * a)
     test_noise_eq_a = sqrt(η * κ) *
         (average(a' * a) + average(a * a) - average(a)^2 - average(a) * average(a'))
     @test _iz(me_a.equations[1].rhs - test_eq_a)
     @test _iz(me_a.noise_equations[1].rhs - test_noise_eq_a)
 
-    # Order-1: noise contribution vanishes for ⟨a'⟩ under jump a (cumulant-trunc'd)
+    # At order 1 the noise contribution to ⟨a'⟩ under jump a vanishes.
     me_a_o1 = meanfield(a', Δ * a' * a, [a]; rates = [κ], efficiencies = [η], order = 1)
     @test _iz(me_a_o1.noise_equations[1].rhs)
 end
 
 @testset "measurement backaction: drift matches deterministic when det/stoch are split" begin
-    # The drift equations should be identical whether we ask for noise or not.
+    # The drift equations are identical whether or not noise is requested.
     @variables Δ::Real κ::Real η::Real
     hc = FockSpace(:cavity)
     a = Destroy(hc, :a)
@@ -100,10 +97,9 @@ end
 end
 
 @testset "MeanFieldEquations(::NoiseMeanFieldEquations) + parameter_map(sys, …)" begin
-    # Mirror the heterodyne-style pattern: build one noisy system and one
-    # deterministic system from the same physical model. `MeanFieldEquations`
-    # strips the noise drift (and any parameters that lived only inside it),
-    # `parameter_map(sys, …)` filters a shared user dict down to the live keys.
+    # `MeanFieldEquations` strips the noise drift (and parameters living only
+    # inside it); `parameter_map(sys, …)` filters a shared user dict down to the
+    # parameters each system actually uses.
     @variables Δ::Real κ::Real η::Real
     hc = FockSpace(:cavity)
     a = Destroy(hc, :a)
@@ -122,9 +118,8 @@ end
     sys_det = ModelingToolkitBase.mtkcompile(System(eqs_det; name = :det))
     sys_st = ModelingToolkitBase.mtkcompile(System(eqs_noise; name = :stoch))
 
-    # User dict carries η; deterministic compile dropped it together with the
-    # noise drift. The filter must strip η from the deterministic map and keep
-    # it for the stochastic one.
+    # η lives only in the noise drift, so it must be stripped from the
+    # deterministic map and kept for the stochastic one.
     full_pmap = Dict(Δ => 1.0, κ => 0.5, η => 0.3)
     det_pmap = parameter_map(sys_det, full_pmap)
     st_pmap = parameter_map(sys_st, full_pmap)
@@ -134,12 +129,9 @@ end
 end
 
 @testset "System on noise eqs: substitutes conjugate of state on RHS" begin
-    # Driven damped cavity. The drift of ⟨a'a⟩ references ⟨a'⟩, but ⟨a'⟩ is
-    # the conjugate of state ⟨a⟩ and is therefore not itself added as a
-    # separate state. The SDE codegen path must rewrite ⟨a'⟩ as
-    # `conj(u_for_a(t))` before substituting averages into MTK variables;
-    # without that rewrite it would emit a literal `avg(a')` call and the
-    # solver would later fail with "AvgFunc not callable".
+    # Driven damped cavity: the drift of ⟨a'a⟩ references ⟨a'⟩, which is the
+    # conjugate of state ⟨a⟩ rather than a separate state, so the SDE codegen
+    # must rewrite it as `conj(u_for_a(t))`.
     @variables Δ::Real κ::Real η::Real η_d::Real
     hc = FockSpace(:cavity)
     a = Destroy(hc, :a)

@@ -85,8 +85,8 @@ init_code = quote
         _is_zero(x)
 
     Decide whether a symbolic / numeric expression is zero. Use for symbolic
-    RHS comparisons (computed-vs-reference master equations) where
-    `iszero` alone is too coarse due to representational quirks.
+    RHS comparisons where `iszero` alone is too coarse due to representational
+    quirks.
     """
     _is_zero(x::Number) = iszero(x)
     function _is_zero(x)

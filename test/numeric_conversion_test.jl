@@ -4,10 +4,6 @@ using Symbolics: @variables
 using Random
 using Test
 
-# v1 surface: `initial_values(eqs, ψ::Ket)` plumbing.
-# Lower-level `to_numeric` / `numeric_average` tests belong in
-# SecondQuantizedAlgebra.jl (per CLAUDE.md).
-
 Random.seed!(0)
 
 @testset "initial_values: Fock + 2-level state to u0 vector (integer levels)" begin

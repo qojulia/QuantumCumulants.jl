@@ -3,13 +3,6 @@ using Symbolics: Symbolics, @variables
 using SymbolicUtils
 using Test
 
-# v1 surface: indexed `meanfield(...; efficiencies=...)` produces
-# `NoiseMeanFieldEquations` with stochastic noise drift. Master's
-# `indexed_complete` is unified into `complete!`; master's bespoke
-# noise-eq assertion via `iszero(simplify(eq.rhs - target))` runs the
-# `complex(0, Δ)` simplification quirk we saw in test_parameters; the
-# numerical structure is asserted instead via shape checks.
-
 @testset "indexed measurement backaction: cavity + noise channel structure" begin
     @variables κ::Real Δ::Real η::Real
     hc = FockSpace(:cavity)
@@ -20,10 +13,8 @@ using Test
     @test length(me_a.equations) == 1
     @test length(me_a.noise_equations) == 1
 
-    # Master's strong assertion: the deterministic ⟨a⟩ equation rhs
-    # equals -iΔ⟨a⟩ - 0.5κ⟨a⟩ and the noise rhs equals
+    # The deterministic ⟨a⟩ rhs equals -iΔ⟨a⟩ - 0.5κ⟨a⟩ and the noise rhs equals
     # √(η κ) * (⟨a' a⟩ + ⟨a a⟩ - ⟨a⟩² - ⟨a⟩⟨a'⟩).
-    # Both should be reproducible verbatim in v1.
     expected_det = average(-1im * Δ * a - 0.5 * κ * a)
     @test _is_zero(me_a.equations[1].rhs - expected_det)
     expected_noise = sqrt(η * κ) * (
@@ -79,14 +70,14 @@ end
     @test eqs_noise isa NoiseMeanFieldEquations
     eqs_noise_c = complete(eqs_noise)
 
-    # Structural: stoch state set contains det state set.
+    # The stochastic state set contains the deterministic state set.
     @test length(eqs_noise_c.equations) >= length(eqs_det_c.equations)
     det_lhs = Set(e.lhs for e in eqs_det_c.equations)
     stoch_lhs = Set(e.lhs for e in eqs_noise_c.equations)
     @test issubset(det_lhs, stoch_lhs)
 
-    # Physics: for every LHS shared between det and stoch, the drift rhs
-    # must agree symbolically. Verify the first three to bound cost.
+    # For every LHS shared between det and stoch, the drift rhs must agree
+    # symbolically.
     det_by_lhs = Dict(e.lhs => e.rhs for e in eqs_det_c.equations)
     n_checked = 0
     for eq in eqs_noise_c.equations

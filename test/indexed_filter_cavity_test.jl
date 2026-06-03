@@ -5,11 +5,8 @@ using ModelingToolkitBase: ModelingToolkitBase, @named, mtkcompile, ODEProblem, 
 using OrdinaryDiffEq: Tsit5, solve, ReturnCode
 using Test
 
-# v1 surface: filter-cavity system that combines two indexed Hilbert
-# subspaces. Master's per-Hilbert-space `scale(eqs; h = [k])` and
-# `evaluate(eqs; limits, h = [...])` variants are not yet implemented
-# (see TODO.md). We exercise the full-system scale + evaluate(limits)
-# path, asserting closure and ODE integrability.
+# Filter-cavity system combining two indexed Hilbert subspaces; exercises the
+# full-system scale + evaluate path for closure and ODE integrability.
 
 @testset "indexed_filter_cavity: meanfield + complete closes the system" begin
     order = 2
@@ -71,8 +68,6 @@ end
 
     eqs_c = complete(meanfield([a' * a], H, J; rates = rates, order = order))
     n_before = length(eqs_c.equations)
-    # Materialise both indexed ranges. Master uses h=[2] to only unroll the
-    # filter subspace; v1's evaluate without h targets every index in limits.
     evaled = evaluate(eqs_c; limits = (M => 3))
     @test length(evaled.equations) >= n_before
 end
@@ -118,22 +113,11 @@ end
     eqs_eval = evaluate(eqs_sc; limits = (M => M_))
 
     @test length(eqs_sc_.equations) == length(eqs_eval.equations)
-    # `find_missing(get_adjoints=false)` may still return RHS leaves that are
-    # conjugates of states in a different operator-product ordering. SQA
-    # leaves cross-atom commuting ops on the same Hilbert subspace in their
-    # construction order ("Undetermined free-index pairs stay put"), and the
-    # raw `adjoint` reverses operator order without re-canonicalising, so a
-    # state ⟨σ_i₁₂ · σ_j₂₂⟩ has conjugate ⟨σ_j₂₂ · σ_i₂₁⟩ while the RHS
-    # literal can show up as ⟨σ_i₂₁ · σ_j₂₂⟩. The mtk codegen permutation-
-    # canonicalises both before substitution, so `mtkcompile` succeeds. The
-    # real invariant here is that scale/evaluate commute structurally, which
-    # the equation-count assertion above already encodes.
 end
 
 @testset "indexed_filter_cavity: ODE solve, photon-number physicality (cavity only)" begin
-    # Strengthening: solve a closed atom+cavity system (no filter modes;
-    # the filter machinery is exercised by the structural testsets above).
-    # Assert ⟨a'a⟩ is real and non-negative along the trajectory.
+    # Closed atom+cavity system (no filter modes); ⟨a'a⟩ is real and
+    # non-negative along the trajectory.
     @variables κ::Real g::Real R::Real Γ::Real Δ::Real ν::Real N::Real
 
     hc = FockSpace(:cavity)

@@ -3,13 +3,6 @@ using Symbolics: Symbolics, @variables
 using SymbolicUtils
 using Test
 
-# v1 surface: comparison between indexed noise meanfield + scale and the
-# explicit per-atom expansion path. Master compares equation-by-equation
-# at order=4; here we assert that both pipelines (indexed + scale, vs
-# `indexed_complete` of the stochastic form) reach a closed system on the
-# same input. Subset of master's `test_measurement_backaction_indices_comparison`
-# that doesn't need `pulse(t)`/`@syms` or evaluate-at-fixed-indices.
-
 @testset "measurement_backaction_indices_comparison: pipeline closure" begin
     @variables N::Real ωa::Real γ::Real η::Real χ::Real ωc::Real κ::Real g::Real ξ::Real
 
@@ -36,13 +29,10 @@ using Test
     @test length(eqs_c.equations) >= length(ops)
     @test isempty(find_missing(eqs_c; get_adjoints = false))
 
-    # Scale the closed indexed noise system.
     scaled_eqs = scale(eqs_c)
     @test scaled_eqs isa NoiseMeanFieldEquations
     @test length(scaled_eqs.equations) >= 1
-    # Noise channel survives scaling. Counts may differ from deterministic
-    # part by one if a state collapses under scale while its noise term
-    # does not; both lists should be non-empty.
+    # The noise channel survives scaling.
     @test length(scaled_eqs.noise_equations) >= 1
 end
 
@@ -73,19 +63,16 @@ end
     stoch_c = complete(stoch_eqs)
     det_c = complete(det_eqs)
 
-    # det and stoch now select ONE structural NE policy (population iff the
-    # channel set contains a dephasing jump `σ^{αα}`), injected per-derived-op
-    # (independent of completion-iteration order), applied identically to both
-    # pipelines. So they reach the SAME closure with identical drifts.
+    # The deterministic and stochastic pipelines reach the same closure with
+    # identical LHS sets.
     det_lhs = Set(e.lhs for e in det_c.equations)
     stoch_lhs = Set(e.lhs for e in stoch_c.equations)
     @test det_lhs == stoch_lhs
     @test !isempty(det_lhs)
 
-    # Every shared deterministic drift agrees symbolically. The noise
-    # meanfield's `equations` are the deterministic drift terms; only
-    # `noise_equations` carry the stochastic part. So for each shared LHS the
-    # stoch and det rhs must differ by zero.
+    # Every shared deterministic drift agrees symbolically. The noise meanfield's
+    # `equations` carry only the deterministic drift; the stochastic part lives in
+    # `noise_equations`.
     det_by_lhs = Dict(e.lhs => e.rhs for e in det_c.equations)
     n_checked = 0
     for eq in stoch_c.equations

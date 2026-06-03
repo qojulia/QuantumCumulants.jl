@@ -1,6 +1,7 @@
 using QuantumCumulants
 using SymbolicUtils: SymbolicUtils
-using ModelingToolkitBase: @named, mtkcompile
+using ModelingToolkitBase: @named, mtkcompile, ODEProblem, unknowns
+using OrdinaryDiffEq: Tsit5, solve, ReturnCode
 using Test
 
 @testset "find_missing on JC" begin
@@ -45,13 +46,8 @@ end
 end
 
 @testset "find_missing: closure size is invariant of user index naming" begin
-    # The indexed JC laser closure under `complete!` has a canonical-class
-    # cardinality that depends only on the algebra and the cumulant order,
-    # not on the symbol the user picked for the atom index. Two systems
-    # that differ only in `k` vs `l` must close to the same equation count.
-    # Previously the sequential `_canonical_key` rename let det/stoch
-    # passes pick different concrete representatives mid-iteration, which
-    # is the same family of failure mode.
+    # The closure size depends only on the algebra and the cumulant order, not on
+    # the symbol the user picked for the atom index, so `k` and `l` must agree.
     hc = FockSpace(:cavity); ha = NLevelSpace(:atom, 2); h = hc ⊗ ha
     @qnumbers a::Destroy(h, 1)
     σ(α, β, idx) = IndexedOperator(Transition(h, :σ, α, β, 2), idx)
@@ -73,15 +69,8 @@ end
     @test closure_size(:k) == closure_size(:l)
 end
 
-@testset "find_missing tracks conjugate pairs deterministically" begin
-    # Driven cavity with a Fock-coherent observable: the drift of `a` puts
-    # `⟨a⟩` on the LHS but the RHS never references `⟨a'⟩`, so the closure
-    # has a single state. Switching to `a'` as the observable should yield
-    # the conjugate scenario with a single state whose canonical key is
-    # the conjugate canonical key of the first. Asserts that
-    # `_collect_missing!`'s conjugate handling is symmetric: starting from
-    # either rep, the canonical-class identity of the state set is the
-    # same.
+@testset "complete: conjugate observable is the adjoint state" begin
+    # Driven cavity: ⟨a⟩ closes to a single state; ⟨a'⟩ closes to its adjoint.
     hc = FockSpace(:cavity)
     @qnumbers a::Destroy(hc)
     @variables ω κ η
@@ -90,26 +79,16 @@ end
     eqs_a = complete(meanfield(a, H, [a]; rates = [κ]))
     eqs_ad = complete(meanfield(a', H, [a]; rates = [κ]))
 
-    canon_a = QuantumCumulants._build_canonical_indices(eqs_a)
-    canon_ad = QuantumCumulants._build_canonical_indices(eqs_ad)
-    key_a = QuantumCumulants._canonical_key(only(eqs_a.states), canon_a)
-    key_ad = QuantumCumulants._canonical_key(only(eqs_ad.states), canon_ad)
-    # The state of one is the conjugate of the other's; the canonical key
-    # of one matches the conjugate canonical key of the other.
-    conj_key_a = QuantumCumulants._canonical_key(
-        QuantumCumulants._avg_conj(only(eqs_a.states)), canon_a,
-    )
-    @test key_ad == conj_key_a
+    @test length(eqs_a.states) == 1
+    @test length(eqs_ad.states) == 1
+    a_op = undo_average(only(eqs_a.states))
+    ad_op = undo_average(only(eqs_ad.states))
+    @test isequal(ad_op, adjoint(a_op))
 end
 
 @testset "find_missing get_adjoints=false: one rep per conjugate pair" begin
-    # Regression for the heterodyne SDE blowup. With the default
-    # `get_adjoints=true`, both ⟨X⟩ and ⟨X†⟩ would be pushed into the
-    # missing-state pool. Under `get_adjoints=false` only one representative
-    # per conjugate pair is emitted; the MTK `_conj_substitution_dict`
-    # rewrites the missing partner at codegen time. The dedup-key strip of
-    # free-LHS-slot NE pairs (in `find_missing`) prevents the same physical
-    # state from being tracked twice under different NE flavors.
+    # With `get_adjoints=false`, only one representative per conjugate pair is
+    # emitted; the conjugate partner is rewritten at codegen time.
     hc = FockSpace(:resonator); ha = NLevelSpace(:atom, 2); h = hc ⊗ ha
     @variables N::Real ωc::Real ωa::Real g::Real κ::Real γ::Real
     j = Index(h, :j, N, ha); k = Index(h, :k, N, ha)
@@ -124,55 +103,52 @@ end
     )
     scaled_full = scale(complete(eqs; get_adjoints = true))
     scaled = scale(complete(eqs; get_adjoints = false))
-    # `get_adjoints=false` closure is strictly smaller than the get_adjoints=true
-    # one (the conjugate partners are absorbed via `conj(state_var)` at codegen).
+    # `get_adjoints=false` closure is strictly smaller (conjugate partners absorbed).
     @test length(scaled.states) < length(scaled_full.states)
-    # And mtkcompile must accept it: every conjugate leaf on the RHS resolves
-    # either literally to a state or via `conj(state_var)`. A failure would
-    # surface as "Brownian appears non-linearly" / unresolved AvgFunc.
     @named sys = System(scaled)
     @test mtkcompile(sys) isa Any
 end
 
-@testset "_build_canonical_indices filters H/J-bound indices" begin
-    # Regression: a free LHS atom index must not appear in the canonical
-    # pool if the same name is also bound by an H sum or a collective
-    # jump. Pre-fix, `complete!` would happily map a LHS `i` onto H's
-    # bound `i`, silently dropping the cross-atom commutator on the
-    # derived equation.
-    @variables Δ::Real g::Real κ::Real Γ::Real N::Real
+@testset "complete get_adjoints true/false: identical physics" begin
+    # Folding ⟨X†⟩ onto conj(⟨X⟩) at codegen must leave every observable
+    # unchanged. Driven Jaynes-Cummings, order 2.
     hc = FockSpace(:cavity); ha = NLevelSpace(:atom, 2); h = hc ⊗ ha
     @qnumbers a::Destroy(h, 1)
-    σ(α, β, k) = IndexedOperator(Transition(h, :σ, α, β, 2), k)
-    i_idx = Index(h, :i, N, ha)
-    j_idx = Index(h, :j, N, ha)
+    σ(α, β) = Transition(h, :σ, α, β, 2)
+    @variables Δ g κ γ η
+    H = -Δ * a' * a + η * (a' + a) + g * (a' * σ(1, 2) + a * σ(2, 1))
+    base = meanfield([a' * a, σ(2, 2)], H, [a, σ(1, 2)]; rates = [κ, γ], order = 2)
+    eqs_t = complete(base; get_adjoints = true)
+    eqs_f = complete(base; get_adjoints = false)
+    @test length(eqs_f.states) < length(eqs_t.states)
 
-    # `i` is bound by H's sum. `j` is the only free atom index.
-    H = Δ * Σ(σ(2, 2, i_idx), i_idx) +
-        g * Σ(a' * σ(1, 2, i_idx) + a * σ(2, 1, i_idx), i_idx)
-    J = [a, σ(1, 2, i_idx)]
-    eqs = meanfield([a' * a, σ(2, 2, j_idx)], H, J; rates = [κ, Γ], order = 2)
-    canon = QuantumCumulants._build_canonical_indices(eqs)
-
-    bound = QuantumCumulants._bound_indices(eqs)
-    @test i_idx in bound
-    @test !(j_idx in bound)
-
-    atom_space = i_idx.space_index
-    @test haskey(canon, atom_space)
-    @test j_idx in canon[atom_space]
-    @test !(i_idx in canon[atom_space])
+    function _solve(eqs)
+        sys = mtkcompile(System(eqs; name = :s))
+        u0 = Dict(unknowns(sys) .=> zeros(ComplexF64, length(unknowns(sys))))
+        p = Dict(Δ => 0.0, g => 1.5, κ => 0.7, γ => 0.3, η => 1.2)
+        return solve(
+            ODEProblem(sys, merge(u0, p), (0.0, 3.0)), Tsit5();
+            reltol = 1.0e-10, abstol = 1.0e-12
+        )
+    end
+    sol_t = _solve(eqs_t); sol_f = _solve(eqs_f)
+    @test sol_t.retcode == ReturnCode.Success
+    @test sol_f.retcode == ReturnCode.Success
+    for τ in (0.5, 1.0, 2.0, 3.0)
+        @test isapprox(
+            get_solution(sol_t, a' * a, eqs_t)(τ),
+            get_solution(sol_f, a' * a, eqs_f)(τ); atol = 1.0e-8
+        )
+        @test isapprox(
+            get_solution(sol_t, a, eqs_t)(τ),
+            get_solution(sol_f, a, eqs_f)(τ); atol = 1.0e-8
+        )
+    end
 end
 
-@testset "_build_canonical_indices fallback when every user index is bound" begin
-    # When the user declares only indices that all get bound (e.g. on a
-    # cavity subspace where every index is consumed by an H sum), the
-    # filtered pool is empty. The fallback mints `original[1](2)` so
-    # downstream `_canonical_key` lookups produce a deterministic
-    # suffix like `:i_2` instead of colliding with the bound name.
-    # Setup mirrors the filter-cavity example: composite space, single
-    # index symbol `i` that is bound on the filter subspace by every
-    # source it appears in.
+@testset "complete: closes when every user index is bound" begin
+    # Every declared index is consumed by an H sum / jump; the system must
+    # still close.
     @variables κ::Real ω::Real N::Real M::Real
     hc = FockSpace(:cavity); hf = FockSpace(:filter)
     ha = NLevelSpace(:atom, 2)
@@ -182,68 +158,45 @@ end
     i_idx = Index(h, :i, M, hf)
     H = ω * Σ(b(i_idx)' * b(i_idx), i_idx)
     J = [a, b(i_idx)]
-    eqs = meanfield([a' * a], H, J; rates = [κ, κ], order = 1)
-    canon = QuantumCumulants._build_canonical_indices(eqs)
-    filter_space = i_idx.space_index
-    @test haskey(canon, filter_space)
-    fallback = only(canon[filter_space])
-    @test fallback.name == :i_2
+    eqs = complete(meanfield([a' * a], H, J; rates = [κ, κ], order = 1))
+    @test isempty(find_missing(eqs))
+    @test length(eqs.equations) >= 1
 end
 
-@testset "_canonical_key strips irrelevant NE pairs" begin
-    # Two leaves that differ only in an NE pair referencing an index
-    # absent from the operator atoms should canonicalise to the same
-    # key. Pre-fix, the inherited NE pair survived in the key and
-    # blocked dedup of equivalent states pulled in from a parent
-    # derivation.
-    @variables N::Real
+@testset "complete: irrelevant-NE leaves do not over-count the closure" begin
+    # `complete` must be idempotent on its own output: a second pass adds no
+    # new states.
+    @variables N::Real Δ::Real g::Real κ::Real Γ::Real
     hc = FockSpace(:cavity); ha = NLevelSpace(:atom, 2); h = hc ⊗ ha
     @qnumbers a::Destroy(h, 1)
     σ(α, β, k) = IndexedOperator(Transition(h, :σ, α, β, 2), k)
-    j_idx = Index(h, :j, N, ha)
-    k_idx = Index(h, :k, N, ha)
-    ℓ_idx = Index(h, :ℓ, N, ha)
-
-    SQA = QuantumCumulants.SecondQuantizedAlgebra
-    plain_qadd = σ(1, 2, j_idx) * 1  # QAdd form
-    plain = average(plain_qadd)
-    # Inject an NE-pair (k, ℓ) onto the QAdd. k and ℓ are not in the
-    # operator atoms, so the canonical key should treat the leaf as
-    # equivalent to the bare one.
-    qadd_with_ne = SQA.assume_distinct_index(plain_qadd, [(k_idx, ℓ_idx)])
-    with_ne = average(qadd_with_ne)
-
-    eqs = meanfield([σ(1, 2, j_idx)], 0 * a; order = 1)
-    canon = QuantumCumulants._build_canonical_indices(eqs)
-    key_plain = QuantumCumulants._canonical_key(plain, canon)
-    key_with_ne = QuantumCumulants._canonical_key(with_ne, canon)
-    @test key_plain == key_with_ne
+    i = Index(h, :i, N, ha)
+    H = Δ * Σ(σ(2, 2, i), i) + g * Σ(a' * σ(1, 2, i) + a * σ(2, 1, i), i)
+    J = [a, σ(1, 2, i), σ(2, 1, i), σ(2, 2, i)]
+    eqs_c = complete(meanfield([a' * a, σ(2, 2, i)], H, J; rates = [κ, Γ, Γ, Γ], order = 2))
+    n1 = length(eqs_c.equations)
+    eqs_cc = complete(eqs_c)
+    @test length(eqs_cc.equations) == n1
+    @test isempty(find_missing(eqs_c))
 end
 
 @testset "complete!: free LHS atom index does not collide with H-bound i" begin
-    # End-to-end check that `_derive_for`'s alpha-rename + `_apply_undo`
-    # round trip preserves the cross-atom commutator that was being
-    # silently dropped pre-fix. We use the indexed-laser closure: with
-    # H summed over `i` and the user-declared free index `i` (clashing
-    # name), the σ(2,2,i) equation's RHS must include a
-    # `(N-1) i g ⟨σ_{i_1}^{12} σ_{i_2}^{21}⟩` style cross-atom term
-    # after `complete!`. We assert by checking that the dimension of
-    # the closure grows past the single-atom case.
+    # When H is summed over `i` and the user-declared free LHS index reuses the
+    # name `i`, the cross-atom commutator must be preserved, so the closure grows
+    # past the single-atom case.
     @variables Δ::Real g::Real κ::Real Γ::Real N::Real
     hc = FockSpace(:cavity); ha = NLevelSpace(:atom, 2); h = hc ⊗ ha
     @qnumbers a::Destroy(h, 1)
     σ(α, β, k) = IndexedOperator(Transition(h, :σ, α, β, 2), k)
-    i_idx = Index(h, :i, N, ha)  # deliberately reuse `i` for LHS
+    i_idx = Index(h, :i, N, ha)
 
     H = Δ * Σ(σ(2, 2, i_idx), i_idx) +
         g * Σ(a' * σ(1, 2, i_idx) + a * σ(2, 1, i_idx), i_idx)
     J = [a, σ(1, 2, i_idx)]
-    # Note: free LHS uses the SAME index symbol as H's bound sum.
     eqs = meanfield([a' * a, σ(2, 2, i_idx)], H, J; rates = [κ, Γ], order = 2)
     eqs_c = complete(eqs)
 
-    # Pre-fix: closure collapsed to 4-5 equations because cross-atom
-    # commutators were dropped. Post-fix: the cumulant order-2 indexed
-    # JC laser closes at >= 7 equations (atom-atom cross states present).
+    # The order-2 indexed JC laser closes at >= 7 equations (atom-atom cross
+    # states present).
     @test length(eqs_c.equations) >= 7
 end

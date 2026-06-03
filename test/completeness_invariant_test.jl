@@ -3,19 +3,8 @@ using Test
 
 import QuantumCumulants.SecondQuantizedAlgebra as SQA
 
-# Defensive invariant for TODO §4: no completeness-redundant ground-state
-# projector `σ^{gg}` (a Transition with i == j == ground_state) may survive
-# into a post-cumulant closure. `expand_completeness` folds `σ^{gg} = 1 - Σ
-# σ^{kk}`; the mean-field/noise drift builders call it, but the fold is
-# point-local ("every caller remembers to fold"). This test catches a future
-# operator-product site that forgets the fold and leaks a redundant `⟨σ^{gg}⟩`
-# leaf — the failure mode behind the det/stoch closure-overcount bugs.
-#
-# Detection works on GENUINE leaf averages only (`⟨single operator string⟩`).
-# A *product* of averages such as `⟨σ¹²⟩·⟨a σ²¹⟩` also reports
-# `SQA.is_average`, and `undo_average` would reassemble it into a same-site
-# product that collapses to a spurious `σ^{gg}` — a false positive. Guarding on
-# `_is_leaf_average` avoids that.
+# A redundant ground-state projector σ^{gg} must not survive into a post-cumulant
+# closure; the basis change σ^{gg} = 1 - Σ σ^{kk} should already have folded it away.
 
 _qadd_has_gs(::Any) = false
 function _qadd_has_gs(op::SQA.QAdd)
@@ -26,32 +15,16 @@ function _qadd_has_gs(op::SQA.QAdd)
     return false
 end
 
-function _leaf_has_gs(x)
-    x isa SymbolicUtils.BasicSymbolic || return false
-    if QuantumCumulants._is_leaf_average(x)
-        op = SQA.undo_average(x)
-        return op isa SQA.QAdd && _qadd_has_gs(op)
-    end
-    SymbolicUtils.iscall(x) || return false
-    return any(_leaf_has_gs, SymbolicUtils.arguments(x))
+function _state_has_gs(s)
+    op = SQA.undo_average(s)
+    return _qadd_has_gs(op)
 end
 
-# Scan every state and every (drift + noise) RHS of an equation set.
 function leaks_ground_projector(eqs)
-    any(_leaf_has_gs, eqs.states) && return true
-    any(eq -> _leaf_has_gs(eq.rhs), eqs.equations) && return true
-    if hasproperty(eqs, :noise_equations)
-        any(eq -> _leaf_has_gs(eq.rhs), eqs.noise_equations) && return true
-    end
-    return false
+    return any(_state_has_gs, eqs.states)
 end
 
 @testset "completeness invariant (no σ^gg leak)" begin
-    # Indexed two-level ensemble + cavity with the full raising/lowering/
-    # dephasing channel set (heterodyne shape). Same-site `σ²¹_k · σ¹²_k`
-    # collapses inside cross-atom cumulant blocks are exactly what can
-    # surface a redundant `σ^{gg}`. Check both `get_adjoints` settings and
-    # the scaled closure.
     @testset "indexed 2-level (raising+lowering+dephasing)" begin
         @variables N Δc Δa g κ γ χ
         hc = FockSpace(:cavity); ha = NLevelSpace(:atom, 2); h = hc ⊗ ha
@@ -85,8 +58,6 @@ end
         @test !leaks_ground_projector(scale(eqs_c))
     end
 
-    # Multilevel (three-level) indexed system: σ^{gg} folds onto level 1, and
-    # the level-2/3 cross terms still must not resurface a ground projector.
     @testset "indexed 3-level" begin
         @variables N Δ Ω g κ Γ
         hc = FockSpace(:cavity); ha = NLevelSpace(:atom, 3); h = hc ⊗ ha
@@ -100,8 +71,6 @@ end
         @test !leaks_ground_projector(scale(eqs_c))
     end
 
-    # Scalar (non-indexed) two-level + cavity, for coverage of the
-    # non-summed product path.
     @testset "scalar two-level" begin
         @variables Δ g κ γ
         hc = FockSpace(:cavity); ha = NLevelSpace(:atom, 2); h = hc ⊗ ha

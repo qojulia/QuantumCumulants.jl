@@ -3,19 +3,6 @@ using Symbolics: Symbolics, @variables, simplify
 using SymbolicUtils
 using Test
 
-# v1 surface for parameter handling. Master's test_parameters.jl asserts
-# operator-level QAdd equality on `eqs.operator_equations[i].rhs`; in v1
-# that field is stored as a `SymbolicUtils.BasicSymbolic{SymReal}` (Symbolics
-# unwraps the QAdd through `~`), so the assertions compare via `average(...)`
-# on the symbolic side and use `_is_symbolic_zero` to bridge symbolic-vs-Bool
-# zero detection (`_is_zero(simplify(x))` on a BasicSymbolic returns a symbolic
-# equation, not a Bool).
-#
-# Ground-state projectors `σ_gg` stay atomic in SQA's canonical form (see
-# SQA devdocs "Simplification vs. normal ordering"). Comparing against
-# master's expanded forms requires `expand_completeness` on the expected
-# side.
-
 SQA = QuantumCumulants.SecondQuantizedAlgebra
 
 # Symbolic / numeric zero check that handles both QAdd and BasicSymbolic.
@@ -43,9 +30,8 @@ _is_zero(x) = isequal(x, 0)
 
     da = commutator(1im * H, a)
     @test _is_zero(simplify(da - ((-1im * g) * σ + (-1im * ωc) * a)))
-    # `ds` keeps σ_gg atomic (SQA canonical form); master's expected form
-    # had σ_gg expanded via completeness. Apply `expand_completeness` to ds
-    # before comparing.
+    # σ_gg stays atomic in canonical form; expand it via completeness before
+    # comparing against the expected expanded expression.
     ds_raw = commutator(1im * H, σ)
     ds = SQA.expand_completeness(ds_raw)
     @test _is_zero(simplify(ds - ((-1im * g) * a + (-1im * ωa) * σ + (2im * g) * a * σee)))
@@ -121,9 +107,8 @@ end
     s(i, j) = Transition(h2, :s, i, j)
     H = Δ * s(2, 2) - Δ * s(1, 1)
     eqs = meanfield(s(1, 2), H)
-    # Use `Symbolics.IM` (symbolic imaginary unit) so the literal matches the
-    # form the meanfield codepath emits; Julia's `im` becomes a `complex(0, …)`
-    # literal that SymbolicUtils does not unify with the factored form.
+    # Use `Symbolics.IM` so the literal matches the imaginary unit the meanfield
+    # codepath emits; Julia's `im` does not unify with the factored form.
     diff = eqs.equations[1].rhs + 2 * Symbolics.IM * Δ * average(s(1, 2))
     @test _is_zero(simplify(diff; expand = true))
 end

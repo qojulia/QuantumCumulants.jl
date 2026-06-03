@@ -5,9 +5,7 @@ using ModelingToolkitBase: @named, mtkcompile, ODEProblem, unknowns
 using OrdinaryDiffEq: Tsit5, solve, ReturnCode
 using Test
 
-# v1 surface: higher-order cumulant closure of a damped JC system.
-# The 4th/6th-order steady-state and Spectrum agreement assertions live
-# in test/higher_order_agreement_test.jl.
+# Higher-order cumulant closure of a damped JC system.
 
 @testset "higher-order: 4th-order cumulant closure of JC laser" begin
     @variables Δ::Real g::Real γ::Real κ::Real ν::Real
@@ -23,7 +21,6 @@ using Test
     rates = [κ, γ, ν]
 
     SQA = QuantumCumulants.SecondQuantizedAlgebra
-    # Phase-invariant filter: keep only terms where adjoint-count balances.
     ϕ(::Number) = 0
     ϕ(::SQA.Destroy) = -1
     ϕ(::SQA.Create) = 1
@@ -46,8 +43,6 @@ using Test
     @test length(he4.equations) > 0
     @test isempty(find_missing(he4; filter_func = phase_invariant))
 
-    # ODE roundtrip at order=4: equations must compile through MTK and
-    # integrate to a finite steady-state without blowing up.
     @named sys4 = System(he4)
     sys4_c = mtkcompile(sys4)
     u0 = Dict(unknowns(sys4_c) .=> zeros(ComplexF64, length(unknowns(sys4_c))))
@@ -60,8 +55,3 @@ using Test
     @test isfinite(n_ss)
     @test n_ss >= 0
 end
-
-# Sibling files:
-# - higher_order_order6_test.jl: 6th-order closure (no spectrum assertion)
-# - higher_order_agreement_test.jl: order=4 vs order=6 steady-state agreement
-# Split for parallel scheduling.

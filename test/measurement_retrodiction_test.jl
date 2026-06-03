@@ -2,20 +2,6 @@ using QuantumCumulants
 using Symbolics: Symbolics, @variables
 using Test
 
-# The Kalman SDE-vs-ODE tracking testset lives in
-# measurement_retrodiction_kalman_test.jl so ParallelTestRunner can
-# schedule its heavy SDE+ODE solve on a separate worker.
-
-# v1 surface: Kalman-style continuous-measurement scenario for the
-# harmonic oscillator under continuous position monitoring. Master's
-# full smoothing comparison (forward + backward Kalman + past-quantum
-# combination) is not ported. What we assert here is the v1 pipeline
-# that already works: NoiseMeanFieldEquations
-# build, SDE forward solves, `translate_W_to_Y` augments the drift,
-# `modify_equations` accepts a measurement-record callback, and the
-# resulting deterministic Kalman ODE driven by the measurement record
-# tracks the Wiener-driven SDE on the same noise realisation.
-
 @testset "meanfield: direction = Backward()" begin
     h = FockSpace(:cavity)
     @qnumbers a::Destroy(h)
@@ -24,7 +10,6 @@ using Test
     fw = meanfield([a], H, [a]; rates = [κ])
     bw = meanfield([a], H, [a]; rates = [κ], direction = Backward())
     @test length(fw.equations) == length(bw.equations) == 1
-    # Forward sign of the Hamiltonian commutator opposite to backward.
     rhs_fw = fw.equations[1].rhs
     rhs_bw = bw.equations[1].rhs
     @test !isequal(rhs_fw, rhs_bw)
@@ -71,17 +56,12 @@ end
     out = translate_W_to_Y(eqs)
     @test out isa NoiseMeanFieldEquations
     @test length(out.equations) == length(eqs.equations)
-    # The dY-form adds a deterministic correction to the drift, but the
-    # noise (`dW`-coefficient) terms are unchanged.
+    # The dY-form adds a deterministic correction to the drift; the noise terms
+    # are unchanged.
     @test !_is_zero(out.equations[1].rhs - eqs.equations[1].rhs)
     @test _is_zero(out.noise_equations[1].rhs - eqs.noise_equations[1].rhs)
 end
 
-# Backward direction for noise meanfields: master's smoothing equations
-# require time-reversed coherent drift + adjoint Lindblad recycling +
-# trace-preserving term. We assert (a) the type and direction marker,
-# (b) that the deterministic drift differs from the forward case, and
-# (c) the noise term magnitude is comparable (same Lindblad operators).
 @testset "Backward NoiseMeanFieldEquations: drift sign flip, noise unchanged" begin
     h = PhaseSpace(:motion)
     @qnumbers x::Position(h)

@@ -13,6 +13,7 @@ using Test
     H = Δ * a' * a + Σ(g * (a * σ(2, 1, i) + a' * σ(1, 2, i)), i)
     eqs = meanfield([a], H, [a, σ(1, 2, i)]; rates = [κ, γ])
     @test eqs isa MeanFieldEquations
+    # `meanfield` derives one equation per seed operator; one seed (`a`) → 1.
     @test length(eqs.equations) == 1
 end
 
@@ -52,24 +53,21 @@ end
 
     ops = [a, σ(2, 2, k_ind), σ(1, 2, k_ind)]
     eqs = meanfield(ops, H, J; rates = rates, order = 2)
+    # `meanfield` derives one equation per seed; three seeds (`a`, `σ22`,
+    # `σ12`) → 3.
     @test length(eqs.equations) == 3
     @test eqs isa MeanFieldEquations
     ceqs = complete(eqs)
     @test ceqs isa MeanFieldEquations
     @test length(ceqs.equations) >= 3
 
-    # `complete` is idempotent on a closed system: a second pass should
-    # not discover any further missing states.
+    # `complete` is idempotent on a closed system.
     ceqs_again = complete(ceqs)
     @test length(ceqs_again.equations) == length(ceqs.equations)
 
-    # Every index appearing in the completed system must trace back to the
-    # user's declared vocabulary. The completion path canonicalizes leaf
-    # averages against the user-provided indices and never invents new
-    # ones (names like `i1`, `_c1`, etc. must not appear). Slot reps
-    # `Symbol(base, "_", k)` minted by the cluster-symmetric canonical form
-    # also count as user vocabulary since they derive deterministically from
-    # the user's first-declared index per CLAUDE.md naming policy.
+    # Every index in the completed system traces back to the user's declared
+    # vocabulary, including slot reps `Symbol(base, "_", k)` derived from a
+    # declared index.
     declared = Set([i_ind.name, k_ind.name])
     function _is_user_derived(name::Symbol)
         name in declared && return true
@@ -91,13 +89,9 @@ end
 end
 
 @testset "indexed jumps: per-jump dissipator is summed over jump index" begin
-    # Regression for the superradiant-laser σ_j^{22} leak: indexed jumps must
-    # induce independent-decay semantics (Σ_i D[J_i] applied separately for
-    # each atom), so SQA's diagonal split fires and the i ≠ j contribution
-    # vanishes by commutation. Without the Σ-wrap, σ_i^{12} σ_j^{22} σ_i^{21}
-    # and σ_i^{22} σ_j^{22} σ_i^{22} survived in the operator RHS and cumulant
-    # truncation produced spurious ⟨σ_j^{22}⟩², ⟨σ_j^{22}⟩³, ⟨σ_j^{22}⟩⟨σ_i^{11}⟩
-    # terms after scale.
+    # Indexed jumps induce independent-decay semantics (Σ_i D[J_i] applied
+    # separately for each atom), so the i ≠ j contribution vanishes by
+    # commutation and no cross-site σ_i*σ_j products survive on the RHS.
     hc = FockSpace(:cavity); ha = NLevelSpace(:atom, 2); h = hc ⊗ ha
     @qnumbers a::Destroy(h)
     σ(α, β, k) = IndexedOperator(Transition(h, :σ, α, β), k)
@@ -112,10 +106,8 @@ end
     eqs = meanfield([σ(2, 2, j)], H, J; rates = rates, order = 2)
     rhs = eqs.equations[1].rhs
 
-    # The dissipator must collapse to the master-equation form
-    #   R + (-R - Γ) ⟨σ_j^{22}⟩ + i g_j ⟨a' σ_j^{12}⟩ - i g_j ⟨a σ_j^{21}⟩
-    # with no surviving cross-site σ_i*σ_j products on the RHS. order=2 does
-    # not cumulant-truncate anything here (all averages are already ≤ 2-op).
+    # The dissipator collapses to
+    #   R + (-R - Γ) ⟨σ_j^{22}⟩ + i g_j ⟨a' σ_j^{12}⟩ - i g_j ⟨a σ_j^{21}⟩.
     expected = R + (-R - Γ) * average(σ(2, 2, j)) +
         Symbolics.IM * g(j) * average(a' * σ(1, 2, j)) -
         Symbolics.IM * g(j) * average(a * σ(2, 1, j))
@@ -157,11 +149,8 @@ end
     eqs_c = complete(eqs; filter_func = phase_invariant)
     eqs_sc = scale(eqs_c)
 
-    # Pick the σ_{j_1}^{22} equation. Under the materialised-index
-    # convention, scale renames all free indices to suffixed slots
-    # (slot 1 = `j(1) == Index(:j_1, …)`). Since H/J bind `i`, `j` is
-    # the user's only free LHS atom index, so canonical slot 1 maps to
-    # `j(1)`, not bare `i` or `i(1)`.
+    # Pick the σ_{j_1}^{22} equation. `scale` renames free indices to suffixed
+    # slots; `j` is the only free LHS atom index, so canonical slot 1 is `j(1)`.
     j1 = j(1)
     σ22_op = average(σ(2, 2, j1))
     σ22_idx = findfirst(eq -> isequal(eq.lhs, σ22_op), eqs_sc.equations)
@@ -178,11 +167,9 @@ end
 
 
 @testset "indexed meanfield: alpha-equivalent leaves are one state" begin
-    # When `H` is summed over `i_ind` and the user's `ops` use `k_ind`,
-    # the leaf `⟨σ_{i_ind}^{12}⟩` (which appears in RHSes from H's sum)
-    # and the user-declared state `⟨σ_{k_ind}^{12}⟩` denote the same
-    # physical observable. `find_missing` must recognize the
-    # alpha-equivalence and not introduce a duplicate state.
+    # With `H` summed over `i_ind` and `ops` using `k_ind`, the leaf
+    # ⟨σ_{i_ind}^{12}⟩ and the user-declared state ⟨σ_{k_ind}^{12}⟩ denote the
+    # same observable; `find_missing` must not introduce a duplicate state.
     @variables Δc::Real η::Real Δa::Real κ::Real Γ::Real
     N = 2
     hc = FockSpace(:cavity); ha = NLevelSpace(:atom, 2); h = hc ⊗ ha
@@ -197,15 +184,11 @@ end
     J = [a, σ(1, 2, i_ind)]
     eqs = meanfield(ops, H, J; rates = [κ, Γ], order = 2)
 
-    # `find_missing` should not report `⟨σ_i^{12}⟩` (alpha-equivalent
-    # to the already-declared `⟨σ_k^{12}⟩`) or `⟨σ_i^{22}⟩` (alpha-
-    # equivalent to `⟨σ_k^{22}⟩`) as missing.
+    # `find_missing` must not report the i-indexed single-σ states as missing;
+    # they are alpha-equivalent to the declared k-indexed ones.
     missing_after_first = QuantumCumulants.find_missing(eqs)
     for m in missing_after_first
         s = repr(m)
-        # any missing single-σ state must already be one of the
-        # declared k-indexed ones; an i-indexed σ-single would be an
-        # alpha-duplicate that we explicitly want to deduplicate.
         @test !occursin(r"⟨σ_i₁₂⟩", s)
         @test !occursin(r"⟨σ_i₂₂⟩", s)
         @test !occursin(r"⟨σ_i₂₁⟩", s)

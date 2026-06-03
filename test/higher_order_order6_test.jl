@@ -3,9 +3,7 @@ using Symbolics: Symbolics, @variables
 using SymbolicUtils
 using Test
 
-# 6th-order cumulant closure of the damped JC system. Split out of
-# higher_order_test.jl so ParallelTestRunner can schedule it on a
-# separate worker from the order=4 closure + ODE testset.
+# 6th-order cumulant closure of the damped JC system.
 
 @testset "higher-order: 6th-order closure runs (no spectrum assertion)" begin
     @variables Δ::Real g::Real γ::Real κ::Real ν::Real
