@@ -1,0 +1,457 @@
+# Two-time correlation (Layer 5). `CorrelationFunction(op1, op2, eqs0)` builds the
+# τ-evolution of ⟨op1(τ)·op2(0)⟩ via the quantum regression theorem: op2 is lifted
+# to a fresh ancilla subspace, and the system is closed only on averages that
+# touch the ancilla (the rest are steady-state coefficients). Closure is the
+# kernel's `closure!` with an ancilla filter and `get_adjoints=false` (one rep per
+# conjugate pair); no bespoke completion loop. The `Spectrum` numeric kernel lives
+# below the construction.
+
+struct CorrelationFunction{T <: MeanFieldEquations, O1 <: QField, O2 <: QField, O2A <: QField}
+    op1::O1
+    op2::O2
+    op2_anc::O2A
+    aon_anc::Int
+    eqs::T
+    eqs0::MeanFieldEquations
+    τ::Symbolics.Num
+    steady_state::Bool
+end
+
+# ---- ancilla embedding -------------------------------------------------------
+
+_embed_on(op::SQA.Destroy, aon::Int) = SQA.Destroy(op.name, aon, op.index)
+_embed_on(op::SQA.Create, aon::Int) = SQA.Create(op.name, aon, op.index)
+_embed_on(op::SQA.Transition, aon::Int) =
+    SQA.Transition(op.name, op.i, op.j, aon, op.index, op.ground_state, op.n_levels)
+
+function _ancilla_aon(eqs0::MeanFieldEquations, op1::QField, op2::QField)
+    aons = Int[]
+    append!(aons, SQA.acts_on(eqs0.hamiltonian))
+    for j in eqs0.jumps
+        append!(aons, SQA.acts_on(j))
+    end
+    for j in eqs0.jumps_dagger
+        append!(aons, SQA.acts_on(j))
+    end
+    for op in eqs0.operators
+        append!(aons, SQA.acts_on(op))
+    end
+    append!(aons, SQA.acts_on(op1)); append!(aons, SQA.acts_on(op2))
+    return isempty(aons) ? 2 : (maximum(aons) + 1)
+end
+
+# Accept only leaf averages whose product touches `aon_anc` AND at least one other
+# subspace: the proper correlation states. Pure-ancilla averages (⟨op2_anc⟩) and
+# non-ancilla averages are steady-state coefficients, not τ-states.
+function _ancilla_filter(aon_anc::Int)
+    return function (x)
+        SQA.is_average(x) || return true
+        SymbolicUtils.iscall(x) || return true
+        SymbolicUtils.operation(x) === SQA.sym_average || return true
+        aons = SQA.acts_on(x)
+        return (aon_anc in aons) && length(aons) > 1
+    end
+end
+
+# ---- constructor -------------------------------------------------------------
+
+function CorrelationFunction(
+        op1::QField, op2::QField, eqs0::MeanFieldEquations;
+        steady_state::Bool = true, filter_func = nothing, max_iter::Int = 200,
+    )
+    τ = first(MTK.@independent_variables τ)
+    aon_anc = _ancilla_aon(eqs0, op1, op2)
+    op2_anc = _embed_on(op2, aon_anc)
+    new_op = op1 * op2_anc
+
+    order_ext = eqs0.order === nothing ? nothing :
+        vcat(eqs0.order, fill(maximum(eqs0.order), aon_anc - length(eqs0.order)))
+
+    eqs_c = meanfield(
+        [new_op], eqs0.hamiltonian, eqs0.jumps;
+        Jdagger = eqs0.jumps_dagger, rates = eqs0.rates, order = order_ext, iv = τ,
+    )
+
+    anc_filter = _ancilla_filter(aon_anc)
+    closure_filter = filter_func === nothing ? anc_filter : x -> anc_filter(x) && filter_func(x)
+    g = _graph_from_eqs(eqs_c)
+    closure!(g; filter = closure_filter, get_adjoints = false, max_iter)
+    if !steady_state
+        closure!(g; filter = x -> !anc_filter(x), get_adjoints = false, max_iter)
+    end
+    eqs_c = lower_to_eqs(g)
+    filter_func === nothing || _filter_anc_leaves!(eqs_c, anc_filter, filter_func)
+
+    return CorrelationFunction(op1, op2, op2_anc, aon_anc, eqs_c, eqs0, τ, steady_state)
+end
+
+# Zero ancilla-touching leaves the user's filter rejects; ambient leaves stay.
+function _filter_anc_leaves!(eqs, anc_filter, user_filter)
+    for (i, eq) in enumerate(eqs.equations)
+        eqs.equations[i] = eq.lhs ~ _filter_anc_expr(eq.rhs, anc_filter, user_filter)
+    end
+    return eqs
+end
+function _filter_anc_expr(x, anc_filter, user_filter)
+    x isa SymbolicUtils.BasicSymbolic || return x
+    if _is_avg_leaf(x)
+        return (anc_filter(x) && !user_filter(x)) ? 0 : x
+    end
+    SymbolicUtils.iscall(x) || return x
+    op = SymbolicUtils.operation(x)
+    new_args = Any[_filter_anc_expr(a, anc_filter, user_filter) for a in SymbolicUtils.arguments(x)]
+    op === complex && length(new_args) == 2 && return new_args[1] + new_args[2] * Symbolics.IM
+    return op(new_args...)
+end
+
+# ---- ambient / lookup helpers ------------------------------------------------
+
+# Averages on the RHS that are NOT τ-states: non-ancilla coefficients, or
+# pure-ancilla constants. Mapped to MTK parameters in `System(c)`.
+function _ambient_avgs(c::CorrelationFunction)
+    found = OrderedCollections.OrderedSet{SymbolicUtils.BasicSymbolic}()
+    states_set = Set(SymbolicUtils.unwrap.(c.eqs.states))
+    for eq in c.eqs.equations
+        _collect_ambient!(found, eq.rhs, c.aon_anc, states_set)
+    end
+    return collect(found)
+end
+function _collect_ambient!(found, x, aon_anc, states_set)
+    x isa SymbolicUtils.BasicSymbolic || return
+    if SQA.is_average(x) && SymbolicUtils.operation(x) === SQA.sym_average
+        x in states_set && return
+        aons = SQA.acts_on(x)
+        (!(aon_anc in aons) || length(aons) == 1) && push!(found, x)
+        return
+    end
+    SymbolicUtils.iscall(x) || return
+    for a in SymbolicUtils.arguments(x)
+        _collect_ambient!(found, a, aon_anc, states_set)
+    end
+    return
+end
+
+_ambient_param(avg::SymbolicUtils.BasicSymbolic) =
+    first(@variables $(Symbol("ss_", serialize(undo_average(avg)))))
+
+_avg_conj_of(x) = SQA.is_average(x) ? average(adjoint(undo_average(x))) : x
+
+# Replace op2_anc with op2 (original subspace) inside `avg`, the τ=0 representative.
+function _undo_ancilla(c::CorrelationFunction, avg::SymbolicUtils.BasicSymbolic)
+    SQA.is_average(avg) || return avg
+    op = undo_average(avg)
+    op isa QAdd || return avg
+    aon0 = c.op2.space_index; aon_anc = c.aon_anc
+    result = zero(op)
+    for (term, coeff) in op.arguments
+        prod = one(QAdd) * coeff
+        for o in term.ops
+            prod = prod * ((o.space_index == aon_anc) ? _embed_on(o, aon0) : o)
+        end
+        result = result + prod
+    end
+    return average(result)
+end
+
+function _as_avg_dict(c::CorrelationFunction, u_end)
+    if u_end isa AbstractDict
+        return Dict{SymbolicUtils.BasicSymbolic, Any}(SymbolicUtils.unwrap(k) => v for (k, v) in u_end)
+    elseif u_end isa AbstractVector
+        return Dict{SymbolicUtils.BasicSymbolic, Any}(
+            SymbolicUtils.unwrap(avg) => v for (avg, v) in zip(c.eqs0.states, u_end)
+        )
+    end
+    throw(ArgumentError("u_end must be Dict or Vector, got $(typeof(u_end))"))
+end
+
+function _lookup_avg(dict, avg)
+    avg_u = SymbolicUtils.unwrap(avg)
+    haskey(dict, avg_u) && return dict[avg_u]
+    avg_u isa Number && return avg_u
+    if avg_u isa SymbolicUtils.BasicSymbolic
+        if _is_avg_leaf(avg_u)
+            conj_u = SymbolicUtils.unwrap(_avg_conj_of(avg_u))
+            haskey(dict, conj_u) && return conj(dict[conj_u])
+            return 0
+        end
+        sub = Dict{Any, Any}()
+        for (k, v) in dict
+            sub[k] = v
+            (k isa SymbolicUtils.BasicSymbolic && _is_avg_leaf(k)) || continue
+            ck = SymbolicUtils.unwrap(_avg_conj_of(k))
+            haskey(sub, ck) || (sub[ck] = conj(v))
+        end
+        return _scalarize(SymbolicUtils.substitute(avg_u, sub))
+    end
+    return 0
+end
+
+_scalarize(x::Symbolics.Num) = _scalarize(SymbolicUtils.unwrap(x))
+function _scalarize(x::SymbolicUtils.BasicSymbolic)
+    SymbolicUtils.isconst(x) && (v = x.val; return v isa Number ? ComplexF64(v) : ComplexF64(0))
+    y = SymbolicUtils.substitute(x, Dict(SymbolicUtils.unwrap(Symbolics.IM) => im))
+    v = Symbolics.value(y)
+    return v isa Number ? ComplexF64(v) : ComplexF64(0)
+end
+_scalarize(x::Number) = ComplexF64(x)
+_scalarize(x) = ComplexF64(0)
+
+# ---- u0 / p0 -----------------------------------------------------------------
+
+"""
+    correlation_u0(c, u_end)
+
+Initial values for the τ-evolution: each ancilla state ⟨X(τ)·op2_anc⟩ starts from
+the steady-state ⟨X·op2⟩ (op2 on the original subspace), looked up in `u_end`.
+"""
+function correlation_u0(c::CorrelationFunction, u_end)
+    u_end_dict = _as_avg_dict(c, u_end)
+    reg = _state_registry(c.eqs)
+    u0 = Dict{Symbolics.Num, ComplexF64}()
+    for (i, s) in enumerate(c.eqs.states)
+        u0[reg.vars[i]] = ComplexF64(_lookup_avg(u_end_dict, _undo_ancilla(c, SymbolicUtils.unwrap(s))))
+    end
+    return u0
+end
+
+"""
+    correlation_p0(c, u_end, ps_p0)
+
+Parameter dict for the τ-ODE: user `ps_p0` plus the numeric values of the ambient
+steady-state averages (looked up in `u_end`).
+"""
+function correlation_p0(c::CorrelationFunction, u_end, ps_p0)
+    u_end_dict = _as_avg_dict(c, u_end)
+    out = Dict{Any, ComplexF64}()
+    for (k, v) in ps_p0
+        out[k] = ComplexF64(v)
+    end
+    for avg in _ambient_avgs(c)
+        aons = SQA.acts_on(avg)
+        lookup = (c.aon_anc in aons && length(aons) == 1) ? _undo_ancilla(c, avg) : avg
+        out[_ambient_param(avg)] = ComplexF64(_lookup_avg(u_end_dict, lookup))
+    end
+    return out
+end
+
+# ---- System(c) ---------------------------------------------------------------
+
+"""
+    ModelingToolkitBase.System(c::CorrelationFunction; name)
+
+MTK `System` for the τ-evolution. Ambient steady-state averages become parameters
+(values supplied via [`correlation_p0`](@ref)).
+"""
+function MTK.System(c::CorrelationFunction; name::Symbol)
+    eqs = c.eqs
+    iv = eqs.iv; iv_uw = SymbolicUtils.unwrap(iv); D = Symbolics.Differential(iv)
+    reg = _state_registry(eqs)
+    # Ambient steady-state averages, keyed by the same conjugation orbit rep as
+    # the state registry (so a folded conjugate ambient resolves via the side bit).
+    amb = Dict{QAdd, Tuple{Symbolics.Num, Bool}}()
+    for avg in _ambient_avgs(c)
+        op = undo_average(avg)
+        if op isa QAdd
+            rep, side = concrete_rep(op)
+            get!(amb, rep, (_ambient_param(avg), side))
+        end
+    end
+    resolve = function (leaf)
+        op = undo_average(leaf)
+        op isa QAdd || return leaf
+        rep, side = concrete_rep(op)
+        if haskey(reg.by_rep, rep)
+            var, rep_side = reg.by_rep[rep]
+            return side == rep_side ? SymbolicUtils.unwrap(var) :
+                SymbolicUtils.term(conj, SymbolicUtils.unwrap(var); type = Number)
+        end
+        if haskey(amb, rep)
+            p, rep_side = amb[rep]
+            return side == rep_side ? SymbolicUtils.unwrap(p) :
+                SymbolicUtils.term(conj, SymbolicUtils.unwrap(p); type = Number)
+        end
+        return leaf
+    end
+    new_eqs = Vector{Symbolics.Equation}(undef, length(eqs.equations))
+    ps_set = Set{SymbolicUtils.BasicSymbolic}()
+    @inbounds for (i, eq) in enumerate(eqs.equations)
+        rhs = mapleaves(resolve, eq.rhs)
+        new_eqs[i] = D(reg.vars[i]) ~ rhs
+        _collect_params!(ps_set, SymbolicUtils.unwrap(rhs), iv_uw)
+    end
+    ps = [MTK.toparam(p) for p in ps_set]
+    return MTK.System(new_eqs, iv, reg.vars, ps; name = name)
+end
+
+"""
+    scale(c::CorrelationFunction)
+
+Scale both the τ-equations and the underlying `eqs0` so the spectrum's
+steady-state lookup resolves against the same scaled state names.
+"""
+scale(c::CorrelationFunction) = CorrelationFunction(
+    c.op1, c.op2, c.op2_anc, c.aon_anc, scale(c.eqs), scale(c.eqs0), c.τ, c.steady_state,
+)
+
+# ---- Spectrum ----------------------------------------------------------------
+
+"""
+    Spectrum(c::CorrelationFunction, ps)
+
+The Laplace-transformed correlation as a callable: `S(ω, u_end, p0)` returns the
+symmetric power spectrum `2·Re{∫₀^∞ g(τ)e^{-iωτ}dτ}`. Solves `(iω·I - A)X̃ = x̃(0)`
+where `A` is the τ-system Jacobian at steady state and `x̃ = x - x_∞` is centred so
+the one-sided transform converges. The linear/anti-linear split (the conjugate
+columns from `get_adjoints=false`) is handled by the 2n augmentation.
+"""
+struct Spectrum{C <: CorrelationFunction, P}
+    c::C
+    ω::Symbolics.Num
+    ps::P
+end
+Spectrum(c::CorrelationFunction, ps) = Spectrum{typeof(c), typeof(ps)}(c, first(@variables ω_spectrum), ps)
+Spectrum(c::CorrelationFunction) = Spectrum(c, ())
+
+function (S::Spectrum)(ω_vals::AbstractVector, u_end, p0)
+    A, rhs_b, n = _spectrum_kernel(S, u_end, p0)
+    I_n = Matrix{ComplexF64}(I, n, n)
+    out = Vector{Float64}(undef, length(ω_vals))
+    @inbounds for (k, ω_val) in enumerate(ω_vals)
+        x = ((im * ω_val) .* I_n .- A) \ rhs_b
+        out[k] = 2 * real(x[1])
+    end
+    return out
+end
+(S::Spectrum)(ω_val::Real, u_end, p0) = first(S([ω_val], u_end, p0))
+
+# Jacobian by symbolic finite differences (the τ-system is linear, so exact).
+# Each RHS leaf is classified once via `literal_key`: linear (matches a state),
+# anti-linear (conjugate of a state), or ambient (a steady-state coefficient).
+# Probing the linear leaves of state j gives column j of A_lin; the anti-linear
+# leaves give A_alin; the 2n augmentation closes the conjugate response.
+function _spectrum_kernel(S::Spectrum, u_end, p0)
+    c = S.c
+    eqs = c.eqs
+    n = length(eqs.equations)
+    rhss_u = [SymbolicUtils.unwrap(eq.rhs) for eq in eqs.equations]
+    p_sub = _build_p_sub(S.ps, p0, c.τ, u_end, eqs)
+    u_end_dict = _as_avg_dict(c, u_end)
+
+    # Classify by conjugation orbit (`concrete_rep`), recording each state's side.
+    # A leaf on the SAME side as its matched state is linear (A_lin); the opposite
+    # side is anti-linear (A_alin, the conjugate response). Using the orbit rep
+    # (not `literal_key` + adjoint) makes the match robust for scaled orbit-rep
+    # states, where `literal_key` does not round-trip under adjoint.
+    state_by_rep = Dict{QAdd, Tuple{Int, Bool}}()
+    for (i, s) in enumerate(eqs.states)
+        op = undo_average(s)
+        if op isa QAdd
+            rep, side = concrete_rep(op)
+            get!(state_by_rep, rep, (i, side))
+        end
+    end
+    rhs_leaves = SymbolicUtils.BasicSymbolic[]
+    seen = Set{SymbolicUtils.BasicSymbolic}()
+    for rhs in rhss_u
+        _collect_leaf_averages!(rhs_leaves, seen, rhs)
+    end
+    lin_by_state = Dict{Int, Vector{SymbolicUtils.BasicSymbolic}}()
+    alin_by_state = Dict{Int, Vector{SymbolicUtils.BasicSymbolic}}()
+    classified = Set{SymbolicUtils.BasicSymbolic}()
+    for leaf in rhs_leaves
+        op = undo_average(leaf)
+        op isa QAdd || continue
+        rep, side = concrete_rep(op)
+        haskey(state_by_rep, rep) || continue
+        i, state_side = state_by_rep[rep]
+        bucket = side == state_side ? lin_by_state : alin_by_state
+        push!(get!(bucket, i, SymbolicUtils.BasicSymbolic[]), leaf)
+        push!(classified, leaf)
+    end
+    for avg in _ambient_avgs(c)
+        avg in classified && continue
+        aons = SQA.acts_on(avg)
+        lookup = (c.aon_anc in aons && length(aons) == 1) ? _undo_ancilla(c, avg) : avg
+        p_sub[avg] = ComplexF64(_lookup_avg(u_end_dict, lookup))
+    end
+
+    zero_sub = copy(p_sub)
+    for (_, leaves) in lin_by_state, l in leaves
+        zero_sub[l] = 0.0 + 0.0im
+    end
+    for (_, leaves) in alin_by_state, l in leaves
+        zero_sub[l] = 0.0 + 0.0im
+    end
+
+    b_const = ComplexF64[_scalarize(SymbolicUtils.substitute(rhs, zero_sub)) for rhs in rhss_u]
+
+    A_lin = zeros(ComplexF64, n, n)
+    for (j, leaves) in lin_by_state
+        sub_j = copy(zero_sub)
+        for l in leaves
+            sub_j[l] = 1.0 + 0.0im
+        end
+        for (i, rhs) in enumerate(rhss_u)
+            A_lin[i, j] = _scalarize(SymbolicUtils.substitute(rhs, sub_j)) - b_const[i]
+        end
+    end
+    u_τ = ComplexF64[
+        ComplexF64(_lookup_avg(u_end_dict, _undo_ancilla(c, SymbolicUtils.unwrap(s)))) for s in eqs.states
+    ]
+    if isempty(alin_by_state)
+        rhs_b = any(!iszero, b_const) ? u_τ .+ (A_lin \ b_const) : u_τ
+        return A_lin, rhs_b, n
+    end
+    A_alin = zeros(ComplexF64, n, n)
+    for (j, leaves) in alin_by_state
+        sub_j = copy(zero_sub)
+        for l in leaves
+            sub_j[l] = 1.0 + 0.0im
+        end
+        for (i, rhs) in enumerate(rhss_u)
+            A_alin[i, j] = _scalarize(SymbolicUtils.substitute(rhs, sub_j)) - b_const[i]
+        end
+    end
+    M = [A_lin A_alin; conj.(A_alin) conj.(A_lin)]
+    b_aug = vcat(b_const, conj.(b_const))
+    u_aug = vcat(u_τ, conj.(u_τ))
+    rhs_b = any(!iszero, b_aug) ? u_aug .+ (M \ b_aug) : u_aug
+    return M, rhs_b, 2n
+end
+
+function _build_p_sub(ps, p0, τ, u_end, eqs)
+    sub = Dict{Any, Any}()
+    if ps !== nothing && !isempty(ps)
+        for (p, v) in zip(ps, p0)
+            sub[SymbolicUtils.unwrap(p)] = ComplexF64(v)
+        end
+    end
+    if u_end isa AbstractDict
+        for (k, v) in u_end
+            ku = SymbolicUtils.unwrap(k)
+            sub[ku] = ComplexF64(v)
+            SQA.is_average(ku) && (sub[SymbolicUtils.unwrap(_avg_conj_of(ku))] = ComplexF64(conj(v)))
+        end
+    elseif u_end isa AbstractVector
+        for (avg, v) in zip(eqs.states, u_end)
+            sub[SymbolicUtils.unwrap(avg)] = ComplexF64(v)
+        end
+    end
+    sub[SymbolicUtils.unwrap(τ)] = 0.0
+    return sub
+end
+
+function _collect_leaf_averages!(out, seen, x)
+    x isa SymbolicUtils.BasicSymbolic || return
+    if SymbolicUtils.iscall(x) && SymbolicUtils.operation(x) === SQA.sym_average
+        (x in seen) && return
+        push!(seen, x)
+        push!(out, x)
+        return
+    end
+    SymbolicUtils.iscall(x) || return
+    for a in SymbolicUtils.arguments(x)
+        _collect_leaf_averages!(out, seen, a)
+    end
+    return
+end
