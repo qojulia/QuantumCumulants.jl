@@ -50,24 +50,24 @@ _make_var(name::Symbol, iv::Symbolics.Num) = first(@variables $name(iv))
 # System / initial_values / get_solution, so naming agrees across them.
 function _state_registry(eqs::AbstractMeanFieldEquations)
     ctx = build_ctx(eqs.operators, eqs.hamiltonian, eqs.jumps, eqs.jumps_dagger)
+    # The system's recorded per-subspace coordinate (spec "The single source of
+    # truth"): the resolver MUST key/match in this coordinate, not a hardcoded
+    # `concrete_rep`. An empty map (scalar systems) reads as all-Free.
+    coords = isempty(eqs.coords) ? all_free_coords(ctx) :
+        Dict{Int, Coordinate}(sp => Coordinate(c) for (sp, c) in eqs.coords)
     ops = QAdd[undo_average(s) isa QAdd ? undo_average(s) : undo_average(s) * 1 for s in eqs.states]
     vars = Symbolics.Num[_make_var(serialize(op), eqs.iv) for op in ops]
-    # Concrete-layer identity (spec 2026-06-04): ONE map keyed by the conjugation
-    # orbit rep, valued by `(state var, side-of-rep)`. A leaf on the SAME side as
-    # the stored rep resolves to the var; the opposite side to its conjugate. This
-    # replaces the old `by_lit` + adjoint-fallback ladder, which assumed
-    # `literal_key` round-trips under adjoint (false for scaled orbit-reps).
-    # `by_canon` is kept only for `get_solution` queries posed in a
-    # different-but-equivalent symbolic form; it is no longer load-bearing for
-    # conjugate recovery.
+    # ONE map keyed by the conjugation orbit rep in the system coordinate, valued
+    # by `(state var, side-of-rep)`. A leaf on the SAME side as the stored rep
+    # resolves to the var; the opposite side to its conjugate.
     by_rep = Dict{QAdd, Tuple{Symbolics.Num, Bool}}()
     by_canon = Dict{QAdd, Symbolics.Num}()
     for (op, v) in zip(ops, vars)
-        rep, side = concrete_rep(op)
+        rep, side = canonical_rep(op, ctx; coords)
         get!(by_rep, rep, (v, side))
         get!(by_canon, canon_key(op, ctx), v)
     end
-    return (; ctx, ops, vars, by_rep, by_canon)
+    return (; ctx, coords, ops, vars, by_rep, by_canon)
 end
 
 # Resolve a RHS leaf to a state variable (or its conjugate), else leave it (an
@@ -83,7 +83,7 @@ function _leaf_resolver(reg)
     return function (leaf)
         op = undo_average(leaf)
         op isa QAdd || return leaf
-        rep, side = concrete_rep(op)
+        rep, side = canonical_rep(op, reg.ctx; coords = reg.coords)
         haskey(reg.by_rep, rep) || return leaf
         var, rep_side = reg.by_rep[rep]
         return side == rep_side ? SymbolicUtils.unwrap(var) :
@@ -105,6 +105,15 @@ function _collect_params!(set, x, iv_uw)
     _is_avg_leaf(x) && return
     op = SymbolicUtils.operation(x)
     args = SymbolicUtils.arguments(x)
+    # Array-element access `δ[k]`: collect the array BASE symbol (symtype
+    # `Vector{Real}`/`Matrix{Real}`) as a parameter, so the array-typed coupling
+    # is bound (spec Task 7b; the scalar-only branch above skips it because its
+    # symtype is not <: Real). MTK scalarizes the array param at compile.
+    if op === getindex && !isempty(args) && args[1] isa SymbolicUtils.BasicSymbolic &&
+            SymbolicUtils.symtype(args[1]) <: AbstractArray
+        push!(set, args[1])
+        return
+    end
     (length(args) == 1 && args[1] === iv_uw && op isa SymbolicUtils.BasicSymbolic) && return
     for a in args
         _collect_params!(set, a, iv_uw)
@@ -310,7 +319,7 @@ function get_solution(sol, avg::SymbolicUtils.BasicSymbolic, eqs::AbstractMeanFi
     reg = _state_registry(eqs)
     op = undo_average(avg)
     if op isa QAdd
-        rep, side = concrete_rep(op)
+        rep, side = canonical_rep(op, reg.ctx; coords = reg.coords)
         if haskey(reg.by_rep, rep)
             var, rep_side = reg.by_rep[rep]
             return side == rep_side ? (τ -> _eval_at(sol, var, τ)) :

@@ -57,7 +57,7 @@ end
 
 function CorrelationFunction(
         op1::QField, op2::QField, eqs0::MeanFieldEquations;
-        steady_state::Bool = true, filter_func = nothing, max_iter::Int = 200,
+        steady_state::Bool = true, filter_func = nothing, max_iter::Int = 100_000,
     )
     τ = first(MTK.@independent_variables τ)
     aon_anc = _ancilla_aon(eqs0, op1, op2)
@@ -78,6 +78,13 @@ function CorrelationFunction(
     closure!(g; filter = closure_filter, get_adjoints = false, max_iter)
     if !steady_state
         closure!(g; filter = x -> !anc_filter(x), get_adjoints = false, max_iter)
+    end
+    # The correlation extends eqs0's system with an ancilla subspace; the original
+    # subspaces keep their coordinate (Free/Scaled/Concrete), so the resolver
+    # matches the correlation's leaves in the same coordinate as the parent.
+    if !isempty(eqs0.coords)
+        merged = merge(g.coords, Dict{Int, Coordinate}(sp => Coordinate(c) for (sp, c) in eqs0.coords))
+        g = MomentGraph(g.nodes, g.sys, g.ctx, merged)
     end
     eqs_c = lower_to_eqs(g)
     filter_func === nothing || _filter_anc_leaves!(eqs_c, anc_filter, filter_func)
@@ -252,14 +259,14 @@ function MTK.System(c::CorrelationFunction; name::Symbol)
     for avg in _ambient_avgs(c)
         op = undo_average(avg)
         if op isa QAdd
-            rep, side = concrete_rep(op)
+            rep, side = canonical_rep(op, reg.ctx; coords = reg.coords)
             get!(amb, rep, (_ambient_param(avg), side))
         end
     end
     resolve = function (leaf)
         op = undo_average(leaf)
         op isa QAdd || return leaf
-        rep, side = concrete_rep(op)
+        rep, side = canonical_rep(op, reg.ctx; coords = reg.coords)
         if haskey(reg.by_rep, rep)
             var, rep_side = reg.by_rep[rep]
             return side == rep_side ? SymbolicUtils.unwrap(var) :
@@ -342,11 +349,14 @@ function _spectrum_kernel(S::Spectrum, u_end, p0)
     # side is anti-linear (A_alin, the conjugate response). Using the orbit rep
     # (not `literal_key` + adjoint) makes the match robust for scaled orbit-rep
     # states, where `literal_key` does not round-trip under adjoint.
+    spec_ctx = build_ctx(eqs.operators, eqs.hamiltonian, eqs.jumps, eqs.jumps_dagger)
+    spec_coords = isempty(eqs.coords) ? all_free_coords(spec_ctx) :
+        Dict{Int, Coordinate}(sp => Coordinate(cc) for (sp, cc) in eqs.coords)
     state_by_rep = Dict{QAdd, Tuple{Int, Bool}}()
     for (i, s) in enumerate(eqs.states)
         op = undo_average(s)
         if op isa QAdd
-            rep, side = concrete_rep(op)
+            rep, side = canonical_rep(op, spec_ctx; coords = spec_coords)
             get!(state_by_rep, rep, (i, side))
         end
     end
@@ -361,7 +371,7 @@ function _spectrum_kernel(S::Spectrum, u_end, p0)
     for leaf in rhs_leaves
         op = undo_average(leaf)
         op isa QAdd || continue
-        rep, side = concrete_rep(op)
+        rep, side = canonical_rep(op, spec_ctx; coords = spec_coords)
         haskey(state_by_rep, rep) || continue
         i, state_side = state_by_rep[rep]
         bucket = side == state_side ? lin_by_state : alin_by_state

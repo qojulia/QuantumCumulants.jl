@@ -66,6 +66,29 @@ function _carry_ne(block::QAdd, ne)
     return SQA.QAdd(out, block.indices)
 end
 
+# Moment-level ground-projector reduction (spec Task 3). Replace each averaged
+# moment ⟨O⟩ whose operator product contains a ground-state projector σ^gg by
+# `average(expand_completeness(O))`, the EXACT completeness identity
+# `σ^gg = 1 − Σ_{k≠g} σ^kk` (e.g. ⟨σ^11⟩ → 1 − ⟨σ^22⟩, and the multilevel
+# analogue). Dynamics are unchanged; it only canonicalises the moment onto the
+# minimal N−1 population basis, so a ground-projector moment never becomes its
+# own state. Applied at the MOMENT (averaged) level so operator expressions keep
+# σ^gg atomic (the SQA keep-atomic invariant, CLAUDE.md). Applied UNCONDITIONALLY
+# (not gated on ctx.population): `expand_completeness` is identity on operators
+# with no ground projector, so this is a no-op on every other leaf. This catches
+# σ^gg terms surfaced by `average_and_truncate`'s diagonal split, which the
+# one-shot operator-level `expand_completeness` in `derive` runs too early to see.
+_reduce_ground_in_drift(x::Symbolics.Num) =
+    Symbolics.Num(_reduce_ground_in_drift(SymbolicUtils.unwrap(x)))
+function _reduce_ground_in_drift(x)
+    return mapleaves(x) do leaf
+        op = undo_average(leaf)
+        op isa QAdd || return leaf
+        expanded = SQA.expand_completeness(op)
+        isequal(expanded, op) ? leaf : SymbolicUtils.unwrap(average(expanded))
+    end
+end
+
 struct NodeData
     drift::Symbolics.Num                      # faithful averaged-and-truncated RHS
     op_drift::QAdd                            # operator RHS (latex / inspection / re-truncation)
@@ -98,6 +121,7 @@ function derive(op::QAdd, sys, ctx::CanonCtx)
     # `ctx.population`; the distinctness holds for every multi-atom moment.
     op_drift = _assume_distinct_atom_indices(op_drift, _distinct_atom_indices([op]))
     drift = Symbolics.Num(average_and_truncate(op_drift, sys.order, sys.mix_choice, ctx))
+    drift = _reduce_ground_in_drift(drift)
 
     if sys.efficiencies === nothing
         op_noise = nothing
@@ -118,6 +142,7 @@ function derive(op::QAdd, sys, ctx::CanonCtx)
             sys.order === nothing ? noise_rhs :
                 cumulant_expansion(noise_rhs, sys.order; mix_choice = sys.mix_choice),
         )
+        noise = _reduce_ground_in_drift(noise)
     end
 
     return NodeData(drift, op_drift, noise, op_noise, get_order(op), SQA.acts_on(op))

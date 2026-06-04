@@ -24,7 +24,11 @@ function quotient(g::MomentGraph; h::Vector{Int} = Int[])
         noise = nd.noise === nothing ? nothing : _scale_expr(nd.noise, ctx, selected, sym_to_space)
         nodes[ok] = NodeData(drift, nd.op_drift, noise, nd.op_noise, nd.order, nd.aon)
     end
-    return MomentGraph(nodes, g.sys, ctx, true)
+    coords = copy(g.coords)
+    for sp in selected
+        coords[sp] = Scaled
+    end
+    return MomentGraph(nodes, g.sys, ctx, coords)
 end
 
 # Symbol -> space_index map from the canonical vocabulary, so an
@@ -47,15 +51,56 @@ end
 # symtype (`Number`, not `Real`), which `wrap` would leave unwrapped and
 # `NodeData`'s field convert would reject.
 function _scale_expr(x, ctx, selected, sym_to_space)
-    reduced = mapleaves(l -> _scale_leaf(l, ctx, selected), SymbolicUtils.unwrap(x))
+    # `_graph_from_stored` lifted each leaf's `SumIndices` onto its enclosing `*`
+    # node (without removing it from the leaf), so the scope lives in BOTH places.
+    # `_scale_leaf` manages the scope on the leaf (collapsing selected-subspace
+    # sums to a prefactor, preserving non-selected sums), so strip the duplicate
+    # `*`-node scope first to avoid a doubled `Σ`.
+    stripped = _strip_mul_sum_scope(SymbolicUtils.unwrap(x))
+    reduced = mapleaves(l -> _scale_leaf(l, ctx, selected), stripped)
     return Symbolics.Num(_flatten_indexed_vars_in_tree(reduced, selected, sym_to_space))
+end
+
+# Remove `SumIndices`/`SumNonEqual` metadata from non-leaf `*`/`+` nodes (the
+# copy that `_lift_sum_scope` placed there), leaving each average leaf's own
+# scope intact. Identity comparison (metadata is invisible to `isequal`).
+function _strip_mul_sum_scope(x)
+    x isa SymbolicUtils.BasicSymbolic || return x
+    _is_avg_leaf(x) && return x
+    SymbolicUtils.iscall(x) || return x
+    op = SymbolicUtils.operation(x)
+    args = SymbolicUtils.arguments(x)
+    new_args = Any[_strip_mul_sum_scope(a) for a in args]
+    changed = any(((a, b),) -> a !== b, zip(args, new_args))
+    y = changed ? TermInterface.maketerm(typeof(x), op, new_args, TermInterface.metadata(x)) : x
+    if SymbolicUtils.hasmetadata(y, SQA.SumIndices)
+        y = SymbolicUtils.setmetadata(y, SQA.SumIndices, SQA.Index[])
+        SymbolicUtils.hasmetadata(y, SQA.SumNonEqual) &&
+            (y = SymbolicUtils.setmetadata(y, SQA.SumNonEqual, SQA.NonEqualPair[]))
+    end
+    return y
 end
 
 function _scale_leaf(avg, ctx, selected)
     op = undo_average(avg)
     op isa QAdd || return avg
     pref = _sum_scope_prefactor(op, selected)
-    reduced = average(orbit_key(op, ctx; selected))
+    # Coordinate isolation (spec Task 7a): fold ONLY the selected subspaces; every
+    # OTHER subspace is left verbatim, including its sum scope. Key with a
+    # coordinate where selected subspaces are Scaled (alpha-rename + symmetric_min
+    # fold) and all other symmetric subspaces are Concrete (keep names). `_coord_key`
+    # empties `.indices`, so re-attach the non-selected bound indices afterwards to
+    # preserve their `Σ` (e.g. the filter `Σ_i` in the `⟨a†a⟩` drift, which
+    # `orbit_key`/`canon_key` would otherwise strip).
+    keep_idx = SQA.Index[b for b in op.indices if !(b.space_index in selected)]
+    coords = Dict{Int, Coordinate}()
+    for sp in ctx.symmetric
+        coords[sp] = sp in selected ? Scaled : Concrete
+    end
+    folded = _coord_key(op, ctx, coords)
+    reduced_op = (folded isa QAdd && !isempty(keep_idx)) ?
+        SQA.QAdd(folded.arguments, keep_idx) : folded
+    reduced = average(reduced_op)
     pref === 1 && return reduced
     return SymbolicUtils.unwrap(pref) * reduced
 end

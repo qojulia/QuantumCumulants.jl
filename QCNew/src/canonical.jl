@@ -9,6 +9,25 @@ struct CanonCtx
     population::Bool                       # closure policy: dephasing/population system vs concrete-site
 end
 
+# Per-subspace coordinate state of a moment representation (spec "Coordinates").
+# Free: symbolic index, no permutation/concrete quotient. Scaled: permutation
+# (Sₙ) quotient. Concrete: instantiated to 1..M, per-site, no alpha-rename.
+@enum Coordinate Free Scaled Concrete
+
+# Default coordinate map: every symmetric subspace Free. The scalar systems (no
+# indexed subspace) get an empty map, which `canonical_rep` reads as all-Free.
+all_free_coords(ctx::CanonCtx) = Dict{Int, Coordinate}(sp => Free for sp in ctx.symmetric)
+
+# Functional update: set subspace `sp` to coordinate `c`.
+function with_coord(coords::Dict{Int, Coordinate}, sp::Int, c::Coordinate)
+    out = copy(coords)
+    out[sp] = c
+    return out
+end
+
+# Read a subspace's coordinate, defaulting to Free for subspaces not listed.
+coord_of(coords::Dict{Int, Coordinate}, sp::Int) = get(coords, sp, Free)
+
 # Single replacement for the scattered `_build_canonical_indices` calls. Derives
 # `vocab` from the user's declared indices on ops/H/J, filtered to exclude any
 # index bound by an H sum or carried by a jump (those names must stay free for
@@ -54,14 +73,65 @@ end
 # the SAME physical moment built in different operator orders map to one key; it
 # does NOT fold conjugate pairs (that is orbit_key's symmetric_min, which also
 # minimizes over slot relabelings). See spec Section 3.1.
-function canon_key(op::QAdd, ctx::CanonCtx)
-    base = SQA.QAdd(op.arguments, SQA.Index[])          # step 1: drop sum scope
-    base = _reorder_commuting(base)                      # step 1b: canonical commuting-op order
-    rename = _alpha_rename(base, ctx)                    # step 2: encounter-order vocab reps
-    renamed = isempty(rename) ? base : SQA.change_index(base, rename)
-    return _drop_all_ne(SQA.QAdd(renamed.arguments, SQA.Index[]))   # step 4: identity carries no NE
-end
+# canon_key = canonical_rep configured with every subspace Free.
+canon_key(op::QAdd, ctx::CanonCtx) = _coord_key(op, ctx, all_free_coords(ctx))
 canon_key(op, ::CanonCtx) = op   # non-QAdd (constant) passthrough
+
+# The single source of truth (spec "The single source of truth"). Returns
+# `(representative_key, is_conjugate)`. Per subspace:
+#   Free     -> alpha-rename to vocab reps (as canon_key does)
+#   Scaled   -> alpha-rename then permutation-fold via symmetric_min
+#   Concrete -> keep concrete names (as literal_key does), no alpha-rename
+# Conjugation is ALWAYS part of identity: fold {O, O†} to the min over the total
+# `_serialize` order, returning the sign bit. The four legacy keys are
+# configurations of this one function (see the wrappers below).
+function canonical_rep(op::QAdd, ctx::CanonCtx; coords::Dict{Int, Coordinate} = all_free_coords(ctx))
+    k = _coord_key(op, ctx, coords)
+    kc = _coord_key(adjoint(op), ctx, coords)
+    return _serialize(kc) < _serialize(k) ? (kc, true) : (k, false)
+end
+canonical_rep(op, ::CanonCtx; kw...) = (op, false)
+
+# The non-conjugate-folded key for a coordinate map: normal-form, then per
+# subspace apply the coordinate's quotient. Built from the existing pieces so
+# the behavior matches the legacy keys where coordinates coincide.
+function _coord_key(op::QAdd, ctx::CanonCtx, coords::Dict{Int, Coordinate})
+    scaled = Set{Int}(sp for sp in keys(coords) if coords[sp] == Scaled)
+    concrete = Set{Int}(sp for sp in keys(coords) if coords[sp] == Concrete)
+    # Subspaces absent from `coords` default to Free. The set of subspaces to
+    # alpha-rename is everything NOT Concrete (Free and Scaled both relabel to
+    # vocab reps; Scaled then folds via symmetric_min, which re-mints slots).
+    rename_spaces = Set{Int}()
+    for sp in ctx.symmetric
+        sp in concrete || push!(rename_spaces, sp)
+    end
+
+    base = _reorder_commuting(SQA.QAdd(op.arguments, SQA.Index[]))   # totality on all subspaces
+    base = _alpha_rename_spaces(base, ctx, rename_spaces)
+    key = _drop_all_ne(SQA.QAdd(base.arguments, SQA.Index[]))
+    isempty(scaled) && return key
+    return symmetric_min(key, ctx, scaled)
+end
+_coord_key(op, ::CanonCtx, ::Dict{Int, Coordinate}) = op
+
+# Like `_alpha_rename`, but only renames indices whose subspace is in `spaces`.
+# Concrete subspaces are skipped so their per-site names survive (literal_key).
+function _alpha_rename_spaces(op::QAdd, ctx::CanonCtx, spaces::Set{Int})
+    encountered = _free_op_indices(op)
+    rename = Dict{SQA.Index, SQA.Index}()
+    pos_by_space = Dict{Int, Int}()
+    for idx in encountered
+        idx.space_index in spaces || continue
+        pos = get(pos_by_space, idx.space_index, 0) + 1
+        pos_by_space[idx.space_index] = pos
+        reps = get(ctx.vocab, idx.space_index, SQA.Index[])
+        isempty(reps) && continue
+        target = pos <= length(reps) ? reps[pos] : reps[1](pos)
+        target == idx && continue
+        rename[idx] = target
+    end
+    return isempty(rename) ? op : SQA.change_index(op, rename)
+end
 
 # literal_key = canon_key WITHOUT the alpha-rename. Drops sum scope, fixes
 # commuting-op order, drops NE, but KEEPS concrete index names. This is the
@@ -129,9 +199,13 @@ end
 # orbit_key = canon_key then the permutation-symmetry quotient. The ONLY pass
 # that reorders commuting cross-atom ops, so it deliberately folds conjugate
 # pairs (spec Section 3.1, Correction 2).
+# orbit_key = canonical_rep with the `selected` subspaces Scaled, rest Free.
 function orbit_key(op::QAdd, ctx::CanonCtx; selected = ctx.symmetric)
-    k = canon_key(op, ctx)
-    return symmetric_min(k, ctx, selected)
+    coords = all_free_coords(ctx)
+    for sp in selected
+        coords[sp] = Scaled
+    end
+    return _coord_key(op, ctx, coords)
 end
 orbit_key(op, ::CanonCtx; kw...) = op
 
@@ -206,15 +280,6 @@ function _serialize(op::QAdd)
     end
     sort!(terms)
     return terms
-end
-
-# Resolution helper (NOT the node key): the smaller of key(op)/key(op'), plus
-# whether `op` was the conjugate. Used by find_missing dedup and the
-# get_adjoints=false leaf fold (spec Section 3.1).
-function canonical_rep(op::QAdd, ctx::CanonCtx; key = canon_key)
-    k = key(op, ctx)
-    kc = key(adjoint(op), ctx)
-    return _serialize(kc) < _serialize(k) ? (kc, true) : (k, false)
 end
 
 # Concrete-layer conjugation orbit representative: the `literal_key` analogue of

@@ -4,7 +4,7 @@
 # container. All identity/dedup/conjugate logic lives in the kernel.
 
 """
-    complete!(eqs::AbstractMeanFieldEquations; max_iter=200, filter_func=nothing,
+    complete!(eqs::AbstractMeanFieldEquations; max_iter=100_000, filter_func=nothing,
               mix_choice=maximum, get_adjoints=true)
 
 Close the system in place by deriving equations for every average reachable on a
@@ -13,7 +13,7 @@ ones). `get_adjoints=false` tracks one representative per conjugate pair (the
 partner resolved by `conj` at codegen). RHS expressions are left unsimplified.
 """
 function complete!(
-        eqs::MeanFieldEquations; max_iter::Int = 200,
+        eqs::MeanFieldEquations; max_iter::Int = 100_000,
         filter_func = nothing, mix_choice = maximum, get_adjoints::Bool = true,
     )
     g = _graph_from_eqs(eqs; mix_choice)
@@ -26,7 +26,7 @@ function complete!(
 end
 
 function complete!(
-        eqs::NoiseMeanFieldEquations; max_iter::Int = 200,
+        eqs::NoiseMeanFieldEquations; max_iter::Int = 100_000,
         filter_func = nothing, mix_choice = maximum, get_adjoints::Bool = true,
     )
     g = _graph_from_eqs(eqs; mix_choice)
@@ -75,8 +75,42 @@ function find_missing(
         eqs::AbstractMeanFieldEquations; filter_func = nothing,
         get_adjoints::Bool = true, mix_choice = maximum,
     )
-    g = _graph_from_eqs(eqs; mix_choice)
-    missing_states = SymbolicUtils.BasicSymbolic[average(k) for k in frontier(g; get_adjoints)]
+    # Coordinate-consistent matching (spec Task 2): fold every tracked state AND
+    # every RHS leaf through the SAME `canonical_rep(·; coords)` the codegen
+    # resolver uses, in the system's recorded coordinate. The seen-set is built
+    # from the FAITHFUL state operators (not a canon_key-collapsed graph), so
+    # concrete per-site atoms stay distinct under the Concrete coordinate. A leaf
+    # is missing only if neither it nor its conjugate folds to a tracked state.
+    ctx = build_ctx(eqs.operators, eqs.hamiltonian, eqs.jumps, eqs.jumps_dagger)
+    coords = isempty(eqs.coords) ? all_free_coords(ctx) :
+        Dict{Int, Coordinate}(sp => Coordinate(c) for (sp, c) in eqs.coords)
+    seen = Set{QAdd}()
+    for s in eqs.states
+        op = undo_average(s)
+        op isa QAdd && push!(seen, canonical_rep(op, ctx; coords)[1])
+    end
+    eqs_list = eqs.equations
+    if eqs isa NoiseMeanFieldEquations
+        eqs_list = vcat(eqs.equations, eqs.noise_equations)
+    end
+    missing_states = SymbolicUtils.BasicSymbolic[]
+    seen_missing = Set{QAdd}()
+    for eq in eqs_list
+        for leaf in eachleaf(eq.rhs)
+            op = undo_average(leaf)
+            op isa QAdd || continue
+            rep, _ = canonical_rep(op, ctx; coords)
+            (rep in seen || rep in seen_missing) && continue
+            repc, _ = canonical_rep(adjoint(op), ctx; coords)
+            (repc in seen || repc in seen_missing) && continue
+            push!(seen_missing, rep)
+            push!(missing_states, average(rep))
+            if get_adjoints && !isequal(repc, rep)
+                push!(seen_missing, repc)
+                push!(missing_states, average(repc))
+            end
+        end
+    end
     filter_func !== nothing && filter!(filter_func, missing_states)
     return missing_states
 end
@@ -154,6 +188,7 @@ function _copy(eqs::MeanFieldEquations)
         eqs.hamiltonian, copy(eqs.jumps), copy(eqs.jumps_dagger),
         copy(eqs.rates), eqs.iv, eqs.order, eqs.direction;
         initial_operators = copy(eqs.initial_operators),
+        coords = copy(eqs.coords),
     )
 end
 
@@ -166,5 +201,6 @@ function _copy(eqs::NoiseMeanFieldEquations)
         copy(eqs.rates), copy(eqs.efficiencies),
         eqs.iv, eqs.order, eqs.direction;
         initial_operators = copy(eqs.initial_operators),
+        coords = copy(eqs.coords),
     )
 end

@@ -21,13 +21,17 @@ struct MomentGraph{S <: SystemSpec}
     nodes::OrderedCollections.OrderedDict{NodeKey, NodeData}
     sys::S
     ctx::CanonCtx
-    quotiented::Bool                  # false after seed/closure! (canon_key); true after quotient! (orbit_key)
+    coords::Dict{Int, Coordinate}     # per-subspace coordinate; all-Free after seed/closure!
 end
 
+# Backward-compatible helper: a graph is "quotiented" once any subspace is Scaled.
+quotiented(g::MomentGraph) = any(==(Scaled), values(g.coords))
+
 # The key function matching the graph's current level. Every leaf-to-node
-# resolution (closure!, lower, jacobian, specialize) goes through this so levels
-# never mix.
-nodekey(g::MomentGraph) = g.quotiented ? orbit_key : canon_key
+# resolution that needs a single key function reads the coordinate: Scaled
+# present means orbit_key, otherwise canon_key. (closure! keys with canon_key
+# directly; this is kept for callers that want the coordinate-matched key.)
+nodekey(g::MomentGraph) = quotiented(g) ? orbit_key : canon_key
 
 # Derive each seed op into a node, keyed by canon_key (the graph starts
 # un-quotiented). Promote each op to a QAdd first, exactly as meanfield does.
@@ -39,7 +43,7 @@ function seed(ops::AbstractVector, sys::SystemSpec, ctx::CanonCtx)
         haskey(nodes, k) && continue
         nodes[k] = derive(k, sys, ctx)
     end
-    return MomentGraph(nodes, sys, ctx, false)
+    return MomentGraph(nodes, sys, ctx, all_free_coords(ctx))
 end
 
 # Leaves of a node's drift (and noise drift, when present) to scan for edges.
@@ -51,22 +55,30 @@ _drift_leaves(nd::NodeData) = nd.noise === nothing ? eachleaf(nd.drift) :
 # conjugate partner when get_adjoints=false.
 function frontier(g::MomentGraph; get_adjoints::Bool = true)
     ctx = g.ctx
-    seen = Set(keys(g.nodes))
+    coords = g.coords
+    # Match in the system's coordinate (spec "Closure and the system coordinate"):
+    # fold every node key AND every leaf through the SAME `canonical_rep(·; coords)`,
+    # so a permutation-image / conjugate leaf folds to the rep its stored node was
+    # keyed to. This is the SAME code path the codegen resolver uses, so
+    # `find_missing == 0` means exactly "every leaf resolves at codegen".
+    seen = Set{NodeKey}(canonical_rep(k, ctx; coords)[1] for k in keys(g.nodes))
     missing = NodeKey[]
+    seen_missing = Set{NodeKey}()
     for nd in values(g.nodes)
         for leaf in _drift_leaves(nd)
             op = undo_average(leaf)
-            k = canon_key(op, ctx)
-            (k in seen || k in missing) && continue
-            kc = canon_key(adjoint(op), ctx)
-            # A state and its conjugate are ONE physical unknown: if the
-            # conjugate partner is already present (node or pending), this
-            # leaf is covered. Unconditional in get_adjoints (master's
-            # find_missing pre-marks every state's conjugate as seen).
-            (kc in seen || kc in missing) && continue
-            push!(missing, k)
-            # get_adjoints=true tracks both reps of a genuinely-new pair.
-            get_adjoints && kc != k && push!(missing, kc)
+            op isa QAdd || continue
+            rep, _ = canonical_rep(op, ctx; coords)
+            (rep in seen || rep in seen_missing) && continue
+            push!(missing, rep)
+            push!(seen_missing, rep)
+            if get_adjoints
+                repc, _ = canonical_rep(adjoint(op), ctx; coords)
+                if !isequal(repc, rep) && !(repc in seen) && !(repc in seen_missing)
+                    push!(missing, repc)
+                    push!(seen_missing, repc)
+                end
+            end
         end
     end
     return missing
@@ -79,13 +91,21 @@ end
 # conjugate pair (the partner resolved via conj at codegen). Spec section 3.4.
 function closure!(
         g::MomentGraph; filter = _alltrue, get_adjoints::Bool = true,
-        max_iter::Int = 1000,
+        max_iter::Int = 100_000,
     )
     ctx = g.ctx
     seen = Set(keys(g.nodes))
     worklist = collect(keys(g.nodes))
     iters = 0
-    while !isempty(worklist) && iters < max_iter
+    while !isempty(worklist)
+        # `max_iter` is a runaway backstop, NOT a closure limiter. Hitting it
+        # means the BFS did not reach the fixpoint; ERROR rather than silently
+        # return a truncated (non-closed) system, which downstream codegen would
+        # mask (the system would look closed but leak/drop leaves).
+        iters >= max_iter && error(
+            "closure! did not reach the fixpoint within $max_iter iterations " *
+            "($(length(worklist)) nodes still pending); the system may not close.",
+        )
         iters += 1
         nd = g.nodes[popfirst!(worklist)]
         for leaf in _drift_leaves(nd)
@@ -136,7 +156,7 @@ function _graph_from_eqs(eqs::AbstractMeanFieldEquations; mix_choice = maximum)
         haskey(nodes, k) && continue
         nodes[k] = derive(k, sys, ctx)
     end
-    return MomentGraph(nodes, sys, ctx, false)
+    return MomentGraph(nodes, sys, ctx, all_free_coords(ctx))
 end
 
 # Lower a graph's nodes back into the array-backed MeanFieldEquations /
@@ -149,11 +169,13 @@ function lower_to_eqs(g::MomentGraph)
     operators = QAdd[k for k in ks]
     operator_eqs = Symbolics.Equation[k ~ g.nodes[k].op_drift for k in ks]
     avg_eqs = Symbolics.Equation[average(k) ~ g.nodes[k].drift for k in ks]
+    coords_int = Dict{Int, Int}(sp => Int(c) for (sp, c) in g.coords)
     if sys.efficiencies === nothing
         return MeanFieldEquations(
             avg_eqs, operator_eqs, states, operators,
             sys.hamiltonian, collect(sys.jumps), collect(sys.jumps_dagger),
-            collect(sys.rates), sys.iv, sys.order, sys.direction,
+            collect(sys.rates), sys.iv, sys.order, sys.direction;
+            coords = coords_int,
         )
     else
         noise_eqs = Symbolics.Equation[average(k) ~ g.nodes[k].noise for k in ks]
@@ -172,7 +194,8 @@ function lower_to_eqs(g::MomentGraph)
             states, operators, sys.hamiltonian,
             collect(sys.jumps), collect(sys.jumps_dagger),
             collect(sys.rates), collect(sys.efficiencies),
-            sys.iv, sys.order, sys.direction,
+            sys.iv, sys.order, sys.direction;
+            coords = coords_int,
         )
     end
 end

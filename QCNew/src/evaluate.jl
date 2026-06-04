@@ -270,6 +270,8 @@ function _graph_from_stored(eqs::AbstractMeanFieldEquations)
         eqs.hamiltonian, collect(eqs.jumps), collect(eqs.jumps_dagger),
         collect(eqs.rates), eff, eqs.iv, eqs.order, maximum, eqs.direction,
     )
+    coords = isempty(eqs.coords) ? all_free_coords(ctx) :
+        Dict{Int, Coordinate}(sp => Coordinate(c) for (sp, c) in eqs.coords)
     nodes = OrderedCollections.OrderedDict{NodeKey, NodeData}()
     for i in eachindex(eqs.operators)
         op = eqs.operators[i]
@@ -282,7 +284,7 @@ function _graph_from_stored(eqs::AbstractMeanFieldEquations)
             Symbolics.Num(_lift_sum_scope(SymbolicUtils.unwrap(eqs.noise_equations[i].rhs)))
         nodes[k] = NodeData(drift, op_drift, noise, nothing, get_order(opqa), SQA.acts_on(opqa))
     end
-    return MomentGraph(nodes, sys, ctx, false)
+    return MomentGraph(nodes, sys, ctx, coords)
 end
 
 function specialize(g::MomentGraph, limits; h::Vector{Int} = Int[])
@@ -302,14 +304,12 @@ function specialize(g::MomentGraph, limits; h::Vector{Int} = Int[])
             )
             new_k = _apply_free(k, idx_sub)
             _is_zero_qadd(new_k) && continue
-            # Dedup by the conjugation orbit (`concrete_rep`), not `literal_key`
-            # alone: unrolling a symmetric symbolic state surfaces concrete
-            # conjugate pairs (e.g. ⟨σ_1^ge σ_2^eg⟩ and ⟨σ_1^eg σ_2^ge⟩), and
-            # filter-mode conjugates that `scale` left unfolded. `⟨X†⟩ = conj⟨X⟩`
-            # is redundant; keep one per orbit (the codegen resolver recovers the
-            # partner via the side bit). Node stays keyed by the KEPT operator's
-            # `literal_key` so `lower_to_eqs`' `average(k) ~ drift(k)` LHS matches
-            # the drift we computed for `new_k`.
+            # Dedup by the conjugation orbit (`concrete_rep`): `⟨X†⟩ = conj⟨X⟩` is
+            # an exact redundancy, so keep one representative per orbit (the codegen
+            # resolver recovers the partner via the side bit). Folding is exact, so
+            # the solved dynamics is identical whether folded or not; the closed-set
+            # size is the conjugation-folded distinct-site count. Node keyed by the
+            # KEPT operator's `literal_key`.
             rep, _ = concrete_rep(new_k)
             rep in seen && continue
             push!(seen, rep)
@@ -326,7 +326,14 @@ function specialize(g::MomentGraph, limits; h::Vector{Int} = Int[])
             nodes[lk] = NodeData(drift, _apply_free(nd.op_drift, idx_sub), noise, nd.op_noise, nd.order, nd.aon)
         end
     end
-    return MomentGraph(nodes, g.sys, ctx, g.quotiented)
+    # A subspace is now Concrete if any of its vocabulary indices' ranges were
+    # targeted by `limits` and the subspace is selected by `h`.
+    coords = copy(g.coords)
+    for (sp, idxs) in ctx.vocab
+        _in_h(hset, sp) || continue
+        any(idx -> SymbolicUtils.unwrap(idx.range) in keys(sub), idxs) && (coords[sp] = Concrete)
+    end
+    return MomentGraph(nodes, g.sys, ctx, coords)
 end
 
 # ---- indexed-variable -> Symbolics-array materialisation ---------------------
@@ -384,10 +391,21 @@ function _build_callable_to_array_sub(eqs::Vector{Symbolics.Equation}, states)
     for (name, slot_map) in uses
         n_args = length(first(keys(slot_map)))
         max_per_dim = [maximum(k[d] for k in keys(slot_map)) for d in 1:n_args]
-        arr = SymbolicUtils.Sym{SymbolicUtils.SymReal}(
-            name; type = Real,
-            shape = SymbolicUtils.SmallVec{UnitRange{Int}}([1:m for m in max_per_dim]),
-        )
+        # Mint a PROPER Symbolics array variable (symtype `Vector{Real}` /
+        # `Matrix{Real}`, with `SmallVec{UnitRange}` shape) so MTK scalarizes
+        # `δ[k]` and binds it (spec Task 7b). A scalar-symtyped `Sym` with a
+        # `getindex` applied has symtype `Real`, which MTK cannot scalarize, so
+        # the bare base symbol leaks into the generated ODE (the
+        # `getindex(::typeof(δ), k)` / `UndefVarError` failure).
+        m1 = max_per_dim[1]
+        arr = if n_args == 1
+            SymbolicUtils.unwrap(first(@variables $(name)[1:m1]))
+        elseif n_args == 2
+            m2 = max_per_dim[2]
+            SymbolicUtils.unwrap(first(@variables $(name)[1:m1, 1:m2]))
+        else
+            throw(ArgumentError("indexed coefficient with $n_args indices is not supported"))
+        end
         for (slots, terms) in slot_map
             # `type = Real` so the element stays Number-symtyped; a bare
             # `maketerm` getindex infers `Any`, which would break the `Num` wrap
