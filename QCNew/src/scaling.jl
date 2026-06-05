@@ -16,17 +16,23 @@ function quotient(g::MomentGraph; h::Vector{Int} = Int[])
     ctx = g.ctx
     selected = _scale_selected(ctx, h)
     sym_to_space = _build_sym_to_space(ctx)
+    # Result coordinate: the graph's coordinate with the selected subspaces now
+    # Scaled. Key nodes in THIS coordinate (not bare `orbit_key`, which forces
+    # every non-selected subspace Free and would alpha-rename an already-Concrete
+    # subspace, collapsing e.g. filter modes unrolled by a prior `evaluate`). For an
+    # all-Free input graph `_coord_key(·, merged)` equals `orbit_key(·; selected)`,
+    # so the common scale-first path is unchanged.
+    coords = copy(g.coords)
+    for sp in selected
+        coords[sp] = Scaled
+    end
     nodes = OrderedCollections.OrderedDict{NodeKey, NodeData}()
     for (k, nd) in g.nodes
-        ok = orbit_key(k, ctx; selected)
+        ok = _materialised_key(k, ctx, coords)
         haskey(nodes, ok) && continue   # symmetric image / folded conjugate already kept
         drift = _scale_expr(nd.drift, ctx, selected, sym_to_space)
         noise = nd.noise === nothing ? nothing : _scale_expr(nd.noise, ctx, selected, sym_to_space)
         nodes[ok] = NodeData(drift, nd.op_drift, noise, nd.op_noise, nd.order, nd.aon)
-    end
-    coords = copy(g.coords)
-    for sp in selected
-        coords[sp] = Scaled
     end
     return MomentGraph(nodes, g.sys, ctx, coords)
 end
@@ -98,11 +104,44 @@ function _scale_leaf(avg, ctx, selected)
         coords[sp] = sp in selected ? Scaled : Concrete
     end
     folded = _coord_key(op, ctx, coords)
-    reduced_op = (folded isa QAdd && !isempty(keep_idx)) ?
-        SQA.QAdd(folded.arguments, keep_idx) : folded
+    # `_coord_key` runs `_drop_all_ne`, correct for the SELECTED (scaled) subspace
+    # (its NE is part of the orbit identity) but WRONG for a non-selected one: an
+    # off-diagonal sum like the filter's `Σ_{i≠i_2} ⟨b_i b_i_2†⟩` carries a physical
+    # `i≠i_2` constraint that, if dropped, lets the diagonal `i=i_2` leak in on
+    # `evaluate` (the spurious `b_i_2 b_i_2† = 1 + b_i_2† b_i_2` terms, a wrong
+    # filter population). Non-selected subspaces are Concrete here, so `_coord_key`
+    # keeps their index names and the original NE pairs still reference valid
+    # indices: re-attach the pairs that involve any non-selected index.
+    if folded isa QAdd && !isempty(keep_idx)
+        kept_ne = SQA.NonEqualPair[]
+        for (term, _) in op.arguments, p in term.ne
+            (p[1].space_index in selected && p[2].space_index in selected) && continue
+            p in kept_ne || push!(kept_ne, p)
+        end
+        reduced_op = isempty(kept_ne) ? SQA.QAdd(folded.arguments, keep_idx) :
+            _reattach_ne(folded, kept_ne, keep_idx)
+    else
+        reduced_op = folded
+    end
     reduced = average(reduced_op)
     pref === 1 && return reduced
     return SymbolicUtils.unwrap(pref) * reduced
+end
+
+# Re-attach NE pairs to a folded single-leaf QAdd, restricting each pair to the
+# terms whose ops actually carry both of its indices, and set the kept bound
+# indices as the new sum scope.
+function _reattach_ne(folded::QAdd, kept_ne, keep_idx)
+    out = SQA.QTermDict()
+    for (term, c) in folded.arguments
+        present = Set{SQA.Index}()
+        for o in term.ops
+            SQA.has_index(o.index) && push!(present, o.index)
+        end
+        ne = SQA.NonEqualPair[p for p in kept_ne if p[1] in present && p[2] in present]
+        out[SQA.QTerm(copy(term.ops), vcat(term.ne, ne))] = c
+    end
+    return SQA.QAdd(out, keep_idx)
 end
 
 # Sum-scope prefactor: for each bound index `b` in `op.indices` that actually

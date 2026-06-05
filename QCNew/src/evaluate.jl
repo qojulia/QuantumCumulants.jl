@@ -276,7 +276,16 @@ function _graph_from_stored(eqs::AbstractMeanFieldEquations)
     for i in eachindex(eqs.operators)
         op = eqs.operators[i]
         opqa = op isa QAdd ? op : op * 1
-        k = canon_key(opqa, ctx)
+        # Key in the STORED coordinate, not bare `canon_key` (all-Free). If a prior
+        # `evaluate` already made a subspace Concrete (e.g. the filter unrolled to
+        # `b_1,b_2,b_3` before a later `scale`), `canon_key` would alpha-rename those
+        # concrete modes to ONE vocab rep and collapse them, undercounting the system
+        # (the evaluate-then-scale vs scale-then-evaluate commute failure). For an
+        # all-Free system `_coord_key` reduces to `canon_key`, so this is a no-op on
+        # the common path. Once a subspace is Concrete (materialised by a prior
+        # `evaluate`) the key conjugate-folds, matching `specialize`/the resolver so
+        # evaluate-then-scale closes to the same set as scale-then-evaluate.
+        k = _materialised_key(opqa, ctx, coords)
         haskey(nodes, k) && continue
         drift = Symbolics.Num(_lift_sum_scope(SymbolicUtils.unwrap(eqs.equations[i].rhs)))
         op_drift = opqa

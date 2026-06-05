@@ -156,8 +156,9 @@ end
 end
 
 @testset "cumulant_expansion preserves sum scope on Wick terms" begin
-    # Known bug: `cumulant_expansion(average(Σ_i …), 2)` drops Σ_i on some
-    # factorised Wick terms. Flip @test_broken -> @test once fixed.
+    # `cumulant_expansion(average(Σ_i …), 2)` keeps Σ_i on every factorised Wick
+    # term that references i, rebuilt through the canonical `average(SQA.Σ(...))`
+    # form so the factored sum is isequal to the natural one.
     @variables N
     hc = FockSpace(:cavity); ha = NLevelSpace(:atom, 2); h = hc ⊗ ha
     a = Destroy(h, :a, 1)
@@ -174,5 +175,5 @@ end
         average(a') * average(Σ(a * σ(1, 2, i), i)) +
         -2 * average(a) * average(a') * average(Σ(σ(1, 2, i), i))
 
-    @test_broken _iz(got - want)
+    @test _iz(got - want)
 end

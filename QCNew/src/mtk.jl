@@ -253,19 +253,27 @@ function parameter_map(eqs::AbstractMeanFieldEquations, pairs)
         _collect_named_params!(arr_by_name, scalar_by_name, SymbolicUtils.unwrap(eq.lhs))
     end
     pmap = Dict{Any, Any}()
+    # Per-slot accumulator: separate keys `δ(i_2_1)=>v1, δ(i_2_2)=>v2, …` each
+    # carry a CONCRETE index (parseable slot), so they fill distinct slots of the
+    # `δ` array. Without this each scalar `v` was broadcast over the whole array
+    # via `fill`, so only the LAST assignment survived (every mode got the same
+    # detuning). Bucket them by array name and assemble the array once at the end.
+    slot_acc = Dict{Symbol, Dict{Vector{Int}, Any}}()
     for (k, v) in pairs
-        name = _param_name(SymbolicUtils.unwrap(k))
+        ku = SymbolicUtils.unwrap(k)
+        name = _param_name(ku)
         if name !== nothing && haskey(arr_by_name, name)
             arr = arr_by_name[name]
-            shp = SymbolicUtils.shape(arr)
-            n = (shp isa SymbolicUtils.SmallVec{UnitRange{Int}} && !isempty(shp)) ?
-                length(shp[1]) : nothing
+            slots = _param_slots(ku)
             if v isa AbstractArray
                 pmap[arr] = v
-            elseif n !== nothing
-                pmap[arr] = fill(v, n)
+            elseif slots !== nothing
+                get!(slot_acc, name, Dict{Vector{Int}, Any}())[slots] = v
             else
-                pmap[arr] = v
+                shp = SymbolicUtils.shape(arr)
+                n = (shp isa SymbolicUtils.SmallVec{UnitRange{Int}} && !isempty(shp)) ?
+                    length(shp[1]) : nothing
+                pmap[arr] = n === nothing ? v : fill(v, n)
             end
         elseif name !== nothing && haskey(scalar_by_name, name)
             pmap[scalar_by_name[name]] = v
@@ -273,7 +281,45 @@ function parameter_map(eqs::AbstractMeanFieldEquations, pairs)
             pmap[k] = v
         end
     end
+    for (name, slots_to_v) in slot_acc
+        pmap[arr_by_name[name]] = _build_slot_array(arr_by_name[name], slots_to_v)
+    end
     return pmap
+end
+
+# Concrete-index slots of an indexed-variable key, e.g. `δ(i_2_1)` -> `[1]`,
+# `Γ(i_2_1, i_2_2)` -> `[1, 2]`. Returns `nothing` when any argument is not a
+# concrete `name_…_<int>` index (a bare symbolic index `δ(i)` has no slot, so it
+# broadcasts instead of targeting a single position).
+function _param_slots(x::SymbolicUtils.BasicSymbolic)
+    SymbolicUtils.iscall(x) || return nothing
+    slots = Int[]
+    for a in SymbolicUtils.arguments(x)
+        (a isa SymbolicUtils.BasicSymbolic && !SymbolicUtils.iscall(a)) || return nothing
+        s = _parse_slot(Base.nameof(a))
+        s === nothing && return nothing
+        push!(slots, s)
+    end
+    return isempty(slots) ? nothing : slots
+end
+_param_slots(_) = nothing
+
+# Assemble a concrete array parameter from per-slot scalar assignments. Sizes from
+# the synthesised array's declared shape when available, else from the maximum slot
+# per dimension. Unassigned slots stay zero (the caller is expected to specify
+# every active site, as the evaluate-time array shape implies).
+function _build_slot_array(arr, slots_to_v::Dict{Vector{Int}, Any})
+    ndim = length(first(keys(slots_to_v)))
+    shp = SymbolicUtils.shape(arr)
+    dims = (shp isa SymbolicUtils.SmallVec{UnitRange{Int}} && length(shp) == ndim) ?
+        Tuple(length(r) for r in shp) :
+        Tuple(maximum(s[d] for s in keys(slots_to_v)) for d in 1:ndim)
+    V = promote_type((typeof(v) for v in values(slots_to_v))...)
+    out = zeros(V, dims...)
+    for (slots, v) in slots_to_v
+        out[slots...] = v
+    end
+    return out
 end
 
 # User-visible name of a parameter expression: bare Sym `:κ` -> :κ; callable-Sym

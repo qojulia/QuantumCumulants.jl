@@ -147,11 +147,17 @@ function _assume_distinct_atom_indices(q::SQA.QAdd, distinct::Vector{SQA.Index})
 end
 _assume_distinct_atom_indices(q, _distinct, _concretes = nothing) = q
 
-# Free LHS indices on `new_ops` living on an N-level (atom) subspace, deduped, but
-# only when a subspace carries 2+ such indices (the configuration that benefits
-# from same-site collapse). Restricted to Transition-carrying indices: Fock-space
-# (filter/mode) indices refer to physically distinct sites by construction and
-# must not be folded.
+# Free LHS indices on `new_ops` that share a Hilbert subspace, deduped, but only
+# when a subspace carries 2+ such indices. A multi-index moment ⟨X_i X_j⟩ is by
+# construction a distinct-slot cumulant (i≠j); its diagonal (i=j) is a separate,
+# lower node. Asserting the distinctness here lets SQA's diagonal split collapse
+# the dissipator's same-index contribution (the `k=i,j` terms of `Σ_k D[c_k]`)
+# instead of leaking spurious higher-order cumulants. This applies to BOTH atom
+# (Transition) AND Fock (Destroy/Create filter/mode) subspaces: without it a
+# cross-mode moment like ⟨b_i b_j⟩ grows a bogus nonlinear `κf` dissipator
+# instead of the exact `-κf⟨b_i b_j⟩`. Distinctness assertion is independent of
+# the scaling permutation fold (which lives in scaling.jl and never folds Fock
+# modes); it only fixes operator order and feeds the diagonal split.
 function _distinct_atom_indices(new_ops)
     by_space = Dict{Int, Vector{SQA.Index}}()
     for op in new_ops
@@ -172,7 +178,6 @@ end
 
 _collect_atom_space_indices_by_space!(_, ::Any) = nothing
 function _collect_atom_space_indices_by_space!(by_space, op::SQA.QSym)
-    op isa SQA.Transition || return nothing
     SQA.has_index(op.index) || return nothing
     v = get!(by_space, op.index.space_index, SQA.Index[])
     op.index in v || push!(v, op.index)

@@ -665,14 +665,17 @@ end
     rates = [κ, κf, Γ, R, ν]
     eqs = meanfield(a' * a, H, J; rates = rates, order = 2)
     eqs_c = complete!(deepcopy(eqs))
-    # closure: 42 equations, 39 after scale, 554 after evaluate at M=20.
+    # closure: 42 equations, 39 after scale, 552 after evaluate at M=20.
+    # (552 is the conjugate-folded distinct-site count; verified equal to master
+    # QuantumCumulants v0.4.3 for this exact system. The earlier 554 lock came
+    # from a buggy QCNew scale that double-counted a filter conjugate pair.)
     @test length(eqs_c.equations) == 42
     eqs_sc = scale(eqs_c; h = [3])
     @test length(eqs_sc.equations) == 39
     eqs_eval = evaluate(eqs_sc; limits = Dict(M => 20))
-    @test length(eqs_eval.equations) == 554
+    @test length(eqs_eval.equations) == 552
     sys_c = mtkcompile(System(eqs_eval; name = :fc_sys))
-    @test length(unknowns(sys_c)) == 554
+    @test length(unknowns(sys_c)) == 552
 end
 
 # Reduced M=3 variant integrated as a mean-field ODE.
@@ -698,7 +701,7 @@ end
     eqs_sc = scale(eqs_c; h = [3])
     M_ = 3
     eqs_eval = evaluate(eqs_sc; limits = Dict(M => M_))
-    @test length(eqs_eval.equations) == 44
+    @test length(eqs_eval.equations) == 42
     sys_c = mtkcompile(System(eqs_eval; name = :fc3_sys))
     u0 = zeros(ComplexF64, length(eqs_eval.equations))
     init = initial_values(eqs_eval, u0)
@@ -713,9 +716,13 @@ end
     pmap = parameter_map(eqs_eval, pmap_dict)
     prob = ODEProblem(sys_c, merge(init, pmap), (0.0, 5.0))
     sol = solve(prob, Tsit5(); reltol = 1.0e-8, abstol = 1.0e-8)
+    # Ground-truth ⟨a†a⟩(t=5): verified against master QuantumCumulants v0.4.3
+    # (both its scaled and its fully-unrolled N=10 M=3 reference) AND QCNew's own
+    # fully-unrolled system, all agreeing at 4.36032. The earlier 4.40621 lock was
+    # produced by a buggy QCNew scale (filter NE-drop + δ slot mis-binding).
     @test isapprox(
         real(get_solution(sol, a' * a, eqs_eval).(sol.t[end])),
-        4.406206739122889; rtol = 1.0e-4,
+        4.360320310008423; rtol = 1.0e-4,
     )
 end
 

@@ -207,6 +207,20 @@ function orbit_key(op::QAdd, ctx::CanonCtx; selected = ctx.symmetric)
     end
     return _coord_key(op, ctx, coords)
 end
+
+# Node key for a graph in coordinate `coords`. Once any subspace is Concrete the
+# system is materialised (a prior `evaluate` ran), and the identity is the
+# conjugate-folded `canonical_rep` (the same key the codegen resolver and
+# `specialize`'s `concrete_rep` dedup use), so `evaluate`-then-`scale` lands the
+# same closed set as `scale`-then-`evaluate`. While every subspace is still
+# symbolic (Free/Scaled) the unfolded `_coord_key` is used, preserving the
+# `get_adjoints=true` convention (both conjugate partners tracked) that the
+# symbolic complete/scale counts lock.
+function _materialised_key(op::QAdd, ctx::CanonCtx, coords::Dict{Int, Coordinate})
+    any(==(Concrete), values(coords)) && return canonical_rep(op, ctx; coords)[1]
+    return _coord_key(op, ctx, coords)
+end
+_materialised_key(op, ::CanonCtx, ::Dict{Int, Coordinate}) = op
 orbit_key(op, ::CanonCtx; kw...) = op
 
 # Brute force over (relabelings of the K slots per selected symmetric subspace)
