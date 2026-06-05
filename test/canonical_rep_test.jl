@@ -1,9 +1,9 @@
-using QCNew
+using QuantumCumulants
 using SecondQuantizedAlgebra: SecondQuantizedAlgebra
 using Symbolics: Symbolics, @variables
 using Test
 
-const SQA = QCNew.SecondQuantizedAlgebra
+const SQA = QuantumCumulants.SecondQuantizedAlgebra
 
 @testset "canonical_rep: config wrappers equal the legacy keys" begin
     ha = NLevelSpace(:atom, 2); hf = FockSpace(:cavity); h = ha ⊗ hf
@@ -11,18 +11,18 @@ const SQA = QCNew.SecondQuantizedAlgebra
     σ(α, β, i) = IndexedOperator(Transition(h, :σ, α, β), i)
     @variables N::Real
     i = Index(h, :i, N, ha); j = Index(h, :j, N, ha)
-    ctx = QCNew.build_ctx([a], a' * a, SQA.QField[], SQA.QField[])
+    ctx = QuantumCumulants.build_ctx([a], a' * a, SQA.QField[], SQA.QField[])
 
     op = (σ(2, 1, i) * a) * 1
     # All-Free coordinate reproduces canon_key exactly.
-    free = QCNew.all_free_coords(ctx)
-    @test isequal(QCNew.canonical_rep(op, ctx; coords = free)[1], QCNew.canon_key(op, ctx))
+    free = QuantumCumulants.all_free_coords(ctx)
+    @test isequal(QuantumCumulants.canonical_rep(op, ctx; coords = free)[1], QuantumCumulants.canon_key(op, ctx))
     # idempotence
-    rep1 = QCNew.canonical_rep(op, ctx; coords = free)[1]
-    @test isequal(QCNew.canonical_rep(rep1 * 1, ctx; coords = free)[1], rep1)
+    rep1 = QuantumCumulants.canonical_rep(op, ctx; coords = free)[1]
+    @test isequal(QuantumCumulants.canonical_rep(rep1 * 1, ctx; coords = free)[1], rep1)
     # adjoint-consistency: rep is invariant under {O, O†}, sign bit flips
-    r, s = QCNew.canonical_rep(op, ctx; coords = free)
-    ra, sa = QCNew.canonical_rep(adjoint(op), ctx; coords = free)
+    r, s = QuantumCumulants.canonical_rep(op, ctx; coords = free)
+    ra, sa = QuantumCumulants.canonical_rep(adjoint(op), ctx; coords = free)
     @test isequal(r, ra)
     @test s != sa
 end
@@ -34,18 +34,18 @@ end
     @variables N::Real g::Real
     i = Index(h, :i, N, ha); j = Index(h, :j, N, ha)
     H = g * ∑(σ(2, 1, i) * a + σ(1, 2, i) * a', i)
-    ctx = QCNew.build_ctx([a], H, SQA.QField[], SQA.QField[])
+    ctx = QuantumCumulants.build_ctx([a], H, SQA.QField[], SQA.QField[])
     op = (σ(2, 2, i) * σ(2, 1, j)) * 1
     atom_sp = first(ctx.symmetric)
-    coords = QCNew.with_coord(QCNew.all_free_coords(ctx), atom_sp, QCNew.Scaled)
+    coords = QuantumCumulants.with_coord(QuantumCumulants.all_free_coords(ctx), atom_sp, QuantumCumulants.Scaled)
     # canonical_rep ADDS the conjugation fold on top of the orbit_key node key,
     # so it equals the conjugation-min of orbit_key over {op, op†}.
-    ok = QCNew.orbit_key(op, ctx)
-    oka = QCNew.orbit_key(adjoint(op), ctx)
-    expected = QCNew._serialize(oka) < QCNew._serialize(ok) ? oka : ok
-    @test isequal(QCNew.canonical_rep(op, ctx; coords)[1], expected)
+    ok = QuantumCumulants.orbit_key(op, ctx)
+    oka = QuantumCumulants.orbit_key(adjoint(op), ctx)
+    expected = QuantumCumulants._serialize(oka) < QuantumCumulants._serialize(ok) ? oka : ok
+    @test isequal(QuantumCumulants.canonical_rep(op, ctx; coords)[1], expected)
     # The non-conjugate-folded config (orbit_key) is reproduced by _coord_key.
-    @test isequal(QCNew._coord_key(op, ctx, coords), ok)
+    @test isequal(QuantumCumulants._coord_key(op, ctx, coords), ok)
 end
 
 @testset "coords: complete/scale/evaluate record Free/Scaled/Concrete" begin
@@ -57,8 +57,8 @@ end
     H = Δ * a' * a + g * ∑(σ(2, 1, i) * a + σ(1, 2, i) * a', i)
     eqs = meanfield(a' * a, H, [a]; rates = [κ], order = 2)
     complete!(eqs)
-    atom_sp = first(QCNew.build_ctx(eqs.operators, eqs.hamiltonian, eqs.jumps, eqs.jumps_dagger).symmetric)
-    @test get(eqs.coords, atom_sp, Int(QCNew.Free)) == Int(QCNew.Free)
-    @test get(scale(eqs).coords, atom_sp, Int(QCNew.Free)) == Int(QCNew.Scaled)
-    @test get(evaluate(eqs; limits = (N => 3)).coords, atom_sp, Int(QCNew.Free)) == Int(QCNew.Concrete)
+    atom_sp = first(QuantumCumulants.build_ctx(eqs.operators, eqs.hamiltonian, eqs.jumps, eqs.jumps_dagger).symmetric)
+    @test get(eqs.coords, atom_sp, Int(QuantumCumulants.Free)) == Int(QuantumCumulants.Free)
+    @test get(scale(eqs).coords, atom_sp, Int(QuantumCumulants.Free)) == Int(QuantumCumulants.Scaled)
+    @test get(evaluate(eqs; limits = (N => 3)).coords, atom_sp, Int(QuantumCumulants.Free)) == Int(QuantumCumulants.Concrete)
 end

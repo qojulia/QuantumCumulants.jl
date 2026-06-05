@@ -185,6 +185,17 @@ end
 function _stamp_sum_to_first_leaves(piece, indices::Vector{SQA.Index}, ne)
     isempty(indices) && return piece
     piece isa SymbolicUtils.BasicSymbolic || return piece
+    # The factorised `piece` is a SUM of Wick products. The sum scope distributes
+    # over the additive terms (`Σ_i (A + B) = Σ_i A + Σ_i B`), and within each
+    # product `Σ_i` binds that product's own indexed leaf. Recurse per additive
+    # term so EVERY Wick term referencing a bound index carries the scope on its
+    # leaf, not just the globally-first one (which left e.g. `⟨a'σ_i⟩⟨a⟩` without
+    # its `Σ_i` while `⟨σ_i⟩⟨a'a⟩` kept it).
+    if SymbolicUtils.iscall(piece) && SymbolicUtils.operation(piece) === (+)
+        terms = SymbolicUtils.arguments(piece)
+        stamped = Any[_stamp_sum_to_first_leaves(t, indices, ne) for t in terms]
+        return reduce(+, stamped)
+    end
     leaves = SymbolicUtils.BasicSymbolic[]
     _collect_avg_leaves!(leaves, piece)
     isempty(leaves) && return piece
@@ -206,12 +217,21 @@ function _stamp_sum_to_first_leaves(piece, indices::Vector{SQA.Index}, ne)
     sub = IdDict{Any, Any}()
     for (i, leaf) in enumerate(leaves)
         isempty(leaf_idx_assign[i]) && continue
-        new_leaf = SymbolicUtils.setmetadata(
-            leaf, SQA.SumIndices, copy(leaf_idx_assign[i]),
-        )
-        new_leaf = SymbolicUtils.setmetadata(
-            new_leaf, SQA.SumNonEqual, copy(leaf_ne_assign[i]),
-        )
+        # Reconstruct the summed average through `average(SQA.Σ(op, idxs...))`, the
+        # SAME canonical form a freshly-derived sum carries. A bare
+        # `setmetadata(average(op), SumIndices, …)` is display- and isequal-equal to
+        # the un-summed leaf but is NOT isequal to the canonical summed average
+        # (their inner structure differs), so the two never cancel in arithmetic
+        # (`Σ_i⟨σ_i⟩⟨a†a⟩ - ⟨a†a⟩Σ_i⟨σ_i⟩ ≠ 0`). Building it canonically makes the
+        # cumulant-factored sum identical to the natural one.
+        op = undo_average(leaf)
+        idxs = leaf_idx_assign[i]
+        summed = SQA.Σ(op, idxs[1], idxs[2:end]...)
+        new_leaf = SymbolicUtils.unwrap(average(summed))
+        # `SQA.Σ` over a plain operator does not carry an NE constraint; re-attach
+        # the per-leaf NE pairs as metadata when the factorisation produced any.
+        isempty(leaf_ne_assign[i]) ||
+            (new_leaf = SymbolicUtils.setmetadata(new_leaf, SQA.SumNonEqual, copy(leaf_ne_assign[i])))
         sub[leaf] = new_leaf
     end
     isempty(sub) && return piece

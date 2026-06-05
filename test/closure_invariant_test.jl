@@ -1,4 +1,4 @@
-using QCNew
+using QuantumCumulants
 using SecondQuantizedAlgebra: SecondQuantizedAlgebra
 using Symbolics: Symbolics, @variables
 using Test
