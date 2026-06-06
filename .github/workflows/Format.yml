@@ -7,8 +7,6 @@ on:
       - '.github/workflows/Format.yml'
       - '**.jl'
   pull_request:
-    branches:
-      - 'master'
     paths:
       - '.github/workflows/Format.yml'
       - '**.jl'

@@ -7,8 +7,11 @@ on:
     branches:
       - 'master'
   pull_request:
-    branches:
-      - 'master'
+    paths:
+      - '.github/workflows/Documentation.yml'
+      - 'docs/**'
+      - 'src/**'
+      - 'Project.toml'
     types:
       - opened
       - reopened
