@@ -8,9 +8,58 @@ const TruncOrder = Union{Nothing, Int, Vector{Int}}
 function average_and_truncate(R::QAdd, order::TruncOrder, mix_choice, ctx::CanonCtx)
     acc = 0
     for (term, c) in R.arguments
-        acc = acc + _im_form(c) * _truncate_term(term.ops, term.ne, R.indices, order, mix_choice)
+        # An index-dependent coefficient (Γ(i,j)/Ω(i,j)) must ride inside the sum
+        # so the diagonal split substitutes it (Ω(i,k)→Ω(k,k)=0), not leak a free
+        # index. Scalar coefficients keep the coefficient-outside path.
+        if !isempty(term.ops) && !isempty(_coeff_scope_indices(c, R.indices))
+            acc = acc + cumulant_expansion(
+                _scoped_average_coeff(c, term.ops, term.ne, R.indices), order; mix_choice,
+            )
+        else
+            acc = acc + _im_form(c) * _truncate_term(term.ops, term.ne, R.indices, order, mix_choice)
+        end
     end
     return acc
+end
+
+# Sum-scope indices the coefficient `c` depends on (empty for scalar coefficients).
+function _coeff_scope_indices(c, scope)
+    isempty(scope) && return SQA.Index[]
+    vars = _coeff_vars(c)
+    isempty(vars) && return SQA.Index[]
+    out = SQA.Index[]
+    for idx in scope
+        isym = SymbolicUtils.unwrap(idx.sym)
+        any(v -> isequal(v, isym), vars) && push!(out, idx)
+    end
+    return out
+end
+
+# Variables a coefficient depends on. `Num`/`Complex{Num}` are both `<: Number`,
+# so test for the symbolic carrier explicitly rather than dispatching on `Number`.
+function _coeff_vars(c)
+    cc = c isa Complex ? (real(c) + imag(c)) : c
+    (cc isa Symbolics.Num || cc isa SymbolicUtils.BasicSymbolic) || return ()
+    return Symbolics.get_variables(cc)
+end
+
+# Average a block with its coefficient inside the sum, scoping over indices used by
+# the operators or the coefficient so the diagonal split substitutes the coefficient.
+function _scoped_average_coeff(c, ops::AbstractVector{<:SQA.QSym}, ne, scope)
+    block = reduce(*, ops)
+    block isa QAdd && !isempty(ne) && (block = _carry_ne(block, ne))
+    cblock = c * block
+    cblock isa QAdd || return average(cblock)
+    used = Set{SQA.Index}()
+    for (t, _) in cblock.arguments, o in t.ops
+        SQA.has_index(o.index) && push!(used, o.index)
+    end
+    for idx in _coeff_scope_indices(c, scope)
+        push!(used, idx)
+    end
+    block_scope = SQA.Index[i for i in scope if i in used]
+    isempty(block_scope) && return average(cblock)
+    return average(SQA.Σ(cblock, block_scope[1], block_scope[2:end]...))
 end
 
 # QAdd coefficients are `Complex` literals (e.g. `complex(0, g)` from `im*H`).

@@ -39,6 +39,10 @@ function _lindblad_rhs(op, J, Jdagger, rates)
                         commutator(Jdv[i], op) * Jv[j]
                 )
             end
+        elseif _is_double_indexed_var(rk) && !isempty(_op_free_indices(J[k]))
+            # Collective indexed dissipation: a `DoubleIndexedVariable` rate Γ(i,j)
+            # on a singly-indexed jump gives the cross-jump dissipator Σ_{i,j} Γ D[J_i,J_j].
+            acc += _collective_indexed_lindblad(op, J[k], Jdagger[k], rk)
         else
             term = (rk / 2) * (
                 Jdagger[k] * commutator(op, J[k]) +
@@ -78,6 +82,43 @@ function _sum_over_jump_indices(term, jump, op_idx)
     free = SQA.Index[i for i in jump_idx if !(i in op_idx)]
     isempty(free) && return term
     return SQA.Σ(term, free[1], free[2:end]...)
+end
+
+# A `DoubleIndexedVariable` rate `Γ(i,j)` materialises as a callable `Sym` whose
+# `FnType` domain is a 2-tuple. (A single `IndexedVariable` has a 1-tuple domain;
+# a plain scalar rate is not a call.) Used to switch the dissipator onto the
+# collective cross-jump form.
+_fn_domain_len(::Type{<:SymbolicUtils.FnType{A}}) where {A <: Tuple} = length(A.parameters)
+_fn_domain_len(::Type) = -1
+function _is_double_indexed_var(x)
+    u = SymbolicUtils.unwrap(x)
+    u isa SymbolicUtils.BasicSymbolic || return false
+    SymbolicUtils.iscall(u) || return false
+    f = SymbolicUtils.operation(u)
+    (f isa SymbolicUtils.BasicSymbolic && !SymbolicUtils.iscall(f)) || return false
+    return _fn_domain_len(SymbolicUtils.symtype(f)) == 2 &&
+        length(SymbolicUtils.arguments(u)) == 2
+end
+
+# Partner `Index` from the rate's second argument, inheriting the jump index's
+# range and subspace (derive the name from the user's vocabulary, never invent one).
+function _partner_index(rk, i_jump::SQA.Index)
+    args = SymbolicUtils.arguments(SymbolicUtils.unwrap(rk))
+    sym_j = args[2]
+    return SQA.Index(Base.nameof(sym_j), i_jump.range, i_jump.space_index, Symbolics.Num(sym_j))
+end
+
+# Σ_{i,j} Γ(i,j) D[J_i, J_j] for a singly-indexed jump `Jk`, rate `rk=Γ(i,j)`.
+# Off-diagonal sum only: for the 2-level case the completeness expansion relaxes
+# its `-½` decay to a full `Σ_j` (recovering the `i=j` self-decay), so an explicit
+# diagonal term would double-count it. Closing the gap to the exact split needs the
+# cross-leaf-NE cumulant fix (see TODO.md).
+function _collective_indexed_lindblad(op, Jk, Jdk, rk)
+    i_jump = first(_op_free_indices(Jk))
+    jdx = _partner_index(rk, i_jump)
+    Jj = SQA.change_index(Jk, i_jump, jdx)
+    off_term = (rk / 2) * (Jdk * commutator(op, Jj) + commutator(Jdk, op) * Jj)
+    return SQA.Σ(SQA.Σ(off_term, jdx, SQA.Index[i_jump]), i_jump)
 end
 
 # Adjoint-action Lindblad recycling for the backward Heisenberg/Kalman

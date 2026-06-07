@@ -111,7 +111,7 @@ Ydot_rev(t) = dYdt_rev(t)
 ## deterministic Kalman filtering equations
 eqs_det = meanfield(ops, H, J; rates = R, order = 2)
 function f_measure(lhs, rhs)
-    term_ = √(η*Γ) * (lhs*a + a'*lhs - average(a+a')*lhs) * (Ydot(t) - √(η*Γ)*average(a+a'))
+    term_ = √(η * Γ) * (lhs * a + a' * lhs - average(a + a') * lhs) * (Ydot(t) - √(η * Γ) * average(a + a'))
     term = cumulant_expansion(average(term_), 2)
     return rhs + term
 end
@@ -131,19 +131,19 @@ nothing # hide
 #
 
 x_fw = real(get_solution(sol_kal, x, eqs_det)(sol_kal.t))
-xx_fw = real(get_solution(sol_kal, x*x, eqs_det)(sol_kal.t))
-σx_fw = [xx_fw[k] - x_fw[k]*x_fw[k] for k in 1:(N+1)]
+xx_fw = real(get_solution(sol_kal, x * x, eqs_det)(sol_kal.t))
+σx_fw = [xx_fw[k] - x_fw[k] * x_fw[k] for k in 1:(N + 1)]
 sqr_σx_fw = sqrt.(σx_fw)
 
 p_fw = real(get_solution(sol_kal, p, eqs_det)(sol_kal.t))
-pp_fw = real(get_solution(sol_kal, p*p, eqs_det)(sol_kal.t))
-σp_fw = [pp_fw[k] - p_fw[k]*p_fw[k] for k in 1:(N+1)]
+pp_fw = real(get_solution(sol_kal, p * p, eqs_det)(sol_kal.t))
+σp_fw = [pp_fw[k] - p_fw[k] * p_fw[k] for k in 1:(N + 1)]
 sqr_σp_fw = sqrt.(σp_fw)
 
 #
 
 p1 = plot(
-    t_W*Γ_,
+    t_W * Γ_,
     x_fw;
     size = (500, 250),
     label = "",
@@ -163,8 +163,8 @@ eqs_back_kal_c = complete(eqs_back_kal)
 
 ## adjust recycling term for the back propagation
 function f_back_lind(lhs, rhs)
-    term_1 = Γ*a*lhs*a' - Γ*a'lhs*a # adapt recycling term
-    term_2 = -Γ*(average(a*a') - average(a'a))*lhs
+    term_1 = Γ * a * lhs * a' - Γ * a'lhs * a # adapt recycling term
+    term_2 = -Γ * (average(a * a') - average(a'a)) * lhs
     term = cumulant_expansion(average(term_1 + term_2), 2)
     return rhs + term
 end
@@ -172,7 +172,7 @@ eqs_back_kal_c1 = modify_equations(eqs_back_kal_c, f_back_lind)
 
 ## include measurement backaction
 function f_back_kal(lhs, rhs)
-    term_ = √(η*Γ) * (lhs*a' + a*lhs - average(a+a')*lhs) * (Ydot_rev(t) - √(η*Γ)*average(a+a'))
+    term_ = √(η * Γ) * (lhs * a' + a * lhs - average(a + a') * lhs) * (Ydot_rev(t) - √(η * Γ) * average(a + a'))
     term = cumulant_expansion(average(term_), 2)
     return rhs + term
 end
@@ -193,19 +193,19 @@ sol_bw = solve(prob_bw_kal, Euler(); dt = dt, saveat = T_saveat)
 #
 
 x_bw = reverse(real(get_solution(sol_bw, x, eqs_back_kal_c2)(sol_bw.t)))
-xx_bw = reverse(real(get_solution(sol_bw, x*x, eqs_back_kal_c2)(sol_bw.t)))
-σx_bw = [xx_bw[k] - x_bw[k]*x_bw[k] for k in 1:(N+1)]
+xx_bw = reverse(real(get_solution(sol_bw, x * x, eqs_back_kal_c2)(sol_bw.t)))
+σx_bw = [xx_bw[k] - x_bw[k] * x_bw[k] for k in 1:(N + 1)]
 sqr_σx_bw = sqrt.(σx_bw)
 
 p_bw = reverse(real(get_solution(sol_bw, p, eqs_back_kal_c2)(sol_bw.t)))
-pp_bw = reverse(real(get_solution(sol_bw, p*p, eqs_back_kal_c2)(sol_bw.t)))
-σp_bw = [pp_bw[k] - p_bw[k]*p_bw[k] for k in 1:(N+1)]
+pp_bw = reverse(real(get_solution(sol_bw, p * p, eqs_back_kal_c2)(sol_bw.t)))
+σp_bw = [pp_bw[k] - p_bw[k] * p_bw[k] for k in 1:(N + 1)]
 sqr_σp_bw = sqrt.(σp_bw)
 
 #
 
 p2 = plot(
-    t_W*Γ_,
+    t_W * Γ_,
     x_bw;
     size = (500, 250),
     label = "",
@@ -214,19 +214,19 @@ p2 = plot(
     ylim = (-10, 10),
     grid = true,
 )
-plot!(t_W*Γ_, x_bw; ribbon = sqr_σx_bw, fillalpha = 0.2, label = "")
+plot!(t_W * Γ_, x_bw; ribbon = sqr_σx_bw, fillalpha = 0.2, label = "")
 
 
 # For a Gaussian system we can combine the mean values and covariances of the forward and backward equations in the following way to determine the retrodicted expressions:
 
 x_pq = (x_fw .* σx_bw + x_bw .* σx_fw) ./ (σx_fw .+ σx_bw)
-σx_pq = [1/(1/σx_fw[i] + 1/σx_bw[i]) for i in 1:length(σx_bw)]
+σx_pq = [1 / (1 / σx_fw[i] + 1 / σx_bw[i]) for i in 1:length(σx_bw)]
 sqr_σx_pq = sqrt.(σx_pq)
 
 #
 
 p3 = plot(
-    t_W*Γ_,
+    t_W * Γ_,
     x_pq;
     size = (500, 250),
     label = "",
@@ -235,7 +235,7 @@ p3 = plot(
     ylim = (-10, 10),
     grid = true,
 )
-plot!(t_W*Γ_, x_pq; ribbon = sqr_σx_pq, fillalpha = 0.2, label = "")
+plot!(t_W * Γ_, x_pq; ribbon = sqr_σx_pq, fillalpha = 0.2, label = "")
 
 # Note that the uncertainty of the retrodicted position is reduced.
 

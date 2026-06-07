@@ -104,7 +104,7 @@ function closure!(
         # mask (the system would look closed but leak/drop leaves).
         iters >= max_iter && error(
             "closure! did not reach the fixpoint within $max_iter iterations " *
-            "($(length(worklist)) nodes still pending); the system may not close.",
+                "($(length(worklist)) nodes still pending); the system may not close.",
         )
         iters += 1
         nd = g.nodes[popfirst!(worklist)]

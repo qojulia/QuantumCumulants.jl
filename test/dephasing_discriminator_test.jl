@@ -14,17 +14,27 @@ using Test
     σ(α, β, idx) = IndexedOperator(Transition(h, :σ, α, β, 2), idx)
     H = -Δ * a' * a + Σ(IndexedVariable(:g, i) * (a' * σ(1, 2, i) + a * σ(2, 1, i)), i)
 
-    c_deph = complete(meanfield([a' * a, σ(2, 2, i)], H,
-        [a, σ(1, 2, i), σ(2, 1, i), σ(2, 2, i)]; rates = [κ, Γ, R, ν], order = 2))
-    c_conc = complete(meanfield([a' * a, σ(2, 2, i)], H,
-        [a, σ(1, 2, i)]; rates = [κ, Γ], order = 2))
+    c_deph = complete(
+        meanfield(
+            [a' * a, σ(2, 2, i)], H,
+            [a, σ(1, 2, i), σ(2, 1, i), σ(2, 2, i)]; rates = [κ, Γ, R, ν], order = 2
+        )
+    )
+    c_conc = complete(
+        meanfield(
+            [a' * a, σ(2, 2, i)], H,
+            [a, σ(1, 2, i)]; rates = [κ, Γ], order = 2
+        )
+    )
 
     @test isempty(find_missing(c_deph))
     @test isempty(find_missing(c_conc))
 
     # The σ^{22} population equation drift differs between the two channel sets.
-    σ22_drift(eqs) = first(eq.rhs for eq in eqs.equations
-        if occursin("σ", string(eq.lhs)) && occursin("₂₂", string(eq.lhs)))
+    σ22_drift(eqs) = first(
+        eq.rhs for eq in eqs.equations
+            if occursin("σ", string(eq.lhs)) && occursin("₂₂", string(eq.lhs))
+    )
     @test !isequal(σ22_drift(c_deph), σ22_drift(c_conc))
 end
 
@@ -79,8 +89,10 @@ end
     end
 
     Γv, Rv = 0.25, 4.0
-    deph_ss = σ22_steady([a, σ(1, 2, i), σ(2, 1, i), σ(2, 2, i)],
-        [κ, Γ, R, ν], [κ => 1.0, Γ => Γv, R => Rv, ν => 1.0])
+    deph_ss = σ22_steady(
+        [a, σ(1, 2, i), σ(2, 1, i), σ(2, 2, i)],
+        [κ, Γ, R, ν], [κ => 1.0, Γ => Γv, R => Rv, ν => 1.0]
+    )
     conc_ss = σ22_steady([a, σ(1, 2, i)], [κ, Γ], [κ => 1.0, Γ => Γv])
 
     # Dephasing/pumped set: ⟨σ22⟩ ≈ R/(R+Γ); concrete set: ⟨σ22⟩ ≈ 0.

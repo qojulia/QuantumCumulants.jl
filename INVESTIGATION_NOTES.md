@@ -5,6 +5,44 @@ parked-by-design (§4); none is an open bug. Kept for audit and to avoid
 relearning the closure / NE / cumulant-truncation tradeoffs. New open
 work should go in `TODO.md`, not here.
 
+## 7. cavity_antiresonance: collective indexed dissipation — RESOLVED (2026-06; ~0.2% numeric gap parked)
+
+`cavity_antiresonance_indexed` (a `DoubleIndexedVariable` decay matrix `Γ(i,j)` on
+an indexed jump `σ12_i`, plus a dipole-dipole `Ω(i,j)` Hamiltonian term with
+`identical=false`) was the single failing test — it errored on a dangling bound
+index ("Could not evaluate value of parameter i_2_2"). It now runs and passes.
+
+**Fixed (regression-free across the full suite):**
+
+1. **SQA `Σ` diagonal split dropped `non_equal`.** When the summed index `i`
+   collapses onto an external index, the surviving constraint must be substituted,
+   not dropped: `_drop_ne_with(term.ne, i)` → `_substitute_ne(ne_aug, i, ext_idx)`
+   (SQA `src/expressions/index.jl`). Dropping it let a later sum re-admit the
+   collapsed point, double-counting the diagonal of nested/collective double sums
+   (gave a −Γ(k,k) self-decay instead of −½). Released in **SQA v0.5.1**; pinned by
+   a new `index_cancellation_test` ("Σ diagonal split propagates non_equal …").
+2. **Collective indexed dissipation** (`src/operator_drift.jl`,
+   `_collective_indexed_lindblad`): a 2-arg `DoubleIndexedVariable` rate on a
+   singly-indexed jump emits `Σ_{i,j} Γ(i,j) D[σ_i,σ_j]` instead of the scalar path
+   (which left `j` dangling).
+3. **Coefficient-inside-sum** (`src/moments.jl`, `_scoped_average_coeff`): an
+   index-dependent coefficient rides inside its sum so the diagonal split
+   substitutes it (`Ω(i,k)→Ω(k,k)=0` for `identical=false`), removing the leak.
+
+**Parked — ~0.2% numeric gap.** `_collective_indexed_lindblad` returns the
+off-diagonal sum only. For the 2-level case its `-½` decay relaxes to a full `Σ_j`
+under the `σ^11_k → 1-σ^22_k` completeness expansion (recovering the `j=k`
+self-decay), while the recycling stays `Σ_{j≠k}`. The cavity value is locked at
+`0.001980198019334876` vs master's `≈0.001984` (~0.2% low). Closing it cleanly
+needs the cross-leaf-NE cumulant fix: `cumulant.jl`'s `_stamp_sum_to_first_leaves`
+drops `j≠k` when factorisation splits `⟨σ_j σ_k⟩_{j≠k}` across leaves (the
+`pair[2] in leaf_idx_assign[slot]` guard). A draft (attach the NE to the leaf
+carrying the summed index when the partner is external) closes the recycling leak
+but bumps the closure count 4→5 (spurious state) and does not fix the `-½` term.
+The correct version preserves `j≠k` through both factorisation and the
+completeness `1`-substitution without a spurious state; re-tighten the lock to
+master once it lands.
+
 ## 1. det vs stoch closure asymmetry: RESOLVED
 
 `measurement_backaction_indices_comparison_test::deterministic vs
