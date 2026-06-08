@@ -11,8 +11,6 @@ on:
       - 'test/runtests.jl'
       - 'Project.toml'
   pull_request:
-    branches:
-      - 'master'
     paths:
       - '.github/workflows/Benchmarks.yaml'
       - 'src/**'

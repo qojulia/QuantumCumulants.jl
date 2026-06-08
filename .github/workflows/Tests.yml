@@ -11,8 +11,6 @@ on:
       - 'test/**'
       - 'Project.toml'
   pull_request:
-    branches:
-      - 'master'
     paths:
       - '.github/workflows/Tests.yml'
       - 'src/**'

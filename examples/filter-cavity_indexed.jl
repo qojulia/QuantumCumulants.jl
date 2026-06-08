@@ -99,18 +99,20 @@ gf_ = 0.1Γ_
 κf_ = 0.1Γ_
 δ_ls = [0:(1 / M_):(1 - 1 / M_);] * 10Γ_
 
-pmap = parameter_map(eqs_eval, Dict(
-    Γ => Γ_, κ => κ_, g => g_, κf => κf_, gf => gf_, R => R_,
-    δ(i) => δ_ls,
-    Δ => Δ_, ν => ν_, N => N_,
-))
+pmap = parameter_map(
+    eqs_eval, Dict(
+        Γ => Γ_, κ => κ_, g => g_, κf => κf_, gf => gf_, R => R_,
+        δ(i) => δ_ls,
+        Δ => Δ_, ν => ν_, N => N_,
+    )
+)
 dict = merge(initial_values(eqs_eval, u0), pmap)
 prob = ODEProblem(sys_c, dict, (0.0, 10.0 / κf_))
 nothing # hide
 
 #
 
-sol = solve(prob, Tsit5(); abstol = 1e-10, reltol = 1e-10, maxiters = 1e7) # Solve the numeric problem
+sol = solve(prob, Tsit5(); abstol = 1.0e-10, reltol = 1.0e-10, maxiters = 1.0e7) # Solve the numeric problem
 
 t = sol.t
 n = abs.(get_solution(sol, a'a, eqs_eval).(t))

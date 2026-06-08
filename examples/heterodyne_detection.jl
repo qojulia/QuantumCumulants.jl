@@ -97,7 +97,7 @@ sys = mtkcompile(System(MeanFieldEquations(scaled_eqs); name = :sys))
 u0 = zeros(ComplexF64, length(scaled_eqs))
 dict = parameter_map(sys, merge(Dict(unknowns(sys) .=> u0), Dict(p .=> p0)))
 prob = ODEProblem(sys, dict, (0.0, T_end))
-sol_det = solve(prob, RK4(), dt = T_end / 2e5)
+sol_det = solve(prob, RK4(), dt = T_end / 2.0e5)
 
 graph = plot(xlabel = "Time (ms)", ylabel = "Cavity photon number")
 plot!(graph, sol_det.t, real(get_solution(sol_det, a'a, scaled_eqs)(sol_det.t)), legend = false)
@@ -112,7 +112,7 @@ dict_st = parameter_map(sys_st, merge(Dict(unknowns(sys_st) .=> u0), Dict(p .=> 
 Random.seed!(2) # hide
 noise = StochasticDiffEq.RealWienerProcess(0.0, 0.0)
 prob_st = SDEProblem(sys_st, dict_st, (0.0, T_end); noise = noise)
-sol_test = solve(prob_st, EM(); dt = T_end / 2e5);
+sol_test = solve(prob_st, EM(); dt = T_end / 2.0e5);
 
 plot(
     sol_test.t,
@@ -129,7 +129,7 @@ tspan = range(0.0, T_end, length = 201)
 sol = solve(
     eprob,
     StochasticDiffEq.EM(),
-    dt = T_end / 2e5,
+    dt = T_end / 2.0e5,
     save_noise = true,
     trajectories = traj,
     saveat = tspan,

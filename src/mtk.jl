@@ -1,39 +1,30 @@
-function _stable_avg_name(avg::SymbolicUtils.BasicSymbolic)
-    @assert SQA.is_average(avg) "expected an Average BasicSymbolic"
-    op = SQA.undo_average(avg)
-    s = "avg_" * _op_name_chunk(op)
-    return Symbol(s)
-end
+# MTK bridge (Layer 6). Lower a (completed/scaled/evaluated) struct to a
+# ModelingToolkit `System`. Because the struct is self-consistent (drift leaves
+# carry the same naming regime as the states), codegen is one `mapleaves` pass
+# that resolves each leaf to a state variable by `literal_key` (commuting-order
+# and NE normalised, but NOT alpha-renamed, so concrete per-site atoms stay
+# distinct), with a conjugate tier for the partner reps that `get_adjoints=false`
+# leaves on the RHS. No per-level key juggling and no re-canonicalisation pass.
+
+# ---- stable variable naming (replaces _stable_avg_name) ----------------------
+
+serialize(op::QAdd) = Symbol("avg_" * _op_name_chunk(op))
 
 function _op_name_chunk(op::QAdd)
     isempty(op.arguments) && return "zero"
     chunks = String[]
     for (term, _) in op.arguments
         base = join((_op_name_chunk(o) for o in term.ops), "_")
-        # `ne` (non-equal-index constraints) is semantic state and must
-        # appear in the MTK identifier — otherwise two terms that differ
-        # only in their constraint set generate clashing variable names
-        # (see TODO.md unique_squeezing dedup note).
         if !isempty(term.ne)
-            ne_chunks = String[]
-            for (a, b) in term.ne
-                push!(ne_chunks, string(a.name) * "neq" * string(b.name))
-            end
-            base *= "_" * join(ne_chunks, "_")
+            base *= "_" * join((string(a.name) * "neq" * string(b.name) for (a, b) in term.ne), "_")
         end
         push!(chunks, base)
     end
     return join(chunks, "_plus_")
 end
-function _op_name_chunk(op::SQA.QSym)
-    base = string(op.name)
-    extra = _op_name_extra(op)
-    return isempty(extra) ? base : base * extra
-end
+_op_name_chunk(op::SQA.QSym) = string(op.name) * _op_name_extra(op)
 
-function _op_name_extra(op::SQA.QSym)
-    return _op_index_suffix(op)
-end
+_op_name_extra(op::SQA.QSym) = _op_index_suffix(op)
 function _op_name_extra(op::SQA.Transition)
     i = op.i isa Symbol ? string(op.i) : string(Int(op.i))
     j = op.j isa Symbol ? string(op.j) : string(Int(op.j))
@@ -41,12 +32,8 @@ function _op_name_extra(op::SQA.Transition)
 end
 _op_name_extra(op::SQA.Destroy) = _op_index_suffix(op)
 _op_name_extra(op::SQA.Create) = "_dag" * _op_index_suffix(op)
-function _op_name_extra(op::SQA.Pauli)
-    return "_" * string(Int(op.axis)) * _op_index_suffix(op)
-end
-function _op_name_extra(op::SQA.Spin)
-    return "_" * string(Int(op.axis)) * _op_index_suffix(op)
-end
+_op_name_extra(op::SQA.Pauli) = "_" * string(Int(op.axis)) * _op_index_suffix(op)
+_op_name_extra(op::SQA.Spin) = "_" * string(Int(op.axis)) * _op_index_suffix(op)
 
 function _op_index_suffix(op::SQA.QSym)
     isdefined(op, :index) || return ""
@@ -55,313 +42,183 @@ function _op_index_suffix(op::SQA.QSym)
     return "_" * string(idx.name)
 end
 
-function _avg_to_var_dict(eqs::AbstractMeanFieldEquations)
-    iv = eqs.iv
-    dict = Dict{SymbolicUtils.BasicSymbolic, Symbolics.Num}()
-    dvs = Symbolics.Num[]
-    for avg in eqs.states
-        v = _make_time_dependent_var(_stable_avg_name(avg), iv)
-        dict[avg] = v
-        push!(dvs, v)
+_make_var(name::Symbol, iv::Symbolics.Num) = first(@variables $name(iv))
+
+# ---- state variable registry -------------------------------------------------
+
+# Build the per-state variables and the literal/canon lookup maps shared by
+# System / initial_values / get_solution, so naming agrees across them.
+function _state_registry(eqs::AbstractMeanFieldEquations)
+    ctx = build_ctx(eqs.operators, eqs.hamiltonian, eqs.jumps, eqs.jumps_dagger)
+    # The system's recorded per-subspace coordinate (spec "The single source of
+    # truth"): the resolver MUST key/match in this coordinate, not a hardcoded
+    # `concrete_rep`. An empty map (scalar systems) reads as all-Free.
+    coords = isempty(eqs.coords) ? all_free_coords(ctx) :
+        Dict{Int, Coordinate}(sp => Coordinate(c) for (sp, c) in eqs.coords)
+    ops = QAdd[undo_average(s) isa QAdd ? undo_average(s) : undo_average(s) * 1 for s in eqs.states]
+    vars = Symbolics.Num[_make_var(serialize(op), eqs.iv) for op in ops]
+    # ONE map keyed by the conjugation orbit rep in the system coordinate, valued
+    # by `(state var, side-of-rep)`. A leaf on the SAME side as the stored rep
+    # resolves to the var; the opposite side to its conjugate.
+    by_rep = Dict{QAdd, Tuple{Symbolics.Num, Bool}}()
+    by_canon = Dict{QAdd, Symbolics.Num}()
+    for (op, v) in zip(ops, vars)
+        rep, side = canonical_rep(op, ctx; coords)
+        get!(by_rep, rep, (v, side))
+        get!(by_canon, canon_key(op, ctx), v)
     end
-    return dict, dvs
+    return (; ctx, coords, ops, vars, by_rep, by_canon)
 end
 
-function _make_time_dependent_var(name::Symbol, iv::Symbolics.Num)
-    v = first(@variables $name(iv))
-    return v
+# Resolve a RHS leaf to a state variable (or its conjugate), else leave it (an
+# ambient parameter / steady-state coefficient). One orbit lookup plus a sign:
+# the leaf and the stored rep agree iff they sit on the same conjugation side.
+#
+# The conjugate partner is emitted as a raw `term(conj, v; type=Number)` rather
+# than `Base.conj(v)`. The state vars carry Real symtype (so only genuine
+# parameters survive `_collect_params!`), and `Base.conj` on a `SymReal` folds
+# to identity, which would silently zero every `⟨X⟩ - ⟨X†⟩` driving term. The
+# raw term skips that simplifier and the `conj` node survives mtkcompile.
+function _leaf_resolver(reg)
+    return function (leaf)
+        op = undo_average(leaf)
+        op isa QAdd || return leaf
+        rep, side = canonical_rep(op, reg.ctx; coords = reg.coords)
+        haskey(reg.by_rep, rep) || return leaf
+        var, rep_side = reg.by_rep[rep]
+        return side == rep_side ? SymbolicUtils.unwrap(var) :
+            SymbolicUtils.term(conj, SymbolicUtils.unwrap(var); type = Number)
+    end
 end
 
-function _collect_params!(set, x, dict, iv_uw)
-    if x isa SymbolicUtils.BasicSymbolic
-        SymbolicUtils.isconst(x) && return
-        if !SymbolicUtils.iscall(x)
-            if !haskey(dict, x) && x !== iv_uw && SymbolicUtils.symtype(x) <: Real
-                push!(set, x)
-            end
-            return
-        end
-        op = SymbolicUtils.operation(x)
-        args = SymbolicUtils.arguments(x)
-        if length(args) == 1 && args[1] === iv_uw && op isa SymbolicUtils.BasicSymbolic
-            return
-        end
-        for a in args
-            _collect_params!(set, a, dict, iv_uw)
-        end
+# Collect bare Real-symtype parameter symbols from a substituted RHS. Skips
+# constants, the iv, time-dependent state vars (`u(iv)` calls), and average
+# leaves (matched leaves are already vars; unmatched ambient averages are not
+# parameters and are handled by the correlation layer).
+function _collect_params!(set, x, iv_uw)
+    x isa SymbolicUtils.BasicSymbolic || return
+    SymbolicUtils.isconst(x) && return
+    if !SymbolicUtils.iscall(x)
+        (x !== iv_uw && SymbolicUtils.symtype(x) <: Real) && push!(set, x)
+        return
+    end
+    _is_avg_leaf(x) && return
+    op = SymbolicUtils.operation(x)
+    args = SymbolicUtils.arguments(x)
+    # Array-element access `δ[k]`: collect the array BASE symbol (symtype
+    # `Vector{Real}`/`Matrix{Real}`) as a parameter, so the array-typed coupling
+    # is bound (spec Task 7b; the scalar-only branch above skips it because its
+    # symtype is not <: Real). MTK scalarizes the array param at compile.
+    if op === getindex && !isempty(args) && args[1] isa SymbolicUtils.BasicSymbolic &&
+            SymbolicUtils.symtype(args[1]) <: AbstractArray
+        push!(set, args[1])
+        return
+    end
+    (length(args) == 1 && args[1] === iv_uw && op isa SymbolicUtils.BasicSymbolic) && return
+    for a in args
+        _collect_params!(set, a, iv_uw)
     end
     return
 end
 
-"""
-    ModelingToolkitBase.System(eqs::AbstractMeanFieldEquations; name::Symbol)
-    ModelingToolkitBase.System(c::CorrelationFunction; name::Symbol)
+# ---- System ------------------------------------------------------------------
 
-Build a `ModelingToolkitBase.System` from the QC equation set. Substitutes
-Averages with real-typed `u(t)` Num variables and passes `dvs`/`ps` explicitly.
-For [`NoiseMeanFieldEquations`](@ref) the result is an SDE system whose
-Brownian column is the aggregated per-jump noise drift. To compare against the
-deterministic drift alone, pass `MeanFieldEquations(eqs)` instead.
 """
-function MTK.System(
-        eqs::NoiseMeanFieldEquations{O, H, Op, Jt, Jdt, R, E, S, Forward};
-        name::Symbol,
-    ) where {O, H, Op, Jt, Jdt, R, E, S}
-    return _to_system_sde(eqs, name, +1)
+    ModelingToolkitBase.System(eqs::MeanFieldEquations; name)
+    ModelingToolkitBase.System(eqs::NoiseMeanFieldEquations; name)
+
+Lower the equation set to an MTK `System`: one `u(t)` variable per state, the
+drift resolved to those variables. A `NoiseMeanFieldEquations` lowers to an SDE
+whose single Brownian column is the aggregated noise drift (sign +1 Forward, -1
+Backward). RHS leaves not matching a state become parameters.
+"""
+function MTK.System(eqs::MeanFieldEquations; name::Symbol)
+    iv = eqs.iv
+    iv_uw = SymbolicUtils.unwrap(iv)
+    D = Symbolics.Differential(iv)
+    reg = _state_registry(eqs)
+    resolve = _leaf_resolver(reg)
+    new_eqs = Vector{Symbolics.Equation}(undef, length(eqs.equations))
+    ps_set = Set{SymbolicUtils.BasicSymbolic}()
+    @inbounds for (i, eq) in enumerate(eqs.equations)
+        rhs = mapleaves(resolve, eq.rhs)
+        new_eqs[i] = D(reg.vars[i]) ~ rhs
+        _collect_params!(ps_set, SymbolicUtils.unwrap(rhs), iv_uw)
+    end
+    ps = [MTK.toparam(p) for p in ps_set]
+    return MTK.System(new_eqs, iv, reg.vars, ps; name = name)
 end
 
-function MTK.System(
-        eqs::NoiseMeanFieldEquations{O, H, Op, Jt, Jdt, R, E, S, Backward};
-        name::Symbol,
-    ) where {O, H, Op, Jt, Jdt, R, E, S}
-    return _to_system_sde(eqs, name, -1)
-end
+MTK.System(eqs::NoiseMeanFieldEquations{O, H, Op, Jt, Jdt, R, E, S, Forward}; name::Symbol) where {O, H, Op, Jt, Jdt, R, E, S} =
+    _to_system_sde(eqs, name, +1)
+MTK.System(eqs::NoiseMeanFieldEquations{O, H, Op, Jt, Jdt, R, E, S, Backward}; name::Symbol) where {O, H, Op, Jt, Jdt, R, E, S} =
+    _to_system_sde(eqs, name, -1)
 
 function _to_system_sde(eqs::NoiseMeanFieldEquations, name::Symbol, sign::Int)
     iv = eqs.iv
     iv_uw = SymbolicUtils.unwrap(iv)
     D = Symbolics.Differential(iv)
-    dict, dvs = _avg_to_var_dict(eqs)
-    conj_dict = _conj_substitution_dict(eqs, dict)
-    # Single Brownian per system: `eqs.noise_equations` already aggregates the
-    # per-jump noise drifts into one column. Multiple independent measurement
-    # processes would need one Brownian per jump (TODO).
+    reg = _state_registry(eqs)
+    resolve = _leaf_resolver(reg)
     w = first(MTK.@brownians _qc_dW)
     w_uw = SymbolicUtils.unwrap(w)
     T = typeof(w_uw)
     new_eqs = Vector{Symbolics.Equation}(undef, length(eqs.equations))
     ps_set = Set{SymbolicUtils.BasicSymbolic}()
-    merged = merge(conj_dict, dict)
     @inbounds for (i, eq) in enumerate(eqs.equations)
-        rhs = _safe_substitute(eq.rhs, merged)
-        noise_rhs = _safe_substitute(eqs.noise_equations[i].rhs, merged)
-        # Substituted noise / drift trees can carry symtype `Any` (mixed
-        # average products). SymbolicUtils refuses arithmetic between
-        # mismatched symtypes, so build the product/sum nodes via `maketerm`,
-        # which preserves structure without dispatching the worker buffer.
-        signed_rhs = sign == 1 ? rhs :
-            TermInterface.maketerm(T, *, Any[sign, rhs], nothing)
+        rhs = SymbolicUtils.unwrap(mapleaves(resolve, eq.rhs))
+        noise_rhs = SymbolicUtils.unwrap(mapleaves(resolve, eqs.noise_equations[i].rhs))
+        signed_rhs = sign == 1 ? rhs : TermInterface.maketerm(T, *, Any[sign, rhs], nothing)
         noise_term = TermInterface.maketerm(T, *, Any[noise_rhs, w_uw], nothing)
         total_rhs = TermInterface.maketerm(T, +, Any[signed_rhs, noise_term], nothing)
-        new_eqs[i] = D(dict[eq.lhs]) ~ total_rhs
-        _collect_params!(ps_set, rhs, dict, iv_uw)
-        _collect_params!(ps_set, noise_rhs, dict, iv_uw)
+        new_eqs[i] = D(reg.vars[i]) ~ total_rhs
+        _collect_params!(ps_set, rhs, iv_uw)
+        _collect_params!(ps_set, noise_rhs, iv_uw)
     end
     ps = [MTK.toparam(p) for p in ps_set]
-    return MTK.System(new_eqs, iv, dvs, ps, [w]; name = name)
+    return MTK.System(new_eqs, iv, reg.vars, ps, [w]; name = name)
 end
 
-function MTK.System(eqs::MeanFieldEquations; name::Symbol)
-    iv = eqs.iv
-    iv_uw = SymbolicUtils.unwrap(iv)
-    D = Symbolics.Differential(iv)
-    dict, dvs = _avg_to_var_dict(eqs)
-    conj_dict = _conj_substitution_dict(eqs, dict)
-    new_eqs = Vector{Symbolics.Equation}(undef, length(eqs.equations))
-    ps_set = Set{SymbolicUtils.BasicSymbolic}()
-    merged = merge(conj_dict, dict)
-    @inbounds for (i, eq) in enumerate(eqs.equations)
-        rhs = _safe_substitute(eq.rhs, merged)
-        new_eqs[i] = D(dict[eq.lhs]) ~ rhs
-        _collect_params!(ps_set, rhs, dict, iv_uw)
-    end
-    ps_old = collect(ps_set)
-    ps = [MTK.toparam(p) for p in ps_old]
-    return MTK.System(new_eqs, iv, dvs, ps; name = name)
-end
-
-# Build a substitution `⟨op†⟩ → conj(state_var(⟨op⟩))` for every leaf on
-# the RHS that is the conjugate of a tracked state. completion.jl emits
-# one representative per conjugate-pair by default; this pass rewrites
-# the missing partner before mtkcompile sees it.
-#
-# Direct adjoint (`_avg_conj_for_codegen(s)`) reverses operator order but
-# does NOT re-sort cross-atom commuting ops on the same Hilbert subspace
-# (per SQA's "undetermined free-index pairs stay put" invariant). So an
-# RHS leaf like `⟨σ_k_1₂₁ * σ_k_2₂₂⟩` (constructed in atom-1-first order)
-# does not literal-equal the adjoint of state `⟨σ_k_1₁₂ * σ_k_2₂₂⟩`,
-# which lands as `⟨σ_k_2₂₂ * σ_k_1₂₁⟩` (atom-2-first). We walk RHS leaves
-# and key the lookup on a permutation-canonical op signature so both
-# orderings collapse to the same key.
-function _conj_substitution_dict(
-        eqs::AbstractMeanFieldEquations,
-        var_dict::AbstractDict
-    )
-    state_set = Set(eqs.states)
-    state_by_canon = Dict{String, Any}()
-    for s in eqs.states
-        haskey(var_dict, s) || continue
-        v = SymbolicUtils.unwrap(var_dict[s])
-        state_by_canon[_perm_canon_key(s)] = v
-    end
-    conj_dict = Dict{SymbolicUtils.BasicSymbolic, Any}()
-    for eq in eqs.equations
-        _collect_conj_subs!(conj_dict, eq.rhs, state_set, var_dict, state_by_canon)
-    end
-    if eqs isa NoiseMeanFieldEquations
-        for eq in eqs.noise_equations
-            _collect_conj_subs!(conj_dict, eq.rhs, state_set, var_dict, state_by_canon)
-        end
-    end
-    return conj_dict
-end
-
-function _collect_conj_subs!(out, x, state_set, var_dict, state_by_canon)
-    x isa SymbolicUtils.BasicSymbolic || return
-    if SQA.is_average(x) && SymbolicUtils.iscall(x) &&
-            SymbolicUtils.operation(x) === SQA.sym_average
-        haskey(out, x) && return
-        x in state_set && return       # state itself
-        haskey(var_dict, x) && return  # literal match against the var dict
-        # Direct match via permutation-canonical (NE-blind) key: leaves can
-        # carry NE metadata or differ in operator order from the canonical
-        # state form while still being the same physical average. Substitute
-        # the state's var directly so the rhs lookup succeeds.
-        k_direct = _perm_canon_key(x)
-        if haskey(state_by_canon, k_direct)
-            out[x] = state_by_canon[k_direct]
-            return
-        end
-        # Conjugate match: same permutation-canonical key on the adjoint.
-        cs = _avg_conj_for_codegen(x)
-        ck = _perm_canon_key(cs)
-        if haskey(state_by_canon, ck)
-            v = state_by_canon[ck]
-            # Build `conj(avg_var(t))` as a raw `SymbolicUtils.term` rather
-            # than calling `Base.conj` directly. Julia's `conj` invokes
-            # Symbolics' simplifier, which folds `conj(::SymReal)` to
-            # identity and silently zeros every `⟨X⟩ - ⟨X†⟩` driving term
-            # on the RHS. Using `term(...)` with `type=Number` skips the
-            # simplifier so the symbolic `conj` node survives through
-            # `_safe_substitute`, `mtkcompile`, and `build_function`.
-            out[x] = SymbolicUtils.term(conj, v; type = Number)
-        end
-        return
-    end
-    SymbolicUtils.iscall(x) || return
-    for a in SymbolicUtils.arguments(x)
-        _collect_conj_subs!(out, a, state_set, var_dict, state_by_canon)
-    end
-    return
-end
-
-# Permutation-canonical key for an averaged operator. Stable-sort QTerm
-# ops by their `acts_on` tuple then by `string(op)`; ops on the same
-# Hilbert subspace (same acts_on) get a deterministic order based on
-# their printed form, so the cross-atom adjoint reordering becomes
-# invisible to dict-lookup.
-function _perm_canon_key(avg::SymbolicUtils.BasicSymbolic)
-    op = SQA.undo_average(avg)
-    return _perm_canon_key(op)
-end
-function _perm_canon_key(op::SQA.QAdd)
-    parts = String[]
-    for (term, _) in op.arguments
-        sorted = sort(
-            collect(term.ops);
-            by = o -> (Tuple(SQA.acts_on(o)), string(o)),
-            alg = Base.Sort.MergeSort,
-        )
-        # NE-blind: matches `completion._canonical_dedup_key`. Two leaves that
-        # differ only in NE metadata are the same physical state at codegen
-        # time (the algebraic content has already been canonicalised
-        # upstream via `_assume_distinct_atom_indices`).
-        push!(parts, join(string.(sorted), '*'))
-    end
-    sort!(parts)
-    idx_sig = sort(string.(op.indices))
-    return string(join(parts, '+'), '|', idx_sig)
-end
-
-function _avg_conj_for_codegen(x::SymbolicUtils.BasicSymbolic)
-    SQA.is_average(x) || return x
-    SymbolicUtils.iscall(x) || return x
-    SymbolicUtils.operation(x) === SQA.sym_average || return x
-    op = SQA.undo_average(x)
-    return average(adjoint(op))
-end
+# ---- initial values / parameter map / solution ------------------------------
 
 """
     initial_values(eqs::AbstractMeanFieldEquations; defaults=Dict())
 
-Return `Dict{Symbolics.Num, ComplexF64}` mapping each state's u(t) variable to
-its initial value. Unspecified averages default to `zero(ComplexF64)`.
+Map every state's `u(t)` variable to its initial value, defaulting to
+`zero(ComplexF64)` for averages absent from `defaults`.
 """
-function initial_values(
-        eqs::AbstractMeanFieldEquations;
-        defaults::AbstractDict = Dict()
-    )
-    dict, _ = _avg_to_var_dict(eqs)
-    u0 = Dict{Symbolics.Num, ComplexF64}()
-    for avg in eqs.states
-        u0[dict[avg]] = ComplexF64(get(defaults, avg, 0))
-    end
-    return u0
-end
-
-"""
-    initial_values(eqs::AbstractMeanFieldEquations, state)
-
-For a set of symbolic equations `eqs` compute the initial state-average values
-corresponding to the numeric quantum state `state` of the system. `state` can
-be a `QuantumOpticsBase.StateVector` (Ket) or `Operator` (density matrix);
-indexed/scaled equations are supported when `state` is a tensor product or
-`LazyKet`.
-
-Returns a `Vector{ComplexF64}` aligned with `eqs.states`.
-
-See also: [`to_numeric`](@ref), [`numeric_average`](@ref).
-"""
-function initial_values(eqs::AbstractMeanFieldEquations, state)
-    vals = ComplexF64[]
-    for v in eqs.states
-        push!(vals, ComplexF64(SQA.numeric_average(v, state)))
-    end
-    return vals
-end
-
-"""
-    initial_values(eqs::AbstractMeanFieldEquations, u0::AbstractVector{<:Number})
-
-Map a numeric initial-condition vector aligned with `eqs.states` to a
-`Dict{Symbolics.Num, ComplexF64}` keyed by the MTK state variables produced
-by `System(eqs)`. Equivalent to building the dict via `unknowns(sys) .=> u0`.
-"""
-function initial_values(
-        eqs::AbstractMeanFieldEquations, u0::AbstractVector{<:Number};
-        kwargs...
-    )
-    length(u0) == length(eqs.states) || throw(
-        DimensionMismatch(
-            "initial value vector length $(length(u0)) does not match number of states $(length(eqs.states))",
-        )
-    )
-    dict_var, _ = _avg_to_var_dict(eqs)
+function initial_values(eqs::AbstractMeanFieldEquations; defaults::AbstractDict = Dict())
+    reg = _state_registry(eqs)
     out = Dict{Symbolics.Num, ComplexF64}()
     for (k, avg) in enumerate(eqs.states)
-        out[dict_var[avg]] = ComplexF64(u0[k])
+        out[reg.vars[k]] = ComplexF64(get(defaults, avg, 0))
     end
     return out
 end
 
 """
+    initial_values(eqs, state)            # from a numeric quantum state
+    initial_values(eqs, u0::AbstractVector)  # from a value vector aligned with eqs.states
+"""
+function initial_values(eqs::AbstractMeanFieldEquations, state)
+    return ComplexF64[ComplexF64(SQA.numeric_average(v, state)) for v in eqs.states]
+end
+
+function initial_values(eqs::AbstractMeanFieldEquations, u0::AbstractVector{<:Number}; kwargs...)
+    length(u0) == length(eqs.states) || throw(
+        DimensionMismatch(
+            "initial value vector length $(length(u0)) does not match number of states $(length(eqs.states))",
+        ),
+    )
+    reg = _state_registry(eqs)
+    return Dict{Symbolics.Num, ComplexF64}(reg.vars[k] => ComplexF64(u0[k]) for k in eachindex(u0))
+end
+
+"""
     parameter_map(sys::MTK.System, pairs)
 
-Filter `pairs` (a `Pair` iterable or `Dict`) to entries whose key is a live
-unknown or parameter of the compiled system `sys`. Use when a single
-user-built parameter dict carries entries for several compiles of the same
-physical model (e.g. a noisy / deterministic pair) and some compiles drop
-parameters that the others keep. MTK v10 rejects superfluous entries with an
-`Initial` parameter assertion; this strips them silently.
-
-```julia
-sys = mtkcompile(System(MeanFieldEquations(scaled_eqs); name=:sys))
-dict = parameter_map(sys, merge(
-    Dict(unknowns(sys) .=> u0),
-    Dict(p .=> p0),
-))
-prob = ODEProblem(sys, dict, (0.0, T_end))
-```
+Keep only the entries of `pairs` whose key is a live unknown or parameter of the
+compiled system `sys` (MTK rejects superfluous entries).
 """
 function parameter_map(sys::MTK.System, pairs)
     live = Set{SymbolicUtils.BasicSymbolic}()
@@ -371,61 +228,52 @@ function parameter_map(sys::MTK.System, pairs)
     for u in MTK.unknowns(sys)
         push!(live, SymbolicUtils.unwrap(u))
     end
-    pmap = Dict{Any, Any}()
+    out = Dict{Any, Any}()
     for (k, v) in pairs
-        if SymbolicUtils.unwrap(k) in live
-            pmap[k] = v
-        end
+        SymbolicUtils.unwrap(k) in live && (out[k] = v)
     end
-    return pmap
+    return out
 end
 
 """
     parameter_map(eqs::AbstractMeanFieldEquations, pairs) -> Dict
 
 Translate a user-facing `Pair`/`Dict` of parameter assignments into an
-MTK-compatible parameter map. Accepts the original `IndexedVariable`
-callable (e.g. `g` from `g(i) = IndexedVariable(:g, i)`) as a key and
-matches it to the Symbolics-array parameter that `evaluate` synthesised
-from the per-atom callable references. Scalar values are broadcast to
-N-element vectors with N matching the array's concrete shape.
-
-```julia
-pmap = parameter_map(evaled, Dict(
-    g(i)  => 0.1,           # broadcast to fill(0.1, N)
-    Δa(i) => [0.0, 0.1],    # explicit per-atom values
-    κ     => 1.0,           # scalar passes through
-))
-```
+MTK-compatible map. An `IndexedVariable` callable key (e.g. `g` from
+`g(i) = IndexedVariable(:g, i)`) is matched by name to the Symbolics array
+parameter that `evaluate` synthesised from the per-atom references; a scalar
+value is broadcast to fill that array, an `AbstractArray` value passes through
+as the explicit per-atom values. Scalar (non-array) parameters pass through.
 """
 function parameter_map(eqs::AbstractMeanFieldEquations, pairs)
     arr_by_name = Dict{Symbol, SymbolicUtils.BasicSymbolic}()
     scalar_by_name = Dict{Symbol, SymbolicUtils.BasicSymbolic}()
     for eq in eqs.equations
-        _collect_named_params!(
-            arr_by_name, scalar_by_name,
-            SymbolicUtils.unwrap(eq.rhs)
-        )
-        _collect_named_params!(
-            arr_by_name, scalar_by_name,
-            SymbolicUtils.unwrap(eq.lhs)
-        )
+        _collect_named_params!(arr_by_name, scalar_by_name, SymbolicUtils.unwrap(eq.rhs))
+        _collect_named_params!(arr_by_name, scalar_by_name, SymbolicUtils.unwrap(eq.lhs))
     end
     pmap = Dict{Any, Any}()
+    # Per-slot accumulator: separate keys `δ(i_2_1)=>v1, δ(i_2_2)=>v2, …` each
+    # carry a CONCRETE index (parseable slot), so they fill distinct slots of the
+    # `δ` array. Without this each scalar `v` was broadcast over the whole array
+    # via `fill`, so only the LAST assignment survived (every mode got the same
+    # detuning). Bucket them by array name and assemble the array once at the end.
+    slot_acc = Dict{Symbol, Dict{Vector{Int}, Any}}()
     for (k, v) in pairs
         ku = SymbolicUtils.unwrap(k)
         name = _param_name(ku)
         if name !== nothing && haskey(arr_by_name, name)
             arr = arr_by_name[name]
-            shp = SymbolicUtils.shape(arr)
-            n = (shp isa SymbolicUtils.SmallVec{UnitRange{Int}} && !isempty(shp)) ?
-                length(shp[1]) : nothing
+            slots = _param_slots(ku)
             if v isa AbstractArray
                 pmap[arr] = v
-            elseif n !== nothing
-                pmap[arr] = fill(v, n)
+            elseif slots !== nothing
+                get!(slot_acc, name, Dict{Vector{Int}, Any}())[slots] = v
             else
-                pmap[arr] = v
+                shp = SymbolicUtils.shape(arr)
+                n = (shp isa SymbolicUtils.SmallVec{UnitRange{Int}} && !isempty(shp)) ?
+                    length(shp[1]) : nothing
+                pmap[arr] = n === nothing ? v : fill(v, n)
             end
         elseif name !== nothing && haskey(scalar_by_name, name)
             pmap[scalar_by_name[name]] = v
@@ -433,32 +281,62 @@ function parameter_map(eqs::AbstractMeanFieldEquations, pairs)
             pmap[k] = v
         end
     end
+    for (name, slots_to_v) in slot_acc
+        pmap[arr_by_name[name]] = _build_slot_array(arr_by_name[name], slots_to_v)
+    end
     return pmap
 end
 
-# Extract the user-visible name of a parameter expression:
-# - bare Sym `:κ` → :κ
-# - callable-Sym Term `g(i.sym)` (IndexedVariable shape) → :g
-# - scalar after `unwrap(Num(...))` likewise
+# Concrete-index slots of an indexed-variable key, e.g. `δ(i_2_1)` -> `[1]`,
+# `Γ(i_2_1, i_2_2)` -> `[1, 2]`. Returns `nothing` when any argument is not a
+# concrete `name_…_<int>` index (a bare symbolic index `δ(i)` has no slot, so it
+# broadcasts instead of targeting a single position).
+function _param_slots(x::SymbolicUtils.BasicSymbolic)
+    SymbolicUtils.iscall(x) || return nothing
+    slots = Int[]
+    for a in SymbolicUtils.arguments(x)
+        (a isa SymbolicUtils.BasicSymbolic && !SymbolicUtils.iscall(a)) || return nothing
+        s = _parse_slot(Base.nameof(a))
+        s === nothing && return nothing
+        push!(slots, s)
+    end
+    return isempty(slots) ? nothing : slots
+end
+_param_slots(_) = nothing
+
+# Assemble a concrete array parameter from per-slot scalar assignments. Sizes from
+# the synthesised array's declared shape when available, else from the maximum slot
+# per dimension. Unassigned slots stay zero (the caller is expected to specify
+# every active site, as the evaluate-time array shape implies).
+function _build_slot_array(arr, slots_to_v::Dict{Vector{Int}, Any})
+    ndim = length(first(keys(slots_to_v)))
+    shp = SymbolicUtils.shape(arr)
+    dims = (shp isa SymbolicUtils.SmallVec{UnitRange{Int}} && length(shp) == ndim) ?
+        Tuple(length(r) for r in shp) :
+        Tuple(maximum(s[d] for s in keys(slots_to_v)) for d in 1:ndim)
+    V = promote_type((typeof(v) for v in values(slots_to_v))...)
+    out = zeros(V, dims...)
+    for (slots, v) in slots_to_v
+        out[slots...] = v
+    end
+    return out
+end
+
+# User-visible name of a parameter expression: bare Sym `:κ` -> :κ; callable-Sym
+# Term `g(i.sym)` (IndexedVariable shape) -> :g; nothing otherwise.
 _param_name(x) = nothing
 function _param_name(x::SymbolicUtils.BasicSymbolic)
-    if !SymbolicUtils.iscall(x)
-        return Base.nameof(x)
-    end
+    SymbolicUtils.iscall(x) || return Base.nameof(x)
     op = SymbolicUtils.operation(x)
-    if op isa SymbolicUtils.BasicSymbolic && !SymbolicUtils.iscall(op)
-        return Base.nameof(op)
-    end
+    (op isa SymbolicUtils.BasicSymbolic && !SymbolicUtils.iscall(op)) && return Base.nameof(op)
     return nothing
 end
 
-# Populate the two name → MTK-parameter dicts from a tree `x`.
-# `arr_dict` collects array-typed params (from the `getindex` post-pass);
-# `scalar_dict` collects bare-Sym scalar parameters (κ, Γ, …).
+# Populate name -> MTK-parameter dicts from a tree: array-typed Syms into
+# `arr_dict`, bare Real scalar Syms into `scalar_dict`.
 function _collect_named_params!(arr_dict, scalar_dict, x)
     x isa SymbolicUtils.BasicSymbolic || return
     if !SymbolicUtils.iscall(x)
-        # Only Sym leaves have `nameof`; numeric Consts and the like don't.
         SymbolicUtils.issym(x) || return
         shp = SymbolicUtils.shape(x)
         if shp isa SymbolicUtils.SmallVec{UnitRange{Int}} && !isempty(shp)
@@ -477,34 +355,29 @@ end
 """
     get_solution(sol, avg_or_op, eqs)
 
-Query an ODESolution `sol` for the trajectory of `avg_or_op`. Accepts either a
-raw `Average` BasicSymbolic or a `QField` (which is averaged internally).
+Query an ODE/SDE solution for the trajectory of an average (or a `QField`,
+averaged internally). Resolves the user's operator to a tracked state by the
+conjugation orbit (`concrete_rep`, recovering a folded conjugate via the side
+bit), then falls back to `canon_key` so a query posed in a different but
+equivalent symbolic form still hits.
 """
-function get_solution(
-        sol, avg::SymbolicUtils.BasicSymbolic,
-        eqs::AbstractMeanFieldEquations
-    )
-    dict, _ = _avg_to_var_dict(eqs)
-    if haskey(dict, avg)
-        var = dict[avg]
-        return τ -> _eval_at(sol, var, τ)
-    end
-    # Conjugate fallback: ⟨op†⟩ is not stored explicitly because
-    # `complete!` deduplicates conjugate pairs. Look up ⟨op⟩ instead and
-    # return `conj` of its trajectory.
-    conj_avg = _avg_conj_for_codegen(avg)
-    if conj_avg !== avg && haskey(dict, conj_avg)
-        var = dict[conj_avg]
-        return τ -> conj.(_eval_at(sol, var, τ))
+function get_solution(sol, avg::SymbolicUtils.BasicSymbolic, eqs::AbstractMeanFieldEquations)
+    reg = _state_registry(eqs)
+    op = undo_average(avg)
+    if op isa QAdd
+        rep, side = canonical_rep(op, reg.ctx; coords = reg.coords)
+        if haskey(reg.by_rep, rep)
+            var, rep_side = reg.by_rep[rep]
+            return side == rep_side ? (τ -> _eval_at(sol, var, τ)) :
+                (τ -> conj.(_eval_at(sol, var, τ)))
+        end
+        haskey(reg.by_canon, canon_key(op, reg.ctx)) && return τ -> _eval_at(sol, reg.by_canon[canon_key(op, reg.ctx)], τ)
+        kcc = canon_key(adjoint(op), reg.ctx)
+        haskey(reg.by_canon, kcc) && return τ -> conj.(_eval_at(sol, reg.by_canon[kcc], τ))
     end
     throw(KeyError(avg))
 end
+get_solution(sol, op::QField, eqs::AbstractMeanFieldEquations) = get_solution(sol, average(op), eqs)
 
-# `sol(τ; idxs=var)` for vector `τ` returns a plain Vector on ODE solutions
-# but a `RecursiveArrayTools.DiffEqArray` on SDE solutions, which downstream
-# `real.(...)` / broadcasting cannot consume. `Array(...)` materialises both
-# uniformly in one batched interpolator pass.
 _eval_at(sol, var, τ::AbstractVector) = Array(sol(τ; idxs = var))
 _eval_at(sol, var, τ) = sol(τ; idxs = var)
-get_solution(sol, op::QField, eqs::AbstractMeanFieldEquations) =
-    get_solution(sol, average(op), eqs)

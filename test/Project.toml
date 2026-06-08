@@ -1,6 +1,5 @@
 [deps]
 Aqua = "4c88cf16-eb10-579e-8560-4a9242c79595"
-BenchmarkTools = "6e4b80f9-dd63-53aa-95a3-0cdb28fa8baf"
 CheckConcreteStructs = "73c92db5-9da6-4938-911a-6443a7e94a58"
 DiffEqNoiseProcess = "77a26b50-5914-5dd7-bc55-306e6241c503"
 ExplicitImports = "7d51a73a-1435-4ff3-83d9-f097790105c7"
@@ -10,12 +9,10 @@ OrdinaryDiffEq = "1dea7af3-3e70-54e6-95c3-0bf5283fa5ed"
 OrdinaryDiffEqTsit5 = "b1df2697-797e-41e3-8120-5422d3b24e4a"
 ParallelTestRunner = "d3525ed8-44d0-4b2c-a655-542cee43accc"
 QuantumCumulants = "35bcea6d-e19f-57db-af74-8011de6c7255"
-QuantumOptics = "6e0679c1-51ea-5a7c-ac74-d61b76210b0c"
 QuantumOpticsBase = "4f57444f-1401-5e15-980d-4471b28d5678"
 Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
 SecondQuantizedAlgebra = "f7aa4685-e143-4cb6-a7f3-073579757907"
 Statistics = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
-SteadyStateDiffEq = "9672c7b4-1e72-59bd-8a11-6ac3964bc41f"
 StochasticDiffEq = "789caeaf-c7a9-5a7d-9973-96adeb23e2a0"
 SymbolicUtils = "d1185830-fcd6-423d-90d6-eec64667417b"
 Symbolics = "0c5d862f-8b57-4792-8d23-62f2024744c7"
@@ -27,6 +24,3 @@ CheckConcreteStructs = "0.1"
 ExplicitImports = "1.11"
 JET = "0.9, 0.10, 0.11"
 ParallelTestRunner = "2"
-
-[sources]
-SecondQuantizedAlgebra = {rev = "redesign-v2", url = "https://github.com/qojulia/SecondQuantizedAlgebra.jl"}

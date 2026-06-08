@@ -10,8 +10,6 @@ on:
       - 'test/quality/JET.jl'
       - 'Project.toml'
   pull_request:
-    branches:
-      - 'master'
     paths:
       - '.github/workflows/JET.yml'
       - 'src/**'

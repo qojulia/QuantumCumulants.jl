@@ -19,7 +19,9 @@ end
 function _phase_inv(q::SQA.QAdd)
     for (term, _) in q.arguments
         p = 0
-        for op in term.ops; p += _phase_inv(op); end
+        for op in term.ops
+            p += _phase_inv(op)
+        end
         return p
     end
     return 0
@@ -220,18 +222,26 @@ end
     Sp(i) = (Sx(i) + 1im * Sy(i))
     _Ω_cache = Dict()
     _Γ_cache = Dict()
-    Ωp(i, j) = (k = i > j ? (j, i) : (i, j);
-        get!(_Ω_cache, k, (ModelingToolkitBase.@variables $(Symbol("Ω_$(k[1])_$(k[2])")))[1]))
-    Γp(i, j) = (k = i > j ? (j, i) : (i, j);
-        get!(_Γ_cache, k, (ModelingToolkitBase.@variables $(Symbol("Γ_$(k[1])_$(k[2])")))[1]))
+    Ωp(i, j) = (
+        k = i > j ? (j, i) : (i, j);
+        get!(_Ω_cache, k, (ModelingToolkitBase.@variables $(Symbol("Ω_$(k[1])_$(k[2])")))[1])
+    )
+    Γp(i, j) = (
+        k = i > j ? (j, i) : (i, j);
+        get!(_Γ_cache, k, (ModelingToolkitBase.@variables $(Symbol("Γ_$(k[1])_$(k[2])")))[1])
+    )
     H = sum((i ≠ j) * Ωp(i, j) * Sp(i) * Sm(j) for i in 1:M for j in 1:M)
     J = [Sm(c1) for c1 in 1:M]
     rates = [Γp(c1, c2) for c1 in 1:M, c2 in 1:M]
     S(i) = [Sx(i), Sy(i), Sz(i)]
     SiSi(i) = [Sx(i)Sx(i), Sx(i)Sy(i), Sx(i)Sz(i), Sy(i)Sy(i), Sy(i)Sz(i), Sz(i)Sz(i)]
     ops = []
-    for i in 1:M; push!(ops, S(i)...); end
-    for i in 1:M; push!(ops, SiSi(i)...); end
+    for i in 1:M
+        push!(ops, S(i)...)
+    end
+    for i in 1:M
+        push!(ops, SiSi(i)...)
+    end
     for i in 1:M, j in i:M
         if i ≠ j
             for α in 1:3, β in 1:3
@@ -285,14 +295,20 @@ end
         Ω * (σ_ch(:e, :g, 1) + σ_ch(:g, :e, 1)) +
         sum(
         Jc(x_[k], x_[k + 1]) * (
-            σ_ch(:e, :g, k) * σ_ch(:g, :e, k + 1) +
+                σ_ch(:e, :g, k) * σ_ch(:g, :e, k + 1) +
                 σ_ch(:g, :e, k) * σ_ch(:e, :g, k + 1)
-        )
+            )
             for k in 1:(N - 1)
     )
     c_ops = [σ_ch(:g, :e, k) for k in 1:N]
     eqs = meanfield(σ_ch(:g, :e, 1), H, c_ops; rates = [γ for _ in 1:N], order = 2)
     complete!(eqs)
+    # The full order-2 closure has 434 distinct moments. complete!'s iteration cap
+    # must be high enough to reach the fixpoint (the N=10 chain needs > 200 BFS
+    # node-expansions; the cap was raised in the moment-class rebuild so closure
+    # finishes instead of truncating). Coordinate-consistent find_missing (Task 2)
+    # confirms the closed system has no missing leaves.
+    @test isempty(find_missing(eqs; get_adjoints = false))
     @test length(eqs.equations) == 434
     sys_c = mtkcompile(System(eqs; name = :chain_sys))
     @test length(unknowns(sys_c)) == 434
@@ -310,9 +326,9 @@ end
         Ω * (σ_ch(:e, :g, 1) + σ_ch(:g, :e, 1)) +
         sum(
         Jc(x_[k], x_[k + 1]) * (
-            σ_ch(:e, :g, k) * σ_ch(:g, :e, k + 1) +
+                σ_ch(:e, :g, k) * σ_ch(:g, :e, k + 1) +
                 σ_ch(:g, :e, k) * σ_ch(:e, :g, k + 1)
-        )
+            )
             for k in 1:(N - 1)
     )
     c_ops = [σ_ch(:g, :e, k) for k in 1:N]
@@ -355,10 +371,12 @@ end
     @test length(unknowns(sys_c)) == 5
     u0 = zeros(ComplexF64, length(eqs_sc.equations))
     init = initial_values(eqs_sc, u0)
-    pmap = parameter_map(eqs_sc, Dict(
-        N => 50.0, Δ => 0.0, g_v(i) => 1.0, κ => 1.0, Γ => 0.25,
-        R => 4.0, ν => 0.0,
-    ))
+    pmap = parameter_map(
+        eqs_sc, Dict(
+            N => 50.0, Δ => 0.0, g_v(i) => 1.0, κ => 1.0, Γ => 0.25,
+            R => 4.0, ν => 0.0,
+        )
+    )
     prob = ODEProblem(sys_c, merge(init, pmap), (0.0, 30.0))
     sol = solve(prob, Tsit5(); reltol = 1.0e-8, abstol = 1.0e-8)
     @test isapprox(
@@ -540,8 +558,10 @@ end
     u0_vec = zeros(ComplexF64, length(eqs_sc))
     dict_st = parameter_map(
         sys_st,
-        merge(Dict{Any, Any}(unknowns(sys_st) .=> u0_vec),
-            Dict{Any, Any}(p_pairs)),
+        merge(
+            Dict{Any, Any}(unknowns(sys_st) .=> u0_vec),
+            Dict{Any, Any}(p_pairs)
+        ),
     )
     Random.seed!(2)
     noise = RealWienerProcess(0.0, 0.0)
@@ -579,10 +599,12 @@ end
     _het_pulse(_) = 1.0
     u0 = zeros(ComplexF64, length(eqs_sc.equations))
     init = initial_values(eqs_sc, u0)
-    pmap = parameter_map(eqs_sc, Dict(
-        ωc => 0.0, ωa => 0.0, ωl => 0.0,
-        κ => 1.0, γ => 0.1, η => 1.0, χ => 0.1, g => 1.0, N => 4.0,
-    ))
+    pmap = parameter_map(
+        eqs_sc, Dict(
+            ωc => 0.0, ωa => 0.0, ωl => 0.0,
+            κ => 1.0, γ => 0.1, η => 1.0, χ => 0.1, g => 1.0, N => 4.0,
+        )
+    )
     prob = ODEProblem(sys_c, merge(init, pmap), (0.0, 5.0))
     sol = solve(prob, Tsit5(); reltol = 1.0e-8, abstol = 1.0e-8)
     @test isapprox(
@@ -623,20 +645,30 @@ end
     pmap_dict = Dict{Any, Any}()
     for p in ModelingToolkitBase.parameters(sys_c)
         nm = string(p)
-        if nm == "Δc";    pmap_dict[p] = 0.0
-        elseif nm == "Δa"; pmap_dict[p] = 0.0
-        elseif nm == "η";  pmap_dict[p] = 0.1
-        elseif nm == "κ";  pmap_dict[p] = 1.0
-        elseif nm == "g";  pmap_dict[p] = [1.0, 1.0]
-        elseif nm == "Γ";  pmap_dict[p] = [1.0 1.0; 1.0 1.0]
-        elseif nm == "Ω";  pmap_dict[p] = [0.0 0.5; 0.5 0.0]
+        if nm == "Δc"
+            pmap_dict[p] = 0.0
+        elseif nm == "Δa"
+            pmap_dict[p] = 0.0
+        elseif nm == "η"
+            pmap_dict[p] = 0.1
+        elseif nm == "κ"
+            pmap_dict[p] = 1.0
+        elseif nm == "g"
+            pmap_dict[p] = [1.0, 1.0]
+        elseif nm == "Γ"
+            pmap_dict[p] = [1.0 1.0; 1.0 1.0]
+        elseif nm == "Ω"
+            pmap_dict[p] = [0.0 0.5; 0.5 0.0]
         end
     end
     prob = ODEProblem(sys_c, merge(init, pmap_dict), (0.0, 30.0))
     sol = solve(prob, Tsit5(); reltol = 1.0e-9, abstol = 1.0e-9)
+    # Matches master v0.4.3 (0.001984): the collective dissipator now emits the
+    # explicit diagonal self-decay + off-diagonal recycling with `j≠k` preserved
+    # through cumulant factorisation (INVESTIGATION_NOTES.md §7).
     @test isapprox(
         abs2(get_solution(sol, a, eqs_).(sol.t[end])),
-        0.0019889934766074693; rtol = 1.0e-4,
+        0.001984; rtol = 1.0e-4,
     )
 end
 
@@ -659,14 +691,17 @@ end
     rates = [κ, κf, Γ, R, ν]
     eqs = meanfield(a' * a, H, J; rates = rates, order = 2)
     eqs_c = complete!(deepcopy(eqs))
-    # closure: 42 equations, 39 after scale, 554 after evaluate at M=20.
+    # closure: 42 equations, 39 after scale, 552 after evaluate at M=20.
+    # (552 is the conjugate-folded distinct-site count; verified equal to master
+    # QuantumCumulants v0.4.3 for this exact system. The earlier 554 lock came
+    # from a buggy QuantumCumulants scale that double-counted a filter conjugate pair.)
     @test length(eqs_c.equations) == 42
     eqs_sc = scale(eqs_c; h = [3])
     @test length(eqs_sc.equations) == 39
     eqs_eval = evaluate(eqs_sc; limits = Dict(M => 20))
-    @test length(eqs_eval.equations) == 554
+    @test length(eqs_eval.equations) == 552
     sys_c = mtkcompile(System(eqs_eval; name = :fc_sys))
-    @test length(unknowns(sys_c)) == 554
+    @test length(unknowns(sys_c)) == 552
 end
 
 # Reduced M=3 variant integrated as a mean-field ODE.
@@ -692,7 +727,7 @@ end
     eqs_sc = scale(eqs_c; h = [3])
     M_ = 3
     eqs_eval = evaluate(eqs_sc; limits = Dict(M => M_))
-    @test length(eqs_eval.equations) == 44
+    @test length(eqs_eval.equations) == 42
     sys_c = mtkcompile(System(eqs_eval; name = :fc3_sys))
     u0 = zeros(ComplexF64, length(eqs_eval.equations))
     init = initial_values(eqs_eval, u0)
@@ -707,9 +742,13 @@ end
     pmap = parameter_map(eqs_eval, pmap_dict)
     prob = ODEProblem(sys_c, merge(init, pmap), (0.0, 5.0))
     sol = solve(prob, Tsit5(); reltol = 1.0e-8, abstol = 1.0e-8)
+    # Ground-truth ⟨a†a⟩(t=5): verified against master QuantumCumulants v0.4.3
+    # (both its scaled and its fully-unrolled N=10 M=3 reference) AND QuantumCumulants's own
+    # fully-unrolled system, all agreeing at 4.36032. The earlier 4.40621 lock was
+    # produced by a buggy QuantumCumulants scale (filter NE-drop + δ slot mis-binding).
     @test isapprox(
         real(get_solution(sol, a' * a, eqs_eval).(sol.t[end])),
-        4.406206739122889; rtol = 1.0e-4,
+        4.360320310008423; rtol = 1.0e-4,
     )
 end
 

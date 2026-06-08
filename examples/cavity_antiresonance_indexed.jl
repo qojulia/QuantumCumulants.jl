@@ -95,16 +95,16 @@ d = 2π * 0.08 #0.08λ
 
 Ωij(i, j) =
     i == j ? 0 :
-    Γ_*(-3/4)*((1-(cos(θ))^2)*cos(d)/d - (1-3*(cos(θ))^2)*(sin(d)/(d^2)+(cos(d)/(d^3))))
+    Γ_ * (-3 / 4) * ((1 - (cos(θ))^2) * cos(d) / d - (1 - 3 * (cos(θ))^2) * (sin(d) / (d^2) + (cos(d) / (d^3))))
 Γij(i, j) =
     i == j ? Γ_ :
-    Γ_*(3/2)*((1-(cos(θ))^2)*sin(d)/d + (1-3*(cos(θ))^2)*((cos(d)/(d^2))-(sin(d)/(d^3))))
+    Γ_ * (3 / 2) * ((1 - (cos(θ))^2) * sin(d) / d + (1 - 3 * (cos(θ))^2) * ((cos(d) / (d^2)) - (sin(d) / (d^3))))
 
 g_ = 2Γ_
 κ_ = 20Γ_
 Δa_ = 0Γ_
 Δc_ = 0Γ_
-η_ = κ_/100
+η_ = κ_ / 100
 
 gi_ = [g_ * (-1)^k for k in 1:N_]
 Γij_ = [Γij(k, l) for k in 1:N_, l in 1:N_]
@@ -115,10 +115,12 @@ n_ls = zeros(length(Δ_ls))
 for k in eachindex(Δ_ls)
     Δc_i = Δ_ls[k]
     Δa_i = Δc_i + Ωij(1, 2)
-    p = parameter_map(eqs_, Dict(
-        Δc => Δc_i, η => η_, Δa => Δa_i, κ => κ_,
-        g(i) => gi_, Γ(i, j) => Γij_, Ω(i, j) => Ωij_,
-    ))
+    p = parameter_map(
+        eqs_, Dict(
+            Δc => Δc_i, η => η_, Δa => Δa_i, κ => κ_,
+            g(i) => gi_, Γ(i, j) => Γij_, Ω(i, j) => Ωij_,
+        )
+    )
     prob_ = ODEProblem(sys, merge(initial_values(eqs_, u0), Dict(p)), (0.0, 20.0))
     sol_ = solve(prob_, Tsit5())
     n_ls[k] = abs2(get_solution(sol_, a, eqs_)(sol_.t[end]))

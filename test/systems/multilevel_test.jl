@@ -69,8 +69,13 @@ end
     phase_invariant(x) = iszero(ϕ(x))
 
     he = meanfield(a' * a, H, J; Jdagger = Jdagger, rates = rates, order = 2)
-    complete!(he; filter_func = phase_invariant)
-    @test isempty(find_missing(he; filter_func = phase_invariant))
+    # The 2N+1 laser closure is the conjugate-FOLDED basis: ⟨a'σ_k⟩ is counted
+    # once per atom (its conjugate ⟨aσ_k⟩ is the same unknown, recovered at
+    # codegen), so complete with get_adjoints=false. The ground populations
+    # ⟨σ_gg_k⟩ fold to 1 - ⟨σ_ee_k⟩ via the moment-level completeness reduction,
+    # so only ⟨σ_ee_k⟩ is tracked.
+    complete!(he; filter_func = phase_invariant, get_adjoints = false)
+    @test isempty(find_missing(he; filter_func = phase_invariant, get_adjoints = false))
     # Closure basis: ⟨a'a⟩ + ⟨σee_k⟩ + ⟨a'σ_k⟩ gives 2N+1 equations.
     n_eqs = 2N + 1
     @test length(he.equations) == n_eqs

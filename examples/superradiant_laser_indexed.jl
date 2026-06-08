@@ -127,9 +127,11 @@ g_ = 1000Γ_ #g=1Hz
 R_ = 1000Γ_ #R=1Hz
 ν_ = 1000Γ_ #ν=1Hz
 
-pmap = parameter_map(eqs_sc, Dict(
-    N => N_, Δ => Δ_, g(i) => g_, κ => κ_, Γ => Γ_, R => R_, ν => ν_,
-))
+pmap = parameter_map(
+    eqs_sc, Dict(
+        N => N_, Δ => Δ_, g(i) => g_, κ => κ_, Γ => Γ_, R => R_, ν => ν_,
+    )
+)
 ps = collect(keys(pmap))
 p0 = collect(values(pmap))
 

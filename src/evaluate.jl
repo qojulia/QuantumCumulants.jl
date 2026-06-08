@@ -1,226 +1,382 @@
-"""
-    evaluate(eqs::MeanFieldEquations; limits=nothing, h::Vector{Int}=Int[], kwargs...)
-    evaluate(c::CorrelationFunction; limits=nothing, h::Vector{Int}=Int[], kwargs...)
+# Evaluate (Layer 5). `specialize` binds symbolic index ranges to concrete sizes
+# and unrolls the indexed sums in the ALREADY-DERIVED drift (it materialises the
+# result, never re-derives an N-atom system, so it stays cheap at large N). The
+# unroll is a thin layer over `SQA.change_index` (which does NE-drop + diagonal
+# split); the orchestration is one `mapleaves` walk plus `literal_key` dedup.
+# Post-`specialize` identity is `literal_key` (concrete per-site atoms stay
+# distinct), not `canon_key`.
 
-Materialise symbolic indexed mean-field equations into concrete-size systems.
+# ---- limits parsing ----------------------------------------------------------
 
-`limits` accepts a `Pair` (`N => 3`), tuple of pairs, or `Dict{BasicSymbolic,Int}`.
-For every `Index` whose `range` matches a limits key:
-
-  1. Sums `Σ_i^N f(i)` (carried as `QAdd.indices` metadata) are unrolled to
-     `f(e_s_1) + f(e_s_2) + ... + f(e_s_n)`, where `e_s_k` is a fresh per-value
-     `Index` shared across all enumerations of "position k in space s", so
-     `i_k` and `j_k` from different source names collapse to the same physical
-     atom. NE-violated terms drop out of `_canonicalize!`.
-
-  2. Free LHS indices enumerate over their range, producing one equation per
-     concrete value.
-
-The result is a system whose `QAdd`s have empty `.indices`, ready for `System`
-and `mtkcompile`.
-
-`h` further restricts unrolling to Hilbert subspaces whose `space_index` is in
-the vector (the 1-based tensor-product position). The empty default unrolls
-every index covered by `limits`. Indices on unselected subspaces keep their
-symbolic names and sum-scope, even if `limits` covers their range. Useful for
-hybrid systems: unroll a filter cavity array via `evaluate(...; limits, h=[2])`
-while leaving the atom ensemble symbolic for `scale`.
-
-Implementation: this is a thin layer over `SQA.change_index`. All algebraic
-normalisation (commuting-op sort, projector squashing, ne-violated drop,
-diagonal splitting) is delegated to SQA primitives.
-"""
-function evaluate(
-        eqs::MeanFieldEquations;
-        limits = nothing,
-        h::Vector{Int} = Int[],
-        kwargs...,
-    )
-    sub_dict = _build_limits_dict(limits)
-    isempty(sub_dict) && return _copy(eqs)
-    h_set = Set{Int}(h)
-    return _evaluate_unroll(eqs, sub_dict, h_set)
+function _limits_dict(limits)
+    sub = Dict{Any, Int}()
+    limits === nothing && return sub
+    if limits isa Pair
+        sub[SymbolicUtils.unwrap(first(limits))] = Int(last(limits))
+    elseif limits isa Tuple || limits isa AbstractDict
+        for p in limits
+            sub[SymbolicUtils.unwrap(first(p))] = Int(last(p))
+        end
+    else
+        throw(ArgumentError("`limits` must be a Pair, Tuple of Pairs, or Dict"))
+    end
+    return sub
 end
 
-function evaluate(c::CorrelationFunction; limits = nothing, h::Vector{Int} = Int[], kwargs...)
-    new_eqs = evaluate(c.eqs; limits = limits, h = h, kwargs...)
-    return CorrelationFunction(
-        c.op1, c.op2, c.op2_anc, c.aon_anc,
-        new_eqs, c.eqs0, c.τ, c.steady_state,
-    )
+_in_h(hset::Set{Int}, sp::Int) = isempty(hset) || sp in hset
+_targeted(idx::SQA.Index, sub, hset) =
+    SymbolicUtils.unwrap(idx.range) in keys(sub) && _in_h(hset, idx.space_index)
+
+# Mint a per-(space, value) concrete index from the user's first-declared index
+# on that subspace (SQA naming policy: trace back to the user's vocabulary, just
+# suffix the position). Two source names on one atom-space both map to the same
+# `Index(:i, …)(k)`, so concrete states for the same atoms dedup.
+function _concrete_index(b::SQA.Index, k::Int, ctx::CanonCtx)
+    reps = get(ctx.vocab, b.space_index, SQA.Index[])
+    isempty(reps) && return b(k)
+    return reps[1](k)
 end
 
-# ---------------------------------------------------------------------------
-# Driver
+# Free indices on `op` whose range is in `limits` and subspace selected by `h`.
+_free_limited_indices(op::SQA.QSym, sub, hset) =
+    (SQA.has_index(op.index) && _targeted(op.index, sub, hset)) ? SQA.Index[op.index] : SQA.Index[]
+function _free_limited_indices(op::QAdd, sub, hset)
+    out = SQA.Index[]
+    bound = Set(op.indices)
+    for (term, _) in op.arguments, o in term.ops
+        idx = o.index
+        SQA.has_index(idx) || continue
+        idx in bound && continue
+        _targeted(idx, sub, hset) || continue
+        idx in out || push!(out, idx)
+    end
+    return out
+end
+_free_limited_indices(_, _, _) = SQA.Index[]
 
-function _evaluate_unroll(eqs::MeanFieldEquations, sub_dict, h_set::Set{Int})
-    coeff_sub = Dict{Any, Any}(k => v for (k, v) in sub_dict)
-    canon = _build_canonical_indices(eqs)
-    # Normalise scope: lift SumIndices metadata from average leaves onto
-    # their enclosing Mul parents so coefficient siblings (e.g. IndexedVariable
-    # `g(i)`) are substituted together with the average leaf during unrolling.
-    # See docs/superpowers/specs/2026-05-19-bound-index-scope-lift-design.md.
-    lifted_rhs = [_lift_sum_scope(eq.rhs) for eq in eqs.equations]
-    lifted_lhs = [_lift_sum_scope(eq.lhs) for eq in eqs.equations]
-    lifted_op_eq_lhs = [_lift_sum_scope(opeq.lhs) for opeq in eqs.operator_equations]
-    lifted_op_eq_rhs = [_lift_sum_scope(opeq.rhs) for opeq in eqs.operator_equations]
-    new_eqs = Symbolics.Equation[]
-    new_states = SymbolicUtils.BasicSymbolic[]
-    new_ops = QAdd[]
-    new_op_eqs = Symbolics.Equation[]
-    seen = Set{Any}()
+# Distinct-site cumulant semantics: two free indices on the SAME subspace within
+# ONE moment are distinct (i ≠ j). Their coincidence (the diagonal) is a strictly
+# LOWER-order moment owned by a separate node, so it must NOT be enumerated here:
+#   ⟨σ_i σ_j⟩ diagonal → ⟨σ_k⟩         (single-atom node; for atoms it also
+#                                        collapses via projector algebra)
+#   ⟨b_i b_j⟩ diagonal → ⟨b_k b_k⟩     (single-free-index node)
+#   ⟨b_i b_j†⟩ diagonal → ⟨b_k b_k†⟩ = 1 + ⟨b_k†b_k⟩ (single-index node + a
+#                                        constant carried by consuming drifts)
+# Enumerate only injective assignments per subspace; the diagonal's physics enters
+# other equations through the drift's own diagonal-split, never as its own state.
+# Without this, Fock diagonals surface as redundant compound states (`1 + b_k†b_k`
+# alongside the clean `b_k†b_k`), doubling the photon-number sector on unroll.
+function _distinct_within_subspace(free::Vector{SQA.Index}, tup)
+    @inbounds for p in 1:length(free), q in (p + 1):length(free)
+        free[p].space_index == free[q].space_index || continue
+        tup[p] == tup[q] && return false
+    end
+    return true
+end
 
-    for k in eachindex(eqs.equations)
-        op_k = eqs.operators[k]
-        free = _free_lhs_indices(op_k, sub_dict, h_set)
-        ranges = [sub_dict[SymbolicUtils.unwrap(idx.range)] for idx in free]
-        iter = Iterators.product([1:r for r in ranges]...)
-        for tup in iter
+_used_op_indices(op::QAdd) = _free_op_indices(op)   # all op indices (incl. bound), first-encounter
+
+# ---- materialisation ---------------------------------------------------------
+
+_apply_free(op::QAdd, idx_sub) = isempty(idx_sub) ? op :
+    foldl((q, p) -> SQA.change_index(q, p[1], p[2]), idx_sub; init = op)
+_apply_free(op, _) = op
+
+# Rewrite an averaged RHS for the concrete system. A plain `mapleaves` over the
+# average leaves is not enough: an `IndexedVariable` coefficient `g(i)` is a
+# sibling factor of its bound-sum average leaf `Σ_i ⟨σ_i⟩`, sharing the index
+# `i`, and must be unrolled in lockstep (`g(i(1))⟨σ_{i(1)}⟩ + g(i(2))⟨σ_{i(2)}⟩`)
+# rather than left as an orphaned callable `g(i)`. We therefore walk the tree:
+# average leaves go through `_materialise_leaf` (free-sub + bound-unroll), bare
+# leaf Syms get `sym_sub` (the Symbolics-side mirror of the operator
+# `change_index`), and a `*` node carrying lifted `SumIndices` scope is unrolled
+# as a whole via `_materialise_scoped`. Wrap with the Num constructor (leaves
+# carry the average symtype), as `derive`/`scale` do.
+_materialise(x, idx_sub, sub, ctx, hset, sym_sub = _EMPTY_SYM_SUB) =
+    Symbolics.Num(_materialise_walk(SymbolicUtils.unwrap(x), idx_sub, sub, ctx, hset, sym_sub))
+
+const _EMPTY_SYM_SUB = Dict{Any, Any}()
+
+function _materialise_walk(x, idx_sub, sub, ctx, hset, sym_sub)
+    x isa SymbolicUtils.BasicSymbolic || return x
+    _is_avg_leaf(x) && return _materialise_leaf(x, idx_sub, sub, ctx, hset)
+    if !SymbolicUtils.iscall(x)
+        return get(sym_sub, x, x)   # leaf Sym: mirror the operator index rename
+    end
+    if SymbolicUtils.operation(x) === (*) && SymbolicUtils.hasmetadata(x, SQA.SumIndices)
+        bound = SymbolicUtils.getmetadata(x, SQA.SumIndices)
+        bound isa Vector{SQA.Index} && !isempty(bound) &&
+            return _materialise_scoped(x, bound, idx_sub, sub, ctx, hset, sym_sub)
+    end
+    op = SymbolicUtils.operation(x)
+    args = SymbolicUtils.arguments(x)
+    new_args = Any[_materialise_walk(a, idx_sub, sub, ctx, hset, sym_sub) for a in args]
+    # Identity comparison: `isequal` ignores BasicSymbolic metadata and may
+    # collapse averages whose inner QFields differ (see `_lift_sum_scope`).
+    any(((a, b),) -> a !== b, zip(args, new_args)) || return x
+    op === complex && length(new_args) == 2 && return new_args[1] + new_args[2] * Symbolics.IM
+    return _rebuild(op, new_args, x)
+end
+
+# Unroll a scoped `*` node over the bound indices it actually references (and
+# that are targeted by `sub`/`h` and not already covered by `idx_sub`). Each
+# enumeration extends `idx_sub` (operator side, via `change_index`) and `sym_sub`
+# (coefficient side, `b.sym -> concrete.sym`) before recursing into the
+# scope-stripped subtree.
+function _materialise_scoped(x, bound::Vector{SQA.Index}, idx_sub, sub, ctx, hset, sym_sub)
+    substituted = Set{SQA.Index}()
+    for (from, to) in idx_sub
+        push!(substituted, from); push!(substituted, to)
+    end
+    to_unroll = SQA.Index[
+        b for b in bound
+            if SymbolicUtils.unwrap(b.range) in keys(sub) &&
+            _in_h(hset, b.space_index) &&
+            !(b in substituted) &&
+            _references_index(x, b)
+    ]
+    stripped = SymbolicUtils.setmetadata(x, SQA.SumIndices, SQA.Index[])
+    isempty(to_unroll) && return _materialise_walk(stripped, idx_sub, sub, ctx, hset, sym_sub)
+    ranges = Int[sub[SymbolicUtils.unwrap(b.range)] for b in to_unroll]
+    terms = Any[]
+    for tup in Iterators.product((1:r for r in ranges)...)
+        local_sub = copy(idx_sub)
+        local_sym = copy(sym_sub)
+        for (b, v) in zip(to_unroll, tup)
+            fresh = _concrete_index(b, v, ctx)
+            local_sub[b] = fresh
+            local_sym[SymbolicUtils.unwrap(b.sym)] = SymbolicUtils.unwrap(fresh.sym)
+        end
+        push!(terms, _materialise_walk(stripped, local_sub, sub, ctx, hset, local_sym))
+    end
+    isempty(terms) && return 0
+    length(terms) == 1 && return terms[1]
+    # Build the Add via maketerm: SymbolicUtils' `+` enforces a numeric-symtype
+    # guard that rejects the Any-typed `g(i.sym)` callable children.
+    proto = findfirst(t -> t isa SymbolicUtils.BasicSymbolic, terms)
+    proto === nothing && return sum(terms)
+    return TermInterface.maketerm(typeof(terms[proto]), +, terms, nothing)
+end
+
+# True if any leaf in `x` actually references `b`, via the Symbolics variable
+# `b.sym` (an `IndexedVariable` arg) or a QField carrying `b` as its index.
+# Deliberately ignores SumIndices metadata (SQA stamps it uniformly on every
+# term of a scoped QAdd, including ones not depending on the bound index).
+function _references_index(x, b::SQA.Index)
+    x isa SymbolicUtils.BasicSymbolic || return false
+    if _is_avg_leaf(x)
+        return _qfield_references_index(undo_average(x), b)
+    end
+    SymbolicUtils.iscall(x) && return any(a -> _references_index(a, b), SymbolicUtils.arguments(x))
+    return isequal(x, SymbolicUtils.unwrap(b.sym))
+end
+
+function _qfield_references_index(op::QAdd, b::SQA.Index)
+    for (term, _) in op.arguments, o in term.ops
+        SQA.has_index(o.index) && o.index === b && return true
+    end
+    return false
+end
+_qfield_references_index(op::SQA.QSym, b::SQA.Index) = SQA.has_index(op.index) && op.index === b
+_qfield_references_index(_, ::SQA.Index) = false
+
+# Lift `SumIndices`/`SumNonEqual` metadata from an average-leaf factor up onto
+# its enclosing `*` node, so a coefficient sibling (`g(i)`) is unrolled together
+# with the leaf. Compare by identity (metadata is invisible to `isequal`) so the
+# newly-tagged child is actually carried up.
+function _lift_sum_scope(x)
+    x isa SymbolicUtils.BasicSymbolic || return x
+    SymbolicUtils.iscall(x) || return x
+    args = SymbolicUtils.arguments(x)
+    new_args = Any[_lift_sum_scope(a) for a in args]
+    op = SymbolicUtils.operation(x)
+    new_x = any(((a, b),) -> a !== b, zip(args, new_args)) ?
+        TermInterface.maketerm(typeof(x), op, new_args, TermInterface.metadata(x)) : x
+    if op === (*)
+        for a in new_args
+            a isa SymbolicUtils.BasicSymbolic || continue
+            SymbolicUtils.hasmetadata(a, SQA.SumIndices) || continue
+            new_x = SymbolicUtils.setmetadata(new_x, SQA.SumIndices, SymbolicUtils.getmetadata(a, SQA.SumIndices))
+            SymbolicUtils.hasmetadata(a, SQA.SumNonEqual) &&
+                (new_x = SymbolicUtils.setmetadata(new_x, SQA.SumNonEqual, SymbolicUtils.getmetadata(a, SQA.SumNonEqual)))
+            break
+        end
+    end
+    return new_x
+end
+
+function _materialise_leaf(avg, idx_sub, sub, ctx, hset)
+    op = undo_average(avg)
+    op isa QAdd || return avg
+    op2 = _apply_free(op, idx_sub)
+    targets = Set(values(idx_sub))
+    used = _used_op_indices(op2)
+    bound = SQA.Index[
+        b for b in op2.indices
+            if _targeted(b, sub, hset) && !(b in targets) && (b in used)
+    ]
+    # Strip targeted scope that is NOT being unrolled (substituted target, or
+    # stale residue not used by any op): it is no longer a real sum.
+    kept = SQA.Index[
+        b for b in op2.indices
+            if !(_targeted(b, sub, hset)) || (b in bound)
+    ]
+    length(kept) == length(op2.indices) || (op2 = QAdd(op2.arguments, kept))
+    isempty(bound) && return average(op2)
+    cur = op2
+    for b in bound
+        cur = _unroll_one(cur, b, sub[SymbolicUtils.unwrap(b.range)], ctx)
+    end
+    return cur
+end
+
+# Unroll one bound index over 1:n. Each step strips the index from `.indices`
+# (drops the sum scope) and sums `change_index(bare, b -> concrete_k)`; SQA's
+# `change_index` handles projector squashing, commuting-op sort, and NE-violated
+# drop natively on the now-scope-free QAdd.
+_unroll_one(x::Number, _, _, _) = x
+function _unroll_one(qadd::QAdd, b::SQA.Index, n::Int, ctx)
+    bare = QAdd(qadd.arguments, SQA.Index[i for i in qadd.indices if i != b])
+    terms = Any[average(SQA.change_index(bare, b, _concrete_index(b, k, ctx))) for k in 1:n]
+    isempty(terms) && return 0
+    return reduce(+, terms)
+end
+function _unroll_one(x::SymbolicUtils.BasicSymbolic, b::SQA.Index, n::Int, ctx)
+    if _is_avg_leaf(x)
+        op = undo_average(x)
+        op isa QAdd || return x
+        b in op.indices || return x
+        return _unroll_one(op, b, n, ctx)
+    end
+    SymbolicUtils.iscall(x) || return x
+    op = SymbolicUtils.operation(x)
+    args = SymbolicUtils.arguments(x)
+    new_args = Any[_unroll_one(a, b, n, ctx) for a in args]
+    all(((a, c),) -> isequal(a, c), zip(args, new_args)) && return x
+    return _rebuild(op, new_args, x)
+end
+
+_is_zero_qadd(op::QAdd) = isempty(op.arguments)
+_is_zero_qadd(_) = false
+
+# ---- the pass ----------------------------------------------------------------
+
+# Build a graph from a COMPLETED struct using its STORED drifts (preserves any
+# filter applied during completion; no re-derivation).
+function _graph_from_stored(eqs::AbstractMeanFieldEquations)
+    ctx = build_ctx(eqs.operators, eqs.hamiltonian, eqs.jumps, eqs.jumps_dagger)
+    eff = eqs isa NoiseMeanFieldEquations ? eqs.efficiencies : nothing
+    sys = SystemSpec(
+        eqs.hamiltonian, collect(eqs.jumps), collect(eqs.jumps_dagger),
+        collect(eqs.rates), eff, eqs.iv, eqs.order, maximum, eqs.direction,
+    )
+    coords = isempty(eqs.coords) ? all_free_coords(ctx) :
+        Dict{Int, Coordinate}(sp => Coordinate(c) for (sp, c) in eqs.coords)
+    nodes = OrderedCollections.OrderedDict{NodeKey, NodeData}()
+    for i in eachindex(eqs.operators)
+        op = eqs.operators[i]
+        opqa = op isa QAdd ? op : op * 1
+        # Key in the STORED coordinate, not bare `canon_key` (all-Free). If a prior
+        # `evaluate` already made a subspace Concrete (e.g. the filter unrolled to
+        # `b_1,b_2,b_3` before a later `scale`), `canon_key` would alpha-rename those
+        # concrete modes to ONE vocab rep and collapse them, undercounting the system
+        # (the evaluate-then-scale vs scale-then-evaluate commute failure). For an
+        # all-Free system `_coord_key` reduces to `canon_key`, so this is a no-op on
+        # the common path. Once a subspace is Concrete (materialised by a prior
+        # `evaluate`) the key conjugate-folds, matching `specialize`/the resolver so
+        # evaluate-then-scale closes to the same set as scale-then-evaluate.
+        k = _materialised_key(opqa, ctx, coords)
+        haskey(nodes, k) && continue
+        drift = Symbolics.Num(_lift_sum_scope(SymbolicUtils.unwrap(eqs.equations[i].rhs)))
+        op_drift = opqa
+        noise = eff === nothing ? nothing :
+            Symbolics.Num(_lift_sum_scope(SymbolicUtils.unwrap(eqs.noise_equations[i].rhs)))
+        nodes[k] = NodeData(drift, op_drift, noise, nothing, get_order(opqa), SQA.acts_on(opqa))
+    end
+    return MomentGraph(nodes, sys, ctx, coords)
+end
+
+function specialize(g::MomentGraph, limits; h::Vector{Int} = Int[])
+    sub = _limits_dict(limits)
+    isempty(sub) && return g
+    ctx = g.ctx
+    hset = Set{Int}(h)
+    nodes = OrderedCollections.OrderedDict{NodeKey, NodeData}()
+    seen = Set{QAdd}()
+    for (k, nd) in g.nodes
+        free = _free_limited_indices(k, sub, hset)
+        ranges = Int[sub[SymbolicUtils.unwrap(idx.range)] for idx in free]
+        for tup in Iterators.product((1:r for r in ranges)...)
+            _distinct_within_subspace(free, tup) || continue
             idx_sub = Dict{SQA.Index, SQA.Index}(
-                zip(free, (_fresh_index(b, v, canon) for (b, v) in zip(free, tup)))
+                b => _concrete_index(b, v, ctx) for (b, v) in zip(free, tup)
             )
-            # Matching Symbolics-side substitution so `IndexedVariable`
-            # references like `g(i.sym)` get renamed in lock-step with the
-            # operator-side `change_index` calls. `_materialise` applies this
-            # at every leaf Sym during its walk; pre-applying it via
-            # `Symbolics.substitute` is too eager (it rebuilds Add nodes
-            # whose shape-promote step fails on QC's indexed RHS shapes).
+            new_k = _apply_free(k, idx_sub)
+            _is_zero_qadd(new_k) && continue
+            # Dedup by the conjugation orbit (`concrete_rep`): `⟨X†⟩ = conj⟨X⟩` is
+            # an exact redundancy, so keep one representative per orbit (the codegen
+            # resolver recovers the partner via the side bit). Folding is exact, so
+            # the solved dynamics is identical whether folded or not; the closed-set
+            # size is the conjugation-folded distinct-site count. Node keyed by the
+            # KEPT operator's `literal_key`.
+            rep, _ = concrete_rep(new_k)
+            rep in seen && continue
+            push!(seen, rep)
+            lk = literal_key(new_k)
+            # Symbolics-side mirror of the free-index substitution, so coefficient
+            # references (e.g. `g(i)`) rename in lockstep with the operators.
             sym_sub = isempty(idx_sub) ? _EMPTY_SYM_SUB :
                 Dict{Any, Any}(
                     SymbolicUtils.unwrap(b.sym) => SymbolicUtils.unwrap(t.sym)
                     for (b, t) in idx_sub
                 )
-            new_lhs = _materialise(lifted_lhs[k], idx_sub, sub_dict, canon, sym_sub, h_set)
-            # If the substitution made a same-name pair contradictory under
-            # NE, `change_index` (via SQA's contradiction guard) drops the
-            # term entirely. Skip the iteration in that case: an LHS of `0`
-            # has no state semantics and would trip `_stable_avg_name`.
-            _is_materialised_zero(new_lhs) && continue
-            new_rhs = _materialise(lifted_rhs[k], idx_sub, sub_dict, canon, sym_sub, h_set)
-            new_op = _materialise_qfield(op_k, idx_sub, sub_dict, canon, h_set)
-            new_op_eq = _materialise(lifted_op_eq_lhs[k], idx_sub, sub_dict, canon, sym_sub, h_set) ~
-                _materialise(lifted_op_eq_rhs[k], idx_sub, sub_dict, canon, sym_sub, h_set)
-            key = _dedup_key(new_lhs)
-            (key in seen) && continue
-            push!(seen, key)
-            push!(seen, _dedup_key_conj(new_lhs))
-            final_rhs = _safe_substitute(new_rhs, coeff_sub)
-            push!(new_states, new_lhs)
-            push!(new_eqs, new_lhs ~ final_rhs)
-            push!(new_ops, _as_qadd(new_op))
-            push!(new_op_eqs, new_op_eq)
+            drift = _materialise(nd.drift, idx_sub, sub, ctx, hset, sym_sub)
+            noise = nd.noise === nothing ? nothing : _materialise(nd.noise, idx_sub, sub, ctx, hset, sym_sub)
+            nodes[lk] = NodeData(drift, _apply_free(nd.op_drift, idx_sub), noise, nd.op_noise, nd.order, nd.aon)
         end
     end
-
-    # Canonicalise every average leaf in every RHS so the literal symbol
-    # matches the state's literal symbol. `_canonical_key` folds
-    # alpha-equivalent variants (e.g. `⟨σ_{j_2}^{11} σ_{j_1}^{21}⟩` and
-    # `⟨σ_{j_1}^{11} σ_{j_2}^{21}⟩` for permutation-symmetric atoms) so
-    # `find_missing` reports closed, but MTK's codegen uses literal equality
-    # against `unknowns(sys)`. Without this pass the RHS-side leaf has a
-    # different symbol than the state-side leaf and `_stable_avg_name`
-    # treats the RHS leaf as a callable `AvgFunc` at runtime, which crashes.
-    canon_post = _canon_from_states(canon, new_states)
-    state_map = Dict{SQA.QAdd, SymbolicUtils.BasicSymbolic}()
-    for s in new_states
-        key = _canonical_key(s, canon_post)
-        key isa SQA.QAdd && get!(state_map, key, s)
-        # Also key by the literal (no-alpha-rename) form so RHS leaves
-        # whose only difference is an irrelevant NE pair from a parent
-        # sum can still be resolved to their atom-specific state without
-        # being alpha-collapsed to canon slot 1.
-        lit = _literal_key(s)
-        lit isa SQA.QAdd && get!(state_map, lit, s)
+    # A subspace is now Concrete if any of its vocabulary indices' ranges were
+    # targeted by `limits` and the subspace is selected by `h`.
+    coords = copy(g.coords)
+    for (sp, idxs) in ctx.vocab
+        _in_h(hset, sp) || continue
+        any(idx -> SymbolicUtils.unwrap(idx.range) in keys(sub), idxs) && (coords[sp] = Concrete)
     end
-    for k in eachindex(new_eqs)
-        new_eqs[k] = new_eqs[k].lhs ~
-            _canonicalise_avg_leaves(new_eqs[k].rhs, canon_post, state_map)
-    end
-
-    # Convert surviving callable-Sym references (e.g. `g(i_k.sym)` from
-    # `IndexedVariable`) into Symbolics-array `getindex` terms with concrete
-    # shape. This makes the parameter MTK-native: a single array `g` of
-    # size N rather than a callable Sym whose `FnType{Tuple{Int}}` signature
-    # trips MTK's `_has_delays` precheck (which constructs `g(::Real)`).
-    arr_sub = _build_callable_to_array_sub(new_eqs, new_states)
-    if !isempty(arr_sub)
-        for k in eachindex(new_eqs)
-            new_eqs[k] = _safe_substitute(new_eqs[k].lhs, arr_sub) ~
-                _safe_substitute(new_eqs[k].rhs, arr_sub)
-        end
-        for k in eachindex(new_states)
-            new_states[k] = _safe_substitute(new_states[k], arr_sub)
-        end
-    end
-
-    out = _copy(eqs)
-    empty!(out.equations);          append!(out.equations, new_eqs)
-    empty!(out.operator_equations); append!(out.operator_equations, new_op_eqs)
-    empty!(out.states);              append!(out.states, new_states)
-    empty!(out.operators);           append!(out.operators, new_ops)
-    return out
+    return MomentGraph(nodes, g.sys, ctx, coords)
 end
 
-# Collect every `f(arg_sym)` callable-Sym Term across the given equations
-# whose `f` is a callable Sym (FnType) and whose args are leaf Int-typed
-# Syms (the fresh per-atom indices minted by `_fresh_index`). Returns a
-# substitution dict mapping each such Term to a `getindex(arr_f, slot)`
-# Term, where `arr_f` is a freshly minted Symbolics-array parameter of
-# the correct concrete size.
-function _build_callable_to_array_sub(
-        eqs::Vector{Symbolics.Equation},
-        states::Vector{SymbolicUtils.BasicSymbolic},
-    )
-    uses = Dict{Symbol, Dict{Vector{Int}, Vector{SymbolicUtils.BasicSymbolic}}}()
-    for eq in eqs
-        _collect_callable_uses!(uses, SymbolicUtils.unwrap(eq.lhs))
-        _collect_callable_uses!(uses, SymbolicUtils.unwrap(eq.rhs))
-    end
-    for s in states
-        _collect_callable_uses!(uses, s)
-    end
-    isempty(uses) && return Dict{Any, Any}()
-    sub = Dict{Any, Any}()
-    for (name, slot_map) in uses
-        n_args = length(first(keys(slot_map)))
-        max_per_dim = [maximum(k[d] for k in keys(slot_map)) for d in 1:n_args]
-        arr = SymbolicUtils.Sym{SymbolicUtils.SymReal}(
-            name;
-            type = Real,
-            shape = SymbolicUtils.SmallVec{UnitRange{Int}}([1:m for m in max_per_dim]),
-        )
-        for (slots, terms) in slot_map
-            indexed = TermInterface.maketerm(
-                typeof(arr), getindex, Any[arr, slots...], nothing,
-            )
-            for t in terms
-                sub[t] = indexed
-            end
-        end
-    end
-    return sub
+# ---- indexed-variable -> Symbolics-array materialisation ---------------------
+# After unrolling, coefficients survive as callable Syms `g(i_2_3)` (an
+# `IndexedVariable` evaluated at a concrete atom). MTK's `_has_delays` precheck
+# constructs `g(::Real)` on such a callable and trips a symtype assertion, so we
+# rewrite each into `getindex(arr_g, slot)` against a freshly minted Symbolics
+# array parameter of the right concrete shape. `parameter_map(eqs, pairs)` then
+# matches `g(i) => value` to that array by name.
+
+_is_fntype(::Type) = false
+_is_fntype(::Type{<:SymbolicUtils.FnType}) = true
+
+# Integer slot from a concrete-index sym name like `:i_2_3` (the trailing int).
+function _parse_slot(name::Symbol)
+    s = String(name)
+    idx = findlast('_', s)
+    idx === nothing && return nothing
+    return tryparse(Int, SubString(s, idx + 1))
 end
 
-# FnType callable with leaf-Sym arguments whose names encode slots
-# (`g(i_3)`, `Γ(i_1, i_2)`, …): bucket by name + slot tuple so the emitter
-# can mint a Symbolics array of the right rank. Non-matching shapes recurse.
+# Bucket every callable-Sym use `f(slot_syms...)` by name + slot tuple.
 function _collect_callable_uses!(uses, x)
     x isa SymbolicUtils.BasicSymbolic || return
     SymbolicUtils.iscall(x) || return
     op = SymbolicUtils.operation(x)
     args = SymbolicUtils.arguments(x)
-    if op isa SymbolicUtils.BasicSymbolic &&
-            !SymbolicUtils.iscall(op) &&
+    if op isa SymbolicUtils.BasicSymbolic && !SymbolicUtils.iscall(op) &&
             _is_fntype(SymbolicUtils.symtype(op)) &&
             all(a -> a isa SymbolicUtils.BasicSymbolic && !SymbolicUtils.iscall(a), args)
         slots = [_parse_slot(Base.nameof(a)) for a in args]
         if all(!isnothing, slots)
-            slot_key = Int[s for s in slots]
-            name = Base.nameof(op)
-            bucket = get!(uses, name) do
-                Dict{Vector{Int}, Vector{SymbolicUtils.BasicSymbolic}}()
-            end
-            push!(get!(bucket, slot_key, SymbolicUtils.BasicSymbolic[]), x)
+            bucket = get!(() -> Dict{Vector{Int}, Vector{SymbolicUtils.BasicSymbolic}}(), uses, Base.nameof(op))
+            push!(get!(bucket, Int[s for s in slots], SymbolicUtils.BasicSymbolic[]), x)
             return
         end
     end
@@ -230,518 +386,89 @@ function _collect_callable_uses!(uses, x)
     return
 end
 
-_is_fntype(::Type) = false
-_is_fntype(::Type{<:SymbolicUtils.FnType}) = true
-
-# Extract the integer slot from a fresh-index symbol name like `:i_3`.
-# Returns `nothing` if the name doesn't fit the `<base>_<int>` shape.
-function _parse_slot(name::Symbol)
-    s = String(name)
-    idx = findlast('_', s)
-    idx === nothing && return nothing
-    tail = SubString(s, idx + 1)
-    return tryparse(Int, tail)
-end
-
-# ---------------------------------------------------------------------------
-# limits parsing
-
-function _build_limits_dict(limits)
-    sub = Dict{Any, Int}()
-    limits === nothing && return sub
-    if limits isa Pair
-        _push_limit!(sub, limits)
-    elseif limits isa Tuple
-        for p in limits
-            _push_limit!(sub, p)
-        end
-    elseif limits isa AbstractDict
-        for p in limits
-            _push_limit!(sub, p)
-        end
-    else
-        throw(ArgumentError("`limits` must be a Pair, Tuple of Pairs, or Dict"))
-    end
-    return sub
-end
-
-function _push_limit!(sub::AbstractDict, p::Pair)
-    sub[SymbolicUtils.unwrap(first(p))] = Int(last(p))
-    return sub
-end
-
-# ---------------------------------------------------------------------------
-# Free-index discovery (only those whose range is in `sub_dict`)
-
-_free_lhs_indices(::Number, _, _) = SQA.Index[]
-function _free_lhs_indices(op::SQA.QSym, sub_dict, h_set::Set{Int})
-    idx = op.index
-    SQA.has_index(idx) || return SQA.Index[]
-    SymbolicUtils.unwrap(idx.range) in keys(sub_dict) || return SQA.Index[]
-    _in_h(h_set, idx.space_index) || return SQA.Index[]
-    return SQA.Index[idx]
-end
-function _free_lhs_indices(op::QAdd, sub_dict, h_set::Set{Int})
-    out = SQA.Index[]
-    bound = Set(op.indices)
-    for (term, _) in op.arguments
-        for o in term.ops
-            idx = o.index
-            SQA.has_index(idx) || continue
-            idx in bound && continue
-            SymbolicUtils.unwrap(idx.range) in keys(sub_dict) || continue
-            _in_h(h_set, idx.space_index) || continue
-            idx in out || push!(out, idx)
-        end
-    end
-    return out
-end
-
-# Mint a per-(space, value) index. Name derives from the user's first-declared
-# index for the source Hilbert subspace (SQA naming policy: algebra never
-# invents indices outside the user's vocabulary; we trace back to one of the
-# user's declared names and just suffix the position). Two free indices `i`
-# and `j` on the same atom-space, after evaluate substitutes both to position
-# 1, end up as the *same* `Index(:i_1, …)` (assuming `:i` is the user's
-# alphabetically-first declared atom-space index), so the resulting averages
-# dedup via op equality.
-
-function _fresh_index(b::SQA.Index, k::Int, canon)
-    return _canonical_base(b, canon)(k)
-end
-
-function _canonical_base(b::SQA.Index, canon)
-    list = get(canon, b.space_index, SQA.Index[])
-    isempty(list) && return b
-    return list[1]
-end
-
-# ---------------------------------------------------------------------------
-# Scope lift: SQA's `average(::QAdd)` stamps SumIndices metadata on each
-# average leaf but flattens `c * avg` so the coefficient escapes the scope.
-# This pass copies the metadata from each scoped average leaf onto its
-# enclosing Mul parent so the whole product is recognised as scoped during
-# unrolling. Walk is post-order; metadata stays on leaves as well (strictly
-# additive, no consumer is affected).
-
-function _lift_sum_scope(x)
-    x isa SymbolicUtils.BasicSymbolic || return x
-    SymbolicUtils.iscall(x) || return x
-    args = SymbolicUtils.arguments(x)
-    new_args = Any[_lift_sum_scope(a) for a in args]
-    op = SymbolicUtils.operation(x)
-    # Compare by object identity, not isequal: setmetadata returns a new
-    # object that isequal-matches the original (metadata is invisible to
-    # `isequal`). Identity-comparison forces the parent to rebuild so the
-    # newly-tagged child is actually carried up the tree.
-    needs_rebuild = any(((a, b),) -> a !== b, zip(args, new_args))
-    new_x = needs_rebuild ?
-        TermInterface.maketerm(typeof(x), op, new_args, TermInterface.metadata(x)) :
-        x
-    if op === (*)
-        for a in new_args
-            a isa SymbolicUtils.BasicSymbolic || continue
-            SymbolicUtils.hasmetadata(a, SQA.SumIndices) || continue
-            idxs = SymbolicUtils.getmetadata(a, SQA.SumIndices)
-            new_x = SymbolicUtils.setmetadata(new_x, SQA.SumIndices, idxs)
-            if SymbolicUtils.hasmetadata(a, SQA.SumNonEqual)
-                ne = SymbolicUtils.getmetadata(a, SQA.SumNonEqual)
-                new_x = SymbolicUtils.setmetadata(new_x, SQA.SumNonEqual, ne)
-            end
-            break
-        end
-    end
-    return new_x
-end
-
-# ---------------------------------------------------------------------------
-# Tree walker: substitute free indices, unroll sum-metadata averages.
-
-const _EMPTY_SYM_SUB = Dict{Any, Any}()
-
-function _materialise(x, idx_sub, sub_dict, canon, sym_sub, h_set::Set{Int})
-    x isa SymbolicUtils.BasicSymbolic || return x
-    if _is_leaf_average(x)
-        return _materialise_avg(x, idx_sub, sub_dict, canon, h_set)
-    end
-    if !SymbolicUtils.iscall(x)
-        # Leaf Sym: substitute Symbolics-side index references (e.g. the
-        # `i.sym` arg of `IndexedVariable(:g, i)`) so they track the
-        # operator-side `change_index` renames.
-        return get(sym_sub, x, x)
-    end
-    if SymbolicUtils.operation(x) === (*) &&
-            SymbolicUtils.hasmetadata(x, SQA.SumIndices)
-        bound = SymbolicUtils.getmetadata(x, SQA.SumIndices)
-        bound isa Vector{SQA.Index} && !isempty(bound) &&
-            return _materialise_scoped(x, bound, idx_sub, sub_dict, canon, sym_sub, h_set)
-    end
-    op = SymbolicUtils.operation(x)
-    args = SymbolicUtils.arguments(x)
-    new_args = Any[_materialise(a, idx_sub, sub_dict, canon, sym_sub, h_set) for a in args]
-    # Identity comparison: `isequal` ignores BasicSymbolic metadata and may
-    # collapse averages whose inner QFields differ, causing the rebuilt
-    # parent to silently reuse the stale child. See `_lift_sum_scope` for
-    # the same trap.
-    any(((a, b),) -> a !== b, zip(args, new_args)) || return x
-    op === complex && length(new_args) == 2 &&
-        return new_args[1] + new_args[2] * Symbolics.IM
-    try
-        return op(new_args...)
-    catch err
-        err isa MethodError || err isa ArgumentError || rethrow()
-        return TermInterface.maketerm(
-            typeof(x), op, new_args, TermInterface.metadata(x),
-        )
-    end
-end
-
-# Unroll a scoped `Mul` node: for each bound index whose range is in `sub_dict`
-# and is not already covered by `idx_sub` (LHS-free substitution), enumerate
-# 1:n and recurse into the stripped subtree with the per-enumeration
-# `local_sub` / `local_sym` extensions. `_materialise` propagates `local_sub`
-# to operator leaves via `change_index` and `local_sym` to Symbolics leaves
-# (e.g. the `i.sym` arg inside `IndexedVariable(:g, i)`).
-function _materialise_scoped(x, bound::Vector{SQA.Index}, idx_sub, sub_dict, canon, sym_sub, h_set::Set{Int})
-    substituted = Set{SQA.Index}()
-    for (from, to) in idx_sub
-        push!(substituted, from); push!(substituted, to)
-    end
-    # SQA's `average(::QAdd)` stamps SumIndices on every term of a
-    # `.indices != []` QAdd, including terms that don't actually reference
-    # the bound index (e.g. `κ⟨a'a⟩` inside a sum-over-i Hamiltonian).
-    # Filter `to_unroll` to bound indices whose name actually appears in
-    # the subtree, otherwise enumeration produces N identical copies.
-    # `h_set` skips indices on unselected subspaces so their sum stays
-    # symbolic, matching `_materialise_qfield`'s gate.
-    to_unroll = SQA.Index[
-        b for b in bound
-            if SymbolicUtils.unwrap(b.range) in keys(sub_dict) &&
-            _in_h(h_set, b.space_index) &&
-            !(b in substituted) &&
-            _references_index(x, b)
-    ]
-    stripped = SymbolicUtils.setmetadata(x, SQA.SumIndices, SQA.Index[])
-    if isempty(to_unroll)
-        return _materialise(stripped, idx_sub, sub_dict, canon, sym_sub, h_set)
-    end
-    ranges = [sub_dict[SymbolicUtils.unwrap(b.range)] for b in to_unroll]
-    terms = Any[]
-    for tup in Iterators.product([1:r for r in ranges]...)
-        local_sub = copy(idx_sub)
-        local_sym = copy(sym_sub)
-        for (b, v) in zip(to_unroll, tup)
-            fresh = _fresh_index(b, v, canon)
-            local_sub[b] = fresh
-            local_sym[SymbolicUtils.unwrap(b.sym)] = SymbolicUtils.unwrap(fresh.sym)
-        end
-        push!(terms, _materialise(stripped, local_sub, sub_dict, canon, local_sym, h_set))
-    end
-    isempty(terms) && return 0
-    length(terms) == 1 && return terms[1]
-    # SymbolicUtils' `+(::T, ::T)` path enforces a numeric-symtype guard
-    # that rejects Any-typed children (`g(i.sym::Int)` gives symtype Any).
-    # Build the Add directly via `maketerm`.
-    proto_idx = findfirst(t -> t isa SymbolicUtils.BasicSymbolic, terms)
-    proto_idx === nothing && return sum(terms)
-    return TermInterface.maketerm(typeof(terms[proto_idx]), +, terms, nothing)
-end
-
-# True if any leaf in `x` (a BasicSymbolic) actually references `b` -
-# either via the Symbolics variable `b.sym` (e.g. an `IndexedVariable`
-# `g(b.sym)`) or via a QField inside an average leaf whose operator carries
-# `b` as its index. Deliberately does NOT consult SumIndices metadata,
-# which SQA's `average(::QAdd)` stamps uniformly on every term of a
-# scoped QAdd (including terms that don't actually depend on the bound
-# index, e.g. `κ⟨a'a⟩` inside a sum-over-i Hamiltonian).
-function _references_index(x, b::SQA.Index)
-    x isa SymbolicUtils.BasicSymbolic || return false
-    if _is_leaf_average(x)
-        op = SQA.undo_average(x)
-        return _qfield_references_index(op, b)
-    end
-    if SymbolicUtils.iscall(x)
-        return any(a -> _references_index(a, b), SymbolicUtils.arguments(x))
-    end
-    return isequal(x, SymbolicUtils.unwrap(b.sym))
-end
-
-function _qfield_references_index(op::SQA.QAdd, b::SQA.Index)
-    for (term, _) in op.arguments, o in term.ops
-        SQA.has_index(o.index) || continue
-        o.index === b && return true
-    end
-    return false
-end
-_qfield_references_index(op::SQA.QSym, b::SQA.Index) =
-    SQA.has_index(op.index) && op.index === b
-_qfield_references_index(_, ::SQA.Index) = false
-
-function _materialise_avg(avg::SymbolicUtils.BasicSymbolic, idx_sub, sub_dict, canon, h_set::Set{Int})
-    op = SQA.undo_average(avg)
-    new_op = _materialise_qfield(op, idx_sub, sub_dict, canon, h_set)
-    new_op isa SQA.QField && return average(new_op)
-    return new_op  # already a numeric sum-of-averages from unrolling
-end
-
-# Materialise a `QField` (or `Number`). Two passes: first apply free-index
-# substitution via SQA.change_index, then unroll any sum-metadata bound indices
-# whose range matches `sub_dict` and whose Hilbert subspace is in `h_set`.
-
-_materialise_qfield(x::Number, _, _, _, _) = x
-function _materialise_qfield(op::SQA.QSym, idx_sub, _, _, _)
-    haskey(idx_sub, op.index) || return op
-    return SQA.change_index(op, op.index, idx_sub[op.index])
-end
-function _materialise_qfield(op::QAdd, idx_sub, sub_dict, canon, h_set::Set{Int})
-    after_free = _apply_free_sub(op, idx_sub)
-    # Two sources of "bound indices to unroll" in this leaf:
-    #  (a) explicit sum-scope `.indices` metadata that actually appears in
-    #      some operator inside `term.ops`. Bound indices left in
-    #      `.indices` whose name no longer appears in any op are spurious
-    #      metadata residue from commutator/factorisation (cumulant
-    #      expansion of a sum over `i1,i2` leaves a `⟨S_i₂₂⟩` factor
-    #      that inherits `.indices = [i1,i2]` even though `i₂₂` references
-    #      the LHS-free index `i`, not `i1` or `i2`). Treat those as no-op
-    #      and strip without unrolling, matching `scaling.jl`'s behaviour.
-    #  (b) op-level indices referenced by an operator inside `term.ops` whose
-    #      range is in `sub_dict` but is not bound by the surrounding LHS
-    #      substitution. Cumulant expansion can break apart a `Σ_{i2}` and
-    #      leave a bare `⟨S_i2⟩` leaf whose `.indices` is empty; semantically
-    #      the implicit `Σ_{i2}` still needs to be unrolled by evaluate.
-    # Indices we have ALREADY substituted (LHS-free path) must not be
-    # re-unrolled. After `_apply_free_sub`, the operator carries the *target*
-    # index from `idx_sub`, not the source, so we exclude both.
-    substituted = Set{SQA.Index}()
-    for (from, to) in idx_sub
-        push!(substituted, from)
-        push!(substituted, to)
-    end
-    op_indices = SQA.Index[]
-    for (term, _) in after_free.arguments, o in term.ops
-        idx = o.index
-        SQA.has_index(idx) || continue
-        idx in op_indices || push!(op_indices, idx)
-    end
-    # Strip stale `.indices` entries on two grounds:
-    #   (a) The index no longer appears in any operator inside the QAdd
-    #       (residue from SQA's commutator / cumulant-expansion pipeline;
-    #       `scaling.jl` treats it the same way).
-    #   (b) The index IS an LHS-free substitution target (`idx_sub` value).
-    #       `_apply_free_sub` calls `change_index(qadd, from, to)`, which
-    #       renames the index in BOTH operators AND `.indices`. The post-
-    #       substitution QAdd then looks like `Σ_{j_k} σ_{j_k}₂₂`, but `j_k`
-    #       is a CONCRETE atom (from the LHS enumeration), not a real sum.
-    #       Drop the spurious sum scope.
-    # Indices we KEEP: those whose range is outside `sub_dict` (different
-    # bound subspace) AND which appear in some operator AND which are not
-    # substituted.
-    # "Targeted" = range covered by sub_dict AND on a subspace selected by
-    # h_set. Indices on unselected subspaces stay in `.indices` as symbolic
-    # sum scope, matching `_materialise_scoped`'s gate.
-    _targeted(idx) = SymbolicUtils.unwrap(idx.range) in keys(sub_dict) &&
-        _in_h(h_set, idx.space_index)
-    stripped_indices = SQA.Index[
-        b for b in after_free.indices
-            if (!_targeted(b) || b in op_indices) && !(b in substituted)
-    ]
-    if length(stripped_indices) != length(after_free.indices)
-        after_free = QAdd(after_free.arguments, stripped_indices)
-    end
-    bound = SQA.Index[]
-    for b in stripped_indices
-        _targeted(b) || continue
-        b in substituted && continue
-        b in bound || push!(bound, b)
-    end
-    for idx in op_indices
-        idx in substituted && continue
-        _targeted(idx) || continue
-        idx in bound || push!(bound, idx)
-    end
-    isempty(bound) && return after_free
-    return _unroll_bound_indices(after_free, bound, sub_dict, canon)
-end
-
-# Apply each free-index substitution via SQA.change_index. The QAdd's own
-# .indices field may be non-empty (sum scope is preserved across this step);
-# SQA.change_index handles diag-splitting correctly when needed.
-function _apply_free_sub(op::QAdd, idx_sub::Dict{SQA.Index, SQA.Index})
-    isempty(idx_sub) && return op
-    result = op
-    for (from, to) in idx_sub
-        result = SQA.change_index(result, from, to)
-    end
-    return result
-end
-
-# Unroll one bound index at a time. Each unroll step:
-#  1. Strips that index from .indices (drops sum scope).
-#  2. For k = 1..n, calls SQA.change_index(bare, bound, fresh_k). Because bare
-#     has empty .indices, change_index dispatches through _canonicalize!,
-#     which handles projector squashing, commuting-op sort, and NE-violated
-#     term drop natively.
-#  3. Sums the n results.
-# After unrolling all bound indices, the result is a sum of `average(qadd)` /
-# Numeric scalar expressions, ready to be substituted by `coeff_sub`.
-function _unroll_bound_indices(op::QAdd, bound::Vector{SQA.Index}, sub_dict, canon)
-    cur::Any = op
-    for b in bound
-        n = sub_dict[SymbolicUtils.unwrap(b.range)]
-        cur = _unroll_one(cur, b, n, canon)
-    end
-    return cur
-end
-
-_unroll_one(x::Number, _, _, _) = x
-function _unroll_one(qadd::QAdd, b::SQA.Index, n::Int, canon)
-    bare = QAdd(qadd.arguments, SQA.Index[idx for idx in qadd.indices if idx != b])
-    terms = Any[]
-    for k in 1:n
-        push!(terms, average(SQA.change_index(bare, b, _fresh_index(b, k, canon))))
-    end
-    isempty(terms) && return 0
-    return reduce(+, terms)
-end
-function _unroll_one(x::SymbolicUtils.BasicSymbolic, b::SQA.Index, n::Int, canon)
-    if _is_leaf_average(x)
-        op = SQA.undo_average(x)
-        op isa QAdd || return x
-        b in op.indices || return x
-        return _unroll_one(op, b, n, canon)
-    end
-    SymbolicUtils.iscall(x) || return x
-    op = SymbolicUtils.operation(x)
-    args = SymbolicUtils.arguments(x)
-    new_args = Any[_unroll_one(a, b, n, canon) for a in args]
-    any(((a, b2),) -> !isequal(a, b2), zip(args, new_args)) || return x
-    op === complex && length(new_args) == 2 &&
-        return new_args[1] + new_args[2] * Symbolics.IM
-    try
-        return op(new_args...)
-    catch err
-        err isa MethodError || err isa ArgumentError || rethrow()
-        return TermInterface.maketerm(
-            typeof(x), op, new_args, TermInterface.metadata(x),
-        )
-    end
-end
-
-# ---------------------------------------------------------------------------
-# Dedup key: the underlying operator. Because `_fresh_index` produces a
-# single canonical Index per (space, value), two states for the same
-# physical atoms have op-equal QAdds. Commuting ops with different concrete
-# indices may still survive in non-canonical order (SQA's `Undetermined`
-# regime); known limitation, see DESIGN.md "canonicalise_undetermined".
-
-_dedup_key(avg::SymbolicUtils.BasicSymbolic) = SQA.undo_average(avg)
-
-# Build a canonical-index registry that includes both the original user
-# vocabulary (from the input `canon`) and every free index appearing in
-# `new_states` (the materialised atom names like `j_1, j_2`). This ensures
-# `_canonical_key` has enough canonical entries to rename all encountered
-# positions in 2-atom and higher correlations.
-function _canon_from_states(canon, states::Vector{SymbolicUtils.BasicSymbolic})
-    out = Dict{Int, Vector{SQA.Index}}()
-    for (sp, v) in canon
-        out[sp] = copy(v)
+function _build_callable_to_array_sub(eqs::Vector{Symbolics.Equation}, states)
+    uses = Dict{Symbol, Dict{Vector{Int}, Vector{SymbolicUtils.BasicSymbolic}}}()
+    for eq in eqs
+        _collect_callable_uses!(uses, SymbolicUtils.unwrap(eq.lhs))
+        _collect_callable_uses!(uses, SymbolicUtils.unwrap(eq.rhs))
     end
     for s in states
-        op = SQA.undo_average(s)
-        op isa SQA.QAdd || continue
-        for (term, _) in op.arguments, o in term.ops
-            SQA.has_index(o.index) || continue
-            v = get!(out, o.index.space_index, SQA.Index[])
-            o.index in v || push!(v, o.index)
+        _collect_callable_uses!(uses, SymbolicUtils.unwrap(s))
+    end
+    isempty(uses) && return Dict{Any, Any}()
+    sub = Dict{Any, Any}()
+    for (name, slot_map) in uses
+        n_args = length(first(keys(slot_map)))
+        max_per_dim = [maximum(k[d] for k in keys(slot_map)) for d in 1:n_args]
+        # Mint a PROPER Symbolics array variable (symtype `Vector{Real}` /
+        # `Matrix{Real}`, with `SmallVec{UnitRange}` shape) so MTK scalarizes
+        # `δ[k]` and binds it (spec Task 7b). A scalar-symtyped `Sym` with a
+        # `getindex` applied has symtype `Real`, which MTK cannot scalarize, so
+        # the bare base symbol leaks into the generated ODE (the
+        # `getindex(::typeof(δ), k)` / `UndefVarError` failure).
+        m1 = max_per_dim[1]
+        arr = if n_args == 1
+            SymbolicUtils.unwrap(first(@variables $(name)[1:m1]))
+        elseif n_args == 2
+            m2 = max_per_dim[2]
+            SymbolicUtils.unwrap(first(@variables $(name)[1:m1, 1:m2]))
+        else
+            throw(ArgumentError("indexed coefficient with $n_args indices is not supported"))
+        end
+        for (slots, terms) in slot_map
+            # `type = Real` so the element stays Number-symtyped; a bare
+            # `maketerm` getindex infers `Any`, which would break the `Num` wrap
+            # and propagate a non-Number symtype through the drift.
+            indexed = SymbolicUtils.term(getindex, arr, slots...; type = Real)
+            for t in terms
+                sub[t] = indexed
+            end
         end
     end
-    for v in values(out)
-        sort!(v, by = idx -> idx.name)
-    end
-    return out
+    return sub
 end
 
-# Walk `x` and replace every leaf `average(...)` whose canonical key is in
-# `state_map` with the corresponding state symbol. Leaves whose canonical
-# form is not a state are left untouched.
-# Operator-structure key without alpha-renaming concrete indices. Strips
-# sum scope and per-term NE pairs that reference indices not present in
-# the leaf's own operators (constraints inherited from a parent sum that
-# the leaf is a sub-product of). Distinct concrete atom labels stay
-# distinct, so single-atom states `⟨σ_{j_1}⟩` and `⟨σ_{j_2}⟩` do not
-# alpha-collapse into one canonical key.
-function _literal_key(x::SymbolicUtils.BasicSymbolic)
-    op_raw = SQA.undo_average(x)
-    op_raw isa SQA.QAdd || return op_raw
-    return _strip_irrelevant_metadata(op_raw)
-end
-_literal_key(::Any) = nothing
-
-function _canonicalise_avg_leaves(x, canon, state_map::Dict{SQA.QAdd, SymbolicUtils.BasicSymbolic})
+# Replace exact-match callable subtrees with their `getindex` array form.
+_apply_callable_sub(x, sub) = Symbolics.Num(_apply_callable_walk(SymbolicUtils.unwrap(x), sub))
+function _apply_callable_walk(x, sub)
     x isa SymbolicUtils.BasicSymbolic || return x
-    if _is_leaf_average(x)
-        # Try the literal (no-alpha-rename) key first so atom-distinct
-        # states `⟨σ_{j_1}⟩` and `⟨σ_{j_2}⟩` do not get collapsed onto
-        # canon slot 1 when matching against the state map. This matters
-        # when atoms are distinguishable (per-atom indexed parameters)
-        # or when the leaf carries an irrelevant NE pair from a parent
-        # sum (irrelevant because the leaf's own operators do not
-        # reference both pair members; see `_strip_irrelevant_metadata`).
-        literal = _literal_key(x)
-        if literal isa SQA.QAdd
-            lit_rep = get(state_map, literal, nothing)
-            lit_rep === nothing || return lit_rep
-        end
-        # Fall back to the canon-equivalent key for permutation-symmetric
-        # folds (`⟨σ_a σ_b⟩` vs `⟨σ_b σ_a⟩` under atom-swap symmetry).
-        key = _canonical_key(x, canon)
-        if key isa SQA.QAdd
-            rep = get(state_map, key, nothing)
-            rep === nothing || return rep
-        end
-        # Lookup missed entirely (the leaf's conjugate or some other
-        # downstream-resolved form will be handled by MTK's System()
-        # via `_conj_substitution_dict`). Rewrite the leaf to its
-        # NE-stripped form so the downstream substitution dicts (which
-        # build their keys from a `_avg_conj_for_codegen`-normalized
-        # operator without NE) can resolve it by literal equality.
-        if literal isa SQA.QAdd
-            return average(literal)
-        end
-        return x
-    end
+    haskey(sub, x) && return sub[x]
     SymbolicUtils.iscall(x) || return x
     op = SymbolicUtils.operation(x)
     args = SymbolicUtils.arguments(x)
-    new_args = Any[_canonicalise_avg_leaves(a, canon, state_map) for a in args]
-    all(((a, b),) -> a === b, zip(args, new_args)) && return x
-    op === complex && length(new_args) == 2 &&
-        return new_args[1] + new_args[2] * Symbolics.IM
-    try
-        return op(new_args...)
-    catch err
-        err isa MethodError || err isa ArgumentError || rethrow()
-        return TermInterface.maketerm(typeof(x), op, new_args, TermInterface.metadata(x))
+    new_args = Any[_apply_callable_walk(a, sub) for a in args]
+    any(((a, b),) -> a !== b, zip(args, new_args)) || return x
+    return _rebuild(op, new_args, x)
+end
+
+function _arrayize_indexed_params!(eqs::AbstractMeanFieldEquations)
+    arr_sub = _build_callable_to_array_sub(eqs.equations, eqs.states)
+    isempty(arr_sub) && return eqs
+    for k in eachindex(eqs.equations)
+        eqs.equations[k] = _apply_callable_sub(eqs.equations[k].lhs, arr_sub) ~
+            _apply_callable_sub(eqs.equations[k].rhs, arr_sub)
     end
+    if eqs isa NoiseMeanFieldEquations
+        for k in eachindex(eqs.noise_equations)
+            eqs.noise_equations[k] = _apply_callable_sub(eqs.noise_equations[k].lhs, arr_sub) ~
+                _apply_callable_sub(eqs.noise_equations[k].rhs, arr_sub)
+        end
+    end
+    return eqs
 end
 
-_is_materialised_zero(x::Number) = iszero(x)
-function _is_materialised_zero(x::SymbolicUtils.BasicSymbolic)
-    SymbolicUtils.isconst(x) && return iszero(x.val)
-    return false
-end
-_is_materialised_zero(_) = false
-_dedup_key_conj(avg::SymbolicUtils.BasicSymbolic) = adjoint(SQA.undo_average(avg))
+"""
+    evaluate(eqs::AbstractMeanFieldEquations; limits=nothing, h=Int[])
+    evaluate(c::CorrelationFunction; limits=nothing, h=Int[])
 
-# Promote `x` (a QSym, QAdd, or Number) to a QAdd. SQA's `*(::QSym, ::Int)`
-# does the wrapping via the canonicalisation pipeline; for Numbers we wrap
-# into a zero-op QAdd (the constant 1 carrier).
-_as_qadd(x::QAdd) = x
-_as_qadd(x::SQA.QSym) = x * 1
-_as_qadd(x::Number) = one(QAdd) * x
-# After RHS unrolling, `new_op` may be a BasicSymbolic sum-of-averages
-# expression rather than a single `QField`. We don't carry that through
-# `eqs.operators` (which is `Vector{QAdd}`); placeholder with the empty
-# QAdd so downstream code that doesn't use operators post-evaluate stays
-# unaffected.
-_as_qadd(x::SymbolicUtils.BasicSymbolic) = QAdd(SQA.QTermDict(), SQA.Index[])
+Materialise a symbolic indexed system into a concrete-size one. `limits` maps a
+range symbol to a concrete size (`N => 3`, a tuple of pairs, or a `Dict`). `h`
+restricts unrolling to the listed Hilbert subspaces (empty unrolls all covered
+by `limits`). The result's `QAdd`s carry empty `.indices`, ready for `System`.
+"""
+function evaluate(eqs::AbstractMeanFieldEquations; limits = nothing, h::Vector{Int} = Int[], kwargs...)
+    sub = _limits_dict(limits)
+    isempty(sub) && return _copy(eqs)
+    out = lower_to_eqs(specialize(_graph_from_stored(eqs), limits; h))
+    return _arrayize_indexed_params!(out)
+end

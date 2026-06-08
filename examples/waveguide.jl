@@ -144,15 +144,15 @@ nothing # hide
 sys = System(eqs; name = :sys)
 sys = mtkcompile(sys)
 dict = parameter_map(sys, merge(Dict(unknowns(sys) .=> u0), Dict(ps .=> p0)))
-prob = ODEProblem(sys, dict, (0.0, 8e-3))
-sol = solve(prob, Tsit5(), abstol = 1e-6, reltol = 1e-6)
+prob = ODEProblem(sys, dict, (0.0, 8.0e-3))
+sol = solve(prob, Tsit5(), abstol = 1.0e-6, reltol = 1.0e-6)
 
 #
 
-t = sol.t * 1e3
+t = sol.t * 1.0e3
 Sz_t(i) = real.(get_solution(sol, Sz(i), eqs)(sol.t))
 N_ls = [[N_p for i in 1:M_p] ./ M_p; [N_np for i in 1:M_np] ./ M_np]
-σ22_t(i) = Sz_t(i) / N_ls[i] .+ 1/2
+σ22_t(i) = Sz_t(i) / N_ls[i] .+ 1 / 2
 σ22_p_t = sum(σ22_t(i) for i in 1:M_p) ./ M_p
 σ22_np_t = sum(σ22_t(i) for i in (M_p + 1):(M_p + M_np)) ./ M_np
 

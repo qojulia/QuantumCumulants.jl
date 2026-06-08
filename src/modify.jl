@@ -1,18 +1,18 @@
+# Equation post-processing (Layer 5). Apply a user function to every RHS of a
+# pre-derived equation set. The hook receives the operator form of the LHS and
+# the symbolic RHS, returning a new RHS, which is how measurement-record
+# corrections and other deterministic adjustments are grafted on after
+# derivation without re-deriving the whole system.
+
 """
     modify_equations(eqs::AbstractMeanFieldEquations, f::Function)
 
 Return a copy of `eqs` whose RHS for each equation has been rewritten by `f`.
 The function is called as `f(lhs_op, rhs)`, receiving the *operator* form of
-the LHS (i.e. `undo_average(eq.lhs)`) and the symbolic RHS expression, and
-returning a new RHS expression. Useful for adding measurement-record
-correction terms or other deterministic adjustments to a pre-derived set of
-equations.
+the LHS (`undo_average(eq.lhs)`) and the symbolic RHS, and returning a new RHS.
 
 ```julia
-function f(lhs, rhs)
-    term = cumulant_expansion(average(commutator(1im*Hadd, lhs)), 2)
-    return rhs + term
-end
+f(lhs, rhs) = rhs + cumulant_expansion(average(commutator(1im * Hadd, lhs)), 2)
 eqs_mod = modify_equations(eqs, f)
 ```
 
@@ -31,7 +31,7 @@ function modify_equations!(eqs::AbstractMeanFieldEquations, f::Function)
     for i in eachindex(eqs.equations)
         lhs = eqs.equations[i].lhs
         rhs = eqs.equations[i].rhs
-        eqs.equations[i] = lhs ~ f(SQA.undo_average(lhs), rhs)
+        eqs.equations[i] = lhs ~ f(undo_average(lhs), rhs)
     end
     return eqs
 end

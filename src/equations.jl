@@ -45,6 +45,11 @@ struct MeanFieldEquations{
     iv::Symbolics.Num
     order::O
     direction::D
+    # Per-subspace coordinate state (spec "Coordinates"). Keyed by space index,
+    # valued by the `Int` of the `Coordinate` enum (`Int(Free/Scaled/Concrete)`,
+    # defined in canonical.jl which is included after this file). An empty map
+    # means every subspace is Free.
+    coords::Dict{Int, Int}
 
     function MeanFieldEquations(
             equations::Vector{Symbolics.Equation},
@@ -59,6 +64,7 @@ struct MeanFieldEquations{
             order::O,
             direction::D = Forward();
             initial_operators::Vector{Op} = copy(operators),
+            coords::Dict{Int, Int} = Dict{Int, Int}(),
         ) where {
             O, H <: QField, Op <: QField, Jt, Jdt, R,
             S <: SymbolicUtils.BasicSymbolic, D <: EvolutionDirection,
@@ -72,7 +78,7 @@ struct MeanFieldEquations{
         )
         return new{O, H, Op, Jt, Jdt, R, S, D}(
             equations, operator_equations, states, operators, initial_operators,
-            hamiltonian, jumps, jumps_dagger, rates, iv, order, direction,
+            hamiltonian, jumps, jumps_dagger, rates, iv, order, direction, coords,
         )
     end
 end
@@ -109,6 +115,8 @@ struct NoiseMeanFieldEquations{
     iv::Symbolics.Num
     order::O
     direction::D
+    # Per-subspace coordinate state (spec "Coordinates"); see MeanFieldEquations.
+    coords::Dict{Int, Int}
 
     function NoiseMeanFieldEquations(
             equations::Vector{Symbolics.Equation},
@@ -126,6 +134,7 @@ struct NoiseMeanFieldEquations{
             order::O,
             direction::D;
             initial_operators::Vector{Op} = copy(operators),
+            coords::Dict{Int, Int} = Dict{Int, Int}(),
         ) where {O, H, Op, Jt, Jdt, R, E, S, D}
         n = length(equations)
         @assert n == length(noise_equations) == length(operator_equations) ==
@@ -139,7 +148,7 @@ struct NoiseMeanFieldEquations{
             equations, noise_equations, operator_equations,
             operator_noise_equations, states, operators, initial_operators,
             hamiltonian, jumps, jumps_dagger, rates,
-            efficiencies, iv, order, direction
+            efficiencies, iv, order, direction, coords,
         )
     end
 end
@@ -162,6 +171,7 @@ function MeanFieldEquations(eqs::NoiseMeanFieldEquations)
         eqs.hamiltonian, eqs.jumps, eqs.jumps_dagger, eqs.rates,
         eqs.iv, eqs.order, eqs.direction;
         initial_operators = copy(eqs.initial_operators),
+        coords = copy(eqs.coords),
     )
 end
 
