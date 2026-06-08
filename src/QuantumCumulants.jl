@@ -8,6 +8,8 @@ using SecondQuantizedAlgebra: SecondQuantizedAlgebra, QField, QAdd,
 import SecondQuantizedAlgebra as SQA
 using SymbolicUtils: SymbolicUtils
 using Symbolics: Symbolics, @variables
+using Latexify: Latexify, latexify, @latexrecipe
+using LaTeXStrings: latexstring
 using ModelingToolkitBase: ModelingToolkitBase, complete, System
 using OrderedCollections: OrderedCollections
 using Combinatorics: Combinatorics, partitions
@@ -50,5 +52,8 @@ include("mtk.jl")
 include("correlation.jl")
 include("measurement_backaction.jl")
 include("modify.jl")
+
+# plain-text and LaTeX display (after all displayed types are defined)
+include("printing.jl")
 
 end # module

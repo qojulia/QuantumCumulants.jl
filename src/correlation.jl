@@ -528,13 +528,3 @@ function _collect_leaf_averages!(out, seen, x)
     end
     return
 end
-
-# ---- pretty printing ---------------------------------------------------------
-
-Base.show(io::IO, c::CorrelationFunction) = show(io, average(c.op1 * c.op2))
-
-function Base.show(io::IO, s::Spectrum)
-    write(io, "ℱ(")
-    show(io, s.c)
-    return write(io, ")(ω)")
-end
