@@ -16,9 +16,6 @@ StochasticDiffEq = "789caeaf-c7a9-5a7d-9973-96adeb23e2a0"
 SymbolicUtils = "d1185830-fcd6-423d-90d6-eec64667417b"
 Symbolics = "0c5d862f-8b57-4792-8d23-62f2024744c7"
 
-[sources]
-SecondQuantizedAlgebra = {rev = "redesign-v2", url = "https://github.com/qojulia/SecondQuantizedAlgebra.jl"}
-
 [compat]
 Documenter = "1"
 Latexify = "0.13, 0.14, 0.15, 0.16"
@@ -27,7 +24,7 @@ OrdinaryDiffEq = "6"
 Plots = "1"
 QuantumOptics = "1"
 QuantumOpticsBase = "0.5"
-SecondQuantizedAlgebra = "0.5"
+SecondQuantizedAlgebra = "0.5.1"
 StochasticDiffEq = "6"
 SymbolicUtils = "4"
 Symbolics = "7"
