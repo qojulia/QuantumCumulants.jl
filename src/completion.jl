@@ -2,10 +2,20 @@
     complete!(eqs::AbstractMeanFieldEquations; max_iter=100_000, filter_func=nothing,
               mix_choice=maximum, get_adjoints=true)
 
-Close the system in place by deriving equations for every average reachable on a
-RHS. `filter_func(avg)` keeps only the averages it accepts (e.g. phase-invariant
-ones). `get_adjoints=false` tracks one representative per conjugate pair (the
-partner resolved by `conj` at codegen). RHS expressions are left unsimplified.
+Close `eqs` in place by repeatedly deriving equations of motion for every average that
+appears on a right-hand side but is not yet a state, until the set is self-contained.
+Right-hand sides are left unsimplified.
+
+# Keyword arguments
+* `max_iter=100_000`: runaway backstop; an error is raised if closure has not converged
+  within this many iterations.
+* `filter_func=nothing`: a predicate `filter_func(avg)`; rejected averages are dropped
+  (substituted by 0), e.g. to discard phase-invariant terms.
+* `mix_choice=maximum`: passed to [`cumulant_expansion`](@ref) for mixed-order truncation.
+* `get_adjoints=true`: when `false`, track one representative per conjugate pair, with the
+  partner recovered by `conj` at code generation.
+
+See also: [`complete`](@ref), [`find_missing`](@ref), [`meanfield`](@ref).
 """
 function complete!(
         eqs::MeanFieldEquations; max_iter::Int = 100_000,
@@ -36,8 +46,16 @@ end
 """
     complete(eqs::AbstractMeanFieldEquations; order=nothing, kw...)
 
-Non-mutating [`complete!`](@ref). If `order` is given, the copy is first
-cumulant-expanded to that order (deterministic systems only).
+Non-mutating [`complete!`](@ref): derive equations of motion for every average that
+appears on a right-hand side but is not yet a state, returning a new closed system.
+
+# Keyword arguments
+* `order=nothing`: if given, the copy is first cumulant-expanded to this order
+  (deterministic systems only) before closing.
+* `kw...`: forwarded to [`complete!`](@ref) (`max_iter`, `filter_func`, `mix_choice`,
+  `get_adjoints`).
+
+See also: [`complete!`](@ref), [`find_missing`](@ref), [`meanfield`](@ref).
 """
 function MTK.complete(
         eqs::MeanFieldEquations; order = nothing, mix_choice = maximum, kw...
@@ -65,6 +83,8 @@ Return the averages that appear on a right-hand side of `eqs` but are not yet am
 its tracked states: the equations still needed to close the system. A moment and
 its conjugate count as one: if either is already a state, neither is reported.
 `get_adjoints`, `filter_func` and `mix_choice` mirror [`complete!`](@ref).
+
+See also: [`complete`](@ref), [`complete!`](@ref).
 """
 function find_missing(
         eqs::AbstractMeanFieldEquations; filter_func = nothing,

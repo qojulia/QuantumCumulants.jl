@@ -7,16 +7,37 @@
 _make_iv() = MTK.t_nounits
 
 """
-    meanfield(ops, H, J=QField[]; Jdagger=adjoint.(J), rates=ones(length(J)),
-              efficiencies=nothing, direction=Forward(),
-              order=nothing, mix_choice=maximum, iv=ModelingToolkitBase.t_nounits)
+    meanfield(ops, H, J=QField[]; kwargs...)
+    meanfield(op, H, J=QField[]; kwargs...)
 
-Equations of motion for the averages of `ops` under Hamiltonian `H` and collapse
-operators `J` (with `rates`). Returns a `MeanFieldEquations`, or a
-`NoiseMeanFieldEquations` when `efficiencies` is given.
+Equations of motion for the averages of `ops` under the Hamiltonian `H` and the
+collapse operators `J`. The result is the Heisenberg (quantum Langevin) equation with
+noise neglected: each jump adds a Lindblad term
+``\\sum_i r_i \\left(J_i^\\dagger O J_i - \\tfrac{1}{2}\\{J_i^\\dagger J_i, O\\}\\right)``.
+Returns a [`MeanFieldEquations`](@ref), or a [`NoiseMeanFieldEquations`](@ref) when
+`efficiencies` is supplied (measurement backaction).
 
-The returned RHS is left unsimplified. Apply `SymbolicUtils.simplify` (e.g.
-`Symbolics.simplify(eq.rhs; expand=true)`) to the equations you want to inspect.
+The returned right-hand sides are left unsimplified; call [`simplify!`](@ref) (or
+`SymbolicUtils.simplify`) on the equations you want to inspect.
+
+# Arguments
+* `ops`: the operator(s) whose equations of motion are derived.
+* `H`: the operator defining the system Hamiltonian.
+* `J`: the collapse (jump) operators of the system; defaults to none.
+
+# Keyword arguments
+* `Jdagger=adjoint.(J)`: the adjoints of the jump operators.
+* `rates=ones(length(J))`: decay rates for `J`. A square `Matrix` instead selects
+  collective dissipation across the jump vector.
+* `efficiencies=nothing`: detector efficiencies per jump. When given, the result is a
+  [`NoiseMeanFieldEquations`](@ref) carrying a measurement-backaction noise drift.
+* `direction=Forward()`: [`Forward`](@ref) for ordinary evolution, [`Backward`](@ref)
+  for retrodiction.
+* `order=nothing`: if set, a [`cumulant_expansion`](@ref) to this order is applied. An
+  `Int` caps every subspace; a `Vector{Int}` caps each Hilbert subspace separately.
+* `mix_choice=maximum`: for a `Vector` `order`, how to combine the per-subspace caps on a
+  term that acts on several subspaces.
+* `iv=ModelingToolkitBase.t_nounits`: the independent (time) variable of the system.
 """
 function meanfield(
         ops::AbstractVector,

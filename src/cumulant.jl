@@ -1,8 +1,25 @@
 """
     get_order(expr)
 
-Highest moment order appearing in `expr`. Numbers have order 0; bare operators
-have order 1; products have order equal to the number of operator factors.
+Highest moment order appearing in `expr`, the order used to decide whether a term is
+expanded by [`cumulant_expansion`](@ref). Numbers have order 0, a bare operator order 1,
+and a product the number of its operator factors.
+
+# Examples
+```jldoctest
+julia> h = FockSpace(:a) ⊗ FockSpace(:b);
+
+julia> @qnumbers a::Destroy(h, 1) b::Destroy(h, 2);
+
+julia> get_order(a)
+1
+
+julia> get_order(a * b)
+2
+
+julia> get_order(1)
+0
+```
 """
 get_order(::Number) = 0
 get_order(::SQA.QSym) = 1
@@ -33,9 +50,25 @@ _prod_ops(block::AbstractVector) = isempty(block) ? 1 : reduce(*, block)
 """
     cumulant(op, n=get_order(op))
 
-The `n`-th joint cumulant of `op` (signed sum over partitions of length n).
-The result is returned in its raw, unsimplified form. Apply
-`SymbolicUtils.simplify` yourself if you want a canonical representation.
+The `n`-th joint cumulant of `op` (either an operator or an average), the signed sum
+over partitions of its operator factors into `n` blocks. The result is raw and
+unsimplified; apply `SymbolicUtils.simplify` for a canonical form.
+
+# Examples
+```jldoctest
+julia> h = FockSpace(:a) ⊗ FockSpace(:b);
+
+julia> @qnumbers a::Destroy(h, 1) b::Destroy(h, 2);
+
+julia> cumulant(a * b)
+⟨a * b⟩ - ⟨b⟩*⟨a⟩
+
+julia> cumulant(a * b, 1)
+⟨a * b⟩
+
+julia> cumulant(a * b, 3)
+0
+```
 """
 cumulant(op::SQA.QSym, n::Int = 1) = n == 1 ? average(op) : 0
 
@@ -77,10 +110,23 @@ end
 """
     cumulant_expansion(expr, order; mix_choice=maximum)
 
-Expand averages with order > `order` in terms of lower-order moments using the
-joint-cumulant identity (truncating at the supplied order). The output is the
-raw expression. Apply `SymbolicUtils.simplify` yourself if you need a canonical
-form.
+Expand every average in `expr` whose order exceeds `order` into lower-order moments via
+the joint-cumulant identity, neglecting the joint cumulant above `order`. `order` is an
+`Int` (one cap for all subspaces) or a `Vector{Int}` (a cap per Hilbert subspace,
+combined by `mix_choice` on mixed terms). The output is raw; apply `SymbolicUtils.simplify`
+for a canonical form.
+
+See also: https://en.wikipedia.org/wiki/Cumulant#Joint_cumulants
+
+# Examples
+```jldoctest
+julia> h = FockSpace(:a) ⊗ FockSpace(:b);
+
+julia> @qnumbers a::Destroy(h, 1) b::Destroy(h, 2);
+
+julia> cumulant_expansion(average(a * b), 1)
+⟨b⟩*⟨a⟩
+```
 """
 cumulant_expansion(x::Number, order; kw...) = x
 cumulant_expansion(x::Number, ::Nothing; kw...) = x

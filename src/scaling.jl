@@ -207,9 +207,13 @@ end
     scale(eqs::AbstractMeanFieldEquations; h=Int[])
     scale!(eqs::AbstractMeanFieldEquations; h=Int[])
 
-Reduce a permutation-symmetric indexed system to one representative per symmetry
-orbit. `h` selects which Hilbert subspaces participate (empty means all symmetric
-subspaces). `scale!` mutates in place.
+Reduce a permutation-symmetric indexed system to one representative per symmetry orbit,
+exploiting that every atom of an indexed family acts on the system identically. `scale!`
+mutates `eqs` in place; `scale` returns a new system.
+
+# Keyword arguments
+* `h=Int[]`: the Hilbert subspaces to scale, given by their `acts_on` indices. Empty
+  scales every symmetric (indexed) subspace and leaves the others untouched.
 """
 # Build from STORED drifts, never re-derive: `complete(...; filter_func)` records
 # filter substitutions in `eqs.equations` that re-derivation would discard.

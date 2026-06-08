@@ -431,10 +431,15 @@ end
     evaluate(eqs::AbstractMeanFieldEquations; limits=nothing, h=Int[])
     evaluate(c::CorrelationFunction; limits=nothing, h=Int[])
 
-Materialise a symbolic indexed system into a concrete-size one. `limits` maps a
-range symbol to a concrete size (`N => 3`, a tuple of pairs, or a `Dict`). `h`
-restricts unrolling to the listed Hilbert subspaces (empty unrolls all covered
-by `limits`). The result's `QAdd`s carry empty `.indices`, ready for `System`.
+Materialise a symbolic indexed system into a concrete, fixed-size one by inserting the
+index ranges and unrolling the sums. The result is ready for
+`ModelingToolkitBase.System`; its operators carry no remaining sum scope.
+
+# Keyword arguments
+* `limits=nothing`: the concrete size of each symbolic index range, given as a `Pair`
+  (`N => 3`), a tuple of pairs, or a `Dict`. Required whenever a range bound is symbolic.
+* `h=Int[]`: restrict unrolling to these Hilbert subspaces (by `acts_on` index). Empty
+  unrolls every subspace covered by `limits`.
 """
 function evaluate(eqs::AbstractMeanFieldEquations; limits = nothing, h::Vector{Int} = Int[], kwargs...)
     sub = _limits_dict(limits)

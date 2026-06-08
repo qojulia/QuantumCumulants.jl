@@ -1,3 +1,23 @@
+"""
+    CorrelationFunction
+
+Two-time correlation function ⟨op1(t+τ) op2(t)⟩ of a solved mean-field system,
+constructed via the quantum regression theorem. Build one with the
+[`CorrelationFunction(op1, op2, eqs0)`](@ref) constructor, then feed it to
+`ModelingToolkitBase.System` together with [`correlation_u0`](@ref) and
+[`correlation_p0`](@ref) to solve the τ-evolution, or to [`Spectrum`](@ref) for the
+power spectrum.
+
+# Fields
+- `op1`, `op2`: the operators whose correlation is computed.
+- `op2_anc`: `op2` re-embedded on the ancilla subspace `aon_anc` (internal).
+- `aon_anc`: Hilbert-subspace index of the ancilla carrying `op2` (internal).
+- `eqs`: the closed equations of motion in the delay `τ`.
+- `eqs0`: the steady-state system the correlation is built on.
+- `τ`: the delay independent variable.
+- `steady_state`: if `true`, ambient averages are held constant; if `false`, they are
+  evolved alongside the τ-states.
+"""
 struct CorrelationFunction{T <: MeanFieldEquations, O1 <: QField, O2 <: QField, O2A <: QField}
     op1::O1
     op2::O2
@@ -58,6 +78,18 @@ subspace and the resulting system is closed only on averages that touch the
 ancilla; the remaining averages are steady-state coefficients. With
 `steady_state=false` the ambient averages are evolved too. `filter_func` further
 restricts the closure, and `max_iter` bounds the closure iterations.
+
+# Examples
+```jldoctest
+julia> h = FockSpace(:cavity);
+
+julia> @qnumbers a::Destroy(h);
+
+julia> eqs = meanfield([a' * a], a' * a, [a]; rates = [1.0], order = 2);
+
+julia> CorrelationFunction(a', a, eqs)
+⟨a' * a⟩
+```
 """
 function CorrelationFunction(
         op1::QField, op2::QField, eqs0::MeanFieldEquations;
@@ -218,8 +250,11 @@ _scalarize(x) = ComplexF64(0)
 """
     correlation_u0(c, u_end)
 
-Initial values for the τ-evolution: each ancilla state ⟨X(τ)·op2_anc⟩ starts from
-the steady-state ⟨X·op2⟩ (op2 on the original subspace), looked up in `u_end`.
+Initial values for the τ-evolution of the [`CorrelationFunction`](@ref) `c`. Each
+ancilla state ⟨X(τ) op2_anc⟩ starts from the steady-state value ⟨X op2⟩ (with `op2` on
+its original subspace), looked up in `u_end`.
+
+See also: [`CorrelationFunction`](@ref), [`correlation_p0`](@ref).
 """
 function correlation_u0(c::CorrelationFunction, u_end)
     u_end_dict = _as_avg_dict(c, u_end)
@@ -234,8 +269,11 @@ end
 """
     correlation_p0(c, u_end, ps_p0)
 
-Parameter dict for the τ-ODE: user `ps_p0` plus the numeric values of the ambient
-steady-state averages (looked up in `u_end`).
+Parameter dictionary for the τ-ODE of the [`CorrelationFunction`](@ref) `c`: the user
+parameters `ps_p0` together with the numeric values of the ambient steady-state averages,
+looked up in `u_end`.
+
+See also: [`CorrelationFunction`](@ref), [`correlation_u0`](@ref).
 """
 function correlation_p0(c::CorrelationFunction, u_end, ps_p0)
     u_end_dict = _as_avg_dict(c, u_end)
@@ -320,6 +358,20 @@ symmetric power spectrum `2·Re{∫₀^∞ g(τ)e^{-iωτ}dτ}`. Solves `(iω·I
 where `A` is the τ-system Jacobian at steady state and `x̃ = x - x_∞` is centred so
 the one-sided transform converges. The linear/anti-linear split (the conjugate
 columns from `get_adjoints=false`) is handled by the 2n augmentation.
+
+# Examples
+```jldoctest
+julia> h = FockSpace(:cavity);
+
+julia> @qnumbers a::Destroy(h);
+
+julia> eqs = meanfield([a' * a], a' * a, [a]; rates = [1.0], order = 2);
+
+julia> c = CorrelationFunction(a', a, eqs);
+
+julia> Spectrum(c)
+ℱ(⟨a' * a⟩)(ω)
+```
 """
 struct Spectrum{C <: CorrelationFunction, P}
     c::C
@@ -475,4 +527,14 @@ function _collect_leaf_averages!(out, seen, x)
         _collect_leaf_averages!(out, seen, a)
     end
     return
+end
+
+# ---- pretty printing ---------------------------------------------------------
+
+Base.show(io::IO, c::CorrelationFunction) = show(io, average(c.op1 * c.op2))
+
+function Base.show(io::IO, s::Spectrum)
+    write(io, "ℱ(")
+    show(io, s.c)
+    return write(io, ")(ω)")
 end

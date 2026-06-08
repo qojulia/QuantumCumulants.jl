@@ -1,9 +1,3 @@
-# Jump-channel classification and index collection.
-#
-# Small structural predicates over the dissipator/Hamiltonian that `build_ctx`
-# and the closure policy depend on. Kept free of any orchestration so
-# `canonical.jl` can use them without an upward dependency.
-
 """
 Flatten one level of nesting in `jumps`/`jumps_dagger`: collective-decay sources
 may arrive as a vector of mode vectors, and this leaves each source a single

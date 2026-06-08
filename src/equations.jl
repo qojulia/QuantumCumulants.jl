@@ -22,8 +22,22 @@ struct Backward <: EvolutionDirection end
 """
     MeanFieldEquations
 
-Concrete equation set produced by [`meanfield`](@ref) when no measurement backaction
-is requested. All type parameters are bound concretely.
+Concrete equation set produced by [`meanfield`](@ref) when no measurement backaction is
+requested. All type parameters are bound concretely.
+
+# Fields
+* `equations`: the averaged differential equations (left-hand side average, right-hand
+  side drift).
+* `operator_equations`: the same equations at the operator level.
+* `states`: the averages on the left-hand sides.
+* `operators`: the operators on the left-hand sides.
+* `initial_operators`: the operators originally requested, before completion added any.
+* `hamiltonian`: the system Hamiltonian.
+* `jumps`, `jumps_dagger`: the collapse operators and their adjoints.
+* `rates`: the decay rates corresponding to `jumps`.
+* `iv`: the independent (time) variable.
+* `order`: the cumulant-expansion order, or `nothing`.
+* `direction`: [`Forward`](@ref) or [`Backward`](@ref) evolution.
 """
 struct MeanFieldEquations{
         O <: Union{Nothing, Vector{Int}},
@@ -87,9 +101,25 @@ end
 """
     NoiseMeanFieldEquations
 
-Concrete equation set produced by [`meanfield`](@ref) when `efficiencies` is supplied.
-`direction::D` (singleton [`Forward`](@ref) or [`Backward`](@ref)) drives compile-time
-dispatch of the noise drift assembly.
+Concrete equation set produced by [`meanfield`](@ref) when `efficiencies` is supplied,
+adding a measurement-backaction noise drift to the deterministic equations. The
+`direction` tag ([`Forward`](@ref) or [`Backward`](@ref)) drives compile-time dispatch of
+the noise assembly.
+
+# Fields
+* `equations`: the deterministic averaged differential equations.
+* `noise_equations`: the averaged noise (Brownian) drift per state.
+* `operator_equations`, `operator_noise_equations`: the operator-level counterparts.
+* `states`: the averages on the left-hand sides.
+* `operators`: the operators on the left-hand sides.
+* `initial_operators`: the operators originally requested, before completion added any.
+* `hamiltonian`: the system Hamiltonian.
+* `jumps`, `jumps_dagger`: the collapse operators and their adjoints.
+* `rates`: the decay rates corresponding to `jumps`.
+* `efficiencies`: the detector efficiencies per jump.
+* `iv`: the independent (time) variable.
+* `order`: the cumulant-expansion order, or `nothing`.
+* `direction`: [`Forward`](@ref) or [`Backward`](@ref) evolution.
 """
 struct NoiseMeanFieldEquations{
         O <: Union{Nothing, Vector{Int}},
