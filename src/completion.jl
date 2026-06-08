@@ -1,8 +1,3 @@
-# Closure (Layer 5). `complete`/`complete!`/`find_missing` are thin wrappers over
-# the graph passes: build a graph from the seed equations, run `closure!` (BFS to
-# fixpoint) or `frontier` (the missing edge targets), and lower back to the array
-# container. All identity/dedup/conjugate logic lives in the kernel.
-
 """
     complete!(eqs::AbstractMeanFieldEquations; max_iter=100_000, filter_func=nothing,
               mix_choice=maximum, get_adjoints=true)
@@ -64,23 +59,23 @@ function MTK.complete(
 end
 
 """
-    find_missing(eqs::AbstractMeanFieldEquations; filter_func=nothing,
-                 get_adjoints=true)
+    find_missing(eqs::AbstractMeanFieldEquations; filter_func=nothing, get_adjoints=true, mix_choice=maximum)
 
-The averages appearing on a RHS whose identity is not yet a state (the graph
-frontier). A state and its conjugate count as one: if either is present, neither
-is missing.
+Return the averages that appear on a right-hand side of `eqs` but are not yet among
+its tracked states: the equations still needed to close the system. A moment and
+its conjugate count as one: if either is already a state, neither is reported.
+`get_adjoints`, `filter_func` and `mix_choice` mirror [`complete!`](@ref).
 """
 function find_missing(
         eqs::AbstractMeanFieldEquations; filter_func = nothing,
         get_adjoints::Bool = true, mix_choice = maximum,
     )
-    # Coordinate-consistent matching (spec Task 2): fold every tracked state AND
-    # every RHS leaf through the SAME `canonical_rep(·; coords)` the codegen
-    # resolver uses, in the system's recorded coordinate. The seen-set is built
-    # from the FAITHFUL state operators (not a canon_key-collapsed graph), so
-    # concrete per-site atoms stay distinct under the Concrete coordinate. A leaf
-    # is missing only if neither it nor its conjugate folds to a tracked state.
+    # Fold every tracked state AND every RHS leaf through the SAME
+    # `canonical_rep(·; coords)` the codegen resolver uses, in the system's
+    # recorded coordinate. The seen-set is built from the faithful state operators
+    # (not a canon_key-collapsed graph), so concrete per-site atoms stay distinct
+    # under the Concrete coordinate. A leaf is missing only if neither it nor its
+    # conjugate folds to a tracked state.
     ctx = build_ctx(eqs.operators, eqs.hamiltonian, eqs.jumps, eqs.jumps_dagger)
     coords = isempty(eqs.coords) ? all_free_coords(ctx) :
         Dict{Int, Coordinate}(sp => Coordinate(c) for (sp, c) in eqs.coords)

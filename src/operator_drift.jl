@@ -1,12 +1,14 @@
-# Operator-level drift algebra (Layer 2). Pure SQA operator manipulation shared
-# by `derive` (moments.jl) and the noise builders (noise.jl): coherent
-# commutator, Lindblad recycling (forward and backward/retrodiction), per-jump
-# index summation, the dY measurement-record correction, and the cross-atom
-# distinctness fold. No equation containers, no orchestration.
+# Operator-level drift algebra. Pure SQA operator manipulation shared by `derive`
+# (moments.jl) and the noise builders (noise.jl): coherent commutator, Lindblad
+# recycling (forward and backward/retrodiction), per-jump index summation, the dY
+# measurement-record correction, and the cross-atom distinctness fold. No equation
+# containers, no orchestration.
 
-# Build the operator-equation RHS for either evolution direction. Forward uses
-# `+i[H,·]` and the standard Lindblad recycling; Backward uses `−i[H,·]` with the
-# adjoint Lindblad recycling (`J ↔ J†`) and the trace-preserving term.
+"""
+Build the operator-equation RHS for the given evolution direction. Forward uses
+`+i[H,·]` and the standard Lindblad recycling; Backward uses `−i[H,·]` with the
+adjoint Lindblad recycling (`J ↔ J†`) and the trace-preserving term.
+"""
 _operator_rhs(::Forward, op, imH, J, Jdagger, rates) =
     commutator(imH, op) + _lindblad_rhs(op, J, Jdagger, rates)
 
@@ -23,6 +25,13 @@ function _operator_rhs(::Backward, op, imH, J, Jdagger, rates)
     +op * trace_term
 end
 
+"""
+Standard (forward) Lindblad recycling `Σ_k (rₖ/2)(Jₖ† [op, Jₖ] + [Jₖ†, op] Jₖ)`.
+A matrix rate selects collective decay across mode-operator vectors; a
+`DoubleIndexedVariable` rate on a singly-indexed jump selects the collective
+cross-jump dissipator; otherwise the per-jump term is summed over its free
+indices.
+"""
 function _lindblad_rhs(op, J, Jdagger, rates)
     isempty(J) && return zero(op)
     op_idx = _op_free_indices(op)
@@ -30,8 +39,7 @@ function _lindblad_rhs(op, J, Jdagger, rates)
     @inbounds for k in eachindex(J)
         rk = rates[k]
         if rk isa AbstractMatrix
-            # Collective decay: `J[k]`/`Jdagger[k]` are vectors of mode operators;
-            # `rk[i,j]` is the cross-rate between modes `i` and `j`.
+            # `rk[i,j]` is the cross-rate between mode operators `J[k][i]` and `J[k][j]`.
             Jv, Jdv = J[k], Jdagger[k]
             for i in eachindex(Jv), j in eachindex(Jv)
                 acc += (rk[i, j] / 2) * (
@@ -40,8 +48,6 @@ function _lindblad_rhs(op, J, Jdagger, rates)
                 )
             end
         elseif _is_double_indexed_var(rk) && !isempty(_op_free_indices(J[k]))
-            # Collective indexed dissipation: a `DoubleIndexedVariable` rate Γ(i,j)
-            # on a singly-indexed jump gives the cross-jump dissipator Σ_{i,j} Γ D[J_i,J_j].
             acc += _collective_indexed_lindblad(op, J[k], Jdagger[k], rk)
         else
             term = (rk / 2) * (
@@ -54,10 +60,12 @@ function _lindblad_rhs(op, J, Jdagger, rates)
     return acc
 end
 
-# Free indices of an operator not bound by a sum scope. An indexed jump σ_i^{21}
-# carries a free `Index` i; wrapping the per-jump dissipator in Σ_i produces
-# independent-decay (rather than collective) semantics and lets SQA's diagonal
-# split fire.
+"""
+Free indices of an operator that are not bound by a sum scope. An indexed jump
+`σ_i^{21}` carries a free `Index` `i`; wrapping the per-jump dissipator in `Σ_i`
+gives independent-decay (rather than collective) semantics and lets SQA's diagonal
+split fire.
+"""
 _op_free_indices(op::SQA.QSym) =
     SQA.has_index(op.index) ? SQA.Index[op.index] : SQA.Index[]
 function _op_free_indices(op::QAdd)
@@ -73,9 +81,11 @@ function _op_free_indices(op::QAdd)
 end
 _op_free_indices(_) = SQA.Index[]
 
-# Wrap `term` in Σ over each free index that originates in the jump and is not
-# already an LHS observable index. Returns `term` unchanged when there are no
-# jump-specific free indices.
+"""
+Wrap `term` in `Σ` over each free index that originates in the jump and is not
+already an LHS observable index. Returns `term` unchanged when there are no
+jump-specific free indices.
+"""
 function _sum_over_jump_indices(term, jump, op_idx)
     jump_idx = _op_free_indices(jump)
     isempty(jump_idx) && return term
@@ -84,12 +94,15 @@ function _sum_over_jump_indices(term, jump, op_idx)
     return SQA.Σ(term, free[1], free[2:end]...)
 end
 
-# A `DoubleIndexedVariable` rate `Γ(i,j)` materialises as a callable `Sym` whose
-# `FnType` domain is a 2-tuple. (A single `IndexedVariable` has a 1-tuple domain;
-# a plain scalar rate is not a call.) Used to switch the dissipator onto the
-# collective cross-jump form.
 _fn_domain_len(::Type{<:SymbolicUtils.FnType{A}}) where {A <: Tuple} = length(A.parameters)
 _fn_domain_len(::Type) = -1
+
+"""
+True when `x` is a `DoubleIndexedVariable` rate `Γ(i,j)`: a callable `Sym` whose
+`FnType` domain is a 2-tuple. (A single `IndexedVariable` has a 1-tuple domain; a
+plain scalar rate is not a call.) Used to switch the dissipator onto the
+collective cross-jump form.
+"""
 function _is_double_indexed_var(x)
     u = SymbolicUtils.unwrap(x)
     u isa SymbolicUtils.BasicSymbolic || return false
@@ -100,19 +113,25 @@ function _is_double_indexed_var(x)
         length(SymbolicUtils.arguments(u)) == 2
 end
 
-# Partner `Index` from the rate's second argument, inheriting the jump index's
-# range and subspace (derive the name from the user's vocabulary, never invent one).
+"""
+Partner `Index` for a collective cross-jump dissipator, taken from the rate's
+second argument and inheriting the jump index's range and subspace. The name comes
+from the user's existing vocabulary rather than being invented.
+"""
 function _partner_index(rk, i_jump::SQA.Index)
     args = SymbolicUtils.arguments(SymbolicUtils.unwrap(rk))
     sym_j = args[2]
     return SQA.Index(Base.nameof(sym_j), i_jump.range, i_jump.space_index, Symbolics.Num(sym_j))
 end
 
-# Σ_{i,j} Γ(i,j) D[J_i, J_j] for a singly-indexed jump `Jk`, rate `rk=Γ(i,j)`.
-# Standard collective-rate-matrix split: explicit diagonal self-decay
-# `Σ_i Γ(i,i) D[J_i]` + off-diagonal cross-recycling `Σ_{i≠j} Γ(i,j) D[J_i,J_j]`.
-# The diagonal must be explicit — completeness does NOT recover it (the off-diagonal
-# emission has no ground projector to fold), so off-diagonal-only loses the self-decay.
+"""
+Collective indexed dissipator `Σ_{i,j} Γ(i,j) D[J_i, J_j]` for a singly-indexed
+jump `Jk` with rate `rk = Γ(i,j)`, split as explicit diagonal self-decay
+`Σ_i Γ(i,i) D[J_i]` plus off-diagonal cross-recycling `Σ_{i≠j} Γ(i,j) D[J_i,J_j]`.
+The diagonal must be explicit: completeness does not recover it (the off-diagonal
+emission has no ground projector to fold), so an off-diagonal-only form would lose
+the self-decay.
+"""
 function _collective_indexed_lindblad(op, Jk, Jdk, rk)
     i_jump = first(_op_free_indices(Jk))
     jdx = _partner_index(rk, i_jump)
@@ -125,7 +144,10 @@ function _collective_indexed_lindblad(op, Jk, Jdk, rk)
     return off + dia
 end
 
-# Diagonal rate `Γ(i,i)` from `Γ(i,j)` (collapse the partner onto the jump index).
+"""
+Diagonal rate `Γ(i,i)` from `Γ(i,j)`, collapsing the partner argument onto the
+jump index.
+"""
 function _diag_rate(rk)
     u = SymbolicUtils.unwrap(rk)
     f = SymbolicUtils.operation(u)
@@ -133,8 +155,10 @@ function _diag_rate(rk)
     return f(a[1], a[1])
 end
 
-# Adjoint-action Lindblad recycling for the backward Heisenberg/Kalman
-# retrodiction picture.
+"""
+Adjoint-action Lindblad recycling for the backward Heisenberg/Kalman retrodiction
+picture. Matrix (nondiagonal) measurement rates are not supported here.
+"""
 function _master_lindblad_backward(op, J, Jdagger, rates)
     isempty(J) && return zero(op)
     op_idx = _op_free_indices(op)
@@ -152,8 +176,10 @@ function _master_lindblad_backward(op, J, Jdagger, rates)
     return acc
 end
 
-# Extra deterministic term arising when the SDE is recast in terms of the
-# measurement record `dY` instead of the Wiener increment `dW`.
+"""
+Extra deterministic term arising when the SDE is recast in terms of the
+measurement record `dY` instead of the Wiener increment `dW`.
+"""
 function _dY_dS_extra_term(op, J, Jdagger, rates)
     out = 0
     @inbounds for k in eachindex(J)
@@ -169,11 +195,13 @@ function _dY_dS_extra_term(op, J, Jdagger, rates)
     return out
 end
 
-# Assert NE between every member of `distinct` and every other distinct
-# atom-space index in `q` on the same Hilbert subspace, then route through
-# `SQA.assume_distinct_index` (which propagates NE, canonicalises, expands
-# completeness). Returns `q` unchanged when `distinct` is empty. Drives the
-# `σ^gg = 1 - Σ σ^kk` fold for population/dephasing systems.
+"""
+Assert NE between every member of `distinct` and every other atom-space index in
+`q` on the same Hilbert subspace, then route through `SQA.assume_distinct_index`
+(which propagates NE, canonicalises, and expands completeness). Returns `q`
+unchanged when `distinct` is empty. Drives the `σ^gg = 1 - Σ σ^kk` fold for
+population/dephasing systems.
+"""
 function _assume_distinct_atom_indices(q::SQA.QAdd, distinct::Vector{SQA.Index})
     isempty(distinct) && return q
     by_space = Dict{Int, Set{SQA.Index}}()
@@ -200,17 +228,20 @@ function _assume_distinct_atom_indices(q::SQA.QAdd, distinct::Vector{SQA.Index})
 end
 _assume_distinct_atom_indices(q, _distinct, _concretes = nothing) = q
 
-# Free LHS indices on `new_ops` that share a Hilbert subspace, deduped, but only
-# when a subspace carries 2+ such indices. A multi-index moment ⟨X_i X_j⟩ is by
-# construction a distinct-slot cumulant (i≠j); its diagonal (i=j) is a separate,
-# lower node. Asserting the distinctness here lets SQA's diagonal split collapse
-# the dissipator's same-index contribution (the `k=i,j` terms of `Σ_k D[c_k]`)
-# instead of leaking spurious higher-order cumulants. This applies to BOTH atom
-# (Transition) AND Fock (Destroy/Create filter/mode) subspaces: without it a
-# cross-mode moment like ⟨b_i b_j⟩ grows a bogus nonlinear `κf` dissipator
-# instead of the exact `-κf⟨b_i b_j⟩`. Distinctness assertion is independent of
-# the scaling permutation fold (which lives in scaling.jl and never folds Fock
-# modes); it only fixes operator order and feeds the diagonal split.
+"""
+Free LHS indices on `new_ops` that share a Hilbert subspace, deduped, returned only
+for subspaces carrying two or more such indices. A multi-index moment `⟨X_i X_j⟩`
+is by construction a distinct-slot cumulant (`i≠j`), its diagonal (`i=j`) being a
+separate lower node. Asserting that distinctness lets SQA's diagonal split collapse
+the dissipator's same-index contribution (the `k=i,j` terms of `Σ_k D[c_k]`) rather
+than leaking spurious higher-order cumulants.
+
+This applies to both atom (Transition) and Fock (Destroy/Create filter/mode)
+subspaces: without it a cross-mode moment like `⟨b_i b_j⟩` grows a bogus nonlinear
+`κf` dissipator instead of the exact `-κf⟨b_i b_j⟩`. The assertion is independent of
+the scaling permutation fold (in scaling.jl, which never folds Fock modes); it only
+fixes operator order and feeds the diagonal split.
+"""
 function _distinct_atom_indices(new_ops)
     by_space = Dict{Int, Vector{SQA.Index}}()
     for op in new_ops
@@ -243,8 +274,9 @@ function _collect_atom_space_indices_by_space!(by_space, op::QAdd)
     return nothing
 end
 
-# Noise-builder dispatch (the builders live in noise.jl) and the backward dY
-# averaged-drift correction (used by the noise meanfield path).
+# ---- noise dispatch ----
+# Builders live in noise.jl; `_avg_extra_term` supplies the backward dY
+# averaged-drift correction used by the noise meanfield path.
 _noise_builder(::Forward) = _build_noise_equations_forward
 _noise_builder(::Backward) = _build_noise_equations_backward
 

@@ -1,7 +1,6 @@
-# The IR: the moment dependency graph (spec Section 3.4). Nodes are canonical
-# QAdds, each annotated with its NodeData. Edges stay implicit (a node's
-# out-edges are the keyed leaves of its drift). Phase 0 builds the types + seed;
-# closure!/quotient!/specialize/lower/jacobian are Phases 3 to 6.
+# The moment dependency graph IR. Nodes are canonical QAdds, each annotated with
+# its NodeData; edges stay implicit (a node's out-edges are the keyed leaves of
+# its drift).
 
 struct SystemSpec{H, Jt, Jdt, R, E, MC, D <: EvolutionDirection}
     hamiltonian::H
@@ -24,17 +23,20 @@ struct MomentGraph{S <: SystemSpec}
     coords::Dict{Int, Coordinate}     # per-subspace coordinate; all-Free after seed/closure!
 end
 
-# Backward-compatible helper: a graph is "quotiented" once any subspace is Scaled.
+"""A graph is "quotiented" once any subspace has been reduced to a `Scaled` coordinate."""
 quotiented(g::MomentGraph) = any(==(Scaled), values(g.coords))
 
-# The key function matching the graph's current level. Every leaf-to-node
-# resolution that needs a single key function reads the coordinate: Scaled
-# present means orbit_key, otherwise canon_key. (closure! keys with canon_key
-# directly; this is kept for callers that want the coordinate-matched key.)
+"""
+The key function matching the graph's current level: `orbit_key` once any subspace is
+`Scaled`, otherwise `canon_key`. Kept for callers that want the coordinate-matched key;
+`closure!` keys with `canon_key` directly.
+"""
 nodekey(g::MomentGraph) = quotiented(g) ? orbit_key : canon_key
 
-# Derive each seed op into a node, keyed by canon_key (the graph starts
-# un-quotiented). Promote each op to a QAdd first, exactly as meanfield does.
+"""
+Derive each seed op into a graph node, keyed by `canon_key` (the graph starts
+un-quotiented). Each op is promoted to a `QAdd` first, exactly as `meanfield` does.
+"""
 function seed(ops::AbstractVector, sys::SystemSpec, ctx::CanonCtx)
     nodes = OrderedCollections.OrderedDict{NodeKey, NodeData}()
     for op in ops
@@ -46,21 +48,22 @@ function seed(ops::AbstractVector, sys::SystemSpec, ctx::CanonCtx)
     return MomentGraph(nodes, sys, ctx, all_free_coords(ctx))
 end
 
-# Leaves of a node's drift (and noise drift, when present) to scan for edges.
+"""Leaves of a node's drift (and noise drift, when present) to scan for edges."""
 _drift_leaves(nd::NodeData) = nd.noise === nothing ? eachleaf(nd.drift) :
     vcat(eachleaf(nd.drift), eachleaf(nd.noise))
 
-# frontier: edge-target node keys not yet in the graph (the public find_missing).
-# Scans each node's drift/noise leaves, keys via canon_key, dedups; folds the
-# conjugate partner when get_adjoints=false.
+"""
+Edge-target node keys not yet in the graph; backs the public `find_missing`. Scans each
+node's drift/noise leaves, keys them via `canon_key`, and dedups, folding the conjugate
+partner when `get_adjoints=false`.
+"""
 function frontier(g::MomentGraph; get_adjoints::Bool = true)
     ctx = g.ctx
     coords = g.coords
-    # Match in the system's coordinate (spec "Closure and the system coordinate"):
-    # fold every node key AND every leaf through the SAME `canonical_rep(·; coords)`,
-    # so a permutation-image / conjugate leaf folds to the rep its stored node was
-    # keyed to. This is the SAME code path the codegen resolver uses, so
-    # `find_missing == 0` means exactly "every leaf resolves at codegen".
+    # Match in the system's coordinate: fold every node key AND every leaf through the
+    # SAME `canonical_rep(·; coords)`, so a permutation-image / conjugate leaf folds to
+    # the rep its stored node was keyed to. This is the SAME code path the codegen
+    # resolver uses, so `find_missing == 0` means exactly "every leaf resolves at codegen".
     seen = Set{NodeKey}(canonical_rep(k, ctx; coords)[1] for k in keys(g.nodes))
     missing = NodeKey[]
     seen_missing = Set{NodeKey}()
@@ -84,11 +87,13 @@ function frontier(g::MomentGraph; get_adjoints::Bool = true)
     return missing
 end
 
-# closure!: BFS to fixpoint over the implicit edge set. Each discovered key is
-# derived on enqueue (the node key is canon_key, NOT orbit_key: symmetric
-# reduction here would collapse the unscaled count). `filter` zeroes unwanted
-# leaves (ancilla/phase-invariant); `get_adjoints=false` tracks one rep per
-# conjugate pair (the partner resolved via conj at codegen). Spec section 3.4.
+"""
+BFS to fixpoint over the implicit edge set, deriving each discovered key on enqueue.
+Node keys use `canon_key`, NOT `orbit_key`: symmetric reduction here would collapse the
+unscaled count. `filter` zeroes unwanted leaves (e.g. ancilla / phase-invariant);
+`get_adjoints=false` tracks one rep per conjugate pair, with the partner resolved via
+`conj` at codegen.
+"""
 function closure!(
         g::MomentGraph; filter = _alltrue, get_adjoints::Bool = true,
         max_iter::Int = 100_000,
@@ -140,8 +145,10 @@ function closure!(
 end
 _alltrue(_) = true
 
-# Rebuild a MomentGraph from an existing equations struct: every current state
-# becomes a node (re-derived on its canon key), ready for closure! to extend.
+"""
+Rebuild a `MomentGraph` from an existing equations struct: every current state becomes a
+node, re-derived on its canon key, ready for `closure!` to extend.
+"""
 function _graph_from_eqs(eqs::AbstractMeanFieldEquations; mix_choice = maximum)
     ctx = build_ctx(eqs.operators, eqs.hamiltonian, eqs.jumps, eqs.jumps_dagger)
     eff = eqs isa NoiseMeanFieldEquations ? eqs.efficiencies : nothing
@@ -159,9 +166,11 @@ function _graph_from_eqs(eqs::AbstractMeanFieldEquations; mix_choice = maximum)
     return MomentGraph(nodes, sys, ctx, all_free_coords(ctx))
 end
 
-# Lower a graph's nodes back into the array-backed MeanFieldEquations /
-# NoiseMeanFieldEquations struct (the frozen Phase-1 interface). Nodes are
-# canon-rep QAdds; LHS and drift share that rep so the system is self-consistent.
+"""
+Lower a graph's nodes back into the array-backed `MeanFieldEquations` /
+`NoiseMeanFieldEquations` struct. Nodes are canon-rep `QAdd`s; LHS and drift share that
+rep so the system is self-consistent.
+"""
 function lower_to_eqs(g::MomentGraph)
     sys = g.sys
     ks = collect(keys(g.nodes))
@@ -179,8 +188,8 @@ function lower_to_eqs(g::MomentGraph)
         )
     else
         noise_eqs = Symbolics.Equation[average(k) ~ g.nodes[k].noise for k in ks]
-        # op_noise is deferred (Phase 0); rebuild the operator noise eqs from the
-        # builder so the struct's operator_noise_equations column is populated.
+        # Nodes don't store op_noise; rebuild it from the noise builder so the struct's
+        # operator_noise_equations column is populated.
         op_noise = Symbolics.Equation[]
         for k in ks
             on, _ = _noise_builder(sys.direction)(

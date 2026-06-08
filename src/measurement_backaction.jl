@@ -1,9 +1,5 @@
-# Measurement backaction (Layer 5). Recast a homodyne SDE from the Wiener
-# increment `dW` to the measurement record `dY`. The substitution
-# `dW = dY - sqrt(2η)·⟨J + J†⟩·dt` leaves the noise drift untouched and adds a
-# deterministic correction term to the drift. The correction is exactly
-# `-_dY_dS_extra_term` (the same average-space algebra the backward recycling
-# uses), cumulant-expanded to the equation set's order.
+# Measurement backaction: recast a homodyne SDE from the Wiener increment to the
+# measurement record.
 
 """
     translate_W_to_Y(eqs::NoiseMeanFieldEquations; mix_choice=maximum)

@@ -1,8 +1,8 @@
-# Public entry point (Layer 5). `meanfield` normalizes the jump/rate inputs,
-# seeds a moment graph, and lowers it to the array container. Deterministic and
-# noise systems share one path: `efficiencies` flips `SystemSpec.efficiencies`,
-# which makes `derive` compute the noise drift and `lower_to_eqs` emit the noise
-# columns. No bespoke per-path assembly.
+# Public entry point. `meanfield` normalizes the jump/rate inputs, seeds a moment
+# graph, and lowers it to the array container. Deterministic and noise systems
+# share one path: `efficiencies` flips `SystemSpec.efficiencies`, which makes
+# `derive` compute the noise drift and `lower_to_eqs` emit the noise columns. No
+# bespoke per-path assembly.
 
 _make_iv() = MTK.t_nounits
 

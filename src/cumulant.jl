@@ -1,5 +1,3 @@
-using Combinatorics: partitions
-
 """
     get_order(expr)
 
@@ -30,7 +28,6 @@ function get_order(x::SymbolicUtils.BasicSymbolic)
 end
 get_order(x::Symbolics.Num) = get_order(SymbolicUtils.unwrap(x))
 
-# Build the operator product for a block of QSym operators.
 _prod_ops(block::AbstractVector) = isempty(block) ? 1 : reduce(*, block)
 
 """
@@ -91,7 +88,9 @@ cumulant_expansion(x::SymbolicUtils.BasicSymbolic, ::Nothing; kw...) = x
 cumulant_expansion(x::Symbolics.Num, ::Nothing; kw...) = x
 cumulant_expansion(eqs::MeanFieldEquations, ::Nothing; kw...) = eqs
 
-# Returns true if the expression tree contains any averaged subexpression.
+"""
+True when the expression tree contains any averaged subexpression.
+"""
 function _has_average(x::SymbolicUtils.BasicSymbolic)
     SQA.is_average(x) && return true
     SymbolicUtils.iscall(x) || return false
@@ -156,10 +155,12 @@ function _expand_average(ops::QField, order::Int)
     return out
 end
 
-# Per-Hilbert-space variant: each emitted sub-block picks its own per-subspace
-# `ord` from `acts_on(block)`, not the outer aggregate. Required for mixed
-# `order = [m, n]` truncation where an atom-only length-2 block emitted from a
-# mixed expansion still needs to expand under the atom cap.
+"""
+Per-Hilbert-space variant of `_expand_average`: each emitted sub-block picks its
+own per-subspace order from `acts_on(block)` rather than the outer aggregate.
+Required for mixed `order = [m, n]` truncation, where an atom-only length-2 block
+emitted from a mixed expansion still needs to expand under the atom cap.
+"""
 function _expand_average(ops::QField, order::Vector{Int}; mix_choice = maximum)
     out = 0
     if ops isa QAdd
@@ -174,14 +175,16 @@ function _expand_average(ops::QField, order::Vector{Int}; mix_choice = maximum)
     return out
 end
 
-# After cumulant factorization, `Σ_{i_1,...,i_k} ⟨A_1⟩⟨A_2⟩⋯` would lose the
-# outer sum scope (Σ is encoded as `SumIndices`/`SumNonEqual` metadata on the
-# average sym, and the factored-out product is no longer a single average).
-# Re-attach the sum scope by stamping each bound index onto the first averaged
-# leaf in the product that references it. Bound indices that do not appear in
-# any leaf are treated as "spurious" (factor 1 in `scale`'s prefactor logic),
-# matching SQA's pre-existing convention for `_accumulate_with_diag!`-produced
-# leftover scope.
+"""
+Re-attach the outer sum scope lost during cumulant factorisation. After
+`Σ_{i_1,…,i_k} ⟨A_1⟩⟨A_2⟩⋯` factorises, the `Σ` (encoded as
+`SumIndices`/`SumNonEqual` metadata on a single average sym) is dropped because
+the factored-out product is no longer one average. Stamp each bound index onto
+the first averaged leaf in the product that references it. Bound indices that
+appear in no leaf are treated as spurious (factor 1 in `scale`'s prefactor
+logic), matching SQA's convention for `_accumulate_with_diag!`-produced leftover
+scope.
+"""
 function _stamp_sum_to_first_leaves(piece, indices::Vector{SQA.Index}, ne)
     isempty(indices) && return piece
     piece isa SymbolicUtils.BasicSymbolic || return piece
@@ -208,7 +211,7 @@ function _stamp_sum_to_first_leaves(piece, indices::Vector{SQA.Index}, ne)
     end
     # Attach each NE pair to a leaf. Kept when both indices are bound to the SAME
     # leaf (internal multi-bound NE), or one is bound here and the partner is
-    # EXTERNAL (not a bound sum index) — the `Σ_{j≠ext}` constrained sum, e.g. the
+    # EXTERNAL (not a bound sum index): the `Σ_{j≠ext}` constrained sum, e.g. the
     # off-diagonal recycling against the LHS index. A pair split across two distinct
     # bound leaves is NOT materialised here (the bound-vs-bound truncation case).
     for (slot, bidxs) in enumerate(leaf_idx_assign)

@@ -1,10 +1,14 @@
+"""
+Operator form of the measurement-backaction stochastic increment for `⟨op⟩` under jump
+`J_k` with detector efficiency `eff`, cumulant-truncated to second order:
+
+    √(η r) [ ⟨J†·op⟩ + ⟨op·J⟩ - (⟨J†⟩ + ⟨J⟩) ⟨op⟩ ]
+
+The leading average is taken downstream; this returns the operator whose average
+reproduces the expression above.
+"""
 function _noise_drift_one(op, J_k, Jd_k, rate, eff)
     coeff = sqrt(eff * rate)
-    # Measurement-backaction stochastic increment for ⟨op⟩ under jump J_k
-    # with detector efficiency eff. Cumulant-truncated to 2nd order:
-    #     √(η r) [ ⟨J†·op⟩ + ⟨op·J⟩ - (⟨J†⟩ + ⟨J⟩) ⟨op⟩ ]
-    # The average is taken downstream; here we build the operator form whose
-    # average reproduces the above.
     avg_term = Symbolics.Num(average(Jd_k + J_k))
     return coeff * (Jd_k * op + op * J_k - avg_term * op)
 end
@@ -31,10 +35,9 @@ function _build_noise_equations_forward(ops, J, Jdagger, rates, efficiencies)
     return operator_noise_eqs, noise_eqs
 end
 
+"""
+Backward / retrodiction noise drift: the forward formula with `J ↔ J†` swapped.
+"""
 function _build_noise_equations_backward(ops, J, Jdagger, rates, efficiencies)
-    # Backward / retrodiction noise drift: same formula as the forward case
-    # but with J ↔ J† swapped. Master writes this as
-    # `_master_noise(a, adjoint(J), adjoint(Jdagger), ...)` (see master
-    # `src/measurement_retrodiction.jl`).
     return _build_noise_equations_forward(ops, Jdagger, J, rates, efficiencies)
 end

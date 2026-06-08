@@ -1,13 +1,3 @@
-# MTK bridge (Layer 6). Lower a (completed/scaled/evaluated) struct to a
-# ModelingToolkit `System`. Because the struct is self-consistent (drift leaves
-# carry the same naming regime as the states), codegen is one `mapleaves` pass
-# that resolves each leaf to a state variable by `literal_key` (commuting-order
-# and NE normalised, but NOT alpha-renamed, so concrete per-site atoms stay
-# distinct), with a conjugate tier for the partner reps that `get_adjoints=false`
-# leaves on the RHS. No per-level key juggling and no re-canonicalisation pass.
-
-# ---- stable variable naming (replaces _stable_avg_name) ----------------------
-
 serialize(op::QAdd) = Symbol("avg_" * _op_name_chunk(op))
 
 function _op_name_chunk(op::QAdd)
@@ -46,20 +36,20 @@ _make_var(name::Symbol, iv::Symbolics.Num) = first(@variables $name(iv))
 
 # ---- state variable registry -------------------------------------------------
 
-# Build the per-state variables and the literal/canon lookup maps shared by
-# System / initial_values / get_solution, so naming agrees across them.
+"""
+Build the per-state `u(t)` variables and the orbit/`canon_key` lookup maps shared by
+`System`, `initial_values` and `get_solution`, so variable naming agrees across them.
+"""
 function _state_registry(eqs::AbstractMeanFieldEquations)
     ctx = build_ctx(eqs.operators, eqs.hamiltonian, eqs.jumps, eqs.jumps_dagger)
-    # The system's recorded per-subspace coordinate (spec "The single source of
-    # truth"): the resolver MUST key/match in this coordinate, not a hardcoded
-    # `concrete_rep`. An empty map (scalar systems) reads as all-Free.
+    # Key/match in the system's recorded coordinate, not a hardcoded `concrete_rep`
+    # (an empty map, scalar systems, reads as all-Free).
     coords = isempty(eqs.coords) ? all_free_coords(ctx) :
         Dict{Int, Coordinate}(sp => Coordinate(c) for (sp, c) in eqs.coords)
     ops = QAdd[undo_average(s) isa QAdd ? undo_average(s) : undo_average(s) * 1 for s in eqs.states]
     vars = Symbolics.Num[_make_var(serialize(op), eqs.iv) for op in ops]
-    # ONE map keyed by the conjugation orbit rep in the system coordinate, valued
-    # by `(state var, side-of-rep)`. A leaf on the SAME side as the stored rep
-    # resolves to the var; the opposite side to its conjugate.
+    # Keyed by the conjugation orbit rep, valued by `(state var, side-of-rep)`: a leaf
+    # on the same side as the rep resolves to the var, the opposite side to its conjugate.
     by_rep = Dict{QAdd, Tuple{Symbolics.Num, Bool}}()
     by_canon = Dict{QAdd, Symbolics.Num}()
     for (op, v) in zip(ops, vars)
@@ -70,15 +60,11 @@ function _state_registry(eqs::AbstractMeanFieldEquations)
     return (; ctx, coords, ops, vars, by_rep, by_canon)
 end
 
-# Resolve a RHS leaf to a state variable (or its conjugate), else leave it (an
-# ambient parameter / steady-state coefficient). One orbit lookup plus a sign:
-# the leaf and the stored rep agree iff they sit on the same conjugation side.
-#
-# The conjugate partner is emitted as a raw `term(conj, v; type=Number)` rather
-# than `Base.conj(v)`. The state vars carry Real symtype (so only genuine
-# parameters survive `_collect_params!`), and `Base.conj` on a `SymReal` folds
-# to identity, which would silently zero every `⟨X⟩ - ⟨X†⟩` driving term. The
-# raw term skips that simplifier and the `conj` node survives mtkcompile.
+"""
+Build a closure that resolves a RHS average leaf to its state variable (or that
+variable's conjugate), leaving non-state leaves untouched as ambient parameters. The
+leaf and the stored representative agree iff they sit on the same conjugation side.
+"""
 function _leaf_resolver(reg)
     return function (leaf)
         op = undo_average(leaf)
@@ -86,15 +72,17 @@ function _leaf_resolver(reg)
         rep, side = canonical_rep(op, reg.ctx; coords = reg.coords)
         haskey(reg.by_rep, rep) || return leaf
         var, rep_side = reg.by_rep[rep]
+        # Raw `term(conj, …)` not `Base.conj`: the latter folds to identity on Real symtype.
         return side == rep_side ? SymbolicUtils.unwrap(var) :
             SymbolicUtils.term(conj, SymbolicUtils.unwrap(var); type = Number)
     end
 end
 
-# Collect bare Real-symtype parameter symbols from a substituted RHS. Skips
-# constants, the iv, time-dependent state vars (`u(iv)` calls), and average
-# leaves (matched leaves are already vars; unmatched ambient averages are not
-# parameters and are handled by the correlation layer).
+"""
+Collect the bare `Real`-symtype parameter symbols from a substituted RHS into `set`,
+skipping constants, the independent variable, time-dependent state variables and
+average leaves.
+"""
 function _collect_params!(set, x, iv_uw)
     x isa SymbolicUtils.BasicSymbolic || return
     SymbolicUtils.isconst(x) && return
@@ -105,10 +93,8 @@ function _collect_params!(set, x, iv_uw)
     _is_avg_leaf(x) && return
     op = SymbolicUtils.operation(x)
     args = SymbolicUtils.arguments(x)
-    # Array-element access `δ[k]`: collect the array BASE symbol (symtype
-    # `Vector{Real}`/`Matrix{Real}`) as a parameter, so the array-typed coupling
-    # is bound (spec Task 7b; the scalar-only branch above skips it because its
-    # symtype is not <: Real). MTK scalarizes the array param at compile.
+    # Array access `δ[k]`: collect the array BASE symbol as a parameter (the scalar
+    # branch above skips it, symtype not <: Real); MTK scalarizes it at compile.
     if op === getindex && !isempty(args) && args[1] isa SymbolicUtils.BasicSymbolic &&
             SymbolicUtils.symtype(args[1]) <: AbstractArray
         push!(set, args[1])
@@ -253,11 +239,8 @@ function parameter_map(eqs::AbstractMeanFieldEquations, pairs)
         _collect_named_params!(arr_by_name, scalar_by_name, SymbolicUtils.unwrap(eq.lhs))
     end
     pmap = Dict{Any, Any}()
-    # Per-slot accumulator: separate keys `δ(i_2_1)=>v1, δ(i_2_2)=>v2, …` each
-    # carry a CONCRETE index (parseable slot), so they fill distinct slots of the
-    # `δ` array. Without this each scalar `v` was broadcast over the whole array
-    # via `fill`, so only the LAST assignment survived (every mode got the same
-    # detuning). Bucket them by array name and assemble the array once at the end.
+    # Per-slot accumulator: keys like `δ(i_2_1)=>v1` carry a concrete slot, so each
+    # fills a distinct array slot (a bare scalar broadcasts via `fill` instead).
     slot_acc = Dict{Symbol, Dict{Vector{Int}, Any}}()
     for (k, v) in pairs
         ku = SymbolicUtils.unwrap(k)
@@ -287,10 +270,11 @@ function parameter_map(eqs::AbstractMeanFieldEquations, pairs)
     return pmap
 end
 
-# Concrete-index slots of an indexed-variable key, e.g. `δ(i_2_1)` -> `[1]`,
-# `Γ(i_2_1, i_2_2)` -> `[1, 2]`. Returns `nothing` when any argument is not a
-# concrete `name_…_<int>` index (a bare symbolic index `δ(i)` has no slot, so it
-# broadcasts instead of targeting a single position).
+"""
+Concrete-index slots of an indexed-variable key, e.g. `δ(i_2_1)` becomes `[1]`. Returns
+`nothing` when any argument is not a concrete `name_…_<int>` index, in which case the
+value is broadcast over the array rather than targeting a single slot.
+"""
 function _param_slots(x::SymbolicUtils.BasicSymbolic)
     SymbolicUtils.iscall(x) || return nothing
     slots = Int[]
@@ -304,10 +288,11 @@ function _param_slots(x::SymbolicUtils.BasicSymbolic)
 end
 _param_slots(_) = nothing
 
-# Assemble a concrete array parameter from per-slot scalar assignments. Sizes from
-# the synthesised array's declared shape when available, else from the maximum slot
-# per dimension. Unassigned slots stay zero (the caller is expected to specify
-# every active site, as the evaluate-time array shape implies).
+"""
+Assemble a concrete array parameter from per-slot scalar assignments. The size comes
+from the synthesised array's declared shape when available, otherwise from the maximum
+slot per dimension; unassigned slots stay zero.
+"""
 function _build_slot_array(arr, slots_to_v::Dict{Vector{Int}, Any})
     ndim = length(first(keys(slots_to_v)))
     shp = SymbolicUtils.shape(arr)
@@ -322,8 +307,10 @@ function _build_slot_array(arr, slots_to_v::Dict{Vector{Int}, Any})
     return out
 end
 
-# User-visible name of a parameter expression: bare Sym `:κ` -> :κ; callable-Sym
-# Term `g(i.sym)` (IndexedVariable shape) -> :g; nothing otherwise.
+"""
+User-visible name of a parameter expression: a bare `Sym` `κ` gives `:κ`, a callable
+`g(i)` (the `IndexedVariable` shape) gives `:g`, and anything else gives `nothing`.
+"""
 _param_name(x) = nothing
 function _param_name(x::SymbolicUtils.BasicSymbolic)
     SymbolicUtils.iscall(x) || return Base.nameof(x)
@@ -332,8 +319,10 @@ function _param_name(x::SymbolicUtils.BasicSymbolic)
     return nothing
 end
 
-# Populate name -> MTK-parameter dicts from a tree: array-typed Syms into
-# `arr_dict`, bare Real scalar Syms into `scalar_dict`.
+"""
+Populate the name → parameter dictionaries from an expression tree: array-typed `Sym`s
+go into `arr_dict`, bare `Real` scalar `Sym`s into `scalar_dict`.
+"""
 function _collect_named_params!(arr_dict, scalar_dict, x)
     x isa SymbolicUtils.BasicSymbolic || return
     if !SymbolicUtils.iscall(x)

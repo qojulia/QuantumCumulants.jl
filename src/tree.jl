@@ -11,8 +11,10 @@ function _is_avg_leaf(x::SymbolicUtils.BasicSymbolic)
 end
 _is_avg_leaf(::Any) = false
 
-# eachleaf: collect leaf averages, left to right. Returns a Vector (build-time,
-# bounded size; a lazy iterator is unnecessary at our scale).
+"""
+Collect the leaf averages of `x`, left to right, into a `Vector`. A lazy iterator
+is unnecessary at the bounded build-time sizes seen here.
+"""
 eachleaf(x::Symbolics.Num) = eachleaf(SymbolicUtils.unwrap(x))
 function eachleaf(x)
     out = SymbolicUtils.BasicSymbolic[]
@@ -32,7 +34,10 @@ function _eachleaf!(out, x::SymbolicUtils.BasicSymbolic)
     return nothing
 end
 
-# foldleaves: reduce f over leaf averages, no rebuild.
+"""
+Reduce `f` over the leaf averages of `x`, threading `acc`, without rebuilding the
+expression tree.
+"""
 foldleaves(f, acc, x::Symbolics.Num) = foldleaves(f, acc, SymbolicUtils.unwrap(x))
 function foldleaves(f, acc, x)
     x isa SymbolicUtils.BasicSymbolic || return acc
@@ -44,7 +49,10 @@ function foldleaves(f, acc, x)
     return acc
 end
 
-# mapleaves: rewrite each leaf average via f; rebuild only changed branches.
+"""
+Rewrite each leaf average of `x` via `f`, rebuilding only the branches that
+actually changed.
+"""
 mapleaves(f, x::Symbolics.Num) = Symbolics.wrap(mapleaves(f, SymbolicUtils.unwrap(x)))
 function mapleaves(f, x)
     x isa SymbolicUtils.BasicSymbolic || return x
@@ -57,10 +65,12 @@ function mapleaves(f, x)
     return _rebuild(op, new_args, x)
 end
 
-# Rebuild a node from mapped args. `complex(re, im)` is rewritten to the
-# `re + im*IM` form (SymbolicUtils does not unify a `complex(0, …)` literal with
-# the factored symbolic form; see CLAUDE.md). Fall back to `maketerm` if the
-# operation is not directly callable on the new args.
+"""
+Rebuild a node from its mapped arguments. A `complex(re, im)` call is rewritten to
+the `re + im*IM` form, because SymbolicUtils does not unify a `complex(0, …)`
+literal with the factored symbolic form. Falls back to `maketerm` when the
+operation is not directly callable on the new arguments.
+"""
 function _rebuild(op, args, x)
     if op === complex && length(args) == 2
         return args[1] + args[2] * Symbolics.IM

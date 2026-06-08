@@ -1,27 +1,13 @@
-# Scaling (Layer 5). `scale` is the permutation-symmetry quotient: re-key every
-# node on `orbit_key` (canon_key + symmetric_min over the selected symmetric
-# subspaces), dedup, and rewrite each drift/noise leaf to its orbit representative
-# with a sum over a symmetric orbit collapsed to `(range - |NE|)` times the rep.
-# The operator reduction is `orbit_key` (which already relabels slots, reorders
-# commuting ops, and folds conjugate pairs); the only scale-specific arithmetic is
-# the sum-scope prefactor.
-
-# Resolve the subspaces that participate in the quotient: the symmetric (indexed)
-# subspaces, optionally restricted by the user's `h`. Empty `h` means all of them.
+"""Subspaces participating in the quotient: symmetric ones, restricted by `h` (empty = all)."""
 _scale_selected(ctx::CanonCtx, h::Vector{Int}) =
     isempty(h) ? ctx.symmetric : intersect(ctx.symmetric, Set(h))
 
-# The graph pass. Returns a new (quotiented) MomentGraph.
 function quotient(g::MomentGraph; h::Vector{Int} = Int[])
     ctx = g.ctx
     selected = _scale_selected(ctx, h)
     sym_to_space = _build_sym_to_space(ctx)
-    # Result coordinate: the graph's coordinate with the selected subspaces now
-    # Scaled. Key nodes in THIS coordinate (not bare `orbit_key`, which forces
-    # every non-selected subspace Free and would alpha-rename an already-Concrete
-    # subspace, collapsing e.g. filter modes unrolled by a prior `evaluate`). For an
-    # all-Free input graph `_coord_key(·, merged)` equals `orbit_key(·; selected)`,
-    # so the common scale-first path is unchanged.
+    # Key nodes in the graph's coordinate with selected subspaces now Scaled (not bare
+    # `orbit_key`, which would alpha-rename already-Concrete subspaces and collapse them).
     coords = copy(g.coords)
     for sp in selected
         coords[sp] = Scaled
@@ -37,9 +23,10 @@ function quotient(g::MomentGraph; h::Vector{Int} = Int[])
     return MomentGraph(nodes, g.sys, ctx, coords)
 end
 
-# Symbol -> space_index map from the canonical vocabulary, so an
-# `IndexedVariable(:g, i)` coefficient (which carries only `i.sym`) can be
-# traced to its source subspace when deciding whether to flatten it.
+"""
+Symbol -> space_index map so an `IndexedVariable(:g, i)` coefficient can be traced to
+its source subspace.
+"""
 function _build_sym_to_space(ctx::CanonCtx)
     out = Dict{Symbol, Int}()
     for (sp, indices) in ctx.vocab, idx in indices
@@ -48,28 +35,23 @@ function _build_sym_to_space(ctx::CanonCtx)
     return out
 end
 
-# Rewrite an averaged RHS for scale: each leaf ⟨X⟩ becomes
-# `prefactor * ⟨orbit_rep(X)⟩` (mapleaves over the average leaves), then flatten
-# every `IndexedVariable(:g, i)` coefficient to its scalar `g` (a separate pass
-# over the non-average part of the tree, since under the scale symmetry all atoms
-# share the same coupling). Wrap with the `Symbolics.Num` constructor (as `derive`
-# does), not `Symbolics.wrap`: a `prefactor * ⟨X⟩` product carries the average
-# symtype (`Number`, not `Real`), which `wrap` would leave unwrapped and
-# `NodeData`'s field convert would reject.
+"""
+Rewrite an averaged RHS for scale: each leaf ⟨X⟩ becomes `prefactor * ⟨orbit_rep(X)⟩`,
+then flatten every `IndexedVariable(:g, i)` coefficient to its scalar `g` (all atoms
+share the same coupling under the scale symmetry).
+"""
 function _scale_expr(x, ctx, selected, sym_to_space)
-    # `_graph_from_stored` lifted each leaf's `SumIndices` onto its enclosing `*`
-    # node (without removing it from the leaf), so the scope lives in BOTH places.
-    # `_scale_leaf` manages the scope on the leaf (collapsing selected-subspace
-    # sums to a prefactor, preserving non-selected sums), so strip the duplicate
-    # `*`-node scope first to avoid a doubled `Σ`.
+    # `_graph_from_stored` lifted each leaf's scope onto the enclosing `*` node too;
+    # strip that duplicate so `_scale_leaf` (which owns the leaf scope) doesn't double `Σ`.
     stripped = _strip_mul_sum_scope(SymbolicUtils.unwrap(x))
     reduced = mapleaves(l -> _scale_leaf(l, ctx, selected), stripped)
     return Symbolics.Num(_flatten_indexed_vars_in_tree(reduced, selected, sym_to_space))
 end
 
-# Remove `SumIndices`/`SumNonEqual` metadata from non-leaf `*`/`+` nodes (the
-# copy that `_lift_sum_scope` placed there), leaving each average leaf's own
-# scope intact. Identity comparison (metadata is invisible to `isequal`).
+"""
+Remove the `SumIndices`/`SumNonEqual` metadata `_lift_sum_scope` placed on non-leaf
+`*`/`+` nodes, leaving each average leaf's own scope intact.
+"""
 function _strip_mul_sum_scope(x)
     x isa SymbolicUtils.BasicSymbolic || return x
     _is_avg_leaf(x) && return x
@@ -91,27 +73,18 @@ function _scale_leaf(avg, ctx, selected)
     op = undo_average(avg)
     op isa QAdd || return avg
     pref = _sum_scope_prefactor(op, selected)
-    # Coordinate isolation (spec Task 7a): fold ONLY the selected subspaces; every
-    # OTHER subspace is left verbatim, including its sum scope. Key with a
-    # coordinate where selected subspaces are Scaled (alpha-rename + symmetric_min
-    # fold) and all other symmetric subspaces are Concrete (keep names). `_coord_key`
-    # empties `.indices`, so re-attach the non-selected bound indices afterwards to
-    # preserve their `Σ` (e.g. the filter `Σ_i` in the `⟨a†a⟩` drift, which
-    # `orbit_key`/`canon_key` would otherwise strip).
+    # Fold only the selected subspaces (Scaled); keep the rest verbatim (Concrete).
+    # `_coord_key` empties `.indices`, so re-attach the non-selected bound indices
+    # afterwards to preserve their `Σ`.
     keep_idx = SQA.Index[b for b in op.indices if !(b.space_index in selected)]
     coords = Dict{Int, Coordinate}()
     for sp in ctx.symmetric
         coords[sp] = sp in selected ? Scaled : Concrete
     end
     folded = _coord_key(op, ctx, coords)
-    # `_coord_key` runs `_drop_all_ne`, correct for the SELECTED (scaled) subspace
-    # (its NE is part of the orbit identity) but WRONG for a non-selected one: an
-    # off-diagonal sum like the filter's `Σ_{i≠i_2} ⟨b_i b_i_2†⟩` carries a physical
-    # `i≠i_2` constraint that, if dropped, lets the diagonal `i=i_2` leak in on
-    # `evaluate` (the spurious `b_i_2 b_i_2† = 1 + b_i_2† b_i_2` terms, a wrong
-    # filter population). Non-selected subspaces are Concrete here, so `_coord_key`
-    # keeps their index names and the original NE pairs still reference valid
-    # indices: re-attach the pairs that involve any non-selected index.
+    # `_coord_key` drops all NE, correct for the selected subspace but wrong for a
+    # non-selected one whose off-diagonal constraint is physical; re-attach the NE
+    # pairs that involve any non-selected index.
     if folded isa QAdd && !isempty(keep_idx)
         kept_ne = SQA.NonEqualPair[]
         for (term, _) in op.arguments, p in term.ne
@@ -128,9 +101,10 @@ function _scale_leaf(avg, ctx, selected)
     return SymbolicUtils.unwrap(pref) * reduced
 end
 
-# Re-attach NE pairs to a folded single-leaf QAdd, restricting each pair to the
-# terms whose ops actually carry both of its indices, and set the kept bound
-# indices as the new sum scope.
+"""
+Re-attach NE pairs to a folded QAdd, restricting each to terms whose ops carry both
+its indices, and set the kept bound indices as the new sum scope.
+"""
 function _reattach_ne(folded::QAdd, kept_ne, keep_idx)
     out = SQA.QTermDict()
     for (term, c) in folded.arguments
@@ -144,13 +118,10 @@ function _reattach_ne(folded::QAdd, kept_ne, keep_idx)
     return SQA.QAdd(out, keep_idx)
 end
 
-# Sum-scope prefactor: for each bound index `b` in `op.indices` that actually
-# appears in some `term.ops` and lives on a selected subspace, contribute
-# `(b.range - count_NE_involving_b)`. Bound indices not used in any op, or on an
-# unselected subspace, contribute 1 (their sum was either eagerly scalarised or
-# stays symbolic). Ported from the old `_sum_scope_prefactor`, with the
-# `_in_h`/empty-means-all check replaced by direct membership in the resolved
-# `selected` set.
+"""
+Sum-scope prefactor: each bound index on a selected subspace that appears in some
+`term.ops` contributes `(b.range - count_NE_involving_b)`; others contribute 1.
+"""
 function _sum_scope_prefactor(op::QAdd, selected::Set{Int})
     isempty(op.indices) && return 1
     op_indices = Set{SQA.Index}()
@@ -175,9 +146,10 @@ function _sum_scope_prefactor(op::QAdd, selected::Set{Int})
     return prefactor
 end
 
-# IndexedVariable detection and flattening (`g(i)` -> scalar `g`). SQA
-# materialises `IndexedVariable(:g, i)` as a call whose operation is a
-# `Sym{SymReal}` of `FnType{Tuple{Int}, Real}`.
+"""
+True for an `IndexedVariable` call (`g(i)`): its operation is a `Sym` of
+`FnType{…, Real}`.
+"""
 function _is_indexed_var(x)
     x isa SymbolicUtils.BasicSymbolic || return false
     SymbolicUtils.iscall(x) || return false
@@ -193,9 +165,10 @@ _fn_returns_real(::Type) = false
 _flatten_indexed_var(x::SymbolicUtils.BasicSymbolic) =
     SymbolicUtils.Sym{SymbolicUtils.SymReal}(nameof(SymbolicUtils.operation(x)); type = Real)
 
-# Flatten the IndexedVariable only when its source index sits on a selected
-# subspace. Unrecognised arg shapes fall back to "flatten" so the default
-# (all symmetric subspaces selected) collapses every coupling uniformly.
+"""
+True when the `IndexedVariable`'s source index sits on a selected subspace;
+unrecognised argument shapes default to `true`, flattening every coupling.
+"""
 function _indexed_var_in_h(x::SymbolicUtils.BasicSymbolic, selected::Set{Int}, sym_to_space::Dict{Symbol, Int})
     args = SymbolicUtils.arguments(x)
     length(args) == 1 || return true
@@ -207,8 +180,10 @@ function _indexed_var_in_h(x::SymbolicUtils.BasicSymbolic, selected::Set{Int}, s
     return sp in selected
 end
 
-# Walk the coefficient tree flattening IndexedVariables; do NOT descend into
-# `sym_average` leaves (those are the operator moments, handled by mapleaves).
+"""
+Walk the coefficient tree flattening `IndexedVariable`s, without descending into
+`sym_average` leaves (those are the operator moments, handled by `mapleaves`).
+"""
 function _flatten_indexed_vars_in_tree(x, selected::Set{Int}, sym_to_space::Dict{Symbol, Int})
     x isa SymbolicUtils.BasicSymbolic || return x
     if _is_indexed_var(x) && _indexed_var_in_h(x, selected, sym_to_space)
@@ -236,11 +211,8 @@ Reduce a permutation-symmetric indexed system to one representative per symmetry
 orbit. `h` selects which Hilbert subspaces participate (empty means all symmetric
 subspaces). `scale!` mutates in place.
 """
-# Build the graph from STORED drifts (`_graph_from_stored`), never re-derive.
-# `complete(...; filter_func)` records filter substitutions (e.g. zeroing phase-
-# variant averages) directly in `eqs.equations`; re-deriving from the operators
-# would discard them and reintroduce untracked leaves that crash codegen. The
-# quotient then re-keys those stored drifts onto orbit representatives.
+# Build from STORED drifts, never re-derive: `complete(...; filter_func)` records
+# filter substitutions in `eqs.equations` that re-derivation would discard.
 scale(eqs::AbstractMeanFieldEquations; h::Vector{Int} = Int[]) =
     lower_to_eqs(quotient(_graph_from_stored(eqs); h))
 

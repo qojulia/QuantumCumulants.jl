@@ -1,4 +1,6 @@
 """
+    AbstractMeanFieldEquations
+
 Supertype of [`MeanFieldEquations`](@ref) and [`NoiseMeanFieldEquations`](@ref).
 """
 abstract type AbstractMeanFieldEquations end
@@ -20,8 +22,8 @@ struct Backward <: EvolutionDirection end
 """
     MeanFieldEquations
 
-Concrete equation set produced by [`meanfield`](@ref) when no measurement
-backaction is requested. All type parameters are bound concretely.
+Concrete equation set produced by [`meanfield`](@ref) when no measurement backaction
+is requested. All type parameters are bound concretely.
 """
 struct MeanFieldEquations{
         O <: Union{Nothing, Vector{Int}},
@@ -45,10 +47,9 @@ struct MeanFieldEquations{
     iv::Symbolics.Num
     order::O
     direction::D
-    # Per-subspace coordinate state (spec "Coordinates"). Keyed by space index,
-    # valued by the `Int` of the `Coordinate` enum (`Int(Free/Scaled/Concrete)`,
-    # defined in canonical.jl which is included after this file). An empty map
-    # means every subspace is Free.
+    # Per-subspace coordinate state, keyed by space index and valued by the `Int`
+    # of the `Coordinate` enum (defined in canonical.jl, included after this file).
+    # An empty map means every subspace is Free.
     coords::Dict{Int, Int}
 
     function MeanFieldEquations(
@@ -86,8 +87,8 @@ end
 """
     NoiseMeanFieldEquations
 
-Concrete equation set produced by [`meanfield`](@ref) when `efficiencies` is
-supplied. `direction::D` (singleton `Forward` or `Backward`) drives compile-time
+Concrete equation set produced by [`meanfield`](@ref) when `efficiencies` is supplied.
+`direction::D` (singleton [`Forward`](@ref) or [`Backward`](@ref)) drives compile-time
 dispatch of the noise drift assembly.
 """
 struct NoiseMeanFieldEquations{
@@ -115,7 +116,7 @@ struct NoiseMeanFieldEquations{
     iv::Symbolics.Num
     order::O
     direction::D
-    # Per-subspace coordinate state (spec "Coordinates"); see MeanFieldEquations.
+    # Per-subspace coordinate state; see MeanFieldEquations.
     coords::Dict{Int, Int}
 
     function NoiseMeanFieldEquations(
@@ -158,8 +159,8 @@ end
 
 Strip the measurement-backaction columns (`noise_equations`,
 `operator_noise_equations`, `efficiencies`) and return a plain
-[`MeanFieldEquations`](@ref) carrying only the deterministic drift. The
-`direction` tag is preserved.
+[`MeanFieldEquations`](@ref) carrying only the deterministic drift. The `direction`
+tag is preserved.
 
 Use this to compare a stochastic simulation against the no-measurement
 evolution: build the noisy system once, then pass `MeanFieldEquations(eqs)`

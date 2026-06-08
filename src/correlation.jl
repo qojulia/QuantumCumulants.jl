@@ -1,11 +1,3 @@
-# Two-time correlation (Layer 5). `CorrelationFunction(op1, op2, eqs0)` builds the
-# τ-evolution of ⟨op1(τ)·op2(0)⟩ via the quantum regression theorem: op2 is lifted
-# to a fresh ancilla subspace, and the system is closed only on averages that
-# touch the ancilla (the rest are steady-state coefficients). Closure is the
-# kernel's `closure!` with an ancilla filter and `get_adjoints=false` (one rep per
-# conjugate pair); no bespoke completion loop. The `Spectrum` numeric kernel lives
-# below the construction.
-
 struct CorrelationFunction{T <: MeanFieldEquations, O1 <: QField, O2 <: QField, O2A <: QField}
     op1::O1
     op2::O2
@@ -40,9 +32,11 @@ function _ancilla_aon(eqs0::MeanFieldEquations, op1::QField, op2::QField)
     return isempty(aons) ? 2 : (maximum(aons) + 1)
 end
 
-# Accept only leaf averages whose product touches `aon_anc` AND at least one other
-# subspace: the proper correlation states. Pure-ancilla averages (⟨op2_anc⟩) and
-# non-ancilla averages are steady-state coefficients, not τ-states.
+"""
+Closure filter accepting only leaf averages whose product touches `aon_anc` and at
+least one other subspace: the proper correlation states. Pure-ancilla averages
+(⟨op2_anc⟩) and non-ancilla averages are steady-state coefficients, not τ-states.
+"""
 function _ancilla_filter(aon_anc::Int)
     return function (x)
         SQA.is_average(x) || return true
@@ -55,6 +49,16 @@ end
 
 # ---- constructor -------------------------------------------------------------
 
+"""
+    CorrelationFunction(op1, op2, eqs0; steady_state=true, filter_func=nothing, max_iter=100_000)
+
+Build the two-time correlation ⟨op1(τ)·op2(0)⟩ from a solved mean-field system
+`eqs0` via the quantum regression theorem. `op2` is lifted onto a fresh ancilla
+subspace and the resulting system is closed only on averages that touch the
+ancilla; the remaining averages are steady-state coefficients. With
+`steady_state=false` the ambient averages are evolved too. `filter_func` further
+restricts the closure, and `max_iter` bounds the closure iterations.
+"""
 function CorrelationFunction(
         op1::QField, op2::QField, eqs0::MeanFieldEquations;
         steady_state::Bool = true, filter_func = nothing, max_iter::Int = 100_000,
@@ -79,9 +83,8 @@ function CorrelationFunction(
     if !steady_state
         closure!(g; filter = x -> !anc_filter(x), get_adjoints = false, max_iter)
     end
-    # The correlation extends eqs0's system with an ancilla subspace; the original
-    # subspaces keep their coordinate (Free/Scaled/Concrete), so the resolver
-    # matches the correlation's leaves in the same coordinate as the parent.
+    # Inherit eqs0's per-subspace coordinates so the resolver matches the
+    # correlation's leaves in the same coordinate as the parent system.
     if !isempty(eqs0.coords)
         merged = merge(g.coords, Dict{Int, Coordinate}(sp => Coordinate(c) for (sp, c) in eqs0.coords))
         g = MomentGraph(g.nodes, g.sys, g.ctx, merged)
@@ -92,7 +95,9 @@ function CorrelationFunction(
     return CorrelationFunction(op1, op2, op2_anc, aon_anc, eqs_c, eqs0, τ, steady_state)
 end
 
-# Zero ancilla-touching leaves the user's filter rejects; ambient leaves stay.
+"""
+Zero the ancilla-touching leaves the user's filter rejects; ambient leaves stay.
+"""
 function _filter_anc_leaves!(eqs, anc_filter, user_filter)
     for (i, eq) in enumerate(eqs.equations)
         eqs.equations[i] = eq.lhs ~ _filter_anc_expr(eq.rhs, anc_filter, user_filter)
@@ -113,8 +118,10 @@ end
 
 # ---- ambient / lookup helpers ------------------------------------------------
 
-# Averages on the RHS that are NOT τ-states: non-ancilla coefficients, or
-# pure-ancilla constants. Mapped to MTK parameters in `System(c)`.
+"""
+Averages appearing on the RHS that are not τ-states: non-ancilla coefficients or
+pure-ancilla constants. These become MTK parameters in `System(c)`.
+"""
 function _ambient_avgs(c::CorrelationFunction)
     found = OrderedCollections.OrderedSet{SymbolicUtils.BasicSymbolic}()
     states_set = Set(SymbolicUtils.unwrap.(c.eqs.states))
@@ -143,7 +150,10 @@ _ambient_param(avg::SymbolicUtils.BasicSymbolic) =
 
 _avg_conj_of(x) = SQA.is_average(x) ? average(adjoint(undo_average(x))) : x
 
-# Replace op2_anc with op2 (original subspace) inside `avg`, the τ=0 representative.
+"""
+Replace `op2_anc` with `op2` (the original subspace) inside `avg`, recovering the
+τ=0 representative.
+"""
 function _undo_ancilla(c::CorrelationFunction, avg::SymbolicUtils.BasicSymbolic)
     SQA.is_average(avg) || return avg
     op = undo_average(avg)
@@ -331,11 +341,14 @@ function (S::Spectrum)(ω_vals::AbstractVector, u_end, p0)
 end
 (S::Spectrum)(ω_val::Real, u_end, p0) = first(S([ω_val], u_end, p0))
 
-# Jacobian by symbolic finite differences (the τ-system is linear, so exact).
-# Each RHS leaf is classified once via `literal_key`: linear (matches a state),
-# anti-linear (conjugate of a state), or ambient (a steady-state coefficient).
-# Probing the linear leaves of state j gives column j of A_lin; the anti-linear
-# leaves give A_alin; the 2n augmentation closes the conjugate response.
+"""
+Assemble the linear system `(iω·I - A)X̃ = x̃(0)` for the spectrum. The τ-system is
+linear, so its Jacobian `A` is computed exactly by symbolic finite differences:
+each RHS leaf is classified once as linear (matches a state), anti-linear
+(conjugate of a state), or ambient (a steady-state coefficient). Probing the
+linear leaves of state `j` gives column `j` of `A_lin`, the anti-linear leaves
+give `A_alin`, and the 2n augmentation closes the conjugate response.
+"""
 function _spectrum_kernel(S::Spectrum, u_end, p0)
     c = S.c
     eqs = c.eqs
@@ -344,11 +357,9 @@ function _spectrum_kernel(S::Spectrum, u_end, p0)
     p_sub = _build_p_sub(S.ps, p0, c.τ, u_end, eqs)
     u_end_dict = _as_avg_dict(c, u_end)
 
-    # Classify by conjugation orbit (`concrete_rep`), recording each state's side.
-    # A leaf on the SAME side as its matched state is linear (A_lin); the opposite
-    # side is anti-linear (A_alin, the conjugate response). Using the orbit rep
-    # (not `literal_key` + adjoint) makes the match robust for scaled orbit-rep
-    # states, where `literal_key` does not round-trip under adjoint.
+    # Classify each leaf by conjugation orbit, recording its side: same side as the
+    # matched state is linear (A_lin), opposite side is anti-linear (A_alin). The
+    # orbit rep stays robust for scaled states, where adjoint does not round-trip.
     spec_ctx = build_ctx(eqs.operators, eqs.hamiltonian, eqs.jumps, eqs.jumps_dagger)
     spec_coords = isempty(eqs.coords) ? all_free_coords(spec_ctx) :
         Dict{Int, Coordinate}(sp => Coordinate(cc) for (sp, cc) in eqs.coords)

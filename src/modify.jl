@@ -1,8 +1,5 @@
-# Equation post-processing (Layer 5). Apply a user function to every RHS of a
-# pre-derived equation set. The hook receives the operator form of the LHS and
-# the symbolic RHS, returning a new RHS, which is how measurement-record
-# corrections and other deterministic adjustments are grafted on after
-# derivation without re-deriving the whole system.
+# Equation post-processing: apply a user hook to every RHS of a pre-derived
+# equation set without re-deriving the whole system.
 
 """
     modify_equations(eqs::AbstractMeanFieldEquations, f::Function)
@@ -24,8 +21,8 @@ modify_equations(eqs::AbstractMeanFieldEquations, f::Function) =
 """
     modify_equations!(eqs::AbstractMeanFieldEquations, f::Function)
 
-In-place version of [`modify_equations`](@ref). Walks `eqs.equations` and
-replaces each RHS with `f(undo_average(lhs), rhs)`.
+In-place version of [`modify_equations`](@ref). Walks `eqs.equations` and replaces each
+RHS with `f(undo_average(lhs), rhs)`.
 """
 function modify_equations!(eqs::AbstractMeanFieldEquations, f::Function)
     for i in eachindex(eqs.equations)
