@@ -106,7 +106,7 @@ function _coord_key(op::QAdd, ctx::CanonCtx, coords::Dict{Int, Coordinate})
         sp in concrete || push!(rename_spaces, sp)
     end
 
-    base = _reorder_commuting(SQA.QAdd(op.arguments, SQA.Index[]))   # totality on all subspaces
+    base = _reorder_commuting(_drop_scope_ne(SQA.QAdd(op.arguments, SQA.Index[])))   # totality on all subspaces
     base = _alpha_rename_spaces(base, ctx, rename_spaces)
     key = _drop_all_ne(SQA.QAdd(base.arguments, SQA.Index[]))
     isempty(scaled) && return key
@@ -182,6 +182,29 @@ function _alpha_rename(op::QAdd, ctx::CanonCtx)
         rename[idx] = target
     end
     return rename
+end
+
+# NE pairs referencing an index carried by no operator are sum-scope constraints
+# (e.g. `Σ_{j≠i₂}`: j bound, i₂ external/LHS), not part of the moment's identity.
+# Drop them before alpha-rename, else the bound index renames onto the external
+# partner's vocab slot and `change_index` annihilates the term (i₂≠i₂ → 0). Op-
+# internal NE (genuine multi-atom ⟨σ_aσ_b⟩, a≠b) is kept; `_reorder_commuting` /
+# `_drop_all_ne` handle it. This extends "scope is transparent to identity" from
+# `.indices` (already stripped) to `.ne`.
+function _drop_scope_ne(q::QAdd)
+    out = SQA.QTermDict()
+    changed = false
+    for (term, c) in q.arguments
+        opidx = Set{SQA.Index}()
+        for o in term.ops
+            SQA.has_index(o.index) && push!(opidx, o.index)
+        end
+        kept = SQA.NonEqualPair[p for p in term.ne if p[1] in opidx && p[2] in opidx]
+        length(kept) == length(term.ne) || (changed = true)
+        nt = SQA.QTerm(copy(term.ops), kept)
+        out[nt] = get(out, nt, zero(c)) + c
+    end
+    return changed ? SQA.QAdd(out, q.indices) : q
 end
 
 function _drop_all_ne(q::QAdd)

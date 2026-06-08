@@ -205,13 +205,21 @@ function _stamp_sum_to_first_leaves(piece, indices::Vector{SQA.Index}, ne)
         slot = _first_leaf_using(leaves, idx)
         slot === nothing && continue
         push!(leaf_idx_assign[slot], idx)
-        # Carry along NE pairs that involve only indices already assigned to
-        # this leaf (so the metadata stays self-consistent per leaf).
+    end
+    # Attach each NE pair to a leaf. Kept when both indices are bound to the SAME
+    # leaf (internal multi-bound NE), or one is bound here and the partner is
+    # EXTERNAL (not a bound sum index) — the `Σ_{j≠ext}` constrained sum, e.g. the
+    # off-diagonal recycling against the LHS index. A pair split across two distinct
+    # bound leaves is NOT materialised here (the bound-vs-bound truncation case).
+    for (slot, bidxs) in enumerate(leaf_idx_assign)
+        isempty(bidxs) && continue
         for pair in ne
-            (pair[1] == idx || pair[2] == idx) || continue
-            (pair[1] in leaf_idx_assign[slot] && pair[2] in leaf_idx_assign[slot]) ||
-                continue
-            push!(leaf_ne_assign[slot], pair)
+            a_in = pair[1] in bidxs
+            b_in = pair[2] in bidxs
+            keep = (a_in && b_in) ||
+                (a_in && !(pair[2] in indices)) ||
+                (b_in && !(pair[1] in indices))
+            keep && push!(leaf_ne_assign[slot], pair)
         end
     end
     sub = IdDict{Any, Any}()

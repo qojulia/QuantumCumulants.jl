@@ -194,3 +194,122 @@ end
         @test !occursin(r"⟨σ_i₂₁⟩", s)
     end
 end
+
+@testset "collective indexed dissipation: N=1 reduces to single-atom decay" begin
+    # A collective `DoubleIndexedVariable` rate Γ(i,j) on a single-index jump must
+    # give ordinary single-atom decay at N=1 — population at Γ(1,1), coherence at
+    # Γ(1,1)/2 — for any level count. The explicit diagonal Γ(i,i) D[σ_i] supplies
+    # it; an off-diagonal-only emission gave identically 0 decay (the silent bug).
+    num_coeff(eq) = begin
+        sub = Dict{Any, Any}(eq.lhs => 1.0)
+        for v in Symbolics.get_variables(eq.rhs)
+            sub[v] = 1.0
+        end
+        Symbolics.value(Symbolics.substitute(eq.rhs, sub))
+    end
+    for nlev in (2, 3)
+        h = NLevelSpace(:atom, nlev)
+        @variables N
+        i = Index(h, :i, N, h); j = Index(h, :j, N, h)
+        σ(x, y, k) = IndexedOperator(Transition(h, :σ, x, y), k)
+        eqs = meanfield(
+            [σ(2, 2, i), σ(1, 2, i)], 0 * Σ(σ(2, 2, i), i), [σ(1, 2, i)];
+            rates = [DoubleIndexedVariable(:Γ, i, j)], order = 1,
+        )
+        complete!(eqs)
+        ev = evaluate(eqs; limits = (N => 1))
+        pop = only(e for e in ev.equations if endswith(string(e.lhs), "₂₂⟩"))
+        coh = only(e for e in ev.equations if endswith(string(e.lhs), "₁₂⟩"))
+        @test isapprox(num_coeff(pop), -1.0)   # d⟨σ²²⟩/dt = -Γ(1,1)⟨σ²²⟩
+        @test isapprox(num_coeff(coh), -0.5)   # d⟨σ¹²⟩/dt = -½Γ(1,1)⟨σ¹²⟩
+    end
+end
+
+@testset "collective indexed dissipation: off-diagonal recycling keeps j≠LHS" begin
+    # The off-diagonal recycling Σ_{j≠i} must keep its constraint through cumulant
+    # factorisation as SumNonEqual metadata on the summed leaf; otherwise it re-admits
+    # the diagonal j=i and double-counts the self-decay (the cavity ~0.2% gap).
+    h = NLevelSpace(:atom, 2)
+    @variables N
+    i = Index(h, :i, N, h); j = Index(h, :j, N, h)
+    σ(x, y, k) = IndexedOperator(Transition(h, :σ, x, y), k)
+    eqs = meanfield(
+        [σ(1, 2, i)], 0 * Σ(σ(2, 2, i), i), [σ(1, 2, i)];
+        rates = [DoubleIndexedVariable(:Γ, i, j)], order = 1,
+    )
+    complete!(eqs)
+    rhs = only(e for e in eqs.equations if endswith(string(e.lhs), "₁₂⟩")).rhs
+    found = Ref(false)
+    walk(x) = begin
+        x isa SymbolicUtils.BasicSymbolic || return
+        if SecondQuantizedAlgebra.is_average(x)
+            sne = SymbolicUtils.getmetadata(x, SecondQuantizedAlgebra.SumNonEqual, nothing)
+            sne !== nothing && !isempty(sne) && (found[] = true)
+            return
+        end
+        SymbolicUtils.iscall(x) && foreach(walk, SymbolicUtils.arguments(x))
+    end
+    walk(SymbolicUtils.unwrap(rhs))
+    @test found[]
+end
+
+@testset "collective indexed dissipation: N=2 equals explicit collective Lindblad" begin
+    # Lock the FULL mean-field of Σ_{i,j} Γ(i,j) D[σ_i¹², σ_j¹²] at N=2 against the
+    # hand-derived exact collective Lindblad (master-independent). Directly tests the
+    # diagonal+off-diagonal decomposition with j≠k preserved:
+    #   d⟨σ_k¹²⟩ = -½Γ_kk⟨σ_k¹²⟩ + Σ_{j≠k} Γ_kj (⟨σ_k²²⟩ - ½) ⟨σ_j¹²⟩
+    #   d⟨σ_k²²⟩ = -Γ_kk⟨σ_k²²⟩ - ½Σ_{i≠k} Γ_ik ⟨σ_i²¹⟩⟨σ_k¹²⟩ - ½Σ_{j≠k} Γ_kj ⟨σ_k²¹⟩⟨σ_j¹²⟩
+    # Re-admitting the diagonal j=k (dropped NE) or losing the explicit self-decay
+    # would change these values; the asymmetric Γ catches index transposition too.
+    h = NLevelSpace(:atom, 2)
+    @variables N
+    i = Index(h, :i, N, h); j = Index(h, :j, N, h)
+    σ(x, y, k) = IndexedOperator(Transition(h, :σ, x, y), k)
+    eqs = meanfield(
+        [σ(2, 2, i), σ(1, 2, i)], 0 * Σ(σ(2, 2, i), i), [σ(1, 2, i)];
+        rates = [DoubleIndexedVariable(:Γ, i, j)], order = 1,
+    )
+    complete!(eqs)
+    ev = evaluate(eqs; limits = (N => 2))
+
+    av = Set{Any}()
+    walk(x) = begin
+        x isa SymbolicUtils.BasicSymbolic || return
+        if SecondQuantizedAlgebra.is_average(x)
+            push!(av, x)
+        elseif SymbolicUtils.iscall(x)
+            foreach(walk, SymbolicUtils.arguments(x))
+        end
+    end
+    for e in ev.equations
+        walk(SymbolicUtils.unwrap(e.rhs))
+    end
+    byname(sfx) = only(a for a in av if endswith(string(a), sfx))
+    s12 = [byname("_$(k)₁₂⟩") for k in 1:2]
+    s21 = [byname("_$(k)₂₁⟩") for k in 1:2]
+    s22 = [byname("_$(k)₂₂⟩") for k in 1:2]
+    pars = unique(reduce(vcat, [collect(Symbolics.get_variables(e.rhs)) for e in ev.equations]))
+    Γ = [only(p for p in pars if string(p) == "Γ[$a, $b]") for a in 1:2, b in 1:2]
+
+    vals = Dict{Any, Any}()
+    for (n, x) in enumerate(vcat(s12, s21, s22))
+        vals[x] = 0.1n
+    end
+    for a in 1:2, b in 1:2
+        vals[Γ[a, b]] = float(2a + b)   # asymmetric so a transposed index is caught
+    end
+    v(x) = vals[x]
+    rhsval(e) = Symbolics.value(Symbolics.substitute(e.rhs, vals))
+    eqof(sfx) = only(e for e in ev.equations if endswith(string(e.lhs), sfx))
+
+    for k in 1:2
+        o = 3 - k
+        exp_coh = -0.5 * v(Γ[k, k]) * v(s12[k]) +
+            v(Γ[k, o]) * (v(s22[k]) - 0.5) * v(s12[o])
+        exp_pop = -v(Γ[k, k]) * v(s22[k]) -
+            0.5 * v(Γ[o, k]) * v(s21[o]) * v(s12[k]) -
+            0.5 * v(Γ[k, o]) * v(s21[k]) * v(s12[o])
+        @test isapprox(rhsval(eqof("_$(k)₁₂⟩")), exp_coh)
+        @test isapprox(rhsval(eqof("_$(k)₂₂⟩")), exp_pop)
+    end
+end

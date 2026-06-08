@@ -5,7 +5,7 @@ parked-by-design (§4); none is an open bug. Kept for audit and to avoid
 relearning the closure / NE / cumulant-truncation tradeoffs. New open
 work should go in `TODO.md`, not here.
 
-## 7. cavity_antiresonance: collective indexed dissipation — RESOLVED (2026-06; ~0.2% numeric gap parked)
+## 7. cavity_antiresonance: collective indexed dissipation (2026-06; RESOLVED)
 
 `cavity_antiresonance_indexed` (a `DoubleIndexedVariable` decay matrix `Γ(i,j)` on
 an indexed jump `σ12_i`, plus a dipole-dipole `Ω(i,j)` Hamiltonian term with
@@ -23,25 +23,44 @@ index ("Could not evaluate value of parameter i_2_2"). It now runs and passes.
    a new `index_cancellation_test` ("Σ diagonal split propagates non_equal …").
 2. **Collective indexed dissipation** (`src/operator_drift.jl`,
    `_collective_indexed_lindblad`): a 2-arg `DoubleIndexedVariable` rate on a
-   singly-indexed jump emits `Σ_{i,j} Γ(i,j) D[σ_i,σ_j]` instead of the scalar path
-   (which left `j` dangling).
+   singly-indexed jump emits the standard rate-matrix split — explicit diagonal
+   self-decay `Σ_i Γ(i,i) D[σ_i]` + off-diagonal recycling `Σ_{i≠j} Γ(i,j) D[σ_i,σ_j]`
+   (instead of the scalar path, which left `j` dangling).
 3. **Coefficient-inside-sum** (`src/moments.jl`, `_scoped_average_coeff`): an
    index-dependent coefficient rides inside its sum so the diagonal split
    substitutes it (`Ω(i,k)→Ω(k,k)=0` for `identical=false`), removing the leak.
 
-**Parked — ~0.2% numeric gap.** `_collective_indexed_lindblad` returns the
-off-diagonal sum only. For the 2-level case its `-½` decay relaxes to a full `Σ_j`
-under the `σ^11_k → 1-σ^22_k` completeness expansion (recovering the `j=k`
-self-decay), while the recycling stays `Σ_{j≠k}`. The cavity value is locked at
-`0.001980198019334876` vs master's `≈0.001984` (~0.2% low). Closing it cleanly
-needs the cross-leaf-NE cumulant fix: `cumulant.jl`'s `_stamp_sum_to_first_leaves`
-drops `j≠k` when factorisation splits `⟨σ_j σ_k⟩_{j≠k}` across leaves (the
-`pair[2] in leaf_idx_assign[slot]` guard). A draft (attach the NE to the leaf
-carrying the summed index when the partner is external) closes the recycling leak
-but bumps the closure count 4→5 (spurious state) and does not fix the `-½` term.
-The correct version preserves `j≠k` through both factorisation and the
-completeness `1`-substitution without a spurious state; re-tighten the lock to
-master once it lands.
+**RESOLVED — exact match to master (`0.0019840`, was `0.001980`).** The earlier
+off-diagonal-only emission was outright wrong (not merely 0.2% off): a single atom
+with `Γ(1,1)≠0` did not decay — completeness does NOT recover the diagonal (it is a
+no-op on the off-diagonal emission, which has no ground projector to fold). The fix
+is one coherent invariant — *sum scope and its `non_equal` constraints are
+aggregation metadata: carried through cumulant factorisation, transparent to state
+identity, materialised only at `evaluate`* — realised in three coordinated places:
+
+- **Operator** (`_collective_indexed_lindblad`): explicit diagonal + off-diagonal,
+  so the self-decay is emitted directly rather than leaned on a (false) completeness
+  recovery. Avoids the degenerate double-diagonal that a single `Σ_iΣ_j` auto-split
+  produces when the inner index collapses onto the LHS index.
+- **Cumulant** (`cumulant.jl::_stamp_sum_to_first_leaves` and
+  `moments.jl::_carry_ne`): a bound-vs-EXTERNAL `non_equal` pair (`j` bound, the LHS
+  index external) is routed onto the leaf carrying the bound index as `SumNonEqual`,
+  not dropped. Pure metadata-routing, no inclusion-exclusion. Bound-vs-bound
+  cross-leaf NE (the dephasing/heterodyne truncation case) is deliberately left to
+  the structural discriminator — NOT materialised here.
+- **State identity** (`canonical.jl::_drop_scope_ne`, called from `_coord_key`): NE
+  pairs whose partner is not an operator index are scope, stripped *before*
+  alpha-rename (else the bound index renames onto the external partner's vocab slot
+  and `change_index` annihilates the term, `i₂≠i₂ → 0`). Extends the existing
+  "scope is transparent to identity" from `.indices` to `.ne`; the scale prefactor
+  still reads `range − count_NE` from the surviving metadata, so closure stays 4.
+
+Regression-locked: cavity value `≈0.001984` (now a plain `@test`); new
+`indexed_meanfield_test` testsets assert N=1 collective `Γ` reduces to single-atom
+decay (`-Γ(1,1)` population, `-½Γ(1,1)` coherence, 2- and 3-level) and that the
+off-diagonal recycling keeps its `j≠LHS` `SumNonEqual` through factorisation. Full
+suite `867/867`, JET `5/5`; heterodyne / filter-cavity / unique_squeezing closures
+unchanged (the fix only fires on the bound-vs-external collective-dissipator path).
 
 ## 1. det vs stoch closure asymmetry: RESOLVED
 

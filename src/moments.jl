@@ -46,10 +46,13 @@ end
 # Average a block with its coefficient inside the sum, scoping over indices used by
 # the operators or the coefficient so the diagonal split substitutes the coefficient.
 function _scoped_average_coeff(c, ops::AbstractVector{<:SQA.QSym}, ne, scope)
-    block = reduce(*, ops)
-    block isa QAdd && !isempty(ne) && (block = _carry_ne(block, ne))
-    cblock = c * block
+    cblock = c * reduce(*, ops)
     cblock isa QAdd || return average(cblock)
+    # Carry NE on `cblock` (always a QAdd), not the bare operator product: a
+    # single-operator block reduces to a QSym (no NE slot), so a `Σ_{j≠ext}` decay
+    # term whose other factor vanished into the completeness constant would lose its
+    # constraint if NE were attached only to a QAdd block.
+    isempty(ne) || (cblock = _carry_ne(cblock, ne, scope))
     used = Set{SQA.Index}()
     for (t, _) in cblock.arguments, o in t.ops
         SQA.has_index(o.index) && push!(used, o.index)
@@ -88,7 +91,7 @@ end
 function _scoped_average(ops::AbstractVector{<:SQA.QSym}, ne, scope)
     isempty(ops) && return 1   # empty operator product is the identity, ⟨I⟩ = 1
     block = reduce(*, ops)
-    block isa QAdd && !isempty(ne) && (block = _carry_ne(block, ne))
+    block isa QAdd && !isempty(ne) && (block = _carry_ne(block, ne, scope))
     used = Set{SQA.Index}()
     for o in ops
         SQA.has_index(o.index) && push!(used, o.index)
@@ -98,15 +101,24 @@ function _scoped_average(ops::AbstractVector{<:SQA.QSym}, ne, scope)
     return average(SQA.Σ(block, block_scope[1], block_scope[2:end]...))
 end
 
-# Reattach the term's NE pairs (restricted to indices present on the block) so
-# the diagonal split sees them. Only the pairs both of whose indices the block
-# carries are meaningful.
-function _carry_ne(block::QAdd, ne)
+# Reattach the term's NE pairs so the diagonal split sees them. A pair is kept when
+# both indices are operators on the block (internal multi-atom NE) OR one is on the
+# block and the partner is EXTERNAL (not a bound scope index) — the `Σ_{j≠ext}`
+# constrained sum, e.g. off-diagonal recycling against the LHS index. A pair whose
+# present index is constrained against another bound scope index not on the block is
+# dropped (irrelevant to this block).
+function _carry_ne(block::QAdd, ne, scope)
     present = Set{SQA.Index}()
     for (term, _) in block.arguments, o in term.ops
         SQA.has_index(o.index) && push!(present, o.index)
     end
-    kept = SQA.NonEqualPair[p for p in ne if p[1] in present && p[2] in present]
+    scopeset = Set{SQA.Index}(scope)
+    kept = SQA.NonEqualPair[
+        p for p in ne if
+            (p[1] in present && p[2] in present) ||
+            (p[1] in present && !(p[2] in scopeset)) ||
+            (p[2] in present && !(p[1] in scopeset))
+    ]
     isempty(kept) && return block
     out = SQA.QTermDict()
     for (term, c) in block.arguments

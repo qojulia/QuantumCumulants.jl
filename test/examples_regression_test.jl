@@ -663,19 +663,12 @@ end
     end
     prob = ODEProblem(sys_c, merge(init, pmap_dict), (0.0, 30.0))
     sol = solve(prob, Tsit5(); reltol = 1.0e-9, abstol = 1.0e-9)
-    # Collective indexed dissipation (DoubleIndexedVariable rate Γ(i,j) on the
-    # indexed jump σ12_i) is now derived via the cross-jump dissipator
-    # Σ_{i,j} Γ(i,j) D[σ_i,σ_j]; the coherent dipole-dipole Ω term's
-    # index-dependent coefficient rides inside its sum so the i=k diagonal
-    # vanishes (Ω identical=false). This value (0.00198) sits ~0.2% from master
-    # QuantumCumulants v0.4.3 (≈0.001984): the off-diagonal recycling's j≠k
-    # constraint is still lost when cumulant factorisation splits ⟨σ_j σ_k⟩_{j≠k}
-    # across leaves, leaving a small spurious j=k recycling term. Closing that gap
-    # needs the cross-leaf-NE cumulant fix (see TODO.md) without perturbing the
-    # closure count; re-lock to master's value once that lands.
+    # Matches master v0.4.3 (0.001984): the collective dissipator now emits the
+    # explicit diagonal self-decay + off-diagonal recycling with `j≠k` preserved
+    # through cumulant factorisation (INVESTIGATION_NOTES.md §7).
     @test isapprox(
         abs2(get_solution(sol, a, eqs_).(sol.t[end])),
-        0.001980198019334876; rtol = 1.0e-4,
+        0.001984; rtol = 1.0e-4,
     )
 end
 

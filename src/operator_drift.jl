@@ -109,16 +109,28 @@ function _partner_index(rk, i_jump::SQA.Index)
 end
 
 # Σ_{i,j} Γ(i,j) D[J_i, J_j] for a singly-indexed jump `Jk`, rate `rk=Γ(i,j)`.
-# Off-diagonal sum only: for the 2-level case the completeness expansion relaxes
-# its `-½` decay to a full `Σ_j` (recovering the `i=j` self-decay), so an explicit
-# diagonal term would double-count it. Closing the gap to the exact split needs the
-# cross-leaf-NE cumulant fix (see TODO.md).
+# Standard collective-rate-matrix split: explicit diagonal self-decay
+# `Σ_i Γ(i,i) D[J_i]` + off-diagonal cross-recycling `Σ_{i≠j} Γ(i,j) D[J_i,J_j]`.
+# The diagonal must be explicit — completeness does NOT recover it (the off-diagonal
+# emission has no ground projector to fold), so off-diagonal-only loses the self-decay.
 function _collective_indexed_lindblad(op, Jk, Jdk, rk)
     i_jump = first(_op_free_indices(Jk))
     jdx = _partner_index(rk, i_jump)
     Jj = SQA.change_index(Jk, i_jump, jdx)
     off_term = (rk / 2) * (Jdk * commutator(op, Jj) + commutator(Jdk, op) * Jj)
-    return SQA.Σ(SQA.Σ(off_term, jdx, SQA.Index[i_jump]), i_jump)
+    off = SQA.Σ(SQA.Σ(off_term, jdx, SQA.Index[i_jump]), i_jump)
+    rkk = _diag_rate(rk)
+    dia_term = (rkk / 2) * (Jdk * commutator(op, Jk) + commutator(Jdk, op) * Jk)
+    dia = SQA.Σ(dia_term, i_jump)
+    return off + dia
+end
+
+# Diagonal rate `Γ(i,i)` from `Γ(i,j)` (collapse the partner onto the jump index).
+function _diag_rate(rk)
+    u = SymbolicUtils.unwrap(rk)
+    f = SymbolicUtils.operation(u)
+    a = SymbolicUtils.arguments(u)
+    return f(a[1], a[1])
 end
 
 # Adjoint-action Lindblad recycling for the backward Heisenberg/Kalman
