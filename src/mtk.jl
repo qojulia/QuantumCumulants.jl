@@ -1,10 +1,10 @@
-serialize(op::QAdd) = Symbol("avg_" * _op_name_chunk(op))
+serialize(op::QAdd) = Symbol("avg_" * _op_name_part(op))
 
-function _op_name_chunk(op::QAdd)
+function _op_name_part(op::QAdd)
     isempty(op.arguments) && return "zero"
     chunks = String[]
     for (term, _) in op.arguments
-        base = join((_op_name_chunk(o) for o in term.ops), "_")
+        base = join((_op_name_part(o) for o in term.ops), "_")
         if !isempty(term.ne)
             base *= "_" * join((string(a.name) * "neq" * string(b.name) for (a, b) in term.ne), "_")
         end
@@ -12,18 +12,18 @@ function _op_name_chunk(op::QAdd)
     end
     return join(chunks, "_plus_")
 end
-_op_name_chunk(op::SQA.QSym) = string(op.name) * _op_name_extra(op)
+_op_name_part(op::SQA.QSym) = string(op.name) * _op_name_suffix(op)
 
-_op_name_extra(op::SQA.QSym) = _op_index_suffix(op)
-function _op_name_extra(op::SQA.Transition)
+_op_name_suffix(op::SQA.QSym) = _op_index_suffix(op)
+function _op_name_suffix(op::SQA.Transition)
     i = op.i isa Symbol ? string(op.i) : string(Int(op.i))
     j = op.j isa Symbol ? string(op.j) : string(Int(op.j))
     return "_" * i * j * _op_index_suffix(op)
 end
-_op_name_extra(op::SQA.Destroy) = _op_index_suffix(op)
-_op_name_extra(op::SQA.Create) = "_dag" * _op_index_suffix(op)
-_op_name_extra(op::SQA.Pauli) = "_" * string(Int(op.axis)) * _op_index_suffix(op)
-_op_name_extra(op::SQA.Spin) = "_" * string(Int(op.axis)) * _op_index_suffix(op)
+_op_name_suffix(op::SQA.Destroy) = _op_index_suffix(op)
+_op_name_suffix(op::SQA.Create) = "_dag" * _op_index_suffix(op)
+_op_name_suffix(op::SQA.Pauli) = "_" * string(Int(op.axis)) * _op_index_suffix(op)
+_op_name_suffix(op::SQA.Spin) = "_" * string(Int(op.axis)) * _op_index_suffix(op)
 
 function _op_index_suffix(op::SQA.QSym)
     isdefined(op, :index) || return ""
@@ -37,27 +37,27 @@ _make_var(name::Symbol, iv::Symbolics.Num) = first(@variables $name(iv))
 # ---- state variable registry -------------------------------------------------
 
 """
-Build the per-state `u(t)` variables and the orbit/`canon_key` lookup maps shared by
+Build the per-state `u(t)` variables and the scaled/`canon_key` lookup maps shared by
 `System`, `initial_values` and `get_solution`, so variable naming agrees across them.
 """
 function _state_registry(eqs::AbstractMeanFieldEquations)
     ctx = build_ctx(eqs.operators, eqs.hamiltonian, eqs.jumps, eqs.jumps_dagger)
-    # Key/match in the system's recorded coordinate, not a hardcoded `concrete_rep`
+    # Key/match in the system's recorded treatment, not a hardcoded `concrete_rep`
     # (an empty map, scalar systems, reads as all-Free).
-    coords = isempty(eqs.coords) ? all_free_coords(ctx) :
-        Dict{Int, Coordinate}(sp => Coordinate(c) for (sp, c) in eqs.coords)
+    treatments = isempty(eqs.treatments) ? all_free_treatments(ctx) :
+        Dict{Int, SubspaceTreatment}(sp => SubspaceTreatment(c) for (sp, c) in eqs.treatments)
     ops = QAdd[undo_average(s) isa QAdd ? undo_average(s) : undo_average(s) * 1 for s in eqs.states]
     vars = Symbolics.Num[_make_var(serialize(op), eqs.iv) for op in ops]
-    # Keyed by the conjugation orbit rep, valued by `(state var, side-of-rep)`: a leaf
+    # Keyed by the Hermitian-conjugate representative, valued by `(state var, side-of-rep)`: a leaf
     # on the same side as the rep resolves to the var, the opposite side to its conjugate.
     by_rep = Dict{QAdd, Tuple{Symbolics.Num, Bool}}()
     by_canon = Dict{QAdd, Symbolics.Num}()
     for (op, v) in zip(ops, vars)
-        rep, side = canonical_rep(op, ctx; coords)
+        rep, side = canonical_rep(op, ctx; treatments)
         get!(by_rep, rep, (v, side))
         get!(by_canon, canon_key(op, ctx), v)
     end
-    return (; ctx, coords, ops, vars, by_rep, by_canon)
+    return (; ctx, treatments, ops, vars, by_rep, by_canon)
 end
 
 """
@@ -69,7 +69,7 @@ function _leaf_resolver(reg)
     return function (leaf)
         op = undo_average(leaf)
         op isa QAdd || return leaf
-        rep, side = canonical_rep(op, reg.ctx; coords = reg.coords)
+        rep, side = canonical_rep(op, reg.ctx; treatments = reg.treatments)
         haskey(reg.by_rep, rep) || return leaf
         var, rep_side = reg.by_rep[rep]
         # Raw `term(conj, …)` not `Base.conj`: the latter folds to identity on Real symtype.
@@ -253,9 +253,9 @@ function parameter_map(eqs::AbstractMeanFieldEquations, pairs)
             elseif slots !== nothing
                 get!(slot_acc, name, Dict{Vector{Int}, Any}())[slots] = v
             else
-                shp = SymbolicUtils.shape(arr)
-                n = (shp isa SymbolicUtils.SmallVec{UnitRange{Int}} && !isempty(shp)) ?
-                    length(shp[1]) : nothing
+                shape = SymbolicUtils.shape(arr)
+                n = (shape isa SymbolicUtils.SmallVec{UnitRange{Int}} && !isempty(shape)) ?
+                    length(shape[1]) : nothing
                 pmap[arr] = n === nothing ? v : fill(v, n)
             end
         elseif name !== nothing && haskey(scalar_by_name, name)
@@ -295,9 +295,9 @@ slot per dimension; unassigned slots stay zero.
 """
 function _build_slot_array(arr, slots_to_v::Dict{Vector{Int}, Any})
     ndim = length(first(keys(slots_to_v)))
-    shp = SymbolicUtils.shape(arr)
-    dims = (shp isa SymbolicUtils.SmallVec{UnitRange{Int}} && length(shp) == ndim) ?
-        Tuple(length(r) for r in shp) :
+    shape = SymbolicUtils.shape(arr)
+    dims = (shape isa SymbolicUtils.SmallVec{UnitRange{Int}} && length(shape) == ndim) ?
+        Tuple(length(r) for r in shape) :
         Tuple(maximum(s[d] for s in keys(slots_to_v)) for d in 1:ndim)
     V = promote_type((typeof(v) for v in values(slots_to_v))...)
     out = zeros(V, dims...)
@@ -327,8 +327,8 @@ function _collect_named_params!(arr_dict, scalar_dict, x)
     x isa SymbolicUtils.BasicSymbolic || return
     if !SymbolicUtils.iscall(x)
         SymbolicUtils.issym(x) || return
-        shp = SymbolicUtils.shape(x)
-        if shp isa SymbolicUtils.SmallVec{UnitRange{Int}} && !isempty(shp)
+        shape = SymbolicUtils.shape(x)
+        if shape isa SymbolicUtils.SmallVec{UnitRange{Int}} && !isempty(shape)
             arr_dict[Base.nameof(x)] = x
         elseif SymbolicUtils.symtype(x) <: Real
             scalar_dict[Base.nameof(x)] = x
@@ -346,7 +346,7 @@ end
 
 Query an ODE/SDE solution for the trajectory of an average (or a `QField`,
 averaged internally). Resolves the user's operator to a tracked state by the
-conjugation orbit (`concrete_rep`, recovering a folded conjugate via the side
+Hermitian conjugation (`concrete_rep`, recovering a folded conjugate via the side
 bit), then falls back to `canon_key` so a query posed in a different but
 equivalent symbolic form still hits.
 """
@@ -354,7 +354,7 @@ function get_solution(sol, avg::SymbolicUtils.BasicSymbolic, eqs::AbstractMeanFi
     reg = _state_registry(eqs)
     op = undo_average(avg)
     if op isa QAdd
-        rep, side = canonical_rep(op, reg.ctx; coords = reg.coords)
+        rep, side = canonical_rep(op, reg.ctx; treatments = reg.treatments)
         if haskey(reg.by_rep, rep)
             var, rep_side = reg.by_rep[rep]
             return side == rep_side ? (τ -> _eval_at(sol, var, τ)) :

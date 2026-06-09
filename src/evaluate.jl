@@ -215,7 +215,7 @@ end
 """
 Unroll one bound index over `1:n`: strip it from `.indices` and sum
 `change_index(bare, b -> concrete_k)` over `k` (SQA handles projector squashing,
-commuting-op sorting and NE-violated drops on the now scope-free `QAdd`).
+commuting-op sorting and non-equal-violated drops on the now scope-free `QAdd`).
 """
 _unroll_one(x::Number, _, _, _) = x
 function _unroll_one(qadd::QAdd, b::SQA.Index, n::Int, ctx)
@@ -255,15 +255,15 @@ function _graph_from_stored(eqs::AbstractMeanFieldEquations)
         eqs.hamiltonian, collect(eqs.jumps), collect(eqs.jumps_dagger),
         collect(eqs.rates), eff, eqs.iv, eqs.order, maximum, eqs.direction,
     )
-    coords = isempty(eqs.coords) ? all_free_coords(ctx) :
-        Dict{Int, Coordinate}(sp => Coordinate(c) for (sp, c) in eqs.coords)
+    treatments = isempty(eqs.treatments) ? all_free_treatments(ctx) :
+        Dict{Int, SubspaceTreatment}(sp => SubspaceTreatment(c) for (sp, c) in eqs.treatments)
     nodes = OrderedCollections.OrderedDict{NodeKey, NodeData}()
     for i in eachindex(eqs.operators)
         op = eqs.operators[i]
         opqa = op isa QAdd ? op : op * 1
-        # Key in the STORED coordinate, not bare `canon_key`: a subspace made Concrete
+        # Key in the STORED treatment, not bare `canon_key`: a subspace made Concrete
         # by a prior `evaluate` must not be alpha-renamed and collapsed.
-        k = _materialised_key(opqa, ctx, coords)
+        k = _materialised_key(opqa, ctx, treatments)
         haskey(nodes, k) && continue
         drift = Symbolics.Num(_lift_sum_scope(SymbolicUtils.unwrap(eqs.equations[i].rhs)))
         op_drift = opqa
@@ -271,7 +271,7 @@ function _graph_from_stored(eqs::AbstractMeanFieldEquations)
             Symbolics.Num(_lift_sum_scope(SymbolicUtils.unwrap(eqs.noise_equations[i].rhs)))
         nodes[k] = NodeData(drift, op_drift, noise, nothing, get_order(opqa), SQA.acts_on(opqa))
     end
-    return MomentGraph(nodes, sys, ctx, coords)
+    return MomentGraph(nodes, sys, ctx, treatments)
 end
 
 function specialize(g::MomentGraph, limits; h::Vector{Int} = Int[])
@@ -291,12 +291,12 @@ function specialize(g::MomentGraph, limits; h::Vector{Int} = Int[])
             )
             new_k = _apply_free(k, idx_sub)
             _is_zero_qadd(new_k) && continue
-            # Dedup by the conjugation orbit (`concrete_rep`): `⟨X†⟩ = conj⟨X⟩` is an
-            # exact redundancy, so keep one rep per orbit (resolver recovers the partner).
+            # Dedup by the Hermitian conjugation (`concrete_rep`): `⟨X†⟩ = conj⟨X⟩` is an
+            # exact redundancy, so keep one rep per conjugate pair (resolver recovers the partner).
             rep, _ = concrete_rep(new_k)
             rep in seen && continue
             push!(seen, rep)
-            lk = literal_key(new_k)
+            lk = concrete_key(new_k)
             # Symbolics-side mirror of the free-index substitution, so coefficient
             # references (e.g. `g(i)`) rename in lockstep with the operators.
             sym_sub = isempty(idx_sub) ? _EMPTY_SYM_SUB :
@@ -311,12 +311,12 @@ function specialize(g::MomentGraph, limits; h::Vector{Int} = Int[])
     end
     # A subspace is now Concrete if any of its vocabulary indices' ranges were
     # targeted by `limits` and the subspace is selected by `h`.
-    coords = copy(g.coords)
+    treatments = copy(g.treatments)
     for (sp, idxs) in ctx.vocab
         _in_h(hset, sp) || continue
-        any(idx -> SymbolicUtils.unwrap(idx.range) in keys(sub), idxs) && (coords[sp] = Concrete)
+        any(idx -> SymbolicUtils.unwrap(idx.range) in keys(sub), idxs) && (treatments[sp] = Concrete)
     end
-    return MomentGraph(nodes, g.sys, ctx, coords)
+    return MomentGraph(nodes, g.sys, ctx, treatments)
 end
 
 # ---- indexed-variable -> Symbolics-array materialisation ---------------------

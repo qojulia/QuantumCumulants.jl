@@ -29,7 +29,6 @@ export translate_W_to_Y, modify_equations, modify_equations!
 export simplify!
 
 #  primitives, equation containers, identity
-include("channels.jl")
 include("equations.jl")
 include("tree.jl")
 include("canonical.jl")

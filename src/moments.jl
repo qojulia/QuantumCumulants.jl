@@ -43,12 +43,12 @@ end
 Average a block with its coefficient inside the sum, scoping over indices used by the
 operators or the coefficient so the diagonal split substitutes the coefficient.
 """
-function _scoped_average_coeff(c, ops::AbstractVector{<:SQA.QSym}, ne, scope)
+function _scoped_average_coeff(c, ops::AbstractVector{<:SQA.QSym}, non_equal, scope)
     cblock = c * reduce(*, ops)
     cblock isa QAdd || return average(cblock)
-    # Carry NE on `cblock` (always a QAdd); a single-op block reduces to a QSym with
-    # no NE slot, losing a `Σ_{j≠ext}` constraint.
-    isempty(ne) || (cblock = _carry_ne(cblock, ne, scope))
+    # Carry the non-equal index constraints on `cblock` (always a QAdd); a single-op
+    # block reduces to a QSym with no such slot, losing a `Σ_{j≠ext}` constraint.
+    isempty(non_equal) || (cblock = _carry_non_equal(cblock, non_equal, scope))
     used = Set{SQA.Index}()
     for (t, _) in cblock.arguments, o in t.ops
         SQA.has_index(o.index) && push!(used, o.index)
@@ -70,21 +70,21 @@ _im_form(c::Complex) = real(c) + imag(c) * Symbolics.IM
 average_and_truncate(R::SQA.QField, order::TruncOrder, mix_choice, ::CanonCtx) =
     order === nothing ? average(R) : cumulant_expansion(average(R), order; mix_choice)
 
-function _truncate_term(ops::AbstractVector{<:SQA.QSym}, ne, scope, order, mix_choice)
+function _truncate_term(ops::AbstractVector{<:SQA.QSym}, non_equal, scope, order, mix_choice)
     # Average WITH the sum scope first so SQA's diagonal split collapses same-index
     # operator pairs, THEN cumulant-truncate; truncating the raw product first splits
     # them into different blocks and the collapse never fires.
-    return cumulant_expansion(_scoped_average(ops, ne, scope), order; mix_choice)
+    return cumulant_expansion(_scoped_average(ops, non_equal, scope), order; mix_choice)
 end
 
 """
 Average a single block, attaching only the scope indices its ops use, routed through
 `SQA.Σ` so the off-diagonal/diagonal split runs.
 """
-function _scoped_average(ops::AbstractVector{<:SQA.QSym}, ne, scope)
+function _scoped_average(ops::AbstractVector{<:SQA.QSym}, non_equal, scope)
     isempty(ops) && return 1   # empty operator product is the identity, ⟨I⟩ = 1
     block = reduce(*, ops)
-    block isa QAdd && !isempty(ne) && (block = _carry_ne(block, ne, scope))
+    block isa QAdd && !isempty(non_equal) && (block = _carry_non_equal(block, non_equal, scope))
     used = Set{SQA.Index}()
     for o in ops
         SQA.has_index(o.index) && push!(used, o.index)
@@ -95,17 +95,17 @@ function _scoped_average(ops::AbstractVector{<:SQA.QSym}, ne, scope)
 end
 
 """
-Reattach the term's NE pairs so the diagonal split sees them: keep a pair when both
+Reattach the term's non-equal index pairs so the diagonal split sees them: keep a pair when both
 indices are on the block, or one is on the block and its partner is external.
 """
-function _carry_ne(block::QAdd, ne, scope)
+function _carry_non_equal(block::QAdd, non_equal, scope)
     present = Set{SQA.Index}()
     for (term, _) in block.arguments, o in term.ops
         SQA.has_index(o.index) && push!(present, o.index)
     end
     scopeset = Set{SQA.Index}(scope)
     kept = SQA.NonEqualPair[
-        p for p in ne if
+        p for p in non_equal if
             (p[1] in present && p[2] in present) ||
             (p[1] in present && !(p[2] in scopeset)) ||
             (p[2] in present && !(p[1] in scopeset))

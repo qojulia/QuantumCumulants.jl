@@ -1,43 +1,88 @@
 """
-Canonicalisation context shared by the moment-keying functions. Holds the
-per-subspace vocabulary of canonical index names and the policy flags that
-`canon_key`, `orbit_key` and `canonical_rep` read.
+Shared state for the moment-key functions (`canon_key`, `scaled_key`, `canonical_rep`,
+…). A *key* assigns each operator average ⟨A⟩ a canonical label, identical for two
+averages exactly when they are the same expectation value, so the equations of motion
+close on a non-redundant set. Two averages can coincide through relabelling of free
+atom indices, the permutation symmetry of identical atoms, or Hermitian conjugation
+(⟨A†⟩ = ⟨A⟩*); the functions differ in which of these they identify. `CanonCtx` holds
+the index vocabulary used for relabelling and which subspaces are symmetric/selected.
+Every `Int` key here and in the `treatments` maps is an SQA `space_index`: the position
+of a Hilbert-space factor (subspace) in the system's `ProductSpace`, as returned by
+`acts_on`.
 """
 struct CanonCtx
-    vocab::Dict{Int, Vector{SQA.Index}}   # per-subspace canonical free-index reps, disjoint from H/J-bound names
-    symmetric::Set{Int}                   # subspaces carrying an Index (permutation-symmetric families)
-    selected::Set{Int}                    # subspaces in scope for scale/evaluate; empty means all
-    population::Bool                      # closure policy: dephasing/population system vs concrete-site
+    # canonical free-index reps per subspace (space_index), disjoint from H/J-bound names
+    vocab::Dict{Int, Vector{SQA.Index}}
+    # subspaces (space_index) carrying an Index: permutation-symmetric atom families
+    symmetric::Set{Int}
+    # subspaces (space_index) in scope for scale/evaluate; empty means all
+    selected::Set{Int}
 end
 
 """
-Per-subspace representation regime of a moment under canonicalisation:
-- `Free`: a symbolic index, with no permutation or concrete quotient applied.
-- `Scaled`: quotiented by the permutation symmetry ``S_n`` of the atoms.
-- `Concrete`: instantiated to a fixed site `1..M`, per-site, with no alpha-renaming.
+How one Hilbert-space factor (an SQA *subspace*, the tensor factor of the system's
+`ProductSpace` identified by its `space_index`) is treated when building a moment's
+canonical label:
+- `Free`: its atom index stays a free symbolic index.
+- `Scaled`: reduced under the permutation symmetry ``S_n`` of the identical atoms (the `scale` reduction).
+- `Concrete`: pinned to fixed sites `1..M` (after `evaluate`).
 """
-@enum Coordinate Free Scaled Concrete
+@enum SubspaceTreatment Free Scaled Concrete
 
 """
-Coordinate map placing every symmetric subspace of `ctx` in the `Free` regime.
-Scalar systems (no symmetric subspace) yield an empty map, which the keying
-functions read as all-`Free`.
+Per-subspace treatment map marking every symmetric subspace of `ctx` as `Free`. Scalar
+systems (no symmetric subspace) yield an empty map, which the keying functions read
+as all-`Free`.
 """
-all_free_coords(ctx::CanonCtx) = Dict{Int, Coordinate}(sp => Free for sp in ctx.symmetric)
+all_free_treatments(ctx::CanonCtx) = Dict{Int, SubspaceTreatment}(sp => Free for sp in ctx.symmetric)
 
 """
-Return a copy of `coords` with subspace `sp` set to coordinate `c`.
+Return a copy of `treatments` with subspace `sp` set to treatment `c`.
 """
-function with_coord(coords::Dict{Int, Coordinate}, sp::Int, c::Coordinate)
-    out = copy(coords)
+function with_treatment(treatments::Dict{Int, SubspaceTreatment}, sp::Int, c::SubspaceTreatment)
+    out = copy(treatments)
     out[sp] = c
     return out
 end
 
 """
-Coordinate of subspace `sp` in `coords`, defaulting to `Free` when unlisted.
+Treatment of subspace `sp` in `treatments`, defaulting to `Free` when unlisted.
 """
-coord_of(coords::Dict{Int, Coordinate}, sp::Int) = get(coords, sp, Free)
+treatment_of(treatments::Dict{Int, SubspaceTreatment}, sp::Int) = get(treatments, sp, Free)
+
+"""
+Collect the indices the Liouvillian treats as bound: sum-scope `.indices` and any
+free index carried by an atom inside the source, since the Liouvillian sums
+collective jumps over their carried index. `build_ctx` excludes these names from
+the canonical free-index vocabulary so `derive` does not re-clash.
+"""
+_collect_indices_from_qadd_bound!(::Set{SQA.Index}, ::Any) = nothing
+function _collect_indices_from_qadd_bound!(out::Set{SQA.Index}, q::SQA.QAdd)
+    for idx in q.indices
+        push!(out, idx)
+    end
+    for (term, _) in q.arguments, o in term.ops
+        SQA.has_index(o.index) && push!(out, o.index)
+    end
+    return nothing
+end
+function _collect_indices_from_qadd_bound!(out::Set{SQA.Index}, q::SQA.QSym)
+    SQA.has_index(q.index) && push!(out, q.index)
+    return nothing
+end
+
+"""
+Distinct free operator indices of a `QAdd`, in first-encounter order. Used by the
+relabelling helpers below and by `evaluate`'s index unrolling.
+"""
+function _free_op_indices(op::SQA.QAdd)
+    out = SQA.Index[]
+    for (term, _) in op.arguments, o in term.ops
+        SQA.has_index(o.index) || continue
+        o.index in out || push!(out, o.index)
+    end
+    return out
+end
 
 """
 Construct the canonicalisation context for a system. The canonical index
@@ -77,64 +122,65 @@ function build_ctx(
         sort!(v, by = idx -> idx.name)
     end
 
-    population = _has_dephasing_channel(_flatten_jumps(J))
-    return CanonCtx(vocab, symmetric, Set{Int}(selected), population)
+    return CanonCtx(vocab, symmetric, Set{Int}(selected))
 end
 
 """
-Alpha-canonical identity key of `op`, used as the node key during completion. Drops
-the sum scope, fixes the order of commuting operators, alpha-renames free indices to
-the context vocabulary and drops all non-equal constraints. Conjugate pairs are *not*
-folded; use `canonical_rep` for that. Equivalent to `canonical_rep` with every
-subspace `Free`; constants pass through unchanged.
+Canonical label of the average ⟨`op`⟩ as it enters the cumulant hierarchy: two averages
+share it exactly when they are equal after relabelling free atom indices to the context
+vocabulary. Hermitian conjugates are *not* identified (use `canonical_rep` for that).
+This is `_treatment_key` with every subspace left as a free symbolic index.
 """
-canon_key(op::QAdd, ctx::CanonCtx) = _coord_key(op, ctx, all_free_coords(ctx))
+canon_key(op::QAdd, ctx::CanonCtx) = _treatment_key(op, ctx, all_free_treatments(ctx))
 canon_key(op, ::CanonCtx) = op   # non-QAdd (constant) passthrough
 
 """
-Conjugation-folded identity key of `op` under the per-subspace `coords`. Each
-subspace is normalised according to its coordinate: `Free` alpha-renames to the
-vocabulary representatives, `Scaled` additionally folds under permutation symmetry
-via `symmetric_min`, and `Concrete` keeps its literal index names. The operator and
-its adjoint are compared and the lexicographically smaller is returned as `key`,
-with `is_conjugate` reporting whether `op` itself is the conjugate side.
+Canonical label that also accounts for Hermitian conjugation. Returns
+`(key, is_conjugate)`: `key` is the smaller of the labels of ⟨`op`⟩ and ⟨`op`†⟩, and
+`is_conjugate` flags whether `op` was the conjugate side, so an average and its
+conjugate ⟨A†⟩ = ⟨A⟩* collapse to one dynamical variable. This is the label used when
+generating the numerical code and when deduplicating the hierarchy. `treatments` chooses
+the per-subspace treatment exactly as in `_treatment_key`.
 """
-function canonical_rep(op::QAdd, ctx::CanonCtx; coords::Dict{Int, Coordinate} = all_free_coords(ctx))
-    k = _coord_key(op, ctx, coords)
-    kc = _coord_key(adjoint(op), ctx, coords)
+function canonical_rep(op::QAdd, ctx::CanonCtx; treatments::Dict{Int, SubspaceTreatment} = all_free_treatments(ctx))
+    k = _treatment_key(op, ctx, treatments)
+    kc = _treatment_key(adjoint(op), ctx, treatments)
     return _serialize(kc) < _serialize(k) ? (kc, true) : (k, false)
 end
 canonical_rep(op, ::CanonCtx; kw...) = (op, false)
 
 """
-Non-conjugate-folded identity key of `op`. Brings `op` to normal form (sum scope
-dropped, commuting operators ordered, NE constraints removed), then applies each
-subspace's coordinate quotient from `coords`. Shared building block of `canon_key`,
-`orbit_key` and `canonical_rep`.
+The engine behind `canon_key`, `scaled_key` and `canonical_rep`. Puts ⟨`op`⟩ into a
+comparable normal form (drops the summation scope, fixes the order of commuting
+factors, removes the non-equal index constraints), then treats each atomic
+subspace according to `treatments`: a `Free` or `Scaled` subspace has its indices
+relabelled to the canonical reps, `Scaled` additionally reduces under the permutation
+symmetry of the identical atoms (via `symmetric_min`), and `Concrete` keeps its fixed
+site labels. Hermitian conjugation is not applied.
 """
-function _coord_key(op::QAdd, ctx::CanonCtx, coords::Dict{Int, Coordinate})
-    scaled = Set{Int}(sp for sp in keys(coords) if coords[sp] == Scaled)
-    concrete = Set{Int}(sp for sp in keys(coords) if coords[sp] == Concrete)
-    # Alpha-rename everything not Concrete (Free and Scaled relabel to vocab reps).
+function _treatment_key(op::QAdd, ctx::CanonCtx, treatments::Dict{Int, SubspaceTreatment})
+    scaled = Set{Int}(sp for sp in keys(treatments) if treatments[sp] == Scaled)
+    concrete = Set{Int}(sp for sp in keys(treatments) if treatments[sp] == Concrete)
+    # Relabel everything not Concrete (Free and Scaled relabel to vocab reps).
     rename_spaces = Set{Int}()
     for sp in ctx.symmetric
         sp in concrete || push!(rename_spaces, sp)
     end
 
-    base = _reorder_commuting(_drop_scope_ne(SQA.QAdd(op.arguments, SQA.Index[])))   # totality on all subspaces
-    base = _alpha_rename_spaces(base, ctx, rename_spaces)
-    key = _drop_all_ne(SQA.QAdd(base.arguments, SQA.Index[]))
+    base = _reorder_commuting(_drop_scope_non_equal(SQA.QAdd(op.arguments, SQA.Index[])))   # totality on all subspaces
+    base = _relabel_spaces(base, ctx, rename_spaces)
+    key = _drop_all_non_equal(SQA.QAdd(base.arguments, SQA.Index[]))
     isempty(scaled) && return key
     return symmetric_min(key, ctx, scaled)
 end
-_coord_key(op, ::CanonCtx, ::Dict{Int, Coordinate}) = op
+_treatment_key(op, ::CanonCtx, ::Dict{Int, SubspaceTreatment}) = op
 
 """
-Alpha-rename the free indices of `op` to the context vocabulary, but only on the
-subspaces listed in `spaces`. Indices on other subspaces (notably `Concrete` ones)
-keep their names.
+Relabel the free indices of `op` to the context vocabulary, but only on the subspaces
+listed in `spaces`. Indices on other subspaces (notably `Concrete` ones) keep their
+names.
 """
-function _alpha_rename_spaces(op::QAdd, ctx::CanonCtx, spaces::Set{Int})
+function _relabel_spaces(op::QAdd, ctx::CanonCtx, spaces::Set{Int})
     encountered = _free_op_indices(op)
     rename = Dict{SQA.Index, SQA.Index}()
     pos_by_space = Dict{Int, Int}()
@@ -152,23 +198,22 @@ function _alpha_rename_spaces(op::QAdd, ctx::CanonCtx, spaces::Set{Int})
 end
 
 """
-Identity key for already-materialised systems. Like `canon_key` but *without*
-alpha-renaming, so the concrete per-site atoms (`σ_1`, `σ_2`, …) produced by
-`evaluate` stay distinct instead of collapsing onto one vocabulary slot. Still drops
-the sum scope, fixes commuting-op order and drops NE constraints; constants pass
-through unchanged.
+Like `canon_key` but without relabelling indices, so the fixed per-site operators
+(`σ_1`, `σ_2`, …) created by `evaluate` stay distinct instead of collapsing onto a
+single representative atom. The label used once a system has been materialised to
+explicit sites.
 """
-function literal_key(op::QAdd)
+function concrete_key(op::QAdd)
     base = _reorder_commuting(SQA.QAdd(op.arguments, SQA.Index[]))
-    return _drop_all_ne(SQA.QAdd(base.arguments, SQA.Index[]))
+    return _drop_all_non_equal(SQA.QAdd(base.arguments, SQA.Index[]))
 end
-literal_key(op) = op
+concrete_key(op) = op
 
 """
 Canonicalise the order of commuting same-subspace factors in `op` by asserting their
 free indices mutually distinct, which lets SQA sort them into a fixed order. The
 asserted non-equal constraints are temporary and are stripped from the final key by
-`_drop_all_ne`.
+`_drop_all_non_equal`.
 """
 function _reorder_commuting(op::QAdd)
     by_space = Dict{Int, Vector{SQA.Index}}()
@@ -185,33 +230,12 @@ function _reorder_commuting(op::QAdd)
 end
 
 """
-Substitution mapping each free operator index of `op`, in first-encounter order per
-subspace, to its canonical vocabulary representative (minting `rep(k)` beyond the
-declared list).
-"""
-function _alpha_rename(op::QAdd, ctx::CanonCtx)
-    encountered = _free_op_indices(op)
-    rename = Dict{SQA.Index, SQA.Index}()
-    pos_by_space = Dict{Int, Int}()
-    for idx in encountered
-        pos = get(pos_by_space, idx.space_index, 0) + 1
-        pos_by_space[idx.space_index] = pos
-        reps = get(ctx.vocab, idx.space_index, SQA.Index[])
-        isempty(reps) && continue
-        target = pos <= length(reps) ? reps[pos] : reps[1](pos)
-        target == idx && continue
-        rename[idx] = target
-    end
-    return rename
-end
-
-"""
 Drop non-equal pairs whose index is carried by no operator in the term; these are
 sum-scope constraints (e.g. `Σ_{j≠i₂}`), not part of the moment's identity. Keeping
-them would let a later alpha-rename collapse the index onto its partner and
-annihilate the term. Operator-internal NE pairs are preserved.
+them would let a later relabelling collapse the index onto its partner and
+annihilate the term. Operator-internal non-equal index pairs are preserved.
 """
-function _drop_scope_ne(q::QAdd)
+function _drop_scope_non_equal(q::QAdd)
     out = SQA.QTermDict()
     changed = false
     for (term, c) in q.arguments
@@ -231,7 +255,7 @@ end
 Strip every non-equal constraint from `q`, merging any terms that become identical
 once the constraints are gone.
 """
-function _drop_all_ne(q::QAdd)
+function _drop_all_non_equal(q::QAdd)
     out = SQA.QTermDict()
     for (term, c) in q.arguments
         new_term = isempty(term.ne) ? term : SQA.QTerm(copy(term.ops), SQA.NonEqualPair[])
@@ -242,30 +266,32 @@ function _drop_all_ne(q::QAdd)
 end
 
 """
-Permutation-symmetry identity key of `op`, used as the node key during `scale`. It is
-`canon_key` plus a fold over the permutation symmetry of the `selected` subspaces
-(the rest stay `Free`), and it folds conjugate pairs. Constants pass through unchanged.
+Canonical label used when scaling to identical-atom ensembles: `canon_key` further
+reduced under the permutation symmetry of the `selected` atomic subspaces (the rest
+stay free indices). Hermitian conjugates are not identified here; the scale step folds
+those separately through `canonical_rep`. This is `_treatment_key` with the `selected`
+subspaces `Scaled`.
 """
-function orbit_key(op::QAdd, ctx::CanonCtx; selected = ctx.symmetric)
-    coords = all_free_coords(ctx)
+function scaled_key(op::QAdd, ctx::CanonCtx; selected = ctx.symmetric)
+    treatments = all_free_treatments(ctx)
     for sp in selected
-        coords[sp] = Scaled
+        treatments[sp] = Scaled
     end
-    return _coord_key(op, ctx, coords)
+    return _treatment_key(op, ctx, treatments)
 end
 
 """
-Identity key appropriate to a system's current `coords`. Once any subspace is
-`Concrete` (a prior `evaluate` materialised it), the conjugation-folded
-`canonical_rep` is used so the closed set matches what `evaluate` and codegen
-produce; while every subspace is still symbolic, the unfolded `_coord_key` is used.
+The label matching a system's current `treatments`. Once any subspace has been fixed to
+explicit sites by a previous `evaluate`, the conjugation-aware `canonical_rep` is used
+so the closed set agrees with the generated code; while every subspace is still a
+symbolic index the plain `_treatment_key` suffices.
 """
-function _materialised_key(op::QAdd, ctx::CanonCtx, coords::Dict{Int, Coordinate})
-    any(==(Concrete), values(coords)) && return canonical_rep(op, ctx; coords)[1]
-    return _coord_key(op, ctx, coords)
+function _materialised_key(op::QAdd, ctx::CanonCtx, treatments::Dict{Int, SubspaceTreatment})
+    any(==(Concrete), values(treatments)) && return canonical_rep(op, ctx; treatments)[1]
+    return _treatment_key(op, ctx, treatments)
 end
-_materialised_key(op, ::CanonCtx, ::Dict{Int, Coordinate}) = op
-orbit_key(op, ::CanonCtx; kw...) = op
+_materialised_key(op, ::CanonCtx, ::Dict{Int, SubspaceTreatment}) = op
+scaled_key(op, ::CanonCtx; kw...) = op
 
 """
 Representative of `op` under the permutation symmetry of the `selected` subspaces.
@@ -292,7 +318,7 @@ function symmetric_min(op::QAdd, ctx::CanonCtx, selected)
             end
         end
         cand = isempty(sub) ? op : SQA.change_index(op, sub)
-        cand = _reorder_then_drop_ne(cand, spaces)
+        cand = _reorder_then_drop_non_equal(cand, spaces)
         key = _serialize(cand)
         if best_key === nothing || key < best_key
             best_key = key
@@ -320,7 +346,7 @@ Canonicalise the order of commuting cross-atom factors on `spaces` (by asserting
 slots distinct so SQA sorts them), then strip the asserted non-equal constraints from
 the result.
 """
-function _reorder_then_drop_ne(op::QAdd, spaces)
+function _reorder_then_drop_non_equal(op::QAdd, spaces)
     by_space = Dict{Int, Vector{SQA.Index}}()
     for (term, _) in op.arguments, o in term.ops
         SQA.has_index(o.index) || continue
@@ -333,7 +359,7 @@ function _reorder_then_drop_ne(op::QAdd, spaces)
         push!(pairs, (idxs[n], idxs[m]))
     end
     reordered = isempty(pairs) ? op : SQA.assume_distinct_index(op, pairs)
-    return _drop_all_ne(SQA.QAdd(reordered.arguments, SQA.Index[]))
+    return _drop_all_non_equal(SQA.QAdd(reordered.arguments, SQA.Index[]))
 end
 
 """
@@ -350,14 +376,13 @@ function _serialize(op::QAdd)
 end
 
 """
-Conjugation orbit representative for already-materialised systems, the `literal_key`
-analogue of `canonical_rep`. Returns the lexicographically smaller of `literal_key(op)`
-and `literal_key(op')` as `key`, with `is_conjugate` reporting whether `op` itself is
-the conjugate side. Constants pass through unchanged.
+Conjugation-aware label for materialised systems, the `concrete_key` counterpart of
+`canonical_rep`: returns `(key, is_conjugate)` from the smaller of the labels of
+⟨`op`⟩ and ⟨`op`†⟩.
 """
 function concrete_rep(op::QAdd)
-    k = literal_key(op)
-    kc = literal_key(adjoint(op))
+    k = concrete_key(op)
+    kc = concrete_key(adjoint(op))
     return _serialize(kc) < _serialize(k) ? (kc, true) : (k, false)
 end
-concrete_rep(op) = (op, false)   # non-QAdd (constant) passthrough
+concrete_rep(op) = (op, false)

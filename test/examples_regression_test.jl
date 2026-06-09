@@ -306,7 +306,7 @@ end
     # The full order-2 closure has 434 distinct moments. complete!'s iteration cap
     # must be high enough to reach the fixpoint (the N=10 chain needs > 200 BFS
     # node-expansions; the cap was raised in the moment-class rebuild so closure
-    # finishes instead of truncating). Coordinate-consistent find_missing (Task 2)
+    # finishes instead of truncating). SubspaceTreatment-consistent find_missing (Task 2)
     # confirms the closed system has no missing leaves.
     @test isempty(find_missing(eqs; get_adjoints = false))
     @test length(eqs.equations) == 434

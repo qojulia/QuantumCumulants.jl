@@ -6,21 +6,21 @@ function quotient(g::MomentGraph; h::Vector{Int} = Int[])
     ctx = g.ctx
     selected = _scale_selected(ctx, h)
     sym_to_space = _build_sym_to_space(ctx)
-    # Key nodes in the graph's coordinate with selected subspaces now Scaled (not bare
-    # `orbit_key`, which would alpha-rename already-Concrete subspaces and collapse them).
-    coords = copy(g.coords)
+    # Key nodes in the graph's treatment with selected subspaces now Scaled (not bare
+    # `scaled_key`, which would alpha-rename already-Concrete subspaces and collapse them).
+    treatments = copy(g.treatments)
     for sp in selected
-        coords[sp] = Scaled
+        treatments[sp] = Scaled
     end
     nodes = OrderedCollections.OrderedDict{NodeKey, NodeData}()
     for (k, nd) in g.nodes
-        ok = _materialised_key(k, ctx, coords)
+        ok = _materialised_key(k, ctx, treatments)
         haskey(nodes, ok) && continue   # symmetric image / folded conjugate already kept
         drift = _scale_expr(nd.drift, ctx, selected, sym_to_space)
         noise = nd.noise === nothing ? nothing : _scale_expr(nd.noise, ctx, selected, sym_to_space)
         nodes[ok] = NodeData(drift, nd.op_drift, noise, nd.op_noise, nd.order, nd.aon)
     end
-    return MomentGraph(nodes, g.sys, ctx, coords)
+    return MomentGraph(nodes, g.sys, ctx, treatments)
 end
 
 """
@@ -36,9 +36,10 @@ function _build_sym_to_space(ctx::CanonCtx)
 end
 
 """
-Rewrite an averaged RHS for scale: each leaf ⟨X⟩ becomes `prefactor * ⟨orbit_rep(X)⟩`,
-then flatten every `IndexedVariable(:g, i)` coefficient to its scalar `g` (all atoms
-share the same coupling under the scale symmetry).
+Rewrite an averaged RHS for scale: each leaf ⟨X⟩ becomes `prefactor * ⟨X_rep⟩`, where
+`X_rep` is the permutation-symmetry representative of `X` (via `_scale_leaf`), then
+flatten every `IndexedVariable(:g, i)` coefficient to its scalar `g` (all atoms share
+the same coupling under the scale symmetry).
 """
 function _scale_expr(x, ctx, selected, sym_to_space)
     # `_graph_from_stored` lifted each leaf's scope onto the enclosing `*` node too;
@@ -74,25 +75,25 @@ function _scale_leaf(avg, ctx, selected)
     op isa QAdd || return avg
     pref = _sum_scope_prefactor(op, selected)
     # Fold only the selected subspaces (Scaled); keep the rest verbatim (Concrete).
-    # `_coord_key` empties `.indices`, so re-attach the non-selected bound indices
+    # `_treatment_key` empties `.indices`, so re-attach the non-selected bound indices
     # afterwards to preserve their `Σ`.
     keep_idx = SQA.Index[b for b in op.indices if !(b.space_index in selected)]
-    coords = Dict{Int, Coordinate}()
+    treatments = Dict{Int, SubspaceTreatment}()
     for sp in ctx.symmetric
-        coords[sp] = sp in selected ? Scaled : Concrete
+        treatments[sp] = sp in selected ? Scaled : Concrete
     end
-    folded = _coord_key(op, ctx, coords)
-    # `_coord_key` drops all NE, correct for the selected subspace but wrong for a
-    # non-selected one whose off-diagonal constraint is physical; re-attach the NE
-    # pairs that involve any non-selected index.
+    folded = _treatment_key(op, ctx, treatments)
+    # `_treatment_key` drops all non-equal index constraints, correct for the selected
+    # subspace but wrong for a non-selected one whose off-diagonal constraint is
+    # physical; re-attach the non-equal index pairs that involve any non-selected index.
     if folded isa QAdd && !isempty(keep_idx)
-        kept_ne = SQA.NonEqualPair[]
+        kept_non_equal = SQA.NonEqualPair[]
         for (term, _) in op.arguments, p in term.ne
             (p[1].space_index in selected && p[2].space_index in selected) && continue
-            p in kept_ne || push!(kept_ne, p)
+            p in kept_non_equal || push!(kept_non_equal, p)
         end
-        reduced_op = isempty(kept_ne) ? SQA.QAdd(folded.arguments, keep_idx) :
-            _reattach_ne(folded, kept_ne, keep_idx)
+        reduced_op = isempty(kept_non_equal) ? SQA.QAdd(folded.arguments, keep_idx) :
+            _reattach_non_equal(folded, kept_non_equal, keep_idx)
     else
         reduced_op = folded
     end
@@ -102,25 +103,25 @@ function _scale_leaf(avg, ctx, selected)
 end
 
 """
-Re-attach NE pairs to a folded QAdd, restricting each to terms whose ops carry both
+Re-attach non-equal index pairs to a folded QAdd, restricting each to terms whose ops carry both
 its indices, and set the kept bound indices as the new sum scope.
 """
-function _reattach_ne(folded::QAdd, kept_ne, keep_idx)
+function _reattach_non_equal(folded::QAdd, kept_non_equal, keep_idx)
     out = SQA.QTermDict()
     for (term, c) in folded.arguments
         present = Set{SQA.Index}()
         for o in term.ops
             SQA.has_index(o.index) && push!(present, o.index)
         end
-        ne = SQA.NonEqualPair[p for p in kept_ne if p[1] in present && p[2] in present]
-        out[SQA.QTerm(copy(term.ops), vcat(term.ne, ne))] = c
+        non_equal = SQA.NonEqualPair[p for p in kept_non_equal if p[1] in present && p[2] in present]
+        out[SQA.QTerm(copy(term.ops), vcat(term.ne, non_equal))] = c
     end
     return SQA.QAdd(out, keep_idx)
 end
 
 """
 Sum-scope prefactor: each bound index on a selected subspace that appears in some
-`term.ops` contributes `(b.range - count_NE_involving_b)`; others contribute 1.
+`term.ops` contributes `(b.range - count_non_equal_involving_b)`; others contribute 1.
 """
 function _sum_scope_prefactor(op::QAdd, selected::Set{Int})
     isempty(op.indices) && return 1
@@ -129,16 +130,16 @@ function _sum_scope_prefactor(op::QAdd, selected::Set{Int})
         SQA.has_index(o.index) && push!(op_indices, o.index)
     end
     prefactor = 1
-    used_ne = Set{Int}()
+    used_non_equal = Set{Int}()
     for b in op.indices
         b in op_indices || continue
         b.space_index in selected || continue
         count_b = 0
         for (term, _) in op.arguments, (k, pair) in enumerate(term.ne)
-            k in used_ne && continue
+            k in used_non_equal && continue
             (pair[1] == b || pair[2] == b) || continue
             count_b += 1
-            push!(used_ne, k)
+            push!(used_non_equal, k)
         end
         factor = b.range - count_b
         prefactor = (prefactor isa Number && prefactor == 1) ? factor : prefactor * factor
@@ -207,7 +208,7 @@ end
     scale(eqs::AbstractMeanFieldEquations; h=Int[])
     scale!(eqs::AbstractMeanFieldEquations; h=Int[])
 
-Reduce a permutation-symmetric indexed system to one representative per symmetry orbit,
+Reduce a permutation-symmetric indexed system to one representative per symmetry class,
 exploiting that every atom of an indexed family acts on the system identically. `scale!`
 mutates `eqs` in place; `scale` returns a new system.
 

@@ -10,8 +10,8 @@ power spectrum.
 
 # Fields
 - `op1`, `op2`: the operators whose correlation is computed.
-- `op2_anc`: `op2` re-embedded on the ancilla subspace `aon_anc` (internal).
-- `aon_anc`: Hilbert-subspace index of the ancilla carrying `op2` (internal).
+- `op2_ancilla`: `op2` re-embedded on the ancilla subspace `aon_ancilla` (internal).
+- `aon_ancilla`: Hilbert-subspace index of the ancilla carrying `op2` (internal).
 - `eqs`: the closed equations of motion in the delay `τ`.
 - `eqs0`: the steady-state system the correlation is built on.
 - `τ`: the delay independent variable.
@@ -21,8 +21,8 @@ power spectrum.
 struct CorrelationFunction{T <: MeanFieldEquations, O1 <: QField, O2 <: QField, O2A <: QField}
     op1::O1
     op2::O2
-    op2_anc::O2A
-    aon_anc::Int
+    op2_ancilla::O2A
+    aon_ancilla::Int
     eqs::T
     eqs0::MeanFieldEquations
     τ::Symbolics.Num
@@ -53,17 +53,17 @@ function _ancilla_aon(eqs0::MeanFieldEquations, op1::QField, op2::QField)
 end
 
 """
-Closure filter accepting only leaf averages whose product touches `aon_anc` and at
+Closure filter accepting only leaf averages whose product touches `aon_ancilla` and at
 least one other subspace: the proper correlation states. Pure-ancilla averages
-(⟨op2_anc⟩) and non-ancilla averages are steady-state coefficients, not τ-states.
+(⟨op2_ancilla⟩) and non-ancilla averages are steady-state coefficients, not τ-states.
 """
-function _ancilla_filter(aon_anc::Int)
+function _ancilla_filter(aon_ancilla::Int)
     return function (x)
         SQA.is_average(x) || return true
         SymbolicUtils.iscall(x) || return true
         SymbolicUtils.operation(x) === SQA.sym_average || return true
         aons = SQA.acts_on(x)
-        return (aon_anc in aons) && length(aons) > 1
+        return (aon_ancilla in aons) && length(aons) > 1
     end
 end
 
@@ -96,54 +96,54 @@ function CorrelationFunction(
         steady_state::Bool = true, filter_func = nothing, max_iter::Int = 100_000,
     )
     τ = first(MTK.@independent_variables τ)
-    aon_anc = _ancilla_aon(eqs0, op1, op2)
-    op2_anc = _embed_on(op2, aon_anc)
-    new_op = op1 * op2_anc
+    aon_ancilla = _ancilla_aon(eqs0, op1, op2)
+    op2_ancilla = _embed_on(op2, aon_ancilla)
+    new_op = op1 * op2_ancilla
 
     order_ext = eqs0.order === nothing ? nothing :
-        vcat(eqs0.order, fill(maximum(eqs0.order), aon_anc - length(eqs0.order)))
+        vcat(eqs0.order, fill(maximum(eqs0.order), aon_ancilla - length(eqs0.order)))
 
     eqs_c = meanfield(
         [new_op], eqs0.hamiltonian, eqs0.jumps;
         Jdagger = eqs0.jumps_dagger, rates = eqs0.rates, order = order_ext, iv = τ,
     )
 
-    anc_filter = _ancilla_filter(aon_anc)
-    closure_filter = filter_func === nothing ? anc_filter : x -> anc_filter(x) && filter_func(x)
+    ancilla_filter = _ancilla_filter(aon_ancilla)
+    closure_filter = filter_func === nothing ? ancilla_filter : x -> ancilla_filter(x) && filter_func(x)
     g = _graph_from_eqs(eqs_c)
     closure!(g; filter = closure_filter, get_adjoints = false, max_iter)
     if !steady_state
-        closure!(g; filter = x -> !anc_filter(x), get_adjoints = false, max_iter)
+        closure!(g; filter = x -> !ancilla_filter(x), get_adjoints = false, max_iter)
     end
-    # Inherit eqs0's per-subspace coordinates so the resolver matches the
-    # correlation's leaves in the same coordinate as the parent system.
-    if !isempty(eqs0.coords)
-        merged = merge(g.coords, Dict{Int, Coordinate}(sp => Coordinate(c) for (sp, c) in eqs0.coords))
+    # Inherit eqs0's per-subspace treatments so the resolver matches the
+    # correlation's leaves in the same treatment as the parent system.
+    if !isempty(eqs0.treatments)
+        merged = merge(g.treatments, Dict{Int, SubspaceTreatment}(sp => SubspaceTreatment(c) for (sp, c) in eqs0.treatments))
         g = MomentGraph(g.nodes, g.sys, g.ctx, merged)
     end
     eqs_c = lower_to_eqs(g)
-    filter_func === nothing || _filter_anc_leaves!(eqs_c, anc_filter, filter_func)
+    filter_func === nothing || _filter_ancilla_leaves!(eqs_c, ancilla_filter, filter_func)
 
-    return CorrelationFunction(op1, op2, op2_anc, aon_anc, eqs_c, eqs0, τ, steady_state)
+    return CorrelationFunction(op1, op2, op2_ancilla, aon_ancilla, eqs_c, eqs0, τ, steady_state)
 end
 
 """
 Zero the ancilla-touching leaves the user's filter rejects; ambient leaves stay.
 """
-function _filter_anc_leaves!(eqs, anc_filter, user_filter)
+function _filter_ancilla_leaves!(eqs, ancilla_filter, user_filter)
     for (i, eq) in enumerate(eqs.equations)
-        eqs.equations[i] = eq.lhs ~ _filter_anc_expr(eq.rhs, anc_filter, user_filter)
+        eqs.equations[i] = eq.lhs ~ _filter_ancilla_expr(eq.rhs, ancilla_filter, user_filter)
     end
     return eqs
 end
-function _filter_anc_expr(x, anc_filter, user_filter)
+function _filter_ancilla_expr(x, ancilla_filter, user_filter)
     x isa SymbolicUtils.BasicSymbolic || return x
     if _is_avg_leaf(x)
-        return (anc_filter(x) && !user_filter(x)) ? 0 : x
+        return (ancilla_filter(x) && !user_filter(x)) ? 0 : x
     end
     SymbolicUtils.iscall(x) || return x
     op = SymbolicUtils.operation(x)
-    new_args = Any[_filter_anc_expr(a, anc_filter, user_filter) for a in SymbolicUtils.arguments(x)]
+    new_args = Any[_filter_ancilla_expr(a, ancilla_filter, user_filter) for a in SymbolicUtils.arguments(x)]
     op === complex && length(new_args) == 2 && return new_args[1] + new_args[2] * Symbolics.IM
     return op(new_args...)
 end
@@ -158,21 +158,21 @@ function _ambient_avgs(c::CorrelationFunction)
     found = OrderedCollections.OrderedSet{SymbolicUtils.BasicSymbolic}()
     states_set = Set(SymbolicUtils.unwrap.(c.eqs.states))
     for eq in c.eqs.equations
-        _collect_ambient!(found, eq.rhs, c.aon_anc, states_set)
+        _collect_ambient!(found, eq.rhs, c.aon_ancilla, states_set)
     end
     return collect(found)
 end
-function _collect_ambient!(found, x, aon_anc, states_set)
+function _collect_ambient!(found, x, aon_ancilla, states_set)
     x isa SymbolicUtils.BasicSymbolic || return
     if SQA.is_average(x) && SymbolicUtils.operation(x) === SQA.sym_average
         x in states_set && return
         aons = SQA.acts_on(x)
-        (!(aon_anc in aons) || length(aons) == 1) && push!(found, x)
+        (!(aon_ancilla in aons) || length(aons) == 1) && push!(found, x)
         return
     end
     SymbolicUtils.iscall(x) || return
     for a in SymbolicUtils.arguments(x)
-        _collect_ambient!(found, a, aon_anc, states_set)
+        _collect_ambient!(found, a, aon_ancilla, states_set)
     end
     return
 end
@@ -183,19 +183,19 @@ _ambient_param(avg::SymbolicUtils.BasicSymbolic) =
 _avg_conj_of(x) = SQA.is_average(x) ? average(adjoint(undo_average(x))) : x
 
 """
-Replace `op2_anc` with `op2` (the original subspace) inside `avg`, recovering the
+Replace `op2_ancilla` with `op2` (the original subspace) inside `avg`, recovering the
 τ=0 representative.
 """
 function _undo_ancilla(c::CorrelationFunction, avg::SymbolicUtils.BasicSymbolic)
     SQA.is_average(avg) || return avg
     op = undo_average(avg)
     op isa QAdd || return avg
-    aon0 = c.op2.space_index; aon_anc = c.aon_anc
+    aon0 = c.op2.space_index; aon_ancilla = c.aon_ancilla
     result = zero(op)
     for (term, coeff) in op.arguments
         prod = one(QAdd) * coeff
         for o in term.ops
-            prod = prod * ((o.space_index == aon_anc) ? _embed_on(o, aon0) : o)
+            prod = prod * ((o.space_index == aon_ancilla) ? _embed_on(o, aon0) : o)
         end
         result = result + prod
     end
@@ -251,7 +251,7 @@ _scalarize(x) = ComplexF64(0)
     correlation_u0(c, u_end)
 
 Initial values for the τ-evolution of the [`CorrelationFunction`](@ref) `c`. Each
-ancilla state ⟨X(τ) op2_anc⟩ starts from the steady-state value ⟨X op2⟩ (with `op2` on
+ancilla state ⟨X(τ) op2_ancilla⟩ starts from the steady-state value ⟨X op2⟩ (with `op2` on
 its original subspace), looked up in `u_end`.
 
 See also: [`CorrelationFunction`](@ref), [`correlation_p0`](@ref).
@@ -283,7 +283,7 @@ function correlation_p0(c::CorrelationFunction, u_end, ps_p0)
     end
     for avg in _ambient_avgs(c)
         aons = SQA.acts_on(avg)
-        lookup = (c.aon_anc in aons && length(aons) == 1) ? _undo_ancilla(c, avg) : avg
+        lookup = (c.aon_ancilla in aons && length(aons) == 1) ? _undo_ancilla(c, avg) : avg
         out[_ambient_param(avg)] = ComplexF64(_lookup_avg(u_end_dict, lookup))
     end
     return out
@@ -301,20 +301,20 @@ function MTK.System(c::CorrelationFunction; name::Symbol)
     eqs = c.eqs
     iv = eqs.iv; iv_uw = SymbolicUtils.unwrap(iv); D = Symbolics.Differential(iv)
     reg = _state_registry(eqs)
-    # Ambient steady-state averages, keyed by the same conjugation orbit rep as
+    # Ambient steady-state averages, keyed by the same Hermitian-conjugate representative as
     # the state registry (so a folded conjugate ambient resolves via the side bit).
     amb = Dict{QAdd, Tuple{Symbolics.Num, Bool}}()
     for avg in _ambient_avgs(c)
         op = undo_average(avg)
         if op isa QAdd
-            rep, side = canonical_rep(op, reg.ctx; coords = reg.coords)
+            rep, side = canonical_rep(op, reg.ctx; treatments = reg.treatments)
             get!(amb, rep, (_ambient_param(avg), side))
         end
     end
     resolve = function (leaf)
         op = undo_average(leaf)
         op isa QAdd || return leaf
-        rep, side = canonical_rep(op, reg.ctx; coords = reg.coords)
+        rep, side = canonical_rep(op, reg.ctx; treatments = reg.treatments)
         if haskey(reg.by_rep, rep)
             var, rep_side = reg.by_rep[rep]
             return side == rep_side ? SymbolicUtils.unwrap(var) :
@@ -345,7 +345,7 @@ Scale both the τ-equations and the underlying `eqs0` so the spectrum's
 steady-state lookup resolves against the same scaled state names.
 """
 scale(c::CorrelationFunction) = CorrelationFunction(
-    c.op1, c.op2, c.op2_anc, c.aon_anc, scale(c.eqs), scale(c.eqs0), c.τ, c.steady_state,
+    c.op1, c.op2, c.op2_ancilla, c.aon_ancilla, scale(c.eqs), scale(c.eqs0), c.τ, c.steady_state,
 )
 
 # ---- Spectrum ----------------------------------------------------------------
@@ -409,17 +409,17 @@ function _spectrum_kernel(S::Spectrum, u_end, p0)
     p_sub = _build_p_sub(S.ps, p0, c.τ, u_end, eqs)
     u_end_dict = _as_avg_dict(c, u_end)
 
-    # Classify each leaf by conjugation orbit, recording its side: same side as the
+    # Classify each leaf by Hermitian conjugation, recording its side: same side as the
     # matched state is linear (A_lin), opposite side is anti-linear (A_alin). The
-    # orbit rep stays robust for scaled states, where adjoint does not round-trip.
+    # conjugate representative stays robust for scaled states, where adjoint does not round-trip.
     spec_ctx = build_ctx(eqs.operators, eqs.hamiltonian, eqs.jumps, eqs.jumps_dagger)
-    spec_coords = isempty(eqs.coords) ? all_free_coords(spec_ctx) :
-        Dict{Int, Coordinate}(sp => Coordinate(cc) for (sp, cc) in eqs.coords)
+    spec_treatments = isempty(eqs.treatments) ? all_free_treatments(spec_ctx) :
+        Dict{Int, SubspaceTreatment}(sp => SubspaceTreatment(cc) for (sp, cc) in eqs.treatments)
     state_by_rep = Dict{QAdd, Tuple{Int, Bool}}()
     for (i, s) in enumerate(eqs.states)
         op = undo_average(s)
         if op isa QAdd
-            rep, side = canonical_rep(op, spec_ctx; coords = spec_coords)
+            rep, side = canonical_rep(op, spec_ctx; treatments = spec_treatments)
             get!(state_by_rep, rep, (i, side))
         end
     end
@@ -434,7 +434,7 @@ function _spectrum_kernel(S::Spectrum, u_end, p0)
     for leaf in rhs_leaves
         op = undo_average(leaf)
         op isa QAdd || continue
-        rep, side = canonical_rep(op, spec_ctx; coords = spec_coords)
+        rep, side = canonical_rep(op, spec_ctx; treatments = spec_treatments)
         haskey(state_by_rep, rep) || continue
         i, state_side = state_by_rep[rep]
         bucket = side == state_side ? lin_by_state : alin_by_state
@@ -444,7 +444,7 @@ function _spectrum_kernel(S::Spectrum, u_end, p0)
     for avg in _ambient_avgs(c)
         avg in classified && continue
         aons = SQA.acts_on(avg)
-        lookup = (c.aon_anc in aons && length(aons) == 1) ? _undo_ancilla(c, avg) : avg
+        lookup = (c.aon_ancilla in aons && length(aons) == 1) ? _undo_ancilla(c, avg) : avg
         p_sub[avg] = ComplexF64(_lookup_avg(u_end_dict, lookup))
     end
 

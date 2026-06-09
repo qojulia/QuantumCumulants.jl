@@ -4,6 +4,22 @@
 # `derive` compute the noise drift and `lower_to_eqs` emit the noise columns. No
 # bespoke per-path assembly.
 
+"""
+Flatten one level of nesting in `jumps`/`jumps_dagger`: collective-decay sources
+may arrive as a vector of mode vectors, and this leaves each source a single
+`QField`.
+"""
+_flatten_jumps(js::AbstractVector{<:QField}) = js
+function _flatten_jumps(js::AbstractVector)
+    isempty(js) && return QField[]
+    eltype(js) <: AbstractVector || return js
+    out = QField[]
+    for jk in js
+        append!(out, jk)
+    end
+    return out
+end
+
 _make_iv() = MTK.t_nounits
 
 """

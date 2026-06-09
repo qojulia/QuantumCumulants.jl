@@ -91,18 +91,18 @@ function find_missing(
         get_adjoints::Bool = true, mix_choice = maximum,
     )
     # Fold every tracked state AND every RHS leaf through the SAME
-    # `canonical_rep(·; coords)` the codegen resolver uses, in the system's
-    # recorded coordinate. The seen-set is built from the faithful state operators
+    # `canonical_rep(·; treatments)` the codegen resolver uses, in the system's
+    # recorded treatment. The seen-set is built from the faithful state operators
     # (not a canon_key-collapsed graph), so concrete per-site atoms stay distinct
-    # under the Concrete coordinate. A leaf is missing only if neither it nor its
+    # under the Concrete treatment. A leaf is missing only if neither it nor its
     # conjugate folds to a tracked state.
     ctx = build_ctx(eqs.operators, eqs.hamiltonian, eqs.jumps, eqs.jumps_dagger)
-    coords = isempty(eqs.coords) ? all_free_coords(ctx) :
-        Dict{Int, Coordinate}(sp => Coordinate(c) for (sp, c) in eqs.coords)
+    treatments = isempty(eqs.treatments) ? all_free_treatments(ctx) :
+        Dict{Int, SubspaceTreatment}(sp => SubspaceTreatment(c) for (sp, c) in eqs.treatments)
     seen = Set{QAdd}()
     for s in eqs.states
         op = undo_average(s)
-        op isa QAdd && push!(seen, canonical_rep(op, ctx; coords)[1])
+        op isa QAdd && push!(seen, canonical_rep(op, ctx; treatments)[1])
     end
     eqs_list = eqs.equations
     if eqs isa NoiseMeanFieldEquations
@@ -114,9 +114,9 @@ function find_missing(
         for leaf in eachleaf(eq.rhs)
             op = undo_average(leaf)
             op isa QAdd || continue
-            rep, _ = canonical_rep(op, ctx; coords)
+            rep, _ = canonical_rep(op, ctx; treatments)
             (rep in seen || rep in seen_missing) && continue
-            repc, _ = canonical_rep(adjoint(op), ctx; coords)
+            repc, _ = canonical_rep(adjoint(op), ctx; treatments)
             (repc in seen || repc in seen_missing) && continue
             push!(seen_missing, rep)
             push!(missing_states, average(rep))
@@ -203,7 +203,7 @@ function _copy(eqs::MeanFieldEquations)
         eqs.hamiltonian, copy(eqs.jumps), copy(eqs.jumps_dagger),
         copy(eqs.rates), eqs.iv, eqs.order, eqs.direction;
         initial_operators = copy(eqs.initial_operators),
-        coords = copy(eqs.coords),
+        treatments = copy(eqs.treatments),
     )
 end
 
@@ -216,6 +216,6 @@ function _copy(eqs::NoiseMeanFieldEquations)
         copy(eqs.rates), copy(eqs.efficiencies),
         eqs.iv, eqs.order, eqs.direction;
         initial_operators = copy(eqs.initial_operators),
-        coords = copy(eqs.coords),
+        treatments = copy(eqs.treatments),
     )
 end

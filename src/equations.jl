@@ -61,10 +61,10 @@ struct MeanFieldEquations{
     iv::Symbolics.Num
     order::O
     direction::D
-    # Per-subspace coordinate state, keyed by space index and valued by the `Int`
-    # of the `Coordinate` enum (defined in canonical.jl, included after this file).
+    # Per-subspace treatment state, keyed by space index and valued by the `Int`
+    # of the `SubspaceTreatment` enum (defined in canonical.jl, included after this file).
     # An empty map means every subspace is Free.
-    coords::Dict{Int, Int}
+    treatments::Dict{Int, Int}
 
     function MeanFieldEquations(
             equations::Vector{Symbolics.Equation},
@@ -79,7 +79,7 @@ struct MeanFieldEquations{
             order::O,
             direction::D = Forward();
             initial_operators::Vector{Op} = copy(operators),
-            coords::Dict{Int, Int} = Dict{Int, Int}(),
+            treatments::Dict{Int, Int} = Dict{Int, Int}(),
         ) where {
             O, H <: QField, Op <: QField, Jt, Jdt, R,
             S <: SymbolicUtils.BasicSymbolic, D <: EvolutionDirection,
@@ -93,7 +93,7 @@ struct MeanFieldEquations{
         )
         return new{O, H, Op, Jt, Jdt, R, S, D}(
             equations, operator_equations, states, operators, initial_operators,
-            hamiltonian, jumps, jumps_dagger, rates, iv, order, direction, coords,
+            hamiltonian, jumps, jumps_dagger, rates, iv, order, direction, treatments,
         )
     end
 end
@@ -146,8 +146,8 @@ struct NoiseMeanFieldEquations{
     iv::Symbolics.Num
     order::O
     direction::D
-    # Per-subspace coordinate state; see MeanFieldEquations.
-    coords::Dict{Int, Int}
+    # Per-subspace treatment state; see MeanFieldEquations.
+    treatments::Dict{Int, Int}
 
     function NoiseMeanFieldEquations(
             equations::Vector{Symbolics.Equation},
@@ -165,7 +165,7 @@ struct NoiseMeanFieldEquations{
             order::O,
             direction::D;
             initial_operators::Vector{Op} = copy(operators),
-            coords::Dict{Int, Int} = Dict{Int, Int}(),
+            treatments::Dict{Int, Int} = Dict{Int, Int}(),
         ) where {O, H, Op, Jt, Jdt, R, E, S, D}
         n = length(equations)
         @assert n == length(noise_equations) == length(operator_equations) ==
@@ -179,7 +179,7 @@ struct NoiseMeanFieldEquations{
             equations, noise_equations, operator_equations,
             operator_noise_equations, states, operators, initial_operators,
             hamiltonian, jumps, jumps_dagger, rates,
-            efficiencies, iv, order, direction, coords,
+            efficiencies, iv, order, direction, treatments,
         )
     end
 end
@@ -202,7 +202,7 @@ function MeanFieldEquations(eqs::NoiseMeanFieldEquations)
         eqs.hamiltonian, eqs.jumps, eqs.jumps_dagger, eqs.rates,
         eqs.iv, eqs.order, eqs.direction;
         initial_operators = copy(eqs.initial_operators),
-        coords = copy(eqs.coords),
+        treatments = copy(eqs.treatments),
     )
 end
 

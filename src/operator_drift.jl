@@ -196,9 +196,9 @@ function _dY_dS_extra_term(op, J, Jdagger, rates)
 end
 
 """
-Assert NE between every member of `distinct` and every other atom-space index in
+Assert non-equality between every member of `distinct` and every other atom-space index in
 `q` on the same Hilbert subspace, then route through `SQA.assume_distinct_index`
-(which propagates NE, canonicalises, and expands completeness). Returns `q`
+(which propagates the non-equal constraints, canonicalises, and expands completeness). Returns `q`
 unchanged when `distinct` is empty. Drives the `σ^gg = 1 - Σ σ^kk` fold for
 population/dephasing systems.
 """

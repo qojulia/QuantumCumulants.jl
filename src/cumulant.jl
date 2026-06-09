@@ -151,7 +151,7 @@ function cumulant_expansion(
         x::SymbolicUtils.BasicSymbolic, order::Int;
         mix_choice = maximum
     )
-    if _is_leaf_average(x)
+    if _is_avg_leaf(x)
         get_order(x) <= order && return x
         return _expand_average(SQA.undo_average(x), order)
     end
@@ -168,7 +168,7 @@ function cumulant_expansion(
         x::SymbolicUtils.BasicSymbolic, order::Vector{Int};
         mix_choice = maximum
     )
-    if _is_leaf_average(x)
+    if _is_avg_leaf(x)
         ops = SQA.undo_average(x)
         aons = SQA.acts_on(ops)
         ord = isempty(aons) ? maximum(order) : mix_choice(order[k] for k in aons)
@@ -231,7 +231,7 @@ appear in no leaf are treated as spurious (factor 1 in `scale`'s prefactor
 logic), matching SQA's convention for `_accumulate_with_diag!`-produced leftover
 scope.
 """
-function _stamp_sum_to_first_leaves(piece, indices::Vector{SQA.Index}, ne)
+function _stamp_sum_to_first_leaves(piece, indices::Vector{SQA.Index}, non_equal)
     isempty(indices) && return piece
     piece isa SymbolicUtils.BasicSymbolic || return piece
     # The factorised `piece` is a SUM of Wick products. The sum scope distributes
@@ -242,33 +242,33 @@ function _stamp_sum_to_first_leaves(piece, indices::Vector{SQA.Index}, ne)
     # its `Σ_i` while `⟨σ_i⟩⟨a'a⟩` kept it).
     if SymbolicUtils.iscall(piece) && SymbolicUtils.operation(piece) === (+)
         terms = SymbolicUtils.arguments(piece)
-        stamped = Any[_stamp_sum_to_first_leaves(t, indices, ne) for t in terms]
+        stamped = Any[_stamp_sum_to_first_leaves(t, indices, non_equal) for t in terms]
         return reduce(+, stamped)
     end
     leaves = SymbolicUtils.BasicSymbolic[]
     _collect_avg_leaves!(leaves, piece)
     isempty(leaves) && return piece
     leaf_idx_assign = [SQA.Index[] for _ in leaves]
-    leaf_ne_assign = [Tuple{SQA.Index, SQA.Index}[] for _ in leaves]
+    leaf_non_equal_assign = [Tuple{SQA.Index, SQA.Index}[] for _ in leaves]
     for idx in indices
         slot = _first_leaf_using(leaves, idx)
         slot === nothing && continue
         push!(leaf_idx_assign[slot], idx)
     end
-    # Attach each NE pair to a leaf. Kept when both indices are bound to the SAME
-    # leaf (internal multi-bound NE), or one is bound here and the partner is
+    # Attach each non-equal index pair to a leaf. Kept when both indices are bound to
+    # the SAME leaf (internal multi-bound constraint), or one is bound here and the partner is
     # EXTERNAL (not a bound sum index): the `Σ_{j≠ext}` constrained sum, e.g. the
     # off-diagonal recycling against the LHS index. A pair split across two distinct
     # bound leaves is NOT materialised here (the bound-vs-bound truncation case).
     for (slot, bidxs) in enumerate(leaf_idx_assign)
         isempty(bidxs) && continue
-        for pair in ne
+        for pair in non_equal
             a_in = pair[1] in bidxs
             b_in = pair[2] in bidxs
             keep = (a_in && b_in) ||
                 (a_in && !(pair[2] in indices)) ||
                 (b_in && !(pair[1] in indices))
-            keep && push!(leaf_ne_assign[slot], pair)
+            keep && push!(leaf_non_equal_assign[slot], pair)
         end
     end
     sub = IdDict{Any, Any}()
@@ -285,10 +285,10 @@ function _stamp_sum_to_first_leaves(piece, indices::Vector{SQA.Index}, ne)
         idxs = leaf_idx_assign[i]
         summed = SQA.Σ(op, idxs[1], idxs[2:end]...)
         new_leaf = SymbolicUtils.unwrap(average(summed))
-        # `SQA.Σ` over a plain operator does not carry an NE constraint; re-attach
-        # the per-leaf NE pairs as metadata when the factorisation produced any.
-        isempty(leaf_ne_assign[i]) ||
-            (new_leaf = SymbolicUtils.setmetadata(new_leaf, SQA.SumNonEqual, copy(leaf_ne_assign[i])))
+        # `SQA.Σ` over a plain operator does not carry a non-equal index constraint; re-attach
+        # the per-leaf non-equal index pairs as metadata when the factorisation produced any.
+        isempty(leaf_non_equal_assign[i]) ||
+            (new_leaf = SymbolicUtils.setmetadata(new_leaf, SQA.SumNonEqual, copy(leaf_non_equal_assign[i])))
         sub[leaf] = new_leaf
     end
     isempty(sub) && return piece
@@ -297,7 +297,7 @@ end
 
 function _collect_avg_leaves!(out, x)
     x isa SymbolicUtils.BasicSymbolic || return out
-    if _is_leaf_average(x)
+    if _is_avg_leaf(x)
         push!(out, x)
         return out
     end

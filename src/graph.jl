@@ -20,18 +20,18 @@ struct MomentGraph{S <: SystemSpec}
     nodes::OrderedCollections.OrderedDict{NodeKey, NodeData}
     sys::S
     ctx::CanonCtx
-    coords::Dict{Int, Coordinate}     # per-subspace coordinate; all-Free after seed/closure!
+    treatments::Dict{Int, SubspaceTreatment}     # per-subspace treatment; all-Free after seed/closure!
 end
 
-"""A graph is "quotiented" once any subspace has been reduced to a `Scaled` coordinate."""
-quotiented(g::MomentGraph) = any(==(Scaled), values(g.coords))
+"""A graph is "quotiented" once any subspace has been reduced to a `Scaled` treatment."""
+quotiented(g::MomentGraph) = any(==(Scaled), values(g.treatments))
 
 """
-The key function matching the graph's current level: `orbit_key` once any subspace is
-`Scaled`, otherwise `canon_key`. Kept for callers that want the coordinate-matched key;
+The key function matching the graph's current level: `scaled_key` once any subspace is
+`Scaled`, otherwise `canon_key`. Kept for callers that want the treatment-matched key;
 `closure!` keys with `canon_key` directly.
 """
-nodekey(g::MomentGraph) = quotiented(g) ? orbit_key : canon_key
+nodekey(g::MomentGraph) = quotiented(g) ? scaled_key : canon_key
 
 """
 Derive each seed op into a graph node, keyed by `canon_key` (the graph starts
@@ -45,7 +45,7 @@ function seed(ops::AbstractVector, sys::SystemSpec, ctx::CanonCtx)
         haskey(nodes, k) && continue
         nodes[k] = derive(k, sys, ctx)
     end
-    return MomentGraph(nodes, sys, ctx, all_free_coords(ctx))
+    return MomentGraph(nodes, sys, ctx, all_free_treatments(ctx))
 end
 
 """Leaves of a node's drift (and noise drift, when present) to scan for edges."""
@@ -59,24 +59,24 @@ partner when `get_adjoints=false`.
 """
 function frontier(g::MomentGraph; get_adjoints::Bool = true)
     ctx = g.ctx
-    coords = g.coords
-    # Match in the system's coordinate: fold every node key AND every leaf through the
-    # SAME `canonical_rep(·; coords)`, so a permutation-image / conjugate leaf folds to
+    treatments = g.treatments
+    # Match in the system's treatment: fold every node key AND every leaf through the
+    # SAME `canonical_rep(·; treatments)`, so a permutation-image / conjugate leaf folds to
     # the rep its stored node was keyed to. This is the SAME code path the codegen
     # resolver uses, so `find_missing == 0` means exactly "every leaf resolves at codegen".
-    seen = Set{NodeKey}(canonical_rep(k, ctx; coords)[1] for k in keys(g.nodes))
+    seen = Set{NodeKey}(canonical_rep(k, ctx; treatments)[1] for k in keys(g.nodes))
     missing = NodeKey[]
     seen_missing = Set{NodeKey}()
     for nd in values(g.nodes)
         for leaf in _drift_leaves(nd)
             op = undo_average(leaf)
             op isa QAdd || continue
-            rep, _ = canonical_rep(op, ctx; coords)
+            rep, _ = canonical_rep(op, ctx; treatments)
             (rep in seen || rep in seen_missing) && continue
             push!(missing, rep)
             push!(seen_missing, rep)
             if get_adjoints
-                repc, _ = canonical_rep(adjoint(op), ctx; coords)
+                repc, _ = canonical_rep(adjoint(op), ctx; treatments)
                 if !isequal(repc, rep) && !(repc in seen) && !(repc in seen_missing)
                     push!(missing, repc)
                     push!(seen_missing, repc)
@@ -89,7 +89,7 @@ end
 
 """
 BFS to fixpoint over the implicit edge set, deriving each discovered key on enqueue.
-Node keys use `canon_key`, NOT `orbit_key`: symmetric reduction here would collapse the
+Node keys use `canon_key`, NOT `scaled_key`: symmetric reduction here would collapse the
 unscaled count. `filter` zeroes unwanted leaves (e.g. ancilla / phase-invariant);
 `get_adjoints=false` tracks one rep per conjugate pair, with the partner resolved via
 `conj` at codegen.
@@ -163,7 +163,7 @@ function _graph_from_eqs(eqs::AbstractMeanFieldEquations; mix_choice = maximum)
         haskey(nodes, k) && continue
         nodes[k] = derive(k, sys, ctx)
     end
-    return MomentGraph(nodes, sys, ctx, all_free_coords(ctx))
+    return MomentGraph(nodes, sys, ctx, all_free_treatments(ctx))
 end
 
 """
@@ -178,13 +178,13 @@ function lower_to_eqs(g::MomentGraph)
     operators = QAdd[k for k in ks]
     operator_eqs = Symbolics.Equation[k ~ g.nodes[k].op_drift for k in ks]
     avg_eqs = Symbolics.Equation[average(k) ~ g.nodes[k].drift for k in ks]
-    coords_int = Dict{Int, Int}(sp => Int(c) for (sp, c) in g.coords)
+    treatments_int = Dict{Int, Int}(sp => Int(c) for (sp, c) in g.treatments)
     if sys.efficiencies === nothing
         return MeanFieldEquations(
             avg_eqs, operator_eqs, states, operators,
             sys.hamiltonian, collect(sys.jumps), collect(sys.jumps_dagger),
             collect(sys.rates), sys.iv, sys.order, sys.direction;
-            coords = coords_int,
+            treatments = treatments_int,
         )
     else
         noise_eqs = Symbolics.Equation[average(k) ~ g.nodes[k].noise for k in ks]
@@ -204,7 +204,7 @@ function lower_to_eqs(g::MomentGraph)
             collect(sys.jumps), collect(sys.jumps_dagger),
             collect(sys.rates), collect(sys.efficiencies),
             sys.iv, sys.order, sys.direction;
-            coords = coords_int,
+            treatments = treatments_int,
         )
     end
 end
