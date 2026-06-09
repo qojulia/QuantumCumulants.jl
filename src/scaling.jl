@@ -223,3 +223,5 @@ scale(eqs::AbstractMeanFieldEquations; h::Vector{Int} = Int[]) =
 
 scale!(eqs::AbstractMeanFieldEquations; h::Vector{Int} = Int[]) =
     _replace_contents!(eqs, scale(eqs; h))
+
+@doc (@doc scale) scale!

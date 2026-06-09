@@ -2,6 +2,7 @@ using Documenter
 using QuantumCumulants, SecondQuantizedAlgebra
 using SymbolicUtils, ModelingToolkitBase
 
+ENV["JULIA_DEBUG"] = "Documenter"
 ENV["GKSwstype"] = "100" # enable headless mode for GR to suppress warnings when plotting
 
 include("make_md_examples.jl")

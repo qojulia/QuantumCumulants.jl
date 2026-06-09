@@ -451,6 +451,18 @@ SQA._type_order(::MyMomentum) = 101
 nothing # hide
 ```
 
+Optionally, teach Latexify how to render the new operators so equations display nicely. SQA ships a `@latexrecipe` per operator type (`Destroy`, `Transition`, `Position`, …) with no generic fallback, so a custom type needs its own:
+
+```@example custom-operators
+@latexrecipe function f(x::MyPosition)
+    return Expr(:latexifymerge, "\\hat{$(x.name)}")
+end
+@latexrecipe function f(x::MyMomentum)
+    return Expr(:latexifymerge, "\\hat{$(x.name)}")
+end
+nothing # hide
+```
+
 That's enough machinery for the canonicalisation pipeline. We can now build a Hamiltonian and derive equations of motion:
 
 ```@example custom-operators
