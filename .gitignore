@@ -8,3 +8,4 @@ docs/Manifest.toml
 tmp/*
 tools/*
 docs/superpowers
+benchmarks_output.json
