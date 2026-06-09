@@ -400,7 +400,6 @@ function cumulant_expansion(
         new_eqs, eqs.operator_equations, eqs.states,
         eqs.operators, eqs.hamiltonian, eqs.jumps,
         eqs.jumps_dagger, eqs.rates, eqs.iv, order_vec;
-        initial_operators = copy(eqs.initial_operators),
     )
 end
 

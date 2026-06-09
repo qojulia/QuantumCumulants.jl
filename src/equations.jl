@@ -44,7 +44,6 @@ requested. All type parameters are bound concretely.
 * `operator_equations`: the same equations at the operator level.
 * `states`: the averages on the left-hand sides.
 * `operators`: the operators on the left-hand sides.
-* `initial_operators`: the operators originally requested, before completion added any.
 * `hamiltonian`: the system Hamiltonian.
 * `jumps`, `jumps_dagger`: the collapse operators and their adjoints.
 * `rates`: the decay rates corresponding to `jumps`.
@@ -66,7 +65,6 @@ struct MeanFieldEquations{
     operator_equations::Vector{Symbolics.Equation}
     states::Vector{S}
     operators::Vector{Op}
-    initial_operators::Vector{Op}
     hamiltonian::H
     jumps::Vector{Jt}
     jumps_dagger::Vector{Jdt}
@@ -88,7 +86,6 @@ struct MeanFieldEquations{
             iv::Symbolics.Num,
             order::O,
             direction::D = Forward();
-            initial_operators::Vector{Op} = copy(operators),
             treatments::Dict{Int, SubspaceTreatment} = Dict{Int, SubspaceTreatment}(),
         ) where {
             O, H <: QField, Op <: QField, Jt, Jdt, R,
@@ -102,7 +99,7 @@ struct MeanFieldEquations{
             "jumps/jumps_dagger/rates must have matching lengths"
         )
         return new{O, H, Op, Jt, Jdt, R, S, D}(
-            equations, operator_equations, states, operators, initial_operators,
+            equations, operator_equations, states, operators,
             hamiltonian, jumps, jumps_dagger, rates, iv, order, direction, treatments,
         )
     end
@@ -122,7 +119,6 @@ the noise assembly.
 * `operator_equations`, `operator_noise_equations`: the operator-level counterparts.
 * `states`: the averages on the left-hand sides.
 * `operators`: the operators on the left-hand sides.
-* `initial_operators`: the operators originally requested, before completion added any.
 * `hamiltonian`: the system Hamiltonian.
 * `jumps`, `jumps_dagger`: the collapse operators and their adjoints.
 * `rates`: the decay rates corresponding to `jumps`.
@@ -147,7 +143,6 @@ struct NoiseMeanFieldEquations{
     operator_noise_equations::Vector{Symbolics.Equation}
     states::Vector{S}
     operators::Vector{Op}
-    initial_operators::Vector{Op}
     hamiltonian::H
     jumps::Vector{Jt}
     jumps_dagger::Vector{Jdt}
@@ -174,7 +169,6 @@ struct NoiseMeanFieldEquations{
             iv::Symbolics.Num,
             order::O,
             direction::D;
-            initial_operators::Vector{Op} = copy(operators),
             treatments::Dict{Int, SubspaceTreatment} = Dict{Int, SubspaceTreatment}(),
         ) where {O, H, Op, Jt, Jdt, R, E, S, D}
         n = length(equations)
@@ -187,7 +181,7 @@ struct NoiseMeanFieldEquations{
         )
         return new{O, H, Op, Jt, Jdt, R, E, S, D}(
             equations, noise_equations, operator_equations,
-            operator_noise_equations, states, operators, initial_operators,
+            operator_noise_equations, states, operators,
             hamiltonian, jumps, jumps_dagger, rates,
             efficiencies, iv, order, direction, treatments,
         )
@@ -211,7 +205,6 @@ function MeanFieldEquations(eqs::NoiseMeanFieldEquations)
         eqs.equations, eqs.operator_equations, eqs.states, eqs.operators,
         eqs.hamiltonian, eqs.jumps, eqs.jumps_dagger, eqs.rates,
         eqs.iv, eqs.order, eqs.direction;
-        initial_operators = copy(eqs.initial_operators),
         treatments = copy(eqs.treatments),
     )
 end

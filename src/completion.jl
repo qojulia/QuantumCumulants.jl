@@ -156,36 +156,22 @@ end
 
 # ---- struct copy / in-place content swap -------------------------------------
 
-"""
-Graft `src`'s contents into `eqs` in place: empty and refill each mutable `Vector` field
-(`equations`, `states`, …) from `src`. Lets `complete!` keep its in-place contract while
-the closed system is built functionally via the graph. Only the fields completion changes
-are swapped; `hamiltonian`, `jumps`, `treatments` and the other shared scalars stay put.
-"""
-function _replace_contents!(eqs::MeanFieldEquations, src::MeanFieldEquations)
-    for (dst, s) in (
-            (eqs.equations, src.equations),
-            (eqs.operator_equations, src.operator_equations),
-            (eqs.states, src.states),
-            (eqs.operators, src.operators),
-        )
-        empty!(dst)
-        append!(dst, s)
-    end
-    return eqs
-end
+# Vector columns completion rebuilds (jumps/rates/etc. are untouched).
+_content_fields(::MeanFieldEquations) = (:equations, :operator_equations, :states, :operators)
+_content_fields(::NoiseMeanFieldEquations) =
+    (:equations, :noise_equations, :operator_equations, :operator_noise_equations, :states, :operators)
 
-function _replace_contents!(eqs::NoiseMeanFieldEquations, src::NoiseMeanFieldEquations)
-    for (dst, s) in (
-            (eqs.equations, src.equations),
-            (eqs.noise_equations, src.noise_equations),
-            (eqs.operator_equations, src.operator_equations),
-            (eqs.operator_noise_equations, src.operator_noise_equations),
-            (eqs.states, src.states),
-            (eqs.operators, src.operators),
-        )
+"""
+Graft `src`'s contents into `eqs` in place: empty and refill each `_content_fields`
+`Vector`. Lets `complete!` keep its in-place contract while the closed system is built
+functionally via the graph; `hamiltonian`, `jumps`, `treatments` and the other shared
+scalars stay put.
+"""
+function _replace_contents!(eqs::AbstractMeanFieldEquations, src::AbstractMeanFieldEquations)
+    for f in _content_fields(eqs)
+        dst = getproperty(eqs, f)
         empty!(dst)
-        append!(dst, s)
+        append!(dst, getproperty(src, f))
     end
     return eqs
 end
@@ -204,7 +190,6 @@ function _copy(eqs::MeanFieldEquations)
         copy(eqs.states), copy(eqs.operators),
         eqs.hamiltonian, copy(eqs.jumps), copy(eqs.jumps_dagger),
         copy(eqs.rates), eqs.iv, eqs.order, eqs.direction;
-        initial_operators = copy(eqs.initial_operators),
         treatments = copy(eqs.treatments),
     )
 end
@@ -217,7 +202,6 @@ function _copy(eqs::NoiseMeanFieldEquations)
         eqs.hamiltonian, copy(eqs.jumps), copy(eqs.jumps_dagger),
         copy(eqs.rates), copy(eqs.efficiencies),
         eqs.iv, eqs.order, eqs.direction;
-        initial_operators = copy(eqs.initial_operators),
         treatments = copy(eqs.treatments),
     )
 end
