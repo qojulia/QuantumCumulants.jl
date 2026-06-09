@@ -43,7 +43,7 @@ treatment_of(treatments::Dict{Int, SubspaceTreatment}, sp::Int) = get(treatments
 """
 The per-subspace treatment map recorded on `eqs`, falling back to all-`Free` (over the
 symmetric subspaces of `ctx`) when `eqs` carries none. Single source for the consumers
-that re-key a stored system (`find_missing`, codegen, `evaluate`, correlation/spectrum).
+that re-key a stored system (`find_missing`, the MTK `System` build, `evaluate`, correlation/spectrum).
 """
 _treatments(eqs::AbstractMeanFieldEquations, ctx::CanonCtx) =
     isempty(eqs.treatments) ? all_free_treatments(ctx) : eqs.treatments

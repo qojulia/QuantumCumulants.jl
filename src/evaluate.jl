@@ -1,5 +1,9 @@
 # ---- limits parsing ----------------------------------------------------------
 
+"""
+Parse the user's `limits` (a `Pair`, a tuple of `Pair`s, or a `Dict`) into a map from
+each symbolic range bound to its concrete integer size (the number of atoms/sites).
+"""
 function _limits_dict(limits)
     sub = Dict{Any, Int}()
     limits === nothing && return sub
@@ -188,6 +192,11 @@ function _lift_sum_scope(x)
     return new_x
 end
 
+"""
+Materialise one average leaf ⟨op⟩: apply the free-index substitution, drop targeted sum
+scope that is not being unrolled (it is no longer a real sum), then expand each remaining
+bound index over its concrete range `1:n`. Non-`QAdd` leaves pass through.
+"""
 function _materialise_leaf(avg, idx_sub, sub, ctx, hset)
     op = undo_average(avg)
     op isa QAdd || return avg
@@ -273,6 +282,13 @@ function _graph_from_stored(eqs::AbstractMeanFieldEquations)
     return MomentGraph(nodes, sys, ctx, treatments)
 end
 
+"""
+Specialise a symbolic `MomentGraph` to a concrete number of atoms/sites. For each node,
+enumerate its free indices over the ranges in `limits` (distinct sites, `i ≠ j`),
+materialise the drift (and noise) at each assignment, and keep one node per Hermitian
+conjugate pair (⟨X†⟩ = conj⟨X⟩). Every unrolled Hilbert subspace is marked `Concrete`;
+`h` restricts the expansion to selected subspaces. A no-op when `limits` is empty.
+"""
 function specialize(g::MomentGraph, limits; h::Vector{Int} = Int[])
     sub = _limits_dict(limits)
     isempty(sub) && return g
@@ -410,6 +426,11 @@ function _apply_callable_walk(x, sub)
     return _rebuild(op, new_args, x)
 end
 
+"""
+Rewrite the per-site `IndexedVariable` coefficients left after unrolling (e.g. `g(i_2)`,
+a coupling at one concrete atom) into `getindex` on a minted Symbolics array parameter,
+in place, so MTK can scalarise and bind them. A no-op when none remain.
+"""
 function _arrayize_indexed_params!(eqs::AbstractMeanFieldEquations)
     arr_sub = _build_callable_to_array_sub(eqs.equations, eqs.states)
     isempty(arr_sub) && return eqs
@@ -443,6 +464,6 @@ index ranges and unrolling the sums. The result is ready for
 function evaluate(eqs::AbstractMeanFieldEquations; limits = nothing, h::Vector{Int} = Int[], kwargs...)
     sub = _limits_dict(limits)
     isempty(sub) && return _copy(eqs)
-    out = lower_to_eqs(specialize(_graph_from_stored(eqs), limits; h))
+    out = assemble_equations(specialize(_graph_from_stored(eqs), limits; h))
     return _arrayize_indexed_params!(out)
 end

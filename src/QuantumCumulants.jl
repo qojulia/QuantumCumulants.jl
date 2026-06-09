@@ -36,10 +36,9 @@ include("canonical.jl")
 #  operator algebra to moments
 include("operator_drift.jl")
 include("cumulant.jl")
-include("noise.jl")
 include("moments.jl")
 
-#  the moment dependency graph IR
+#  the cumulant hierarchy (coupled moment equations)
 include("graph.jl")
 
 # public orchestration (passes over the graph)
@@ -49,8 +48,6 @@ include("scaling.jl")
 include("evaluate.jl")
 include("mtk.jl")
 include("correlation.jl")
-include("measurement_backaction.jl")
-include("modify.jl")
 
 # plain-text and LaTeX display (after all displayed types are defined)
 include("printing.jl")

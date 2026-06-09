@@ -121,7 +121,7 @@ function CorrelationFunction(
         merged = merge(g.treatments, eqs0.treatments)
         g = MomentGraph(g.nodes, g.sys, g.ctx, merged)
     end
-    eqs_c = lower_to_eqs(g)
+    eqs_c = assemble_equations(g)
     filter_func === nothing || _filter_ancilla_leaves!(eqs_c, ancilla_filter, filter_func)
 
     return CorrelationFunction(op1, op2, op2_ancilla, aon_ancilla, eqs_c, eqs0, τ, steady_state)
@@ -213,6 +213,11 @@ function _as_avg_dict(c::CorrelationFunction, u_end)
     throw(ArgumentError("u_end must be Dict or Vector, got $(typeof(u_end))"))
 end
 
+"""
+Numeric value of `avg` from `dict`: a direct hit, else the conjugate of `⟨X†⟩` for a
+leaf average, else (for a product/expression of averages) substitute every leaf and its
+conjugate and evaluate. Missing leaves resolve to `0`.
+"""
 function _lookup_avg(dict, avg)
     avg_u = SymbolicUtils.unwrap(avg)
     haskey(dict, avg_u) && return dict[avg_u]
@@ -311,21 +316,15 @@ function MTK.System(c::CorrelationFunction; name::Symbol)
             get!(amb, rep, (_ambient_param(avg), side))
         end
     end
+    # State variable first, then ambient parameter; both via the same conjugation-side rule.
     resolve = function (leaf)
         op = undo_average(leaf)
         op isa QAdd || return leaf
         rep, side = canonical_rep(op, reg.ctx; treatments = reg.treatments)
-        if haskey(reg.by_rep, rep)
-            var, rep_side = reg.by_rep[rep]
-            return side == rep_side ? SymbolicUtils.unwrap(var) :
-                SymbolicUtils.term(conj, SymbolicUtils.unwrap(var); type = Number)
-        end
-        if haskey(amb, rep)
-            p, rep_side = amb[rep]
-            return side == rep_side ? SymbolicUtils.unwrap(p) :
-                SymbolicUtils.term(conj, SymbolicUtils.unwrap(p); type = Number)
-        end
-        return leaf
+        r = _resolve_side(reg.by_rep, rep, side)
+        r === nothing || return r
+        a = _resolve_side(amb, rep, side)
+        return a === nothing ? leaf : a
     end
     new_eqs = Vector{Symbolics.Equation}(undef, length(eqs.equations))
     ps_set = Set{SymbolicUtils.BasicSymbolic}()

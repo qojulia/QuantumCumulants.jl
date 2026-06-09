@@ -1,17 +1,13 @@
-# The moment dependency graph IR. Nodes are canonical QAdds, each annotated with
-# its NodeData; edges stay implicit (a node's out-edges are the keyed leaves of
-# its drift).
-
 struct SystemSpec{H, Jt, Jdt, R, E, MC, D <: EvolutionDirection}
     hamiltonian::H
     jumps::Jt
     jumps_dagger::Jdt
     rates::R
-    efficiencies::E                  # Nothing means deterministic
+    efficiencies::E # Nothing means deterministic
     iv::Symbolics.Num
     order::TruncOrder
-    mix_choice::MC                   # parametric so dispatch stays static (not abstract `Function`)
-    direction::D                     # parametric `D<:EvolutionDirection` (matches MeanFieldEquations)
+    mix_choice::MC
+    direction::D
 end
 
 const NodeKey = QAdd
@@ -48,51 +44,17 @@ function seed(ops::AbstractVector, sys::SystemSpec, ctx::CanonCtx)
     return MomentGraph(nodes, sys, ctx, all_free_treatments(ctx))
 end
 
-"""Leaves of a node's drift (and noise drift, when present) to scan for edges."""
+"""Leaves of a node's drift (and noise drift, when present): the moments it couples to."""
 _drift_leaves(nd::NodeData) = nd.noise === nothing ? eachleaf(nd.drift) :
     vcat(eachleaf(nd.drift), eachleaf(nd.noise))
 
 """
-Edge-target node keys not yet in the graph; backs the public `find_missing`. Scans each
-node's drift/noise leaves, keys them via `canon_key`, and deduplicates, folding the conjugate
-partner when `get_adjoints=false`.
-"""
-function frontier(g::MomentGraph; get_adjoints::Bool = true)
-    ctx = g.ctx
-    treatments = g.treatments
-    # Match in the system's treatment: fold every node key AND every leaf through the
-    # SAME `canonical_rep(·; treatments)`, so a permutation-image / conjugate leaf folds to
-    # the rep its stored node was keyed to. This is the SAME code path the codegen
-    # resolver uses, so `find_missing == 0` means exactly "every leaf resolves at codegen".
-    seen = Set{NodeKey}(canonical_rep(k, ctx; treatments)[1] for k in keys(g.nodes))
-    missing = NodeKey[]
-    seen_missing = Set{NodeKey}()
-    for nd in values(g.nodes)
-        for leaf in _drift_leaves(nd)
-            op = undo_average(leaf)
-            op isa QAdd || continue
-            rep, _ = canonical_rep(op, ctx; treatments)
-            (rep in seen || rep in seen_missing) && continue
-            push!(missing, rep)
-            push!(seen_missing, rep)
-            if get_adjoints
-                repc, _ = canonical_rep(adjoint(op), ctx; treatments)
-                if !isequal(repc, rep) && !(repc in seen) && !(repc in seen_missing)
-                    push!(missing, repc)
-                    push!(seen_missing, repc)
-                end
-            end
-        end
-    end
-    return missing
-end
-
-"""
-BFS to fixpoint over the implicit edge set, deriving each discovered key on enqueue.
-Node keys use `canon_key`, NOT `scaled_key`: symmetric reduction here would collapse the
-unscaled count. `filter` zeroes unwanted leaves (e.g. ancilla / phase-invariant);
-`get_adjoints=false` tracks one rep per conjugate pair, with the partner resolved via
-`conj` at codegen.
+Close the cumulant hierarchy: starting from the seeded moments, repeatedly derive the
+equation of motion for every moment appearing on a right-hand side until the set is
+self-contained. Moments are keyed by `canon_key`, NOT `scaled_key`: symmetric reduction
+here would collapse the unscaled count. `filter` zeroes unwanted moments (e.g. ancilla /
+phase-invariant); `get_adjoints=false` keeps one moment per conjugate pair, the partner
+recovered via `conj` when the numerical system is built.
 """
 function closure!(
         g::MomentGraph; filter = _alltrue, get_adjoints::Bool = true,
@@ -100,42 +62,41 @@ function closure!(
     )
     ctx = g.ctx
     seen = Set(keys(g.nodes))
-    worklist = collect(keys(g.nodes))
+    pending = collect(keys(g.nodes))
     iters = 0
-    while !isempty(worklist)
-        # `max_iter` is a runaway backstop, NOT a closure limiter. Hitting it
-        # means the BFS did not reach the fixpoint; ERROR rather than silently
-        # return a truncated (non-closed) system, which downstream codegen would
-        # mask (the system would look closed but leak/drop leaves).
+    while !isempty(pending)
+        # `max_iter` is a runaway backstop, NOT a closure limiter. Hitting it means the
+        # hierarchy did not close; ERROR rather than silently return a truncated
+        # (non-closed) system, which the numerical-system build would mask (it would
+        # look closed but leak/drop moments).
         iters >= max_iter && error(
-            "closure! did not reach the fixpoint within $max_iter iterations " *
-                "($(length(worklist)) nodes still pending); the system may not close.",
+            "closure! did not close the hierarchy within $max_iter iterations " *
+                "($(length(pending)) moments still pending); the system may not close.",
         )
         iters += 1
-        nd = g.nodes[popfirst!(worklist)]
+        nd = g.nodes[popfirst!(pending)]
         for leaf in _drift_leaves(nd)
             op = undo_average(leaf)
             k = canon_key(op, ctx)
             k in seen && continue
             kc = canon_key(adjoint(op), ctx)
-            # A state and its conjugate are ONE physical unknown: if the
-            # conjugate partner is already a node, this leaf is covered
-            # (codegen resolves ⟨X⟩ = conj⟨X†⟩). Unconditional in
-            # get_adjoints, matching master's conjugate deduplication.
+            # A moment and its conjugate are ONE physical unknown: if the conjugate
+            # partner is already tracked, this moment is covered (the numerical system
+            # resolves ⟨X⟩ = conj⟨X†⟩). Unconditional in get_adjoints.
             if kc in seen
                 push!(seen, k)
                 continue
             end
             filter(average(k)) || continue
-            # Genuinely new state (neither rep seen yet).
+            # Genuinely new moment (neither rep seen yet).
             g.nodes[k] = derive(k, g.sys, ctx)
             push!(seen, k)
-            push!(worklist, k)
+            push!(pending, k)
             if get_adjoints && kc != k
-                # Track the conjugate partner as its own node.
+                # Track the conjugate partner as its own moment.
                 g.nodes[kc] = derive(kc, g.sys, ctx)
                 push!(seen, kc)
-                push!(worklist, kc)
+                push!(pending, kc)
             else
                 push!(seen, kc)
             end
@@ -167,11 +128,11 @@ function _graph_from_eqs(eqs::AbstractMeanFieldEquations; mix_choice = maximum)
 end
 
 """
-Lower a graph's nodes back into the array-backed `MeanFieldEquations` /
-`NoiseMeanFieldEquations` struct. Nodes are canon-rep `QAdd`s; LHS and drift share that
-rep so the system is self-consistent.
+Assemble the graph's moments into the array-backed `MeanFieldEquations` /
+`NoiseMeanFieldEquations` struct. Each moment is a canon-rep `QAdd`; LHS and drift share
+that rep so the system is self-consistent.
 """
-function lower_to_eqs(g::MomentGraph)
+function assemble_equations(g::MomentGraph)
     sys = g.sys
     ks = collect(keys(g.nodes))
     states = SymbolicUtils.BasicSymbolic[average(k) for k in ks]

@@ -205,7 +205,7 @@ function MeanFieldEquations(eqs::NoiseMeanFieldEquations)
         eqs.equations, eqs.operator_equations, eqs.states, eqs.operators,
         eqs.hamiltonian, eqs.jumps, eqs.jumps_dagger, eqs.rates,
         eqs.iv, eqs.order, eqs.direction;
-        treatments = copy(eqs.treatments),
+        treatments = eqs.treatments,
     )
 end
 

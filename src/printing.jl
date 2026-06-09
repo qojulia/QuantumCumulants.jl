@@ -1,8 +1,3 @@
-# Plain-text and LaTeX display for the equation containers, the correlation
-# function, and the spectrum. Operator and average rendering is provided by
-# SecondQuantizedAlgebra (its `@latexrecipe`s plus the `AvgFunc` hook into
-# Symbolics' latexify), so these recipes only assemble the surrounding system.
-
 function Base.show(io::IO, de::AbstractMeanFieldEquations)
     for eq in de.equations
         write(io, "∂ₜ(")

@@ -1,9 +1,3 @@
-# c-number expression mechanics over averaged `BasicSymbolic`/`Num` trees.
-# A "leaf" is a single average ⟨op⟩ (operation === sym_average); a product of
-# averages ⟨a⟩⟨b⟩ has symtype AvgSym but is NOT a leaf (its operation is `*`).
-# Centralizes leaf detection, the ===-not-isequal rebuild trap, and the
-# complex -> re + im*Symbolics.IM finalizer that SymbolicUtils needs to unify.
-
 function _is_avg_leaf(x::SymbolicUtils.BasicSymbolic)
     return SQA.is_average(x) &&
         SymbolicUtils.iscall(x) &&

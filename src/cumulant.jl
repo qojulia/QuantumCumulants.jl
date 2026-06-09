@@ -28,11 +28,6 @@ function get_order(q::QAdd)
     return maximum(length(t.ops) for (t, _) in q.arguments)
 end
 function get_order(x::SymbolicUtils.BasicSymbolic)
-    # Treat only *leaf* averages ⟨op⟩ as moments. A product of averages
-    # ⟨a⟩·⟨b⟩ still has symtype === AvgSym (so `is_average` returns true)
-    # but its "order" for cumulant-truncation purposes is the max order of
-    # its constituent leaf averages, not the order of `undo_average`'s
-    # operator-product re-assembly.
     if SQA.is_average(x) &&
             SymbolicUtils.iscall(x) &&
             SymbolicUtils.operation(x) === SQA.sym_average
@@ -129,7 +124,6 @@ julia> cumulant_expansion(average(a * b), 1)
 ```
 """
 cumulant_expansion(x::Number, order; kw...) = x
-cumulant_expansion(x::Number, ::Nothing; kw...) = x
 cumulant_expansion(x::SymbolicUtils.BasicSymbolic, ::Nothing; kw...) = x
 cumulant_expansion(x::Symbolics.Num, ::Nothing; kw...) = x
 cumulant_expansion(eqs::MeanFieldEquations, ::Nothing; kw...) = eqs
@@ -234,12 +228,9 @@ scope.
 function _stamp_sum_to_first_leaves(piece, indices::Vector{SQA.Index}, non_equal)
     isempty(indices) && return piece
     piece isa SymbolicUtils.BasicSymbolic || return piece
-    # The factorised `piece` is a SUM of Wick products. The sum scope distributes
-    # over the additive terms (`Σ_i (A + B) = Σ_i A + Σ_i B`), and within each
-    # product `Σ_i` binds that product's own indexed leaf. Recurse per additive
-    # term so EVERY Wick term referencing a bound index carries the scope on its
-    # leaf, not just the globally-first one (which left e.g. `⟨a'σ_i⟩⟨a⟩` without
-    # its `Σ_i` while `⟨σ_i⟩⟨a'a⟩` kept it).
+    # Recurse per additive term: the sum scope distributes over `+`, so every Wick term
+    # that references a bound index must carry it on its own leaf, not just the first
+    # term's (else e.g. `⟨a'σ_i⟩⟨a⟩` loses its `Σ_i` while `⟨σ_i⟩⟨a'a⟩` keeps it).
     if SymbolicUtils.iscall(piece) && SymbolicUtils.operation(piece) === (+)
         terms = SymbolicUtils.arguments(piece)
         stamped = Any[_stamp_sum_to_first_leaves(t, indices, non_equal) for t in terms]
@@ -255,11 +246,9 @@ function _stamp_sum_to_first_leaves(piece, indices::Vector{SQA.Index}, non_equal
         slot === nothing && continue
         push!(leaf_idx_assign[slot], idx)
     end
-    # Attach each non-equal index pair to a leaf. Kept when both indices are bound to
-    # the SAME leaf (internal multi-bound constraint), or one is bound here and the partner is
-    # EXTERNAL (not a bound sum index): the `Σ_{j≠ext}` constrained sum, e.g. the
-    # off-diagonal recycling against the LHS index. A pair split across two distinct
-    # bound leaves is NOT materialised here (the bound-vs-bound truncation case).
+    # Keep a non-equal pair if both indices land on this leaf, or one does and its
+    # partner is external (a `Σ_{j≠ext}` constraint); a pair split across two bound
+    # leaves is dropped (the bound-vs-bound truncation case).
     for (slot, bidxs) in enumerate(leaf_idx_assign)
         isempty(bidxs) && continue
         for pair in non_equal
@@ -274,13 +263,10 @@ function _stamp_sum_to_first_leaves(piece, indices::Vector{SQA.Index}, non_equal
     sub = IdDict{Any, Any}()
     for (i, leaf) in enumerate(leaves)
         isempty(leaf_idx_assign[i]) && continue
-        # Reconstruct the summed average through `average(SQA.Σ(op, idxs...))`, the
-        # SAME canonical form a freshly-derived sum carries. A bare
-        # `setmetadata(average(op), SumIndices, …)` is display- and isequal-equal to
-        # the un-summed leaf but is NOT isequal to the canonical summed average
-        # (their inner structure differs), so the two never cancel in arithmetic
-        # (`Σ_i⟨σ_i⟩⟨a†a⟩ - ⟨a†a⟩Σ_i⟨σ_i⟩ ≠ 0`). Building it canonically makes the
-        # cumulant-factored sum identical to the natural one.
+        # Rebuild via the canonical `average(SQA.Σ(op, idxs...))`: a plain
+        # `setmetadata(average(op), SumIndices, …)` is isequal to the un-summed leaf, not
+        # to the canonical summed form, so the two never cancel
+        # (`Σ_i⟨σ_i⟩⟨a†a⟩ - ⟨a†a⟩Σ_i⟨σ_i⟩ ≠ 0`).
         op = undo_average(leaf)
         idxs = leaf_idx_assign[i]
         summed = SQA.Σ(op, idxs[1], idxs[2:end]...)
@@ -334,6 +320,14 @@ function _substitute_by_identity(x, sub::IdDict)
     return op(new_args...)
 end
 
+"""
+The cumulant-truncation kernel: rewrite ⟨a product of `args`⟩ that exceeds `order` as
+the signed sum over partitions into 2..n blocks, dropping the joint cumulant above
+`order`. Each partition of `m` blocks carries the moment-cumulant inversion weight
+`-(m-1)!·(-1)^(m-1)`; a block still longer than `order` is expanded recursively, a block
+within the cap is averaged directly. A product already within `order` is left as one
+average.
+"""
 function _expand_product(args::Vector, order::Int)
     n = length(args)
     n <= order && return average(_prod_ops(args))
@@ -356,6 +350,11 @@ function _expand_product(args::Vector, order::Int)
     return acc
 end
 
+"""
+Per-Hilbert-space variant of `_expand_product`: the truncation cap for each block is its
+own `mix_choice(order[acts_on])` rather than a single global `order`, so a mixed product
+is capped by the subspaces it actually touches.
+"""
 function _expand_product(args::Vector, order::Vector{Int}; mix_choice = maximum)
     p = _prod_ops(args)
     aons = SQA.acts_on(p)
@@ -382,10 +381,11 @@ function _expand_product(args::Vector, order::Vector{Int}; mix_choice = maximum)
 end
 
 """
-    cumulant_expansion(eqs::AbstractMeanFieldEquations, order; ...)
+    cumulant_expansion(eqs::MeanFieldEquations, order; mix_choice=maximum)
 
-Apply `cumulant_expansion` to every RHS in `eqs.equations`, returning a new
-struct with the same shape and the supplied order stored in `eqs.order`.
+Cumulant-expand every RHS of `eqs` to `order`, returning a new `MeanFieldEquations` of
+the same shape with that order stored. Noise systems take their order through
+[`meanfield`](@ref), not here.
 """
 function cumulant_expansion(
         eqs::MeanFieldEquations, order;
@@ -399,7 +399,8 @@ function cumulant_expansion(
     return MeanFieldEquations(
         new_eqs, eqs.operator_equations, eqs.states,
         eqs.operators, eqs.hamiltonian, eqs.jumps,
-        eqs.jumps_dagger, eqs.rates, eqs.iv, order_vec
+        eqs.jumps_dagger, eqs.rates, eqs.iv, order_vec, eqs.direction;
+        treatments = eqs.treatments,
     )
 end
 

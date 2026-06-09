@@ -24,7 +24,7 @@ function complete!(
     g = _graph_from_eqs(eqs; mix_choice)
     keep = filter_func === nothing ? _alltrue : filter_func
     closure!(g; filter = keep, get_adjoints, max_iter)
-    closed = lower_to_eqs(g)
+    closed = assemble_equations(g)
     filter_func !== nothing && _filter_rhs!(closed, filter_func)
     _replace_contents!(eqs, closed)
     return eqs
@@ -78,7 +78,7 @@ function find_missing(
         get_adjoints::Bool = true, mix_choice = maximum,
     )
     # Key states and RHS leaves with the same `canonical_rep` + recorded treatment the
-    # codegen resolver uses, so a leaf is "missing" exactly when closure would not track it.
+    # numerical-system resolver uses, so a leaf is "missing" exactly when closure would not track it.
     ctx = build_ctx(eqs)
     treatments = _treatments(eqs, ctx)
     seen = Set{QAdd}()

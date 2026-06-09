@@ -219,7 +219,7 @@ mutates `eqs` in place; `scale` returns a new system.
 # Build from STORED drifts, never re-derive: `complete(...; filter_func)` records
 # filter substitutions in `eqs.equations` that re-derivation would discard.
 scale(eqs::AbstractMeanFieldEquations; h::Vector{Int} = Int[]) =
-    lower_to_eqs(quotient(_graph_from_stored(eqs); h))
+    assemble_equations(quotient(_graph_from_stored(eqs); h))
 
 scale!(eqs::AbstractMeanFieldEquations; h::Vector{Int} = Int[]) =
     _replace_contents!(eqs, scale(eqs; h))

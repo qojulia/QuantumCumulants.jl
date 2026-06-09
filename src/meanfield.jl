@@ -1,9 +1,3 @@
-# Public entry point. `meanfield` normalizes the jump/rate inputs, seeds a moment
-# graph, and lowers it to the array container. Deterministic and noise systems
-# share one path: `efficiencies` flips `SystemSpec.efficiencies`, which makes
-# `derive` compute the noise drift and `lower_to_eqs` emit the noise columns. No
-# bespoke per-path assembly.
-
 """
 Flatten one level of nesting in `jumps`/`jumps_dagger`: collective-decay sources
 may arrive as a vector of mode vectors, and this leaves each source a single
@@ -88,7 +82,7 @@ function meanfield(
     ctx = build_ctx(ops, H, Jn, Jdn)
     sys = SystemSpec(H, Jn, Jdn, rn, eff, iv, order_vec, mix_choice, direction)
     g = seed(QAdd[op * 1 for op in ops], sys, ctx)
-    return lower_to_eqs(g)
+    return assemble_equations(g)
 end
 
 meanfield(op::QField, H::QField, args...; kw...) = meanfield([op], H, args...; kw...)
@@ -142,3 +136,70 @@ end
 
 SymbolicUtils.simplify(eqs::AbstractMeanFieldEquations; kwargs...) =
     simplify!(_copy(eqs); kwargs...)
+
+# ---- measurement record: rewrite dW-parametrised SDE to dY ----
+
+"""
+    translate_W_to_Y(eqs::NoiseMeanFieldEquations; mix_choice=maximum)
+
+Rewrite an SDE whose noise drift is parametrised by the underlying Wiener
+process `dW` into one parametrised by the measurement record `dY` instead.
+The substitution `dW = dY - sqrt(2η)·⟨J + J†⟩·dt` adds a deterministic
+correction to the drift; the noise drift itself is unchanged.
+
+For each equation the RHS is augmented by
+`cumulant_expansion(-_dY_dS_extra_term(lhs_op, J, Jdagger, rates .* efficiencies))`,
+cumulant-expanded to `eqs.order` when set. Returns a fresh
+`NoiseMeanFieldEquations` of the same direction. The augmented RHS is left
+unsimplified; apply `simplify` yourself for a canonical form.
+"""
+function translate_W_to_Y(
+        eqs::NoiseMeanFieldEquations;
+        mix_choice::Function = maximum,
+    )
+    out = _copy(eqs)
+    J, Jd = out.jumps, out.jumps_dagger
+    rates_eff = out.rates .* out.efficiencies
+    for i in eachindex(out.equations)
+        eq_i = out.equations[i]
+        lhs_op = undo_average(eq_i.lhs)
+        term = -_dY_dS_extra_term(lhs_op, J, Jd, rates_eff)
+        out.order !== nothing && (term = cumulant_expansion(term, out.order; mix_choice))
+        out.equations[i] = eq_i.lhs ~ eq_i.rhs + term
+    end
+    return out
+end
+
+# ---- user-supplied RHS rewrite ----
+
+"""
+    modify_equations(eqs::AbstractMeanFieldEquations, f::Function)
+
+Return a copy of `eqs` whose RHS for each equation has been rewritten by `f`.
+The function is called as `f(lhs_op, rhs)`, receiving the *operator* form of
+the LHS (`undo_average(eq.lhs)`) and the symbolic RHS, and returning a new RHS.
+
+```julia
+f(lhs, rhs) = rhs + cumulant_expansion(average(commutator(1im * Hadd, lhs)), 2)
+eqs_mod = modify_equations(eqs, f)
+```
+
+See also [`modify_equations!`](@ref).
+"""
+modify_equations(eqs::AbstractMeanFieldEquations, f::Function) =
+    modify_equations!(_copy(eqs), f)
+
+"""
+    modify_equations!(eqs::AbstractMeanFieldEquations, f::Function)
+
+In-place version of [`modify_equations`](@ref). Walks `eqs.equations` and replaces each
+RHS with `f(undo_average(lhs), rhs)`.
+"""
+function modify_equations!(eqs::AbstractMeanFieldEquations, f::Function)
+    for i in eachindex(eqs.equations)
+        lhs = eqs.equations[i].lhs
+        rhs = eqs.equations[i].rhs
+        eqs.equations[i] = lhs ~ f(undo_average(lhs), rhs)
+    end
+    return eqs
+end

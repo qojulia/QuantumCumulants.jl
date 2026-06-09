@@ -60,6 +60,18 @@ function _state_registry(eqs::AbstractMeanFieldEquations)
 end
 
 """
+Resolve a `(rep, side)` against a `rep → (symbol, rep_side)` table: the symbol on the
+matching conjugation side, its conjugate on the opposite side, or `nothing` when `rep`
+is absent. Raw `term(conj, …)` not `Base.conj`, which folds to identity on Real symtype.
+"""
+function _resolve_side(table, rep, side)
+    haskey(table, rep) || return nothing
+    sym, rep_side = table[rep]
+    u = SymbolicUtils.unwrap(sym)
+    return side == rep_side ? u : SymbolicUtils.term(conj, u; type = Number)
+end
+
+"""
 Build a closure that resolves a RHS average leaf to its state variable (or that
 variable's conjugate), leaving non-state leaves untouched as ambient parameters. The
 leaf and the stored representative agree iff they sit on the same conjugation side.
@@ -69,11 +81,8 @@ function _leaf_resolver(reg)
         op = undo_average(leaf)
         op isa QAdd || return leaf
         rep, side = canonical_rep(op, reg.ctx; treatments = reg.treatments)
-        haskey(reg.by_rep, rep) || return leaf
-        var, rep_side = reg.by_rep[rep]
-        # Raw `term(conj, …)` not `Base.conj`: the latter folds to identity on Real symtype.
-        return side == rep_side ? SymbolicUtils.unwrap(var) :
-            SymbolicUtils.term(conj, SymbolicUtils.unwrap(var); type = Number)
+        r = _resolve_side(reg.by_rep, rep, side)
+        return r === nothing ? leaf : r
     end
 end
 
@@ -112,8 +121,8 @@ end
     ModelingToolkitBase.System(eqs::MeanFieldEquations; name)
     ModelingToolkitBase.System(eqs::NoiseMeanFieldEquations; name)
 
-Lower the equation set to an MTK `System`: one `u(t)` variable per state, the
-drift resolved to those variables. A `NoiseMeanFieldEquations` lowers to an SDE
+Build an MTK `System` from the equation set: one `u(t)` variable per state, the
+drift resolved to those variables. A `NoiseMeanFieldEquations` becomes an SDE
 whose single Brownian column is the aggregated noise drift (sign +1 Forward, -1
 Backward). RHS leaves not matching a state become parameters.
 """

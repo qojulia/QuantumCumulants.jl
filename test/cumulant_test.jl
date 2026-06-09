@@ -71,6 +71,16 @@ end
     @test get_order(eqs2.equations[1].rhs) <= 2
 end
 
+@testset "cumulant_expansion(eqs, order) preserves direction" begin
+    hc = FockSpace(:cavity)
+    @qnumbers a::Destroy(hc)
+    @variables ω κ
+    H = ω * a' * a + κ * a' * a' * a
+    bw = meanfield([a], H, [a]; rates = [κ], direction = Backward())
+    @test bw.direction isa Backward
+    @test cumulant_expansion(bw, 2).direction isa Backward
+end
+
 @testset "cumulant" begin
     hs = FockSpace[]
     for i in 1:4
