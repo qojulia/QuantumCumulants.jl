@@ -6,6 +6,19 @@ Supertype of [`MeanFieldEquations`](@ref) and [`NoiseMeanFieldEquations`](@ref).
 abstract type AbstractMeanFieldEquations end
 
 """
+How one Hilbert-space factor (an SQA *subspace*, the tensor factor of the system's
+`ProductSpace` identified by its `space_index`) is treated when building a moment's
+canonical label:
+- `Free`: its atom index stays a free symbolic index.
+- `Scaled`: reduced under the permutation symmetry ``S_n`` of the identical atoms (the `scale` reduction).
+- `Concrete`: pinned to fixed sites `1..M` (after `evaluate`).
+
+The keying logic that consumes this lives in [canonical.jl](canonical.jl); it is defined
+here only because `MeanFieldEquations` stores a `Dict{Int, SubspaceTreatment}` field.
+"""
+@enum SubspaceTreatment Free Scaled Concrete
+
+"""
     EvolutionDirection
 
 Supertype of the singleton tags [`Forward`](@ref) and [`Backward`](@ref) used to
@@ -61,10 +74,7 @@ struct MeanFieldEquations{
     iv::Symbolics.Num
     order::O
     direction::D
-    # Per-subspace treatment state, keyed by space index and valued by the `Int`
-    # of the `SubspaceTreatment` enum (defined in canonical.jl, included after this file).
-    # An empty map means every subspace is Free.
-    treatments::Dict{Int, Int}
+    treatments::Dict{Int, SubspaceTreatment}
 
     function MeanFieldEquations(
             equations::Vector{Symbolics.Equation},
@@ -79,7 +89,7 @@ struct MeanFieldEquations{
             order::O,
             direction::D = Forward();
             initial_operators::Vector{Op} = copy(operators),
-            treatments::Dict{Int, Int} = Dict{Int, Int}(),
+            treatments::Dict{Int, SubspaceTreatment} = Dict{Int, SubspaceTreatment}(),
         ) where {
             O, H <: QField, Op <: QField, Jt, Jdt, R,
             S <: SymbolicUtils.BasicSymbolic, D <: EvolutionDirection,
@@ -147,7 +157,7 @@ struct NoiseMeanFieldEquations{
     order::O
     direction::D
     # Per-subspace treatment state; see MeanFieldEquations.
-    treatments::Dict{Int, Int}
+    treatments::Dict{Int, SubspaceTreatment}
 
     function NoiseMeanFieldEquations(
             equations::Vector{Symbolics.Equation},
@@ -165,7 +175,7 @@ struct NoiseMeanFieldEquations{
             order::O,
             direction::D;
             initial_operators::Vector{Op} = copy(operators),
-            treatments::Dict{Int, Int} = Dict{Int, Int}(),
+            treatments::Dict{Int, SubspaceTreatment} = Dict{Int, SubspaceTreatment}(),
         ) where {O, H, Op, Jt, Jdt, R, E, S, D}
         n = length(equations)
         @assert n == length(noise_equations) == length(operator_equations) ==

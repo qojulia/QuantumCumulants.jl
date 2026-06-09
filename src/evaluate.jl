@@ -249,14 +249,13 @@ Build a `MomentGraph` from a completed equation set using its stored drifts. Reu
 recorded RHSs (preserving any filter applied during completion) rather than re-deriving.
 """
 function _graph_from_stored(eqs::AbstractMeanFieldEquations)
-    ctx = build_ctx(eqs.operators, eqs.hamiltonian, eqs.jumps, eqs.jumps_dagger)
+    ctx = build_ctx(eqs)
     eff = eqs isa NoiseMeanFieldEquations ? eqs.efficiencies : nothing
     sys = SystemSpec(
         eqs.hamiltonian, collect(eqs.jumps), collect(eqs.jumps_dagger),
         collect(eqs.rates), eff, eqs.iv, eqs.order, maximum, eqs.direction,
     )
-    treatments = isempty(eqs.treatments) ? all_free_treatments(ctx) :
-        Dict{Int, SubspaceTreatment}(sp => SubspaceTreatment(c) for (sp, c) in eqs.treatments)
+    treatments = _treatments(eqs, ctx)
     nodes = OrderedCollections.OrderedDict{NodeKey, NodeData}()
     for i in eachindex(eqs.operators)
         op = eqs.operators[i]

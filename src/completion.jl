@@ -77,15 +77,10 @@ function find_missing(
         eqs::AbstractMeanFieldEquations; filter_func = nothing,
         get_adjoints::Bool = true, mix_choice = maximum,
     )
-    # Fold every tracked state AND every RHS leaf through the SAME
-    # `canonical_rep(·; treatments)` the codegen resolver uses, in the system's
-    # recorded treatment. The seen-set is built from the faithful state operators
-    # (not a canon_key-collapsed graph), so concrete per-site atoms stay distinct
-    # under the Concrete treatment. A leaf is missing only if neither it nor its
-    # conjugate folds to a tracked state.
-    ctx = build_ctx(eqs.operators, eqs.hamiltonian, eqs.jumps, eqs.jumps_dagger)
-    treatments = isempty(eqs.treatments) ? all_free_treatments(ctx) :
-        Dict{Int, SubspaceTreatment}(sp => SubspaceTreatment(c) for (sp, c) in eqs.treatments)
+    # Key states and RHS leaves with the same `canonical_rep` + recorded treatment the
+    # codegen resolver uses, so a leaf is "missing" exactly when closure would not track it.
+    ctx = build_ctx(eqs)
+    treatments = _treatments(eqs, ctx)
     seen = Set{QAdd}()
     for s in eqs.states
         op = undo_average(s)

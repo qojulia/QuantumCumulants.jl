@@ -57,8 +57,8 @@ end
     H = Δ * a' * a + g * ∑(σ(2, 1, i) * a + σ(1, 2, i) * a', i)
     eqs = meanfield(a' * a, H, [a]; rates = [κ], order = 2)
     complete!(eqs)
-    atom_sp = first(QuantumCumulants.build_ctx(eqs.operators, eqs.hamiltonian, eqs.jumps, eqs.jumps_dagger).symmetric)
-    @test get(eqs.treatments, atom_sp, Int(QuantumCumulants.Free)) == Int(QuantumCumulants.Free)
-    @test get(scale(eqs).treatments, atom_sp, Int(QuantumCumulants.Free)) == Int(QuantumCumulants.Scaled)
-    @test get(evaluate(eqs; limits = (N => 3)).treatments, atom_sp, Int(QuantumCumulants.Free)) == Int(QuantumCumulants.Concrete)
+    atom_sp = first(QuantumCumulants.build_ctx(eqs).symmetric)
+    @test get(eqs.treatments, atom_sp, QuantumCumulants.Free) == QuantumCumulants.Free
+    @test get(scale(eqs).treatments, atom_sp, QuantumCumulants.Free) == QuantumCumulants.Scaled
+    @test get(evaluate(eqs; limits = (N => 3)).treatments, atom_sp, QuantumCumulants.Free) == QuantumCumulants.Concrete
 end

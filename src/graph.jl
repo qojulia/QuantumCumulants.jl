@@ -150,7 +150,7 @@ Rebuild a `MomentGraph` from an existing equations struct: every current state b
 node, re-derived on its canon key, ready for `closure!` to extend.
 """
 function _graph_from_eqs(eqs::AbstractMeanFieldEquations; mix_choice = maximum)
-    ctx = build_ctx(eqs.operators, eqs.hamiltonian, eqs.jumps, eqs.jumps_dagger)
+    ctx = build_ctx(eqs)
     eff = eqs isa NoiseMeanFieldEquations ? eqs.efficiencies : nothing
     sys = SystemSpec(
         eqs.hamiltonian, eqs.jumps, eqs.jumps_dagger, eqs.rates, eff,
@@ -178,13 +178,12 @@ function lower_to_eqs(g::MomentGraph)
     operators = QAdd[k for k in ks]
     operator_eqs = Symbolics.Equation[k ~ g.nodes[k].op_drift for k in ks]
     avg_eqs = Symbolics.Equation[average(k) ~ g.nodes[k].drift for k in ks]
-    treatments_int = Dict{Int, Int}(sp => Int(c) for (sp, c) in g.treatments)
     if sys.efficiencies === nothing
         return MeanFieldEquations(
             avg_eqs, operator_eqs, states, operators,
             sys.hamiltonian, collect(sys.jumps), collect(sys.jumps_dagger),
             collect(sys.rates), sys.iv, sys.order, sys.direction;
-            treatments = treatments_int,
+            treatments = copy(g.treatments),
         )
     else
         noise_eqs = Symbolics.Equation[average(k) ~ g.nodes[k].noise for k in ks]
@@ -204,7 +203,7 @@ function lower_to_eqs(g::MomentGraph)
             collect(sys.jumps), collect(sys.jumps_dagger),
             collect(sys.rates), collect(sys.efficiencies),
             sys.iv, sys.order, sys.direction;
-            treatments = treatments_int,
+            treatments = copy(g.treatments),
         )
     end
 end

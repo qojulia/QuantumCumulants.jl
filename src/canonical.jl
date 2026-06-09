@@ -20,16 +20,6 @@ struct CanonCtx
 end
 
 """
-How one Hilbert-space factor (an SQA *subspace*, the tensor factor of the system's
-`ProductSpace` identified by its `space_index`) is treated when building a moment's
-canonical label:
-- `Free`: its atom index stays a free symbolic index.
-- `Scaled`: reduced under the permutation symmetry ``S_n`` of the identical atoms (the `scale` reduction).
-- `Concrete`: pinned to fixed sites `1..M` (after `evaluate`).
-"""
-@enum SubspaceTreatment Free Scaled Concrete
-
-"""
 Per-subspace treatment map marking every symmetric subspace of `ctx` as `Free`. Scalar
 systems (no symmetric subspace) yield an empty map, which the keying functions read
 as all-`Free`.
@@ -49,6 +39,14 @@ end
 Treatment of subspace `sp` in `treatments`, defaulting to `Free` when unlisted.
 """
 treatment_of(treatments::Dict{Int, SubspaceTreatment}, sp::Int) = get(treatments, sp, Free)
+
+"""
+The per-subspace treatment map recorded on `eqs`, falling back to all-`Free` (over the
+symmetric subspaces of `ctx`) when `eqs` carries none. Single source for the consumers
+that re-key a stored system (`find_missing`, codegen, `evaluate`, correlation/spectrum).
+"""
+_treatments(eqs::AbstractMeanFieldEquations, ctx::CanonCtx) =
+    isempty(eqs.treatments) ? all_free_treatments(ctx) : eqs.treatments
 
 """
 Collect the indices the Liouvillian treats as bound: sum-scope `.indices` and any
@@ -124,6 +122,13 @@ function build_ctx(
 
     return CanonCtx(vocab, symmetric, Set{Int}(selected))
 end
+
+"""
+Build the canonicalisation context from a stored equation set, reading its operators,
+Hamiltonian and jumps.
+"""
+build_ctx(eqs::AbstractMeanFieldEquations) =
+    build_ctx(eqs.operators, eqs.hamiltonian, eqs.jumps, eqs.jumps_dagger)
 
 """
 Canonical label of the average ⟨`op`⟩ as it enters the cumulant hierarchy: two averages

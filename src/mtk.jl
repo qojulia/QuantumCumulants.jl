@@ -41,11 +41,10 @@ Build the per-state `u(t)` variables and the scaled/`canon_key` lookup maps shar
 `System`, `initial_values` and `get_solution`, so variable naming agrees across them.
 """
 function _state_registry(eqs::AbstractMeanFieldEquations)
-    ctx = build_ctx(eqs.operators, eqs.hamiltonian, eqs.jumps, eqs.jumps_dagger)
+    ctx = build_ctx(eqs)
     # Key/match in the system's recorded treatment, not a hardcoded `concrete_rep`
     # (an empty map, scalar systems, reads as all-Free).
-    treatments = isempty(eqs.treatments) ? all_free_treatments(ctx) :
-        Dict{Int, SubspaceTreatment}(sp => SubspaceTreatment(c) for (sp, c) in eqs.treatments)
+    treatments = _treatments(eqs, ctx)
     ops = QAdd[undo_average(s) isa QAdd ? undo_average(s) : undo_average(s) * 1 for s in eqs.states]
     vars = Symbolics.Num[_make_var(serialize(op), eqs.iv) for op in ops]
     # Keyed by the Hermitian-conjugate representative, valued by `(state var, side-of-rep)`: a leaf

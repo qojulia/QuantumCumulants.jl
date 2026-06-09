@@ -118,7 +118,7 @@ function CorrelationFunction(
     # Inherit eqs0's per-subspace treatments so the resolver matches the
     # correlation's leaves in the same treatment as the parent system.
     if !isempty(eqs0.treatments)
-        merged = merge(g.treatments, Dict{Int, SubspaceTreatment}(sp => SubspaceTreatment(c) for (sp, c) in eqs0.treatments))
+        merged = merge(g.treatments, eqs0.treatments)
         g = MomentGraph(g.nodes, g.sys, g.ctx, merged)
     end
     eqs_c = lower_to_eqs(g)
@@ -412,9 +412,8 @@ function _spectrum_kernel(S::Spectrum, u_end, p0)
     # Classify each leaf by Hermitian conjugation, recording its side: same side as the
     # matched state is linear (A_lin), opposite side is anti-linear (A_alin). The
     # conjugate representative stays robust for scaled states, where adjoint does not round-trip.
-    spec_ctx = build_ctx(eqs.operators, eqs.hamiltonian, eqs.jumps, eqs.jumps_dagger)
-    spec_treatments = isempty(eqs.treatments) ? all_free_treatments(spec_ctx) :
-        Dict{Int, SubspaceTreatment}(sp => SubspaceTreatment(cc) for (sp, cc) in eqs.treatments)
+    spec_ctx = build_ctx(eqs)
+    spec_treatments = _treatments(eqs, spec_ctx)
     state_by_rep = Dict{QAdd, Tuple{Int, Bool}}()
     for (i, s) in enumerate(eqs.states)
         op = undo_average(s)
