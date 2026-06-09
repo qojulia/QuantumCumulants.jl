@@ -291,7 +291,7 @@ function specialize(g::MomentGraph, limits; h::Vector{Int} = Int[])
             )
             new_k = _apply_free(k, idx_sub)
             _is_zero_qadd(new_k) && continue
-            # Dedup by the Hermitian conjugation (`concrete_rep`): `⟨X†⟩ = conj⟨X⟩` is an
+            # Deduplicate by the Hermitian conjugation (`concrete_rep`): `⟨X†⟩ = conj⟨X⟩` is an
             # exact redundancy, so keep one rep per conjugate pair (resolver recovers the partner).
             rep, _ = concrete_rep(new_k)
             rep in seen && continue

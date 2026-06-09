@@ -229,7 +229,7 @@ end
 _assume_distinct_atom_indices(q, _distinct, _concretes = nothing) = q
 
 """
-Free LHS indices on `new_ops` that share a Hilbert subspace, deduped, returned only
+Free LHS indices on `new_ops` that share a Hilbert subspace, deduplicated, returned only
 for subspaces carrying two or more such indices. A multi-index moment `⟨X_i X_j⟩`
 is by construction a distinct-slot cumulant (`i≠j`), its diagonal (`i=j`) being a
 separate lower node. Asserting that distinctness lets SQA's diagonal split collapse

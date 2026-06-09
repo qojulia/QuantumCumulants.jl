@@ -18,25 +18,12 @@ Right-hand sides are left unsimplified.
 See also: [`complete`](@ref), [`find_missing`](@ref), [`meanfield`](@ref).
 """
 function complete!(
-        eqs::MeanFieldEquations; max_iter::Int = 100_000,
+        eqs::AbstractMeanFieldEquations; max_iter::Int = 100_000,
         filter_func = nothing, mix_choice = maximum, get_adjoints::Bool = true,
     )
     g = _graph_from_eqs(eqs; mix_choice)
-    flt = filter_func === nothing ? _alltrue : avg -> filter_func(avg)
-    closure!(g; filter = flt, get_adjoints, max_iter)
-    closed = lower_to_eqs(g)
-    filter_func !== nothing && _filter_rhs!(closed, filter_func)
-    _replace_contents!(eqs, closed)
-    return eqs
-end
-
-function complete!(
-        eqs::NoiseMeanFieldEquations; max_iter::Int = 100_000,
-        filter_func = nothing, mix_choice = maximum, get_adjoints::Bool = true,
-    )
-    g = _graph_from_eqs(eqs; mix_choice)
-    flt = filter_func === nothing ? _alltrue : avg -> filter_func(avg)
-    closure!(g; filter = flt, get_adjoints, max_iter)
+    keep = filter_func === nothing ? _alltrue : filter_func
+    closure!(g; filter = keep, get_adjoints, max_iter)
     closed = lower_to_eqs(g)
     filter_func !== nothing && _filter_rhs!(closed, filter_func)
     _replace_contents!(eqs, closed)
@@ -130,8 +117,12 @@ function find_missing(
     return missing_states
 end
 
-# ---- RHS filtering (zero out leaves the user's filter rejects) ---------------
+# ---- RHS filtering -----------------------------------------------------------
 
+"""
+Zero every average leaf the user's `filter_func` rejects on each equation RHS of `eqs`
+(and on the noise-equation RHSs for a noise system), in place.
+"""
 function _filter_rhs!(eqs::MeanFieldEquations, filter_func)
     for (i, eq) in enumerate(eqs.equations)
         eqs.equations[i] = eq.lhs ~ _filter_expr(eq.rhs, filter_func)
@@ -149,6 +140,10 @@ function _filter_rhs!(eqs::NoiseMeanFieldEquations, filter_func)
     return eqs
 end
 
+"""
+Walk a c-number expression tree, replacing each average leaf `filter_func` rejects with
+`0` and rebuilding the enclosing calls; non-average subexpressions pass through.
+"""
 function _filter_expr(x, filter_func)
     if x isa SymbolicUtils.BasicSymbolic
         if SQA.is_average(x)
@@ -166,8 +161,12 @@ end
 
 # ---- struct copy / in-place content swap -------------------------------------
 
-# Swap `eqs`'s array fields in place to match `src` (keeps `complete!`'s in-place
-# contract while the closed system is built functionally via the graph).
+"""
+Graft `src`'s contents into `eqs` in place: empty and refill each mutable `Vector` field
+(`equations`, `states`, …) from `src`. Lets `complete!` keep its in-place contract while
+the closed system is built functionally via the graph. Only the fields completion changes
+are swapped; `hamiltonian`, `jumps`, `treatments` and the other shared scalars stay put.
+"""
 function _replace_contents!(eqs::MeanFieldEquations, src::MeanFieldEquations)
     for (dst, s) in (
             (eqs.equations, src.equations),
@@ -196,6 +195,14 @@ function _replace_contents!(eqs::NoiseMeanFieldEquations, src::NoiseMeanFieldEqu
     return eqs
 end
 
+"""
+Shallow copy of an equation set: fresh `Vector` fields (so an in-place `!` pass cannot
+reach the caller's object) over the shared immutable `hamiltonian`, `iv`, `order` and
+`direction`. Backs every non-mutating wrapper (`complete`, `simplify`, `modify_equations`,
+`evaluate`) that runs a mutating engine on a throwaway. A deep copy would needlessly
+clone every operator into a structurally-equal but non-identical object, which can break
+SQA logic that compares operators by identity.
+"""
 function _copy(eqs::MeanFieldEquations)
     return MeanFieldEquations(
         copy(eqs.equations), copy(eqs.operator_equations),

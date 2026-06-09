@@ -54,7 +54,7 @@ _drift_leaves(nd::NodeData) = nd.noise === nothing ? eachleaf(nd.drift) :
 
 """
 Edge-target node keys not yet in the graph; backs the public `find_missing`. Scans each
-node's drift/noise leaves, keys them via `canon_key`, and dedups, folding the conjugate
+node's drift/noise leaves, keys them via `canon_key`, and deduplicates, folding the conjugate
 partner when `get_adjoints=false`.
 """
 function frontier(g::MomentGraph; get_adjoints::Bool = true)
@@ -121,7 +121,7 @@ function closure!(
             # A state and its conjugate are ONE physical unknown: if the
             # conjugate partner is already a node, this leaf is covered
             # (codegen resolves ⟨X⟩ = conj⟨X†⟩). Unconditional in
-            # get_adjoints, matching master's conjugate dedup.
+            # get_adjoints, matching master's conjugate deduplication.
             if kc in seen
                 push!(seen, k)
                 continue
