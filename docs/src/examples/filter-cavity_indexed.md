@@ -40,7 +40,17 @@ j = Index(h, :j, N, ha)
 
 @qnumbers a::Destroy(h, 1)
 b(k) = IndexedOperator(Destroy(h, :b, 2), k)
+````
+
+`i` is bound by the Hamiltonian sums and the dissipator. The canonical
+free-index slot on the filter Hilbert space mints `i_2` (lex-first
+declared index, suffix 2) to keep state names disjoint from H's bound
+scope. Per-atom state lookups thus use `i_2(k) = i_2_k`, not `i(k)`.
+
+````@example filter-cavity_indexed
+b(k::Integer) = IndexedOperator(Destroy(h, :b, 2), i(2)(k))
 σ(α, β, k) = IndexedOperator(Transition(h, :σ, α, β, 3), k)
+σ(α, β, k::Integer) = IndexedOperator(Transition(h, :σ, α, β, 3), j(k))
 nothing # hide
 ````
 
@@ -109,16 +119,20 @@ gf_ = 0.1Γ_
 κf_ = 0.1Γ_
 δ_ls = [0:(1 / M_):(1 - 1 / M_);] * 10Γ_
 
-ps = [Γ, κ, g, κf, gf, R, [δ(i) for i in 1:M_]..., Δ, ν, N]
-p0 = [Γ_, κ_, g_, κf_, gf_, R_, δ_ls..., Δ_, ν_, N_]
-
-dict = merge(initial_values(eqs_eval, u0), Dict(ps .=> p0))
+pmap = parameter_map(
+    eqs_eval, Dict(
+        Γ => Γ_, κ => κ_, g => g_, κf => κf_, gf => gf_, R => R_,
+        δ(i) => δ_ls,
+        Δ => Δ_, ν => ν_, N => N_,
+    )
+)
+dict = merge(initial_values(eqs_eval, u0), pmap)
 prob = ODEProblem(sys_c, dict, (0.0, 10.0 / κf_))
 nothing # hide
 ````
 
 ````@example filter-cavity_indexed
-sol = solve(prob, Tsit5(); abstol = 1e-10, reltol = 1e-10, maxiters = 1e7) # Solve the numeric problem
+sol = solve(prob, Tsit5(); abstol = 1.0e-10, reltol = 1.0e-10, maxiters = 1.0e7) # Solve the numeric problem
 
 t = sol.t
 n = abs.(get_solution(sol, a'a, eqs_eval).(t))

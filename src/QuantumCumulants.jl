@@ -17,7 +17,7 @@ using TermInterface: TermInterface
 using LinearAlgebra: I
 const MTK = ModelingToolkitBase
 
-export AbstractMeanFieldEquations, MeanFieldEquations, NoiseMeanFieldEquations
+export AbstractMeanfieldEquations, MeanfieldEquations, NoiseMeanfieldEquations
 export EvolutionDirection, Forward, Backward
 export meanfield, cumulant_expansion, cumulant, get_order
 export complete, complete!, find_missing

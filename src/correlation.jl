@@ -18,13 +18,13 @@ power spectrum.
 - `steady_state`: if `true`, ambient averages are held constant; if `false`, they are
   evolved alongside the τ-states.
 """
-struct CorrelationFunction{T <: MeanFieldEquations, O1 <: QField, O2 <: QField, O2A <: QField}
+struct CorrelationFunction{T <: MeanfieldEquations, O1 <: QField, O2 <: QField, O2A <: QField}
     op1::O1
     op2::O2
     op2_ancilla::O2A
     aon_ancilla::Int
     eqs::T
-    eqs0::MeanFieldEquations
+    eqs0::MeanfieldEquations
     τ::Symbolics.Num
     steady_state::Bool
 end
@@ -36,7 +36,7 @@ _embed_on(op::SQA.Create, aon::Int) = SQA.Create(op.name, aon, op.index)
 _embed_on(op::SQA.Transition, aon::Int) =
     SQA.Transition(op.name, op.i, op.j, aon, op.index, op.ground_state, op.n_levels)
 
-function _ancilla_aon(eqs0::MeanFieldEquations, op1::QField, op2::QField)
+function _ancilla_aon(eqs0::MeanfieldEquations, op1::QField, op2::QField)
     aons = Int[]
     append!(aons, SQA.acts_on(eqs0.hamiltonian))
     for j in eqs0.jumps
@@ -92,7 +92,7 @@ julia> CorrelationFunction(a', a, eqs)
 ```
 """
 function CorrelationFunction(
-        op1::QField, op2::QField, eqs0::MeanFieldEquations;
+        op1::QField, op2::QField, eqs0::MeanfieldEquations;
         steady_state::Bool = true, filter_func = nothing, max_iter::Int = 100_000,
     )
     τ = first(MTK.@independent_variables τ)

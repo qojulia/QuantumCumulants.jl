@@ -19,6 +19,7 @@ We start by loading the packages.
 ````@example unique_squeezing
 using QuantumCumulants
 using OrdinaryDiffEq, ModelingToolkitBase
+using ModelingToolkitBase: t_nounits as t
 using Plots
 nothing # hide
 ````
@@ -31,7 +32,6 @@ ha = NLevelSpace(Symbol(:spin), 2)
 h = hf ⊗ ha
 
 @variables ω Ω ωd η κ g γ N ξ # Parameter
-t = first(ModelingToolkitBase.@independent_variables t) # time iv used by meanfield internally
 nothing # hide
 ````
 
@@ -65,7 +65,7 @@ ps = [ω, Ω, ωd, g, η, κ, γ, N, ξ] # symbolic and numeric parameter list
 First we derive the mean-field equations in second order for $\langle a \rangle$, $\langle a^\dagger a \rangle$ and $\langle \sigma^{22}_j \rangle$, then we complete the system to obtain a closed set of equations.
 
 ````@example unique_squeezing
-eqs = meanfield([a, a'a, σ(2, 2, j)], H, J; rates = rates, order = 2, iv = t)
+eqs = meanfield([a, a'a, σ(2, 2, j)], H, J; rates = rates, order = 2)
 nothing # hide
 ````
 
@@ -163,7 +163,7 @@ for k in 1:length(N_ls)
     plot!(p1, t_, real.(sqx), label = "N = $(N_ls[k])", color = c_ls[k])
     plot!(p1, t_, -real.(sqy), ls = :dash, label = nothing, color = c_ls[k])
 
-    s22 = get_solution(sol, σ(2, 2, i), eqs_sc).(t_)
+    s22 = get_solution(sol, σ(2, 2, j(1)), eqs_sc).(t_)
     plot!(p2, t_, real.(2s22 .- 1), color = c_ls[k], label = nothing)
 end
 plot(

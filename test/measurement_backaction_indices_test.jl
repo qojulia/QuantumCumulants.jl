@@ -9,7 +9,7 @@ using Test
     @qnumbers a::Destroy(hc)
 
     me_a = meanfield(a, Δ * a' * a, [a]; rates = [κ], efficiencies = [η])
-    @test me_a isa NoiseMeanFieldEquations
+    @test me_a isa NoiseMeanfieldEquations
     @test length(me_a.equations) == 1
     @test length(me_a.noise_equations) == 1
 
@@ -28,7 +28,7 @@ using Test
     me_a_o1 = meanfield(
         a', Δ * a' * a, [a]; rates = [κ], efficiencies = [η], order = 1
     )
-    @test me_a_o1 isa NoiseMeanFieldEquations
+    @test me_a_o1 isa NoiseMeanfieldEquations
     rhs_o1 = me_a_o1.noise_equations[1].rhs
     @test _is_zero(rhs_o1)
 end
@@ -67,7 +67,7 @@ end
     eqs_noise = meanfield(
         a' * a, H, J; rates = rates, efficiencies = efficiencies, order = 2
     )
-    @test eqs_noise isa NoiseMeanFieldEquations
+    @test eqs_noise isa NoiseMeanfieldEquations
     eqs_noise_c = complete(eqs_noise)
 
     # The stochastic state set contains the deterministic state set.

@@ -52,7 +52,7 @@ The first-order contributions are always zero and can therefore be neglected. Yo
 eqs_full = complete(eqs_expanded)
 ```
 
-Finally, we convert the [`MeanFieldEquations`](@ref) to a `System` from [ModelingToolkitBase](https://github.com/SciML/ModelingToolkitBase.jl), which can be solved numerically with [OrdinaryDiffEq](https://github.com/JuliaDiffEq/OrdinaryDiffEq.jl).
+Finally, we convert the [`MeanfieldEquations`](@ref) to a `System` from [ModelingToolkitBase](https://github.com/SciML/ModelingToolkitBase.jl), which can be solved numerically with [OrdinaryDiffEq](https://github.com/JuliaDiffEq/OrdinaryDiffEq.jl).
 
 ```@example tutorial
 # Generate a ModelingToolkitBase System

@@ -1,5 +1,5 @@
 """
-    complete!(eqs::AbstractMeanFieldEquations; max_iter=100_000, filter_func=nothing,
+    complete!(eqs::AbstractMeanfieldEquations; max_iter=100_000, filter_func=nothing,
               mix_choice=maximum, get_adjoints=true)
 
 Close `eqs` in place by repeatedly deriving equations of motion for every average that
@@ -18,7 +18,7 @@ Right-hand sides are left unsimplified.
 See also: [`complete`](@ref), [`find_missing`](@ref), [`meanfield`](@ref).
 """
 function complete!(
-        eqs::AbstractMeanFieldEquations; max_iter::Int = 100_000,
+        eqs::AbstractMeanfieldEquations; max_iter::Int = 100_000,
         filter_func = nothing, mix_choice = maximum, get_adjoints::Bool = true,
     )
     g = _graph_from_eqs(eqs; mix_choice)
@@ -31,7 +31,7 @@ function complete!(
 end
 
 """
-    complete(eqs::AbstractMeanFieldEquations; order=nothing, kw...)
+    complete(eqs::AbstractMeanfieldEquations; order=nothing, kw...)
 
 Non-mutating [`complete!`](@ref): derive equations of motion for every average that
 appears on a right-hand side but is not yet a state, returning a new closed system.
@@ -45,7 +45,7 @@ appears on a right-hand side but is not yet a state, returning a new closed syst
 See also: [`complete!`](@ref), [`find_missing`](@ref), [`meanfield`](@ref).
 """
 function MTK.complete(
-        eqs::MeanFieldEquations; order = nothing, mix_choice = maximum, kw...
+        eqs::MeanfieldEquations; order = nothing, mix_choice = maximum, kw...
     )
     eqs_copy = order === nothing ? _copy(eqs) :
         cumulant_expansion(_copy(eqs), order; mix_choice)
@@ -53,18 +53,18 @@ function MTK.complete(
 end
 
 function MTK.complete(
-        eqs::NoiseMeanFieldEquations; order = nothing, mix_choice = maximum, kw...
+        eqs::NoiseMeanfieldEquations; order = nothing, mix_choice = maximum, kw...
     )
     order === nothing || throw(
         ArgumentError(
-            "`complete(::NoiseMeanFieldEquations; order=...)` is not supported; pass `order` to `meanfield` instead.",
+            "`complete(::NoiseMeanfieldEquations; order=...)` is not supported; pass `order` to `meanfield` instead.",
         ),
     )
     return complete!(_copy(eqs); mix_choice, kw...)
 end
 
 """
-    find_missing(eqs::AbstractMeanFieldEquations; filter_func=nothing, get_adjoints=true, mix_choice=maximum)
+    find_missing(eqs::AbstractMeanfieldEquations; filter_func=nothing, get_adjoints=true, mix_choice=maximum)
 
 Return the averages that appear on a right-hand side of `eqs` but are not yet among
 its tracked states: the equations still needed to close the system. A moment and
@@ -74,7 +74,7 @@ its conjugate count as one: if either is already a state, neither is reported.
 See also: [`complete`](@ref), [`complete!`](@ref).
 """
 function find_missing(
-        eqs::AbstractMeanFieldEquations; filter_func = nothing,
+        eqs::AbstractMeanfieldEquations; filter_func = nothing,
         get_adjoints::Bool = true, mix_choice = maximum,
     )
     # Key states and RHS leaves with the same `canonical_rep` + recorded treatment the
@@ -87,7 +87,7 @@ function find_missing(
         op isa QAdd && push!(seen, canonical_rep(op, ctx; treatments)[1])
     end
     eqs_list = eqs.equations
-    if eqs isa NoiseMeanFieldEquations
+    if eqs isa NoiseMeanfieldEquations
         eqs_list = vcat(eqs.equations, eqs.noise_equations)
     end
     missing_states = SymbolicUtils.BasicSymbolic[]
@@ -118,14 +118,14 @@ end
 Zero every average leaf the user's `filter_func` rejects on each equation RHS of `eqs`
 (and on the noise-equation RHSs for a noise system), in place.
 """
-function _filter_rhs!(eqs::MeanFieldEquations, filter_func)
+function _filter_rhs!(eqs::MeanfieldEquations, filter_func)
     for (i, eq) in enumerate(eqs.equations)
         eqs.equations[i] = eq.lhs ~ _filter_expr(eq.rhs, filter_func)
     end
     return eqs
 end
 
-function _filter_rhs!(eqs::NoiseMeanFieldEquations, filter_func)
+function _filter_rhs!(eqs::NoiseMeanfieldEquations, filter_func)
     for (i, eq) in enumerate(eqs.equations)
         eqs.equations[i] = eq.lhs ~ _filter_expr(eq.rhs, filter_func)
     end
@@ -162,7 +162,7 @@ Graft `src`'s contents into `eqs` in place: empty and refill each mutable `Vecto
 the closed system is built functionally via the graph. Only the fields completion changes
 are swapped; `hamiltonian`, `jumps`, `treatments` and the other shared scalars stay put.
 """
-function _replace_contents!(eqs::MeanFieldEquations, src::MeanFieldEquations)
+function _replace_contents!(eqs::MeanfieldEquations, src::MeanfieldEquations)
     for (dst, s) in (
             (eqs.equations, src.equations),
             (eqs.operator_equations, src.operator_equations),
@@ -175,7 +175,7 @@ function _replace_contents!(eqs::MeanFieldEquations, src::MeanFieldEquations)
     return eqs
 end
 
-function _replace_contents!(eqs::NoiseMeanFieldEquations, src::NoiseMeanFieldEquations)
+function _replace_contents!(eqs::NoiseMeanfieldEquations, src::NoiseMeanfieldEquations)
     for (dst, s) in (
             (eqs.equations, src.equations),
             (eqs.noise_equations, src.noise_equations),
@@ -198,8 +198,8 @@ reach the caller's object) over the shared immutable `hamiltonian`, `iv`, `order
 clone every operator into a structurally-equal but non-identical object, which can break
 SQA logic that compares operators by identity.
 """
-function _copy(eqs::MeanFieldEquations)
-    return MeanFieldEquations(
+function _copy(eqs::MeanfieldEquations)
+    return MeanfieldEquations(
         copy(eqs.equations), copy(eqs.operator_equations),
         copy(eqs.states), copy(eqs.operators),
         eqs.hamiltonian, copy(eqs.jumps), copy(eqs.jumps_dagger),
@@ -208,8 +208,8 @@ function _copy(eqs::MeanFieldEquations)
     )
 end
 
-function _copy(eqs::NoiseMeanFieldEquations)
-    return NoiseMeanFieldEquations(
+function _copy(eqs::NoiseMeanfieldEquations)
+    return NoiseMeanfieldEquations(
         copy(eqs.equations), copy(eqs.noise_equations),
         copy(eqs.operator_equations), copy(eqs.operator_noise_equations),
         copy(eqs.states), copy(eqs.operators),

@@ -16,7 +16,7 @@ end
     @variables ω κ η
     H = ω * a' * a
     eqs = meanfield([a, a' * a], H, [a]; rates = [κ], efficiencies = [η], order = 2)
-    @test eqs isa NoiseMeanFieldEquations
+    @test eqs isa NoiseMeanfieldEquations
     @test length(eqs.equations) == 2
     @test length(eqs.noise_equations) == 2
     @test eqs.direction isa Forward
@@ -32,7 +32,7 @@ end
         rates = [κ], efficiencies = [η],
         direction = Backward(), order = 2
     )
-    @test eqs isa NoiseMeanFieldEquations
+    @test eqs isa NoiseMeanfieldEquations
     @test eqs.direction isa Backward
 end
 
@@ -96,8 +96,8 @@ end
     @test _iz(stoch.equations[1].rhs - det.equations[1].rhs)
 end
 
-@testset "MeanFieldEquations(::NoiseMeanFieldEquations) + parameter_map(sys, …)" begin
-    # `MeanFieldEquations` strips the noise drift (and parameters living only
+@testset "MeanfieldEquations(::NoiseMeanfieldEquations) + parameter_map(sys, …)" begin
+    # `MeanfieldEquations` strips the noise drift (and parameters living only
     # inside it); `parameter_map(sys, …)` filters a shared user dict down to the
     # parameters each system actually uses.
     @variables Δ::Real κ::Real η::Real
@@ -110,8 +110,8 @@ end
         [a, a' * a, a * a], H, [a];
         rates = [κ], efficiencies = [η], order = 2
     )
-    eqs_det = MeanFieldEquations(eqs_noise)
-    @test eqs_det isa MeanFieldEquations
+    eqs_det = MeanfieldEquations(eqs_noise)
+    @test eqs_det isa MeanfieldEquations
     @test eqs_det.direction === eqs_noise.direction
     @test length(eqs_det.equations) == length(eqs_noise.equations)
 
@@ -142,7 +142,7 @@ end
     )
 
     @test length(eqs.states) == 2
-    @test eqs isa NoiseMeanFieldEquations
+    @test eqs isa NoiseMeanfieldEquations
 
     sys = System(eqs; name = :driven_cav_noise)
     @test sys isa ModelingToolkitBase.System

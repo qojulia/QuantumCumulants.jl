@@ -119,11 +119,11 @@ acts_on
 ```
 
 ```@docs
-AbstractMeanFieldEquations
+AbstractMeanfieldEquations
 ```
 
 ```@docs
-MeanFieldEquations
+MeanfieldEquations
 ```
 
 ## [Average](@id API: Average)
@@ -213,7 +213,7 @@ scale!
 ## [Measurement Backaction](@id API: Measurement Backaction)
 
 ```@docs
-NoiseMeanFieldEquations
+NoiseMeanfieldEquations
 ```
 
 ```@docs

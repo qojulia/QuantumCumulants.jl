@@ -1,4 +1,4 @@
-function Base.show(io::IO, de::AbstractMeanFieldEquations)
+function Base.show(io::IO, de::AbstractMeanfieldEquations)
     for eq in de.equations
         write(io, "∂ₜ(")
         show(io, eq.lhs)
@@ -17,7 +17,7 @@ function Base.show(io::IO, s::Spectrum)
     return write(io, ")(ω)")
 end
 
-@latexrecipe function f(de::AbstractMeanFieldEquations)
+@latexrecipe function f(de::AbstractMeanfieldEquations)
     env --> :align
     cdot --> false
     D = Symbolics.Differential(de.iv)
@@ -26,7 +26,7 @@ end
     return lhs, rhs
 end
 
-@latexrecipe function f(de::NoiseMeanFieldEquations)
+@latexrecipe function f(de::NoiseMeanfieldEquations)
     env --> :align
     cdot --> false
     D = Symbolics.Differential(de.iv)
@@ -45,5 +45,5 @@ end
     return latexstring("\\mathcal{F}(", inner, ")(\\omega)")
 end
 
-const _LATEX_TYPES = Union{AbstractMeanFieldEquations, CorrelationFunction, Spectrum}
+const _LATEX_TYPES = Union{AbstractMeanfieldEquations, CorrelationFunction, Spectrum}
 Base.show(io::IO, ::MIME"text/latex", x::_LATEX_TYPES) = write(io, latexify(x))

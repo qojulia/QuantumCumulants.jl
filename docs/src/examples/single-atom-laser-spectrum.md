@@ -14,7 +14,7 @@ where $\Delta = \omega_\mathrm{c} - \omega_\mathrm{a}$ is the detuning between t
 using Latexify # hide
 set_default(double_linebreak = true) # hide
 using QuantumCumulants
-using ModelingToolkitBase, OrdinaryDiffEq
+using ModelingToolkitBase, OrdinaryDiffEq, OrdinaryDiffEqLowOrderRK
 using Plots
 
 @variables Δ g γ κ ν # Define parameters
@@ -81,7 +81,7 @@ In order to compute the spectrum, we first compute the correlation function $g(\
 Note that the [`CorrelationFunction`](@ref) finds the equation for $g(\tau)$ and then completes the system of equations by using its own version of the [`complete`](@ref) function. Setting the keyword `steady_state=true`, we tell the function not to derive equations of motion for operators that do not depend on $\tau$, but only on $t_0$ (if $t_0$ is in steady state, these values do not change with $\tau$).
 
 ````@example single-atom-laser-spectrum
-c = CorrelationFunction(a', a, eqs; steady_state = true) # Correlation function
+c = CorrelationFunction(a', a, eqs; steady_state = true, filter_func = phase_invariant) # Correlation function
 nothing # hide
 ````
 
@@ -110,7 +110,7 @@ sys = mtkcompile(System(eqs; name = :sys))
 p0 = (1.0, 1.5, 0.25, 1.0, 4.0)
 u0 = zeros(ComplexF64, length(eqs.states))
 prob = ODEProblem(sys, merge(initial_values(eqs, u0), Dict(ps .=> p0)), (0.0, 10.0))
-sol = solve(prob, Tsit5())  # Numerical solution
+sol = solve(prob, RK4())  # Numerical solution
 nothing # hide
 ````
 
@@ -121,7 +121,7 @@ csys = mtkcompile(System(c; name = :csys)) # Time evolution of correlation funct
 u0_c = correlation_u0(c, sol.u[end])
 p0_c = correlation_p0(c, sol.u[end], collect(ps .=> p0))
 prob_c = ODEProblem(csys, merge(u0_c, Dict(p0_c)), (0.0, 500.0))
-sol_c = solve(prob_c, Tsit5(), save_idxs = 1)
+sol_c = solve(prob_c, RK4(), save_idxs = 1)
 nothing # hide
 ````
 

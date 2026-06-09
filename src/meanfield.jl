@@ -24,7 +24,7 @@ Equations of motion for the averages of `ops` under the Hamiltonian `H` and the
 collapse operators `J`. The result is the Heisenberg (quantum Langevin) equation with
 noise neglected: each jump adds a Lindblad term
 ``\\sum_i r_i \\left(J_i^\\dagger O J_i - \\tfrac{1}{2}\\{J_i^\\dagger J_i, O\\}\\right)``.
-Returns a [`MeanFieldEquations`](@ref), or a [`NoiseMeanFieldEquations`](@ref) when
+Returns a [`MeanfieldEquations`](@ref), or a [`NoiseMeanfieldEquations`](@ref) when
 `efficiencies` is supplied (measurement backaction).
 
 The returned right-hand sides are left unsimplified; call [`simplify!`](@ref) (or
@@ -40,7 +40,7 @@ The returned right-hand sides are left unsimplified; call [`simplify!`](@ref) (o
 * `rates=ones(length(J))`: decay rates for `J`. A square `Matrix` instead selects
   collective dissipation across the jump vector.
 * `efficiencies=nothing`: detector efficiencies per jump. When given, the result is a
-  [`NoiseMeanFieldEquations`](@ref) carrying a measurement-backaction noise drift.
+  [`NoiseMeanfieldEquations`](@ref) carrying a measurement-backaction noise drift.
 * `direction=Forward()`: [`Forward`](@ref) for ordinary evolution, [`Backward`](@ref)
   for retrodiction.
 * `order=nothing`: if set, a [`cumulant_expansion`](@ref) to this order is applied. An
@@ -107,24 +107,24 @@ function _normalize_rates(rates, n::Int)
 end
 
 """
-    simplify!(eqs::AbstractMeanFieldEquations; kwargs...)
-    simplify(eqs::AbstractMeanFieldEquations; kwargs...)
+    simplify!(eqs::AbstractMeanfieldEquations; kwargs...)
+    simplify(eqs::AbstractMeanfieldEquations; kwargs...)
 
 Run `SymbolicUtils.simplify` on every RHS in `eqs` (and on the noise drift RHSs
-of a `NoiseMeanFieldEquations`). `simplify!` mutates; `simplify` returns a fresh
+of a `NoiseMeanfieldEquations`). `simplify!` mutates; `simplify` returns a fresh
 struct. The derivation pipeline leaves expressions raw so the cost of
 `SymbolicUtils.simplify` is paid only when explicitly requested.
 """
 function simplify! end
 
-function simplify!(eqs::MeanFieldEquations; kwargs...)
+function simplify!(eqs::MeanfieldEquations; kwargs...)
     for (i, eq) in enumerate(eqs.equations)
         eqs.equations[i] = eq.lhs ~ SymbolicUtils.simplify(eq.rhs; kwargs...)
     end
     return eqs
 end
 
-function simplify!(eqs::NoiseMeanFieldEquations; kwargs...)
+function simplify!(eqs::NoiseMeanfieldEquations; kwargs...)
     for (i, eq) in enumerate(eqs.equations)
         eqs.equations[i] = eq.lhs ~ SymbolicUtils.simplify(eq.rhs; kwargs...)
     end
@@ -134,13 +134,13 @@ function simplify!(eqs::NoiseMeanFieldEquations; kwargs...)
     return eqs
 end
 
-SymbolicUtils.simplify(eqs::AbstractMeanFieldEquations; kwargs...) =
+SymbolicUtils.simplify(eqs::AbstractMeanfieldEquations; kwargs...) =
     simplify!(_copy(eqs); kwargs...)
 
 # ---- measurement record: rewrite dW-parametrised SDE to dY ----
 
 """
-    translate_W_to_Y(eqs::NoiseMeanFieldEquations; mix_choice=maximum)
+    translate_W_to_Y(eqs::NoiseMeanfieldEquations; mix_choice=maximum)
 
 Rewrite an SDE whose noise drift is parametrised by the underlying Wiener
 process `dW` into one parametrised by the measurement record `dY` instead.
@@ -150,11 +150,11 @@ correction to the drift; the noise drift itself is unchanged.
 For each equation the RHS is augmented by
 `cumulant_expansion(-_dY_dS_extra_term(lhs_op, J, Jdagger, rates .* efficiencies))`,
 cumulant-expanded to `eqs.order` when set. Returns a fresh
-`NoiseMeanFieldEquations` of the same direction. The augmented RHS is left
+`NoiseMeanfieldEquations` of the same direction. The augmented RHS is left
 unsimplified; apply `simplify` yourself for a canonical form.
 """
 function translate_W_to_Y(
-        eqs::NoiseMeanFieldEquations;
+        eqs::NoiseMeanfieldEquations;
         mix_choice::Function = maximum,
     )
     out = _copy(eqs)
@@ -173,7 +173,7 @@ end
 # ---- user-supplied RHS rewrite ----
 
 """
-    modify_equations(eqs::AbstractMeanFieldEquations, f::Function)
+    modify_equations(eqs::AbstractMeanfieldEquations, f::Function)
 
 Return a copy of `eqs` whose RHS for each equation has been rewritten by `f`.
 The function is called as `f(lhs_op, rhs)`, receiving the *operator* form of
@@ -186,16 +186,16 @@ eqs_mod = modify_equations(eqs, f)
 
 See also [`modify_equations!`](@ref).
 """
-modify_equations(eqs::AbstractMeanFieldEquations, f::Function) =
+modify_equations(eqs::AbstractMeanfieldEquations, f::Function) =
     modify_equations!(_copy(eqs), f)
 
 """
-    modify_equations!(eqs::AbstractMeanFieldEquations, f::Function)
+    modify_equations!(eqs::AbstractMeanfieldEquations, f::Function)
 
 In-place version of [`modify_equations`](@ref). Walks `eqs.equations` and replaces each
 RHS with `f(undo_average(lhs), rhs)`.
 """
-function modify_equations!(eqs::AbstractMeanFieldEquations, f::Function)
+function modify_equations!(eqs::AbstractMeanfieldEquations, f::Function)
     for i in eachindex(eqs.equations)
         lhs = eqs.equations[i].lhs
         rhs = eqs.equations[i].rhs

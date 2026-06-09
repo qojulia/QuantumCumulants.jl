@@ -45,7 +45,7 @@ The per-subspace treatment map recorded on `eqs`, falling back to all-`Free` (ov
 symmetric subspaces of `ctx`) when `eqs` carries none. Single source for the consumers
 that re-key a stored system (`find_missing`, the MTK `System` build, `evaluate`, correlation/spectrum).
 """
-_treatments(eqs::AbstractMeanFieldEquations, ctx::CanonCtx) =
+_treatments(eqs::AbstractMeanfieldEquations, ctx::CanonCtx) =
     isempty(eqs.treatments) ? all_free_treatments(ctx) : eqs.treatments
 
 """
@@ -127,7 +127,7 @@ end
 Build the canonicalisation context from a stored equation set, reading its operators,
 Hamiltonian and jumps.
 """
-build_ctx(eqs::AbstractMeanFieldEquations) =
+build_ctx(eqs::AbstractMeanfieldEquations) =
     build_ctx(eqs.operators, eqs.hamiltonian, eqs.jumps, eqs.jumps_dagger)
 
 """

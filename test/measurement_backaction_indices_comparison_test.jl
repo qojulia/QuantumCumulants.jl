@@ -24,13 +24,13 @@ using Test
     ops = [a, a' * a, σ(2, 2, k), σ(1, 2, k)]
 
     eqs = meanfield(ops, H, J; rates = rates, efficiencies = efficiencies, order = 2)
-    @test eqs isa NoiseMeanFieldEquations
+    @test eqs isa NoiseMeanfieldEquations
     eqs_c = complete(eqs)
     @test length(eqs_c.equations) >= length(ops)
     @test isempty(find_missing(eqs_c; get_adjoints = false))
 
     scaled_eqs = scale(eqs_c)
-    @test scaled_eqs isa NoiseMeanFieldEquations
+    @test scaled_eqs isa NoiseMeanfieldEquations
     @test length(scaled_eqs.equations) >= 1
     # The noise channel survives scaling.
     @test length(scaled_eqs.noise_equations) >= 1

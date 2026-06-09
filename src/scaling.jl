@@ -205,8 +205,8 @@ function _flatten_indexed_vars_in_tree(x, selected::Set{Int}, sym_to_space::Dict
 end
 
 """
-    scale(eqs::AbstractMeanFieldEquations; h=Int[])
-    scale!(eqs::AbstractMeanFieldEquations; h=Int[])
+    scale(eqs::AbstractMeanfieldEquations; h=Int[])
+    scale!(eqs::AbstractMeanfieldEquations; h=Int[])
 
 Reduce a permutation-symmetric indexed system to one representative per symmetry class,
 exploiting that every atom of an indexed family acts on the system identically. `scale!`
@@ -218,10 +218,10 @@ mutates `eqs` in place; `scale` returns a new system.
 """
 # Build from STORED drifts, never re-derive: `complete(...; filter_func)` records
 # filter substitutions in `eqs.equations` that re-derivation would discard.
-scale(eqs::AbstractMeanFieldEquations; h::Vector{Int} = Int[]) =
+scale(eqs::AbstractMeanfieldEquations; h::Vector{Int} = Int[]) =
     assemble_equations(quotient(_graph_from_stored(eqs); h))
 
-scale!(eqs::AbstractMeanFieldEquations; h::Vector{Int} = Int[]) =
+scale!(eqs::AbstractMeanfieldEquations; h::Vector{Int} = Int[]) =
     _replace_contents!(eqs, scale(eqs; h))
 
 @doc (@doc scale) scale!

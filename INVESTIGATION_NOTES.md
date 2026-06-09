@@ -266,7 +266,7 @@ them. These are two genuinely different order-2 closures of the same
 operator, and `expand_completeness` does NOT reconcile them.
 
 **Decisive experiment (reverted).** Applied BOTH the `_prod_ops` fold
-AND symmetrised the noise path (`_derive_for(::NoiseMeanFieldEquations)`
+AND symmetrised the noise path (`_derive_for(::NoiseMeanfieldEquations)`
 to mirror the det rule, no-NE when `user_concretes` non-empty —
 heterodyne's free `k` counts as user-concrete). Closure state sets
 matched the NE config (14 eqs, no `σ^gg`). But the heterodyne SDE

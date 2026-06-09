@@ -7,13 +7,26 @@ ENV["GKSwstype"] = "100" # enable headless mode for GR to suppress warnings when
 
 include("make_md_examples.jl")
 
+# The repo-root CHANGELOG.md is the single source of truth; expose it in the docs as the
+# migration guide / changelog page. Write only when the content changed so a LiveServer
+# build does not loop on its own output.
+let src = normpath(@__FILE__, "../../CHANGELOG.md"),
+        dst = normpath(@__FILE__, "../src/changelog.md"),
+        new = read(src, String)
+
+    if !isfile(dst) || read(dst, String) != new
+        write(dst, new)
+    end
+end
+
 pages = [
     "index.md",
     "theory.md",
     "tutorial.md",
-    "correlation.md",
-    "symbolic_sums.md",
     "implementation.md",
+    "symbolic_sums.md",
+    "correlation.md",
+    "noise.md",
     "api.md",
     "Examples" => [
         "examples/single-atom-laser-spectrum.md"
@@ -31,6 +44,8 @@ pages = [
         # "examples/retrodiction_homodyne.md"
 
     ],
+    "changelog.md",
+    "devdocs.md",
 ]
 
 using Pkg

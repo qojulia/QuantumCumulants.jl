@@ -110,9 +110,9 @@ _alltrue(_) = true
 Rebuild a `MomentGraph` from an existing equations struct: every current state becomes a
 node, re-derived on its canon key, ready for `closure!` to extend.
 """
-function _graph_from_eqs(eqs::AbstractMeanFieldEquations; mix_choice = maximum)
+function _graph_from_eqs(eqs::AbstractMeanfieldEquations; mix_choice = maximum)
     ctx = build_ctx(eqs)
-    eff = eqs isa NoiseMeanFieldEquations ? eqs.efficiencies : nothing
+    eff = eqs isa NoiseMeanfieldEquations ? eqs.efficiencies : nothing
     sys = SystemSpec(
         eqs.hamiltonian, eqs.jumps, eqs.jumps_dagger, eqs.rates, eff,
         eqs.iv, eqs.order, mix_choice, eqs.direction,
@@ -128,8 +128,8 @@ function _graph_from_eqs(eqs::AbstractMeanFieldEquations; mix_choice = maximum)
 end
 
 """
-Assemble the graph's moments into the array-backed `MeanFieldEquations` /
-`NoiseMeanFieldEquations` struct. Each moment is a canon-rep `QAdd`; LHS and drift share
+Assemble the graph's moments into the array-backed `MeanfieldEquations` /
+`NoiseMeanfieldEquations` struct. Each moment is a canon-rep `QAdd`; LHS and drift share
 that rep so the system is self-consistent.
 """
 function assemble_equations(g::MomentGraph)
@@ -140,7 +140,7 @@ function assemble_equations(g::MomentGraph)
     operator_eqs = Symbolics.Equation[k ~ g.nodes[k].op_drift for k in ks]
     avg_eqs = Symbolics.Equation[average(k) ~ g.nodes[k].drift for k in ks]
     if sys.efficiencies === nothing
-        return MeanFieldEquations(
+        return MeanfieldEquations(
             avg_eqs, operator_eqs, states, operators,
             sys.hamiltonian, collect(sys.jumps), collect(sys.jumps_dagger),
             collect(sys.rates), sys.iv, sys.order, sys.direction;
@@ -158,7 +158,7 @@ function assemble_equations(g::MomentGraph)
             )
             push!(op_noise, on[1])
         end
-        return NoiseMeanFieldEquations(
+        return NoiseMeanfieldEquations(
             avg_eqs, noise_eqs, operator_eqs, op_noise,
             states, operators, sys.hamiltonian,
             collect(sys.jumps), collect(sys.jumps_dagger),

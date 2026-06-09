@@ -52,9 +52,9 @@ end
     @variables ω κ η
     H = ω * a' * a
     eqs = meanfield([a], H, [a]; rates = [κ], efficiencies = [η])
-    @test eqs isa NoiseMeanFieldEquations
+    @test eqs isa NoiseMeanfieldEquations
     out = translate_W_to_Y(eqs)
-    @test out isa NoiseMeanFieldEquations
+    @test out isa NoiseMeanfieldEquations
     @test length(out.equations) == length(eqs.equations)
     # The dY-form adds a deterministic correction to the drift; the noise terms
     # are unchanged.
@@ -62,7 +62,7 @@ end
     @test _is_zero(out.noise_equations[1].rhs - eqs.noise_equations[1].rhs)
 end
 
-@testset "Backward NoiseMeanFieldEquations: drift sign flip, noise unchanged" begin
+@testset "Backward NoiseMeanfieldEquations: drift sign flip, noise unchanged" begin
     h = PhaseSpace(:motion)
     @qnumbers x::Position(h)
     p = Momentum(h, :p)
@@ -77,8 +77,8 @@ end
         ops, H, J; rates = [Γ], efficiencies = [η], order = 2,
         direction = Backward()
     )
-    @test fw isa NoiseMeanFieldEquations
-    @test bw isa NoiseMeanFieldEquations
+    @test fw isa NoiseMeanfieldEquations
+    @test bw isa NoiseMeanfieldEquations
     @test length(fw.equations) == length(bw.equations)
     @test !_is_zero(fw.equations[1].rhs - bw.equations[1].rhs)
 end

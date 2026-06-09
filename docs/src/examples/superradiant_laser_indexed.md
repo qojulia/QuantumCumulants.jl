@@ -144,10 +144,15 @@ g_ = 1000Γ_ #g=1Hz
 R_ = 1000Γ_ #R=1Hz
 ν_ = 1000Γ_ #ν=1Hz
 
-ps = [N, Δ, g(1), κ, Γ, R, ν]
-p0 = [N_, Δ_, g_, κ_, Γ_, R_, ν_]
+pmap = parameter_map(
+    eqs_sc, Dict(
+        N => N_, Δ => Δ_, g(i) => g_, κ => κ_, Γ => Γ_, R => R_, ν => ν_,
+    )
+)
+ps = collect(keys(pmap))
+p0 = collect(values(pmap))
 
-dict = merge(u0, Dict(ps .=> p0))
+dict = merge(u0, pmap)
 prob = ODEProblem(sys_c, dict, (0.0, 1.0 / 50Γ_))
 nothing # hide
 ````
@@ -157,7 +162,7 @@ sol = solve(prob, Tsit5(), maxiters = 1.0e7) # Solve the numeric problem
 
 t = sol.t # Plot time evolution
 n = real.(get_solution(sol, a'a, eqs_sc).(t))
-s22 = real.(get_solution(sol, σ(2, 2, i), eqs_sc).(t))
+s22 = real.(get_solution(sol, σ(2, 2, j(1)), eqs_sc).(t))
 p1 = plot(t, n, xlabel = "tΓ", ylabel = "⟨a⁺a⟩", legend = false) # Plot
 p2 = plot(t, s22, xlabel = "tΓ", ylabel = "⟨σ22⟩", legend = false)
 plot(p1, p2, layout = (1, 2), size = (700, 300))

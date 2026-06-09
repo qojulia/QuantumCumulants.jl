@@ -126,7 +126,7 @@ julia> cumulant_expansion(average(a * b), 1)
 cumulant_expansion(x::Number, order; kw...) = x
 cumulant_expansion(x::SymbolicUtils.BasicSymbolic, ::Nothing; kw...) = x
 cumulant_expansion(x::Symbolics.Num, ::Nothing; kw...) = x
-cumulant_expansion(eqs::MeanFieldEquations, ::Nothing; kw...) = eqs
+cumulant_expansion(eqs::MeanfieldEquations, ::Nothing; kw...) = eqs
 
 """
 True when the expression tree contains any averaged subexpression.
@@ -381,14 +381,14 @@ function _expand_product(args::Vector, order::Vector{Int}; mix_choice = maximum)
 end
 
 """
-    cumulant_expansion(eqs::MeanFieldEquations, order; mix_choice=maximum)
+    cumulant_expansion(eqs::MeanfieldEquations, order; mix_choice=maximum)
 
-Cumulant-expand every RHS of `eqs` to `order`, returning a new `MeanFieldEquations` of
+Cumulant-expand every RHS of `eqs` to `order`, returning a new `MeanfieldEquations` of
 the same shape with that order stored. Noise systems take their order through
 [`meanfield`](@ref), not here.
 """
 function cumulant_expansion(
-        eqs::MeanFieldEquations, order;
+        eqs::MeanfieldEquations, order;
         mix_choice = maximum
     )
     order_vec = _normalize_order(order, eqs)
@@ -396,7 +396,7 @@ function cumulant_expansion(
         eq.lhs ~ cumulant_expansion(eq.rhs, order_vec; mix_choice)
             for eq in eqs.equations
     ]
-    return MeanFieldEquations(
+    return MeanfieldEquations(
         new_eqs, eqs.operator_equations, eqs.states,
         eqs.operators, eqs.hamiltonian, eqs.jumps,
         eqs.jumps_dagger, eqs.rates, eqs.iv, order_vec, eqs.direction;

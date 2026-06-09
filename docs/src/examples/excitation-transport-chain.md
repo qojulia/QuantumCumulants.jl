@@ -34,7 +34,7 @@ As always, we start by loading the packages we use and some basic definitions.
 
 ````@example excitation-transport-chain
 using QuantumCumulants
-using ModelingToolkitBase, OrdinaryDiffEq
+using ModelingToolkitBase, OrdinaryDiffEqLowOrderRK
 using Plots
 
 
@@ -87,7 +87,7 @@ p = Dict([γ => 1.0; Δ => 0.0; Ω => 2.0; J0 => 1.25; x .=> x0;])
 u0 = initial_values(eqs)  # initial state -- all atoms in the ground state
 prob = ODEProblem(sys_c, merge(u0, p), (0.0, 15.0)) # Create ODEProblem
 
-sol = solve(prob, Tsit5()) # Solve
+sol = solve(prob, RK4()) # Solve
 
 pop1 = real.(get_solution(sol, σ(:e, :e, 1), eqs).(sol.t))
 popN = real.(get_solution(sol, σ(:e, :e, N), eqs).(sol.t))
@@ -116,7 +116,7 @@ In the following, we define the function that sets up the new `ODEProblem` for a
 
 ````@example excitation-transport-chain
 s = d / 30  # strength of fluctuations
-function prob_func(prob, i, repeat)
+function prob_func(prob, args...)
     x_ = x0 .+ s .* randn(N) # Define the new set of parameters
     p_ = Dict([γ => 1.0; Δ => 0.0; Ω => 2.0; J0 => 1.25; x .=> x_;])
 
@@ -125,7 +125,7 @@ end
 
 trajectories = 20
 eprob = EnsembleProblem(prob, prob_func = prob_func)
-sim = solve(eprob, Tsit5(), EnsembleSerial(); trajectories)
+sim = solve(eprob, RK4(), EnsembleSerial(); trajectories)
 nothing # hide
 ````
 

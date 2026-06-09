@@ -8,18 +8,18 @@ In this example, we investigate the collective behaviour of atomic ensembles cou
 ```math
     H = \sum_{i \neq j}^{N} \Omega_{ij}^{1\mathrm{D}} \sigma^+_i \sigma^-_j,
 ```
-with the coupling rate $\Omega^{1\mathrm{D}}_{ij}$.
+with the coupling rate ``\Omega^{1\mathrm{D}}_{ij}``.
 The incoherent part describing the dissipative processes is accounted for by the Lindblad term
 ```math
     \mathcal{L}[\rho]=\frac{1}{2}\sum_{i,j}^N \Gamma^{1\mathrm{D}}_{ij} (2 \sigma^-_i \rho \sigma^+_j-\sigma^+_i \sigma^-_j \rho - \rho \sigma^+_i \sigma^-_j)
 ```
-with the collective fiber-mediated decay rates $\Gamma^{1\mathrm{D}}_{ij}$. For $M$ atomic ensembles, where each of the $N_i$ atoms within an ensemble behaves identically, we can use $M$ spin-$N_i/2$ systems to describe them. This means
+with the collective fiber-mediated decay rates ``\Gamma^{1\mathrm{D}}_{ij}``. For ``M`` atomic ensembles, where each of the ``N_i`` atoms within an ensemble behaves identically, we can use ``M`` spin-``N_i/2`` systems to describe them. This means
 ```math
     H = \sum_{i \neq j}^{M} {\Omega}_{ij}^{1\mathrm{D}} S^+_i S^-_j \hspace{0.75cm} \mathrm{and} \hspace{0.75cm} \mathcal{L}[\rho]=\frac{1}{2}\sum_{i,j}^M {\Gamma}^{1\mathrm{D}}_{ij} (2 S^-_i \rho S^+_j-S^+_i S^-_j \rho - \rho S^+_i S^-_j),
 ```
-with $S^{\pm}_i = S^x \pm i S^y = \sum_{k=1}^{N_i} \sigma^{\pm}_k$, where $S^{x,y,z}_i = \frac{1}{2} \sum_{k=1}^{N_i} \sigma^{x,y,z}_k $.
+with ``S^{\pm}_i = S^x \pm i S^y = \sum_{k=1}^{N_i} \sigma^{\pm}_k``, where ``S^{x,y,z}_i = \frac{1}{2} \sum_{k=1}^{N_i} \sigma^{x,y,z}_k``.
 
-After loading the needed packages we define the Hilbert space and spin operators of the $M$ atomic ensembles coupled to the waveguide. We also define the numerical Parameters and utilize that $\Omega_{ij} = \Omega_{ji}$ and $\Gamma_{ij} = \Gamma_{ji}$. Due to this the derived equations are simplified further.
+After loading the needed packages we define the Hilbert space and spin operators of the ``M`` atomic ensembles coupled to the waveguide. We also define the numerical Parameters and utilize that ``\Omega_{ij} = \Omega_{ji}`` and ``\Gamma_{ij} = \Gamma_{ji}``. Due to this the derived equations are simplified further.
 
 ````@example waveguide
 using QuantumCumulants
@@ -69,7 +69,7 @@ With the symbolic operators and Parameters we define the Hamiltonian and the col
 ```math
     \mathcal{L}[\rho]=\frac{1}{2}\sum_{i,j}^M R_{ij} (2 J_i \rho J^+_j-J^+_i \rho J_j - \rho J^+_i J_j),
 ```
-with the jump operator $J_i$ and the corresponding decay rate matrix $R_{ij}$. This implementation is similar to the one in [QuantumOptics.jl](https://docs.qojulia.org/timeevolution/master/) for collective dissipation.
+with the jump operator ``J_i`` and the corresponding decay rate matrix ``R_{ij}``. This implementation is similar to the one in [QuantumOptics.jl](https://docs.qojulia.org/timeevolution/master/) for collective dissipation.
 
 ````@example waveguide
 H = sum((i ≠ j) * Ωp(i, j) * Sp(i) * Sm(j) for i in 1:M for j in 1:M) # Hamiltonian
@@ -127,7 +127,7 @@ p0 = [Γ_ls; Ω_ls;]
 nothing # hide
 ````
 
-Note that the function [coherentspinstate](https://docs.qojulia.org/api/#QuantumOpticsBase.coherentspinstate) can only reliably produce states for spins with a length of about $10^4$, for [spindown](https://docs.qojulia.org/api/#QuantumOpticsBase.spindown) or [spinup](https://docs.qojulia.org/api/#QuantumOpticsBase.spinup) there is no restriction. Also, we created the function `LazyKet`, which allows you to define product states without calculating the tensor product directly. This makes it possible to define initial (product) states for very large quantum systems. The function [`initial_values`](@ref)(eqs, $\psi$) calculates the initial values for a set of equations `eqs` with the initial quantum state $\psi$.
+Note that the function [coherentspinstate](https://docs.qojulia.org/api/#QuantumOpticsBase.coherentspinstate) can only reliably produce states for spins with a length of about ``10^4``, for [spindown](https://docs.qojulia.org/api/#QuantumOpticsBase.spindown) or [spinup](https://docs.qojulia.org/api/#QuantumOpticsBase.spinup) there is no restriction. Also, we created the function `LazyKet`, which allows you to define product states without calculating the tensor product directly. This makes it possible to define initial (product) states for very large quantum systems. The function [`initial_values`](@ref)`(eqs, ψ)` calculates the initial values for a set of equations `eqs` with the initial quantum state ``\psi``.
 
 ````@example waveguide
 N_p = 8000 # number of pumped atoms
@@ -146,19 +146,21 @@ nothing # hide
 
 Finally, we create the ODE-problem, calculate the dynamics and plot the results. We see a fast transfer of the population from the initially excited to the other atomic ensemble.
 
+Since `ps`/`p0` carry diagonal entries `Ω_i_i`/`Γ_i_i` that the Hamiltonian never references (it sums over `i ≠ j`), we filter them out with `parameter_map(sys, …)` because MTK v10 rejects superfluous parameter assignments.
+
 ````@example waveguide
 sys = System(eqs; name = :sys)
 sys = mtkcompile(sys)
-dict = merge(Dict(unknowns(sys) .=> u0), Dict(ps .=> p0))
-prob = ODEProblem(sys, dict, (0.0, 8e-3))
-sol = solve(prob, Tsit5(), abstol = 1e-6, reltol = 1e-6)
+dict = parameter_map(sys, merge(Dict(unknowns(sys) .=> u0), Dict(ps .=> p0)))
+prob = ODEProblem(sys, dict, (0.0, 8.0e-3))
+sol = solve(prob, Tsit5(), abstol = 1.0e-6, reltol = 1.0e-6)
 ````
 
 ````@example waveguide
-t = sol.t * 1e3
+t = sol.t * 1.0e3
 Sz_t(i) = real.(get_solution(sol, Sz(i), eqs)(sol.t))
 N_ls = [[N_p for i in 1:M_p] ./ M_p; [N_np for i in 1:M_np] ./ M_np]
-σ22_t(i) = Sz_t(i) / N_ls[i] .+ 1/2
+σ22_t(i) = Sz_t(i) / N_ls[i] .+ 1 / 2
 σ22_p_t = sum(σ22_t(i) for i in 1:M_p) ./ M_p
 σ22_np_t = sum(σ22_t(i) for i in (M_p + 1):(M_p + M_np)) ./ M_np
 

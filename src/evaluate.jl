@@ -257,9 +257,9 @@ _is_zero_qadd(_) = false
 Build a `MomentGraph` from a completed equation set using its stored drifts. Reuses the
 recorded RHSs (preserving any filter applied during completion) rather than re-deriving.
 """
-function _graph_from_stored(eqs::AbstractMeanFieldEquations)
+function _graph_from_stored(eqs::AbstractMeanfieldEquations)
     ctx = build_ctx(eqs)
-    eff = eqs isa NoiseMeanFieldEquations ? eqs.efficiencies : nothing
+    eff = eqs isa NoiseMeanfieldEquations ? eqs.efficiencies : nothing
     sys = SystemSpec(
         eqs.hamiltonian, collect(eqs.jumps), collect(eqs.jumps_dagger),
         collect(eqs.rates), eff, eqs.iv, eqs.order, maximum, eqs.direction,
@@ -431,14 +431,14 @@ Rewrite the per-site `IndexedVariable` coefficients left after unrolling (e.g. `
 a coupling at one concrete atom) into `getindex` on a minted Symbolics array parameter,
 in place, so MTK can scalarise and bind them. A no-op when none remain.
 """
-function _arrayize_indexed_params!(eqs::AbstractMeanFieldEquations)
+function _arrayize_indexed_params!(eqs::AbstractMeanfieldEquations)
     arr_sub = _build_callable_to_array_sub(eqs.equations, eqs.states)
     isempty(arr_sub) && return eqs
     for k in eachindex(eqs.equations)
         eqs.equations[k] = _apply_callable_sub(eqs.equations[k].lhs, arr_sub) ~
             _apply_callable_sub(eqs.equations[k].rhs, arr_sub)
     end
-    if eqs isa NoiseMeanFieldEquations
+    if eqs isa NoiseMeanfieldEquations
         for k in eachindex(eqs.noise_equations)
             eqs.noise_equations[k] = _apply_callable_sub(eqs.noise_equations[k].lhs, arr_sub) ~
                 _apply_callable_sub(eqs.noise_equations[k].rhs, arr_sub)
@@ -448,7 +448,7 @@ function _arrayize_indexed_params!(eqs::AbstractMeanFieldEquations)
 end
 
 """
-    evaluate(eqs::AbstractMeanFieldEquations; limits=nothing, h=Int[])
+    evaluate(eqs::AbstractMeanfieldEquations; limits=nothing, h=Int[])
     evaluate(c::CorrelationFunction; limits=nothing, h=Int[])
 
 Materialise a symbolic indexed system into a concrete, fixed-size one by inserting the
@@ -461,7 +461,7 @@ index ranges and unrolling the sums. The result is ready for
 * `h=Int[]`: restrict unrolling to these Hilbert subspaces (by `acts_on` index). Empty
   unrolls every subspace covered by `limits`.
 """
-function evaluate(eqs::AbstractMeanFieldEquations; limits = nothing, h::Vector{Int} = Int[], kwargs...)
+function evaluate(eqs::AbstractMeanfieldEquations; limits = nothing, h::Vector{Int} = Int[], kwargs...)
     sub = _limits_dict(limits)
     isempty(sub) && return _copy(eqs)
     out = assemble_equations(specialize(_graph_from_stored(eqs), limits; h))

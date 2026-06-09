@@ -8,8 +8,9 @@ This example implements the heterodyne detection of the light emitted by an ense
 ````@example heterodyne_detection
 using QuantumCumulants
 using ModelingToolkitBase
-using OrdinaryDiffEq
+using OrdinaryDiffEqLowOrderRK
 using StochasticDiffEq
+using StochasticDiffEq.SciMLBase: ReturnCode
 using Plots
 using Random # hide
 ````
@@ -81,7 +82,7 @@ nothing # hide
 The completion and scaling as previously discussed in other examples work exactly the same way for equations including noise terms.
 
 ````@example heterodyne_detection
-eqs_c = complete(eqs)
+eqs_c = complete(eqs; get_adjoints = false)
 scaled_eqs = scale(eqs_c)
 nothing # hide
 ````
@@ -105,12 +106,16 @@ t1 = 20.0e-3
 p = [N, ωa, γ, η, χ, ωc, κ, g, ξ, ωl]
 p0 = [N_, ωa_, γ_, η_, χ_, ωc_, κ_, g_, ξ_, ωl_]
 T_end = 0.1 # 0.1ms
+````
 
-sys = System(scaled_eqs; name = :sys)
+To compare the stochastic evolution to the no-measurement case, build the deterministic system by passing `MeanfieldEquations(scaled_eqs)` to `System`. The constructor strips the noise drift, which also drops `ξ` from the compiled parameter list (it appeared only inside the `sqrt(ξ κ)` factor of the noise term). Because the physical parameter dict `p .=> p0` still carries `ξ`, we filter it through `parameter_map(sys, …)`; the helper keeps only the entries whose key is a live parameter or unknown of the compiled system and silently drops the rest.
+
+````@example heterodyne_detection
+sys = mtkcompile(System(MeanfieldEquations(scaled_eqs); name = :sys))
 u0 = zeros(ComplexF64, length(scaled_eqs))
-dict = merge(Dict(unknowns(sys) .=> u0), Dict(p .=> p0))
+dict = parameter_map(sys, merge(Dict(unknowns(sys) .=> u0), Dict(p .=> p0)))
 prob = ODEProblem(sys, dict, (0.0, T_end))
-sol_det = solve(prob, Tsit5(), dt = T_end / 2e5)
+sol_det = solve(prob, RK4(), dt = T_end / 2.0e5)
 
 graph = plot(xlabel = "Time (ms)", ylabel = "Cavity photon number")
 plot!(graph, sol_det.t, real(get_solution(sol_det, a'a, scaled_eqs)(sol_det.t)), legend = false)
@@ -121,12 +126,13 @@ The stochastic time evolution is accessible via the constructor `SDESystem`, who
 We can then make use of the `EnsembleProblem`, which automatically runs multiple instances of the stochastic equations of motion. The number of trajectories can be set in the solve call. See the tutorial linked above for more details of the function calls here.
 
 ````@example heterodyne_detection
-sys_st = System(scaled_eqs; name = :sys_st)
+sys_st = mtkcompile(System(scaled_eqs; name = :sys_st))
+dict_st = parameter_map(sys_st, merge(Dict(unknowns(sys_st) .=> u0), Dict(p .=> p0)))
 
 Random.seed!(2) # hide
 noise = StochasticDiffEq.RealWienerProcess(0.0, 0.0)
-prob_st = SDEProblem(sys_st, dict, (0.0, T_end); noise = noise)
-sol_test = solve(prob_st, EM(); dt = T_end / 2e5);
+prob_st = SDEProblem(sys_st, dict_st, (0.0, T_end); noise = noise)
+sol_test = solve(prob_st, EM(); dt = T_end / 2.0e5);
 
 plot(
     sol_test.t,
@@ -143,7 +149,7 @@ tspan = range(0.0, T_end, length = 201)
 sol = solve(
     eprob,
     StochasticDiffEq.EM(),
-    dt = T_end / 2e5,
+    dt = T_end / 2.0e5,
     save_noise = true,
     trajectories = traj,
     saveat = tspan,
@@ -159,9 +165,9 @@ a_real_avg_ = zeros(length(tspan)) # average field (real part)
 traj_succ = zeros(traj) # trajectories can be numerically unstable
 for i in 1:traj
     sol_ = sol.u[i]
-    if length(sol_) == length(tspan)
-        n_avg_ .+= real(get_solution(sol_, a'a, scaled_eqs)(sol_.t))
-        a_real_avg_ .+= real(get_solution(sol_, a, scaled_eqs)(sol_.t))
+    if sol_.retcode == ReturnCode.Success
+        n_avg_ .+= real(get_solution(sol_, a'a, scaled_eqs)(tspan))
+        a_real_avg_ .+= real(get_solution(sol_, a, scaled_eqs)(tspan))
         traj_succ[i] = 1
     end
 end

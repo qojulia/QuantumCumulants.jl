@@ -1,9 +1,9 @@
 """
-    AbstractMeanFieldEquations
+    AbstractMeanfieldEquations
 
-Supertype of [`MeanFieldEquations`](@ref) and [`NoiseMeanFieldEquations`](@ref).
+Supertype of [`MeanfieldEquations`](@ref) and [`NoiseMeanfieldEquations`](@ref).
 """
-abstract type AbstractMeanFieldEquations end
+abstract type AbstractMeanfieldEquations end
 
 """
 How one Hilbert-space factor (an SQA *subspace*, the tensor factor of the system's
@@ -14,7 +14,7 @@ canonical label:
 - `Concrete`: pinned to fixed sites `1..M` (after `evaluate`).
 
 The keying logic that consumes this lives in [canonical.jl](canonical.jl); it is defined
-here only because `MeanFieldEquations` stores a `Dict{Int, SubspaceTreatment}` field.
+here only because `MeanfieldEquations` stores a `Dict{Int, SubspaceTreatment}` field.
 """
 @enum SubspaceTreatment Free Scaled Concrete
 
@@ -33,7 +33,7 @@ struct Forward <: EvolutionDirection end
 struct Backward <: EvolutionDirection end
 
 """
-    MeanFieldEquations
+    MeanfieldEquations
 
 Concrete equation set produced by [`meanfield`](@ref) when no measurement backaction is
 requested. All type parameters are bound concretely.
@@ -51,7 +51,7 @@ requested. All type parameters are bound concretely.
 * `order`: the cumulant-expansion order, or `nothing`.
 * `direction`: [`Forward`](@ref) or [`Backward`](@ref) evolution.
 """
-struct MeanFieldEquations{
+struct MeanfieldEquations{
         O <: Union{Nothing, Vector{Int}},
         H <: QField,
         Op <: QField,
@@ -60,7 +60,7 @@ struct MeanFieldEquations{
         R,
         S <: SymbolicUtils.BasicSymbolic,
         D <: EvolutionDirection,
-    } <: AbstractMeanFieldEquations
+    } <: AbstractMeanfieldEquations
     equations::Vector{Symbolics.Equation}
     operator_equations::Vector{Symbolics.Equation}
     states::Vector{S}
@@ -74,7 +74,7 @@ struct MeanFieldEquations{
     direction::D
     treatments::Dict{Int, SubspaceTreatment}
 
-    function MeanFieldEquations(
+    function MeanfieldEquations(
             equations::Vector{Symbolics.Equation},
             operator_equations::Vector{Symbolics.Equation},
             states::Vector{S},
@@ -106,7 +106,7 @@ struct MeanFieldEquations{
 end
 
 """
-    NoiseMeanFieldEquations
+    NoiseMeanfieldEquations
 
 Concrete equation set produced by [`meanfield`](@ref) when `efficiencies` is supplied,
 adding a measurement-backaction noise drift to the deterministic equations. The
@@ -127,7 +127,7 @@ the noise assembly.
 * `order`: the cumulant-expansion order, or `nothing`.
 * `direction`: [`Forward`](@ref) or [`Backward`](@ref) evolution.
 """
-struct NoiseMeanFieldEquations{
+struct NoiseMeanfieldEquations{
         O <: Union{Nothing, Vector{Int}},
         H <: QField,
         Op <: QField,
@@ -136,7 +136,7 @@ struct NoiseMeanFieldEquations{
         R, E,
         S <: SymbolicUtils.BasicSymbolic,
         D <: EvolutionDirection,
-    } <: AbstractMeanFieldEquations
+    } <: AbstractMeanfieldEquations
     equations::Vector{Symbolics.Equation}
     noise_equations::Vector{Symbolics.Equation}
     operator_equations::Vector{Symbolics.Equation}
@@ -151,10 +151,10 @@ struct NoiseMeanFieldEquations{
     iv::Symbolics.Num
     order::O
     direction::D
-    # Per-subspace treatment state; see MeanFieldEquations.
+    # Per-subspace treatment state; see MeanfieldEquations.
     treatments::Dict{Int, SubspaceTreatment}
 
-    function NoiseMeanFieldEquations(
+    function NoiseMeanfieldEquations(
             equations::Vector{Symbolics.Equation},
             noise_equations::Vector{Symbolics.Equation},
             operator_equations::Vector{Symbolics.Equation},
@@ -189,19 +189,19 @@ struct NoiseMeanFieldEquations{
 end
 
 """
-    MeanFieldEquations(eqs::NoiseMeanFieldEquations)
+    MeanfieldEquations(eqs::NoiseMeanfieldEquations)
 
 Strip the measurement-backaction columns (`noise_equations`,
 `operator_noise_equations`, `efficiencies`) and return a plain
-[`MeanFieldEquations`](@ref) carrying only the deterministic drift. The `direction`
+[`MeanfieldEquations`](@ref) carrying only the deterministic drift. The `direction`
 tag is preserved.
 
 Use this to compare a stochastic simulation against the no-measurement
-evolution: build the noisy system once, then pass `MeanFieldEquations(eqs)`
+evolution: build the noisy system once, then pass `MeanfieldEquations(eqs)`
 to `System` / `ODEProblem` for the deterministic reference.
 """
-function MeanFieldEquations(eqs::NoiseMeanFieldEquations)
-    return MeanFieldEquations(
+function MeanfieldEquations(eqs::NoiseMeanfieldEquations)
+    return MeanfieldEquations(
         eqs.equations, eqs.operator_equations, eqs.states, eqs.operators,
         eqs.hamiltonian, eqs.jumps, eqs.jumps_dagger, eqs.rates,
         eqs.iv, eqs.order, eqs.direction;
@@ -209,9 +209,9 @@ function MeanFieldEquations(eqs::NoiseMeanFieldEquations)
     )
 end
 
-Base.length(eqs::AbstractMeanFieldEquations) = length(eqs.equations)
-Base.getindex(eqs::AbstractMeanFieldEquations, i) = eqs.equations[i]
-Base.lastindex(eqs::AbstractMeanFieldEquations) = lastindex(eqs.equations)
-Base.iterate(eqs::AbstractMeanFieldEquations, st = 1) =
+Base.length(eqs::AbstractMeanfieldEquations) = length(eqs.equations)
+Base.getindex(eqs::AbstractMeanfieldEquations, i) = eqs.equations[i]
+Base.lastindex(eqs::AbstractMeanfieldEquations) = lastindex(eqs.equations)
+Base.iterate(eqs::AbstractMeanfieldEquations, st = 1) =
     st > length(eqs) ? nothing : (eqs.equations[st], st + 1)
-Base.eltype(::Type{<:AbstractMeanFieldEquations}) = Symbolics.Equation
+Base.eltype(::Type{<:AbstractMeanfieldEquations}) = Symbolics.Equation

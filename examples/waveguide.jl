@@ -4,18 +4,18 @@
 # ```math
 #     H = \sum_{i \neq j}^{N} \Omega_{ij}^{1\mathrm{D}} \sigma^+_i \sigma^-_j,
 # ```
-# with the coupling rate $\Omega^{1\mathrm{D}}_{ij}$.
+# with the coupling rate ``\Omega^{1\mathrm{D}}_{ij}``.
 # The incoherent part describing the dissipative processes is accounted for by the Lindblad term
 # ```math
 #     \mathcal{L}[\rho]=\frac{1}{2}\sum_{i,j}^N \Gamma^{1\mathrm{D}}_{ij} (2 \sigma^-_i \rho \sigma^+_j-\sigma^+_i \sigma^-_j \rho - \rho \sigma^+_i \sigma^-_j)
 # ```
-# with the collective fiber-mediated decay rates $\Gamma^{1\mathrm{D}}_{ij}$. For $M$ atomic ensembles, where each of the $N_i$ atoms within an ensemble behaves identically, we can use $M$ spin-$N_i/2$ systems to describe them. This means
+# with the collective fiber-mediated decay rates ``\Gamma^{1\mathrm{D}}_{ij}``. For ``M`` atomic ensembles, where each of the ``N_i`` atoms within an ensemble behaves identically, we can use ``M`` spin-``N_i/2`` systems to describe them. This means
 # ```math
 #     H = \sum_{i \neq j}^{M} {\Omega}_{ij}^{1\mathrm{D}} S^+_i S^-_j \hspace{0.75cm} \mathrm{and} \hspace{0.75cm} \mathcal{L}[\rho]=\frac{1}{2}\sum_{i,j}^M {\Gamma}^{1\mathrm{D}}_{ij} (2 S^-_i \rho S^+_j-S^+_i S^-_j \rho - \rho S^+_i S^-_j),
 # ```
-# with $S^{\pm}_i = S^x \pm i S^y = \sum_{k=1}^{N_i} \sigma^{\pm}_k$, where $S^{x,y,z}_i = \frac{1}{2} \sum_{k=1}^{N_i} \sigma^{x,y,z}_k $.
+# with ``S^{\pm}_i = S^x \pm i S^y = \sum_{k=1}^{N_i} \sigma^{\pm}_k``, where ``S^{x,y,z}_i = \frac{1}{2} \sum_{k=1}^{N_i} \sigma^{x,y,z}_k``.
 
-# After loading the needed packages we define the Hilbert space and spin operators of the $M$ atomic ensembles coupled to the waveguide. We also define the numerical Parameters and utilize that $\Omega_{ij} = \Omega_{ji}$ and $\Gamma_{ij} = \Gamma_{ji}$. Due to this the derived equations are simplified further.
+# After loading the needed packages we define the Hilbert space and spin operators of the ``M`` atomic ensembles coupled to the waveguide. We also define the numerical Parameters and utilize that ``\Omega_{ij} = \Omega_{ji}`` and ``\Gamma_{ij} = \Gamma_{ji}``. Due to this the derived equations are simplified further.
 
 
 using QuantumCumulants
@@ -64,7 +64,7 @@ nothing # hide
 # ```math
 #     \mathcal{L}[\rho]=\frac{1}{2}\sum_{i,j}^M R_{ij} (2 J_i \rho J^+_j-J^+_i \rho J_j - \rho J^+_i J_j),
 # ```
-# with the jump operator $J_i$ and the corresponding decay rate matrix $R_{ij}$. This implementation is similar to the one in [QuantumOptics.jl](https://docs.qojulia.org/timeevolution/master/) for collective dissipation.
+# with the jump operator ``J_i`` and the corresponding decay rate matrix ``R_{ij}``. This implementation is similar to the one in [QuantumOptics.jl](https://docs.qojulia.org/timeevolution/master/) for collective dissipation.
 
 
 H = sum((i ≠ j) * Ωp(i, j) * Sp(i) * Sm(j) for i in 1:M for j in 1:M) # Hamiltonian
@@ -121,7 +121,7 @@ ps = [[Γp(i, j) for i in 1:M for j in 1:M]; [Ωp(i, j) for i in 1:M for j in 1:
 p0 = [Γ_ls; Ω_ls;]
 nothing # hide
 
-# Note that the function [coherentspinstate](https://docs.qojulia.org/api/#QuantumOpticsBase.coherentspinstate) can only reliably produce states for spins with a length of about $10^4$, for [spindown](https://docs.qojulia.org/api/#QuantumOpticsBase.spindown) or [spinup](https://docs.qojulia.org/api/#QuantumOpticsBase.spinup) there is no restriction. Also, we created the function `LazyKet`, which allows you to define product states without calculating the tensor product directly. This makes it possible to define initial (product) states for very large quantum systems. The function [`initial_values`](@ref)(eqs, $\psi$) calculates the initial values for a set of equations `eqs` with the initial quantum state $\psi$.
+# Note that the function [coherentspinstate](https://docs.qojulia.org/api/#QuantumOpticsBase.coherentspinstate) can only reliably produce states for spins with a length of about ``10^4``, for [spindown](https://docs.qojulia.org/api/#QuantumOpticsBase.spindown) or [spinup](https://docs.qojulia.org/api/#QuantumOpticsBase.spinup) there is no restriction. Also, we created the function `LazyKet`, which allows you to define product states without calculating the tensor product directly. This makes it possible to define initial (product) states for very large quantum systems. The function [`initial_values`](@ref)`(eqs, ψ)` calculates the initial values for a set of equations `eqs` with the initial quantum state ``\psi``.
 
 
 N_p = 8000 # number of pumped atoms

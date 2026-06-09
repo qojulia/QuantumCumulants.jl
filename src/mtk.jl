@@ -40,7 +40,7 @@ _make_var(name::Symbol, iv::Symbolics.Num) = first(@variables $name(iv))
 Build the per-state `u(t)` variables and the scaled/`canon_key` lookup maps shared by
 `System`, `initial_values` and `get_solution`, so variable naming agrees across them.
 """
-function _state_registry(eqs::AbstractMeanFieldEquations)
+function _state_registry(eqs::AbstractMeanfieldEquations)
     ctx = build_ctx(eqs)
     # Key/match in the system's recorded treatment, not a hardcoded `concrete_rep`
     # (an empty map, scalar systems, reads as all-Free).
@@ -118,15 +118,15 @@ end
 # ---- System ------------------------------------------------------------------
 
 """
-    ModelingToolkitBase.System(eqs::MeanFieldEquations; name)
-    ModelingToolkitBase.System(eqs::NoiseMeanFieldEquations; name)
+    ModelingToolkitBase.System(eqs::MeanfieldEquations; name)
+    ModelingToolkitBase.System(eqs::NoiseMeanfieldEquations; name)
 
 Build an MTK `System` from the equation set: one `u(t)` variable per state, the
-drift resolved to those variables. A `NoiseMeanFieldEquations` becomes an SDE
+drift resolved to those variables. A `NoiseMeanfieldEquations` becomes an SDE
 whose single Brownian column is the aggregated noise drift (sign +1 Forward, -1
 Backward). RHS leaves not matching a state become parameters.
 """
-function MTK.System(eqs::MeanFieldEquations; name::Symbol)
+function MTK.System(eqs::MeanfieldEquations; name::Symbol)
     iv = eqs.iv
     iv_uw = SymbolicUtils.unwrap(iv)
     D = Symbolics.Differential(iv)
@@ -143,12 +143,12 @@ function MTK.System(eqs::MeanFieldEquations; name::Symbol)
     return MTK.System(new_eqs, iv, reg.vars, ps; name = name)
 end
 
-MTK.System(eqs::NoiseMeanFieldEquations{O, H, Op, Jt, Jdt, R, E, S, Forward}; name::Symbol) where {O, H, Op, Jt, Jdt, R, E, S} =
+MTK.System(eqs::NoiseMeanfieldEquations{O, H, Op, Jt, Jdt, R, E, S, Forward}; name::Symbol) where {O, H, Op, Jt, Jdt, R, E, S} =
     _to_system_sde(eqs, name, +1)
-MTK.System(eqs::NoiseMeanFieldEquations{O, H, Op, Jt, Jdt, R, E, S, Backward}; name::Symbol) where {O, H, Op, Jt, Jdt, R, E, S} =
+MTK.System(eqs::NoiseMeanfieldEquations{O, H, Op, Jt, Jdt, R, E, S, Backward}; name::Symbol) where {O, H, Op, Jt, Jdt, R, E, S} =
     _to_system_sde(eqs, name, -1)
 
-function _to_system_sde(eqs::NoiseMeanFieldEquations, name::Symbol, sign::Int)
+function _to_system_sde(eqs::NoiseMeanfieldEquations, name::Symbol, sign::Int)
     iv = eqs.iv
     iv_uw = SymbolicUtils.unwrap(iv)
     D = Symbolics.Differential(iv)
@@ -176,12 +176,12 @@ end
 # ---- initial values / parameter map / solution ------------------------------
 
 """
-    initial_values(eqs::AbstractMeanFieldEquations; defaults=Dict())
+    initial_values(eqs::AbstractMeanfieldEquations; defaults=Dict())
 
 Map every state's `u(t)` variable to its initial value, defaulting to
 `zero(ComplexF64)` for averages absent from `defaults`.
 """
-function initial_values(eqs::AbstractMeanFieldEquations; defaults::AbstractDict = Dict())
+function initial_values(eqs::AbstractMeanfieldEquations; defaults::AbstractDict = Dict())
     reg = _state_registry(eqs)
     out = Dict{Symbolics.Num, ComplexF64}()
     for (k, avg) in enumerate(eqs.states)
@@ -194,11 +194,11 @@ end
     initial_values(eqs, state)            # from a numeric quantum state
     initial_values(eqs, u0::AbstractVector)  # from a value vector aligned with eqs.states
 """
-function initial_values(eqs::AbstractMeanFieldEquations, state)
+function initial_values(eqs::AbstractMeanfieldEquations, state)
     return ComplexF64[ComplexF64(SQA.numeric_average(v, state)) for v in eqs.states]
 end
 
-function initial_values(eqs::AbstractMeanFieldEquations, u0::AbstractVector{<:Number}; kwargs...)
+function initial_values(eqs::AbstractMeanfieldEquations, u0::AbstractVector{<:Number}; kwargs...)
     length(u0) == length(eqs.states) || throw(
         DimensionMismatch(
             "initial value vector length $(length(u0)) does not match number of states $(length(eqs.states))",
@@ -230,7 +230,7 @@ function parameter_map(sys::MTK.System, pairs)
 end
 
 """
-    parameter_map(eqs::AbstractMeanFieldEquations, pairs) -> Dict
+    parameter_map(eqs::AbstractMeanfieldEquations, pairs) -> Dict
 
 Translate a user-facing `Pair`/`Dict` of parameter assignments into an
 MTK-compatible map. An `IndexedVariable` callable key (e.g. `g` from
@@ -239,7 +239,7 @@ parameter that `evaluate` synthesised from the per-atom references; a scalar
 value is broadcast to fill that array, an `AbstractArray` value passes through
 as the explicit per-atom values. Scalar (non-array) parameters pass through.
 """
-function parameter_map(eqs::AbstractMeanFieldEquations, pairs)
+function parameter_map(eqs::AbstractMeanfieldEquations, pairs)
     arr_by_name = Dict{Symbol, SymbolicUtils.BasicSymbolic}()
     scalar_by_name = Dict{Symbol, SymbolicUtils.BasicSymbolic}()
     for eq in eqs.equations
@@ -358,7 +358,7 @@ Hermitian conjugation (`concrete_rep`, recovering a folded conjugate via the sid
 bit), then falls back to `canon_key` so a query posed in a different but
 equivalent symbolic form still hits.
 """
-function get_solution(sol, avg::SymbolicUtils.BasicSymbolic, eqs::AbstractMeanFieldEquations)
+function get_solution(sol, avg::SymbolicUtils.BasicSymbolic, eqs::AbstractMeanfieldEquations)
     reg = _state_registry(eqs)
     op = undo_average(avg)
     if op isa QAdd
@@ -374,7 +374,7 @@ function get_solution(sol, avg::SymbolicUtils.BasicSymbolic, eqs::AbstractMeanFi
     end
     throw(KeyError(avg))
 end
-get_solution(sol, op::QField, eqs::AbstractMeanFieldEquations) = get_solution(sol, average(op), eqs)
+get_solution(sol, op::QField, eqs::AbstractMeanfieldEquations) = get_solution(sol, average(op), eqs)
 
 _eval_at(sol, var, τ::AbstractVector) = Array(sol(τ; idxs = var))
 _eval_at(sol, var, τ) = sol(τ; idxs = var)

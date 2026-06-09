@@ -12,7 +12,7 @@ using Test
     i = Index(h, :i, N, ha)
     H = Δ * a' * a + Σ(g * (a * σ(2, 1, i) + a' * σ(1, 2, i)), i)
     eqs = meanfield([a], H, [a, σ(1, 2, i)]; rates = [κ, γ])
-    @test eqs isa MeanFieldEquations
+    @test eqs isa MeanfieldEquations
     # `meanfield` derives one equation per seed operator; one seed (`a`) → 1.
     @test length(eqs.equations) == 1
 end
@@ -56,9 +56,9 @@ end
     # `meanfield` derives one equation per seed; three seeds (`a`, `σ22`,
     # `σ12`) → 3.
     @test length(eqs.equations) == 3
-    @test eqs isa MeanFieldEquations
+    @test eqs isa MeanfieldEquations
     ceqs = complete(eqs)
-    @test ceqs isa MeanFieldEquations
+    @test ceqs isa MeanfieldEquations
     @test length(ceqs.equations) >= 3
 
     # `complete` is idempotent on a closed system.

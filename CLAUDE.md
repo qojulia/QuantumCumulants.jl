@@ -26,22 +26,22 @@ Running a single test file: pass a name filter to `ParallelTestRunner` via `Pkg.
 
 Entry point: [src/QuantumCumulants.jl](src/QuantumCumulants.jl). The pipeline is symbolic derivation → cumulant expansion → completion → (optional) scaling/noise → MTK system → numeric solve.
 
-- [equations.jl](src/equations.jl) — `AbstractMeanFieldEquations`, `MeanFieldEquations`, `NoiseMeanFieldEquations{...,Direction}`, `EvolutionDirection` (`Forward`/`Backward`). LHS in the user-facing struct is the raw `Average` `BasicSymbolic`; the `Differential(t)(u(t))` form is built only inside `MTK.System(eqs; name)`.
+- [equations.jl](src/equations.jl) — `AbstractMeanfieldEquations`, `MeanfieldEquations`, `NoiseMeanfieldEquations{...,Direction}`, `EvolutionDirection` (`Forward`/`Backward`). LHS in the user-facing struct is the raw `Average` `BasicSymbolic`; the `Differential(t)(u(t))` form is built only inside `MTK.System(eqs; name)`.
 - [meanfield.jl](src/meanfield.jl) — unified `meanfield(ops, H, J; rates, order, efficiencies, direction)`. There is no longer a separate `indexed_meanfield`; indexed and scalar systems share one entry point. Noise is opt-in via `efficiencies=...`; retrodiction via `direction=Backward()`.
 - [cumulant.jl](src/cumulant.jl) — `cumulant_expansion`, `cumulant`, `get_order` (Wick-style factorization to a given order).
 - [completion.jl](src/completion.jl) — `complete`/`complete!`/`find_missing` close the system by deriving equations for any averages appearing on the RHS but missing from the LHS.
-- [scaling.jl](src/scaling.jl) — `scale`/`scale!` for permutation-symmetric (indexed) systems. Defined for both `MeanFieldEquations` and `NoiseMeanFieldEquations`.
-- [mtk.jl](src/mtk.jl) — `MTK.System(eqs; name)` is QC's extension of `ModelingToolkitBase.System`, dispatched on `MeanFieldEquations`/`NoiseMeanFieldEquations`/`CorrelationFunction`; `initial_values(eqs, u0)`, `get_solution(sol, op, eqs)(t)` are the user-facing bridges to numerical solutions. `sol[op]` indexing is gone; always go through `get_solution`.
+- [scaling.jl](src/scaling.jl) — `scale`/`scale!` for permutation-symmetric (indexed) systems. Defined for both `MeanfieldEquations` and `NoiseMeanfieldEquations`.
+- [mtk.jl](src/mtk.jl) — `MTK.System(eqs; name)` is QC's extension of `ModelingToolkitBase.System`, dispatched on `MeanfieldEquations`/`NoiseMeanfieldEquations`/`CorrelationFunction`; `initial_values(eqs, u0)`, `get_solution(sol, op, eqs)(t)` are the user-facing bridges to numerical solutions. `sol[op]` indexing is gone; always go through `get_solution`.
 - [correlation.jl](src/correlation.jl) — `CorrelationFunction`, `Spectrum`, `correlation_u0`, `correlation_p0` (unified, no separate `IndexedCorrelationFunction`).
-- [noise.jl](src/noise.jl) — diffusion/noise machinery for `NoiseMeanFieldEquations`.
+- [noise.jl](src/noise.jl) — diffusion/noise machinery for `NoiseMeanfieldEquations`.
 - [latexify.jl](src/latexify.jl) — `@latexrecipe`s for pretty-printing equations.
 
 ## v1 rewrite context
 
 This is the `rewrite` branch building the breaking 1.0 release on top of SQA v0.5 + ModelingToolkitBase. There are no deprecation shims; migration from `master` is hand-driven. Key collapses (see [CHANGELOG.md](CHANGELOG.md)):
 
-- `indexed_meanfield`, `indexed_complete!`, `IndexedCorrelationFunction`, `scaleME`/`evalME`, `IndexedMeanfieldEquations`, `EvaledMeanfieldEquations`, `ScaledMeanfieldEquations` → unified `meanfield` / `complete!` / `CorrelationFunction` / `scale!` / `MeanFieldEquations`.
-- `MeanfieldNoiseEquations`, `IndexedMeanfieldNoiseEquations`, `BackwardMeanfieldNoiseEquations` → `NoiseMeanFieldEquations{...,Direction}`.
+- `indexed_meanfield`, `indexed_complete!`, `IndexedCorrelationFunction`, `scaleME`/`evalME`, `IndexedMeanfieldEquations`, `EvaledMeanfieldEquations`, `ScaledMeanfieldEquations` → unified `meanfield` / `complete!` / `CorrelationFunction` / `scale!` / `MeanfieldEquations`.
+- `MeanfieldNoiseEquations`, `IndexedMeanfieldNoiseEquations`, `BackwardMeanfieldNoiseEquations` → `NoiseMeanfieldEquations{...,Direction}`.
 - `ClusterSpace` removed (SQA v0.5); use `Index` + `Σ` directly.
 
 When in doubt about whether something is "missing" vs. "moved," check [CHANGELOG.md](CHANGELOG.md) Migration section.

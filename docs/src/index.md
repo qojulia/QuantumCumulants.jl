@@ -7,6 +7,9 @@
 * Then follows the key step: the equations of motion the averages are truncated at a specified order neglecting higher-order quantum correlations using the generalized cumulant expansion method. This results in a closed set of *c*-number ordinary differential equations.
 * Finally, the symbolic system of equations is turned into a `System` from [**ModelingToolkitBase.jl**](https://github.com/SciML/ModelingToolkitBase.jl) via `System`, which bridges the gap from symbolics to numerics. This makes it straightforward to obtain a solution of the time dynamics of a system within the [**DifferentialEquations.jl**](https://diffeq.sciml.ai/latest/) ecosystem.
 
+### Relationship to SecondQuantizedAlgebra.jl
+
+QuantumCumulants is the *cumulant* layer. The operator algebra it builds on (Hilbert spaces, operators, indices, symbolic sums, normal ordering, numeric conversion) lives in [**SecondQuantizedAlgebra.jl**](https://github.com/qojulia/SecondQuantizedAlgebra.jl) (SQA), which QuantumCumulants re-exports, so `using QuantumCumulants` gives you the full algebra surface. When you need the details of *building a model* (defining `FockSpace`/`NLevelSpace`, `Destroy`/`Transition`, `Index`/`Σ`), reach for SQA's [documentation](https://qojulia.github.io/SecondQuantizedAlgebra.jl/stable/); the pages here focus on what QuantumCumulants adds on top: deriving mean-field equations, the cumulant expansion, completion, scaling, correlations, noise, and the bridge to a numerical solution.
 
 ### Installation
 

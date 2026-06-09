@@ -15,7 +15,7 @@ We start by loading the packages.
 
 ````@example ramsey_spectroscopy
 using QuantumCumulants
-using OrdinaryDiffEq, ModelingToolkitBase
+using OrdinaryDiffEq, OrdinaryDiffEqLowOrderRK, ModelingToolkitBase
 using Plots
 ````
 
@@ -117,7 +117,7 @@ s22_ls = zeros(length(Δ_ls))
 for i in 1:length(Δ_ls)
     dict = merge(Dict(ps .=> [Γ_; Ω_; Δ_ls[i]; ν_]), Dict(unknowns(sys_c) .=> u0))
     prob_i = ODEProblem(sys_c, dict, (0.0, 2tp + tf))
-    sol_i = solve(prob_i, Tsit5(); adaptive = false, dt = 1.0e-5)
+    sol_i = solve(prob_i, RK4(); adaptive = false, dt = 1.0e-5)
     s22_ls[i] = real(get_solution(sol_i, σ(2, 2), eqs)(sol_i.t[end]))
 end
 

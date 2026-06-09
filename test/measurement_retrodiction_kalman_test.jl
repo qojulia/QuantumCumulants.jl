@@ -25,7 +25,7 @@ using Test
     ops = [x, p, x * x, x * p, p * p]
 
     eqs = meanfield(ops, H, J; rates = R, efficiencies = eff, order = 2)
-    @test eqs isa NoiseMeanFieldEquations
+    @test eqs isa NoiseMeanfieldEquations
 
     Ω_, Γ_, η_ = 1.0, 1 / 6, 0.5
     Tend = 0.5 / Γ_
@@ -75,7 +75,7 @@ using Test
         return rhs + cumulant_expansion(average(term_), 2)
     end
     eqs_kal = modify_equations(eqs_det, f_measure)
-    @test eqs_kal isa MeanFieldEquations
+    @test eqs_kal isa MeanfieldEquations
     @test all(
         !_is_zero(eqs_kal.equations[i].rhs - eqs_det.equations[i].rhs)
             for i in eachindex(eqs_kal.equations)

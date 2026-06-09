@@ -17,7 +17,7 @@ end
     H = ω * a' * a
     eqs = meanfield([a], H, [a]; rates = [κ])
 
-    @test eqs isa MeanFieldEquations
+    @test eqs isa MeanfieldEquations
     @test length(eqs.equations) == 1
     @test length(eqs.states) == 1
     @test isequal(eqs.states[1], eqs.equations[1].lhs)
@@ -217,7 +217,7 @@ end
     s(i, j) = Transition(h2, :s, i, j)
     H = Δ * s(2, 2) - Δ * s(1, 1)
     H_s = simplify(H)
-    @test meanfield(s(1, 2), H_s) isa MeanFieldEquations
+    @test meanfield(s(1, 2), H_s) isa MeanfieldEquations
 end
 
 @testset "meanfield: Pauli closed two-spin" begin
@@ -253,7 +253,7 @@ end
     rates_matrix = [[G11 G12; G21 G22]]
     eqs_native = meanfield(ops_0, H, J_nested; rates = rates_matrix)
     eqs_native_c = complete(eqs_native)
-    @test eqs_native_c isa MeanFieldEquations
+    @test eqs_native_c isa MeanfieldEquations
     @test isempty(find_missing(eqs_native_c))
 
     # Flattened-jumps form should produce the same algebraic content.
@@ -273,5 +273,5 @@ end
     @variables γ::Real
     eqs2 = meanfield(ops_0, H, [σ_(1, 2, 1), σ_(1, 2, 2)]; rates = [γ, γ])
     eqs_c2 = complete(eqs2)
-    @test eqs_c2 isa MeanFieldEquations
+    @test eqs_c2 isa MeanfieldEquations
 end
