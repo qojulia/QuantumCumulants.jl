@@ -157,5 +157,4 @@ Note that **QuantumCumulants.jl** automatizes the derivation of equations and th
 
 ### References
 
-* R. Kubo. "Generalized cumulant expansion method." Journal of the Physical Society of Japan 17.7 (1962): 1100-1120.
-  URL: [https://www.jstage.jst.go.jp/article/jpsj1946/17/7/17_7_1100/_article/-char/ja/](https://www.jstage.jst.go.jp/article/jpsj1946/17/7/17_7_1100/_article/-char/ja/)
+* R. Kubo. "Generalized cumulant expansion method." Journal of the Physical Society of Japan 17.7 (1962): 1100-1120. URL: [https://www.jstage.jst.go.jp/article/jpsj1946/17/7/17_7_1100/_article/-char/ja/](https://www.jstage.jst.go.jp/article/jpsj1946/17/7/17_7_1100/_article/-char/ja/)

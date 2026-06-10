@@ -8,8 +8,7 @@ In this example, we investigate the collective behaviour of atomic ensembles cou
 ```math
     H = \sum_{i \neq j}^{N} \Omega_{ij}^{1\mathrm{D}} \sigma^+_i \sigma^-_j,
 ```
-with the coupling rate ``\Omega^{1\mathrm{D}}_{ij}``.
-The incoherent part describing the dissipative processes is accounted for by the Lindblad term
+with the coupling rate ``\Omega^{1\mathrm{D}}_{ij}``. The incoherent part describing the dissipative processes is accounted for by the Lindblad term
 ```math
     \mathcal{L}[\rho]=\frac{1}{2}\sum_{i,j}^N \Gamma^{1\mathrm{D}}_{ij} (2 \sigma^-_i \rho \sigma^+_j-\sigma^+_i \sigma^-_j \rho - \rho \sigma^+_i \sigma^-_j)
 ```

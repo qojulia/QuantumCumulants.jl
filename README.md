@@ -81,11 +81,8 @@ If you find **QuantumCumulants.jl** useful in your research, please consider cit
 }
 ```
 
-[codecov-url]: https://codecov.io/gh/qojulia/QuantumCumulants.jl/branch/master/
-[codecov-img]: https://codecov.io/gh/qojulia/QuantumCumulants.jl/branch/master/graph/badge.svg
+[codecov-url]: https://codecov.io/gh/qojulia/QuantumCumulants.jl/branch/master/ [codecov-img]: https://codecov.io/gh/qojulia/QuantumCumulants.jl/branch/master/graph/badge.svg
 
-[docs-dev-url]: https://qojulia.github.io/QuantumCumulants.jl/dev/
-[docs-dev-img]: https://img.shields.io/badge/docs-dev-blue.svg
+[docs-dev-url]: https://qojulia.github.io/QuantumCumulants.jl/dev/ [docs-dev-img]: https://img.shields.io/badge/docs-dev-blue.svg
 
-[docs-stable-url]: https://qojulia.github.io/QuantumCumulants.jl/stable/
-[docs-stable-img]: https://img.shields.io/badge/docs-stable-blue.svg
+[docs-stable-url]: https://qojulia.github.io/QuantumCumulants.jl/stable/ [docs-stable-img]: https://img.shields.io/badge/docs-stable-blue.svg

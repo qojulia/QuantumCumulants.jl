@@ -82,7 +82,8 @@ Note that this was a very simple case. Usually the system of equations describin
 
 There are two possible ways to compute the spectrum given a correlation function:
 
-1. Solving the differential equation needed to obtain ``g(t,\tau)`` and taking the Fourier transform.
+2. Solving the differential equation needed to obtain ``g(t,\tau)`` and taking the Fourier transform.
+
 2. Taking the (symbolic) Laplace transform of the system of equations describing a correlation function.
 
 On the one hand, the first approach works generally, but is computationally more intense. The second approach, on the other hand, yields a simple linear system of equations which is easy to solve, but only works when the correlation function has been computed starting from the steady state. Both methods can be easily used with **QuantumCumulants.jl**.
@@ -136,4 +137,5 @@ nothing # hide
 ## Examples:
 
 * [Mollow Triplet](@ref)
+
 * [Spectrum of a single atom laser](@ref)

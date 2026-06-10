@@ -22,8 +22,7 @@ using OrdinaryDiffEq, ModelingToolkitBase
 using Plots
 ````
 
-Due to the implementation of symbolic indices and sums we only need to define the Hilbert space for one atom, even though we will simulate a system for several thousand.
-Creating an operator with an $\texttt{Index}$ is done with the constructor $\texttt{IndexedOperator}$.
+Due to the implementation of symbolic indices and sums we only need to define the Hilbert space for one atom, even though we will simulate a system for several thousand. Creating an operator with an $\texttt{Index}$ is done with the constructor $\texttt{IndexedOperator}$.
 
 ````@example superradiant_laser_indexed
 hc = FockSpace(:cavity)

@@ -31,5 +31,5 @@ SecondQuantizedAlgebra = "0.5.2"
 SymbolicUtils = "4"
 Symbolics = "7"
 TermInterface = "2"
-julia = "1.12"
+julia = "1.10"
 

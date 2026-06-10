@@ -4,8 +4,7 @@ EditURL = "../../../examples/excitation-transport-chain.jl"
 
 # Noisy excitation transport
 
-In this example, we will look at the energy transport in a one-dimensional chain of atoms, where only the first atom is driven.
-The excitation can then move from one atom to another via position-dependent dipolar interactions between nearest neighbors.
+In this example, we will look at the energy transport in a one-dimensional chain of atoms, where only the first atom is driven. The excitation can then move from one atom to another via position-dependent dipolar interactions between nearest neighbors.
 
 The Hamiltonian of this system reads
 
@@ -13,22 +12,15 @@ The Hamiltonian of this system reads
 H = -\Delta \sum_j \sigma_j^{ee} + \Omega\left(\sigma_1^{eg} + \sigma_1^{ge}\right) + \sum_{j=1}^{N-1}J(x_i,x_j)\left(\sigma_j^{eg}\sigma_{j+1}^{ge} + \sigma_j^{ge}\sigma_{j+1}^{eg}\right).
 ```
 
-The first term describes the energy of the excited atomic state in the rotating frame of the driving laser with the detuning $\Delta$.
-The second term describes the driving of the first atom with a laser with a Rabi frequency $\Omega$.
-Finally, the interactions between nearest neighbors are included with the position-dependent interaction
+The first term describes the energy of the excited atomic state in the rotating frame of the driving laser with the detuning $\Delta$. The second term describes the driving of the first atom with a laser with a Rabi frequency $\Omega$. Finally, the interactions between nearest neighbors are included with the position-dependent interaction
 
 ```math
 J(x_i,x_j) = \frac{J_0}{|x_i - x_j|^3},
 ```
 
-where $J_0$ is the strength of the interaction at unit distance.
-The positions of the atoms $x_i$ are in units of the transition wavelength.
-Furthermore, each atom is subject to spontaneous emission at a rate $\gamma$ with the collapse operator $\sigma_j^{ge}$.
+where $J_0$ is the strength of the interaction at unit distance. The positions of the atoms $x_i$ are in units of the transition wavelength. Furthermore, each atom is subject to spontaneous emission at a rate $\gamma$ with the collapse operator $\sigma_j^{ge}$.
 
-We will start by simulating the system as described above.
-Specifically, we compute the efficiency of the excitation transport by looking at the excited state population of the atom at the end of the chain opposite to the driven atom.
-Finally, we show how one can generalize the system to include random fluctuations in the atomic position.
-We can then investigate the effect of the positional noise on the efficiency of the energy transport.
+We will start by simulating the system as described above. Specifically, we compute the efficiency of the excitation transport by looking at the excited state population of the atom at the end of the chain opposite to the driven atom. Finally, we show how one can generalize the system to include random fluctuations in the atomic position. We can then investigate the effect of the positional noise on the efficiency of the energy transport.
 
 As always, we start by loading the packages we use and some basic definitions.
 
@@ -60,10 +52,7 @@ c_ops = [σ(:g, :e, k) for k in 1:N]
 nothing # hide
 ````
 
-The above definitions are all we need to derive the set of equations.
-Here, we will include terms up to second order.
-Note, that in order to include noise, we will not need to make any adaptions on a symbolic level.
-Rather, we only need to derive the equations once and substitute the noisy positions accordingly when performing the numerical solutions.
+The above definitions are all we need to derive the set of equations. Here, we will include terms up to second order. Note, that in order to include noise, we will not need to make any adaptions on a symbolic level. Rather, we only need to derive the equations once and substitute the noisy positions accordingly when performing the numerical solutions.
 
 ````@example excitation-transport-chain
 eqs = meanfield(σ(:g, :e, 1), H, c_ops; rates = [γ for i in 1:N], order = 2) # Derive the equations to second order
@@ -74,9 +63,7 @@ sys_c = mtkcompile(sys)
 nothing # hide
 ````
 
-Once we have our set of equations and converted it to an `System` we are ready to solve for the dynamics.
-First, let's have a look at the excitation transport for perfectly positioned atoms.
-We assume an equidistant chain, were neighboring atoms are separated by a distance $d$.
+Once we have our set of equations and converted it to an `System` we are ready to solve for the dynamics. First, let's have a look at the excitation transport for perfectly positioned atoms. We assume an equidistant chain, were neighboring atoms are separated by a distance $d$.
 
 ````@example excitation-transport-chain
 d = 0.75 # Define parameters without noise
@@ -103,12 +90,7 @@ plot!(graph, sol.t, popN, label = "End of chain", leg = 1)
 
 As you can see, the excitation transport is reasonably efficient, resulting in an excited state population at the end of the chain well above 10%.
 
-Now, we will introduce some noise in the atomic positions.
-In order to do so, we make use of the convenient [ensemble simulation feature](https://diffeq.sciml.ai/stable/features/ensemble/) from the [OrdinaryDiffEq](https://diffeq.sciml.ai/stable/) library.
-For each trajectory, we recreate the original `ODEProblem` with a new set of atomic positions.
-We assume that each atom is located around the same point as before in the equidistant chain.
-However, we account for imperfect positioning in that the actual position of each atom is randomly modified.
-The strength of these position fluctuations is given by a parameter $s$, and the random fluctuations are sampled from a Gaussian distribution.
+Now, we will introduce some noise in the atomic positions. In order to do so, we make use of the convenient [ensemble simulation feature](https://diffeq.sciml.ai/stable/features/ensemble/) from the [OrdinaryDiffEq](https://diffeq.sciml.ai/stable/) library. For each trajectory, we recreate the original `ODEProblem` with a new set of atomic positions. We assume that each atom is located around the same point as before in the equidistant chain. However, we account for imperfect positioning in that the actual position of each atom is randomly modified. The strength of these position fluctuations is given by a parameter $s$, and the random fluctuations are sampled from a Gaussian distribution.
 
 Each trajectory we simulate can be thought of as one realization of an experiment, where the atoms are trapped with imperfect accuracy.
 
@@ -143,14 +125,11 @@ plot!(graph, tspan, pops_avg[:, 1], color = :steelblue, ls = :dash, label = noth
 plot!(graph, tspan, pops_avg[:, N], color = :orange, ls = :dash, label = nothing)
 ````
 
-In the above graph, the solid lines are the ones from before, where we did not include any position fluctuations.
-The dashed lines with the corresponding colors show the results when averaging over many noisy realizations.
+In the above graph, the solid lines are the ones from before, where we did not include any position fluctuations. The dashed lines with the corresponding colors show the results when averaging over many noisy realizations.
 
-As we can see, more of the excited state population remains in the driven atom at the beginning of the chain.
-The efficiency of the transport is somewhat reduced and only approximately 10% excited state population are reached in the atom at the other end.
+As we can see, more of the excited state population remains in the driven atom at the beginning of the chain. The efficiency of the transport is somewhat reduced and only approximately 10% excited state population are reached in the atom at the other end.
 
-We can also plot the results for each trajectory on top of the average.
-Let's look at each trajectory of the excited state population of the atom at the end of the chain.
+We can also plot the results for each trajectory on top of the average. Let's look at each trajectory of the excited state population of the atom at the end of the chain.
 
 ````@example excitation-transport-chain
 graph2 = plot(xlabel = "γt", ylabel = "Excitation at end of chain")
@@ -174,8 +153,7 @@ plot!(
 )
 ````
 
-As you can see, in some realizations the transport is almost not hindered at all.
-On average, however, the transport efficiency is reduced quite a bit.
+As you can see, in some realizations the transport is almost not hindered at all. On average, however, the transport efficiency is reduced quite a bit.
 
 ## Package versions
 

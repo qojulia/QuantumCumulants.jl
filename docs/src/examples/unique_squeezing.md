@@ -4,7 +4,7 @@ EditURL = "../../../examples/unique_squeezing.jl"
 
 # Unique Steady-State Squeezing
 
-In this example we show the unique squeezing observed in a driven Dicke model described by $N$ two-level systems coupled to a quantized harmonic oscillator [[K. Gietka. et. al., Phys. Rev. Lett. 131, 223604 (2023)]](https://journals.aps.org/prl/abstract/10.1103/PhysRevLett.131.223604).  First we present the full dynamics with a second order cumulant expansion. The Hamiltonian describing the system is
+In this example we show the unique squeezing observed in a driven Dicke model described by $N$ two-level systems coupled to a quantized harmonic oscillator [[K. Gietka. et. al., Phys. Rev. Lett. 131, 223604 (2023)]](https://journals.aps.org/prl/abstract/10.1103/PhysRevLett.131.223604). First we present the full dynamics with a second order cumulant expansion. The Hamiltonian describing the system is
 
 ```math
 \begin{align}
@@ -112,10 +112,7 @@ u0 = zeros(ComplexF64, length(eqs_sc)); # initial state
 γ_ = ω_
 ````
 
-Derived quantities (`gc`, `g`, `ωd`, `ξ`) depend on `N`. We pick the
-largest `N` (the well-converged case) as the canonical global value used
-by the post-solve effective-model analysis below; the loop redefines them
-locally per `N_`.
+Derived quantities (`gc`, `g`, `ωd`, `ξ`) depend on `N`. We pick the largest `N` (the well-converged case) as the canonical global value used by the post-solve effective-model analysis below; the loop redefines them locally per `N_`.
 
 ````@example unique_squeezing
 N_global = 100
