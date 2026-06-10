@@ -214,30 +214,46 @@ function _as_avg_dict(c::CorrelationFunction, u_end)
 end
 
 """
-Numeric value of `avg` from `dict`: a direct hit, else the conjugate of `⟨X†⟩` for a
-leaf average, else (for a product/expression of averages) substitute every leaf and its
-conjugate and evaluate. Missing leaves resolve to `0`.
+Steady-state value resolver for the correlation `c`, built once from `u_end`. Returns a
+closure mapping an average (a leaf, or a normal-ordered expression of averages) to its
+numeric steady-state value, `0` for an absent leaf. Matching is by the parent system's
+Hermitian-conjugate representative (`canonical_rep` in `c.eqs0`'s context), not by raw
+symbol identity, so a correlation average resolves to its steady-state value even when the
+correlation and the parent mint different base index names for the same representative atom
+(⟨σ_iₓ₂₂⟩ vs ⟨σ_jₓ₂₂⟩, as when the Hamiltonian's sum index differs from the user's LHS
+index). The conjugate of ⟨X⟩ resolves to ⟨X⟩* via the representative's side bit.
 """
-function _lookup_avg(dict, avg)
-    avg_u = SymbolicUtils.unwrap(avg)
-    haskey(dict, avg_u) && return dict[avg_u]
-    avg_u isa Number && return avg_u
-    if avg_u isa SymbolicUtils.BasicSymbolic
+function _ss_resolver(c::CorrelationFunction, u_end)
+    u_end_dict = _as_avg_dict(c, u_end)
+    ctx = build_ctx(c.eqs0)
+    treatments = _treatments(c.eqs0, ctx)
+    ks = [k for k in keys(u_end_dict) if undo_average(k) isa QAdd]
+    m = MomentMap(
+        ctx, treatments,
+        QAdd[undo_average(k) for k in ks],
+        ComplexF64[ComplexF64(u_end_dict[k]) for k in ks],
+    )
+    resolve_leaf = function (leaf)
+        r = match_moment(m, undo_average(leaf))
+        r === nothing && return nothing
+        v, same = r
+        return same ? v : conj(v)
+    end
+    return function (avg)
+        avg_u = SymbolicUtils.unwrap(avg)
+        avg_u isa Number && return ComplexF64(avg_u)
+        avg_u isa SymbolicUtils.BasicSymbolic || return ComplexF64(0)
         if _is_avg_leaf(avg_u)
-            conj_u = SymbolicUtils.unwrap(_avg_conj_of(avg_u))
-            haskey(dict, conj_u) && return conj(dict[conj_u])
-            return 0
+            r = resolve_leaf(avg_u)
+            return r === nothing ? ComplexF64(0) : r
         end
         sub = Dict{Any, Any}()
-        for (k, v) in dict
-            sub[k] = v
-            (k isa SymbolicUtils.BasicSymbolic && _is_avg_leaf(k)) || continue
-            ck = SymbolicUtils.unwrap(_avg_conj_of(k))
-            haskey(sub, ck) || (sub[ck] = conj(v))
+        for l in eachleaf(avg_u)
+            r = resolve_leaf(l)
+            sub[l] = r === nothing ? 0.0 + 0.0im : r
         end
         return _scalarize(SymbolicUtils.substitute(avg_u, sub))
     end
-    return 0
 end
 
 _scalarize(x::Symbolics.Num) = _scalarize(SymbolicUtils.unwrap(x))
@@ -262,11 +278,11 @@ its original subspace), looked up in `u_end`.
 See also: [`CorrelationFunction`](@ref), [`correlation_p0`](@ref).
 """
 function correlation_u0(c::CorrelationFunction, u_end)
-    u_end_dict = _as_avg_dict(c, u_end)
+    resolve = _ss_resolver(c, u_end)
     reg = _state_registry(c.eqs)
     u0 = Dict{Symbolics.Num, ComplexF64}()
     for (i, s) in enumerate(c.eqs.states)
-        u0[reg.vars[i]] = ComplexF64(_lookup_avg(u_end_dict, _undo_ancilla(c, SymbolicUtils.unwrap(s))))
+        u0[reg.vars[i]] = resolve(_undo_ancilla(c, SymbolicUtils.unwrap(s)))
     end
     return u0
 end
@@ -281,7 +297,7 @@ looked up in `u_end`.
 See also: [`CorrelationFunction`](@ref), [`correlation_u0`](@ref).
 """
 function correlation_p0(c::CorrelationFunction, u_end, ps_p0)
-    u_end_dict = _as_avg_dict(c, u_end)
+    resolve = _ss_resolver(c, u_end)
     out = Dict{Any, ComplexF64}()
     for (k, v) in ps_p0
         out[k] = ComplexF64(v)
@@ -289,7 +305,7 @@ function correlation_p0(c::CorrelationFunction, u_end, ps_p0)
     for avg in _ambient_avgs(c)
         aons = SQA.acts_on(avg)
         lookup = (c.aon_ancilla in aons && length(aons) == 1) ? _undo_ancilla(c, avg) : avg
-        out[_ambient_param(avg)] = ComplexF64(_lookup_avg(u_end_dict, lookup))
+        out[_ambient_param(avg)] = resolve(lookup)
     end
     return out
 end
@@ -308,22 +324,19 @@ function MTK.System(c::CorrelationFunction; name::Symbol)
     reg = _state_registry(eqs)
     # Ambient steady-state averages, keyed by the same Hermitian-conjugate representative as
     # the state registry (so a folded conjugate ambient resolves via the side bit).
-    amb = Dict{QAdd, Tuple{Symbolics.Num, Bool}}()
-    for avg in _ambient_avgs(c)
-        op = undo_average(avg)
-        if op isa QAdd
-            rep, side = canonical_rep(op, reg.ctx; treatments = reg.treatments)
-            get!(amb, rep, (_ambient_param(avg), side))
-        end
-    end
+    amb_avgs = _ambient_avgs(c)
+    amb = MomentMap(
+        reg.ctx, reg.treatments,
+        [undo_average(avg) for avg in amb_avgs],
+        Symbolics.Num[_ambient_param(avg) for avg in amb_avgs],
+    )
     # State variable first, then ambient parameter; both via the same conjugation-side rule.
     resolve = function (leaf)
         op = undo_average(leaf)
         op isa QAdd || return leaf
-        rep, side = canonical_rep(op, reg.ctx; treatments = reg.treatments)
-        r = _resolve_side(reg.by_rep, rep, side)
+        r = resolve_moment_sym(reg.moments, op)
         r === nothing || return r
-        a = _resolve_side(amb, rep, side)
+        a = resolve_moment_sym(amb, op)
         return a === nothing ? leaf : a
     end
     new_eqs = Vector{Symbolics.Equation}(undef, length(eqs.equations))
@@ -406,36 +419,30 @@ function _spectrum_kernel(S::Spectrum, u_end, p0)
     n = length(eqs.equations)
     rhss_u = [SymbolicUtils.unwrap(eq.rhs) for eq in eqs.equations]
     p_sub = _build_p_sub(S.ps, p0, c.τ, u_end, eqs)
-    u_end_dict = _as_avg_dict(c, u_end)
+    resolve = _ss_resolver(c, u_end)
 
     # Classify each leaf by Hermitian conjugation, recording its side: same side as the
     # matched state is linear (A_lin), opposite side is anti-linear (A_alin). The
     # conjugate representative stays robust for scaled states, where adjoint does not round-trip.
     spec_ctx = build_ctx(eqs)
-    spec_treatments = _treatments(eqs, spec_ctx)
-    state_by_rep = Dict{QAdd, Tuple{Int, Bool}}()
-    for (i, s) in enumerate(eqs.states)
-        op = undo_average(s)
-        if op isa QAdd
-            rep, side = canonical_rep(op, spec_ctx; treatments = spec_treatments)
-            get!(state_by_rep, rep, (i, side))
-        end
-    end
+    state_map = MomentMap(
+        spec_ctx, _treatments(eqs, spec_ctx),
+        [undo_average(s) for s in eqs.states],
+        collect(1:n),
+    )
     rhs_leaves = SymbolicUtils.BasicSymbolic[]
     seen = Set{SymbolicUtils.BasicSymbolic}()
-    for rhs in rhss_u
-        _collect_leaf_averages!(rhs_leaves, seen, rhs)
+    for rhs in rhss_u, l in eachleaf(rhs)
+        l in seen || (push!(seen, l); push!(rhs_leaves, l))
     end
     lin_by_state = Dict{Int, Vector{SymbolicUtils.BasicSymbolic}}()
     alin_by_state = Dict{Int, Vector{SymbolicUtils.BasicSymbolic}}()
     classified = Set{SymbolicUtils.BasicSymbolic}()
     for leaf in rhs_leaves
-        op = undo_average(leaf)
-        op isa QAdd || continue
-        rep, side = canonical_rep(op, spec_ctx; treatments = spec_treatments)
-        haskey(state_by_rep, rep) || continue
-        i, state_side = state_by_rep[rep]
-        bucket = side == state_side ? lin_by_state : alin_by_state
+        r = match_moment(state_map, undo_average(leaf))
+        r === nothing && continue
+        i, same = r
+        bucket = same ? lin_by_state : alin_by_state
         push!(get!(bucket, i, SymbolicUtils.BasicSymbolic[]), leaf)
         push!(classified, leaf)
     end
@@ -443,7 +450,7 @@ function _spectrum_kernel(S::Spectrum, u_end, p0)
         avg in classified && continue
         aons = SQA.acts_on(avg)
         lookup = (c.aon_ancilla in aons && length(aons) == 1) ? _undo_ancilla(c, avg) : avg
-        p_sub[avg] = ComplexF64(_lookup_avg(u_end_dict, lookup))
+        p_sub[avg] = resolve(lookup)
     end
 
     zero_sub = copy(p_sub)
@@ -467,7 +474,7 @@ function _spectrum_kernel(S::Spectrum, u_end, p0)
         end
     end
     u_τ = ComplexF64[
-        ComplexF64(_lookup_avg(u_end_dict, _undo_ancilla(c, SymbolicUtils.unwrap(s)))) for s in eqs.states
+        resolve(_undo_ancilla(c, SymbolicUtils.unwrap(s))) for s in eqs.states
     ]
     if isempty(alin_by_state)
         rhs_b = any(!iszero, b_const) ? u_τ .+ (A_lin \ b_const) : u_τ
@@ -510,19 +517,4 @@ function _build_p_sub(ps, p0, τ, u_end, eqs)
     end
     sub[SymbolicUtils.unwrap(τ)] = 0.0
     return sub
-end
-
-function _collect_leaf_averages!(out, seen, x)
-    x isa SymbolicUtils.BasicSymbolic || return
-    if SymbolicUtils.iscall(x) && SymbolicUtils.operation(x) === SQA.sym_average
-        (x in seen) && return
-        push!(seen, x)
-        push!(out, x)
-        return
-    end
-    SymbolicUtils.iscall(x) || return
-    for a in SymbolicUtils.arguments(x)
-        _collect_leaf_averages!(out, seen, a)
-    end
-    return
 end

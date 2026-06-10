@@ -37,8 +37,10 @@ _make_var(name::Symbol, iv::Symbolics.Num) = first(@variables $name(iv))
 # ---- state variable registry -------------------------------------------------
 
 """
-Build the per-state `u(t)` variables and the scaled/`canon_key` lookup maps shared by
-`System`, `initial_values` and `get_solution`, so variable naming agrees across them.
+Build the per-state `u(t)` variables and the lookup maps shared by `System`,
+`initial_values` and `get_solution`, so variable naming agrees across them. `moments` keys
+each state var by its Hermitian-conjugate representative; `by_canon` is the secondary,
+non-conjugating `canon_key` fallback `get_solution` uses for equivalent query forms.
 """
 function _state_registry(eqs::AbstractMeanfieldEquations)
     ctx = build_ctx(eqs)
@@ -47,41 +49,23 @@ function _state_registry(eqs::AbstractMeanfieldEquations)
     treatments = _treatments(eqs, ctx)
     ops = QAdd[undo_average(s) isa QAdd ? undo_average(s) : undo_average(s) * 1 for s in eqs.states]
     vars = Symbolics.Num[_make_var(serialize(op), eqs.iv) for op in ops]
-    # Keyed by the Hermitian-conjugate representative, valued by `(state var, side-of-rep)`: a leaf
-    # on the same side as the rep resolves to the var, the opposite side to its conjugate.
-    by_rep = Dict{QAdd, Tuple{Symbolics.Num, Bool}}()
+    moments = MomentMap(ctx, treatments, ops, vars)
     by_canon = Dict{QAdd, Symbolics.Num}()
     for (op, v) in zip(ops, vars)
-        rep, side = canonical_rep(op, ctx; treatments)
-        get!(by_rep, rep, (v, side))
         get!(by_canon, canon_key(op, ctx), v)
     end
-    return (; ctx, treatments, ops, vars, by_rep, by_canon)
-end
-
-"""
-Resolve a `(rep, side)` against a `rep → (symbol, rep_side)` table: the symbol on the
-matching conjugation side, its conjugate on the opposite side, or `nothing` when `rep`
-is absent. Raw `term(conj, …)` not `Base.conj`, which folds to identity on Real symtype.
-"""
-function _resolve_side(table, rep, side)
-    haskey(table, rep) || return nothing
-    sym, rep_side = table[rep]
-    u = SymbolicUtils.unwrap(sym)
-    return side == rep_side ? u : SymbolicUtils.term(conj, u; type = Number)
+    return (; ctx, treatments, vars, moments, by_canon)
 end
 
 """
 Build a closure that resolves a RHS average leaf to its state variable (or that
-variable's conjugate), leaving non-state leaves untouched as ambient parameters. The
-leaf and the stored representative agree iff they sit on the same conjugation side.
+variable's conjugate), leaving non-state leaves untouched as ambient parameters.
 """
 function _leaf_resolver(reg)
     return function (leaf)
         op = undo_average(leaf)
         op isa QAdd || return leaf
-        rep, side = canonical_rep(op, reg.ctx; treatments = reg.treatments)
-        r = _resolve_side(reg.by_rep, rep, side)
+        r = resolve_moment_sym(reg.moments, op)
         return r === nothing ? leaf : r
     end
 end
@@ -362,13 +346,14 @@ function get_solution(sol, avg::SymbolicUtils.BasicSymbolic, eqs::AbstractMeanfi
     reg = _state_registry(eqs)
     op = undo_average(avg)
     if op isa QAdd
-        rep, side = canonical_rep(op, reg.ctx; treatments = reg.treatments)
-        if haskey(reg.by_rep, rep)
-            var, rep_side = reg.by_rep[rep]
-            return side == rep_side ? (τ -> _eval_at(sol, var, τ)) :
+        r = match_moment(reg.moments, op)
+        if r !== nothing
+            var, same = r
+            return same ? (τ -> _eval_at(sol, var, τ)) :
                 (τ -> conj.(_eval_at(sol, var, τ)))
         end
-        haskey(reg.by_canon, canon_key(op, reg.ctx)) && return τ -> _eval_at(sol, reg.by_canon[canon_key(op, reg.ctx)], τ)
+        kc = canon_key(op, reg.ctx)
+        haskey(reg.by_canon, kc) && return τ -> _eval_at(sol, reg.by_canon[kc], τ)
         kcc = canon_key(adjoint(op), reg.ctx)
         haskey(reg.by_canon, kcc) && return τ -> conj.(_eval_at(sol, reg.by_canon[kcc], τ))
     end

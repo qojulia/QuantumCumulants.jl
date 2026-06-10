@@ -164,3 +164,38 @@ end
     @test !isempty(u0)
     @test any(v -> abs(v) > 1.0e-12, values(u0))
 end
+
+@testset "indexed Spectrum: steady-state lookup bridges Hamiltonian/LHS index mismatch" begin
+    @variables Δ::Real κ::Real Γ::Real R::Real ν::Real N::Real
+    g(k) = IndexedVariable(:g, k)
+    hc = FockSpace(:cavity); ha = NLevelSpace(:atom, 2); h = hc ⊗ ha
+    @qnumbers a::Destroy(h)
+    σ(α, β, k) = IndexedOperator(Transition(h, :σ, α, β), k)
+    i = Index(h, :i, N, ha)
+    j = Index(h, :j, N, ha)                       # Hamiltonian uses `i`, LHS uses `j`
+    H = -Δ * a'a + Σ(g(i) * (a' * σ(1, 2, i) + a * σ(2, 1, i)), i)
+    J = [a, σ(1, 2, i), σ(2, 1, i), σ(2, 2, i)]
+    eqs_c = complete(
+        meanfield([a'a, σ(2, 2, j)], H, J; rates = [κ, Γ, R, ν], order = 2);
+        filter_func = _phase_invariant,
+    )
+    eqs_sc = scale(eqs_c)
+
+    function _is_sigma22(s)
+        op = _SQA.undo_average(SymbolicUtils.unwrap(s))
+        op isa _SQA.QAdd && length(op.arguments) == 1 || return false
+        term, _ = only(op.arguments)
+        length(term.ops) == 1 || return false
+        o = only(term.ops)
+        return o isa _SQA.Transition && o.i == 2 && o.j == 2
+    end
+    vals = Dict(
+        SymbolicUtils.unwrap(s) => ComplexF64(0.3 + 0.1k) for (k, s) in enumerate(eqs_sc.states)
+    )
+    σ22_val = vals[SymbolicUtils.unwrap(only(filter(_is_sigma22, eqs_sc.states)))]
+
+    corr = scale(CorrelationFunction(a', a, eqs_c; filter_func = _phase_invariant))
+    p0 = correlation_p0(corr, vals, [κ, Γ, R, ν, N] .=> ComplexF64[1, 1, 1, 1, 10])
+    u0 = correlation_u0(corr, vals)
+    @test any(v -> abs(v) > 1.0e-12, values(u0))
+end

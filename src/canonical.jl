@@ -391,3 +391,63 @@ function concrete_rep(op::QAdd)
     return _serialize(kc) < _serialize(k) ? (kc, true) : (k, false)
 end
 concrete_rep(op) = (op, false)
+
+# ---- moment lookup -----------------------------------------------------------
+
+"""
+Canonical-representative lookup mapping each moment ⟨op⟩ to a payload of type `V`, keyed by
+its Hermitian-conjugate representative (`canonical_rep` under `treatments`). An average, its
+conjugate, and any symmetry- or index-relabelled form resolve to the same entry; the stored
+`Bool` records which conjugation side the representative came from, so a query on the
+opposite side can recover the conjugate payload. The single moment↔quantity matcher shared
+by the state registry, `System`, `get_solution`, the spectrum kernel and the correlation
+steady-state lookup, in place of separate hand-rolled `rep → (payload, side)` dictionaries.
+"""
+struct MomentMap{V}
+    ctx::CanonCtx
+    treatments::Dict{Int, SubspaceTreatment}
+    by_rep::Dict{QAdd, Tuple{V, Bool}}
+end
+
+"""
+Build a `MomentMap` keying `payloads[k]` by the representative of `ops[k]`. A non-`QAdd` op is
+skipped together with its paired payload; the first payload to reach a representative wins,
+matching the `get!` dedup that collapses conjugate/symmetry-equivalent duplicates.
+"""
+function MomentMap(
+        ctx::CanonCtx, treatments::Dict{Int, SubspaceTreatment}, ops, payloads::AbstractVector{V},
+    ) where {V}
+    by_rep = Dict{QAdd, Tuple{V, Bool}}()
+    for (op, p) in zip(ops, payloads)
+        op isa QAdd || continue
+        rep, side = canonical_rep(op, ctx; treatments)
+        get!(by_rep, rep, (p, side))
+    end
+    return MomentMap{V}(ctx, treatments, by_rep)
+end
+
+"""
+Resolve ⟨`op`⟩ to its `(payload, same_side)` entry, `same_side` being `true` when the query and
+the stored representative share a conjugation side. `nothing` for a non-`QAdd` `op` or a
+missing representative.
+"""
+function match_moment(m::MomentMap, op)
+    op isa QAdd || return nothing
+    rep, side = canonical_rep(op, m.ctx; treatments = m.treatments)
+    haskey(m.by_rep, rep) || return nothing
+    payload, rep_side = m.by_rep[rep]
+    return (payload, side == rep_side)
+end
+
+"""
+Resolve ⟨`op`⟩ to its symbolic payload, conjugated (`term(conj, …)`, which does not fold to
+identity on `Real` symtype) when the query sits on the opposite conjugation side from the
+stored representative. `nothing` when absent. The symbolic-payload form of `match_moment`.
+"""
+function resolve_moment_sym(m::MomentMap, op)
+    r = match_moment(m, op)
+    r === nothing && return nothing
+    sym, same = r
+    u = SymbolicUtils.unwrap(sym)
+    return same ? u : SymbolicUtils.term(conj, u; type = Number)
+end
