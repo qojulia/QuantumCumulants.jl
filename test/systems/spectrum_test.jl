@@ -3,6 +3,7 @@ using Symbolics: Symbolics, @variables
 using SymbolicUtils
 using ModelingToolkitBase: ModelingToolkitBase, @named, mtkcompile, ODEProblem, unknowns
 using OrdinaryDiffEq: Tsit5, solve, ReturnCode
+using LinearAlgebra: I
 using Test
 
 @testset "CorrelationFunction: damped cavity construction" begin
@@ -29,6 +30,18 @@ end
     c = CorrelationFunction(a', a, eqs)
     s = Spectrum(c)
     @test s isa Spectrum
+end
+
+@testset "correlation_u0: invalid u_end type throws" begin
+    hc = FockSpace(:cavity)
+    a = Destroy(hc, :a)
+    @variables ωc::Real κ::Real
+    H = ωc * a' * a
+    he = meanfield(a' * a, H, [a]; rates = [κ])
+    complete!(he)
+    c = CorrelationFunction(a, a', he)
+    # `u_end` must be a Dict (avg => value) or a Vector aligned with the states.
+    @test_throws ArgumentError correlation_u0(c, 5)
 end
 
 @testset "Damped cavity: Spectrum matches analytic Lorentzian" begin
@@ -59,6 +72,55 @@ end
     s_num = S(ω, u_end, pn)
     s_an = @. κ_num / ((ω + ωc_num)^2 + (κ_num / 2)^2)
     @test maximum(abs.(s_num .- s_an)) < 1.0e-10
+end
+
+@testset "Spectrum: anti-linear (conjugate) augmentation, Hermitian op2" begin
+    # The cross-correlation ⟨a(τ)·σ₂₂(0)⟩ pairs the cavity field with the atomic
+    # population σ₂₂, which is Hermitian. Its conjugate ⟨a†(τ)·σ₂₂⟩ folds onto the
+    # state (the correlation closes with get_adjoints=false), so the spectrum kernel
+    # classifies that leaf as anti-linear and assembles the 2n augmented system
+    #   M = [A_lin A_alin; conj(A_alin) conj(A_lin)]
+    # instead of the bare n-dimensional A_lin. A plain Jaynes-Cummings model suffices:
+    # the σ₁₂↔σ₂₁ coupling under a Hermitian op2 is what triggers the conjugate column,
+    # no squeezing required.
+    hc = FockSpace(:cavity)
+    ha = NLevelSpace(:atom, 2)
+    h = hc ⊗ ha
+    a = Destroy(h, :a)
+    σ(i, j) = Transition(h, :σ, i, j)
+    @variables Δ::Real ωa::Real g::Real κ::Real γ::Real
+    H = Δ * a' * a + ωa * σ(2, 2) + g * (a' * σ(1, 2) + a * σ(2, 1))
+    he = complete(meanfield([a' * a, σ(2, 2)], H, [a, σ(1, 2)]; rates = [κ, γ], order = 2))
+
+    c = CorrelationFunction(a, σ(2, 2), he)
+    n = length(c.eqs.equations)
+    ps = (Δ, ωa, g, κ, γ)
+    p0 = ComplexF64[0.0, 0.0, 1.0, 1.0, 0.5]
+    u_end = Dict(SymbolicUtils.unwrap(s) => ComplexF64(0.05k) for (k, s) in enumerate(he.states))
+    S = Spectrum(c, ps)
+
+    # The kernel takes the anti-linear branch: the system is augmented to 2n, and the
+    # anti-linear block is actually populated (a no-op augmentation would leave it zero).
+    M, rhs_b, dim = QuantumCumulants._spectrum_kernel(S, u_end, p0)
+    @test dim == 2n
+    @test size(M) == (2n, 2n)
+    @test any(!iszero, M[1:n, (n + 1):(2n)])
+
+    # The conjugate coupling is load-bearing: zeroing the off-diagonal (anti-linear)
+    # blocks of M changes the spectrum. A dropped/no-op augmentation, or an A_alin that
+    # never reaches the solve, would leave the two spectra equal.
+    ωp = [0.4, 0.9, 1.5]
+    s_full = [2 * real(((im * ω) * I(2n) - M) \ rhs_b)[1] for ω in ωp]
+    M0 = copy(M)
+    M0[1:n, (n + 1):(2n)] .= 0
+    M0[(n + 1):(2n), 1:n] .= 0
+    s_lin = [2 * real(((im * ω) * I(2n) - M0) \ rhs_b)[1] for ω in ωp]
+    @test maximum(abs.(s_full .- s_lin)) > 1.0e-3
+
+    # The resulting symmetric power spectrum is real and finite.
+    s = S(collect(range(-3.0, 3.0; length = 41)), u_end, p0)
+    @test eltype(s) == Float64
+    @test all(isfinite, s)
 end
 
 @testset "Driven cavity: ODE conjugate substitution is non-folding" begin

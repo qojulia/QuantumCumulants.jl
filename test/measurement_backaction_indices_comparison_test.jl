@@ -27,7 +27,7 @@ using Test
     @test eqs isa NoiseMeanfieldEquations
     eqs_c = complete(eqs)
     @test length(eqs_c.equations) >= length(ops)
-    @test isempty(find_missing(eqs_c; get_adjoints = false))
+    @test isempty(find_missing(eqs_c))
 
     scaled_eqs = scale(eqs_c)
     @test scaled_eqs isa NoiseMeanfieldEquations

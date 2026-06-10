@@ -26,7 +26,7 @@ using Test
 
     eqs_sc = scale(eqs_c)
     @test length(eqs_sc.equations) >= 1
-    @test isempty(find_missing(eqs_sc; get_adjoints = false))
+    @test isempty(find_missing(eqs_sc))
 
     @named sys = System(eqs_sc)
     sys_c = mtkcompile(sys)
@@ -76,8 +76,8 @@ end
 
     eqs_sc = scale(eqs_c)
     eqs_ev = evaluate(eqs_c; limits = (N3 => 3))
-    @test isempty(find_missing(eqs_sc; get_adjoints = false))
-    @test isempty(find_missing(eqs_ev; get_adjoints = false))
+    @test isempty(find_missing(eqs_sc))
+    @test isempty(find_missing(eqs_ev))
 
     @named sys_sc = System(eqs_sc); sys_sc_c = mtkcompile(sys_sc)
     @named sys_ev = System(eqs_ev); sys_ev_c = mtkcompile(sys_ev)

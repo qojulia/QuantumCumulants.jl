@@ -15,6 +15,22 @@ using Test
     @test !isequal(rhs_fw, rhs_bw)
 end
 
+@testset "Backward: deterministic drift includes Lindblad recycling + trace" begin
+    # For H = ω·a†a the commutator [H, a†a] vanishes, so a commutator-only backward RHS
+    # (the bug where a misplaced `return` dropped the recycling and trace terms) would be
+    # exactly 0. The correct backward retrodiction drift of ⟨a†a⟩ under jump a is
+    # κ(1 + ⟨a†a⟩); this pins the recycling + trace contributions, which `!isequal(fw, bw)`
+    # alone does not (the commutator sign flip makes fw ≠ bw even with the terms dropped).
+    h = FockSpace(:cavity)
+    @qnumbers a::Destroy(h)
+    @variables ω κ
+    H = ω * a' * a
+    bw = meanfield([a' * a], H, [a]; rates = [κ], direction = Backward())
+    rhs = bw.equations[1].rhs
+    @test !_is_zero(rhs)                              # would be 0 under the dropped-terms bug
+    @test _is_zero(rhs - (κ + κ * average(a' * a)))   # exact backward drift κ(1 + ⟨a†a⟩)
+end
+
 @testset "modify_equations: identity is a no-op" begin
     h = FockSpace(:cavity)
     @qnumbers a::Destroy(h)

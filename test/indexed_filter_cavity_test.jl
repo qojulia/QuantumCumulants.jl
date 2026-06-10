@@ -37,7 +37,7 @@ using Test
     eqs = meanfield([a' * a], H, J; rates = rates, order = order)
     eqs_c = complete(eqs)
     @test length(eqs_c.equations) >= 1
-    @test isempty(find_missing(eqs_c; get_adjoints = false))
+    @test isempty(find_missing(eqs_c))
 end
 
 @testset "indexed_filter_cavity: evaluate over the filter index" begin
@@ -136,7 +136,7 @@ end
 
     eqs_c = complete(meanfield([a' * a], H, J; rates = rates, order = 2))
     eqs_ev = evaluate(eqs_c; limits = (N => 2))
-    @test isempty(find_missing(eqs_ev; get_adjoints = false))
+    @test isempty(find_missing(eqs_ev))
 
     SQA = QuantumCumulants.SecondQuantizedAlgebra
     @named sys_ev = System(eqs_ev)

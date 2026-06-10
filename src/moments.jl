@@ -3,6 +3,11 @@ const TruncOrder = Union{Nothing, Int, Vector{Int}}
 function average_and_truncate(R::QAdd, order::TruncOrder, mix_choice, ctx::CanonCtx)
     acc = 0
     for (term, c) in R.arguments
+        # Drop unsimplified zero coefficients (e.g. `λ/2 - (1//2)λ`) that would seed phantom
+        # moments that never close. Base `iszero` expands and is load-bearing here: SQA's
+        # structural `_iszero_cnum` returns false on that un-combined form.
+        # TODO: check if this can be removed after https://github.com/qojulia/SecondQuantizedAlgebra.jl/pull/167
+        iszero(c) && continue
         # Index-dependent coefficients (Γ(i,j)/Ω(i,j)) must ride inside the sum so the
         # diagonal split substitutes them; scalar coefficients stay outside.
         if !isempty(term.ops) && !isempty(_coeff_scope_indices(c, R.indices))

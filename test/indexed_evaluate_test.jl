@@ -24,7 +24,7 @@ using Test
     # into three concrete-position equations.
     eqs_ev = evaluate(eqs_c; limits = (N3 => 3))
     @test length(eqs_ev.equations) == 6
-    @test isempty(find_missing(eqs_ev; get_adjoints = false))
+    @test isempty(find_missing(eqs_ev))
 
     @named sys = System(eqs_ev)
     sys_c = mtkcompile(sys)
@@ -125,6 +125,17 @@ end
     op1 = SQA.undo_average(eqs_ev.states[1])
     op2 = SQA.undo_average(eqs_ev.states[2])
     @test !isequal(op1, op2)
+end
+
+@testset "evaluate: invalid limits type throws" begin
+    h2 = NLevelSpace(:spin, 2)
+    @variables Ω::Real N3::Real
+    i = Index(h2, :i, N3, h2)
+    s(α, β, idx) = IndexedOperator(Transition(h2, :S, α, β), idx)
+    H = Ω * Σ(s(1, 1, i) + s(2, 2, i), i)
+    eqs_c = complete(meanfield([s(1, 2, i)], H; order = 1))
+    # `limits` must be a Pair, Tuple of Pairs, or Dict; a bare scalar is rejected.
+    @test_throws ArgumentError evaluate(eqs_c; limits = 5)
 end
 
 @testset "evaluate + mtkcompile: NE-stripped fallback path closes" begin

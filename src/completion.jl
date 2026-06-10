@@ -64,18 +64,20 @@ function MTK.complete(
 end
 
 """
-    find_missing(eqs::AbstractMeanfieldEquations; filter_func=nothing, get_adjoints=true, mix_choice=maximum)
+    find_missing(eqs::AbstractMeanfieldEquations; filter_func=nothing)
 
 Return the averages that appear on a right-hand side of `eqs` but are not yet among
 its tracked states: the equations still needed to close the system. A moment and
 its conjugate count as one: if either is already a state, neither is reported.
-`get_adjoints`, `filter_func` and `mix_choice` mirror [`complete!`](@ref).
+`filter_func` mirrors [`complete!`](@ref).
+
+The report is representation-invariant: conjugate pairs are always folded onto one key,
+so the answer is the same whether `eqs` was closed with `get_adjoints` true or false.
 
 See also: [`complete`](@ref), [`complete!`](@ref).
 """
 function find_missing(
         eqs::AbstractMeanfieldEquations; filter_func = nothing,
-        get_adjoints::Bool = true, mix_choice = maximum,
     )
     # Key states and RHS leaves with the same `canonical_rep` + recorded treatment the
     # numerical-system resolver uses, so a leaf is "missing" exactly when closure would not track it.
@@ -96,16 +98,12 @@ function find_missing(
         for leaf in eachleaf(eq.rhs)
             op = undo_average(leaf)
             op isa QAdd || continue
+            # `canonical_rep` folds ⟨X⟩ and ⟨X†⟩ onto one key, so the leaf's own rep is
+            # enough; no separate adjoint lookup needed.
             rep, _ = canonical_rep(op, ctx; treatments)
             (rep in seen || rep in seen_missing) && continue
-            repc, _ = canonical_rep(adjoint(op), ctx; treatments)
-            (repc in seen || repc in seen_missing) && continue
             push!(seen_missing, rep)
             push!(missing_states, average(rep))
-            if get_adjoints && !isequal(repc, rep)
-                push!(seen_missing, repc)
-                push!(missing_states, average(repc))
-            end
         end
     end
     filter_func !== nothing && filter!(filter_func, missing_states)

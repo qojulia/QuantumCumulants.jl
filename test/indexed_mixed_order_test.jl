@@ -35,7 +35,7 @@ using Test
     complete!(eqs; get_adjoints = false)
     @test eqs.order == [1, 2]
     @test length(eqs.equations) == 8
-    @test isempty(find_missing(eqs; get_adjoints = false))
+    @test isempty(find_missing(eqs))
 
     SQA = QuantumCumulants.SecondQuantizedAlgebra
     for state in eqs.states
@@ -70,7 +70,7 @@ end
     @test length(eqs.equations) == 8
     evaled = evaluate(eqs; limits = (N => 3))
     @test length(evaled.equations) == 18
-    @test isempty(find_missing(evaled; get_adjoints = false))
+    @test isempty(find_missing(evaled))
     @test evaled.order == [1, 2]
 
     SQA = QuantumCumulants.SecondQuantizedAlgebra
@@ -111,7 +111,7 @@ end
     eqs = meanfield(a' * a, H, J; rates = rates, order = [1, 2])
     complete!(eqs)
     evaled = evaluate(eqs; limits = (N => 2))
-    @test isempty(find_missing(evaled; get_adjoints = false))
+    @test isempty(find_missing(evaled))
 
     SQA = QuantumCumulants.SecondQuantizedAlgebra
     @named sys = System(evaled)

@@ -29,21 +29,6 @@ function _eachleaf!(out, x::SymbolicUtils.BasicSymbolic)
 end
 
 """
-Reduce `f` over the leaf averages of `x`, threading `acc`, without rebuilding the
-expression tree.
-"""
-foldleaves(f, acc, x::Symbolics.Num) = foldleaves(f, acc, SymbolicUtils.unwrap(x))
-function foldleaves(f, acc, x)
-    x isa SymbolicUtils.BasicSymbolic || return acc
-    _is_avg_leaf(x) && return f(acc, x)
-    SymbolicUtils.iscall(x) || return acc
-    for a in SymbolicUtils.arguments(x)
-        acc = foldleaves(f, acc, a)
-    end
-    return acc
-end
-
-"""
 Rewrite each leaf average of `x` via `f`, rebuilding only the branches that
 actually changed.
 """

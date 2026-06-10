@@ -27,7 +27,7 @@ using Test
     @test isempty(find_missing(he_c_full))
 
     he_c_canon = complete(he_avg; get_adjoints = false)
-    @test isempty(find_missing(he_c_canon; get_adjoints = false))
+    @test isempty(find_missing(he_c_canon))
     @test length(he_c_canon.equations) == 16
     @test length(he_c_full.equations) >= length(he_c_canon.equations)
 end
@@ -75,7 +75,7 @@ end
     # ⟨σ_gg_k⟩ fold to 1 - ⟨σ_ee_k⟩ via the moment-level completeness reduction,
     # so only ⟨σ_ee_k⟩ is tracked.
     complete!(he; filter_func = phase_invariant, get_adjoints = false)
-    @test isempty(find_missing(he; filter_func = phase_invariant, get_adjoints = false))
+    @test isempty(find_missing(he; filter_func = phase_invariant))
     # Closure basis: ⟨a'a⟩ + ⟨σee_k⟩ + ⟨a'σ_k⟩ gives 2N+1 equations.
     n_eqs = 2N + 1
     @test length(he.equations) == n_eqs

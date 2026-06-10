@@ -1,6 +1,8 @@
 using QuantumCumulants
 using QuantumOpticsBase
 using Symbolics: @variables
+using ModelingToolkitBase: @named, mtkcompile, ODEProblem, unknowns
+using OrdinaryDiffEq: Tsit5, solve
 using Random
 using Test
 
@@ -28,6 +30,24 @@ Random.seed!(0)
     @test u0[3] ≈ expect(number(bcav) ⊗ one(batom), ψ0)
     @test u0[4] ≈ expect(one(bcav) ⊗ QuantumOpticsBase.transition(batom, 2, 2), ψ0)
     @test u0[5] ≈ expect(create(bcav) ⊗ QuantumOpticsBase.transition(batom, 1, 2), ψ0)
+end
+
+@testset "get_solution: untracked operator throws KeyError" begin
+    hc = FockSpace(:cavity)
+    a = Destroy(hc, :a)
+    @variables ω::Real κ::Real
+    H = ω * a' * a
+    # Order-1 system tracks only ⟨a⟩; a second moment is not a state and has no conjugate
+    # partner among the states, so the resolver exhausts every lookup and throws. Pass a
+    # real solved `sol` (not `nothing`) so the test does not silently depend on
+    # get_solution skipping `sol` on the lookup-miss path.
+    eqs = meanfield([a], H, [a]; rates = [κ], order = 1)
+    @named sys = System(eqs)
+    sysc = mtkcompile(sys)
+    u0 = Dict(unknowns(sysc) .=> ComplexF64[0.5])
+    prob = ODEProblem(sysc, merge(u0, Dict(ω => 1.0, κ => 0.5)), (0.0, 1.0))
+    sol = solve(prob, Tsit5())
+    @test_throws KeyError get_solution(sol, a * a, eqs)
 end
 
 @testset "initial_values: LazyKet route matches Ket route" begin

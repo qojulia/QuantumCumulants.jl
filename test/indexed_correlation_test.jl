@@ -47,7 +47,7 @@ _phase_invariant(x) = iszero(_ϕ(x))
 
     eqs_sc = scale(eqs_c)
     @test length(eqs_sc.equations) >= 1
-    @test isempty(find_missing(eqs_sc; get_adjoints = false))
+    @test isempty(find_missing(eqs_sc))
 end
 
 @testset "indexed CorrelationFunction: phase-invariant filter trims LHS" begin

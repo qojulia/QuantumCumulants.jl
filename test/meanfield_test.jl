@@ -239,6 +239,82 @@ end
     @test length(eqs2_c.equations) == 14
 end
 
+@testset "meanfield: quadratic (squeezing) Hamiltonian closes at 2nd moments" begin
+    # Regression: a purely quadratic Hamiltonian H = Δ·a†a + (λ/2)(a†² + a²) has
+    # Gaussian (linear) dynamics, so the exact (no-order) Heisenberg hierarchy closes
+    # at second moments. The commutator with the squeezing term leaves higher-order
+    # operators carrying an unsimplified zero coefficient (λ/2 - (1//2)λ); if
+    # `average_and_truncate` keeps them, `complete!` chases phantom 3rd/4th-order
+    # moments and never closes.
+    hc = FockSpace(:cavity)
+    @qnumbers a::Destroy(hc)
+    @variables Δ κ λ
+    H = Δ * a' * a + (λ / 2) * (a' * a' + a * a)
+
+    eqs = meanfield(a' * a, H, [a]; rates = [κ])   # exact: no truncation order
+    # Bounded max_iter: if the zero-coefficient drop regresses, completion chases
+    # phantom moments and would grind to the 100k default (~1hr) instead of erroring
+    # fast. 50 is far above the true closure size (3) yet fails in seconds on regression.
+    complete!(eqs; max_iter = 50)
+
+    # Closes at the three independent second moments ⟨a†a⟩, ⟨a†a†⟩, ⟨aa⟩.
+    @test length(eqs.equations) == 3
+    @test isempty(find_missing(eqs))
+    # No phantom higher-order moments survive on any RHS.
+    @test all(get_order(eq.rhs) <= 2 for eq in eqs.equations)
+
+    # The ⟨a†a⟩ drift is exactly -κ⟨a†a⟩ - iλ⟨a†a†⟩ + iλ⟨aa⟩.
+    n_eq = only(eq for eq in eqs.equations if isequal(eq.lhs, average(a' * a)))
+    expected = average(
+        -κ * a' * a - Symbolics.IM * λ * a' * a' + Symbolics.IM * λ * a * a
+    )
+    @test _iz(n_eq.rhs - expected)
+end
+
+@testset "equations iteration interface" begin
+    hc = FockSpace(:cavity)
+    @qnumbers a::Destroy(hc)
+    @variables ω κ
+    H = ω * a' * a
+    eqs = meanfield([a, a' * a], H, [a]; rates = [κ])
+
+    @test length(eqs) == 2
+    @test eqs[1] isa Symbolics.Equation
+    @test eqs[end] === eqs[2]
+    @test eltype(typeof(eqs)) == Symbolics.Equation
+    collected = [eq for eq in eqs]
+    @test length(collected) == 2
+    @test collected[1] === eqs[1]
+end
+
+@testset "simplify! / simplify" begin
+    hc = FockSpace(:cavity)
+    @qnumbers a::Destroy(hc)
+    @variables ω κ
+
+    H = ω * a' * a
+    eqs = meanfield([a], H, [a]; rates = [κ])
+    eqs2 = simplify!(eqs)
+    @test eqs2 === eqs
+    @test eqs2.equations[1].lhs === eqs.equations[1].lhs
+
+    eqs3 = meanfield([a], H, [a]; rates = [κ])
+    eqs4 = SymbolicUtils.simplify(eqs3)
+    @test !(eqs4 === eqs3)
+    @test isequal(eqs4.equations[1].lhs, eqs3.equations[1].lhs)
+end
+
+@testset "simplify! on NoiseMeanfieldEquations" begin
+    hc = FockSpace(:cavity)
+    @qnumbers a::Destroy(hc)
+    @variables ω κ η
+
+    H = ω * a' * a
+    eqs = meanfield([a], H, [a]; rates = [κ], efficiencies = [η], order = 2)
+    eqs2 = simplify!(eqs)
+    @test eqs2 === eqs
+end
+
 @testset "meanfield: collective decay rate matrix" begin
     N = 2
     @variables G11::Real G12::Real G21::Real G22::Real δ::Real

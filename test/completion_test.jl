@@ -86,7 +86,7 @@ end
     @test isequal(ad_op, adjoint(a_op))
 end
 
-@testset "find_missing get_adjoints=false: one rep per conjugate pair" begin
+@testset "complete get_adjoints=false: one rep per conjugate pair" begin
     # With `get_adjoints=false`, only one representative per conjugate pair is
     # emitted; the conjugate partner is rewritten at codegen time.
     hc = FockSpace(:resonator); ha = NLevelSpace(:atom, 2); h = hc ⊗ ha

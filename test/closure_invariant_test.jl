@@ -13,11 +13,11 @@ const SQA = SecondQuantizedAlgebra
     H = Δ * a' * a + g * ∑(σ(2, 1, i) * a + σ(1, 2, i) * a', i)
     eqs = meanfield(a' * a, H, [a]; rates = [κ], order = 2)
     complete!(eqs)
-    @test isempty(find_missing(eqs; get_adjoints = false))
+    @test isempty(find_missing(eqs))
     sc = scale(eqs)
-    @test isempty(find_missing(sc; get_adjoints = false))
+    @test isempty(find_missing(sc))
     ev = evaluate(eqs; limits = (N => 3))
-    @test isempty(find_missing(ev; get_adjoints = false))
+    @test isempty(find_missing(ev))
 end
 
 @testset "closure: chain N=10 find_missing == 0 (coordinate-consistent)" begin
@@ -35,5 +35,5 @@ end
     complete!(eqs)
     # find_missing must agree with the resolver: the system closes at 373, so
     # find_missing must be empty (was 54 before Task 2 unified the code paths).
-    @test isempty(find_missing(eqs; get_adjoints = false))
+    @test isempty(find_missing(eqs))
 end

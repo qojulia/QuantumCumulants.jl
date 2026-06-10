@@ -14,9 +14,9 @@ function _operator_rhs(::Backward, op, imH, J, Jdagger, rates)
                 for i in eachindex(J)
         )
     )
-    return commutator(-imH, op)
-    +_master_lindblad_backward(op, J, Jdagger, rates)
-    +op * trace_term
+    return commutator(-imH, op) +
+        _master_lindblad_backward(op, J, Jdagger, rates) +
+        op * trace_term
 end
 
 """

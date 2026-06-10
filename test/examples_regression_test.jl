@@ -308,7 +308,7 @@ end
     # node-expansions; the cap was raised in the moment-class rebuild so closure
     # finishes instead of truncating). SubspaceTreatment-consistent find_missing (Task 2)
     # confirms the closed system has no missing leaves.
-    @test isempty(find_missing(eqs; get_adjoints = false))
+    @test isempty(find_missing(eqs))
     @test length(eqs.equations) == 434
     sys_c = mtkcompile(System(eqs; name = :chain_sys))
     @test length(unknowns(sys_c)) == 434
