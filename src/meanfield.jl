@@ -76,7 +76,9 @@ function meanfield(
     Jdagger === nothing && (Jdagger = _default_jdagger(J))
     Jn, Jdn = _normalize_jumps(J, Jdagger)
     rn = _normalize_rates(rates, length(Jn))
-    order_vec = _normalize_order(order, (; hamiltonian = H))
+    order_vec = _normalize_order(
+        order, (; operators = ops, hamiltonian = H, jumps = Jn, jumps_dagger = Jdn)
+    )
     eff = efficiencies === nothing ? nothing : _normalize_rates(efficiencies, length(Jn))
 
     ctx = build_ctx(ops, H, Jn, Jdn)

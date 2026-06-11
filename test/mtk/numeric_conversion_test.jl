@@ -1,7 +1,7 @@
 using QuantumCumulants
 using QuantumOpticsBase
 using Symbolics: @variables
-using ModelingToolkitBase: @named, mtkcompile, ODEProblem, unknowns
+using ModelingToolkitBase: @named, mtkcompile, ODEProblem, parameters, unknowns
 using OrdinaryDiffEq: Tsit5, solve
 using Random
 using Test
@@ -30,6 +30,34 @@ Random.seed!(0)
     @test u0[3] ≈ expect(number(bcav) ⊗ one(batom), ψ0)
     @test u0[4] ≈ expect(one(bcav) ⊗ QuantumOpticsBase.transition(batom, 2, 2), ψ0)
     @test u0[5] ≈ expect(create(bcav) ⊗ QuantumOpticsBase.transition(batom, 1, 2), ψ0)
+end
+
+@testset "System parameter order is deterministic" begin
+    ha = NLevelSpace(:atom, 2)
+    hf = FockSpace(:cavity)
+    h = ha ⊗ hf
+
+    a = Destroy(h, :a)
+    σ(α, β, i) = IndexedOperator(Transition(h, :σ, α, β), i)
+
+    @variables η::Real Γ::Real κ::Real Δc::Real N::Real
+    g(i) = IndexedVariable(:g, i)
+    i = Index(h, :i, N, ha)
+
+    H = -Δc * a' * a +
+        ∑(g(i) * (σ(2, 1, i) * a + σ(1, 2, i) * a'), i) +
+        1im * η * (a' - a)
+    J = [σ(1, 2, i), a]
+
+    eqs = meanfield(a' * a, H, J; rates = [Γ, κ], order = [1, 2])
+    complete!(eqs)
+    evaled = evaluate(eqs; limits = (N => 3))
+
+    sys = System(evaled; name = :deterministic_params)
+    names = string.(parameters(sys))
+
+    @test names == sort(names)
+    @test Set(names) == Set(["Δc", "g", "η", "Γ", "κ"])
 end
 
 @testset "get_solution: untracked operator throws KeyError" begin

@@ -1,7 +1,7 @@
 using QuantumCumulants
 using Symbolics: Symbolics, @variables, expand
 using SymbolicUtils
-using ModelingToolkitBase: ModelingToolkitBase
+using ModelingToolkitBase: ModelingToolkitBase, brownians, equations
 using Test
 
 function _iz(x)
@@ -146,4 +146,27 @@ end
 
     sys = System(eqs; name = :driven_cav_noise)
     @test sys isa ModelingToolkitBase.System
+end
+
+@testset "System on noise eqs: independent monitored channels get independent brownians" begin
+    hc = FockSpace(:cavity)
+    ha = NLevelSpace(:atom, 2)
+    h = hc ⊗ ha
+    a = Destroy(h, :a, 1)
+    σ(i, j) = Transition(h, :σ, i, j, 2)
+
+    @variables Δ::Real κ::Real γ::Real η1::Real η2::Real
+    H = Δ * a' * a
+    eqs = meanfield(
+        [a, σ(2, 2)], H, [a, σ(1, 2)];
+        rates = [κ, γ], efficiencies = [η1, η2], order = 2
+    )
+
+    sys = System(eqs; name = :two_channel_noise)
+    ws = brownians(sys)
+
+    @test length(ws) == 2
+    eq_text = join(string.(equations(sys)), "\n")
+    @test occursin(string(ws[1]), eq_text)
+    @test occursin(string(ws[2]), eq_text)
 end

@@ -38,6 +38,21 @@ end
     @test get_order(eqs.equations[1].rhs) <= 2
 end
 
+@testset "meanfield scalar order spans observables and jumps outside the Hamiltonian subspace" begin
+    hc = FockSpace(:cavity)
+    hf = FockSpace(:filter)
+    h = hc ⊗ hf
+    a = Destroy(h, :a, 1)
+    b = Destroy(h, :b, 2)
+
+    @variables ω::Real κa::Real κb::Real
+    eqs = meanfield([b], ω * a' * a, [a, b]; rates = [κa, κb], order = 2)
+
+    @test eqs.order == [2, 2]
+    complete!(eqs)
+    @test !isempty(eqs.equations)
+end
+
 @testset "meanfield: closed two-level" begin
     ha = NLevelSpace(:atom, 2)
     σ(i, j) = Transition(ha, :σ, i, j)

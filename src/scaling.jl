@@ -130,16 +130,22 @@ function _sum_scope_prefactor(op::QAdd, selected::Set{Int})
         SQA.has_index(o.index) && push!(op_indices, o.index)
     end
     prefactor = 1
-    used_non_equal = Set{Int}()
     for b in op.indices
         b in op_indices || continue
         b.space_index in selected || continue
         count_b = 0
-        for (term, _) in op.arguments, (k, pair) in enumerate(term.ne)
-            k in used_non_equal && continue
-            (pair[1] == b || pair[2] == b) || continue
+        excluded = Set{SQA.Index}()
+        for (term, _) in op.arguments, pair in term.ne
+            if pair[1] == b
+                other = pair[2]
+            elseif pair[2] == b
+                other = pair[1]
+            else
+                continue
+            end
+            other in excluded && continue
             count_b += 1
-            push!(used_non_equal, k)
+            push!(excluded, other)
         end
         factor = b.range - count_b
         prefactor = (prefactor isa Number && prefactor == 1) ? factor : prefactor * factor
@@ -221,7 +227,12 @@ mutates `eqs` in place; `scale` returns a new system.
 scale(eqs::AbstractMeanfieldEquations; h::Vector{Int} = Int[]) =
     assemble_equations(quotient(_graph_from_stored(eqs); h))
 
-scale!(eqs::AbstractMeanfieldEquations; h::Vector{Int} = Int[]) =
-    _replace_contents!(eqs, scale(eqs; h))
+function scale!(eqs::AbstractMeanfieldEquations; h::Vector{Int} = Int[])
+    scaled = scale(eqs; h)
+    _replace_contents!(eqs, scaled)
+    empty!(eqs.treatments)
+    merge!(eqs.treatments, scaled.treatments)
+    return eqs
+end
 
 @doc (@doc scale) scale!

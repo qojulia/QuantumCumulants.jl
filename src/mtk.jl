@@ -99,6 +99,44 @@ function _collect_params!(set, x, iv_uw)
     return
 end
 
+function _sorted_params(ps_set)
+    ps = collect(ps_set)
+    return ps[sortperm(string.(ps))]
+end
+
+function _noise_channel_rhss(eqs::NoiseMeanfieldEquations)
+    active = Int[k for k in eachindex(eqs.efficiencies) if !iszero(eqs.efficiencies[k])]
+    channels = Vector{Vector{Any}}(undef, length(active))
+    build_noise = _noise_builder(eqs.direction)
+    for (j, k) in enumerate(active)
+        _, noise_eqs = build_noise(
+            eqs.operators,
+            [eqs.jumps[k]],
+            [eqs.jumps_dagger[k]],
+            [eqs.rates[k]],
+            [eqs.efficiencies[k]],
+        )
+        channels[j] = Any[
+            SymbolicUtils.unwrap(
+                    _reduce_ground_in_drift(
+                        eqs.order === nothing ? Symbolics.Num(eq.rhs) :
+                        Symbolics.Num(cumulant_expansion(eq.rhs, eqs.order))
+                    ),
+                ) for eq in noise_eqs
+        ]
+    end
+    return active, channels
+end
+
+# Build a Brownian variable programmatically (mirrors the `@brownians` macro
+# expansion) so System construction avoids a runtime `eval` per call.
+function _make_brownian(name::Symbol)
+    sym = SymbolicUtils.Sym{Symbolics.SymReal}(name; type = Real, shape = UnitRange{Int64}[])
+    tagged = SymbolicUtils.setmetadata(sym, Symbolics.VariableSource, (:brownian, name))
+    return MTK.tobrownian(Symbolics.wrap(tagged))
+end
+_make_brownians(names::Vector{Symbol}) = [_make_brownian(name) for name in names]
+
 # ---- System ------------------------------------------------------------------
 
 """
@@ -107,8 +145,9 @@ end
 
 Build an MTK `System` from the equation set: one `u(t)` variable per state, the
 drift resolved to those variables. A `NoiseMeanfieldEquations` becomes an SDE
-whose single Brownian column is the aggregated noise drift (sign +1 Forward, -1
-Backward). RHS leaves not matching a state become parameters.
+with one independent Brownian column per monitored channel, each carrying that
+channel's noise drift (sign +1 Forward, -1 Backward). RHS leaves not matching a
+state become parameters.
 """
 function MTK.System(eqs::MeanfieldEquations; name::Symbol)
     iv = eqs.iv
@@ -123,7 +162,7 @@ function MTK.System(eqs::MeanfieldEquations; name::Symbol)
         new_eqs[i] = D(reg.vars[i]) ~ rhs
         _collect_params!(ps_set, SymbolicUtils.unwrap(rhs), iv_uw)
     end
-    ps = [MTK.toparam(p) for p in ps_set]
+    ps = [MTK.toparam(p) for p in _sorted_params(ps_set)]
     return MTK.System(new_eqs, iv, reg.vars, ps; name = name)
 end
 
@@ -138,23 +177,31 @@ function _to_system_sde(eqs::NoiseMeanfieldEquations, name::Symbol, sign::Int)
     D = Symbolics.Differential(iv)
     reg = _state_registry(eqs)
     resolve = _leaf_resolver(reg)
-    w = first(MTK.@brownians _qc_dW)
-    w_uw = SymbolicUtils.unwrap(w)
-    T = typeof(w_uw)
+    active, channel_noise = _noise_channel_rhss(eqs)
+    # One independent Brownian per monitored channel. With no active channel keep a
+    # single zero-noise column so the result is still a valid SDE.
+    nch = max(length(active), 1)
+    ws = _make_brownians([Symbol("_qc_dW_", j) for j in 1:nch])
+    ws_uw = SymbolicUtils.unwrap.(ws)
+    T = typeof(first(ws_uw))
     new_eqs = Vector{Symbolics.Equation}(undef, length(eqs.equations))
     ps_set = Set{SymbolicUtils.BasicSymbolic}()
     @inbounds for (i, eq) in enumerate(eqs.equations)
         rhs = SymbolicUtils.unwrap(mapleaves(resolve, eq.rhs))
-        noise_rhs = SymbolicUtils.unwrap(mapleaves(resolve, eqs.noise_equations[i].rhs))
         signed_rhs = sign == 1 ? rhs : TermInterface.maketerm(T, *, Any[sign, rhs], nothing)
-        noise_term = TermInterface.maketerm(T, *, Any[noise_rhs, w_uw], nothing)
-        total_rhs = TermInterface.maketerm(T, +, Any[signed_rhs, noise_term], nothing)
+        total_rhs = signed_rhs
+        for (j, w_uw) in enumerate(ws_uw)
+            noise_rhs = isempty(active) ? 0 :
+                SymbolicUtils.unwrap(mapleaves(resolve, channel_noise[j][i]))
+            noise_term = TermInterface.maketerm(T, *, Any[noise_rhs, w_uw], nothing)
+            total_rhs = TermInterface.maketerm(T, +, Any[total_rhs, noise_term], nothing)
+            _collect_params!(ps_set, noise_rhs, iv_uw)
+        end
         new_eqs[i] = D(reg.vars[i]) ~ total_rhs
         _collect_params!(ps_set, rhs, iv_uw)
-        _collect_params!(ps_set, noise_rhs, iv_uw)
     end
-    ps = [MTK.toparam(p) for p in ps_set]
-    return MTK.System(new_eqs, iv, reg.vars, ps, [w]; name = name)
+    ps = [MTK.toparam(p) for p in _sorted_params(ps_set)]
+    return MTK.System(new_eqs, iv, reg.vars, ps, ws; name = name)
 end
 
 # ---- initial values / parameter map / solution ------------------------------

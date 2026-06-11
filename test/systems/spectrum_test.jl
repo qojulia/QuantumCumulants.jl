@@ -228,4 +228,5 @@ end
     c_nss = CorrelationFunction(σ(:e, :g), σ(:g, :e), eqs; steady_state = false)
     @test c_nss isa CorrelationFunction
     @test length(c_nss.eqs.equations) >= length(c_ss.eqs.equations)
+    @test_throws ArgumentError Spectrum(c_nss)
 end

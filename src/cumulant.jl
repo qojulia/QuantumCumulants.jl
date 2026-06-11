@@ -404,14 +404,28 @@ function cumulant_expansion(
     )
 end
 
-function _normalize_order(order::Int, eqs)
-    nspaces = _nspaces(eqs.hamiltonian)
-    return fill(order, nspaces)
-end
+_normalize_order(order::Int, eqs) = fill(order, _nspaces(eqs))
 _normalize_order(order::Vector{Int}, _) = order
 _normalize_order(::Nothing, _) = nothing
 
 function _nspaces(op::QField)
     aons = SQA.acts_on(op)
     return isempty(aons) ? 1 : maximum(aons)
+end
+function _nspaces(ops::AbstractVector)
+    isempty(ops) && return 1
+    return maximum(_nspaces, ops; init = 1)
+end
+# `spec` carries the full system inputs (observables, Hamiltonian, jumps and
+# adjoint jumps); count subspaces across all of them so a scalar `order` sizes
+# the order vector for subspaces no operator in `H` alone touches. Works for both
+# the `meanfield` input NamedTuple and a stored `MeanfieldEquations`, which share
+# these field names.
+function _nspaces(spec)
+    return max(
+        _nspaces(spec.operators),
+        _nspaces(spec.hamiltonian),
+        _nspaces(spec.jumps),
+        _nspaces(spec.jumps_dagger),
+    )
 end

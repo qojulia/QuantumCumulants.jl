@@ -51,6 +51,23 @@ end
     @test _iz(simplify(cumulant_expansion(n, 1) - average(a') * average(a)))
 end
 
+@testset "cumulant_expansion scalar order sizes over operators outside the Hamiltonian" begin
+    hc = FockSpace(:cavity)
+    hf = FockSpace(:filter)
+    h = hc ⊗ hf
+    a = Destroy(h, :a, 1)
+    b = Destroy(h, :b, 2)
+
+    @variables ω::Real κ::Real
+    # H and the jump touch only subspace 1; observable b touches subspace 2, so a
+    # scalar `order` must size the order vector over the full system inputs,
+    # including observables, not just H and the jumps.
+    eqs = meanfield([b' * b], ω * a' * a, [a]; rates = [κ])
+
+    expanded = cumulant_expansion(eqs, 2)
+    @test expanded.order == [2, 2]
+end
+
 @testset "cumulant_expansion: second order" begin
     hc = FockSpace(:cavity)
     @qnumbers a::Destroy(hc)

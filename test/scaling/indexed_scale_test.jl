@@ -61,6 +61,21 @@ end
     @test length(s_full_a.equations) == length(s_full_b.equations)
 end
 
+@testset "indexed_scale: sum-scope prefactor counts distinct exclusions across terms" begin
+    ha = NLevelSpace(:atom, 2)
+    @variables N::Real
+
+    i = Index(ha, :i, N, ha)
+    j = Index(ha, :j, N, ha)
+    k = Index(ha, :k, N, ha)
+    σ(a, b, idx) = IndexedOperator(Transition(ha, :σ, a, b), idx)
+
+    op = Σ(σ(2, 1, i) * σ(1, 2, j) + σ(2, 1, i) * σ(1, 2, k), i)
+    pref = QuantumCumulants._sum_scope_prefactor(op, Set([1]))
+
+    @test isequal(Symbolics.simplify(pref - (N - 2); expand = true), 0)
+end
+
 @testset "indexed_scale: Ising-XX scale vs evaluate ODE numerical equality" begin
     h2 = NLevelSpace(:spin, 2)
     @variables V::Real Ω::Real N3::Real

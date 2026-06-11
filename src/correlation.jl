@@ -390,7 +390,15 @@ struct Spectrum{C <: CorrelationFunction, P}
     ω::Symbolics.Num
     ps::P
 end
-Spectrum(c::CorrelationFunction, ps) = Spectrum{typeof(c), typeof(ps)}(c, first(@variables ω_spectrum), ps)
+function Spectrum(c::CorrelationFunction, ps)
+    c.steady_state || throw(
+        ArgumentError(
+            "Spectrum requires `CorrelationFunction(...; steady_state = true)`. " *
+                "Got `steady_state = false`."
+        ),
+    )
+    return Spectrum{typeof(c), typeof(ps)}(c, first(@variables ω_spectrum), ps)
+end
 Spectrum(c::CorrelationFunction) = Spectrum(c, ())
 
 function (S::Spectrum)(ω_vals::AbstractVector, u_end, p0)

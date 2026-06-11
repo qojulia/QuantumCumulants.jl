@@ -61,4 +61,8 @@ end
     @test get(eqs.treatments, atom_sp, QuantumCumulants.Free) == QuantumCumulants.Free
     @test get(scale(eqs).treatments, atom_sp, QuantumCumulants.Free) == QuantumCumulants.Scaled
     @test get(evaluate(eqs; limits = (N => 3)).treatments, atom_sp, QuantumCumulants.Free) == QuantumCumulants.Concrete
+
+    eqs_scaled_bang = QuantumCumulants._copy(eqs)
+    scale!(eqs_scaled_bang)
+    @test eqs_scaled_bang.treatments == scale(eqs).treatments
 end

@@ -1,40 +1,6 @@
 # TODO
 
-This is the active package audit backlog. The package goal is to be a performant,
-maintainable symbolic moment-layer for deriving, closing, reducing, compiling and
-solving generalized mean-field equations for open quantum systems.
 
-Resolved historical investigations (collective indexed dissipation / NE-constraint
-flow, det/stoch closure asymmetry, conjugate dedup, ...) are archived in
-[INVESTIGATION_NOTES.md](INVESTIGATION_NOTES.md).
-
-## P0 correctness and reproducibility
-
-- Fix `scale!` treatment metadata. `scale(eqs)` returns an equation set whose
-  `treatments` mark scaled subspaces as `Scaled`, but `scale!(eqs)` only replaces
-  vector fields through `_replace_contents!` and leaves `eqs.treatments` unchanged
-  (`Free`). This makes later canonical lookup / `System` / `get_solution` operate
-  with stale semantic state. Add a regression test comparing `scale(eqs).treatments`
-  and `scale!(copy).treatments`.
-
-- Fix scalar `order::Int` normalization. `_normalize_order(order::Int, eqs)` sizes
-  the order vector from `eqs.hamiltonian` only. If `ops` or jumps touch subspaces
-  not touched by `H`, `meanfield(...; order=2)` can build an order vector that is
-  too short and later throw a `BoundsError` in `cumulant_expansion`. Normalize over
-  the full system inputs: observables, Hamiltonian, jumps and adjoint jumps.
-
-
-- Rework stochastic systems to support independent measurement channels. The API
-  accepts `efficiencies` per jump, but the current SDE bridge creates one Brownian
-  `_qc_dW` and sums all noise drifts into a single column. Multiple monitored
-  channels should generally produce independent Wiener processes. Represent
-  `noise_equations` as channel columns or store per-channel noise drifts in the graph,
-  then generate one Brownian per nonzero independent channel.
-
-- Enforce `Spectrum` preconditions. The docs say the Laplace-transform spectrum is
-  the steady-state method, but `Spectrum(c::CorrelationFunction)` does not reject or
-  warn when `c.steady_state == false`. Add an explicit check or a separate
-  non-steady-state API.
 
 ## P1 Symbolics / MTK architecture
 
