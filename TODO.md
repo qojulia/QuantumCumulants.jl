@@ -4,11 +4,6 @@
 
 ## P1 Symbolics / MTK architecture
 
-- Use CSE deliberately. `Symbolics.build_function(...; cse=true)` creates temporary
-  bindings for repeated subexpressions, but the package currently leaves most RHSs
-  raw and only simplifies on request. Benchmark CSE for large cumulant-expanded
-  systems, especially indexed/evaluated systems, before enabling by default.
-
 - Revisit parameter collection and arrayization with Symbolics APIs. `_collect_params!`,
   `_build_callable_to_array_sub`, `_parse_slot`, and `parameter_map(eqs, pairs)` are
   hand-rolled around Symbolics variable naming and `getindex`. Replace name parsing
@@ -40,10 +35,6 @@
 - Add multi-channel stochastic examples and tests. Current examples mostly monitor
   one nonzero-efficiency channel. Add tests where two channels are monitored and
   verify independent-noise structure and deterministic ensemble consistency.
-
-- Add performance baselines to the repo or CI artifacts. Benchmarks exist, but a
-  maintainer should be able to see current medians/allocation trends for meanfield,
-  completion, scale, evaluate, System construction, correlation and spectrum.
 
 - Add allocation-focused tests or benchmarks for symbolic hot spots. Track
   allocations in cumulant expansion, canonicalization, `evaluate`, `scale`,
