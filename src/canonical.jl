@@ -148,9 +148,7 @@ generating the numerical code and when deduplicating the hierarchy. `treatments`
 the per-subspace treatment exactly as in `_treatment_key`.
 """
 function canonical_rep(op::QAdd, ctx::CanonCtx; treatments::Dict{Int, SubspaceTreatment} = all_free_treatments(ctx))
-    k = _treatment_key(op, ctx, treatments)
-    kc = _treatment_key(adjoint(op), ctx, treatments)
-    return _serialize(kc) < _serialize(k) ? (kc, true) : (k, false)
+    return _conjugation_rep(op, o -> _treatment_key(o, ctx, treatments))
 end
 canonical_rep(op, ::CanonCtx; kw...) = (op, false)
 
@@ -164,8 +162,12 @@ symmetry of the identical atoms (via `symmetric_min`), and `Concrete` keeps its 
 site labels. Hermitian conjugation is not applied.
 """
 function _treatment_key(op::QAdd, ctx::CanonCtx, treatments::Dict{Int, SubspaceTreatment})
-    scaled = Set{Int}(sp for sp in keys(treatments) if treatments[sp] == Scaled)
-    concrete = Set{Int}(sp for sp in keys(treatments) if treatments[sp] == Concrete)
+    scaled = Set{Int}()
+    concrete = Set{Int}()
+    for (sp, t) in treatments
+        t == Scaled && push!(scaled, sp)
+        t == Concrete && push!(concrete, sp)
+    end
     # Relabel everything not Concrete (Free and Scaled relabel to vocab reps).
     rename_spaces = Set{Int}()
     for sp in ctx.symmetric
@@ -324,7 +326,7 @@ function symmetric_min(op::QAdd, ctx::CanonCtx, selected)
         end
         cand = isempty(sub) ? op : SQA.change_index(op, sub)
         cand = _reorder_then_drop_non_equal(cand, spaces)
-        key = _serialize(cand)
+        key = SQA.qadd_order_key(cand)
         if best_key === nothing || key < best_key
             best_key = key
             best_op = cand
@@ -352,13 +354,7 @@ slots distinct so SQA sorts them), then strip the asserted non-equal constraints
 the result.
 """
 function _reorder_then_drop_non_equal(op::QAdd, spaces)
-    by_space = Dict{Int, Vector{SQA.Index}}()
-    for (term, _) in op.arguments, o in term.ops
-        SQA.has_index(o.index) || continue
-        o.index.space_index in spaces || continue
-        v = get!(by_space, o.index.space_index, SQA.Index[])
-        o.index in v || push!(v, o.index)
-    end
+    by_space = Dict(k => v for (k, v) in _free_by_space(op) if k in spaces)
     pairs = Tuple{SQA.Index, SQA.Index}[]
     for (_, idxs) in by_space, n in 1:length(idxs), m in (n + 1):length(idxs)
         push!(pairs, (idxs[n], idxs[m]))
@@ -368,16 +364,16 @@ function _reorder_then_drop_non_equal(op::QAdd, spaces)
 end
 
 """
-Stable, order-independent string signature of `op`, used to compare candidate
-representatives lexicographically.
+Conjugation-aware representative shared by `canonical_rep` and `concrete_rep`. Given a
+`basekey` labelling of ⟨op⟩ (per-treatment or concrete), returns `(key, is_conjugate)`
+from the smaller of the labels of ⟨`op`⟩ and ⟨`op`†⟩ under SQA's `qadd_order_key`, so an
+average and its conjugate ⟨A†⟩ = ⟨A⟩* collapse to one representative. The structural
+order lives in SQA (`qadd_order_key`); QC only chooses which conjugation side wins.
 """
-function _serialize(op::QAdd)
-    terms = Vector{Tuple{Vector{String}, String}}()
-    for (term, c) in op.arguments
-        push!(terms, (String[string(o) for o in term.ops], string(c)))
-    end
-    sort!(terms)
-    return terms
+function _conjugation_rep(op::QAdd, basekey)
+    k = basekey(op)
+    kc = basekey(adjoint(op))
+    return SQA.qadd_order_key(kc) < SQA.qadd_order_key(k) ? (kc, true) : (k, false)
 end
 
 """
@@ -385,11 +381,7 @@ Conjugation-aware label for materialised systems, the `concrete_key` counterpart
 `canonical_rep`: returns `(key, is_conjugate)` from the smaller of the labels of
 ⟨`op`⟩ and ⟨`op`†⟩.
 """
-function concrete_rep(op::QAdd)
-    k = concrete_key(op)
-    kc = concrete_key(adjoint(op))
-    return _serialize(kc) < _serialize(k) ? (kc, true) : (k, false)
-end
+concrete_rep(op::QAdd) = _conjugation_rep(op, concrete_key)
 concrete_rep(op) = (op, false)
 
 # ---- moment lookup -----------------------------------------------------------

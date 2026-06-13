@@ -1,7 +1,7 @@
 function _is_avg_leaf(x::SymbolicUtils.BasicSymbolic)
-    return SQA.is_average(x) &&
-        SymbolicUtils.iscall(x) &&
-        SymbolicUtils.operation(x) === SQA.sym_average
+    SQA.is_average(x) || return false
+    (SymbolicUtils.iscall(x) && SymbolicUtils.operation(x) === SQA.sym_average) && return true
+    return SymbolicUtils.hasmetadata(x, SQA.AverageOperator)
 end
 _is_avg_leaf(::Any) = false
 

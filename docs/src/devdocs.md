@@ -105,7 +105,9 @@ This is the heart of the moment layer, and it is what makes the hierarchy *close
  A hybrid system can be Scaled on the atoms and Concrete on a filter cavity at once.
 ```
 
-`canon_key` and `scaled_key` are the same engine, `_treatment_key`, called with different treatment maps (all subspaces `Free`, and the selected subspaces `Scaled`). It puts the average into a comparable normal form (drop the summation scope, fix the order of commuting factors, drop the non-equal constraints), relabels each non-`Concrete` subspace to the vocabulary representatives, and reduces any `Scaled` subspace under the permutation symmetry of the identical atoms via `symmetric_min`. A `Concrete` subspace is simply left un-relabelled, so `_treatment_key` already handles mixed systems. `concrete_key` is a separate, simpler label for a fully materialised system: it skips the relabelling entirely so the fixed sites ``\sigma_1, \sigma_2, \ldots`` stay distinct. `canonical_rep` (and its materialised counterpart `concrete_rep`) evaluates the label on both ``\langle A\rangle`` and ``\langle A^\dagger\rangle`` and returns the smaller, together with a flag for which side it came from, so one stored moment stands in for both halves of a conjugate pair.
+`canon_key` and `scaled_key` are the same engine, `_treatment_key`, called with different treatment maps (all subspaces `Free`, and the selected subspaces `Scaled`). It puts the average into a comparable normal form (drop the summation scope, fix the order of commuting factors, drop the non-equal constraints), relabels each non-`Concrete` subspace to the vocabulary representatives, and reduces any `Scaled` subspace under the permutation symmetry of the identical atoms via `symmetric_min`. A `Concrete` subspace is simply left un-relabelled, so `_treatment_key` already handles mixed systems. `concrete_key` is a separate, simpler label for a fully materialised system: it skips the relabelling entirely so the fixed sites ``\sigma_1, \sigma_2, \ldots`` stay distinct. `canonical_rep` and its materialised counterpart `concrete_rep` share one helper, `_conjugation_rep`: it labels both ``\langle A\rangle`` and ``\langle A^\dagger\rangle`` and keeps whichever is smaller, with a flag for which side it came from, so one stored moment stands in for both halves of a conjugate pair.
+
+"Smaller" is decided by SQA's total, identity-faithful structural order: `order_key` per operator and `qadd_order_key` per expression, which tie exactly when two labels are `isequal`. QC defers the ordering to SQA rather than comparing rendered strings, so representative selection is reproducible and never depends on `show`.
 
 Because the label is chosen per subspace, **partial reductions compose**: a system can be scaled on one subspace and evaluated on another, in any order, and the labelling stays consistent. `_materialised_key` is the rule that selects the conjugation-aware label once any subspace has been made `Concrete`, and the plain treatment label otherwise.
 
@@ -164,7 +166,7 @@ Because both are keyed by treatment rather than a hardcoded representative, a sy
 
 ## Building the numerical system
 
-`mtk.jl` bridges the moment layer to ModelingToolkitBase. `_state_registry` assigns each state a time-dependent variable `u(t)`, named deterministically by `serialize` (``\langle a^\dagger a\rangle`` becomes `avg_a_dag_a`), and builds a `MomentMap` keyed by the conjugate representative. Building the `System` then looks up every moment on a right-hand side in that map.
+`mtk.jl` bridges the moment layer to ModelingToolkitBase. `_state_registry` lifts each state into a time-dependent variable `u(t)` (SQA's `make_time_dependent`, which turns the iv-free `Number` average leaf into a `Number`-symtype `var(iv)` carrying the operator in `AverageOperator` metadata), names it by `avg_name` (the average notation itself, e.g. ``\langle a^\dagger a\rangle`` becomes the symbol `⟨a' * a⟩`), and builds a `MomentMap` keyed by the conjugate representative. Moment identity is structural (the `MomentMap` representative), not the name. MTK keys unknowns by name, so `_state_vars` appends a numeric suffix on the rare display-name collision to keep distinct states distinct. Building the `System` then looks up every moment on a right-hand side in that map.
 
 ```
  right-hand side  (symbolic expression; each ⟨...⟩ average is a leaf)
@@ -174,15 +176,15 @@ Because both are keyed by treatment rather than a hardcoded representative, a sy
         ├─ canonical_rep(op) ─▶ (rep, side)
         ▼
    MomentMap.by_rep[rep] = (var, rep_side)
-        ├─ side == rep_side ?  ─ yes ─▶  var          e.g. avg_a(t)
-        └─                       no  ─▶  conj(var)     e.g. conj(avg_a(t))
+        ├─ side == rep_side ?  ─ yes ─▶  var          e.g. ⟨a⟩(t)
+        └─                       no  ─▶  conj(var)     e.g. conj(⟨a⟩(t))
 ```
 
-The conjugate is emitted as `SymbolicUtils.term(conj, var; type=Number)` rather than a plain `conj(var)`, because `conj` folds to the identity on a `Real` symtype and would erase the distinction; the explicit `term` survives `mtkcompile`. The left-hand side becomes `Differential(iv)(u(t))` only here; the equation struct itself always stores the raw `Average`.
+The conjugate is emitted as `SymbolicUtils.term(conj, var; type=Number)`. The state variables are `Number`-symtype because averages are complex: on a `Real` symtype `conj` folds to the identity and would erase ``\langle A\rangle`` vs ``\langle A^\dagger\rangle``, whereas on `Number` it stays distinct (the soundness reason for the `Number` symtype). The explicit `term` keeps the conjugate at `Number` symtype so it composes with the rest of the RHS and survives `mtkcompile`. The left-hand side becomes `Differential(iv)(u(t))` only here; the equation struct itself always stores the raw `Average`.
 
 A `NoiseMeanfieldEquations` becomes a stochastic differential equation: the single Brownian term is the aggregated noise drift, with sign ``+1`` for `Forward` and ``-1`` for `Backward`, chosen by the evolution direction.
 
-The remaining bridges: [`initial_values`](@ref) computes a `u0` from a numeric `Ket` or density operator (via SQA's `numeric_average`), [`parameter_map`](@ref) expands indexed/array parameters to the compiled system's shapes, and [`get_solution`](@ref) reverses the registry to evaluate any operator-average trajectory, including products that never appeared as a stored state. `System` uses the `MomentMap` alone; `get_solution` adds a secondary `by_canon` fallback so a query posed in a different but equivalent symbolic form still resolves.
+The remaining bridges: [`initial_values`](@ref) computes a `u0` from a numeric `Ket` or density operator (via SQA's `numeric_average`), [`parameter_map`](@ref) expands indexed/array parameters to the compiled system's shapes, and [`get_solution`](@ref) reverses the registry to evaluate any operator-average trajectory, including products that never appeared as a stored state. Both `System` and `get_solution` resolve through the single `MomentMap` (`match_moment`), which already folds Hermitian conjugation and the system's index/symmetry treatment, so a query posed in any equivalent symbolic form resolves to the same state.
 
 ## Correlation and spectrum
 
@@ -226,7 +228,7 @@ Asking for the minimal set with `get_adjoints=false` keeps three, recovering ``\
 complete(eqs; get_adjoints=false).states
 ```
 
-**Numerics.** Building the MTK system names one variable per state and looks up every moment through the `MomentMap`. The ``\langle a^\dagger\rangle`` terms resolve to `conj(avg_a(t))`:
+**Numerics.** Building the MTK system names one variable per state and looks up every moment through the `MomentMap`. The ``\langle a^\dagger\rangle`` terms resolve to the `conj` of the ``\langle a\rangle`` unknown:
 
 ```@example devdocs
 using ModelingToolkitBase
@@ -235,10 +237,10 @@ unknowns(sys)
 ```
 
 ```@example devdocs
-equations(sys)[1]   # ⟨a⟩: note conj(avg_a(t)) standing in for ⟨a†⟩
+equations(sys)[1]   # ⟨a⟩: note the conj of the ⟨a⟩ unknown standing in for ⟨a†⟩
 ```
 
-Note the honest subtlety from the default `get_adjoints=true`: `avg_a_dag_a_dag(t)` is its own integrated variable, but its right-hand side resolves to `conj(avg_a_a(t))` and nothing else reads it, so it is a redundant shadow. `mtkcompile` does **not** detect the conjugate alias and keeps it, so the default integrates one redundant ODE. Use `get_adjoints=false` when the minimal state set matters.
+Note the honest subtlety from the default `get_adjoints=true`: the ``\langle a^\dagger a^\dagger\rangle`` unknown is integrated in its own right, but its right-hand side resolves to the `conj` of the ``\langle a a\rangle`` unknown and nothing else reads it, so it is a redundant shadow. `mtkcompile` does **not** detect the conjugate alias and keeps it, so the default integrates one redundant ODE. Use `get_adjoints=false` when the minimal state set matters.
 
 ### What changes for an indexed system
 

@@ -1,46 +1,19 @@
-serialize(op::QAdd) = Symbol("avg_" * _op_name_part(op))
+# Pretty display label (⟨a'*a⟩) for a moment's unknown; not the identity, dedup is structural.
+avg_name(op::QAdd) = Symbol(string(SQA.average(op)))
 
-function _op_name_part(op::QAdd)
-    isempty(op.arguments) && return "zero"
-    chunks = String[]
-    for (term, _) in op.arguments
-        base = join((_op_name_part(o) for o in term.ops), "_")
-        if !isempty(term.ne)
-            base *= "_" * join((string(a.name) * "neq" * string(b.name) for (a, b) in term.ne), "_")
-        end
-        push!(chunks, base)
-    end
-    return join(chunks, "_plus_")
-end
-_op_name_part(op::SQA.QSym) = string(op.name) * _op_name_suffix(op)
+# The moment's time-dependent `Number` unknown, lifted by SQA's `make_time_dependent`.
+# `iv` is MTK's `t_nounits` (see `_make_iv`), so the result is a first-class MTK unknown.
+time_dependent_var(op::QAdd, iv) = SymbolicUtils.unwrap(SQA.make_time_dependent(SQA.average(op), iv))
 
-_op_name_suffix(op::SQA.QSym) = _op_index_suffix(op)
-function _op_name_suffix(op::SQA.Transition)
-    i = op.i isa Symbol ? string(op.i) : string(Int(op.i))
-    j = op.j isa Symbol ? string(op.j) : string(Int(op.j))
-    return "_" * i * j * _op_index_suffix(op)
-end
-_op_name_suffix(op::SQA.Destroy) = _op_index_suffix(op)
-_op_name_suffix(op::SQA.Create) = "_dag" * _op_index_suffix(op)
-_op_name_suffix(op::SQA.Pauli) = "_" * string(Int(op.axis)) * _op_index_suffix(op)
-_op_name_suffix(op::SQA.Spin) = "_" * string(Int(op.axis)) * _op_index_suffix(op)
-
-function _op_index_suffix(op::SQA.QSym)
-    isdefined(op, :index) || return ""
-    idx = op.index
-    idx === SQA.NO_INDEX && return ""
-    return "_" * string(idx.name)
-end
-
-_make_var(name::Symbol, iv::Symbolics.Num) = first(@variables $name(iv))
+_state_vars(ops::AbstractVector, iv) = SymbolicUtils.BasicSymbolic[time_dependent_var(op, iv) for op in ops]
 
 # ---- state variable registry -------------------------------------------------
 
 """
-Build the per-state `u(t)` variables and the lookup maps shared by `System`,
-`initial_values` and `get_solution`, so variable naming agrees across them. `moments` keys
-each state var by its Hermitian-conjugate representative; `by_canon` is the secondary,
-non-conjugating `canon_key` fallback `get_solution` uses for equivalent query forms.
+Build the per-state `u(t)` variables and the `moments` lookup shared by `System`,
+`initial_values` and `get_solution`, so variable naming agrees across them. `moments`
+keys each state var by its Hermitian-conjugate representative; resolution (leaves,
+`get_solution`) goes through that one structural matcher.
 """
 function _state_registry(eqs::AbstractMeanfieldEquations)
     ctx = build_ctx(eqs)
@@ -48,18 +21,19 @@ function _state_registry(eqs::AbstractMeanfieldEquations)
     # (an empty map, scalar systems, reads as all-Free).
     treatments = _treatments(eqs, ctx)
     ops = QAdd[undo_average(s) isa QAdd ? undo_average(s) : undo_average(s) * 1 for s in eqs.states]
-    vars = Symbolics.Num[_make_var(serialize(op), eqs.iv) for op in ops]
+    # Lifted averages are `Number`-symtype, which `Symbolics.Num` (requires `<:Real`)
+    # cannot wrap, so the state variables are carried as unwrapped `BasicSymbolic`.
+    vars = _state_vars(ops, eqs.iv)
     moments = MomentMap(ctx, treatments, ops, vars)
-    by_canon = Dict{QAdd, Symbolics.Num}()
-    for (op, v) in zip(ops, vars)
-        get!(by_canon, canon_key(op, ctx), v)
-    end
-    return (; ctx, treatments, vars, moments, by_canon)
+    return (; ctx, treatments, vars, moments)
 end
 
 """
 Build a closure that resolves a RHS average leaf to its state variable (or that
-variable's conjugate), leaving non-state leaves untouched as ambient parameters.
+variable's conjugate). A closed system has every RHS moment among its states, so a
+non-matching leaf means an unclosed system; it is left untouched (the caller is
+expected to `complete` first). Correlation/spectrum handle their ambient
+steady-state moments separately.
 """
 function _leaf_resolver(reg)
     return function (leaf)
@@ -158,9 +132,9 @@ function MTK.System(eqs::MeanfieldEquations; name::Symbol)
     new_eqs = Vector{Symbolics.Equation}(undef, length(eqs.equations))
     ps_set = Set{SymbolicUtils.BasicSymbolic}()
     @inbounds for (i, eq) in enumerate(eqs.equations)
-        rhs = mapleaves(resolve, eq.rhs)
+        rhs = mapleaves(resolve, SymbolicUtils.unwrap(eq.rhs))
         new_eqs[i] = D(reg.vars[i]) ~ rhs
-        _collect_params!(ps_set, SymbolicUtils.unwrap(rhs), iv_uw)
+        _collect_params!(ps_set, rhs, iv_uw)
     end
     ps = [MTK.toparam(p) for p in _sorted_params(ps_set)]
     return MTK.System(new_eqs, iv, reg.vars, ps; name = name)
@@ -187,7 +161,7 @@ function _to_system_sde(eqs::NoiseMeanfieldEquations, name::Symbol, sign::Int)
     new_eqs = Vector{Symbolics.Equation}(undef, length(eqs.equations))
     ps_set = Set{SymbolicUtils.BasicSymbolic}()
     @inbounds for (i, eq) in enumerate(eqs.equations)
-        rhs = SymbolicUtils.unwrap(mapleaves(resolve, eq.rhs))
+        rhs = mapleaves(resolve, SymbolicUtils.unwrap(eq.rhs))
         signed_rhs = sign == 1 ? rhs : TermInterface.maketerm(T, *, Any[sign, rhs], nothing)
         total_rhs = signed_rhs
         for (j, w_uw) in enumerate(ws_uw)
@@ -214,7 +188,8 @@ Map every state's `u(t)` variable to its initial value, defaulting to
 """
 function initial_values(eqs::AbstractMeanfieldEquations; defaults::AbstractDict = Dict())
     reg = _state_registry(eqs)
-    out = Dict{Symbolics.Num, ComplexF64}()
+    # Keys are unwrapped `Number`-symtype average variables, not `Num`-wrappable.
+    out = Dict{Any, ComplexF64}()
     for (k, avg) in enumerate(eqs.states)
         out[reg.vars[k]] = ComplexF64(get(defaults, avg, 0))
     end
@@ -236,7 +211,7 @@ function initial_values(eqs::AbstractMeanfieldEquations, u0::AbstractVector{<:Nu
         ),
     )
     reg = _state_registry(eqs)
-    return Dict{Symbolics.Num, ComplexF64}(reg.vars[k] => ComplexF64(u0[k]) for k in eachindex(u0))
+    return Dict{Any, ComplexF64}(reg.vars[k] => ComplexF64(u0[k]) for k in eachindex(u0))
 end
 
 """
@@ -384,10 +359,10 @@ end
     get_solution(sol, avg_or_op, eqs)
 
 Query an ODE/SDE solution for the trajectory of an average (or a `QField`,
-averaged internally). Resolves the user's operator to a tracked state by the
-Hermitian conjugation (`concrete_rep`, recovering a folded conjugate via the side
-bit), then falls back to `canon_key` so a query posed in a different but
-equivalent symbolic form still hits.
+averaged internally). Resolves the user's operator to a tracked state through the
+single structural matcher `match_moment`, which folds Hermitian conjugation (the
+side bit recovers a stored conjugate) and the system's index/symmetry treatment, so
+a query posed in any equivalent symbolic form hits the same state.
 """
 function get_solution(sol, avg::SymbolicUtils.BasicSymbolic, eqs::AbstractMeanfieldEquations)
     reg = _state_registry(eqs)
@@ -399,10 +374,6 @@ function get_solution(sol, avg::SymbolicUtils.BasicSymbolic, eqs::AbstractMeanfi
             return same ? (τ -> _eval_at(sol, var, τ)) :
                 (τ -> conj.(_eval_at(sol, var, τ)))
         end
-        kc = canon_key(op, reg.ctx)
-        haskey(reg.by_canon, kc) && return τ -> _eval_at(sol, reg.by_canon[kc], τ)
-        kcc = canon_key(adjoint(op), reg.ctx)
-        haskey(reg.by_canon, kcc) && return τ -> conj.(_eval_at(sol, reg.by_canon[kcc], τ))
     end
     throw(KeyError(avg))
 end

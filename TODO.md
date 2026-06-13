@@ -4,26 +4,6 @@
 
 ## P1 Symbolics / MTK architecture
 
-- Replace string-based moment serialization as the identity bridge. `average(op)` is
-  already a `BasicSymbolic` average leaf (`operation == avg`, `symtype == AvgSym`),
-  but `_state_registry` throws that identity away and mints fresh variables named
-  by `serialize(op)`, e.g. `avg_a(t)`. Directly using `average(a)` as an MTK
-  unknown currently fails because it is not a function of `t`, so the answer is not
-  to pass average leaves blindly to MTK. Instead, create a first-class
-  `MomentVariableRegistry` that stores:
-  - the canonical average leaf / operator representative;
-  - the generated time-dependent Symbolics variable;
-  - conjugation side information;
-  - treatment state (`Free` / `Scaled` / `Concrete`);
-  - stable metadata linking the MTK variable back to the average.
-  Keep generated variable names purely as display/debug names, never as identity.
-
-- Investigate an SQA / Symbolics extension for time-dependent averages. A stronger
-  long-term design would make averaged operators usable as dependent variables, e.g.
-  a symbolic `avg(op)(t)` or metadata-enhanced variable whose source is the average
-  leaf. This likely belongs at the SQA/QC boundary. Prototype before committing,
-  because SQA's current `AvgSym` is deliberately an average term, not an MTK unknown.
-
 - Centralize tree rewriting. The package currently has several ad hoc walkers:
   `mapleaves`, `_filter_expr`, `_scale_expr`, `_materialise_walk`,
   `_apply_callable_walk`, `_collect_params!`, spectrum substitution, etc. Replace
@@ -58,14 +38,9 @@
   and generated variables in one graph-backed representation.
 
 - Cache canonicalization. `canonical_rep`, `_treatment_key`, `symmetric_min`,
-  `_serialize`, `acts_on`, `get_order`, and conjugate representatives are repeatedly
+  `qadd_order_key`, `acts_on`, `get_order`, and conjugate representatives are repeatedly
   recomputed across closure, scale/evaluate, `System`, `get_solution`, correlation,
   and spectrum. Add per-graph caches keyed by operator identity / structural hash.
-
-- Replace string serialization in canonical comparisons where possible. `_serialize`
-  currently compares stringified operators to pick representatives. This is simple
-  but expensive and fragile. Prefer a structural ordering/key from SQA or a cached
-  normalized tuple representation.
 
 - Preserve and validate user-modified equations. `modify_equations` changes stored
   RHSs, but `complete` can rebuild from operators and discard those modifications.

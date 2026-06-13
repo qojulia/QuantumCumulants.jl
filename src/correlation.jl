@@ -178,7 +178,7 @@ function _collect_ambient!(found, x, aon_ancilla, states_set)
 end
 
 _ambient_param(avg::SymbolicUtils.BasicSymbolic) =
-    first(@variables $(Symbol("ss_", serialize(undo_average(avg)))))
+    first(@variables $(Symbol("ss_", avg_name(undo_average(avg)))))
 
 _avg_conj_of(x) = SQA.is_average(x) ? average(adjoint(undo_average(x))) : x
 
@@ -280,7 +280,8 @@ See also: [`CorrelationFunction`](@ref), [`correlation_p0`](@ref).
 function correlation_u0(c::CorrelationFunction, u_end)
     resolve = _ss_resolver(c, u_end)
     reg = _state_registry(c.eqs)
-    u0 = Dict{Symbolics.Num, ComplexF64}()
+    # Keys are unwrapped `Number`-symtype lifted averages, not `Num`-wrappable.
+    u0 = Dict{Any, ComplexF64}()
     for (i, s) in enumerate(c.eqs.states)
         u0[reg.vars[i]] = resolve(_undo_ancilla(c, SymbolicUtils.unwrap(s)))
     end

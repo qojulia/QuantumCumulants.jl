@@ -42,7 +42,7 @@ end
     # so it equals the conjugation-min of scaled_key over {op, op†}.
     ok = QuantumCumulants.scaled_key(op, ctx)
     oka = QuantumCumulants.scaled_key(adjoint(op), ctx)
-    expected = QuantumCumulants._serialize(oka) < QuantumCumulants._serialize(ok) ? oka : ok
+    expected = SQA.qadd_order_key(oka) < SQA.qadd_order_key(ok) ? oka : ok
     @test isequal(QuantumCumulants.canonical_rep(op, ctx; treatments)[1], expected)
     # The non-conjugate-folded config (scaled_key) is reproduced by _treatment_key.
     @test isequal(QuantumCumulants._treatment_key(op, ctx, treatments), ok)

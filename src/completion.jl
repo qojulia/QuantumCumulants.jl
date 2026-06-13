@@ -112,24 +112,25 @@ end
 
 # ---- RHS filtering -----------------------------------------------------------
 
+function _filter_eq_vec!(v, filter_func)
+    for (i, eq) in enumerate(v)
+        v[i] = eq.lhs ~ _filter_expr(eq.rhs, filter_func)
+    end
+    return
+end
+
 """
 Zero every average leaf the user's `filter_func` rejects on each equation RHS of `eqs`
 (and on the noise-equation RHSs for a noise system), in place.
 """
 function _filter_rhs!(eqs::MeanfieldEquations, filter_func)
-    for (i, eq) in enumerate(eqs.equations)
-        eqs.equations[i] = eq.lhs ~ _filter_expr(eq.rhs, filter_func)
-    end
+    _filter_eq_vec!(eqs.equations, filter_func)
     return eqs
 end
 
 function _filter_rhs!(eqs::NoiseMeanfieldEquations, filter_func)
-    for (i, eq) in enumerate(eqs.equations)
-        eqs.equations[i] = eq.lhs ~ _filter_expr(eq.rhs, filter_func)
-    end
-    for (i, eq) in enumerate(eqs.noise_equations)
-        eqs.noise_equations[i] = eq.lhs ~ _filter_expr(eq.rhs, filter_func)
-    end
+    _filter_eq_vec!(eqs.equations, filter_func)
+    _filter_eq_vec!(eqs.noise_equations, filter_func)
     return eqs
 end
 
