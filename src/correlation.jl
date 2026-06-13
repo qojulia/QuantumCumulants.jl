@@ -487,11 +487,13 @@ function _assert_linear_blocks(blocks, state_ph_set)
     for block in blocks
         for v in _block_free_syms(block)
             if v in state_ph_set
-                throw(ArgumentError(
-                    "spectrum τ-system is not linear in its states (a coefficient depends " *
-                        "on a state moment). The quantum regression theorem requires a linear " *
-                        "system; check the cumulant order and closure."
-                ))
+                throw(
+                    ArgumentError(
+                        "spectrum τ-system is not linear in its states (a coefficient depends " *
+                            "on a state moment). The quantum regression theorem requires a linear " *
+                            "system; check the cumulant order and closure."
+                    )
+                )
             end
         end
     end
@@ -524,7 +526,7 @@ function _build_spectrum_kernel(S::Spectrum; cse::Bool = false)
     # average leaves (`MethodError(avg, ...)`); plain symbols sidestep that.
     phs = Any[
         SymbolicUtils.unwrap(Symbolics.variable(Symbol("__spec_x", i); T = Number))
-        for i in eachindex(rhs_leaves)
+            for i in eachindex(rhs_leaves)
     ]
     leaf_to_ph = Dict{Any, Any}(rhs_leaves[i] => phs[i] for i in eachindex(rhs_leaves))
     rhss_plain = [SymbolicUtils.substitute(rhs, leaf_to_ph) for rhs in rhss_u]
@@ -583,9 +585,15 @@ function _build_spectrum_kernel(S::Spectrum; cse::Bool = false)
     param_syms = Any[SymbolicUtils.unwrap(p) for p in S.ps]
     ambient_phs = Any[phs[k] for k in ambient_cols]
     known = Set{SymbolicUtils.BasicSymbolic}()
-    for s in param_syms; push!(known, SymbolicUtils.unwrap(s)); end
-    for s in statephs; push!(known, SymbolicUtils.unwrap(s)); end
-    for s in ambient_phs; push!(known, SymbolicUtils.unwrap(s)); end
+    for s in param_syms
+        push!(known, SymbolicUtils.unwrap(s))
+    end
+    for s in statephs
+        push!(known, SymbolicUtils.unwrap(s))
+    end
+    for s in ambient_phs
+        push!(known, SymbolicUtils.unwrap(s))
+    end
     push!(known, SymbolicUtils.unwrap(c.τ))
     # `get_variables` reports the imaginary unit `IM` as a free symbol; it is a constant
     # emitted literally by `build_function`, never an input (binding it would zero `x*im`).
