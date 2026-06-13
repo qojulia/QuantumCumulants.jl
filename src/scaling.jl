@@ -53,15 +53,7 @@ end
 Remove the `SumIndices`/`SumNonEqual` metadata `_lift_sum_scope` placed on non-leaf
 `*`/`+` nodes, leaving each average leaf's own scope intact.
 """
-function _strip_mul_sum_scope(x)
-    x isa SymbolicUtils.BasicSymbolic || return x
-    _is_avg_leaf(x) && return x
-    SymbolicUtils.iscall(x) || return x
-    op = SymbolicUtils.operation(x)
-    args = SymbolicUtils.arguments(x)
-    new_args = Any[_strip_mul_sum_scope(a) for a in args]
-    changed = any(((a, b),) -> a !== b, zip(args, new_args))
-    y = changed ? TermInterface.maketerm(typeof(x), op, new_args, TermInterface.metadata(x)) : x
+function _strip_scope_node(y)
     if SymbolicUtils.hasmetadata(y, SQA.SumIndices)
         y = SymbolicUtils.setmetadata(y, SQA.SumIndices, SQA.Index[])
         SymbolicUtils.hasmetadata(y, SQA.SumNonEqual) &&
@@ -69,6 +61,8 @@ function _strip_mul_sum_scope(x)
     end
     return y
 end
+_strip_mul_sum_scope(x) =
+    rewrite(Returns(nothing), x; descend = _descend, post = _strip_scope_node, maketerm = _structural_maketerm)
 
 function _scale_leaf(avg, ctx, selected)
     op = undo_average(avg)
@@ -192,21 +186,9 @@ Walk the coefficient tree flattening `IndexedVariable`s, without descending into
 `sym_average` leaves (those are the operator moments, handled by `mapleaves`).
 """
 function _flatten_indexed_vars_in_tree(x, selected::Set{Int}, sym_to_space::Dict{Symbol, Int})
-    x isa SymbolicUtils.BasicSymbolic || return x
-    if _is_indexed_var(x) && _indexed_var_in_h(x, selected, sym_to_space)
-        return _flatten_indexed_var(x)
-    end
-    SymbolicUtils.iscall(x) || return x
-    op = SymbolicUtils.operation(x)
-    op === SQA.sym_average && return x
-    args = SymbolicUtils.arguments(x)
-    new_args = Any[_flatten_indexed_vars_in_tree(a, selected, sym_to_space) for a in args]
-    all(((a, b),) -> isequal(a, b), zip(args, new_args)) && return x
-    try
-        return op(new_args...)
-    catch err
-        err isa MethodError || err isa ArgumentError || rethrow()
-        return TermInterface.maketerm(typeof(x), op, new_args, TermInterface.metadata(x))
+    return rewrite(x; descend = _descend) do y
+        (_is_indexed_var(y) && _indexed_var_in_h(y, selected, sym_to_space)) ?
+            _flatten_indexed_var(y) : nothing
     end
 end
 

@@ -85,23 +85,17 @@ _materialise(x, idx_sub, sub, ctx, hset, sym_sub = _EMPTY_SYM_SUB) =
 const _EMPTY_SYM_SUB = Dict{Any, Any}()
 
 function _materialise_walk(x, idx_sub, sub, ctx, hset, sym_sub)
-    x isa SymbolicUtils.BasicSymbolic || return x
-    _is_avg_leaf(x) && return _materialise_leaf(x, idx_sub, sub, ctx, hset)
-    if !SymbolicUtils.iscall(x)
-        return get(sym_sub, x, x)   # leaf Sym: mirror the operator index rename
+    return rewrite(x; descend = SymbolicUtils.iscall) do y
+        _is_avg_leaf(y) && return _materialise_leaf(y, idx_sub, sub, ctx, hset)
+        # leaf Sym: mirror the operator index rename
+        SymbolicUtils.iscall(y) || return get(sym_sub, y, y)
+        if SymbolicUtils.operation(y) === (*) && SymbolicUtils.hasmetadata(y, SQA.SumIndices)
+            bound = SymbolicUtils.getmetadata(y, SQA.SumIndices)
+            bound isa Vector{SQA.Index} && !isempty(bound) &&
+                return _materialise_scoped(y, bound, idx_sub, sub, ctx, hset, sym_sub)
+        end
+        return nothing
     end
-    if SymbolicUtils.operation(x) === (*) && SymbolicUtils.hasmetadata(x, SQA.SumIndices)
-        bound = SymbolicUtils.getmetadata(x, SQA.SumIndices)
-        bound isa Vector{SQA.Index} && !isempty(bound) &&
-            return _materialise_scoped(x, bound, idx_sub, sub, ctx, hset, sym_sub)
-    end
-    op = SymbolicUtils.operation(x)
-    args = SymbolicUtils.arguments(x)
-    new_args = Any[_materialise_walk(a, idx_sub, sub, ctx, hset, sym_sub) for a in args]
-    # Identity comparison: `isequal` ignores metadata and may collapse distinct averages.
-    any(((a, b),) -> a !== b, zip(args, new_args)) || return x
-    op === complex && length(new_args) == 2 && return new_args[1] + new_args[2] * Symbolics.IM
-    return _rebuild(op, new_args, x)
 end
 
 """
@@ -171,26 +165,22 @@ _qfield_references_index(_, ::SQA.Index) = false
 Lift `SumIndices`/`SumNonEqual` metadata from an average-leaf factor up onto its
 enclosing `*` node, so a coefficient sibling (`g(i)`) unrolls together with the leaf.
 """
-function _lift_sum_scope(x)
-    x isa SymbolicUtils.BasicSymbolic || return x
-    SymbolicUtils.iscall(x) || return x
-    args = SymbolicUtils.arguments(x)
-    new_args = Any[_lift_sum_scope(a) for a in args]
-    op = SymbolicUtils.operation(x)
-    new_x = any(((a, b),) -> a !== b, zip(args, new_args)) ?
-        TermInterface.maketerm(typeof(x), op, new_args, TermInterface.metadata(x)) : x
-    if op === (*)
-        for a in new_args
-            a isa SymbolicUtils.BasicSymbolic || continue
-            SymbolicUtils.hasmetadata(a, SQA.SumIndices) || continue
-            new_x = SymbolicUtils.setmetadata(new_x, SQA.SumIndices, SymbolicUtils.getmetadata(a, SQA.SumIndices))
-            SymbolicUtils.hasmetadata(a, SQA.SumNonEqual) &&
-                (new_x = SymbolicUtils.setmetadata(new_x, SQA.SumNonEqual, SymbolicUtils.getmetadata(a, SQA.SumNonEqual)))
-            break
-        end
+function _lift_scope_node(y)
+    (SymbolicUtils.iscall(y) && SymbolicUtils.operation(y) === (*)) || return y
+    for a in SymbolicUtils.arguments(y)
+        a isa SymbolicUtils.BasicSymbolic || continue
+        SymbolicUtils.hasmetadata(a, SQA.SumIndices) || continue
+        y = SymbolicUtils.setmetadata(y, SQA.SumIndices, SymbolicUtils.getmetadata(a, SQA.SumIndices))
+        SymbolicUtils.hasmetadata(a, SQA.SumNonEqual) &&
+            (y = SymbolicUtils.setmetadata(y, SQA.SumNonEqual, SymbolicUtils.getmetadata(a, SQA.SumNonEqual)))
+        break
     end
-    return new_x
+    return y
 end
+_lift_sum_scope(x) = rewrite(
+    Returns(nothing), x; descend = SymbolicUtils.iscall,
+    post = _lift_scope_node, maketerm = _structural_maketerm
+)
 
 """
 Materialise one average leaf ⟨op⟩: apply the free-index substitution, drop targeted sum
@@ -234,18 +224,12 @@ function _unroll_one(qadd::QAdd, b::SQA.Index, n::Int, ctx)
     return reduce(+, terms)
 end
 function _unroll_one(x::SymbolicUtils.BasicSymbolic, b::SQA.Index, n::Int, ctx)
-    if _is_avg_leaf(x)
-        op = undo_average(x)
-        op isa QAdd || return x
-        b in op.indices || return x
+    return rewrite(x) do y
+        _is_avg_leaf(y) || return nothing
+        op = undo_average(y)
+        (op isa QAdd && b in op.indices) || return y
         return _unroll_one(op, b, n, ctx)
     end
-    SymbolicUtils.iscall(x) || return x
-    op = SymbolicUtils.operation(x)
-    args = SymbolicUtils.arguments(x)
-    new_args = Any[_unroll_one(a, b, n, ctx) for a in args]
-    all(((a, c),) -> isequal(a, c), zip(args, new_args)) && return x
-    return _rebuild(op, new_args, x)
 end
 
 _is_zero_qadd(op::QAdd) = isempty(op.arguments)
@@ -349,22 +333,21 @@ end
 
 """Bucket every callable-`Sym` use `f(slot_syms...)` in `x` by function name and slot tuple."""
 function _collect_callable_uses!(uses, x)
-    x isa SymbolicUtils.BasicSymbolic || return
-    SymbolicUtils.iscall(x) || return
-    op = SymbolicUtils.operation(x)
-    args = SymbolicUtils.arguments(x)
-    if op isa SymbolicUtils.BasicSymbolic && !SymbolicUtils.iscall(op) &&
-            _is_fntype(SymbolicUtils.symtype(op)) &&
-            all(a -> a isa SymbolicUtils.BasicSymbolic && !SymbolicUtils.iscall(a), args)
-        slots = [_parse_slot(Base.nameof(a)) for a in args]
-        if all(!isnothing, slots)
-            bucket = get!(() -> Dict{Vector{Int}, Vector{SymbolicUtils.BasicSymbolic}}(), uses, Base.nameof(op))
-            push!(get!(bucket, Int[s for s in slots], SymbolicUtils.BasicSymbolic[]), x)
-            return
+    walk(x) do n
+        SymbolicUtils.iscall(n) || return true
+        op = SymbolicUtils.operation(n)
+        args = SymbolicUtils.arguments(n)
+        if op isa SymbolicUtils.BasicSymbolic && !SymbolicUtils.iscall(op) &&
+                _is_fntype(SymbolicUtils.symtype(op)) &&
+                all(a -> a isa SymbolicUtils.BasicSymbolic && !SymbolicUtils.iscall(a), args)
+            slots = [_parse_slot(Base.nameof(a)) for a in args]
+            if all(!isnothing, slots)
+                bucket = get!(() -> Dict{Vector{Int}, Vector{SymbolicUtils.BasicSymbolic}}(), uses, Base.nameof(op))
+                push!(get!(bucket, Int[s for s in slots], SymbolicUtils.BasicSymbolic[]), n)
+                return false
+            end
         end
-    end
-    for a in args
-        _collect_callable_uses!(uses, a)
+        return true
     end
     return
 end
@@ -415,16 +398,7 @@ end
 
 """Replace exact-match callable subtrees in `x` with their `getindex` array form."""
 _apply_callable_sub(x, sub) = Symbolics.Num(_apply_callable_walk(SymbolicUtils.unwrap(x), sub))
-function _apply_callable_walk(x, sub)
-    x isa SymbolicUtils.BasicSymbolic || return x
-    haskey(sub, x) && return sub[x]
-    SymbolicUtils.iscall(x) || return x
-    op = SymbolicUtils.operation(x)
-    args = SymbolicUtils.arguments(x)
-    new_args = Any[_apply_callable_walk(a, sub) for a in args]
-    any(((a, b),) -> a !== b, zip(args, new_args)) || return x
-    return _rebuild(op, new_args, x)
-end
+_apply_callable_walk(x, sub) = _subtree_substitute(x, sub)
 
 """
 Rewrite the per-site `IndexedVariable` coefficients left after unrolling (e.g. `g(i_2)`,

@@ -236,8 +236,7 @@ function _stamp_sum_to_first_leaves(piece, indices::Vector{SQA.Index}, non_equal
         stamped = Any[_stamp_sum_to_first_leaves(t, indices, non_equal) for t in terms]
         return reduce(+, stamped)
     end
-    leaves = SymbolicUtils.BasicSymbolic[]
-    _collect_avg_leaves!(leaves, piece)
+    leaves = eachleaf(piece)
     isempty(leaves) && return piece
     leaf_idx_assign = [SQA.Index[] for _ in leaves]
     leaf_non_equal_assign = [Tuple{SQA.Index, SQA.Index}[] for _ in leaves]
@@ -281,19 +280,6 @@ function _stamp_sum_to_first_leaves(piece, indices::Vector{SQA.Index}, non_equal
     return _substitute_by_identity(piece, sub)
 end
 
-function _collect_avg_leaves!(out, x)
-    x isa SymbolicUtils.BasicSymbolic || return out
-    if _is_avg_leaf(x)
-        push!(out, x)
-        return out
-    end
-    SymbolicUtils.iscall(x) || return out
-    for a in SymbolicUtils.arguments(x)
-        _collect_avg_leaves!(out, a)
-    end
-    return out
-end
-
 function _first_leaf_using(leaves, idx::SQA.Index)
     for (i, leaf) in enumerate(leaves)
         op = SQA.undo_average(leaf)
@@ -309,16 +295,7 @@ function _first_leaf_using(leaves, idx::SQA.Index)
 end
 
 # Substitute by object identity (the leaves were obtained from `piece` itself).
-function _substitute_by_identity(x, sub::IdDict)
-    haskey(sub, x) && return sub[x]
-    x isa SymbolicUtils.BasicSymbolic || return x
-    SymbolicUtils.iscall(x) || return x
-    op = SymbolicUtils.operation(x)
-    args = SymbolicUtils.arguments(x)
-    new_args = Any[_substitute_by_identity(a, sub) for a in args]
-    all(((a, b),) -> a === b, zip(args, new_args)) && return x
-    return op(new_args...)
-end
+_substitute_by_identity(x, sub::IdDict) = _subtree_substitute(x, sub)
 
 """
 The cumulant-truncation kernel: rewrite ⟨a product of `args`⟩ that exceeds `order` as

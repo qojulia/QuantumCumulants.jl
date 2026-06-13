@@ -4,13 +4,6 @@
 
 ## P1 Symbolics / MTK architecture
 
-- Centralize tree rewriting. The package currently has several ad hoc walkers:
-  `mapleaves`, `_filter_expr`, `_scale_expr`, `_materialise_walk`,
-  `_apply_callable_walk`, `_collect_params!`, spectrum substitution, etc. Replace
-  them with one small expression-rewrite utility layer that preserves metadata,
-  handles `complex(re, im)` consistently, and makes "do not descend into average
-  leaves" an explicit option.
-
 - Use `Symbolics.build_function` for generated numerical kernels. The local
   Symbolics version supports `build_function(...; cse=true)` and emits both
   out-of-place and in-place functions. Candidate uses:

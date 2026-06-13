@@ -50,25 +50,24 @@ skipping constants, the independent variable, time-dependent state variables and
 average leaves.
 """
 function _collect_params!(set, x, iv_uw)
-    x isa SymbolicUtils.BasicSymbolic || return
-    SymbolicUtils.isconst(x) && return
-    if !SymbolicUtils.iscall(x)
-        (x !== iv_uw && SymbolicUtils.symtype(x) <: Real) && push!(set, x)
-        return
-    end
-    _is_avg_leaf(x) && return
-    op = SymbolicUtils.operation(x)
-    args = SymbolicUtils.arguments(x)
-    # Array access `δ[k]`: collect the array BASE symbol as a parameter (the scalar
-    # branch above skips it, symtype not <: Real); MTK scalarizes it at compile.
-    if op === getindex && !isempty(args) && args[1] isa SymbolicUtils.BasicSymbolic &&
-            SymbolicUtils.symtype(args[1]) <: AbstractArray
-        push!(set, args[1])
-        return
-    end
-    (length(args) == 1 && args[1] === iv_uw && op isa SymbolicUtils.BasicSymbolic) && return
-    for a in args
-        _collect_params!(set, a, iv_uw)
+    walk(x) do n
+        SymbolicUtils.isconst(n) && return false
+        if !SymbolicUtils.iscall(n)
+            (n !== iv_uw && SymbolicUtils.symtype(n) <: Real) && push!(set, n)
+            return false
+        end
+        _is_avg_leaf(n) && return false
+        op = SymbolicUtils.operation(n)
+        args = SymbolicUtils.arguments(n)
+        # Array access `δ[k]`: collect the array BASE symbol as a parameter (the scalar
+        # branch above skips it, symtype not <: Real); MTK scalarizes it at compile.
+        if op === getindex && !isempty(args) && args[1] isa SymbolicUtils.BasicSymbolic &&
+                SymbolicUtils.symtype(args[1]) <: AbstractArray
+            push!(set, args[1])
+            return false
+        end
+        (length(args) == 1 && args[1] === iv_uw && op isa SymbolicUtils.BasicSymbolic) && return false
+        return true
     end
     return
 end

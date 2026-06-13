@@ -137,15 +137,9 @@ function _filter_ancilla_leaves!(eqs, ancilla_filter, user_filter)
     return eqs
 end
 function _filter_ancilla_expr(x, ancilla_filter, user_filter)
-    x isa SymbolicUtils.BasicSymbolic || return x
-    if _is_avg_leaf(x)
-        return (ancilla_filter(x) && !user_filter(x)) ? 0 : x
+    return rewrite(x) do y
+        _is_avg_leaf(y) ? ((ancilla_filter(y) && !user_filter(y)) ? 0 : y) : nothing
     end
-    SymbolicUtils.iscall(x) || return x
-    op = SymbolicUtils.operation(x)
-    new_args = Any[_filter_ancilla_expr(a, ancilla_filter, user_filter) for a in SymbolicUtils.arguments(x)]
-    op === complex && length(new_args) == 2 && return new_args[1] + new_args[2] * Symbolics.IM
-    return op(new_args...)
 end
 
 # ---- ambient / lookup helpers ------------------------------------------------
@@ -163,16 +157,15 @@ function _ambient_avgs(c::CorrelationFunction)
     return collect(found)
 end
 function _collect_ambient!(found, x, aon_ancilla, states_set)
-    x isa SymbolicUtils.BasicSymbolic || return
-    if SQA.is_average(x) && SymbolicUtils.operation(x) === SQA.sym_average
-        x in states_set && return
-        aons = SQA.acts_on(x)
-        (!(aon_ancilla in aons) || length(aons) == 1) && push!(found, x)
-        return
-    end
-    SymbolicUtils.iscall(x) || return
-    for a in SymbolicUtils.arguments(x)
-        _collect_ambient!(found, a, aon_ancilla, states_set)
+    walk(x) do n
+        if SQA.is_average(n) && SymbolicUtils.operation(n) === SQA.sym_average
+            if !(n in states_set)
+                aons = SQA.acts_on(n)
+                (!(aon_ancilla in aons) || length(aons) == 1) && push!(found, n)
+            end
+            return false
+        end
+        return true
     end
     return
 end

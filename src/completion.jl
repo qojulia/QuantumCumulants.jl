@@ -139,18 +139,9 @@ Walk a c-number expression tree, replacing each average leaf `filter_func` rejec
 `0` and rebuilding the enclosing calls; non-average subexpressions pass through.
 """
 function _filter_expr(x, filter_func)
-    if x isa SymbolicUtils.BasicSymbolic
-        if SQA.is_average(x)
-            return filter_func(x) ? x : 0
-        end
-        if SymbolicUtils.iscall(x) && _has_average(x)
-            op = SymbolicUtils.operation(x)
-            args = SymbolicUtils.arguments(x)
-            new_args = Any[_filter_expr(a, filter_func) for a in args]
-            return op(new_args...)
-        end
+    return rewrite(x; descend = y -> SymbolicUtils.iscall(y) && _has_average(y)) do y
+        SQA.is_average(y) ? (filter_func(y) ? y : 0) : nothing
     end
-    return x
 end
 
 # ---- struct copy / in-place content swap -------------------------------------
