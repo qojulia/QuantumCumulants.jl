@@ -4,15 +4,6 @@
 
 ## P1 Symbolics / MTK architecture
 
-- Use `Symbolics.build_function` for generated numerical kernels. The local
-  Symbolics version supports `build_function(...; cse=true)` and emits both
-  out-of-place and in-place functions. Candidate uses:
-  - spectrum kernels (`A`, `b`, ambient substitutions) instead of repeated
-    `SymbolicUtils.substitute` and `_scalarize`;
-  - RHS evaluation benchmarks independent of MTK compilation;
-  - optional fast paths for closed systems where users want a raw ODEFunction-like
-    kernel.
-
 - Use CSE deliberately. `Symbolics.build_function(...; cse=true)` creates temporary
   bindings for repeated subexpressions, but the package currently leaves most RHSs
   raw and only simplifies on request. Benchmark CSE for large cumulant-expanded
