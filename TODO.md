@@ -1,14 +1,5 @@
 # TODO
 
-
-
-## P1 Symbolics / MTK architecture
-
-- Revisit parameter collection and arrayization with Symbolics APIs. `_collect_params!`,
-  `_build_callable_to_array_sub`, `_parse_slot`, and `parameter_map(eqs, pairs)` are
-  hand-rolled around Symbolics variable naming and `getindex`. Replace name parsing
-  with metadata or Symbolics-supported array variable introspection where possible.
-
 ## P1 graph and closure maintainability
 
 - Make `MomentGraph` the single source of semantic truth. Transformations currently
