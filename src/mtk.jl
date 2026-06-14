@@ -266,10 +266,8 @@ function parameter_map(eqs::AbstractMeanfieldEquations, pairs)
             elseif slots !== nothing
                 get!(slot_acc, name, Dict{Vector{Int}, Any}())[slots] = v
             else
-                shape = SymbolicUtils.shape(arr)
-                n = (shape isa SymbolicUtils.SmallVec{UnitRange{Int}} && !isempty(shape)) ?
-                    length(shape[1]) : nothing
-                pmap[arr] = n === nothing ? v : fill(v, n)
+                dims = _array_dims(arr)
+                pmap[arr] = dims === nothing ? v : fill(v, dims[1])
             end
         elseif name !== nothing && haskey(scalar_by_name, name)
             pmap[scalar_by_name[name]] = v
@@ -284,16 +282,17 @@ function parameter_map(eqs::AbstractMeanfieldEquations, pairs)
 end
 
 """
-Concrete-index slots of an indexed-variable key, e.g. `δ(i_2_1)` becomes `[1]`. Returns
-`nothing` when any argument is not a concrete `name_…_<int>` index, in which case the
-value is broadcast over the array rather than targeting a single slot.
+Concrete-index slots of an indexed-variable key, e.g. `δ(i(1))` becomes `[1]`. Reads each
+argument's slot from its `SQA.index_slot` metadata; returns `nothing` when any argument
+carries no slot, in which case the value is broadcast over the array rather than targeting
+a single slot.
 """
 function _param_slots(x::SymbolicUtils.BasicSymbolic)
     SymbolicUtils.iscall(x) || return nothing
     slots = Int[]
     for a in SymbolicUtils.arguments(x)
         (a isa SymbolicUtils.BasicSymbolic && !SymbolicUtils.iscall(a)) || return nothing
-        s = _parse_slot(Base.nameof(a))
+        s = SQA.index_slot(a)
         s === nothing && return nothing
         push!(slots, s)
     end
@@ -302,16 +301,27 @@ end
 _param_slots(_) = nothing
 
 """
+Concrete per-axis lengths of a shaped array-variable sym, or `nothing` for scalars and
+symbolically-sized arrays. The single place that inspects `SymbolicUtils.shape`'s layout
+(scalars yield an empty shape, so emptiness distinguishes them from arrays).
+"""
+function _array_dims(x)
+    sh = SymbolicUtils.shape(x)
+    (sh isa SymbolicUtils.SmallVec{UnitRange{Int}} && !isempty(sh)) || return nothing
+    return ntuple(d -> length(sh[d]), length(sh))
+end
+
+"""
 Assemble a concrete array parameter from per-slot scalar assignments. The size comes
 from the synthesised array's declared shape when available, otherwise from the maximum
 slot per dimension; unassigned slots stay zero.
 """
 function _build_slot_array(arr, slots_to_v::Dict{Vector{Int}, Any})
     ndim = length(first(keys(slots_to_v)))
-    shape = SymbolicUtils.shape(arr)
-    dims = (shape isa SymbolicUtils.SmallVec{UnitRange{Int}} && length(shape) == ndim) ?
-        Tuple(length(r) for r in shape) :
-        Tuple(maximum(s[d] for s in keys(slots_to_v)) for d in 1:ndim)
+    dims = _array_dims(arr)
+    if dims === nothing || length(dims) != ndim
+        dims = ntuple(d -> maximum(s[d] for s in keys(slots_to_v)), ndim)
+    end
     V = promote_type((typeof(v) for v in values(slots_to_v))...)
     out = zeros(V, dims...)
     for (slots, v) in slots_to_v
@@ -340,8 +350,7 @@ function _collect_named_params!(arr_dict, scalar_dict, x)
     x isa SymbolicUtils.BasicSymbolic || return
     if !SymbolicUtils.iscall(x)
         SymbolicUtils.issym(x) || return
-        shape = SymbolicUtils.shape(x)
-        if shape isa SymbolicUtils.SmallVec{UnitRange{Int}} && !isempty(shape)
+        if SymbolicUtils.symtype(x) <: AbstractArray
             arr_dict[Base.nameof(x)] = x
         elseif SymbolicUtils.symtype(x) <: Real
             scalar_dict[Base.nameof(x)] = x

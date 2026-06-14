@@ -323,14 +323,6 @@ end
 _is_fntype(::Type) = false
 _is_fntype(::Type{<:SymbolicUtils.FnType}) = true
 
-"""Integer slot parsed from a concrete-index `Sym` name like `:i_2_3` (the trailing integer)."""
-function _parse_slot(name::Symbol)
-    s = String(name)
-    idx = findlast('_', s)
-    idx === nothing && return nothing
-    return tryparse(Int, SubString(s, idx + 1))
-end
-
 """Bucket every callable-`Sym` use `f(slot_syms...)` in `x` by function name and slot tuple."""
 function _collect_callable_uses!(uses, x)
     walk(x) do n
@@ -340,7 +332,7 @@ function _collect_callable_uses!(uses, x)
         if op isa SymbolicUtils.BasicSymbolic && !SymbolicUtils.iscall(op) &&
                 _is_fntype(SymbolicUtils.symtype(op)) &&
                 all(a -> a isa SymbolicUtils.BasicSymbolic && !SymbolicUtils.iscall(a), args)
-            slots = [_parse_slot(Base.nameof(a)) for a in args]
+            slots = [SQA.index_slot(a) for a in args]
             if all(!isnothing, slots)
                 bucket = get!(() -> Dict{Vector{Int}, Vector{SymbolicUtils.BasicSymbolic}}(), uses, Base.nameof(op))
                 push!(get!(bucket, Int[s for s in slots], SymbolicUtils.BasicSymbolic[]), n)
