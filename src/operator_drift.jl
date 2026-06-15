@@ -159,8 +159,13 @@ function _master_lindblad_backward(op, J, Jdagger, rates)
     acc = zero(op)
     @inbounds for k in eachindex(J)
         rk = rates[k]
-        rk isa AbstractMatrix && error(
-            "Nondiagonal measurements not supported in backward retrodiction",
+        rk isa AbstractMatrix && throw(
+            ArgumentError(
+                "backward retrodiction does not support nondiagonal (matrix-valued) measurement \
+            rates; jump channel $k carries a matrix rate. The backward Heisenberg/Kalman \
+            picture requires each monitored channel to be a single diagonal observable. \
+            Pass scalar rates, or build the forward equations instead.",
+            )
         )
         term = (-rk / 2) * op * Jdagger[k] * J[k] +
             (-rk / 2) * Jdagger[k] * J[k] * op +
@@ -179,8 +184,13 @@ function _dY_dS_extra_term(op, J, Jdagger, rates)
     @inbounds for k in eachindex(J)
         iszero(rates[k]) && continue
         rk = rates[k]
-        rk isa AbstractMatrix && error(
-            "Nondiagonal measurements not supported in meanfield_backward",
+        rk isa AbstractMatrix && throw(
+            ArgumentError(
+                "backward retrodiction does not support nondiagonal (matrix-valued) measurement \
+            rates; jump channel $k carries a matrix rate. The `dY`-record drift term of the \
+            backward picture requires each monitored channel to be a single diagonal \
+            observable. Pass scalar rates, or build the forward equations instead.",
+            )
         )
         c1 = rk * (average(J[k] * op) - average(J[k]) * average(op))
         c2 = rk * (average(op * Jdagger[k]) - average(op) * average(Jdagger[k]))

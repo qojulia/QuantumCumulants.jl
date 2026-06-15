@@ -248,6 +248,31 @@ _is_zero_qadd(_) = false
 # ---- the pass ----------------------------------------------------------------
 
 """
+Check that every range bound named in `limits` is a declared index range of `ctx`. A key
+matching none means the user targeted a range the system does not have (a typo, or the
+wrong symbol), in which case the unrolling would silently leave the system unchanged.
+Lists the system's known symbolic ranges in the error.
+"""
+function _check_limit_keys(sub, ctx::CanonCtx)
+    known = Set{Any}()
+    for (_, idxs) in ctx.vocab, idx in idxs
+        r = SymbolicUtils.unwrap(idx.range)
+        r isa Number || push!(known, r)
+    end
+    unknown = Any[k for k in keys(sub) if !(k in known)]
+    isempty(unknown) && return
+    known_str = isempty(known) ? "none (the system has no symbolic index ranges)" :
+        join(sort!(string.(collect(known))), ", ")
+    throw(
+        ArgumentError(
+            "`limits` targets unknown index range(s) $(join(string.(unknown), ", ")); the \
+        system's symbolic index ranges are: $known_str. Check that the range bound passed \
+        to `Index(...)` matches the symbol used in `limits`.",
+        )
+    )
+end
+
+"""
 Specialise a symbolic `MomentGraph` to a concrete number of atoms/sites. For each node,
 enumerate its free indices over the ranges in `limits` (distinct sites, `i ≠ j`),
 materialise the drift (and noise) at each assignment, and keep one node per Hermitian
@@ -257,6 +282,7 @@ conjugate pair (⟨X†⟩ = conj⟨X⟩). Every unrolled Hilbert subspace is ma
 function specialize(g::MomentGraph, limits; h::Vector{Int} = Int[])
     sub = _limits_dict(limits)
     isempty(sub) && return g
+    _check_limit_keys(sub, g.ctx)
     ctx = g.ctx
     hset = Set{Int}(h)
     nodes = OrderedCollections.OrderedDict{NodeKey, NodeData}()
@@ -360,7 +386,13 @@ function _build_callable_to_array_sub(eqs::Vector{Symbolics.Equation}, states)
             m2 = max_per_dim[2]
             SymbolicUtils.unwrap(first(@variables $(name)[1:m1, 1:m2]))
         else
-            throw(ArgumentError("indexed coefficient with $n_args indices is not supported"))
+            throw(
+                ArgumentError(
+                    "indexed coefficient `$name` has $n_args indices; `evaluate` only \
+                materialises coefficients with 1 or 2 indices into Symbolics array \
+                parameters. Reformulate the coefficient to carry at most two indices.",
+                )
+            )
         end
         for (slots, terms) in slot_map
             # `type = Real` so the element stays Number-symtyped (a bare `maketerm`

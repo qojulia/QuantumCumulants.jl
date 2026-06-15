@@ -45,17 +45,35 @@ end
 """
 Build a closure that resolves a RHS average leaf to its state variable (or that
 variable's conjugate). A closed system has every RHS moment among its states, so a
-non-matching leaf means an unclosed system; it is left untouched (the caller is
-expected to `complete` first). Correlation/spectrum handle their ambient
-steady-state moments separately.
+non-matching leaf means an unclosed system. When `unresolved` is given, such a leaf is
+pushed onto it (the caller then errors); otherwise it is left untouched, the behaviour
+correlation/spectrum rely on to keep their ambient steady-state moments.
 """
-function _leaf_resolver(reg)
+function _leaf_resolver(reg, unresolved = nothing)
     return function (leaf)
         op = undo_average(leaf)
         op isa QAdd || return leaf
         r = resolve_moment_sym(reg.moments, op)
-        return r === nothing ? leaf : r
+        if r === nothing
+            unresolved === nothing || push!(unresolved, leaf)
+            return leaf
+        end
+        return r
     end
+end
+
+"""
+Error for an unclosed equation set handed to `System`: RHS averages absent from the
+states. Lists the offending moments and points to `complete`.
+"""
+function _unclosed_error(unresolved)
+    moments = sort!(unique(string(SymbolicUtils.unwrap(u)) for u in unresolved))
+    return ArgumentError(
+        "cannot build a `System` from an unclosed equation set: the right-hand sides \
+        reference average(s) that are not among the states: $(join(moments, ", ")). Call \
+        `complete(eqs)` first to derive equations for the missing moments, or pass a \
+        cumulant `order` to `meanfield`/`complete` to close them.",
+    )
 end
 
 """
@@ -156,7 +174,8 @@ function MTK.System(eqs::MeanfieldEquations; name::Symbol)
     iv_uw = SymbolicUtils.unwrap(iv)
     D = Symbolics.Differential(iv)
     reg = _state_registry(eqs)
-    resolve = _leaf_resolver(reg)
+    unresolved = Set{Any}()
+    resolve = _leaf_resolver(reg, unresolved)
     new_eqs = Vector{Symbolics.Equation}(undef, length(eqs.equations))
     ps_set = Set{SymbolicUtils.BasicSymbolic}()
     @inbounds for (i, eq) in enumerate(eqs.equations)
@@ -164,6 +183,7 @@ function MTK.System(eqs::MeanfieldEquations; name::Symbol)
         new_eqs[i] = D(reg.vars[i]) ~ rhs
         _collect_params!(ps_set, rhs, iv_uw)
     end
+    isempty(unresolved) || throw(_unclosed_error(unresolved))
     ps = [MTK.toparam(p) for p in _sorted_params(ps_set)]
     return MTK.System(new_eqs, iv, reg.vars, ps; name = name)
 end
@@ -178,7 +198,8 @@ function _to_system_sde(eqs::NoiseMeanfieldEquations, name::Symbol, sign::Int)
     iv_uw = SymbolicUtils.unwrap(iv)
     D = Symbolics.Differential(iv)
     reg = _state_registry(eqs)
-    resolve = _leaf_resolver(reg)
+    unresolved = Set{Any}()
+    resolve = _leaf_resolver(reg, unresolved)
     active, channel_noise = _noise_channel_rhss(eqs)
     # One independent Brownian per monitored channel. With no active channel keep a
     # single zero-noise column so the result is still a valid SDE.
@@ -202,6 +223,7 @@ function _to_system_sde(eqs::NoiseMeanfieldEquations, name::Symbol, sign::Int)
         new_eqs[i] = D(reg.vars[i]) ~ total_rhs
         _collect_params!(ps_set, rhs, iv_uw)
     end
+    isempty(unresolved) || throw(_unclosed_error(unresolved))
     ps = [MTK.toparam(p) for p in _sorted_params(ps_set)]
     return MTK.System(new_eqs, iv, reg.vars, ps, ws; name = name)
 end
