@@ -30,15 +30,17 @@ end
     mb = meanfield(ops, H, [a, b]; rates = [κa, κb], efficiencies = [0, ηb], order = 2)
     @test all(
         isequal(m12.states[i], ma.states[i]) && isequal(m12.states[i], mb.states[i])
-        for i in eachindex(m12.states)
+            for i in eachindex(m12.states)
     )
 
     # Independence: the two-channel noise drift is exactly the sum of the single-channel
     # drifts (no cross terms), per equation.
     @test all(
-        _iz(m12.noise_equations[i].rhs -
-            (ma.noise_equations[i].rhs + mb.noise_equations[i].rhs))
-        for i in eachindex(m12.noise_equations)
+        _iz(
+                m12.noise_equations[i].rhs -
+                (ma.noise_equations[i].rhs + mb.noise_equations[i].rhs)
+            )
+            for i in eachindex(m12.noise_equations)
     )
 
     # Each channel drives noise (neither single-channel drift is trivially zero).

@@ -53,11 +53,21 @@ function _rewrite(rule, x, descend::D, post::P, maketerm::M) where {D, P, M}
     descend(x) || return x
     op = SymbolicUtils.operation(x)
     args = SymbolicUtils.arguments(x)
-    new_args = Any[_rewrite(rule, a, descend, post, maketerm) for a in args]
     # `===` not `isequal`: `isequal` ignores metadata and would collapse distinct
     # averages that differ only in their scope metadata.
-    y = any(((a, b),) -> a !== b, zip(args, new_args)) ?
-        maketerm(typeof(x), op, new_args, TermInterface.metadata(x)) : x
+    new_args = nothing
+    for i in eachindex(args)
+        a = args[i]
+        b = _rewrite(rule, a, descend, post, maketerm)
+        if new_args !== nothing
+            @inbounds new_args[i] = b
+        elseif b !== a
+            new_args = Vector{Any}(undef, length(args))
+            @inbounds copyto!(new_args, 1, args, 1, i - 1)
+            @inbounds new_args[i] = b
+        end
+    end
+    y = new_args === nothing ? x : maketerm(typeof(x), op, new_args, TermInterface.metadata(x))
     return post === nothing ? y : post(y)
 end
 

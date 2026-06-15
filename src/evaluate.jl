@@ -67,10 +67,19 @@ end
 _used_op_indices(op::QAdd) = _free_op_indices(op)   # all op indices (incl. bound), first-encounter
 
 # ---- materialisation ---------------------------------------------------------
-
-_apply_free(op::QAdd, idx_sub) = isempty(idx_sub) ? op :
-    foldl((q, p) -> SQA.change_index(q, p[1], p[2]), idx_sub; init = op)
+function _apply_free(op::QAdd, idx_sub::AbstractDict)
+    isempty(idx_sub) && return op
+    _renames_any(op, idx_sub) || return op
+    return SQA.change_index(op, idx_sub)
+end
 _apply_free(op, _) = op
+
+function _renames_any(op::QAdd, idx_sub::AbstractDict)
+    for (term, _) in op.arguments, o in term.ops
+        haskey(idx_sub, o.index) && return true
+    end
+    return false
+end
 
 """
 Rewrite an averaged RHS for the concrete system, walking the expression tree: average
@@ -191,6 +200,7 @@ function _materialise_leaf(avg, idx_sub, sub, ctx, hset)
     op = undo_average(avg)
     op isa QAdd || return avg
     op2 = _apply_free(op, idx_sub)
+    isempty(op2.indices) && return average(op2)
     targets = Set(values(idx_sub))
     used = _used_op_indices(op2)
     bound = SQA.Index[

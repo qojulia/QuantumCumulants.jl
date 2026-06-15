@@ -5,7 +5,9 @@ entry per symmetric subspace (typically one to three), so the fingerprint is sma
 build and hash.
 """
 const TreatmentFP = Vector{Tuple{Int, SubspaceTreatment}}
+const _EMPTY_FP = Tuple{Int, SubspaceTreatment}[]
 treatment_fp(treatments::Dict{Int, SubspaceTreatment}) =
+    isempty(treatments) ? _EMPTY_FP :
     sort!(Tuple{Int, SubspaceTreatment}[(sp, t) for (sp, t) in treatments])
 
 """

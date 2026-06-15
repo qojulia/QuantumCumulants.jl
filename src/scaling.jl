@@ -52,7 +52,11 @@ function _scale_expr(x, ctx, selected, sym_to_space)
     # `*`-node scope is a no-op safeguard; `_scale_leaf` owns the leaf scope and the
     # prefactor it implies.
     stripped = _strip_mul_sum_scope(SymbolicUtils.unwrap(x))
-    reduced = mapleaves(l -> _scale_leaf(l, ctx, selected), stripped)
+    treatments = Dict{Int, SubspaceTreatment}()
+    for sp in ctx.symmetric
+        treatments[sp] = sp in selected ? Scaled : Concrete
+    end
+    reduced = mapleaves(l -> _scale_leaf(l, ctx, selected, treatments), stripped)
     return Symbolics.Num(_flatten_indexed_vars_in_tree(reduced, selected, sym_to_space))
 end
 
@@ -71,7 +75,7 @@ end
 _strip_mul_sum_scope(x) =
     rewrite(Returns(nothing), x; descend = _descend, post = _strip_scope_node, maketerm = _structural_maketerm)
 
-function _scale_leaf(avg, ctx, selected)
+function _scale_leaf(avg, ctx, selected, treatments)
     op = undo_average(avg)
     op isa QAdd || return avg
     pref = _sum_scope_prefactor(op, selected)
@@ -79,10 +83,6 @@ function _scale_leaf(avg, ctx, selected)
     # `_treatment_key` empties `.indices`, so re-attach the non-selected bound indices
     # afterwards to preserve their `Σ`.
     keep_idx = SQA.Index[b for b in op.indices if !(b.space_index in selected)]
-    treatments = Dict{Int, SubspaceTreatment}()
-    for sp in ctx.symmetric
-        treatments[sp] = sp in selected ? Scaled : Concrete
-    end
     folded = _treatment_key(op, ctx, treatments)
     # `_treatment_key` drops all non-equal index constraints, correct for the selected
     # subspace but wrong for a non-selected one whose off-diagonal constraint is

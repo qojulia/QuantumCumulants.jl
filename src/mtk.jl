@@ -20,7 +20,7 @@ function _state_registry(eqs::AbstractMeanfieldEquations)
     # Key/match in the system's recorded treatment, not a hardcoded `concrete_rep`
     # (an empty map, scalar systems, reads as all-Free).
     treatments = _treatments(eqs, ctx)
-    ops = QAdd[undo_average(s) isa QAdd ? undo_average(s) : undo_average(s) * 1 for s in eqs.states]
+    ops = QAdd[(o = undo_average(s); o isa QAdd ? o : o * 1) for s in eqs.states]
     # Lifted averages are `Number`-symtype, which `Symbolics.Num` (requires `<:Real`)
     # cannot wrap, so the state variables are carried as unwrapped `BasicSymbolic`.
     vars = _state_vars(ops, eqs.iv)
@@ -102,7 +102,7 @@ noise_channels(::MeanfieldEquations) = NamedTuple[]
 function noise_channels(eqs::NoiseMeanfieldEquations)
     return [
         (; index = k, jump = eqs.jumps[k], rate = eqs.rates[k], efficiency = eqs.efficiencies[k])
-        for k in eachindex(eqs.efficiencies) if !iszero(eqs.efficiencies[k])
+            for k in eachindex(eqs.efficiencies) if !iszero(eqs.efficiencies[k])
     ]
 end
 

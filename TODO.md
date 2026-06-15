@@ -2,10 +2,6 @@
 
 ## P2 feature coverage
 
-- Add allocation-focused tests or benchmarks for symbolic hot spots. Track
-  allocations in cumulant expansion, canonicalization, `evaluate`, `scale`,
-  `System`, and `_spectrum_kernel`.
-
 - Update docs that drifted from implementation.
 
 - Document the MTK bridge invariants. Explain why averages are not currently used
