@@ -79,6 +79,8 @@ Two design choices are worth the rationale:
 
 Every `Int` key in `treatments`, in `CanonCtx.vocab`, and in `CanonCtx.symmetric` is an SQA `space_index`: the position of a Hilbert-space factor (subspace) in the system's `ProductSpace`, as returned by `acts_on`.
 
+`ctx.vocab` stores only the user's *declared* reps; the `k`-th slot a higher-body moment needs is derived on demand by `nth_index(reps, k) = reps[1](k)` (SQA naming policy), shared by `symmetric_min`, `_concrete_index`, and `_relabel_spaces` so scale and evaluate name the same atoms. The extended vocabulary is therefore a pure function of the declared reps, so the `ctx` is frozen at [`meanfield`](@ref) time and never mutated (the memo's reliance on immutability follows). Minted slots surface as concrete indices on the graph's moments, which is where `scale`'s `_build_sym_to_space` reads back the realised inventory.
+
 ## Moment identity and canonicalisation
 
 This is the heart of the moment layer, and it is what makes the hierarchy *close on a non-redundant set*. The job of `canonical.jl` is to assign each average a **key** that is identical for two averages exactly when they are the same expectation value. Two averages can coincide three ways:
@@ -260,7 +262,7 @@ These are the moment-layer rules a contributor must not break, each with its fai
 
 12. **Use `Symbolics.IM`, not Julia's `im`, in symbolic right-hand sides.** A `complex(0, …)` literal does not unify with the factored symbolic form; `_im_form`/`_rebuild` convert it.
 
-12. **Mint indices from the user's vocabulary** (`reps[1](k)`), never invent fresh prefixes (SQA naming policy). `scale` and `evaluate` must mint the same slots so they agree.
+12. **Mint indices from the user's vocabulary** via `nth_index` (`reps[1](k)`), never invent fresh prefixes (SQA naming policy). `scale` and `evaluate` agree by construction because both mint through the same `nth_index`.
 
 12. **Route index operations through `SQA.change_index`/`Σ`/`*`.** Hand-rolling a `QAdd` and sorting it yourself reintroduces the bugs the algebra exists to prevent (`` igma_{ee}^2 \ne igma_{ee}``, `` igma_2 igma_1 \ne igma_1 igma_2``).
 

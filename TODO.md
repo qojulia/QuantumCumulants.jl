@@ -11,12 +11,6 @@
   `get_order` calls (already cached per node in `NodeData`; non-node calls are cheap tree
   walks). Add a dedicated memo only if a benchmark shows these dominate.
 
-- Refresh the stored `ctx` vocabulary as closure mints indices. `MomentGraph.ctx` is
-  frozen at `meanfield` time, so consumers needing the post-completion index set (e.g.
-  `scale`'s coefficient `sym_to_space`) must currently recover it from the graph's moments.
-  Either update the ctx as new per-subspace indices are minted, or make that recovery the
-  documented contract.
-
 - Add closure diagnostics. Users need tooling to explain why a hierarchy grows:
   state-count per iteration, which RHS leaf introduced each new moment, filter hits,
   conjugate folding, and per-subspace treatment effects.

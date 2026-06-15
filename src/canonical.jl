@@ -216,6 +216,15 @@ end
 _treatment_key(op, ::CanonCtx, ::Dict{Int, SubspaceTreatment}) = op
 
 """
+The `k`-th canonical index slot of a subspace, minted from its first declared vocabulary
+representative (`reps[1](k)`, per SQA's naming policy). This is the single definition of a
+minted slot: `symmetric_min` (scale) and `_concrete_index` (evaluate) both mint through it
+so a scaled moment and its materialised form name the same atoms, and `_relabel_spaces`
+uses it for slots beyond the declared vocabulary.
+"""
+nth_index(reps::Vector{SQA.Index}, k::Int) = reps[1](k)
+
+"""
 Relabel the free indices of `op` to the context vocabulary, but only on the subspaces
 listed in `spaces`. Indices on other subspaces (notably `Concrete` ones) keep their
 names.
@@ -230,7 +239,7 @@ function _relabel_spaces(op::QAdd, ctx::CanonCtx, spaces::Set{Int})
         pos_by_space[idx.space_index] = pos
         reps = get(ctx.vocab, idx.space_index, SQA.Index[])
         isempty(reps) && continue
-        target = pos <= length(reps) ? reps[pos] : reps[1](pos)
+        target = pos <= length(reps) ? reps[pos] : nth_index(reps, pos)
         target == idx && continue
         rename[idx] = target
     end
@@ -352,7 +361,7 @@ function symmetric_min(op::QAdd, ctx::CanonCtx, selected)
             reps = get(ctx.vocab, sp, SQA.Index[])
             for (k, idx) in enumerate(combo[n])
                 # Mint concrete slots (as `evaluate` does) so scale and evaluate agree.
-                target = isempty(reps) ? idx : reps[1](k)
+                target = isempty(reps) ? idx : nth_index(reps, k)
                 target == idx && continue
                 sub[idx] = target
             end

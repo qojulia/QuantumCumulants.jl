@@ -30,7 +30,7 @@ with the position `k` (SQA naming policy: trace back to the user's vocabulary).
 function _concrete_index(b::SQA.Index, k::Int, ctx::CanonCtx)
     reps = get(ctx.vocab, b.space_index, SQA.Index[])
     isempty(reps) && return b(k)
-    return reps[1](k)
+    return nth_index(reps, k)
 end
 
 """Free indices on `op` whose range is targeted by `limits` and whose subspace is selected by `h`."""
