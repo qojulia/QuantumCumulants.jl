@@ -19,6 +19,17 @@ let src = normpath(@__FILE__, "../../CHANGELOG.md"),
     end
 end
 
+# The repo-root README.md is the single source of truth for the landing page; expose it as
+# the docs index. Same write-only-on-change guard as the changelog above.
+let src = normpath(@__FILE__, "../../README.md"),
+        dst = normpath(@__FILE__, "../src/index.md"),
+        new = read(src, String)
+
+    if !isfile(dst) || read(dst, String) != new
+        write(dst, new)
+    end
+end
+
 pages = [
     "index.md",
     "theory.md",

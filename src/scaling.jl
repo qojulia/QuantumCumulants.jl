@@ -48,8 +48,8 @@ flatten every `IndexedVariable(:g, i)` coefficient to its scalar `g` (all atoms 
 the same coupling under the scale symmetry).
 """
 function _scale_expr(x, ctx, selected, sym_to_space)
-    # Graph drifts are stored un-lifted (sum scope on each leaf), so this strip of any
-    # `*`-node scope is a no-op safeguard; `_scale_leaf` owns the leaf scope and the
+    # Graph drifts keep sum scope on each leaf, not on the enclosing node, so this strip of
+    # any `*`-node scope is a no-op safeguard; `_scale_leaf` owns the leaf scope and the
     # prefactor it implies.
     stripped = _strip_mul_sum_scope(SymbolicUtils.unwrap(x))
     treatments = Dict{Int, SubspaceTreatment}()
@@ -61,7 +61,7 @@ function _scale_expr(x, ctx, selected, sym_to_space)
 end
 
 """
-Remove the `SumIndices`/`SumNonEqual` metadata `_lift_sum_scope` placed on non-leaf
+Remove the `SumIndices`/`SumNonEqual` metadata `_propagate_sum_scope` placed on non-leaf
 `*`/`+` nodes, leaving each average leaf's own scope intact.
 """
 function _strip_scope_node(y)

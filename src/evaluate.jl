@@ -171,10 +171,10 @@ _qfield_references_index(op::SQA.QSym, b::SQA.Index) = SQA.has_index(op.index) &
 _qfield_references_index(_, ::SQA.Index) = false
 
 """
-Lift `SumIndices`/`SumNonEqual` metadata from an average-leaf factor up onto its
+Propagate `SumIndices`/`SumNonEqual` metadata from an average-leaf factor onto its
 enclosing `*` node, so a coefficient sibling (`g(i)`) unrolls together with the leaf.
 """
-function _lift_scope_node(y)
+function _propagate_scope_to_node(y)
     (SymbolicUtils.iscall(y) && SymbolicUtils.operation(y) === (*)) || return y
     for a in SymbolicUtils.arguments(y)
         a isa SymbolicUtils.BasicSymbolic || continue
@@ -186,9 +186,9 @@ function _lift_scope_node(y)
     end
     return y
 end
-_lift_sum_scope(x) = rewrite(
+_propagate_sum_scope(x) = rewrite(
     Returns(nothing), x; descend = SymbolicUtils.iscall,
-    post = _lift_scope_node, maketerm = _structural_maketerm
+    post = _propagate_scope_to_node, maketerm = _structural_maketerm
 )
 
 """
@@ -284,11 +284,11 @@ function specialize(g::MomentGraph, limits; h::Vector{Int} = Int[])
                     SymbolicUtils.unwrap(b.sym) => SymbolicUtils.unwrap(t.sym)
                     for (b, t) in idx_sub
                 )
-            lifted_drift = Symbolics.Num(_lift_sum_scope(SymbolicUtils.unwrap(nd.drift)))
-            drift = _materialise(lifted_drift, idx_sub, sub, ctx, hset, sym_sub)
+            scoped_drift = Symbolics.Num(_propagate_sum_scope(SymbolicUtils.unwrap(nd.drift)))
+            drift = _materialise(scoped_drift, idx_sub, sub, ctx, hset, sym_sub)
             noise = nd.noise === nothing ? nothing :
                 _materialise(
-                    Symbolics.Num(_lift_sum_scope(SymbolicUtils.unwrap(nd.noise))),
+                    Symbolics.Num(_propagate_sum_scope(SymbolicUtils.unwrap(nd.noise))),
                     idx_sub, sub, ctx, hset, sym_sub,
                 )
             nodes[lk] = NodeData(drift, _apply_free(nd.op_drift, idx_sub), noise, nd.op_noise, nd.order, nd.aon)

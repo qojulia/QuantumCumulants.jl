@@ -3,25 +3,35 @@
 
 For the application of commutation relations **QuantumCumulants.jl** implements a simple noncommutative algebra, where any commutation relations are applied immediately. All other symbolic simplification and rewriting is done using the [Symbolics.jl](https://github.com/JuliaSymbolics/Symbolics.jl) package.
 
-To obtain a numerical solution, equations derived with **QuantumCumulants.jl** can be converted to [ModelingToolkit.jl](https://github.com/SciML/ModelingToolkit.jl) and subsequently solved with [DifferentialEquations.jl](https://github.com/SciML/DifferentialEquations.jl). If you want to only depend on the second quantized algebra, you can use [SecondQuantizedAlgebra.jl](https://github.com/qojulia/SecondQuantizedAlgebra.jl).
+The basic working principle boils down to the following steps:
+
+* The model (Hamiltonian) is specified.
+
+* Equations of motion for average values are derived from the fundamental commutation relations of operators. The resulting equations are stored as symbolic equations using the [Symbolics.jl](https://github.com/JuliaSymbolics/Symbolics.jl) framework, which also handles any additional simplification and rewriting.
+
+* The key step: the equations of motion for the averages are truncated at a specified order, neglecting higher-order quantum correlations via the generalized cumulant expansion method. This yields a closed set of *c*-number ordinary differential equations.
+
+* Finally, the symbolic system of equations is turned into a `System` from [ModelingToolkitBase.jl](https://github.com/SciML/ModelingToolkitBase.jl), which bridges the gap from symbolics to numerics. This makes it straightforward to obtain the time dynamics of a system within the [DifferentialEquations.jl](https://github.com/SciML/DifferentialEquations.jl) ecosystem.
+
+If you only need the second quantized algebra, you can depend on [SecondQuantizedAlgebra.jl](https://github.com/qojulia/SecondQuantizedAlgebra.jl) directly.
 
 ## Development status
 
 ![CI](https://github.com/qojulia/QuantumCumulants.jl/workflows/CI/badge.svg) [![Codecov][codecov-img]][codecov-url] [![Documentation][docs-stable-img]][docs-stable-url] [![Documentation][docs-dev-img]][docs-dev-url]
 
-Note that **QuantumCumulants.jl** is still at an early stage of development.
+## Relationship to SecondQuantizedAlgebra.jl
+
+QuantumCumulants is the *cumulant* layer. The operator algebra it builds on (Hilbert spaces, operators, indices, symbolic sums, normal ordering, numeric conversion) lives in [SecondQuantizedAlgebra.jl](https://github.com/qojulia/SecondQuantizedAlgebra.jl) (SQA), which QuantumCumulants re-exports, so `using QuantumCumulants` gives you the full algebra surface. When you need the details of *building a model* (defining `FockSpace`/`NLevelSpace`, `Destroy`/`Transition`, `Index`/`Σ`), reach for SQA's [documentation](https://qojulia.github.io/SecondQuantizedAlgebra.jl/stable/); the documentation here focuses on what QuantumCumulants adds on top: deriving mean-field equations, the cumulant expansion, completion, scaling, correlations, noise, and the bridge to a numerical solution.
 
 ## Installation
 
-The package can be installed with
+**QuantumCumulants.jl** is a registered Julia package and can be installed with the package manager:
 
 ```julia
-|pkg> add QuantumCumulants
+pkg> add QuantumCumulants
 ```
 
-## Documentation
-
-Please refer to the latest [Documentation][docs-stable-url] for more details and examples.
+For a full list of functions, see the [API documentation](https://qojulia.github.io/QuantumCumulants.jl/stable/api/).
 
 ## Short example
 
@@ -34,8 +44,9 @@ h_cav = FockSpace(:cavity)
 h_atom = NLevelSpace(:atom, (:g,:e))
 h = tensor(h_cav, h_atom)
 
-@cnumbers Δ g κ γ ν
-@qnumbers a::Destroy(h) σ::Transition(h)
+@variables Δ::Real g::Real κ::Real γ::Real ν::Real
+@qnumbers a::Destroy(h)
+σ(i, j) = Transition(h, :σ, i, j)
 
 H = Δ*a'*a + g*(a'*σ(:g,:e) + a*σ(:e,:g))
 J = [a,σ(:g,:e),σ(:e,:g)]
@@ -43,22 +54,23 @@ rates = [κ,γ,ν]
 
 eqs = meanfield([a,σ(:g,:e),σ(:e,:e)], H, J; rates=rates, order=1)
 
-using ModelingToolkit, OrdinaryDiffEq
-@named sys = System(eqs)
-p0 = Dict(Δ=>0, g=>1.5, κ=>1, γ=>0.25, ν=>4)
-u0 = Dict(unknowns(sys) .=> ComplexF64[1e-2, 0, 0])
-prob = ODEProblem(sys,merge(u0, p0),(0.0,50.0))
+using ModelingToolkitBase, OrdinaryDiffEq
+sys = mtkcompile(System(eqs; name=:laser))
+p0 = [Δ=>0, g=>1.5, κ=>1, γ=>0.25, ν=>4]
+u0 = ComplexF64[1e-2, 0, 0]
+prob = ODEProblem(sys, merge(initial_values(eqs, u0), Dict(p0)), (0.0,50.0))
 sol = solve(prob,RK4())
 
 using Plots
-n = abs2.(sol[a])
-plot(sol.t, n, xlabel="t", label="n")
+ts = range(0.0, 50.0; length=200)
+n = abs2.(get_solution(sol, a, eqs).(ts))
+plot(ts, n, xlabel="t", label="n")
 ```
 
 ![photon-number](https://user-images.githubusercontent.com/18166442/114183684-3ae76080-9944-11eb-9d21-94bf4069bb60.png)
 
 
-The above code implements the Jaynes-Cummings Hamiltonian describing an optical cavity mode that couples to a two-level atom. Additionally, the decay processes are specified. Then, mean-field equations for the average values of the operators `[a,σ(:g,:e),σ(:e,:e)]` are derived and expanded to first order (average values of products are factorized). For the numerical solution an `System` (from [ModelingToolkit.jl](https://github.com/SciML/ModelingToolkit.jl)) is created and solved with the [OrdinaryDiffEq.jl](https://github.com/SciML/OrdinaryDiffEq.jl) library. Finally, the time dynamics of the photon number `n` is plotted.
+The above code implements the Jaynes-Cummings Hamiltonian describing an optical cavity mode that couples to a two-level atom. Additionally, the decay processes are specified. Then, mean-field equations for the average values of the operators `[a,σ(:g,:e),σ(:e,:e)]` are derived and expanded to first order (average values of products are factorized). For the numerical solution a `System` (from [ModelingToolkitBase.jl](https://github.com/SciML/ModelingToolkitBase.jl)) is created and solved with the [OrdinaryDiffEq.jl](https://github.com/SciML/OrdinaryDiffEq.jl) library. Finally, the time dynamics of the photon number `n` is plotted.
 
 
 ## Citing

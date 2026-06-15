@@ -13,7 +13,8 @@ already recorded there survive. Right-hand sides are left unsimplified.
 * `filter_func=nothing`: a predicate `filter_func(avg)`; rejected averages are dropped
   (substituted by 0), e.g. to discard phase-invariant terms.
 * `get_adjoints=true`: when `false`, track one representative per conjugate pair, with the
-  partner recovered by `conj` at code generation.
+  partner recovered by `conj` at code generation. The default integrates each conjugate as
+  its own (redundant) state; pass `false` for the minimal state set.
 
 See also: [`complete`](@ref), [`find_missing`](@ref), [`meanfield`](@ref).
 """

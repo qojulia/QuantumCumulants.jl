@@ -1,7 +1,7 @@
 # Pretty display label (⟨a'*a⟩) for a moment's unknown; not the identity, dedup is structural.
 avg_name(op::QAdd) = Symbol(string(SQA.average(op)))
 
-# The moment's time-dependent `Number` unknown, lifted by SQA's `make_time_dependent`.
+# The moment's time-dependent `Number` unknown, built by SQA's `make_time_dependent`.
 # `iv` is MTK's `t_nounits` (see `_make_iv`), so the result is a first-class MTK unknown.
 time_dependent_var(op::QAdd, iv) = SymbolicUtils.unwrap(SQA.make_time_dependent(SQA.average(op), iv))
 
@@ -21,7 +21,7 @@ function _state_registry(eqs::AbstractMeanfieldEquations)
     # (an empty map, scalar systems, reads as all-Free).
     treatments = _treatments(eqs, ctx)
     ops = QAdd[(o = undo_average(s); o isa QAdd ? o : o * 1) for s in eqs.states]
-    # Lifted averages are `Number`-symtype, which `Symbolics.Num` (requires `<:Real`)
+    # The time-dependent averages are `Number`-symtype, which `Symbolics.Num` (requires `<:Real`)
     # cannot wrap, so the state variables are carried as unwrapped `BasicSymbolic`.
     vars = _state_vars(ops, eqs.iv)
     moments = MomentMap(ctx, treatments, ops, vars)

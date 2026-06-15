@@ -1,13 +1,5 @@
 # TODO
 
-## P2 feature coverage
-
-- Update docs that drifted from implementation.
-
-- Document the MTK bridge invariants. Explain why averages are not currently used
-  directly as MTK unknowns, how conjugate folding is represented, and how users
-  should reason about `get_adjoints=false`.
-
 ## P2 API and dependency hygiene
 
 - Improve error messages for unsupported cases: backward retrodiction with

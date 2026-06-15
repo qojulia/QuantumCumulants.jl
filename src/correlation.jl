@@ -76,7 +76,7 @@ end
     CorrelationFunction(op1, op2, eqs0; steady_state=true, filter_func=nothing, max_iter=100_000)
 
 Build the two-time correlation ⟨op1(τ)·op2(0)⟩ from a solved mean-field system
-`eqs0` via the quantum regression theorem. `op2` is lifted onto a fresh ancilla
+`eqs0` via the quantum regression theorem. `op2` is re-embedded onto a fresh ancilla
 subspace and the resulting system is closed only on averages that touch the
 ancilla; the remaining averages are steady-state coefficients. With
 `steady_state=false` the ambient averages are evolved too. `filter_func` further
@@ -273,7 +273,7 @@ See also: [`CorrelationFunction`](@ref), [`correlation_p0`](@ref).
 function correlation_u0(c::CorrelationFunction, u_end)
     resolve = _ss_resolver(c, u_end)
     reg = _state_registry(c.eqs)
-    # Keys are unwrapped `Number`-symtype lifted averages, not `Num`-wrappable.
+    # Keys are unwrapped `Number`-symtype time-dependent averages, not `Num`-wrappable.
     u0 = Dict{Any, ComplexF64}()
     for (i, s) in enumerate(c.eqs.states)
         u0[reg.vars[i]] = resolve(_undo_ancilla(c, SymbolicUtils.unwrap(s)))
