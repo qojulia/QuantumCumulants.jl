@@ -38,3 +38,28 @@ Base.lastindex(eqs::AbstractMeanfieldEquations) = lastindex(eqs.equations)
 Base.iterate(eqs::AbstractMeanfieldEquations, st = 1) =
     st > length(eqs) ? nothing : (eqs.equations[st], st + 1)
 Base.eltype(::Type{<:AbstractMeanfieldEquations}) = Symbolics.Equation
+
+"""
+    states(eqs::AbstractMeanfieldEquations)
+
+The average variables ``⟨…⟩`` evolved by `eqs`, i.e. the dynamical unknowns, one per
+tracked moment. Paired with [`operators`](@ref) by position.
+"""
+states(eqs::AbstractMeanfieldEquations) = eqs.states
+
+"""
+    operators(eqs::AbstractMeanfieldEquations)
+
+The operator products on the left-hand sides, one per tracked moment. Paired with
+[`states`](@ref) by position (`states(eqs)[i] == average(operators(eqs)[i])`).
+"""
+SQA.operators(eqs::AbstractMeanfieldEquations) = eqs.operators
+
+"""
+    moments(eqs::AbstractMeanfieldEquations)
+
+Ordered operator``↔``moment map: each tracked operator product to its average ``⟨op⟩``.
+The correspondence the cumulant hierarchy is built on.
+"""
+moments(eqs::AbstractMeanfieldEquations) =
+    OrderedCollections.OrderedDict(op => average(op) for op in eqs.operators)

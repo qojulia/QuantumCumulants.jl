@@ -29,6 +29,20 @@ function _state_registry(eqs::AbstractMeanfieldEquations)
 end
 
 """
+    moment_variable_map(eqs::AbstractMeanfieldEquations)
+
+Ordered map from each moment average ``⟨op⟩`` to the time-dependent MTK unknown
+`u(t)` that [`System`](@ref) assigns it. The bridge `initial_values`, `get_solution`
+and `parameter_map` resolve moments against.
+"""
+function moment_variable_map(eqs::AbstractMeanfieldEquations)
+    reg = _state_registry(eqs)
+    return OrderedCollections.OrderedDict(
+        eqs.states[i] => reg.vars[i] for i in eachindex(eqs.states)
+    )
+end
+
+"""
 Build a closure that resolves a RHS average leaf to its state variable (or that
 variable's conjugate). A closed system has every RHS moment among its states, so a
 non-matching leaf means an unclosed system; it is left untouched (the caller is
@@ -77,8 +91,23 @@ function _sorted_params(ps_set)
     return ps[sortperm(string.(ps))]
 end
 
+"""
+    noise_channels(eqs::AbstractMeanfieldEquations)
+
+The monitored measurement channels: one entry per jump with nonzero efficiency, each an
+independent Brownian in the SDE [`System`](@ref) builds. Each entry is
+`(; index, jump, rate, efficiency)`; a deterministic system has none.
+"""
+noise_channels(::MeanfieldEquations) = NamedTuple[]
+function noise_channels(eqs::NoiseMeanfieldEquations)
+    return [
+        (; index = k, jump = eqs.jumps[k], rate = eqs.rates[k], efficiency = eqs.efficiencies[k])
+        for k in eachindex(eqs.efficiencies) if !iszero(eqs.efficiencies[k])
+    ]
+end
+
 function _noise_channel_rhss(eqs::NoiseMeanfieldEquations)
-    active = Int[k for k in eachindex(eqs.efficiencies) if !iszero(eqs.efficiencies[k])]
+    active = Int[ch.index for ch in noise_channels(eqs)]
     channels = Vector{Vector{Any}}(undef, length(active))
     build_noise = _noise_builder(eqs.direction)
     for (j, k) in enumerate(active)

@@ -95,6 +95,31 @@ function find_missing(
     return missing_states
 end
 
+"""
+    closure_report(eqs::AbstractMeanfieldEquations; filter_func=nothing)
+
+Summarise the closure status of `eqs`:
+* `n_states`: number of tracked moments.
+* `by_order`: tracked-moment count per cumulant order.
+* `missing`: moments still needed to close the system ([`find_missing`](@ref)).
+* `closed`: whether nothing is missing.
+
+`filter_func` mirrors [`find_missing`](@ref) / [`complete!`](@ref).
+"""
+function closure_report(eqs::AbstractMeanfieldEquations; filter_func = nothing)
+    missing_moments = find_missing(eqs; filter_func)
+    orders = get_order.(eqs.operators)
+    by_order = OrderedCollections.OrderedDict{Int, Int}(
+        ord => count(==(ord), orders) for ord in sort!(unique(orders))
+    )
+    return (;
+        n_states = length(eqs.states),
+        by_order,
+        missing = missing_moments,
+        closed = isempty(missing_moments),
+    )
+end
+
 # ---- RHS filtering -----------------------------------------------------------
 
 """

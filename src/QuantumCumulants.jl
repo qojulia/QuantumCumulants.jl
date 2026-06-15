@@ -21,6 +21,7 @@ export AbstractMeanfieldEquations, MeanfieldEquations, NoiseMeanfieldEquations
 export EvolutionDirection, Forward, Backward
 export meanfield, cumulant_expansion, cumulant, get_order
 export complete, complete!, find_missing
+export states, moments, moment_variable_map, closure_report, noise_channels
 export scale, scale!
 export evaluate
 export System, initial_values, get_solution, parameter_map

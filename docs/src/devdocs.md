@@ -12,6 +12,35 @@ The contract between the two is sharp and worth stating once:
 
 Everything below is the *moment* logic that sits on that algebra: turning operators into a closed set of c-number differential equations.
 
+## From the hierarchy to a graph
+
+The physics this layer encodes is the **cumulant hierarchy**: the infinite tower of coupled moment equations an open system produces, cut by the cumulant expansion (the [theory page](@ref theory) derives both). The key observation is that the hierarchy *is already a graph*. Each moment is a vertex; the statement "``\langle X\rangle`` appears on the right-hand side of the equation for ``\langle Y\rangle``" is a directed edge ``X \to Y``. The untruncated hierarchy is an infinite such graph, and the two operations that make it usable are exactly the two ways of making that graph finite:
+
+- **Truncation** (the cumulant expansion) bounds where edges may point. It rewrites every right-hand side moment above the order cap as a product of lower-order moments, so no edge ever lands on a moment of order ``> m``. The tower can no longer climb.
+- **Closure** bounds the vertex set. Starting from the user's requested moments, follow every edge to the moment it lands on, add any vertex not yet present, and repeat until no new vertex appears. A hierarchy is *closed* precisely when its graph is closed under this edge relation: every right-hand side references only vertices already in the graph.
+
+This is why the moment graph is a graph and not, say, a flat list of equations. The hierarchy is intrinsically a "moments couple to moments" relation, which is a directed graph, and every workflow step is then a standard operation on it: closure is a reachability sweep, a `filter_func` deletes vertices, [`scale`](@ref) and [`evaluate`](@ref) quotient the vertices under an equivalence, and building the numerical system is a walk that resolves each edge to a state variable. Holding the hierarchy as one graph is what lets these be a single mechanism rather than five separate passes over a list.
+
+Two properties of that graph drive the rest of the design:
+
+- **It is finite and usually cyclic.** Truncation guarantees finiteness; the cycles are generic (below, ``\langle a\rangle`` and ``\langle a^\dagger a\rangle`` feed each other), which is why closure must test membership before adding a vertex rather than recurse blindly.
+- **A vertex is a physical moment, not a written expression.** The closure test "do I already have this moment?" is only correct if two symbolically different but physically identical averages are the same vertex (``\langle\sigma^{ge}_i\rangle`` and ``\langle\sigma^{ge}_j\rangle`` under a renamed index, ``\langle A\rangle`` and ``\langle A^\dagger\rangle^*`` under conjugation). Pinning that identity is the job of the canonical label ([Moment identity and canonicalisation](@ref) below); it is what keeps the closed graph non-redundant, so the hierarchy closes on the smallest set of distinct expectation values.
+
+For the driven Kerr cavity at order 2 (``H = \Delta\, a^\dagger a + U\, a^\dagger a^\dagger a a + \eta(a + a^\dagger)`` with decay ``\kappa``, the worked example below) the three core moments all couple to one another, and ``\langle a^\dagger\rangle`` folds onto ``\langle a\rangle`` by conjugation:
+
+```
+              ⟨a⟩
+             ╱   ╲
+            ╱     ╲
+        ⟨a†a⟩ ─── ⟨aa⟩
+
+  Every edge is bidirectional: each moment it joins appears on the
+  other's d⟨·⟩/dt right-hand side. ⟨a†a†⟩ is tracked as well under
+  get_adjoints=true, a conjugate shadow of ⟨aa⟩.
+```
+
+This finite graph, not the infinite tower, is the object the package holds in memory and that every workflow step transforms. The rest of this page is its representation (the `MomentGraph`) and how each step rewrites it.
+
 ## One central object: the cumulant hierarchy
 
 The whole package is organised around a single observation.
@@ -26,10 +55,10 @@ Each public equation set (`MeanfieldEquations` / `NoiseMeanfieldEquations`) carr
   └─ equations / states / operators         derived view
             │  read eqs.graph                  ▲  resync! (in place) / assemble_equations (fresh)
             ▼                                   │
-   ┌───────────────────────────────────────────────────────┐
-   │                      MomentGraph                        │
-   │   seed · closure · quotient · specialize · map_drifts   │   each step transforms it
-   └───────────────────────────────────────────────────────┘
+   ┌─────────────────────────────────────────────────────────────┐
+   │                      MomentGraph                            │
+   │   seed · closure · quotient · specialize · map_drifts       │   each step transforms it
+   └─────────────────────────────────────────────────────────────┘
 ```
 
 The whole workflow is then just a sequence of these steps:
@@ -73,7 +102,7 @@ MomentGraph
 
 Two design choices are worth the rationale:
 
-- **Why a graph keyed by moment, not a flat list of equations.** Closing a cumulant hierarchy means repeatedly asking "do I already have an equation for this moment?". That question is a fast lookup only if the key is the moment's *physical identity*, not its written form. The `OrderedDict` keyed by a canonical representative is exactly that lookup; the closure is then just "take one moment, look at the moments it couples to, derive the ones still missing".
+- **Why an `OrderedDict` keyed by the moment.** The closure membership test ("do I already have this moment?") established above must be a fast lookup, so the vertex set is an `OrderedDict` whose key *is* the moment's physical identity (the canonical-representative `QAdd`), not its written form. Lookup, insertion, and the "couples to" edge relation (read off the drift's leaves) are then all O(1) hash operations on that key. `Ordered` keeps the derivation order stable so the derived equation view is reproducible.
 
 - **Why two representations.** The `MomentGraph` is the persistent source of truth each step transforms; the equation/state/operator vectors on `MeanfieldEquations`/`NoiseMeanfieldEquations` (`equations_concrete.jl`) are a derived view, regenerated from the graph by `resync!` (in place) or `assemble_equations` (fresh). Keeping the view distinct means the user-facing object stays a simple, stable, indexable list of equations, while the graph carries the extra bookkeeping (`sys`, `ctx`, `treatments`, the cached per-moment data) that only the workflow steps need.
 

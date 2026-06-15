@@ -54,6 +54,24 @@ Since ``\dot{a}`` couples to ``\sigma^{ge}``, and ``\dot{\sigma}^{ge}`` to ``\si
 
 The above system can, however, not be solved since we encounter terms such as ``\langle a\sigma^{ee}\rangle``, meaning the set of equations is incomplete, since in general ``\langle a\sigma^{ee}\rangle \neq \langle a\rangle\langle\sigma^{ee}\rangle``. A naive approach would be to derive the equations for all missing average values. Unfortunately, these equations will couple to averages of ever longer operator products. A complete set of equations can therefore not be derived, since it would consist of infinitely many equations.
 
+## The cumulant hierarchy
+
+The coupling we just hit is generic. Every equation of motion sends an operator product through the commutator with ``H``, and for an interacting Hamiltonian (the dipole coupling ``g`` here) the commutator is a *longer* product, so an average of order ``n`` couples to averages of order ``n+1``. Those couple to order ``n+2``, and so on. The equations form an infinite tower, the **cumulant hierarchy**:
+
+```
+order   averages at this level         what couples them
+─────   ────────────────────────────   ──────────────────────────────────
+  1     ⟨a⟩   ⟨σ^ge⟩   ⟨σ^ee⟩           the dipole coupling g
+        │                             raises the order by one
+        ▼
+  2     ⟨a σ^ee⟩   ⟨a† σ^ge⟩   …
+        │
+        ▼
+  3     ⟨a† a σ^ge⟩   …
+        ⋮   infinite: the coupling never stops climbing
+```
+
+For an *open* system the two parts of the Quantum Langevin equation play opposite roles in this tower. The interaction terms in ``H`` are what climb it (the vertical edges above), while the dissipator ``\sum_n \gamma_n(\ldots)`` and the free, quadratic part of ``H`` couple an average only to others of the same or lower order. Dissipation damps the dynamics but does not grow the hierarchy. A purely quadratic Hamiltonian with linear damping therefore never climbs and closes exactly at order ``2``; the interesting case is the non-quadratic one, where the tower is genuinely infinite and has to be cut. That cut is the cumulant expansion.
 
 ## Cumulant expansion
 

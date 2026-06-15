@@ -144,6 +144,28 @@ cumulant
 get_order
 ```
 
+## [Introspection](@id API: Introspection)
+
+```@docs
+states
+```
+
+```@docs
+moments
+```
+
+```@docs
+moment_variable_map
+```
+
+```@docs
+closure_report
+```
+
+```@docs
+noise_channels
+```
+
 ## [Correlation functions](@id API: correlation)
 
 ```@docs
