@@ -4,7 +4,8 @@ EditURL = "../../../examples/cavity_antiresonance_indexed.jl"
 
 # Cavity Antiresonance
 
-In this example we investigate a system of $N$ closely spaced quantum emitters inside a coherently driven single mode cavity. The model is described in [D. Plankensteiner, et. al., Phys. Rev. Lett. 119, 093601 (2017)](https://journals.aps.org/prl/abstract/10.1103/PhysRevLett.119.093601). The Hamiltonian of this system is composed of three parts $H = H_c + H_a + H_{\mathrm{int}}$, the driven cavity $H_c$, the dipole-dipole interacting atoms $H_a$ and the atom-cavity interaction $H_\mathrm{int}$:
+In this example we investigate a system of $N$ closely spaced quantum emitters inside a coherently driven single mode cavity. The model is described in [D. Plankensteiner, et. al., Phys. Rev. Lett. 119, 093601 (2017)](https://journals.aps.org/prl/abstract/10.1103/PhysRevLett.119.093601).
+The Hamiltonian of this system is composed of three parts $H = H_c + H_a + H_{\mathrm{int}}$, the driven cavity $H_c$, the dipole-dipole interacting atoms $H_a$ and the atom-cavity interaction $H_\mathrm{int}$:
 
 ```math
 \begin{align}
@@ -26,7 +27,8 @@ using OrdinaryDiffEq, ModelingToolkitBase
 using Plots
 ````
 
-The Hilbert space for this system is given by one cavity mode and $N$ two-level atoms. Here we use symbolic indices, sums and double sums to define the system. The parameters $g_j, \, \Gamma_{ij}$ and $\Omega_{ij}$ are defined as indexed variables of atom $i$ and $j$. We will describe the system in first order mean-field.
+The Hilbert space for this system is given by one cavity mode and $N$ two-level atoms. Here we use symbolic indices, sums and double sums to define the system.
+The parameters $g_j, \, \Gamma_{ij}$ and $\Omega_{ij}$ are defined as indexed variables of atom $i$ and $j$. We will describe the system in first order mean-field.
 
 ````@example cavity_antiresonance_indexed
 hc = FockSpace(:cavity) # Hilbert space
@@ -43,7 +45,8 @@ i = Index(h, :i, N, ha) # Indices
 j = Index(h, :j, N, ha)
 ````
 
-The kwarg ’identical=false’ for the double indexed variable specifies that $\Omega_{ij} = 0$ for $i = j$. Now we create the operators on the composite Hilbert space using the $\texttt{IndexedOperator}$ constructor, which assigns each $\texttt{Transition}$ operator an $\texttt{Index}$.
+The kwarg ’identical=false’ for the double indexed variable specifies that $\Omega_{ij} = 0$ for $i = j$.
+Now we create the operators on the composite Hilbert space using the $\texttt{IndexedOperator}$ constructor, which assigns each $\texttt{Transition}$ operator an $\texttt{Index}$.
 
 ````@example cavity_antiresonance_indexed
 @qnumbers a::Destroy(h)
@@ -59,7 +62,9 @@ We define the Hamiltonian and Liouvillian. For the collective atomic decay we wr
 \end{equation}
 ```
 
-The inner dipole-dipole sum excludes the diagonal `i == j` by passing the `non_equal` vector `[i]` to the inner `Σ` (SQA v0.5 replaced the old `non_equal=true` keyword with this explicit form).
+The inner dipole-dipole sum excludes the diagonal `i == j` by passing the
+`non_equal` vector `[i]` to the inner `Σ` (SQA v0.5 replaced the old
+`non_equal=true` keyword with this explicit form).
 
 ````@example cavity_antiresonance_indexed
 Hc = Δc * a'a + η * (a' + a) # Hamiltonian

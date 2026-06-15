@@ -70,7 +70,7 @@ S = Spectrum(c, ps)
 nothing # hide
 ````
 
-$\mathcal{F}(\langle {σ}^{{eg}} {σ_0}^{{ge}}\rangle )(\omega)$
+$\mathcal{F}(\langle {σ}^{{eg}}  {σ_0}^{{ge}}\rangle )(\omega)$
 
 Constructing the [`Spectrum`](@ref Spectrum) from the correlation function, automatically derives a matrix $A$ and a vector $b$ determining the set of linear equations
 

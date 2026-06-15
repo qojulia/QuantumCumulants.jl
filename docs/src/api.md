@@ -218,6 +218,7 @@ change_index
 get_indices
 SecondQuantizedAlgebra.has_index
 SecondQuantizedAlgebra.assume_distinct_index
+SecondQuantizedAlgebra.index_slot
 ```
 
 ```@docs
@@ -310,4 +311,8 @@ modify_equations
 
 ```@docs
 modify_equations!
+```
+
+```@docs
+SecondQuantizedAlgebra.make_time_dependent
 ```

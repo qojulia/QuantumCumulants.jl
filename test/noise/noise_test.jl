@@ -144,7 +144,7 @@ end
     @test length(eqs.states) == 2
     @test eqs isa NoiseMeanfieldEquations
 
-    sys = System(eqs; name = :driven_cav_noise)
+    sys = System(complete(eqs); name = :driven_cav_noise)
     @test sys isa ModelingToolkitBase.System
 end
 
@@ -162,7 +162,7 @@ end
         rates = [κ, γ], efficiencies = [η1, η2], order = 2
     )
 
-    sys = System(eqs; name = :two_channel_noise)
+    sys = System(complete(eqs); name = :two_channel_noise)
     ws = brownians(sys)
 
     @test length(ws) == 2

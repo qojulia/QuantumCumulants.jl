@@ -42,7 +42,10 @@ j = Index(h, :j, N, ha)
 b(k) = IndexedOperator(Destroy(h, :b, 2), k)
 ````
 
-`i` is bound by the Hamiltonian sums and the dissipator. The canonical free-index slot on the filter Hilbert space mints `i_2` (lex-first declared index, suffix 2) to keep state names disjoint from H's bound scope. Per-atom state lookups thus use `i_2(k) = i_2_k`, not `i(k)`.
+`i` is bound by the Hamiltonian sums and the dissipator. The canonical
+free-index slot on the filter Hilbert space mints `i_2` (lex-first
+declared index, suffix 2) to keep state names disjoint from H's bound
+scope. Per-atom state lookups thus use `i_2(k) = i_2_k`, not `i(k)`.
 
 ````@example filter-cavity_indexed
 b(k::Integer) = IndexedOperator(Destroy(h, :b, 2), i(2)(k))

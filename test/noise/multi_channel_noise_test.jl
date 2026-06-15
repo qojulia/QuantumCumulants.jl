@@ -48,8 +48,9 @@ end
     @test count(!_iz(mb.noise_equations[i].rhs) for i in eachindex(mb.noise_equations)) > 0
 
     # Brownian count tracks the number of active (nonzero-efficiency) channels.
-    @test length(brownians(System(m12; name = :two_active))) == 2
-    @test length(brownians(System(ma; name = :one_active))) == 1
+    # `complete` closes the cross-mode moments the noise drift references.
+    @test length(brownians(System(complete(m12); name = :two_active))) == 2
+    @test length(brownians(System(complete(ma); name = :one_active))) == 1
 end
 
 @testset "multi-channel noise: two-channel SDE ensemble matches deterministic" begin

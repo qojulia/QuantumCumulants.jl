@@ -8,7 +8,8 @@ In this example, we show how to implement a cooling scheme based on radiation pr
 
 $H = -\hbar\Delta a^\dagger a + \hbar\omega_m b^\dagger b + \hbar Ga^\dagger a \left(b + b^\dagger\right) + \hbar E \left(a + a^\dagger\right),$
 
-where $\Delta = \omega_\ell - \omega_c$ is the detuning between the driving laser ($\omega_\ell$) and the cavity ($\omega_c$). The amplitude of the laser is denoted by $E$, the resonance frequency of the mechanical oscillator by $\omega_m$, and the radiation pressure coupling is given by $G$. Additionally, photons leak out of the cavity at a rate $\kappa$. We start by loading the needed packages and specifying the model.
+where $\Delta = \omega_\ell - \omega_c$ is the detuning between the driving laser ($\omega_\ell$) and the cavity ($\omega_c$). The amplitude of the laser is denoted by $E$, the resonance frequency of the mechanical oscillator by $\omega_m$, and the radiation pressure coupling is given by $G$. Additionally, photons leak out of the cavity at a rate $\kappa$.
+We start by loading the needed packages and specifying the model.
 
 ````@example optomechanical-cooling
 using QuantumCumulants

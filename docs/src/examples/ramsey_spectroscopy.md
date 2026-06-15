@@ -4,9 +4,10 @@ EditURL = "../../../examples/ramsey_spectroscopy.jl"
 
 # Ramsey Spectroscopy
 
-A typical problem in quantum optics is the interrogation of an atom with an external driving field. In this brief example we apply the [Ramsey interferometry](https://en.wikipedia.org/wiki/Ramsey_interferometry) on a single two-level atom. The distinctiveness of this method is the time dependent laser field. In particular, two short $\pi/2$-pulses are employed with a free evolution between them. This system is described by the simple Hamiltonian
+A typical problem in quantum optics is the interrogation of an atom with an external driving field. In this brief example we apply the [Ramsey interferometry](https://en.wikipedia.org/wiki/Ramsey_interferometry) on a single two-level atom. The distinctiveness of this method is the time dependent laser field. In particular, two short $\pi/2$-pulses are employed with a free evolution between them.
+This system is described by the simple Hamiltonian
 
-$H = - \Delta \sigma^{22} + \Omega(t) (\sigma^{21} + \sigma^{12}),$
+$H = - \Delta \sigma^{22} +  \Omega(t) (\sigma^{21} + \sigma^{12}),$
 
 where $\Delta = \omega_l - \omega_a$ is the detuning between the laser and atomic resonance frequency, and $\Omega(t)$ describes the time dependent driving field. Additionally we include atomic decay and dephasing, with the rates $\Gamma$ and $\nu$, respectively.
 
