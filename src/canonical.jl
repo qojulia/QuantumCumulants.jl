@@ -1,14 +1,41 @@
 """
+A treatment fingerprint: the per-subspace `(space_index, treatment)` pairs in sorted
+order. It identifies a `treatments` map cheaply for use as a memo key. The map has one
+entry per symmetric subspace (typically one to three), so the fingerprint is small to
+build and hash.
+"""
+const TreatmentFP = Vector{Tuple{Int, SubspaceTreatment}}
+treatment_fp(treatments::Dict{Int, SubspaceTreatment}) =
+    sort!(Tuple{Int, SubspaceTreatment}[(sp, t) for (sp, t) in treatments])
+
+"""
+Per-`ctx` identity memo for the canonicalisation engine. `_treatment_key` and
+`canonical_rep` are pure in `(op, ctx, treatments)`; with `ctx` fixed they are cached
+under the operator and the treatment fingerprint, so a label computed during closure is
+reused at `System`-build and spectrum time. The fingerprint keeps the all-`Free`,
+`Scaled`, and `Concrete` configurations of one shared `ctx` in distinct slots. The memo
+is monotonic and pure: it only ever grows and never needs invalidation.
+"""
+struct CanonCache
+    key::Dict{Tuple{QAdd, TreatmentFP}, QAdd}              # _treatment_key result
+    rep::Dict{Tuple{QAdd, TreatmentFP}, Tuple{QAdd, Bool}} # canonical_rep -> (rep, is_conjugate)
+    CanonCache() = new(
+        Dict{Tuple{QAdd, TreatmentFP}, QAdd}(),
+        Dict{Tuple{QAdd, TreatmentFP}, Tuple{QAdd, Bool}}(),
+    )
+end
+
+"""
 Shared state for the moment-key functions (`canon_key`, `scaled_key`, `canonical_rep`,
 …). A *key* assigns each operator average ⟨A⟩ a canonical label, identical for two
 averages exactly when they are the same expectation value, so the equations of motion
 close on a non-redundant set. Two averages can coincide through relabelling of free
 atom indices, the permutation symmetry of identical atoms, or Hermitian conjugation
 (⟨A†⟩ = ⟨A⟩*); the functions differ in which of these they identify. `CanonCtx` holds
-the index vocabulary used for relabelling and which subspaces are symmetric/selected.
-Every `Int` key here and in the `treatments` maps is an SQA `space_index`: the position
-of a Hilbert-space factor (subspace) in the system's `ProductSpace`, as returned by
-`acts_on`.
+the index vocabulary used for relabelling, which subspaces are symmetric/selected, and a
+per-context identity memo (`cache`). Every `Int` key here and in the `treatments` maps is
+an SQA `space_index`: the position of a Hilbert-space factor (subspace) in the system's
+`ProductSpace`, as returned by `acts_on`.
 """
 struct CanonCtx
     # canonical free-index reps per subspace (space_index), disjoint from H/J-bound names
@@ -17,6 +44,9 @@ struct CanonCtx
     symmetric::Set{Int}
     # subspaces (space_index) in scope for scale/evaluate; empty means all
     selected::Set{Int}
+    # per-context identity memo, shared across a transform lineage; excluded from identity
+    cache::CanonCache
+    CanonCtx(vocab, symmetric, selected) = new(vocab, symmetric, selected, CanonCache())
 end
 
 """
@@ -147,7 +177,9 @@ generating the numerical code and when deduplicating the hierarchy. `treatments`
 the per-subspace treatment exactly as in `_treatment_key`.
 """
 function canonical_rep(op::QAdd, ctx::CanonCtx; treatments::Dict{Int, SubspaceTreatment} = all_free_treatments(ctx))
-    return _conjugation_rep(op, o -> _treatment_key(o, ctx, treatments))
+    return get!(ctx.cache.rep, (op, treatment_fp(treatments))) do
+        _conjugation_rep(op, o -> _treatment_key(o, ctx, treatments))
+    end
 end
 canonical_rep(op, ::CanonCtx; kw...) = (op, false)
 
@@ -161,23 +193,25 @@ symmetry of the identical atoms (via `symmetric_min`), and `Concrete` keeps its 
 site labels. Hermitian conjugation is not applied.
 """
 function _treatment_key(op::QAdd, ctx::CanonCtx, treatments::Dict{Int, SubspaceTreatment})
-    scaled = Set{Int}()
-    concrete = Set{Int}()
-    for (sp, t) in treatments
-        t == Scaled && push!(scaled, sp)
-        t == Concrete && push!(concrete, sp)
-    end
-    # Relabel everything not Concrete (Free and Scaled relabel to vocab reps).
-    rename_spaces = Set{Int}()
-    for sp in ctx.symmetric
-        sp in concrete || push!(rename_spaces, sp)
-    end
+    return get!(ctx.cache.key, (op, treatment_fp(treatments))) do
+        scaled = Set{Int}()
+        concrete = Set{Int}()
+        for (sp, t) in treatments
+            t == Scaled && push!(scaled, sp)
+            t == Concrete && push!(concrete, sp)
+        end
+        # Relabel everything not Concrete (Free and Scaled relabel to vocab reps).
+        rename_spaces = Set{Int}()
+        for sp in ctx.symmetric
+            sp in concrete || push!(rename_spaces, sp)
+        end
 
-    base = _reorder_commuting(_drop_scope_non_equal(SQA.QAdd(op.arguments, SQA.Index[])))   # totality on all subspaces
-    base = _relabel_spaces(base, ctx, rename_spaces)
-    key = _drop_all_non_equal(SQA.QAdd(base.arguments, SQA.Index[]))
-    isempty(scaled) && return key
-    return symmetric_min(key, ctx, scaled)
+        base = _reorder_commuting(_drop_scope_non_equal(SQA.QAdd(op.arguments, SQA.Index[])))   # totality on all subspaces
+        base = _relabel_spaces(base, ctx, rename_spaces)
+        key = _drop_all_non_equal(SQA.QAdd(base.arguments, SQA.Index[]))
+        isempty(scaled) && return key
+        return symmetric_min(key, ctx, scaled)
+    end
 end
 _treatment_key(op, ::CanonCtx, ::Dict{Int, SubspaceTreatment}) = op
 

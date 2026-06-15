@@ -2,10 +2,14 @@
 
 ## P1 graph and closure maintainability
 
-- Cache canonicalization. `canonical_rep`, `_treatment_key`, `symmetric_min`,
-  `qadd_order_key`, `acts_on`, `get_order`, and conjugate representatives are repeatedly
-  recomputed across closure, scale/evaluate, `System`, `get_solution`, correlation,
-  and spectrum. Add per-graph caches keyed by operator identity / structural hash.
+- Extend canonicalization caching to the remaining hot paths. The per-`ctx` identity memo
+  (`CanonCtx.cache`) now covers `_treatment_key` and `canonical_rep`, and through them
+  `symmetric_min`, `qadd_order_key`, and the conjugate representatives across closure,
+  scale/evaluate, `System`, `get_solution`, correlation, and spectrum. Still uncached, as
+  a profiling-gated follow-up: `concrete_rep`/`concrete_key` (each unrolled `evaluate` site
+  is a structurally distinct operator, so a memo would mostly miss) and ad-hoc `acts_on` /
+  `get_order` calls (already cached per node in `NodeData`; non-node calls are cheap tree
+  walks). Add a dedicated memo only if a benchmark shows these dominate.
 
 - Refresh the stored `ctx` vocabulary as closure mints indices. `MomentGraph.ctx` is
   frozen at `meanfield` time, so consumers needing the post-completion index set (e.g.
