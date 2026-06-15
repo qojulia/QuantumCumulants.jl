@@ -200,3 +200,19 @@ end
     # states present).
     @test length(eqs_c.equations) >= 7
 end
+
+@testset "graph is the source of truth (Stage 1)" begin
+    hc = FockSpace(:cavity); ha = NLevelSpace(:atom, 2); h = hc ⊗ ha
+    @qnumbers a::Destroy(h, 1)
+    σ(i, j) = Transition(h, :σ, i, j, 2)
+    @variables Δ::Real g::Real κ::Real γ::Real marker::Real
+    H = Δ * a' * a + g * (a' * σ(1, 2) + a * σ(2, 1))
+    eqs = meanfield([a' * a, a' * σ(1, 2)], H, [a, σ(1, 2)]; rates = [κ, γ], order = 2)
+
+    # The bug fix: a user RHS modification survives a subsequent `complete!`
+    # (re-derivation would have discarded it). `modify_equations` adds the marker to every
+    # current drift; after closing, the original moments still carry it.
+    tagged = modify_equations(eqs, (op, rhs) -> rhs + marker)
+    completed = complete(tagged)
+    @test any(eq -> occursin("marker", repr(eq.rhs)), completed.equations)
+end

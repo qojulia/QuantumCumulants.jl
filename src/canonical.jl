@@ -46,7 +46,7 @@ symmetric subspaces of `ctx`) when `eqs` carries none. Single source for the con
 that re-key a stored system (`find_missing`, the MTK `System` build, `evaluate`, correlation/spectrum).
 """
 _treatments(eqs::AbstractMeanfieldEquations, ctx::CanonCtx) =
-    isempty(eqs.treatments) ? all_free_treatments(ctx) : eqs.treatments
+    isempty(eqs.graph.treatments) ? all_free_treatments(ctx) : eqs.graph.treatments
 
 """
 Collect the indices the Liouvillian treats as bound: sum-scope `.indices` and any
@@ -124,11 +124,10 @@ function build_ctx(
 end
 
 """
-Build the canonicalisation context from a stored equation set, reading its operators,
-Hamiltonian and jumps.
+The stored canonicalisation context of an equation set: its graph already carries the
+`ctx` built at derivation, so every consumer reads the one source instead of recomputing.
 """
-build_ctx(eqs::AbstractMeanfieldEquations) =
-    build_ctx(eqs.operators, eqs.hamiltonian, eqs.jumps, eqs.jumps_dagger)
+build_ctx(eqs::AbstractMeanfieldEquations) = eqs.graph.ctx
 
 """
 Canonical label of the average ⟨`op`⟩ as it enters the cumulant hierarchy: two averages

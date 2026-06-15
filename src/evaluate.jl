@@ -238,35 +238,6 @@ _is_zero_qadd(_) = false
 # ---- the pass ----------------------------------------------------------------
 
 """
-Build a `MomentGraph` from a completed equation set using its stored drifts. Reuses the
-recorded RHSs (preserving any filter applied during completion) rather than re-deriving.
-"""
-function _graph_from_stored(eqs::AbstractMeanfieldEquations)
-    ctx = build_ctx(eqs)
-    eff = eqs isa NoiseMeanfieldEquations ? eqs.efficiencies : nothing
-    sys = SystemSpec(
-        eqs.hamiltonian, collect(eqs.jumps), collect(eqs.jumps_dagger),
-        collect(eqs.rates), eff, eqs.iv, eqs.order, maximum, eqs.direction,
-    )
-    treatments = _treatments(eqs, ctx)
-    nodes = OrderedCollections.OrderedDict{NodeKey, NodeData}()
-    for i in eachindex(eqs.operators)
-        op = eqs.operators[i]
-        opqa = op isa QAdd ? op : op * 1
-        # Key in the STORED treatment, not bare `canon_key`: a subspace made Concrete
-        # by a prior `evaluate` must not be alpha-renamed and collapsed.
-        k = _materialised_key(opqa, ctx, treatments)
-        haskey(nodes, k) && continue
-        drift = Symbolics.Num(_lift_sum_scope(SymbolicUtils.unwrap(eqs.equations[i].rhs)))
-        op_drift = opqa
-        noise = eff === nothing ? nothing :
-            Symbolics.Num(_lift_sum_scope(SymbolicUtils.unwrap(eqs.noise_equations[i].rhs)))
-        nodes[k] = NodeData(drift, op_drift, noise, nothing, get_order(opqa), SQA.acts_on(opqa))
-    end
-    return MomentGraph(nodes, sys, ctx, treatments)
-end
-
-"""
 Specialise a symbolic `MomentGraph` to a concrete number of atoms/sites. For each node,
 enumerate its free indices over the ranges in `limits` (distinct sites, `i ≠ j`),
 materialise the drift (and noise) at each assignment, and keep one node per Hermitian
@@ -303,8 +274,13 @@ function specialize(g::MomentGraph, limits; h::Vector{Int} = Int[])
                     SymbolicUtils.unwrap(b.sym) => SymbolicUtils.unwrap(t.sym)
                     for (b, t) in idx_sub
                 )
-            drift = _materialise(nd.drift, idx_sub, sub, ctx, hset, sym_sub)
-            noise = nd.noise === nothing ? nothing : _materialise(nd.noise, idx_sub, sub, ctx, hset, sym_sub)
+            lifted_drift = Symbolics.Num(_lift_sum_scope(SymbolicUtils.unwrap(nd.drift)))
+            drift = _materialise(lifted_drift, idx_sub, sub, ctx, hset, sym_sub)
+            noise = nd.noise === nothing ? nothing :
+                _materialise(
+                    Symbolics.Num(_lift_sum_scope(SymbolicUtils.unwrap(nd.noise))),
+                    idx_sub, sub, ctx, hset, sym_sub,
+                )
             nodes[lk] = NodeData(drift, _apply_free(nd.op_drift, idx_sub), noise, nd.op_noise, nd.order, nd.aon)
         end
     end
@@ -393,24 +369,16 @@ _apply_callable_sub(x, sub) = Symbolics.Num(_apply_callable_walk(SymbolicUtils.u
 _apply_callable_walk(x, sub) = _subtree_substitute(x, sub)
 
 """
-Rewrite the per-site `IndexedVariable` coefficients left after unrolling (e.g. `g(i_2)`,
-a coupling at one concrete atom) into `getindex` on a minted Symbolics array parameter,
-in place, so MTK can scalarise and bind them. A no-op when none remain.
+Rewrite the per-site `IndexedVariable` coefficients left after unrolling into `getindex` on
+a minted Symbolics array parameter, as a graph drift-rewrite. A no-op when none remain.
 """
-function _arrayize_indexed_params!(eqs::AbstractMeanfieldEquations)
-    arr_sub = _build_callable_to_array_sub(eqs.equations, eqs.states)
-    isempty(arr_sub) && return eqs
-    for k in eachindex(eqs.equations)
-        eqs.equations[k] = _apply_callable_sub(eqs.equations[k].lhs, arr_sub) ~
-            _apply_callable_sub(eqs.equations[k].rhs, arr_sub)
-    end
-    if eqs isa NoiseMeanfieldEquations
-        for k in eachindex(eqs.noise_equations)
-            eqs.noise_equations[k] = _apply_callable_sub(eqs.noise_equations[k].lhs, arr_sub) ~
-                _apply_callable_sub(eqs.noise_equations[k].rhs, arr_sub)
-        end
-    end
-    return eqs
+function arrayize_graph(g::MomentGraph)
+    ks = collect(keys(g.nodes))
+    eqs = Symbolics.Equation[average(k) ~ g.nodes[k].drift for k in ks]
+    states = SymbolicUtils.BasicSymbolic[average(k) for k in ks]
+    arr_sub = _build_callable_to_array_sub(eqs, states)
+    isempty(arr_sub) && return g
+    return map_drifts(g, (_, d) -> _apply_callable_sub(d, arr_sub))
 end
 
 """
@@ -430,6 +398,6 @@ index ranges and unrolling the sums. The result is ready for
 function evaluate(eqs::AbstractMeanfieldEquations; limits = nothing, h::Vector{Int} = Int[], kwargs...)
     sub = _limits_dict(limits)
     isempty(sub) && return _copy(eqs)
-    out = assemble_equations(specialize(_graph_from_stored(eqs), limits; h))
-    return _arrayize_indexed_params!(out)
+    g = arrayize_graph(specialize(eqs.graph, limits; h))
+    return assemble_equations(g)
 end

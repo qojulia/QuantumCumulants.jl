@@ -100,8 +100,9 @@ function CorrelationFunction(
     op2_ancilla = _embed_on(op2, aon_ancilla)
     new_op = op1 * op2_ancilla
 
-    order_ext = eqs0.order === nothing ? nothing :
-        vcat(eqs0.order, fill(maximum(eqs0.order), aon_ancilla - length(eqs0.order)))
+    ord = eqs0.order
+    order_ext = ord === nothing ? nothing :
+        vcat(ord, fill(maximum(ord), aon_ancilla - length(ord)))
 
     eqs_c = meanfield(
         [new_op], eqs0.hamiltonian, eqs0.jumps;
@@ -111,31 +112,22 @@ function CorrelationFunction(
     ancilla_filter = _ancilla_filter(aon_ancilla)
     closure_filter = filter_func === nothing ? ancilla_filter : x -> ancilla_filter(x) && filter_func(x)
     g = _graph_from_eqs(eqs_c)
-    closure!(g; filter = closure_filter, get_adjoints = false, max_iter)
+    g = closure(g; filter = closure_filter, get_adjoints = false, max_iter)
     if !steady_state
-        closure!(g; filter = x -> !ancilla_filter(x), get_adjoints = false, max_iter)
+        g = closure(g; filter = x -> !ancilla_filter(x), get_adjoints = false, max_iter)
     end
-    # Inherit eqs0's per-subspace treatments so the resolver matches the
-    # correlation's leaves in the same treatment as the parent system.
-    if !isempty(eqs0.treatments)
-        merged = merge(g.treatments, eqs0.treatments)
+    if !isempty(eqs0.graph.treatments)
+        merged = merge(g.treatments, eqs0.graph.treatments)
         g = MomentGraph(g.nodes, g.sys, g.ctx, merged)
     end
+    if filter_func !== nothing
+        g = map_drifts(g, (_, d) -> _filter_ancilla_expr(d, ancilla_filter, filter_func))
+    end
     eqs_c = assemble_equations(g)
-    filter_func === nothing || _filter_ancilla_leaves!(eqs_c, ancilla_filter, filter_func)
 
     return CorrelationFunction(op1, op2, op2_ancilla, aon_ancilla, eqs_c, eqs0, τ, steady_state)
 end
 
-"""
-Zero the ancilla-touching leaves the user's filter rejects; ambient leaves stay.
-"""
-function _filter_ancilla_leaves!(eqs, ancilla_filter, user_filter)
-    for (i, eq) in enumerate(eqs.equations)
-        eqs.equations[i] = eq.lhs ~ _filter_ancilla_expr(eq.rhs, ancilla_filter, user_filter)
-    end
-    return eqs
-end
 function _filter_ancilla_expr(x, ancilla_filter, user_filter)
     return rewrite(x) do y
         _is_avg_leaf(y) ? ((ancilla_filter(y) && !user_filter(y)) ? 0 : y) : nothing

@@ -18,18 +18,18 @@ The whole package is organised around a single observation.
 
 > Every step the user calls (deriving the equations of motion, closing the hierarchy, scaling, evaluating, building the numerical system) acts on **one shared object**: the cumulant hierarchy, held in memory as a graph of coupled moment equations (the **moment graph**). Each moment carries a **canonical label** that is identical for two expectation values exactly when they are physically the same, and a per-subspace **treatment** (each subspace is independently `Free`, `Scaled`, or `Concrete`) sets how strong that identification is. Because every step is just a relabelling of the same object, closing, scaling, evaluation, and hybrid systems all follow from one mechanism.
 
-Most steps have the same shape: take the equations the user holds (a `MeanfieldEquations`), lift them into a working `MomentGraph`, transform the graph, and read a fresh equation set back out. The exception is [`meanfield`](@ref) itself, which has no prior equations to lift: it builds the first graph directly from the list of operators via `seed`.
+Each public equation set (`MeanfieldEquations` / `NoiseMeanfieldEquations`) carries its `MomentGraph` as the authoritative field; the equation, state, and operator vectors are a derived view regenerated from it. A step reads `eqs.graph`, transforms it, and either returns a fresh wrapper (`assemble_equations`) or, for an in-place `!` form, rewrites the graph and regenerates the view (`resync!`). There is no round-trip back through the vectors: the graph is never rebuilt from the equation list, so user RHS modifications, filter substitutions, treatment state, and the `mix_choice` truncation scheme all persist across steps. [`meanfield`](@ref) builds the first graph directly from the list of operators via `seed`.
 
 ```
-  MeanfieldEquations                         MeanfieldEquations
-  (equations in)                             (equations out)
-        │                                          ▲
-        │  _graph_from_eqs / _graph_from_stored    │  assemble_equations
-        ▼                                          │
-   ┌──────────────────────────────────────────────────┐
-   │                   MomentGraph                    │   the working graph
-   │   seed · closure! · quotient · specialize        │   each step transforms it
-   └──────────────────────────────────────────────────┘
+  MeanfieldEquations
+  ├─ graph  :: MomentGraph              ◀── source of truth
+  └─ equations / states / operators         derived view
+            │  read eqs.graph                  ▲  resync! (in place) / assemble_equations (fresh)
+            ▼                                   │
+   ┌───────────────────────────────────────────────────────┐
+   │                      MomentGraph                        │
+   │   seed · closure · quotient · specialize · map_drifts   │   each step transforms it
+   └───────────────────────────────────────────────────────┘
 ```
 
 The whole workflow is then just a sequence of these steps:
@@ -43,9 +43,9 @@ The source files are loaded in dependency order (`src/QuantumCumulants.jl`):
 
 | Layer | Files | Role |
 |-------|-------|------|
-| Containers & identity | `equations.jl`, `tree.jl`, `canonical.jl` | equation structs, leaf traversal, moment keys |
-| Algebra to moments | `operator_drift.jl`, `cumulant.jl`, `moments.jl` | Heisenberg RHS, cumulant expansion, per-moment derivation |
-| The hierarchy | `graph.jl` | the cumulant hierarchy as a graph of moment equations |
+| Early types & identity | `equations.jl`, `tree.jl`, `canonical.jl` | abstract equation supertype, treatment enum, direction tags, leaf traversal, moment keys |
+| Algebra to moments | `operator_drift.jl`, `moments.jl`, `cumulant.jl` | Heisenberg RHS, per-moment derivation, cumulant expansion |
+| The hierarchy & its wrappers | `graph.jl`, `equations_concrete.jl` | the cumulant hierarchy as a graph of moment equations; the graph-backed `MeanfieldEquations` / `NoiseMeanfieldEquations` and their derived view |
 | Workflow steps | `meanfield.jl`, `completion.jl`, `scaling.jl`, `evaluate.jl`, `mtk.jl`, `correlation.jl` | the operations the user calls |
 | Display | `printing.jl` | plain-text and LaTeX |
 
@@ -69,13 +69,13 @@ MomentGraph
 └─ treatments :: Dict{Int ⟶ SubspaceTreatment}   per-subspace: Free | Scaled | Concrete
 ```
 
-`SystemSpec` is the immutable bundle of everything `derive` needs: `hamiltonian`, `jumps`, `jumps_dagger`, `rates`, `efficiencies` (`nothing` means deterministic), `iv`, `order`, `mix_choice`, and `direction`. It is frozen so a moment can be derived on demand at any point during a workflow step without threading a dozen arguments through every call.
+`SystemSpec` is the immutable bundle of everything `derive` needs: `hamiltonian`, `jumps`, `jumps_dagger`, `rates`, `efficiencies` (`nothing` means deterministic), `iv`, `order`, `mix_choice`, and `direction`. It is frozen so a moment can be derived on demand at any point during a workflow step without threading a dozen arguments through every call. Because `mix_choice` (the mixed-order truncation scheme) lives here, it is system state set once at [`meanfield`](@ref) and carried through every step; it is *not* a keyword on [`complete`](@ref)/`complete!` or `cumulant_expansion(eqs, order)`.
 
 Two design choices are worth the rationale:
 
 - **Why a graph keyed by moment, not a flat list of equations.** Closing a cumulant hierarchy means repeatedly asking "do I already have an equation for this moment?". That question is a fast lookup only if the key is the moment's *physical identity*, not its written form. The `OrderedDict` keyed by a canonical representative is exactly that lookup; the closure is then just "take one moment, look at the moments it couples to, derive the ones still missing".
 
-- **Why two representations.** The `MomentGraph` is the mutable working copy each step transforms; `MeanfieldEquations`/`NoiseMeanfieldEquations` (`equations.jl`) are the plain array of equations the user holds and inspects. Every step rebuilds that array from the graph via `assemble_equations`. Keeping them separate means the user-facing object stays a simple, stable, indexable list of equations, while the graph carries the extra bookkeeping (`ctx`, `treatments`, the cached per-moment data) that only the workflow steps need.
+- **Why two representations.** The `MomentGraph` is the persistent source of truth each step transforms; the equation/state/operator vectors on `MeanfieldEquations`/`NoiseMeanfieldEquations` (`equations_concrete.jl`) are a derived view, regenerated from the graph by `resync!` (in place) or `assemble_equations` (fresh). Keeping the view distinct means the user-facing object stays a simple, stable, indexable list of equations, while the graph carries the extra bookkeeping (`sys`, `ctx`, `treatments`, the cached per-moment data) that only the workflow steps need.
 
 Every `Int` key in `treatments`, in `CanonCtx.vocab`, and in `CanonCtx.symmetric` is an SQA `space_index`: the position of a Hilbert-space factor (subspace) in the system's `ProductSpace`, as returned by `acts_on`.
 
@@ -146,17 +146,17 @@ The subtle part is the **sum-scope metadata round-trip**. A summed average such 
 
 ## Closing the hierarchy
 
-`seed` (`graph.jl`) derives the equations for the user's requested operators, the first entries in the graph. `closure!` then repeatedly takes one moment, looks at the moments on the right-hand side of its equation (the *leaves* of the symbolic drift), and derives an equation for any not yet present, until no new moments appear.
+`seed` (`graph.jl`) derives the equations for the user's requested operators, the first entries in the graph. `closure` then repeatedly takes one moment, looks at the moments on the right-hand side of its equation (the *leaves* of the symbolic drift), and derives an equation for any not yet present, until no new moments appear; it is pure, returning a new graph rather than mutating its input.
 
 A moment and its conjugate are one physical unknown, and the closure exploits that *partially*. A moment whose conjugate partner is already present is covered automatically (no new equation). The `get_adjoints` flag controls only the genuinely-new case. With `get_adjoints=true` (the default for `meanfield`/`complete`) a new moment's conjugate is also added as its own moment; with `get_adjoints=false` (used by [`CorrelationFunction`](@ref)) only one representative is kept and the partner is recovered by complex conjugation when the numerical system is built. The consequences are spelled out in the worked example below and in invariant 1.
 
 The `max_iter` guard is a runaway backstop, not a truncation limiter: hitting it raises an error rather than silently returning a non-closed system, which the numerical build would otherwise mask.
 
-[`complete!`](@ref) is `closure!` exposed publicly: it rebuilds a graph from an existing equation set (`_graph_from_eqs`) and extends it. A `filter_func` drops unwanted moments (for example phase-invariant or ancilla terms) by zeroing them on every right-hand side. [`find_missing`](@ref) reports the still-needed moments and is representation-invariant: it folds conjugate pairs onto one key, so the answer is the same whether the system was closed with `get_adjoints` true or false.
+[`complete!`](@ref) is `closure` exposed publicly: it reads `eqs.graph`, closes it, writes the result back, and regenerates the view (`resync!`). Because it extends the existing graph rather than re-deriving, any user RHS modifications already on the graph survive. A `filter_func` drops unwanted moments (for example phase-invariant or ancilla terms) by zeroing them on every right-hand side (via `map_drifts`). [`find_missing`](@ref) reports the still-needed moments and is representation-invariant: it folds conjugate pairs onto one key, so the answer is the same whether the system was closed with `get_adjoints` true or false.
 
 ## Reducing the system: `scale` and `evaluate`
 
-[`scale`](@ref) and [`evaluate`](@ref) transform the graph by relabelling the moments under a new treatment. Both build the graph from the **stored** drifts (`_graph_from_stored`) rather than re-deriving, because a `complete(...; filter_func)` records filter substitutions in the stored equations that a re-derivation would discard.
+[`scale`](@ref) and [`evaluate`](@ref) transform `eqs.graph` by relabelling the moments under a new treatment. They rewrite the stored drifts in place rather than re-deriving, so filter substitutions recorded by a prior `complete(...; filter_func)` are preserved.
 
 - [`scale`](@ref) (`scaling.jl`) calls `quotient`, marking the selected symmetric subspaces `Scaled` and merging permutation-equivalent moments. Each surviving drift leaf ``\langle X\rangle`` becomes ``\text{prefactor}\cdot\langle X_{\text{rep}}\rangle``, where the prefactor is ``\prod_b (\text{range}_b - \#\text{ne}_b)`` over the bound indices on the scaled subspaces, and every per-atom `IndexedVariable` coupling is flattened to its scalar (all atoms share the coupling under the symmetry). The `h::Vector{Int}` keyword restricts the quotient to specific subspaces; empty means all symmetric subspaces.
 
@@ -250,11 +250,9 @@ For a permutation-symmetric many-body system built from [`Index`](@ref) and [`Σ
 
 These are the moment-layer rules a contributor must not break, each with its failure mode.
 
-12. **A conjugate pair is one physical unknown, but the default does not minimise on it.** During `closure!` a moment whose conjugate is already present is covered. `get_adjoints=true` (default) tracks the conjugate of a genuinely-new moment as a second state; the numerical build keys states by `canonical_rep`/`concrete_rep`, so every occurrence of the pair on a right-hand side resolves to the first representative (or its `conj`), leaving the second variable a redundant shadow that `mtkcompile` does not eliminate. Use `get_adjoints=false` for the minimal set.
+12. **A conjugate pair is one physical unknown, but the default does not minimise on it.** During `closure` a moment whose conjugate is already present is covered. `get_adjoints=true` (default) tracks the conjugate of a genuinely-new moment as a second state; the numerical build keys states by `canonical_rep`/`concrete_rep`, so every occurrence of the pair on a right-hand side resolves to the first representative (or its `conj`), leaving the second variable a redundant shadow that `mtkcompile` does not eliminate. Use `get_adjoints=false` for the minimal set.
 
-12. **`closure!` keys with `canon_key`, never `scaled_key`.** Symmetric reduction during closure would collapse the unscaled moment count. The reduction steps relabel with the treatment-matched `_materialised_key`; calling bare `canon_key` on an already-`Concrete` subspace would relabel and merge sites that must stay distinct.
-
-12. **Build `scale`/`evaluate` from stored drifts, never re-derive.** `_graph_from_stored` reuses the recorded right-hand sides; a re-derivation discards filter substitutions a prior `complete(...; filter_func)` applied.
+12. **`closure` keys with `canon_key`, never `scaled_key`.** Symmetric reduction during closure would collapse the unscaled moment count. The reduction steps relabel with the treatment-matched `_materialised_key`; calling bare `canon_key` on an already-`Concrete` subspace would relabel and merge sites that must stay distinct.
 
 12. **Sum-scope metadata must round-trip.** Rebuild summed leaves through the canonical `average(SQA.Σ(...))`, not `setmetadata`, which is `isequal` to the un-summed leaf so the terms never cancel.
 
@@ -268,7 +266,7 @@ These are the moment-layer rules a contributor must not break, each with its fai
 
 12. **The `iszero` coefficient drop in `average_and_truncate` uses `Base.iszero` deliberately**; SQA's structural check misses uncombined zero forms like ``\lambda/2 - (1/2)\lambda``.
 
-12. **`max_iter` in `closure!` errors, it does not truncate.** It is a runaway backstop only.
+12. **`max_iter` in `closure` errors, it does not truncate.** It is a runaway backstop only.
 
 12. **The ground projector `` igma^{gg}`` stays an atom** except where the `` igma^{gg} = 1 - \Sigma\, igma^{kk}`` fold is the explicit goal (`expand_completeness`/`_reduce_ground_in_drift` in `derive`).
 

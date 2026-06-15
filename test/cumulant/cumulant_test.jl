@@ -139,13 +139,13 @@ end
             average(a') * average(σ(1, 2)),
     )
 
-    he = meanfield(
-        [a' * a, σ(2, 2)],
-        a' * a + σ(2, 2) + a' * σ(1, 2) + a * σ(2, 1)
-    )
+    H = a' * a + σ(2, 2) + a' * σ(1, 2) + a * σ(2, 1)
+    he = meanfield([a' * a, σ(2, 2)], H)
+
+    he_min = meanfield([a' * a, σ(2, 2)], H; mix_choice = minimum)
     he_avg1 = cumulant_expansion(he, 2)
     he_avg2 = cumulant_expansion(he, [2, 1])
-    he_avg3 = cumulant_expansion(he, [2, 1]; mix_choice = minimum)
+    he_avg3 = cumulant_expansion(he_min, [2, 1])
 
     @test isequal(he_avg1.equations, he_avg2.equations)
     @test !isequal(he_avg1.equations, he_avg3.equations)
@@ -203,4 +203,30 @@ end
         -2 * average(a) * average(a') * average(Σ(σ(1, 2, i), i))
 
     @test _iz(got - want)
+end
+
+@testset "mix_choice is system state (Stage 1)" begin
+    @variables Δ::Real g::Real κ::Real γ::Real N::Real
+    hc = FockSpace(:cavity); ha = NLevelSpace(:atom, 2); h = hc ⊗ ha
+    a = Destroy(h, :a, 1)
+    σ(x, y, k) = IndexedOperator(Transition(h, :σ, x, y, 2), k)
+    i = Index(h, :i, N, ha)
+    H = Δ * a' * a + g * (a' * Σ(σ(1, 2, i), i) + a * Σ(σ(2, 1, i), i))
+    J = [a, σ(1, 2, i)]
+    rates = [κ, γ]
+
+    eqs_min = meanfield([a' * a], H, J; rates = rates, order = [2, 1], mix_choice = minimum)
+    @test eqs_min.graph.sys.mix_choice === minimum
+    # scale/evaluate now preserve the system's mix_choice (the latent bug is fixed).
+    eqs_c = complete(eqs_min)
+    @test eqs_c.graph.sys.mix_choice === minimum
+    @test scale(eqs_c).graph.sys.mix_choice === minimum
+    @test evaluate(eqs_c; limits = (N => 3)).graph.sys.mix_choice === minimum
+
+    # Noise-to-det conversion preserves mix_choice.
+    eqs_noise = meanfield(
+        [a' * a], H, J; rates = rates, efficiencies = [0.5, 0.5],
+        order = [2, 1], mix_choice = minimum,
+    )
+    @test MeanfieldEquations(eqs_noise).graph.sys.mix_choice === minimum
 end

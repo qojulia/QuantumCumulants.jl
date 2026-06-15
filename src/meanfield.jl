@@ -117,22 +117,9 @@ of a `NoiseMeanfieldEquations`). `simplify!` mutates; `simplify` returns a fresh
 struct. The derivation pipeline leaves expressions raw so the cost of
 `SymbolicUtils.simplify` is paid only when explicitly requested.
 """
-function simplify! end
-
-function simplify!(eqs::MeanfieldEquations; kwargs...)
-    for (i, eq) in enumerate(eqs.equations)
-        eqs.equations[i] = eq.lhs ~ SymbolicUtils.simplify(eq.rhs; kwargs...)
-    end
-    return eqs
-end
-
-function simplify!(eqs::NoiseMeanfieldEquations; kwargs...)
-    for (i, eq) in enumerate(eqs.equations)
-        eqs.equations[i] = eq.lhs ~ SymbolicUtils.simplify(eq.rhs; kwargs...)
-    end
-    for (i, eq) in enumerate(eqs.noise_equations)
-        eqs.noise_equations[i] = eq.lhs ~ SymbolicUtils.simplify(eq.rhs; kwargs...)
-    end
+function simplify!(eqs::AbstractMeanfieldEquations; kwargs...)
+    eqs.graph = map_drifts(eqs.graph, (_, d) -> SymbolicUtils.simplify(d; kwargs...))
+    resync!(eqs; moments_unchanged = true)
     return eqs
 end
 
@@ -159,17 +146,16 @@ function translate_W_to_Y(
         eqs::NoiseMeanfieldEquations;
         mix_choice::Function = maximum,
     )
-    out = _copy(eqs)
-    J, Jd = out.jumps, out.jumps_dagger
-    rates_eff = out.rates .* out.efficiencies
-    for i in eachindex(out.equations)
-        eq_i = out.equations[i]
-        lhs_op = undo_average(eq_i.lhs)
-        term = -_dY_dS_extra_term(lhs_op, J, Jd, rates_eff)
-        out.order !== nothing && (term = cumulant_expansion(term, out.order; mix_choice))
-        out.equations[i] = eq_i.lhs ~ eq_i.rhs + term
+    J, Jd = collect(eqs.jumps), collect(eqs.jumps_dagger)
+    rates_eff = collect(eqs.rates) .* collect(eqs.efficiencies)
+    order = eqs.order
+    augment = function (k, d)   # `k` is the node key, i.e. the LHS operator
+        term = -_dY_dS_extra_term(k, J, Jd, rates_eff)
+        order !== nothing && (term = cumulant_expansion(term, order; mix_choice))
+        return d + term
     end
-    return out
+    g = map_drifts(eqs.graph, augment; noise = false)
+    return assemble_equations(g)
 end
 
 # ---- user-supplied RHS rewrite ----
@@ -194,14 +180,11 @@ modify_equations(eqs::AbstractMeanfieldEquations, f::Function) =
 """
     modify_equations!(eqs::AbstractMeanfieldEquations, f::Function)
 
-In-place version of [`modify_equations`](@ref). Walks `eqs.equations` and replaces each
-RHS with `f(undo_average(lhs), rhs)`.
+In-place version of [`modify_equations`](@ref). Rewrites each drift in `eqs.graph` with
+`f(lhs_op, rhs)`, where `lhs_op` is the node key (the operator form of the LHS).
 """
 function modify_equations!(eqs::AbstractMeanfieldEquations, f::Function)
-    for i in eachindex(eqs.equations)
-        lhs = eqs.equations[i].lhs
-        rhs = eqs.equations[i].rhs
-        eqs.equations[i] = lhs ~ f(undo_average(lhs), rhs)
-    end
+    eqs.graph = map_drifts(eqs.graph, (k, d) -> f(k, d); noise = false)
+    resync!(eqs; moments_unchanged = true)
     return eqs
 end

@@ -58,11 +58,11 @@ end
     eqs = meanfield(a' * a, H, [a]; rates = [κ], order = 2)
     complete!(eqs)
     atom_sp = first(QuantumCumulants.build_ctx(eqs).symmetric)
-    @test get(eqs.treatments, atom_sp, QuantumCumulants.Free) == QuantumCumulants.Free
-    @test get(scale(eqs).treatments, atom_sp, QuantumCumulants.Free) == QuantumCumulants.Scaled
-    @test get(evaluate(eqs; limits = (N => 3)).treatments, atom_sp, QuantumCumulants.Free) == QuantumCumulants.Concrete
+    @test get(eqs.graph.treatments, atom_sp, QuantumCumulants.Free) == QuantumCumulants.Free
+    @test get(scale(eqs).graph.treatments, atom_sp, QuantumCumulants.Free) == QuantumCumulants.Scaled
+    @test get(evaluate(eqs; limits = (N => 3)).graph.treatments, atom_sp, QuantumCumulants.Free) == QuantumCumulants.Concrete
 
     eqs_scaled_bang = QuantumCumulants._copy(eqs)
     scale!(eqs_scaled_bang)
-    @test eqs_scaled_bang.treatments == scale(eqs).treatments
+    @test eqs_scaled_bang.graph.treatments == scale(eqs).graph.treatments
 end

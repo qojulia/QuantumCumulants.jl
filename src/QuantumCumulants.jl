@@ -28,18 +28,19 @@ export CorrelationFunction, Spectrum, correlation_u0, correlation_p0
 export translate_W_to_Y, modify_equations, modify_equations!
 export simplify!
 
-#  primitives, equation containers, identity
+#  early types (abstract eqs supertype, treatment enum, direction tags), identity
 include("equations.jl")
 include("tree.jl")
 include("canonical.jl")
 
 #  operator algebra to moments
 include("operator_drift.jl")
-include("cumulant.jl")
 include("moments.jl")
 
-#  the cumulant hierarchy (coupled moment equations)
+#  the cumulant hierarchy (coupled moment equations) and its graph-backed wrappers
 include("graph.jl")
+include("equations_concrete.jl")
+include("cumulant.jl")
 
 # public orchestration (passes over the graph)
 include("meanfield.jl")

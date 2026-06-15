@@ -358,27 +358,25 @@ function _expand_product(args::Vector, order::Vector{Int}; mix_choice = maximum)
 end
 
 """
-    cumulant_expansion(eqs::MeanfieldEquations, order; mix_choice=maximum)
+    cumulant_expansion(eqs::MeanfieldEquations, order)
 
 Cumulant-expand every RHS of `eqs` to `order`, returning a new `MeanfieldEquations` of
-the same shape with that order stored. Noise systems take their order through
+the same shape with that order stored. The system's `mix_choice` (held in `eqs.graph.sys`)
+drives the mixed-order truncation. Noise systems take their order through
 [`meanfield`](@ref), not here.
 """
-function cumulant_expansion(
-        eqs::MeanfieldEquations, order;
-        mix_choice = maximum
-    )
+function cumulant_expansion(eqs::MeanfieldEquations, order)
     order_vec = _normalize_order(order, eqs)
-    new_eqs = [
-        eq.lhs ~ cumulant_expansion(eq.rhs, order_vec; mix_choice)
-            for eq in eqs.equations
-    ]
-    return MeanfieldEquations(
-        new_eqs, eqs.operator_equations, eqs.states,
-        eqs.operators, eqs.hamiltonian, eqs.jumps,
-        eqs.jumps_dagger, eqs.rates, eqs.iv, order_vec, eqs.direction;
-        treatments = eqs.treatments,
+    sys = eqs.graph.sys
+    g = map_drifts(
+        eqs.graph, (_, d) -> cumulant_expansion(d, order_vec; mix_choice = sys.mix_choice);
+        noise = false,
     )
+    new_sys = SystemSpec(
+        sys.hamiltonian, sys.jumps, sys.jumps_dagger, sys.rates, sys.efficiencies,
+        sys.iv, order_vec, sys.mix_choice, sys.direction,
+    )
+    return MeanfieldEquations(MomentGraph(g.nodes, new_sys, g.ctx, g.treatments))
 end
 
 _normalize_order(order::Int, eqs) = fill(order, _nspaces(eqs))

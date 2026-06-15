@@ -16,7 +16,7 @@ struct MomentGraph{S <: SystemSpec}
     nodes::OrderedCollections.OrderedDict{NodeKey, NodeData}
     sys::S
     ctx::CanonCtx
-    treatments::Dict{Int, SubspaceTreatment}     # per-subspace treatment; all-Free after seed/closure!
+    treatments::Dict{Int, SubspaceTreatment}
 end
 
 """A graph is "quotiented" once any subspace has been reduced to a `Scaled` treatment."""
@@ -25,7 +25,7 @@ quotiented(g::MomentGraph) = any(==(Scaled), values(g.treatments))
 """
 The key function matching the graph's current level: `scaled_key` once any subspace is
 `Scaled`, otherwise `canon_key`. Kept for callers that want the treatment-matched key;
-`closure!` keys with `canon_key` directly.
+`closure` keys with `canon_key` directly.
 """
 nodekey(g::MomentGraph) = quotiented(g) ? scaled_key : canon_key
 
@@ -56,13 +56,14 @@ here would collapse the unscaled count. `filter` zeroes unwanted moments (e.g. a
 phase-invariant); `get_adjoints=false` keeps one moment per conjugate pair, the partner
 recovered via `conj` when the numerical system is built.
 """
-function closure!(
+function closure(
         g::MomentGraph; filter = _alltrue, get_adjoints::Bool = true,
         max_iter::Int = 100_000,
     )
     ctx = g.ctx
-    seen = Set(keys(g.nodes))
-    pending = collect(keys(g.nodes))
+    nodes = copy(g.nodes)   # shallow copy: NodeData values are shared (immutable), new moments appended here
+    seen = Set(keys(nodes))
+    pending = collect(keys(nodes))
     iters = 0
     while !isempty(pending)
         # `max_iter` is a runaway backstop, NOT a closure limiter. Hitting it means the
@@ -70,11 +71,11 @@ function closure!(
         # (non-closed) system, which the numerical-system build would mask (it would
         # look closed but leak/drop moments).
         iters >= max_iter && error(
-            "closure! did not close the hierarchy within $max_iter iterations " *
+            "closure did not close the hierarchy within $max_iter iterations " *
                 "($(length(pending)) moments still pending); the system may not close.",
         )
         iters += 1
-        nd = g.nodes[popfirst!(pending)]
+        nd = nodes[popfirst!(pending)]
         for leaf in _drift_leaves(nd)
             op = undo_average(leaf)
             k = canon_key(op, ctx)
@@ -89,12 +90,12 @@ function closure!(
             end
             filter(average(k)) || continue
             # Genuinely new moment (neither rep seen yet).
-            g.nodes[k] = derive(k, g.sys, ctx)
+            nodes[k] = derive(k, g.sys, ctx)
             push!(seen, k)
             push!(pending, k)
             if get_adjoints && kc != k
                 # Track the conjugate partner as its own moment.
-                g.nodes[kc] = derive(kc, g.sys, ctx)
+                nodes[kc] = derive(kc, g.sys, ctx)
                 push!(seen, kc)
                 push!(pending, kc)
             else
@@ -102,13 +103,13 @@ function closure!(
             end
         end
     end
-    return g
+    return MomentGraph(nodes, g.sys, ctx, g.treatments)
 end
 _alltrue(_) = true
 
 """
 Rebuild a `MomentGraph` from an existing equations struct: every current state becomes a
-node, re-derived on its canon key, ready for `closure!` to extend.
+node, re-derived on its canon key, ready for `closure` to extend.
 """
 function _graph_from_eqs(eqs::AbstractMeanfieldEquations; mix_choice = maximum)
     ctx = build_ctx(eqs)
@@ -128,43 +129,33 @@ function _graph_from_eqs(eqs::AbstractMeanfieldEquations; mix_choice = maximum)
 end
 
 """
-Assemble the graph's moments into the array-backed `MeanfieldEquations` /
-`NoiseMeanfieldEquations` struct. Each moment is a canon-rep `QAdd`; LHS and drift share
-that rep so the system is self-consistent.
+Copy a `MomentGraph`'s mutable parts (the `nodes` and `treatments` dicts) while sharing the
+immutable `sys` and `ctx`. Backs the non-mutating `_copy` of a wrapper.
 """
-function assemble_equations(g::MomentGraph)
-    sys = g.sys
-    ks = collect(keys(g.nodes))
-    states = SymbolicUtils.BasicSymbolic[average(k) for k in ks]
-    operators = QAdd[k for k in ks]
-    operator_eqs = Symbolics.Equation[k ~ g.nodes[k].op_drift for k in ks]
-    avg_eqs = Symbolics.Equation[average(k) ~ g.nodes[k].drift for k in ks]
-    if sys.efficiencies === nothing
-        return MeanfieldEquations(
-            avg_eqs, operator_eqs, states, operators,
-            sys.hamiltonian, collect(sys.jumps), collect(sys.jumps_dagger),
-            collect(sys.rates), sys.iv, sys.order, sys.direction;
-            treatments = copy(g.treatments),
-        )
-    else
-        noise_eqs = Symbolics.Equation[average(k) ~ g.nodes[k].noise for k in ks]
-        # Nodes don't store op_noise; rebuild it from the noise builder so the struct's
-        # operator_noise_equations column is populated.
-        op_noise = Symbolics.Equation[]
-        for k in ks
-            on, _ = _noise_builder(sys.direction)(
-                [k], sys.jumps, sys.jumps_dagger,
-                sys.rates, sys.efficiencies
-            )
-            push!(op_noise, on[1])
-        end
-        return NoiseMeanfieldEquations(
-            avg_eqs, noise_eqs, operator_eqs, op_noise,
-            states, operators, sys.hamiltonian,
-            collect(sys.jumps), collect(sys.jumps_dagger),
-            collect(sys.rates), collect(sys.efficiencies),
-            sys.iv, sys.order, sys.direction;
-            treatments = copy(g.treatments),
-        )
+copy_graph(g::MomentGraph) =
+    MomentGraph(copy(g.nodes), g.sys, g.ctx, copy(g.treatments))
+
+"""
+Rewrite each node's `drift` (and, when `noise = true` and the node carries one, its `noise`)
+via `f(key, expr)`, returning a new graph with the same keys, `sys`, `ctx`, and `treatments`.
+The single primitive behind the drift-rewrite transforms (simplify, modify, translate,
+filter, arrayize). `f` receives the node key (the moment's operator) so key-aware rewrites
+(`modify_equations`, `translate_W_to_Y`) can use the LHS operator.
+"""
+function map_drifts(g::MomentGraph, f; noise::Bool = true)
+    nodes = OrderedCollections.OrderedDict{NodeKey, NodeData}()
+    for (k, nd) in g.nodes
+        new_drift = Symbolics.Num(SymbolicUtils.unwrap(f(k, nd.drift)))
+        new_noise = (noise && nd.noise !== nothing) ?
+            Symbolics.Num(SymbolicUtils.unwrap(f(k, nd.noise))) : nd.noise
+        nodes[k] = NodeData(new_drift, nd.op_drift, new_noise, nd.op_noise, nd.order, nd.aon)
     end
+    return MomentGraph(nodes, g.sys, g.ctx, g.treatments)
 end
+
+"""
+Assemble a graph into the array-backed wrapper. Dispatches on `g.sys.efficiencies`; the
+wrapper stores `g` as its source of truth and regenerates its view from it.
+"""
+assemble_equations(g::MomentGraph) =
+    g.sys.efficiencies === nothing ? MeanfieldEquations(g) : NoiseMeanfieldEquations(g)

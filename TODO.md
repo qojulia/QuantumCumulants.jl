@@ -2,20 +2,22 @@
 
 ## P1 graph and closure maintainability
 
-- Make `MomentGraph` the single source of semantic truth. Transformations currently
-  rebuild graphs from stored equations in some paths and rederive in others. Preserve
-  user RHS modifications, filter substitutions, treatment state, source averages,
-  and generated variables in one graph-backed representation.
+- Make correlation and spectrum graph-native. The core pipeline (`complete`, `scale`,
+  `evaluate`, `simplify`, `modify_equations`, `cumulant_expansion`) now reads and rewrites
+  the wrapper's `MomentGraph` directly, but `CorrelationFunction` still rebuilds a graph
+  from the assembled ancilla equations via `_graph_from_eqs`, and ambient/source averages
+  are not yet graph-tracked. Make these graph-native too and drop `_graph_from_eqs`.
 
 - Cache canonicalization. `canonical_rep`, `_treatment_key`, `symmetric_min`,
   `qadd_order_key`, `acts_on`, `get_order`, and conjugate representatives are repeatedly
   recomputed across closure, scale/evaluate, `System`, `get_solution`, correlation,
   and spectrum. Add per-graph caches keyed by operator identity / structural hash.
 
-- Preserve and validate user-modified equations. `modify_equations` changes stored
-  RHSs, but `complete` can rebuild from operators and discard those modifications.
-  Either make modifications graph-native or document and test the supported order of
-  operations.
+- Refresh the stored `ctx` vocabulary as closure mints indices. `MomentGraph.ctx` is
+  frozen at `meanfield` time, so consumers needing the post-completion index set (e.g.
+  `scale`'s coefficient `sym_to_space`) must currently recover it from the graph's moments.
+  Either update the ctx as new per-subspace indices are minted, or make that recovery the
+  documented contract.
 
 - Add closure diagnostics. Users need tooling to explain why a hierarchy grows:
   state-count per iteration, which RHS leaf introduced each new moment, filter hits,
@@ -31,11 +33,7 @@
   allocations in cumulant expansion, canonicalization, `evaluate`, `scale`,
   `System`, and `_spectrum_kernel`.
 
-- Update docs that drifted from implementation. `docs/src/correlation.md` still
-  describes the spectrum path as generating numerical functions with
-  `Symbolics.build_function`; the implementation currently classifies leaves and
-  substitutes numerically. Either update the docs or implement the generated-kernel
-  path.
+- Update docs that drifted from implementation.
 
 - Document the MTK bridge invariants. Explain why averages are not currently used
   directly as MTK unknowns, how conjugate folding is represented, and how users

@@ -5,7 +5,7 @@ _scale_selected(ctx::CanonCtx, h::Vector{Int}) =
 function quotient(g::MomentGraph; h::Vector{Int} = Int[])
     ctx = g.ctx
     selected = _scale_selected(ctx, h)
-    sym_to_space = _build_sym_to_space(ctx)
+    sym_to_space = _build_sym_to_space(g)
     # Key nodes in the graph's treatment with selected subspaces now Scaled (not bare
     # `scaled_key`, which would alpha-rename already-Concrete subspaces and collapse them).
     treatments = copy(g.treatments)
@@ -25,12 +25,18 @@ end
 
 """
 Symbol -> space_index map so an `IndexedVariable(:g, i)` coefficient can be traced to
-its source subspace.
+its source subspace. Built from the ctx vocabulary AND the indices actually present on the
+graph's moments: closure mints extra per-subspace indices (e.g. a second `i_2_2`) for
+two-body moments that the frozen ctx vocab does not list, and an unmapped coefficient index
+would otherwise be wrongly flattened (`_indexed_var_in_h` treats unknown as in-`h`).
 """
-function _build_sym_to_space(ctx::CanonCtx)
+function _build_sym_to_space(g::MomentGraph)
     out = Dict{Symbol, Int}()
-    for (sp, indices) in ctx.vocab, idx in indices
+    for (sp, indices) in g.ctx.vocab, idx in indices
         out[idx.name] = sp
+    end
+    for k in keys(g.nodes), idx in SQA.get_indices(k)
+        out[idx.name] = idx.space_index
     end
     return out
 end
@@ -42,8 +48,9 @@ flatten every `IndexedVariable(:g, i)` coefficient to its scalar `g` (all atoms 
 the same coupling under the scale symmetry).
 """
 function _scale_expr(x, ctx, selected, sym_to_space)
-    # `_graph_from_stored` lifted each leaf's scope onto the enclosing `*` node too;
-    # strip that duplicate so `_scale_leaf` (which owns the leaf scope) doesn't double `Σ`.
+    # Graph drifts are stored un-lifted (sum scope on each leaf), so this strip of any
+    # `*`-node scope is a no-op safeguard; `_scale_leaf` owns the leaf scope and the
+    # prefactor it implies.
     stripped = _strip_mul_sum_scope(SymbolicUtils.unwrap(x))
     reduced = mapleaves(l -> _scale_leaf(l, ctx, selected), stripped)
     return Symbolics.Num(_flatten_indexed_vars_in_tree(reduced, selected, sym_to_space))
@@ -204,16 +211,14 @@ mutates `eqs` in place; `scale` returns a new system.
 * `h=Int[]`: the Hilbert subspaces to scale, given by their `acts_on` indices. Empty
   scales every symmetric (indexed) subspace and leaves the others untouched.
 """
-# Build from STORED drifts, never re-derive: `complete(...; filter_func)` records
-# filter substitutions in `eqs.equations` that re-derivation would discard.
-scale(eqs::AbstractMeanfieldEquations; h::Vector{Int} = Int[]) =
-    assemble_equations(quotient(_graph_from_stored(eqs); h))
+scale(eqs::MeanfieldEquations; h::Vector{Int} = Int[]) =
+    MeanfieldEquations(quotient(eqs.graph; h))
+scale(eqs::NoiseMeanfieldEquations; h::Vector{Int} = Int[]) =
+    NoiseMeanfieldEquations(quotient(eqs.graph; h))
 
 function scale!(eqs::AbstractMeanfieldEquations; h::Vector{Int} = Int[])
-    scaled = scale(eqs; h)
-    _replace_contents!(eqs, scaled)
-    empty!(eqs.treatments)
-    merge!(eqs.treatments, scaled.treatments)
+    eqs.graph = quotient(eqs.graph; h)
+    resync!(eqs)
     return eqs
 end
 
