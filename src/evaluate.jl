@@ -230,8 +230,7 @@ _unroll_one(x::Number, _, _, _) = x
 function _unroll_one(qadd::QAdd, b::SQA.Index, n::Int, ctx)
     bare = QAdd(qadd.arguments, SQA.Index[i for i in qadd.indices if i != b])
     terms = Any[average(SQA.change_index(bare, b, _concrete_index(b, k, ctx))) for k in 1:n]
-    isempty(terms) && return 0
-    return reduce(+, terms)
+    return _bulk_add(terms)   # one Add over the n unrolled terms (avoids O(n^2) left-fold)
 end
 function _unroll_one(x::SymbolicUtils.BasicSymbolic, b::SQA.Index, n::Int, ctx)
     return rewrite(x) do y

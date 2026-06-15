@@ -42,6 +42,22 @@ get_order(x::Symbolics.Num) = get_order(SymbolicUtils.unwrap(x))
 
 _prod_ops(block::AbstractVector) = isempty(block) ? 1 : reduce(*, block)
 
+# Bulk-build a sum/product from a Vector of terms in one SymbolicUtils pass. We call the
+# add/mul workers on the Vector directly rather than splatting `+(terms...)`: splatting
+# materialises an `NTuple{N}` whose type depends on `N`, so a fresh expansion size forces
+# SymbolicUtils to recompile the worker (catastrophic at large `N`); a Vector keeps one
+# compiled method for every size. The workers accept "an indexable list" by their own API.
+function _vartype(xs)
+    for x in xs
+        x isa SymbolicUtils.BasicSymbolic && return SymbolicUtils.vartype(typeof(x))
+    end
+    return SymbolicUtils.SymReal
+end
+_bulk_add(terms::Vector) =
+    isempty(terms) ? 0 :
+    length(terms) == 1 ? terms[1] : SymbolicUtils.add_worker(_vartype(terms), terms)
+_bulk_mul(factors::Vector) = SymbolicUtils.mul_worker(_vartype(factors), factors)
+
 """
     cumulant(op, n=get_order(op))
 
@@ -69,11 +85,11 @@ cumulant(op::SQA.QSym, n::Int = 1) = n == 1 ? average(op) : 0
 
 function cumulant(op::QAdd, n::Int = get_order(op))
     n > get_order(op) && return 0
-    out = 0
+    terms = Any[]
     for (term, coeff) in op.arguments
-        out = out + coeff * _term_cumulant(term.ops, n)
+        push!(terms, coeff * _term_cumulant(term.ops, n))
     end
-    return out
+    return _bulk_add(terms)
 end
 
 function cumulant(avg::SymbolicUtils.BasicSymbolic, args...)
@@ -85,21 +101,22 @@ end
 
 function _term_cumulant(ops::Vector, n::Int)
     n > length(ops) && return 0
-    acc = 0
+    terms = Any[]
+    leaves = Dict{Any, Any}()   # the same block recurs across partitions; build its moment once
     # n-th joint cumulant: sum over partitions of [ops] into 1, 2, ..., n blocks,
     # each block weighted by (m-1)! (-1)^(m-1).
     for k in 1:n
         for p in partitions(ops, k)
             m = length(p)
             coeff = factorial(m - 1) * (-1)^(m - 1)
-            prod = 1
+            factors = Any[coeff]
             for block in p
-                prod = prod * average(_prod_ops(block))
+                push!(factors, get!(() -> average(_prod_ops(block)), leaves, Tuple(block)))
             end
-            acc = acc + coeff * prod
+            push!(terms, _bulk_mul(factors))
         end
     end
-    return acc
+    return _bulk_add(terms)
 end
 
 """
@@ -145,14 +162,16 @@ function cumulant_expansion(
         x::SymbolicUtils.BasicSymbolic, order::Int;
         mix_choice = maximum
     )
+    # Whole-expression early-out: if no moment exceeds the cap, nothing expands.
+    get_order(x) <= order && return x
     if _is_avg_leaf(x)
-        get_order(x) <= order && return x
         return _expand_average(SQA.undo_average(x), order)
     end
     if SymbolicUtils.iscall(x) && _has_average(x)
         op = SymbolicUtils.operation(x)
         args = SymbolicUtils.arguments(x)
         new_args = Any[cumulant_expansion(a, order; mix_choice) for a in args]
+        all(i -> new_args[i] === args[i], eachindex(args)) && return x
         return op(new_args...)
     end
     return x
@@ -162,6 +181,9 @@ function cumulant_expansion(
         x::SymbolicUtils.BasicSymbolic, order::Vector{Int};
         mix_choice = maximum
     )
+    # Conservative whole-expression early-out: total order <= the smallest per-subspace
+    # cap guarantees no leaf can exceed its own cap.
+    get_order(x) <= minimum(order) && return x
     if _is_avg_leaf(x)
         ops = SQA.undo_average(x)
         aons = SQA.acts_on(ops)
@@ -173,6 +195,7 @@ function cumulant_expansion(
         op = SymbolicUtils.operation(x)
         args = SymbolicUtils.arguments(x)
         new_args = Any[cumulant_expansion(a, order; mix_choice) for a in args]
+        all(i -> new_args[i] === args[i], eachindex(args)) && return x
         return op(new_args...)
     end
     return x
@@ -181,38 +204,22 @@ end
 cumulant_expansion(x::Symbolics.Num, order; kw...) =
     cumulant_expansion(SymbolicUtils.unwrap(x), order; kw...)
 
-function _expand_average(ops::QField, order::Int)
-    out = 0
-    if ops isa QAdd
-        for (term, coeff) in ops.arguments
-            piece = coeff * _expand_product(term.ops, order)
-            piece = _stamp_sum_to_first_leaves(piece, ops.indices, term.ne)
-            out = out + piece
-        end
-    else
-        out = average(ops)
-    end
-    return out
-end
-
 """
-Per-Hilbert-space variant of `_expand_average`: each emitted sub-block picks its
-own per-subspace order from `acts_on(block)` rather than the outer aggregate.
-Required for mixed `order = [m, n]` truncation, where an atom-only length-2 block
-emitted from a mixed expansion still needs to expand under the atom cap.
+Expand each Wick term of `ops` to `order` and re-attach its sum scope. For a vector
+`order = [m, n]`, each emitted sub-block picks its own per-subspace cap from
+`acts_on(block)` rather than the outer aggregate, so an atom-only length-2 block emitted
+from a mixed expansion still expands under the atom cap. `mix_choice` is ignored for a
+scalar `order`.
 """
-function _expand_average(ops::QField, order::Vector{Int}; mix_choice = maximum)
-    out = 0
-    if ops isa QAdd
-        for (term, coeff) in ops.arguments
-            piece = coeff * _expand_product(term.ops, order; mix_choice)
-            piece = _stamp_sum_to_first_leaves(piece, ops.indices, term.ne)
-            out = out + piece
-        end
-    else
-        out = average(ops)
+function _expand_average(ops::QField, order; mix_choice = maximum)
+    ops isa QAdd || return average(ops)
+    terms = Any[]
+    for (term, coeff) in ops.arguments
+        piece = coeff * _expand_product(term.ops, order; mix_choice)
+        piece = _stamp_sum_to_first_leaves(piece, ops.indices, term.ne)
+        push!(terms, piece)
     end
-    return out
+    return _bulk_add(terms)
 end
 
 """
@@ -234,7 +241,7 @@ function _stamp_sum_to_first_leaves(piece, indices::Vector{SQA.Index}, non_equal
     if SymbolicUtils.iscall(piece) && SymbolicUtils.operation(piece) === (+)
         terms = SymbolicUtils.arguments(piece)
         stamped = Any[_stamp_sum_to_first_leaves(t, indices, non_equal) for t in terms]
-        return reduce(+, stamped)
+        return _bulk_add(stamped)
     end
     leaves = eachleaf(piece)
     isempty(leaves) && return piece
@@ -303,28 +310,41 @@ the signed sum over partitions into 2..n blocks, dropping the joint cumulant abo
 `order`. Each partition of `m` blocks carries the moment-cumulant inversion weight
 `-(m-1)!·(-1)^(m-1)`; a block still longer than `order` is expanded recursively, a block
 within the cap is averaged directly. A product already within `order` is left as one
-average.
+average. `mix_choice` is accepted for signature parity with the vector method and ignored:
+a global cap needs no per-subspace choice.
 """
-function _expand_product(args::Vector, order::Int)
+_expand_product(args::Vector, order::Int; mix_choice = maximum) =
+    _expand_product!(args, order, Dict{Any, Any}())
+
+# Memoised worker. `_expand_product` of an ordered block at a fixed `order` is a pure
+# function of the two, but the same sub-block recurs across thousands of partitions: a
+# length-7 order-2 product reaches only 99 distinct blocks across 7022 recursive calls and
+# 28 distinct moment leaves across ~98k constructions. Caching by block content collapses
+# the redundant SymbolicUtils construction, the dominant cost (~17x on length-7 order-2).
+function _expand_product!(args::Vector, order::Int, memo::Dict)
+    key = Tuple(args)
+    cached = get(memo, key, nothing)
+    cached === nothing || return cached
     n = length(args)
-    n <= order && return average(_prod_ops(args))
-    acc = 0
-    for k in 2:n
-        for p in partitions(args, k)
-            m = length(p)
-            coeff = -factorial(m - 1) * (-1)^(m - 1)
-            prod = 1
-            for block in p
-                if length(block) > order
-                    prod = prod * _expand_product(block, order)
-                else
-                    prod = prod * average(_prod_ops(block))
+    if n <= order
+        res = average(_prod_ops(args))
+    else
+        terms = Any[]
+        for k in 2:n
+            for p in partitions(args, k)
+                m = length(p)
+                coeff = -factorial(m - 1) * (-1)^(m - 1)
+                factors = Any[coeff]
+                for block in p
+                    push!(factors, _expand_product!(block, order, memo))
                 end
+                push!(terms, _bulk_mul(factors))   # one Mul per partition, built once
             end
-            acc = acc + coeff * prod
         end
+        res = _bulk_add(terms)   # one Add over all partitions
     end
-    return acc
+    memo[key] = res
+    return res
 end
 
 """
@@ -332,29 +352,36 @@ Per-Hilbert-space variant of `_expand_product`: the truncation cap for each bloc
 own `mix_choice(order[acts_on])` rather than a single global `order`, so a mixed product
 is capped by the subspaces it actually touches.
 """
-function _expand_product(args::Vector, order::Vector{Int}; mix_choice = maximum)
+_expand_product(args::Vector, order::Vector{Int}; mix_choice = maximum) =
+    _expand_product!(args, order, mix_choice, Dict{Any, Any}())
+
+function _expand_product!(args::Vector, order::Vector{Int}, mix_choice, memo::Dict)
+    key = Tuple(args)
+    cached = get(memo, key, nothing)
+    cached === nothing || return cached
     p = _prod_ops(args)
     aons = SQA.acts_on(p)
     ord = isempty(aons) ? maximum(order) : mix_choice(order[k] for k in aons)
     n = length(args)
-    n <= ord && return average(p)
-    acc = 0
-    for k in 2:n
-        for part in partitions(args, k)
-            m = length(part)
-            coeff = -factorial(m - 1) * (-1)^(m - 1)
-            prod = 1
-            for block in part
-                prod = if length(block) == 1
-                    prod * average(block[1])
-                else
-                    prod * _expand_product(block, order; mix_choice)
+    if n <= ord
+        res = average(p)
+    else
+        terms = Any[]
+        for k in 2:n
+            for part in partitions(args, k)
+                m = length(part)
+                coeff = -factorial(m - 1) * (-1)^(m - 1)
+                factors = Any[coeff]
+                for block in part
+                    push!(factors, _expand_product!(block, order, mix_choice, memo))
                 end
+                push!(terms, _bulk_mul(factors))
             end
-            acc = acc + coeff * prod
         end
+        res = _bulk_add(terms)
     end
-    return acc
+    memo[key] = res
+    return res
 end
 
 """
@@ -368,6 +395,8 @@ drives the mixed-order truncation. Noise systems take their order through
 function cumulant_expansion(eqs::MeanfieldEquations, order)
     order_vec = _normalize_order(order, eqs)
     sys = eqs.graph.sys
+    # Idempotency: equations already expanded to exactly this order need no rebuild.
+    sys.order == order_vec && return eqs
     g = map_drifts(
         eqs.graph, (_, d) -> cumulant_expansion(d, order_vec; mix_choice = sys.mix_choice);
         noise = false,
