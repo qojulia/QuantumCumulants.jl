@@ -2,12 +2,6 @@
 
 ## P1 graph and closure maintainability
 
-- Make correlation and spectrum graph-native. The core pipeline (`complete`, `scale`,
-  `evaluate`, `simplify`, `modify_equations`, `cumulant_expansion`) now reads and rewrites
-  the wrapper's `MomentGraph` directly, but `CorrelationFunction` still rebuilds a graph
-  from the assembled ancilla equations via `_graph_from_eqs`, and ambient/source averages
-  are not yet graph-tracked. Make these graph-native too and drop `_graph_from_eqs`.
-
 - Cache canonicalization. `canonical_rep`, `_treatment_key`, `symmetric_min`,
   `qadd_order_key`, `acts_on`, `get_order`, and conjugate representatives are repeatedly
   recomputed across closure, scale/evaluate, `System`, `get_solution`, correlation,

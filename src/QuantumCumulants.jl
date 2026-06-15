@@ -49,6 +49,7 @@ include("scaling.jl")
 include("evaluate.jl")
 include("mtk.jl")
 include("correlation.jl")
+include("spectrum.jl")
 
 # plain-text and LaTeX display (after all displayed types are defined)
 include("printing.jl")

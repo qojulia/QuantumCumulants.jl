@@ -108,27 +108,6 @@ end
 _alltrue(_) = true
 
 """
-Rebuild a `MomentGraph` from an existing equations struct: every current state becomes a
-node, re-derived on its canon key, ready for `closure` to extend.
-"""
-function _graph_from_eqs(eqs::AbstractMeanfieldEquations; mix_choice = maximum)
-    ctx = build_ctx(eqs)
-    eff = eqs isa NoiseMeanfieldEquations ? eqs.efficiencies : nothing
-    sys = SystemSpec(
-        eqs.hamiltonian, eqs.jumps, eqs.jumps_dagger, eqs.rates, eff,
-        eqs.iv, eqs.order, mix_choice, eqs.direction,
-    )
-    nodes = OrderedCollections.OrderedDict{NodeKey, NodeData}()
-    for op in eqs.operators
-        opqa = op isa QAdd ? op : op * 1
-        k = canon_key(opqa, ctx)
-        haskey(nodes, k) && continue
-        nodes[k] = derive(k, sys, ctx)
-    end
-    return MomentGraph(nodes, sys, ctx, all_free_treatments(ctx))
-end
-
-"""
 Copy a `MomentGraph`'s mutable parts (the `nodes` and `treatments` dicts) while sharing the
 immutable `sys` and `ctx`. Backs the non-mutating `_copy` of a wrapper.
 """
