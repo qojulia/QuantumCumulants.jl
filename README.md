@@ -1,7 +1,12 @@
 # QuantumCumulants.jl
 
-![CI](https://github.com/qojulia/QuantumCumulants.jl/workflows/CI/badge.svg) [![Codecov](https://codecov.io/gh/qojulia/QuantumCumulants.jl/branch/master/graph/badge.svg)](https://codecov.io/gh/qojulia/QuantumCumulants.jl/branch/master/) [![Documentation](https://img.shields.io/badge/docs-stable-blue.svg)](https://qojulia.github.io/QuantumCumulants.jl/stable/) [![Documentation](https://img.shields.io/badge/docs-dev-blue.svg)](https://qojulia.github.io/QuantumCumulants.jl/dev/)
+[![](https://img.shields.io/badge/docs-dev-blue.svg)](https://qojulia.github.io/QuantumCumulants.jl/dev/)
+[![](https://img.shields.io/badge/docs-stable-blue.svg)](https://qojulia.github.io/QuantumCumulants.jl/stable/)
+[![Codecov](https://codecov.io/gh/qojulia/QuantumCumulants.jl/branch/master/graph/badge.svg)](https://codecov.io/gh/qojulia/QuantumCumulants.jl/branch/master/)
+[![Benchmarks](https://github.com/qojulia/QuantumCumulants.jl/actions/workflows/Benchmarks.yaml/badge.svg?branch=main)](https://qojulia.github.io/QuantumCumulants.jl/benchmarks/)
 
+[![Aqua QA](https://raw.githubusercontent.com/JuliaTesting/Aqua.jl/master/badge.svg)](https://github.com/JuliaTesting/Aqua.jl)
+[![jet](https://img.shields.io/badge/%F0%9F%9B%A9%EF%B8%8F_tested_with-JET.jl-233f9a)](https://github.com/aviatesk/JET.jl)
 
 **QuantumCumulants.jl** is a package for the symbolic derivation of mean-field equations for quantum mechanical operators in Julia. The equations are derived using fundamental commutation relations of operators. When averaging these equations they can be automatically expanded in terms of cumulants to an arbitrary order (generalized mean-field approximation). This results in a closed set of symbolic differential equations, which can also be solved numerically.
 
