@@ -15,7 +15,8 @@ function average_and_truncate(R::QAdd, order::TruncOrder, mix_choice, ctx::Canon
                 _scoped_average_coeff(c, term.ops, term.ne, R.indices), order; mix_choice,
             )
         else
-            acc = acc + _im_form(c) * _truncate_term(term.ops, term.ne, R.indices, order, mix_choice)
+            acc = acc + _im_form(_truncate_coeff(c, order, mix_choice)) *
+                _truncate_term(term.ops, term.ne, R.indices, order, mix_choice)
         end
     end
     return acc
@@ -72,6 +73,21 @@ Convert `Complex` coefficient literals to the factored `re + im*Symbolics.IM` fo
 """
 _im_form(c) = c
 _im_form(c::Complex) = real(c) + imag(c) * Symbolics.IM
+
+"""
+Truncate any averages carried by a coefficient to `order`. Forward coefficients are plain
+parameters with no averages and pass straight through; the backward trace term enters as an
+average-valued coefficient (`⟨J†J⟩ − ⟨JJ†⟩`) that must respect `order` like the operator block.
+"""
+function _truncate_coeff(c, order, mix_choice)
+    if c isa Complex
+        return _truncate_coeff(real(c), order, mix_choice) +
+            _truncate_coeff(imag(c), order, mix_choice) * im
+    end
+    u = c isa Symbolics.Num ? SymbolicUtils.unwrap(c) : c
+    (u isa SymbolicUtils.BasicSymbolic && _has_average(u)) || return c
+    return cumulant_expansion(c, order; mix_choice)
+end
 average_and_truncate(R::SQA.QField, order::TruncOrder, mix_choice, ::CanonCtx) =
     order === nothing ? average(R) : cumulant_expansion(average(R), order; mix_choice)
 

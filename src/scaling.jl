@@ -121,8 +121,11 @@ function _reattach_non_equal(folded::QAdd, kept_non_equal, keep_idx)
 end
 
 """
-Sum-scope prefactor: each bound index on a selected subspace that appears in some
-`term.ops` contributes `(b.range - count_non_equal_involving_b)`; others contribute 1.
+Sum-scope prefactor: each collapsed bound index `b` on a selected subspace contributes
+`b.range` minus the distinct partners it must differ from that are *already accounted for*
+(external indices, or an earlier collapsed bound index). Charging a mutual `i≠j` constraint
+once gives the falling-factorial count `N(N−1)…` rather than `(N−1)^k`. Indices not used by
+any `term.ops` contribute 1.
 """
 function _sum_scope_prefactor(op::QAdd, selected::Set{Int})
     isempty(op.indices) && return 1
@@ -130,10 +133,13 @@ function _sum_scope_prefactor(op::QAdd, selected::Set{Int})
     for (term, _) in op.arguments, o in term.ops
         SQA.has_index(o.index) && push!(op_indices, o.index)
     end
+    collapsing = Set{SQA.Index}(
+        b for b in op.indices if b in op_indices && b.space_index in selected
+    )
+    placed = Set{SQA.Index}()
     prefactor = 1
     for b in op.indices
-        b in op_indices || continue
-        b.space_index in selected || continue
+        b in collapsing || continue
         count_b = 0
         excluded = Set{SQA.Index}()
         for (term, _) in op.arguments, pair in term.ne
@@ -144,12 +150,14 @@ function _sum_scope_prefactor(op::QAdd, selected::Set{Int})
             else
                 continue
             end
+            # Charge a mutual `≠` once: skip a collapsed partner not yet placed.
+            (other in collapsing && !(other in placed)) && continue
             other in excluded && continue
             count_b += 1
             push!(excluded, other)
         end
-        factor = b.range - count_b
-        prefactor = (prefactor isa Number && prefactor == 1) ? factor : prefactor * factor
+        prefactor = prefactor * (b.range - count_b)
+        push!(placed, b)
     end
     return prefactor
 end

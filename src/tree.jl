@@ -26,7 +26,9 @@ function _qc_maketerm(T, op, args, meta)
     end
     try
         return op(args...)
-    catch
+    catch err
+        # Fall back only when `op` is not callable on these args; other errors are real.
+        (err isa MethodError || err isa ArgumentError) || rethrow()
         return TermInterface.maketerm(T, op, args, meta)
     end
 end

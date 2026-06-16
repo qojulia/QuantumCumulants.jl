@@ -98,3 +98,24 @@ end
     @test length(fw.equations) == length(bw.equations)
     @test !_is_zero(fw.equations[1].rhs - bw.equations[1].rhs)
 end
+
+@testset "Backward: trace term respects cumulant truncation order" begin
+    # Regression: the backward `op·(⟨J†J⟩−⟨JJ†⟩)` trace coefficient bypassed truncation,
+    # leaking moments above the cap for nonlinear jumps.
+    h = FockSpace(:a) ⊗ FockSpace(:b)
+    a = Destroy(h, :a, 1)
+    b = Destroy(h, :b, 2)
+    @variables κ::Real
+
+    # Two-mode jump a*b: J†J − JJ† = −1 − ⟨a†a⟩ − ⟨b†b⟩ retains order-2 moments at order 1.
+    bw1 = meanfield([a], κ * a' * a, [a * b]; rates = [κ], order = 1, direction = Backward())
+    @test get_order(bw1.equations[1].rhs) <= 1
+
+    # Cubic jump a^3: the trace retains ⟨a†a†aa⟩ (order 4), must factor under an order-2 cap.
+    bw2 = meanfield([a], κ * a' * a, [a * a * a]; rates = [κ], order = 2, direction = Backward())
+    @test get_order(bw2.equations[1].rhs) <= 2
+
+    # Single-operator jump a: trace = −1 (constant), so the exact κ(1 + ⟨a†a⟩) is preserved.
+    bw3 = meanfield([a' * a], κ * a' * a, [a]; rates = [κ], direction = Backward())
+    @test _is_zero(bw3.equations[1].rhs - (κ + κ * average(a' * a)))
+end

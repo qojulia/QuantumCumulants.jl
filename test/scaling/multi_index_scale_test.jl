@@ -39,3 +39,31 @@ import QuantumCumulants.SecondQuantizedAlgebra as SQA
     )
     @test !any(any_indexed_var(eq.rhs) for eq in eqs_sc.equations)
 end
+
+# Regression: two mutually-`≠` collapsed indices must give N(N−1), not (N−1)^2, and a
+# symbolic range must not throw.
+@testset "_sum_scope_prefactor: falling-factorial count, symbolic range safe" begin
+    ha = NLevelSpace(:atom, 2)
+    σ(α, β, k) = IndexedOperator(Transition(ha, :σ, α, β), k)
+    moment(ri, rj) = SQA.undo_average(
+        average(
+            Σ(
+                Σ(
+                    σ(2, 1, Index(ha, :i, ri, ha)) * σ(1, 2, Index(ha, :j, rj, ha)),
+                    Index(ha, :j, rj, ha), [Index(ha, :i, ri, ha)]
+                ), Index(ha, :i, ri, ha)
+            )
+        ),
+    )
+    @test isequal(QC._sum_scope_prefactor(moment(5, 5), Set([1])), 20)   # 5 * 4
+
+    @variables N::Int
+    pf = QC._sum_scope_prefactor(moment(N, N), Set([1]))                 # no throw on symbolic N
+    @test isequal(Symbolics.simplify(pf - N * (N - 1); expand = true), 0)
+
+    # Single collapsed index with an external `≠` partner keeps the N−1 count.
+    ext = Index(ha, :k, N, ha)
+    ib = Index(ha, :i, N, ha)
+    op1 = SQA.undo_average(average(Σ(σ(2, 1, ext) * σ(1, 2, ib), ib, [ext])))
+    @test isequal(Symbolics.simplify(QC._sum_scope_prefactor(op1, Set([1])) - (N - 1); expand = true), 0)
+end
