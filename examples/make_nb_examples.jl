@@ -8,7 +8,7 @@ default(; fmt = :png)
 const EXAMPLES_IN = @__DIR__
 const OUTPUT_NB_DIR = @__DIR__
 
-examples = filter!(file -> file[(end-2):end] == ".jl", readdir(EXAMPLES_IN; join = true))
+examples = filter!(file -> file[(end - 2):end] == ".jl", readdir(EXAMPLES_IN; join = true))
 filter!(
     file -> !contains(file, "make_nb_examples") && !contains(file, "heterodyne_detection"),
     examples,

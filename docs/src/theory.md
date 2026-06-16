@@ -10,7 +10,7 @@ In an open quantum system, the equation of motion of an operator ``\mathcal{O}``
 \dot{\mathcal{O}} = \frac{i}{\hbar}[H,\mathcal{O}] + \sum_n \frac{\gamma_n}{2}\left(2c_n^\dagger \mathcal{O}c_n - c_n^\dagger c_n \mathcal{O} - \mathcal{O}c_n^\dagger c_n\right) + \text{noise}.
 ```
 
-Note that we did not specify the noise term, since under the assumption of white noise it does not contribute to averages. We can therefore neglect it in the following. The above equation is an operator equation, i.e. solving it directly has the same numerical complexity as solving a stochastic master equation. However, averaging over the above we obtain a *c*-number equation, which, in principle, is easy to solve. This is the basic idea in **QuantumCumulants.jl**: derive equations of motions of operators, and then convert them to easily solvable *c*-number differential equations. However, as we will see, there is another crucial step required, namely the cumulant expansion.
+We did not specify the noise term. For the *unconditional* dynamics (the average over all measurement outcomes) the white-noise term does not contribute to averages, so we neglect it in the following. This is no longer the case when a decay channel is continuously monitored: the measurement backaction reintroduces a noise term, and QuantumCumulants can derive those stochastic equations too (see [Noise & measurement backaction](@ref)). The above equation is an operator equation, i.e. solving it directly has the same numerical complexity as solving a stochastic master equation. However, averaging over the above we obtain a *c*-number equation, which, in principle, is easy to solve. This is the basic idea in **QuantumCumulants.jl**: derive equations of motions of operators, and then convert them to easily solvable *c*-number differential equations. However, as we will see, there is another crucial step required, namely the cumulant expansion.
 
 ## A brief example
 
@@ -32,7 +32,7 @@ we derive
 
 ```math
 \begin{align*}
-\dot{a} &= i\Delta a - ig \sigma^{ge},
+\dot{a} &= -i\Delta a - ig \sigma^{ge},
 \\
 \dot{\sigma}^{ge} &= 2ig a \sigma^{ee} - ig a,
 \\
@@ -44,7 +44,7 @@ Since ``\dot{a}`` couples to ``\sigma^{ge}``, and ``\dot{\sigma}^{ge}`` to ``\si
 
 ```math
 \begin{align*}
-\langle\dot{a}\rangle &= i\Delta \langle a\rangle - ig \langle\sigma^{ge}\rangle,
+\langle\dot{a}\rangle &= -i\Delta \langle a\rangle - ig \langle\sigma^{ge}\rangle,
 \\
 \langle\dot{\sigma}^{ge}\rangle &= 2ig \langle a\sigma^{ee}\rangle - ig \langle a \rangle,
 \\
@@ -54,6 +54,24 @@ Since ``\dot{a}`` couples to ``\sigma^{ge}``, and ``\dot{\sigma}^{ge}`` to ``\si
 
 The above system can, however, not be solved since we encounter terms such as ``\langle a\sigma^{ee}\rangle``, meaning the set of equations is incomplete, since in general ``\langle a\sigma^{ee}\rangle \neq \langle a\rangle\langle\sigma^{ee}\rangle``. A naive approach would be to derive the equations for all missing average values. Unfortunately, these equations will couple to averages of ever longer operator products. A complete set of equations can therefore not be derived, since it would consist of infinitely many equations.
 
+## The cumulant hierarchy
+
+The coupling we just hit is generic. Every equation of motion sends an operator product through the commutator with ``H``, and for an interacting Hamiltonian (the dipole coupling ``g`` here) the commutator is a *longer* product, so an average of order ``n`` couples to averages of order ``n+1``. Those couple to order ``n+2``, and so on. The equations form an infinite tower, the **cumulant hierarchy**:
+
+```
+order   averages at this level         what couples them
+─────   ────────────────────────────   ──────────────────────────────────
+  1     ⟨a⟩   ⟨σ^ge⟩   ⟨σ^ee⟩           the dipole coupling g
+        │                             raises the order by one
+        ▼
+  2     ⟨a σ^ee⟩   ⟨a† σ^ge⟩   …
+        │
+        ▼
+  3     ⟨a† a σ^ge⟩   …
+        ⋮   infinite: the coupling never stops climbing
+```
+
+For an *open* system the two parts of the Quantum Langevin equation play opposite roles in this tower. The interaction terms in ``H`` are what climb it (the vertical edges above), while the dissipator ``\sum_n \gamma_n(\ldots)`` and the free, quadratic part of ``H`` couple an average only to others of the same or lower order. Dissipation damps the dynamics but does not grow the hierarchy. A purely quadratic Hamiltonian with linear damping therefore never climbs and closes exactly at order ``2``; the interesting case is the non-quadratic one, where the tower is genuinely infinite and has to be cut. That cut is the cumulant expansion.
 
 ## Cumulant expansion
 
@@ -95,7 +113,7 @@ Returning to the example of the Jaynes-Cummings Hamiltonian, we could use the cu
 
 ```math
 \begin{align*}
-\langle\dot{a}\rangle &= i\Delta \langle a\rangle - ig \langle\sigma^{ge}\rangle,
+\langle\dot{a}\rangle &= -i\Delta \langle a\rangle - ig \langle\sigma^{ge}\rangle,
 \\
 \langle\dot{\sigma}^{ge}\rangle &= 2ig \langle a\rangle\langle\sigma^{ee}\rangle - ig \langle a \rangle,
 \\
@@ -111,7 +129,7 @@ set_default(double_linebreak=true) # hide
 using QuantumCumulants
 
 # Symbolic parameters
-@cnumbers Δ g
+@variables Δ::Real g::Real
 
 # Hilbert space
 hf = FockSpace(:cavity)
@@ -119,7 +137,8 @@ ha = NLevelSpace(:atom,(:g,:e))
 h = hf⊗ha
 
 # Operators
-@qnumbers a::Destroy(h) σ::Transition(h)
+@qnumbers a::Destroy(h)
+σ(i, j) = Transition(h, :σ, i, j)
 
 # Hamiltonian
 H = Δ*a'*a + g*(a'*σ(:g,:e) + a*σ(:e,:g))
@@ -152,9 +171,8 @@ nothing # hide
 \end{align*}
 ```
 
-Note, that **QuantumCumulants.jl** automatizes the derivation of equations and the cumulant expansion. Furthermore, the final step of numerical implementation is handled by converting to the [**ModelingToolkit.jl**](https://github.com/SciML/ModelingToolkit.jl) framework.
+Note that **QuantumCumulants.jl** automatizes the derivation of equations and the cumulant expansion. The final step of numerical implementation is handled by converting to the [**ModelingToolkitBase.jl**](https://github.com/SciML/ModelingToolkitBase.jl) framework via `System`.
 
 ### References
 
-* R. Kubo. "Generalized cumulant expansion method." Journal of the Physical Society of Japan 17.7 (1962): 1100-1120.
-  URL: [https://www.jstage.jst.go.jp/article/jpsj1946/17/7/17_7_1100/_article/-char/ja/](https://www.jstage.jst.go.jp/article/jpsj1946/17/7/17_7_1100/_article/-char/ja/)
+* R. Kubo. "Generalized cumulant expansion method." Journal of the Physical Society of Japan 17.7 (1962): 1100-1120. URL: [https://www.jstage.jst.go.jp/article/jpsj1946/17/7/17_7_1100/_article/-char/ja/](https://www.jstage.jst.go.jp/article/jpsj1946/17/7/17_7_1100/_article/-char/ja/)

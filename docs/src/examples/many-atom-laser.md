@@ -28,7 +28,7 @@ We start by loading the needed packages.
 
 ````@example many-atom-laser
 using QuantumCumulants
-using ModelingToolkit, OrdinaryDiffEq
+using ModelingToolkitBase, OrdinaryDiffEq
 using Plots
 ````
 
@@ -36,14 +36,14 @@ Then we define the symbolic parameters of the system, the Hilbertspace and the n
 
 ````@example many-atom-laser
 N = 2 # number of atoms
-κ, g, Γ23, Γ13, Γ12, Ω, Δc, Δ3 = cnumbers("κ g Γ_{23} Γ_{13} Γ_{12} Ω Δ_c Δ_3")
+@variables κ g Γ23 Γ13 Γ12 Ω Δc Δ3
 
 hf = FockSpace(:cavity) # Hilbertspace
-ha = ⊗([NLevelSpace(Symbol(:atom, i), 3) for i = 1:N]...)
+ha = ⊗([NLevelSpace(Symbol(:atom, i), 3) for i in 1:N]...)
 h = hf ⊗ ha
 
 a = Destroy(h, :a) # Operators
-σ(i, j, k) = Transition(h, Symbol("σ_{$k}"), i, j, k+1)
+σ(i, j, k) = Transition(h, Symbol("σ_{$k}"), i, j, k + 1)
 nothing # hide
 ````
 
@@ -51,13 +51,13 @@ Now we create the Hamiltonian and the jumps with the corresponding rates of our 
 
 ````@example many-atom-laser
 H =
-    -Δc*a'a +
-    sum(g*(a'*σ(1, 2, i) + a*σ(2, 1, i)) for i = 1:N) +
-    sum(Ω*(σ(3, 1, i) + σ(1, 3, i)) for i = 1:N) - sum(Δ3*σ(3, 3, i) for i = 1:N) # Hamiltonian
+    -Δc * a'a +
+    sum(g * (a' * σ(1, 2, i) + a * σ(2, 1, i)) for i in 1:N) +
+    sum(Ω * (σ(3, 1, i) + σ(1, 3, i)) for i in 1:N) - sum(Δ3 * σ(3, 3, i) for i in 1:N) # Hamiltonian
 
-J = [a; [σ(1, 2, i) for i = 1:N]; [σ(1, 3, i) for i = 1:N]; [σ(2, 3, i) for i = 1:N]] # Jumps
+J = [a; [σ(1, 2, i) for i in 1:N]; [σ(1, 3, i) for i in 1:N]; [σ(2, 3, i) for i in 1:N]] # Jumps
 
-rates = [κ; [Γ12 for i = 1:N]; [Γ13 for i = 1:N]; [Γ23 for i = 1:N]] # Rates
+rates = [κ; [Γ12 for i in 1:N]; [Γ13 for i in 1:N]; [Γ23 for i in 1:N]] # Rates
 nothing # hide
 ````
 
@@ -66,8 +66,7 @@ Later we will complete the system automatically, which has the disadvantage that
 ````@example many-atom-laser
 ops = [a'a, σ(2, 2, 1), σ(3, 3, 1)] # list of operators
 
-eqs = meanfield(ops, H, J; rates = rates)
-eqs_expanded = cumulant_expansion(eqs, 2) #second order average
+eqs = meanfield(ops, H, J; rates = rates, order = 2) #second order average
 nothing # hide
 ````
 
@@ -80,7 +79,7 @@ nothing # hide
 ```
 
 ````@example many-atom-laser
-me_comp = complete(eqs_expanded) # automatically complete the system
+complete!(eqs) # automatically complete the system
 nothing # hide
 ````
 
@@ -89,14 +88,15 @@ To calculate the time evolution we create a Julia function which can be used by 
 Build a System out of the MeanfieldEquations
 
 ````@example many-atom-laser
-@named sys = System(me_comp)
+sys = System(eqs; name = :laser)
+sys_c = mtkcompile(sys)
 nothing # hide
 ````
 
 Finally, we compute the time evolution after defining an initial state and numerical values for the parameters.
 
 ````@example many-atom-laser
-u0 = zeros(ComplexF64, length(me_comp)) # initial state
+u0 = initial_values(eqs) # initial state
 
 Γ12n = 1.0
 Γ23n = 20Γ12n
@@ -108,20 +108,21 @@ gn = 2Γ12n
 κn = 0.5Γ12n
 
 ps = (g, Γ23, Γ13, Γ12, Ω, Δc, Δ3, κ) # list of parameters
-p0 = ps .=> (gn, Γ23n, Γ13n, Γ12n, Ωn, Δcn, Δ3n, κn)
-tend = 10.0/κn
+p0 = Dict(ps .=> (gn, Γ23n, Γ13n, Γ12n, Ωn, Δcn, Δ3n, κn))
+tend = 10.0 / κn
 
-dict = merge(Dict(unknowns(sys) .=> u0), Dict(p0))
-prob = ODEProblem(sys, dict, (0.0, tend))
-sol = solve(prob, Tsit5(), reltol = 1e-8, abstol = 1e-8)
+prob = ODEProblem(sys_c, merge(u0, p0), (0.0, tend))
+sol = solve(prob, Tsit5(), reltol = 1.0e-8, abstol = 1.0e-8)
 nothing # hide
 ````
 
 We plot the average photon number and the population inversion of the lasing transition.
 
 ````@example many-atom-laser
-n_t = real.(sol[average(a'*a)])
-σ22m11_t = real.(2*sol[σ(2, 2, 1)] .+ sol[σ(3, 3, 1)] .- 1) #σ11 + σ22 + σ33 = 𝟙
+n_t = real.(get_solution(sol, a' * a, eqs).(sol.t))
+σ22_t = real.(get_solution(sol, σ(2, 2, 1), eqs).(sol.t))
+σ33_t = real.(get_solution(sol, σ(3, 3, 1), eqs).(sol.t))
+σ22m11_t = 2 .* σ22_t .+ σ33_t .- 1 #σ11 + σ22 + σ33 = 𝟙
 
 p1 = plot(sol.t, n_t, xlabel = "tΓ₁₂", ylabel = "⟨a⁺a⟩", legend = false) # Plot
 p2 = plot(sol.t, σ22m11_t, xlabel = "tΓ₁₂", ylabel = "⟨σ22⟩ - ⟨σ11⟩", legend = false)
@@ -138,7 +139,7 @@ versioninfo()
 
 using Pkg
 Pkg.status(
-    ["QuantumCumulants", "OrdinaryDiffEq", "ModelingToolkit", "Plots"],
+    ["QuantumCumulants", "OrdinaryDiffEq", "ModelingToolkitBase", "Plots"],
     mode = PKGMODE_MANIFEST,
 )
 ````

@@ -14,7 +14,7 @@ So in any case, we need to treat the two-time correlation function before we can
 
 In order to compute a correlation function, we first evolve a system of equations up to a time ``t``. Then, we can derive another set of equations that describe the correlation function. This new set of equations is then evolved from time ``t`` up to a time ``t+\tau``. The correlation function is then stored in the first entry of the result. The initial state of the set of equations describing the correlation function will be determined by the state of the original system at time ``t``.
 
-Note, that whenever an instance of a [`CorrelationFunction`](@ref) is created, a set of equations is derived using a custom version of the [`complete`](@ref) function. Depending on the size and order of the considered system, this can take some time. An important distinction that can eventually reduce the computation time by quite a bit is whether or not the original system has been evolved up to steady state, i.e. if the system does not change its state after ``t``. This can be controlled with the keyword argument `steady_state=true` when construction the [`CorrelationFunction`](@ref).
+Whenever an instance of a [`CorrelationFunction`](@ref) is created, a set of equations is derived with [`meanfield`](@ref) and then closed via the cumulant closure. Internally, **QuantumCumulants.jl** introduces an *ancilla* subspace carrying the second operator `op2` at time `t`; the τ-equations are derived for averages that touch this ancilla, while non-ancilla averages on the RHS are treated as steady-state coefficients. Depending on the size and order of the considered system, this can take some time. An important distinction that can reduce the computation time substantially is whether the original system has been evolved to steady state. This is controlled by the keyword `steady_state=true` (the default) on [`CorrelationFunction`](@ref).
 
 To clarify the usage, consider the simple case of a cavity with resonance frequency $\omega_\mathrm{c}$ that initially has a finite number of photons inside which decay over time at a rate ``\kappa``. We want to compute the two-time correlation function of the field (first-order degree of coherence) given by
 ```math
@@ -37,51 +37,105 @@ This is the essential procedure with which correlation functions can be computed
 ```@example correlation
 using QuantumCumulants # hide
 h = FockSpace(:cavity)
-a = Destroy(h,:a)
-@cnumbers ωc κ
+a = Destroy(h, :a)
+@variables ωc::Real κ::Real
 H = ωc*a'*a
-me = meanfield(a'*a,H,[a];rates=[κ])
+me = meanfield(a'*a, H, [a]; rates=[κ])
 
-c = CorrelationFunction(a', a, me)
+c = CorrelationFunction(a', a, me; steady_state=false)
 nothing # hide
 ```
-When the [`CorrelationFunction`](@ref) is constructed, an additional Hilbert space is added internally which represents the system at the time ``t``. In our case, this means that another [`FockSpace`](@ref) is added. Note that all operators involved in the correlation function are defined on the [`ProductSpace`](@ref) including this additional Hilbert space.
+When the [`CorrelationFunction`](@ref) is constructed, an additional Hilbert space is added internally which represents the system at the time ``t``. In our case, this means that another [`FockSpace`](@ref) is added. The τ-equations live on the extended product space and are stored in `c.eqs`.
 
-The equation for ``g(t,\tau)`` is now stored in the first entry of `c.de`. To solve the above numerically, we need to convert to an `System` and solve numerically.
+To solve the original system numerically, build its MTK system via `System` and feed it into OrdinaryDiffEq. The ⟨a'a⟩ equation depends only on `κ`; `ωc` only enters once we evolve the correlation function (which carries a `⟨a†⟩` factor whose phase rotates at `ωc`):
 ```@example correlation
-using ModelingToolkit, OrdinaryDiffEq
+using ModelingToolkitBase, OrdinaryDiffEq
 
-@named sys = System(me)
+sys = mtkcompile(System(me; name=:cav))
 n0 = 20.0 # Initial number of photons in the cavity
-n_avg = unknowns(sys) |> first
-p0 = (ωc => 1, κ => 1, n_avg => n0) # Initial values and parameters
-prob = ODEProblem(sys,Dict(p0),(0.0,2.0)) # End time not in steady state
-sol = solve(prob,RK4())
+u0 = initial_values(me, [ComplexF64(n0)])   # me.states is the single ⟨a'a⟩ state
+ωc_val, κ_val = 1.0, 1.0
+prob = ODEProblem(sys, merge(u0, Dict(κ => κ_val)), (0.0, 2.0)) # end time not in steady state
+sol = solve(prob, Tsit5())
 nothing # hide
 ```
-Numerically computing the correlation function works in the same way. Note, the initial state of the correlation function depends on the final state of the system. However, in general it does not depend on *all* the final values of the system. The correct values can be picked out automatically using the [`correlation_u0`](@ref) function.
+Numerically computing the correlation function works in the same way. The initial state of the τ-system depends on the final state of the system, and [`correlation_u0`](@ref) picks the right steady-state averages out of the original solution automatically. Parameters needed by the τ-system are propagated with [`correlation_p0`](@ref):
 ```@example correlation
-@named csys = System(c)
+csys = mtkcompile(System(c; name=:cav_corr))
 u0_c = correlation_u0(c, sol.u[end])
-prob_c = ODEProblem(csys,merge(Dict(u0_c),Dict(p0)),(0.0,10.0))
-sol_c = solve(prob_c,RK4(),save_idxs=1)
+p0_c = correlation_p0(c, sol.u[end], [ωc => ωc_val, κ => κ_val])
+prob_c = ODEProblem(csys, merge(u0_c, Dict(p0_c)), (0.0, 10.0))
+sol_c = solve(prob_c, Tsit5(), save_idxs=1)
 nothing # hide
 ```
 Finally, let's check our numerical solution against the analytic one obtained above:
 ```@example correlation
 using Test # hide
-g_analytic(τ) = @. sol.u[end] * exp((im*p0[1][2]-0.5p0[2][2])*τ)
+g_analytic(τ) = @. sol.u[end][1] * exp((im*ωc_val - 0.5*κ_val)*τ)
 @test isapprox(sol_c.u, g_analytic(sol_c.t), rtol=1e-4)
 ```
 
-Note, that this was a very simple case. Usually the system of equations describing the correlation function is much more complex and depends on multiple other correlation functions (see for example [Spectrum of a single atom laser](@ref)).
+Note that this was a very simple case. Usually the system of equations describing the correlation function is much more complex and depends on multiple other correlation functions (see for example [Spectrum of a single-atom laser](@ref)).
+
+
+### Time-dependent Hamiltonians
+
+So far the Hamiltonian was time-independent. When ``H`` (or the jump operators or rates) depends on the time variable ``t``, for instance through a registered drive or modulation ``f(t)``, some care is needed. The correlation function
+```math
+g(t_0,\tau) = \langle a^\dagger(t_0+\tau)\,a(t_0)\rangle
+```
+is evaluated by the quantum regression theorem at the *absolute* time ``t_0+\tau``, **not** at ``\tau``: the modulation keeps running during the delay ``\tau``, starting from the time ``t_0`` at which the original evolution stopped. **QuantumCumulants.jl** implements this by substituting ``t \to t_0 + \tau`` in the correlation equations. You supply ``t_0`` through the `iv0` keyword of [`CorrelationFunction`](@ref).
+
+As an illustration, take a cavity with a sinusoidally modulated frequency ``\omega_c(t) = \omega_c + \delta\cos(\nu\,t)``. We register the modulation and build the time-dependent system on the mean-field independent variable `t`:
+```@example correlation
+@variables δ::Real t0::Real
+@register_symbolic ωmod(t)
+ν = 0.8 # modulation frequency (numeric)
+ωmod(t) = cos(ν*t)
+
+t = me.iv
+H_t = (ωc + δ*ωmod(t))*a'*a
+me_t = meanfield(a'*a, H_t, [a]; rates=[κ])
+
+c_t = CorrelationFunction(a', a, me_t; iv0=t0)
+nothing # hide
+```
+Without `iv0`, a time-dependent system raises an informative error, since the correlation equations would otherwise contain the orphaned time variable `t`. We evolve the original system to some stop time `t0`, then evolve the correlation with `t0` propagated as a parameter:
+```@example correlation
+sys_t = mtkcompile(System(me_t; name=:cav_t))
+ωc_val, κ_val, δ_val, t0_val = 2.0, 0.5, 1.5, 5.0
+u0_t = initial_values(me_t, [ComplexF64(4.0)]) # 4 photons initially
+prob_t = ODEProblem(sys_t, merge(u0_t, Dict(κ => κ_val)), (0.0, t0_val))
+sol_t = solve(prob_t, Tsit5(), abstol=1e-12, reltol=1e-12)
+
+csys_t = mtkcompile(System(c_t; name=:cav_t_corr))
+u0_ct = correlation_u0(c_t, sol_t.u[end])
+p0_ct = correlation_p0(c_t, sol_t.u[end], [ωc => ωc_val, κ => κ_val, δ => δ_val, t0 => t0_val])
+prob_ct = ODEProblem(csys_t, merge(u0_ct, Dict(p0_ct)), (0.0, 8.0))
+sol_ct = solve(prob_ct, Tsit5(), abstol=1e-12, reltol=1e-12, save_idxs=1)
+nothing # hide
+```
+The frequency modulation cancels in the photon-number dynamics, so ``\langle a^\dagger a\rangle(t_0) = n_0 e^{-\kappa t_0}``, and the correlation has the closed form
+```math
+g(t_0,\tau) = \langle a^\dagger a\rangle(t_0)\,
+\exp\!\left[-\tfrac{\kappa}{2}\tau + i\,\omega_c\tau + i\,\tfrac{\delta}{\nu}\bigl(\sin(\nu(t_0+\tau)) - \sin(\nu t_0)\bigr)\right],
+```
+which depends on the stop time ``t_0`` through the modulation phase. We verify the numerical solution against it:
+```@example correlation
+using Test # hide
+n_t0 = real(sol_t.u[end][1])
+g_t(τ) = @. n_t0 * exp(-0.5*κ_val*τ + im*(ωc_val*τ + (δ_val/ν)*(sin(ν*(t0_val+τ)) - sin(ν*t0_val))))
+@test isapprox(sol_ct.u, g_t(sol_ct.t), rtol=1e-6)
+```
+A worked physical application, recovering the Mollow triplet of a pulsed drive from a plateau time ``t_0``, is given in [Mollow Triplet from a Pulsed Drive](@ref).
 
 
 ## Spectrum calculation
 
-There are two possible ways two compute the spectrum given a correlation function:
+There are two possible ways to compute the spectrum given a correlation function:
 
 1. Solving the differential equation needed to obtain ``g(t,\tau)`` and taking the Fourier transform.
+
 2. Taking the (symbolic) Laplace transform of the system of equations describing a correlation function.
 
 On the one hand, the first approach works generally, but is computationally more intense. The second approach, on the other hand, yields a simple linear system of equations which is easy to solve, but only works when the correlation function has been computed starting from the steady state. Both methods can be easily used with **QuantumCumulants.jl**.
@@ -96,7 +150,7 @@ using QuantumOptics.timecorrelations: correlation2spectrum
 ω, s = correlation2spectrum(τ, sol_c.(τ))
 nothing # hide
 ```
-The spectrum obtained in this way roughly has a FWHM of `κ` and is based around the chosen `ωc`. The fact that the FWHM is not *exactly* `κ` illustrates the computation drawback: in order to obtain the correct FWHM we would have to increase the integration time by orders of magnitude. For larger systems, this can be computationally expensive.
+The spectrum obtained in this way roughly has a FWHM of `κ` and is centred around the chosen `ωc`. The fact that the FWHM is not *exactly* `κ` illustrates the computational drawback: in order to obtain the correct FWHM we would have to increase the integration time by orders of magnitude. For larger systems, this can be computationally expensive.
 
 
 ### Steady state: using the Laplace transform
@@ -117,22 +171,23 @@ A\textbf{x} = b + c,
 ```
 where ``A = i\omega - \textbf{M}``, ``b = \textbf{y}(0)`` and ``c=\textbf{c}/(i\omega)``. In most cases, solving the above matrix equation is much faster than doing an additional time evolution to obtain the correlation function.
 
-This approach is implemented with the [`Spectrum`](@ref Spectrum) type, which performs the Laplace transform and computes the matrix ``A`` and the vectors ``b`` and ``c`` symbolically. Additionally, functions that return all those things in numerical form depending on the steady-state values and given parameters are generated via [Symbolics](https://github.com/JuliaSymbolics/Symbolics.jl) `build_function`. Usage is as follows:
+This approach is implemented with the [`Spectrum`](@ref Spectrum) type, which performs the Laplace transform and computes the matrix ``A`` and the vectors ``b`` and ``c`` symbolically. Functions returning all those things in numerical form depending on the steady-state values and given parameters are generated via [Symbolics](https://github.com/JuliaSymbolics/Symbolics.jl) `build_function`. Usage is as follows:
 
 ```@example correlation
 c = CorrelationFunction(a', a, me; steady_state=true) # need to specify steady state
-S = Spectrum(c,(ωc,κ))
+S = Spectrum(c, (ωc, κ))
 nothing # hide
 ```
 
-The above performs the Laplace transform on a symbolic level (i.e. it derives the matrix ``A``). To actually compute the spectrum, we can do
+The above performs the Laplace transform on a symbolic level (i.e. it derives the matrix ``A``). To actually compute the spectrum, we evaluate at a frequency `ω`, using the final state of the original system and the parameter values:
 
 ```@example correlation
-s = S(ω,sol.u[end],getindex.(p0, 2))
+s = S(ω, sol.u[end], [ωc_val, κ_val])
 nothing # hide
 ```
 
 ## Examples:
 
 * [Mollow Triplet](@ref)
-* [Spectrum of a single atom laser](@ref)
+
+* [Spectrum of a single-atom laser](@ref)

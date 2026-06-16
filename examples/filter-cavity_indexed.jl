@@ -15,12 +15,12 @@
 # We start by loading the packages.
 
 using QuantumCumulants
-using OrdinaryDiffEq, ModelingToolkit
+using OrdinaryDiffEqTsit5, ModelingToolkitBase
 using Plots
 
 # We create the parameters of the system including the $\texttt{IndexedVariable}$ $\delta_i$. For the atoms and filter cavities we only need one Hilbert space each. We define the indices for each Hilbert space and use them to create $\texttt{IndexedOperators}$.
 
-@cnumbers κ g gf κf R Γ Δ ν N M # Parameters
+@variables κ g gf κf R Γ Δ ν N M # Parameters
 δ(i) = IndexedVariable(:δ, i)
 
 hc = FockSpace(:cavity) # Hilbert spaces
@@ -33,16 +33,22 @@ j = Index(h, :j, N, ha)
 
 @qnumbers a::Destroy(h, 1)
 b(k) = IndexedOperator(Destroy(h, :b, 2), k)
+# `i` is bound by the Hamiltonian sums and the dissipator. The canonical
+# free-index slot on the filter Hilbert space mints `i_2` (lex-first
+# declared index, suffix 2) to keep state names disjoint from H's bound
+# scope. Per-atom state lookups thus use `i_2(k) = i_2_k`, not `i(k)`.
+b(k::Integer) = IndexedOperator(Destroy(h, :b, 2), i(2)(k))
 σ(α, β, k) = IndexedOperator(Transition(h, :σ, α, β, 3), k)
+σ(α, β, k::Integer) = IndexedOperator(Transition(h, :σ, α, β, 3), j(k))
 nothing # hide
 
 # We define the Hamiltonian using symbolic sums and define the individual dissipative processes. For an indexed jump operator the (symbolic) sum is build in the Liouvillian, in this case corresponding to individual decay processes.
 
 H =
-    Δ*Σ(σ(2, 2, j), j) +
-    Σ(δ(i)*b(i)'b(i), i) +
-    gf*(Σ(a'*b(i) + a*b(i)', i)) +
-    g*(Σ(a'*σ(1, 2, j) + a*σ(2, 1, j), j)) # Hamiltonian
+    Δ * Σ(σ(2, 2, j), j) +
+    Σ(δ(i) * b(i)'b(i), i) +
+    gf * (Σ(a' * b(i) + a * b(i)', i)) +
+    g * (Σ(a' * σ(1, 2, j) + a * σ(2, 1, j), j)) # Hamiltonian
 
 J = [a, b(i), σ(1, 2, j), σ(2, 1, j), σ(2, 2, j)] # Jumps & rates
 rates = [κ, κf, Γ, R, ν]
@@ -60,20 +66,20 @@ nothing # hide
 # \end{align}
 # ```
 
-eqs_c = complete(eqs);
+eqs_c = complete!(deepcopy(eqs));
 nothing # hide
 
 # Now we assume that all atoms behave identically, but we want to obtain the equations for 20 different filter cavities. To this end we $\texttt{scale}$ the Hilbert space of the atoms and $\texttt{evaluate}$ the filter cavities. Specifying the Hilbert space is done with the kwarg $\texttt{h}$, which can either be the specific Hilbert space or its acts-on number. Evaluating the filter cavities requires a numeric upper bound for the used $\texttt{Index}$, we provide this with a dictionary on the kwarg $\texttt{limits}$.
 
 M_ = 20
-eqs_sc = scale(eqs_c; h = [ha]) #h=[3]
-eqs_eval = evaluate(eqs_sc; limits = Dict(M=>M_)) #h=[hf]
+eqs_sc = scale(eqs_c; h = [3])
+eqs_eval = evaluate(eqs_sc; limits = Dict(M => M_))
 println("Number of eqs.: $(length(eqs_eval))")
 
 # To calculate the dynamics of the system we create a system of ordinary differential equations, which can be used by [DifferentialEquations.jl](https://diffeq.sciml.ai/stable/). Finally we need to define the numerical parameters and the initial state of the system.
 
-
-@named sys = System(eqs_eval)
+sys = System(eqs_eval; name = :sys)
+sys_c = mtkcompile(sys)
 nothing # hide
 
 #
@@ -91,30 +97,34 @@ R_ = 10Γ_
 
 gf_ = 0.1Γ_
 κf_ = 0.1Γ_
-δ_ls = [0:(1/M_):(1-1/M_);]*10Γ_
+δ_ls = [0:(1 / M_):(1 - 1 / M_);] * 10Γ_
 
-ps = [Γ, κ, g, κf, gf, R, [δ(i) for i = 1:M_]..., Δ, ν, N]
-p0 = [Γ_, κ_, g_, κf_, gf_, R_, δ_ls..., Δ_, ν_, N_]
-
-dict = merge(Dict(unknowns(sys) .=> u0), Dict(ps .=> p0))
-prob = ODEProblem(sys, dict, (0.0, 10.0/κf_))
+pmap = parameter_map(
+    eqs_eval, Dict(
+        Γ => Γ_, κ => κ_, g => g_, κf => κf_, gf => gf_, R => R_,
+        δ(i) => δ_ls,
+        Δ => Δ_, ν => ν_, N => N_,
+    )
+)
+dict = merge(initial_values(eqs_eval, u0), pmap)
+prob = ODEProblem(sys_c, dict, (0.0, 10.0 / κf_))
 nothing # hide
 
 #
 
-sol = solve(prob, Tsit5(); abstol = 1e-10, reltol = 1e-10, maxiters = 1e7) # Solve the numeric problem
+sol = solve(prob, Tsit5(); abstol = 1.0e-10, reltol = 1.0e-10, maxiters = 1.0e7) # Solve the numeric problem
 
 t = sol.t
-n = abs.(sol[a'a])
-n_b(i) = abs.(sol[b(i)'b(i)])
-n_f = [abs(sol[b(i)'b(i)][end]) for i = 1:M_] ./ (abs(sol[b(1)'b(1)][end]))
+n = abs.(get_solution(sol, a'a, eqs_eval).(t))
+n_b(i) = abs.(get_solution(sol, b(i)'b(i), eqs_eval).(t))
+n_f = [abs(get_solution(sol, b(i)'b(i), eqs_eval)(t[end])) for i in 1:M_] ./
+    (abs(get_solution(sol, b(1)'b(1), eqs_eval)(t[end])))
 nothing # hide
 
 #
 
-
 p1 = plot(t, n_b(1), alpha = 0.5, ylabel = "⟨bᵢ⁺bᵢ⟩", legend = false) # Plot results
-for i = 2:M_
+for i in 2:M_
     plot!(t, n_b(i), alpha = 0.5, legend = false)
 end
 
@@ -136,6 +146,6 @@ versioninfo()
 
 using Pkg
 Pkg.status(
-    ["QuantumCumulants", "OrdinaryDiffEq", "ModelingToolkit", "Plots"],
+    ["QuantumCumulants", "OrdinaryDiffEqTsit5", "ModelingToolkitBase", "Plots"],
     mode = PKGMODE_MANIFEST,
 )

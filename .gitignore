@@ -4,3 +4,9 @@ Manifest.toml
 docs/src/examples/jupyter_notebooks/.ipynb_checkpoints
 docs/Manifest.toml
 *.ipynb
+*.claude/
+tmp/*
+tools/*
+docs/superpowers
+benchmarks_output.json
+*.cov

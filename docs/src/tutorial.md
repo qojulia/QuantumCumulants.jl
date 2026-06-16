@@ -10,22 +10,23 @@ set_default(double_linebreak=true) # hide
 using QuantumCumulants
 
 # Define parameters
-@cnumbers Δ g γ κ ν
+@variables Δ::Real g::Real γ::Real κ::Real ν::Real
 
 # Define hilbert space
 hf = FockSpace(:cavity)
-ha = NLevelSpace(:atom,(:g,:e))
+ha = NLevelSpace(:atom, (:g, :e))
 h = hf ⊗ ha
 
 # Define the fundamental operators
-@qnumbers a::Destroy(h) σ::Transition(h)
+@qnumbers a::Destroy(h)
+σ(i, j) = Transition(h, :σ, i, j)
 
 # Hamiltonian
-H = Δ*a'*a + g*(a'*σ(:g,:e) + a*σ(:e,:g))
+H = Δ*a'*a + g*(a'*σ(:g, :e) + a*σ(:e, :g))
 
 # Collapse operators
-J = [a,σ(:g,:e),σ(:e,:g)]
-rates = [κ,γ,ν]
+J = [a, σ(:g, :e), σ(:e, :g)]
+rates = [κ, γ, ν]
 nothing # hide
 ```
 
@@ -33,58 +34,49 @@ Now, we define a list of operators of which we want to compute the mean-field eq
 
 ```@example tutorial
 # Derive a set of equations
-ops = [a'*a,σ(:e,:e),a'*σ(:g,:e)]
-eqs = meanfield(ops,H,J;rates=rates)
+ops = [a'*a, σ(:e, :e), a'*σ(:g, :e)]
+eqs = meanfield(ops, H, J; rates=rates)
 ```
 
 To obtain a closed set of equations, we expand higher-order products to second order.
 
 ```@example tutorial
 # Expand the above equations to second order
-eqs_expanded = cumulant_expansion(eqs,2)
+eqs_expanded = cumulant_expansion(eqs, 2)
 ```
 
-The first-order contributions are always zero and can therefore be neglected. You can try adding `a` and `σ(:g,:e)` to the list of operators `ops` in order to see that yourself. Or, even more conveniently, you can use `complete(eqs_expanded)`, which will automatically find all missing averages and compute the corresponding equations.
-
-Here, though, we will proceed by finding the missing averages, and neglecting them as zero using the `substitute` and `simplify` function from [Symbolics](https://github.com/JuliaSymbolics/Symbolics.jl).
+The first-order contributions are always zero and can therefore be neglected. You can try adding `a` and `σ(:g,:e)` to the list of operators `ops` in order to see that yourself. Even more conveniently, [`complete`](@ref) automatically finds all missing averages and derives the corresponding equations, giving a closed system in one call.
 
 ```@example tutorial
-# Find the missing averages
-missed = find_missing(eqs_expanded)
-
-# Substitute them as zero
-subs = Dict(missed .=> 0)
-using Symbolics
-eqs_nophase = simplify(substitute(eqs_expanded, subs))
+# Close the system by deriving equations for any missing averages
+eqs_full = complete(eqs_expanded)
 ```
 
-Finally, we can convert the [`MeanfieldEquations`](@ref) to an `System` as defined in [ModelingToolkit](https://github.com/SciML/ModelingToolkit.jl) which can be solved numerically with [OrdinaryDiffEq](https://github.com/JuliaDiffEq/OrdinaryDiffEq.jl).
+Finally, we convert the [`MeanfieldEquations`](@ref) to a `System` from [ModelingToolkitBase](https://github.com/SciML/ModelingToolkitBase.jl), which can be solved numerically with [OrdinaryDiffEq](https://github.com/JuliaDiffEq/OrdinaryDiffEq.jl).
 
 ```@example tutorial
-# Generate an System
-using ModelingToolkit
-@named sys = System(eqs_nophase)
-equations(sys)
+# Generate a ModelingToolkitBase System
+using ModelingToolkitBase
+sys = mtkcompile(System(eqs_full; name=:laser))
 
 # Solve the system using the OrdinaryDiffEq package
 using OrdinaryDiffEq
-u0 = zeros(ComplexF64,length(ops))
-p = (Δ, g, γ, κ, ν)
-p0 = p .=> (0, 1.5, 0.25, 1, 4)
-dict = merge(Dict(unknowns(sys) .=> u0), Dict(p0))
-prob = ODEProblem{true}(sys,dict,(0.0,10.0))
-sol = solve(prob,RK4())
+u0 = zeros(ComplexF64, length(eqs_full.states))
+p0 = [Δ => 0.0, g => 1.5, γ => 0.25, κ => 1.0, ν => 4.0]
+prob = ODEProblem(sys, merge(initial_values(eqs_full, u0), Dict(p0)), (0.0, 10.0))
+sol = solve(prob, Tsit5())
 nothing # hide
 ```
 
-Just as with variables in [ModelingToolkit](https://github.com/SciML/ModelingToolkit.jl), the solution of the respective averages can be accessed with a `getindex` method. In the following we extract and plot the photon number and the atomic excited state population by indexing the solution:
+Numeric trajectories of any operator-average are recovered with [`get_solution`](@ref), which substitutes the symbolic average into the compiled solution and returns a callable in `t`:
 
 ```@example tutorial
 using Plots
-n = real.(sol[a'*a])
-pe = real.(sol[σ(:e,:e)])
-plot(sol.t, n, label="Photon number", xlabel="t")
-plot!(sol.t, pe, label="Excited state population")
+ts = range(0.0, 10.0; length=200)
+n  = real.(get_solution(sol, a'*a, eqs_full).(ts))
+pe = real.(get_solution(sol, σ(:e, :e), eqs_full).(ts))
+plot(ts, n, label="Photon number", xlabel="t")
+plot!(ts, pe, label="Excited state population")
 savefig("tutorial.svg") # hide
 nothing # hide
 ```

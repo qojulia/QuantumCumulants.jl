@@ -1,163 +1,190 @@
 """
-    meanfield(ops::Vector,H::QNumber)
-    meanfield(op::QNumber,H::QNumber)
+Flatten one level of nesting in `jumps`/`jumps_dagger`: collective-decay sources
+may arrive as a vector of mode vectors, and this leaves each source a single
+`QField`.
+"""
+_flatten_jumps(js::AbstractVector{<:QField}) = js
+function _flatten_jumps(js::AbstractVector)
+    isempty(js) && return QField[]
+    eltype(js) <: AbstractVector || return js
+    out = QField[]
+    for jk in js
+        append!(out, jk)
+    end
+    return out
+end
 
-    meanfield(ops::Vector,H::QNumber,J::Vector;
-            Jdagger::Vector=adjoint.(J),rates=ones(length(J)))
-    meanfield(op::QNumber,H::QNumber,J::Vector;
-            Jdagger::Vector=adjoint.(J),rates=ones(length(J)))
+_make_iv() = MTK.t_nounits
 
-Compute the set of equations for the operators in `ops` under the Hamiltonian
-`H` and with loss operators contained in `J`. The resulting equation is
-equivalent to the Quantum-Langevin equation where noise is neglected.
+"""
+    meanfield(ops, H, J=QField[]; kwargs...)
+    meanfield(op, H, J=QField[]; kwargs...)
+
+Equations of motion for the averages of `ops` under the Hamiltonian `H` and the
+collapse operators `J`. The result is the Heisenberg (quantum Langevin) equation with
+noise neglected: each jump adds a Lindblad term
+``\\sum_i r_i \\left(J_i^\\dagger O J_i - \\tfrac{1}{2}\\{J_i^\\dagger J_i, O\\}\\right)``.
+Returns a [`MeanfieldEquations`](@ref), or a [`NoiseMeanfieldEquations`](@ref) when
+`efficiencies` is supplied (measurement backaction).
+
+The returned right-hand sides are left unsimplified; call [`simplify!`](@ref) (or
+`SymbolicUtils.simplify`) on the equations you want to inspect.
 
 # Arguments
-*`ops::Vector`: The operators of which the equations are to be computed.
-*`H::QNumber`: The Hamiltonian describing the reversible dynamics of the
-    system.
-*`J::Vector{<:QNumber}`: A vector containing the collapse operators of
-    the system. A term of the form
-    ``\\sum_i J_i^\\dagger O J_i - \\frac{1}{2}\\left(J_i^\\dagger J_i O + OJ_i^\\dagger J_i\\right)``
-    is added to the Heisenberg equation.
+* `ops`: the operator(s) whose equations of motion are derived.
+* `H`: the operator defining the system Hamiltonian.
+* `J`: the collapse (jump) operators of the system; defaults to none.
 
-# Optional arguments
-*`Jdagger::Vector=adjoint.(J)`: Vector containing the hermitian conjugates of
-    the collapse operators.
-*`rates=ones(length(J))`: Decay rates corresponding to the collapse operators in `J`.
-*`multithread=false`: Specify whether the derivation of equations for all operators in `ops`
-    should be multithreaded using `Threads.@threads`.
-*`simplify=true`: Specify whether the derived equations should be simplified.
-*`order=nothing`: Specify to which `order` a [`cumulant_expansion`](@ref) is performed.
-    If `nothing`, this step is skipped.
-*`mix_choice=maximum`: If the provided `order` is a `Vector`, `mix_choice` determines
-    which `order` to prefer on terms that act on multiple Hilbert spaces.
-*`iv=ModelingToolkit.t`: The independent variable (time parameter) of the system.
+# Keyword arguments
+* `Jdagger=adjoint.(J)`: the adjoints of the jump operators.
+* `rates=ones(length(J))`: decay rates for `J`. A square `Matrix` instead selects
+  collective dissipation across the jump vector.
+* `efficiencies=nothing`: detector efficiencies per jump. When given, the result is a
+  [`NoiseMeanfieldEquations`](@ref) carrying a measurement-backaction noise drift.
+* `direction=Forward()`: [`Forward`](@ref) for ordinary evolution, [`Backward`](@ref)
+  for retrodiction.
+* `order=nothing`: if set, a [`cumulant_expansion`](@ref) to this order is applied. An
+  `Int` caps every subspace; a `Vector{Int}` caps each Hilbert subspace separately.
+* `mix_choice=maximum`: for a `Vector` `order`, how to combine the per-subspace caps on a
+  term that acts on several subspaces.
+* `iv=ModelingToolkitBase.t_nounits`: the independent (time) variable of the system.
 """
-function meanfield(a::Vector, H, J; kwargs...)
-    inds = vcat(get_indices(a), get_indices(H), get_indices(J))
-    if isempty(inds)
-        if :efficiencies in keys(kwargs)
-            return _meanfield_backaction(a, H, J; kwargs...)
-        end
-        return _meanfield(a, H, J; kwargs...)
-    else
-        if :efficiencies in keys(kwargs)
-            return indexed_meanfield_backaction(a, H, J; kwargs...)
-        end
-        return indexed_meanfield(a, H, J; kwargs...)
-    end
-end
-meanfield(a::QNumber, args...; kwargs...) = meanfield([a], args...; kwargs...)
-meanfield(a::Vector, H; kwargs...) = meanfield(a, H, []; Jdagger = [], kwargs...)
-function _meanfield(
-    a::Vector,
-    H,
-    J;
-    Jdagger::Vector = adjoint.(J),
-    rates = ones(Int, length(J)),
-    multithread = false,
-    simplify = true,
-    order = nothing,
-    mix_choice = maximum,
-    iv = MTK.t_nounits,
-)
-
-    if rates isa Matrix
-        J = [J];
-        Jdagger = [Jdagger];
+function meanfield(
+        ops::AbstractVector,
+        H::QField,
+        J::AbstractVector = QField[];
+        Jdagger = nothing,
+        rates::Union{AbstractVector, AbstractMatrix} = ones(length(J)),
+        efficiencies = nothing,
+        direction::EvolutionDirection = Forward(),
+        order = nothing,
+        mix_choice::Function = maximum,
+        iv::Symbolics.Num = _make_iv(),
+    )
+    # Collective dissipation: wrap a flat `(J, rates::Matrix)` into the
+    # nested-cluster layout the Lindblad recycling expects.
+    if rates isa AbstractMatrix
+        size(rates, 1) == size(rates, 2) == length(J) || throw(
+            ArgumentError(
+                "rates::Matrix must be square with side length(J) for collective dissipation",
+            )
+        )
+        J = [collect(J)]
+        Jdagger = Jdagger === nothing ? nothing : [collect(Jdagger)]
         rates = [rates]
     end
-    J_, Jdagger_, rates_ = _expand_clusters(J, Jdagger, rates)
-    # Derive operator equations
-    rhs = Vector{Any}(undef, length(a))
-    imH = im*H
-    if multithread
-        Threads.@threads for i = 1:length(a)
-            rhs_ = commutator(imH, a[i])
-            rhs_diss = _master_lindblad(a[i], J_, Jdagger_, rates_)
-            rhs[i] = rhs_ + rhs_diss
-        end
-    else
-        for i = 1:length(a)
-            rhs_ = commutator(imH, a[i])
-            rhs_diss = _master_lindblad(a[i], J_, Jdagger_, rates_)
-            rhs[i] = rhs_ + rhs_diss
-        end
-    end
+    Jdagger === nothing && (Jdagger = _default_jdagger(J))
+    Jn, Jdn = _normalize_jumps(J, Jdagger)
+    rn = _normalize_rates(rates, length(Jn))
+    order_vec = _normalize_order(
+        order, (; operators = ops, hamiltonian = H, jumps = Jn, jumps_dagger = Jdn)
+    )
+    eff = efficiencies === nothing ? nothing : _normalize_rates(efficiencies, length(Jn))
 
-    # Average
-    vs = map(average, a)
-    rhs_avg, rhs = take_function_averages(rhs, simplify)
-
-    if order !== nothing
-        rhs_avg = [
-            cumulant_expansion(r, order; simplify = simplify, mix_choice = mix_choice)
-            for r ∈ rhs_avg
-        ]
-    end
-
-    eqs_avg = [Symbolics.Equation(l, r) for (l, r) in zip(vs, rhs_avg)]
-    eqs = [Symbolics.Equation(l, r) for (l, r) in zip(a, rhs)]
-    varmap = make_varmap(vs, iv)
-
-    me = MeanfieldEquations(eqs_avg, eqs, vs, a, H, J_, Jdagger_, rates_, iv, varmap, order)
-    if SQA.has_cluster(H)
-        return scale(me; simplify = simplify, order = order, mix_choice = mix_choice)
-    else
-        return me
-    end
+    ctx = build_ctx(ops, H, Jn, Jdn)
+    sys = SystemSpec(H, Jn, Jdn, rn, eff, iv, order_vec, mix_choice, direction)
+    g = seed(QAdd[op * 1 for op in ops], sys, ctx)
+    return assemble_equations(g)
 end
 
-function _master_lindblad(a_, J, Jdagger, rates)
-    args = Any[]
-    for k = 1:length(J)
-        if isa(rates[k], SymbolicUtils.Symbolic) ||
-           isa(rates[k], Number) ||
-           isa(rates[k], Function)
-            c1 = 0.5*rates[k]*Jdagger[k]*commutator(a_, J[k])
-            c2 = 0.5*rates[k]*commutator(Jdagger[k], a_)*J[k]
-            SQA.push_or_append_nz_args!(args, c1)
-            SQA.push_or_append_nz_args!(args, c2)
-        elseif isa(rates[k], Matrix)
-            for i = 1:length(J[k]), j = 1:length(J[k])
-                c1 = 0.5*rates[k][i, j]*Jdagger[k][i]*commutator(a_, J[k][j])
-                c2 = 0.5*rates[k][i, j]*commutator(Jdagger[k][i], a_)*J[k][j]
-                SQA.push_or_append_nz_args!(args, c1)
-                SQA.push_or_append_nz_args!(args, c2)
-            end
-        else
-            error("Unknown rates type!")
-        end
-    end
-    isempty(args) && return 0
-    return QAdd(args)
+meanfield(op::QField, H::QField, args...; kw...) = meanfield([op], H, args...; kw...)
+
+function _normalize_jumps(J, Jdagger)
+    isempty(J) && return QField[], QField[]
+    return collect(J), collect(Jdagger)
 end
 
+# Default `Jdagger`. For the flat form `J::Vector{QField}` this is `adjoint.(J)`;
+# for collective decay `J::Vector{Vector{QField}}` adjoint each inner mode-vector
+# entry-wise (the outer-level `adjoint.` would transpose the inner vector).
+function _default_jdagger(J)
+    isempty(J) && return QField[]
+    eltype(J) <: AbstractVector && return [adjoint.(jk) for jk in J]
+    return adjoint.(J)
+end
 
-function _expand_clusters(J, Jdagger, rates)
-    J_ = []
-    Jdagger_ = []
-    rates_ = []
-    for i = 1:length(J)
-        if (J[i] isa Vector) && !(rates[i] isa Matrix)
-            h = hilbert(J[i][1])
-            aon_ = acts_on(J[i][1])
-            aon = if aon_ isa Vector
-                @assert length(aon_)==1
-                aon_[1]
-            else
-                aon_
-            end
-            @assert has_cluster(h, aon)
-            append!(J_, J[i])
-            append!(Jdagger_, Jdagger[i])
-            order = h.spaces[get_i(aon)].order
-            append!(rates_, [rates[i] for k = 1:order])
-        else
-            push!(J_, J[i])
-            push!(Jdagger_, Jdagger[i])
-            push!(rates_, rates[i])
-        end
+function _normalize_rates(rates, n::Int)
+    isempty(rates) && n == 0 && return Symbolics.Num[]
+    return collect(rates)
+end
+
+"""
+    simplify!(eqs::AbstractMeanfieldEquations; kwargs...)
+    simplify(eqs::AbstractMeanfieldEquations; kwargs...)
+
+Run `SymbolicUtils.simplify` on every RHS in `eqs` (and on the noise drift RHSs
+of a `NoiseMeanfieldEquations`). `simplify!` mutates; `simplify` returns a fresh
+struct. The derivation pipeline leaves expressions raw so the cost of
+`SymbolicUtils.simplify` is paid only when explicitly requested.
+"""
+function simplify!(eqs::AbstractMeanfieldEquations; kwargs...)
+    eqs.graph = map_drifts(eqs.graph, (_, d) -> SymbolicUtils.simplify(d; kwargs...))
+    resync!(eqs; moments_unchanged = true)
+    return eqs
+end
+
+SymbolicUtils.simplify(eqs::AbstractMeanfieldEquations; kwargs...) =
+    simplify!(_copy(eqs); kwargs...)
+
+# ---- measurement record: rewrite dW-parametrised SDE to dY ----
+
+"""
+    translate_W_to_Y(eqs::NoiseMeanfieldEquations; mix_choice=maximum)
+
+Rewrite an SDE whose noise drift is parametrised by the underlying Wiener
+process `dW` into one parametrised by the measurement record `dY` instead.
+The substitution `dW = dY - sqrt(2η)·⟨J + J†⟩·dt` adds a deterministic
+correction to the drift; the noise drift itself is unchanged.
+
+For each equation the RHS is augmented by
+`cumulant_expansion(-_dY_dS_extra_term(lhs_op, J, Jdagger, rates .* efficiencies))`,
+cumulant-expanded to `eqs.order` when set. Returns a fresh
+`NoiseMeanfieldEquations` of the same direction. The augmented RHS is left
+unsimplified; apply `simplify` yourself for a canonical form.
+"""
+function translate_W_to_Y(
+        eqs::NoiseMeanfieldEquations;
+        mix_choice::Function = maximum,
+    )
+    J, Jd = collect(eqs.jumps), collect(eqs.jumps_dagger)
+    rates_eff = collect(eqs.rates) .* collect(eqs.efficiencies)
+    order = eqs.order
+    augment = function (k, d)   # `k` is the node key, i.e. the LHS operator
+        term = -_dY_dS_extra_term(k, J, Jd, rates_eff)
+        order !== nothing && (term = cumulant_expansion(term, order; mix_choice))
+        return d + term
     end
-    return J_, Jdagger_, rates_
+    g = map_drifts(eqs.graph, augment; noise = false)
+    return assemble_equations(g)
+end
+
+# ---- user-supplied RHS rewrite ----
+
+"""
+    modify_equations(eqs::AbstractMeanfieldEquations, f::Function)
+
+Return a copy of `eqs` whose RHS for each equation has been rewritten by `f`.
+The function is called as `f(lhs_op, rhs)`, receiving the *operator* form of
+the LHS (`undo_average(eq.lhs)`) and the symbolic RHS, and returning a new RHS.
+
+```julia
+f(lhs, rhs) = rhs + cumulant_expansion(average(commutator(1im * Hadd, lhs)), 2)
+eqs_mod = modify_equations(eqs, f)
+```
+
+See also [`modify_equations!`](@ref).
+"""
+modify_equations(eqs::AbstractMeanfieldEquations, f::Function) =
+    modify_equations!(_copy(eqs), f)
+
+"""
+    modify_equations!(eqs::AbstractMeanfieldEquations, f::Function)
+
+In-place version of [`modify_equations`](@ref). Rewrites each drift in `eqs.graph` with
+`f(lhs_op, rhs)`, where `lhs_op` is the node key (the operator form of the LHS).
+"""
+function modify_equations!(eqs::AbstractMeanfieldEquations, f::Function)
+    eqs.graph = map_drifts(eqs.graph, (k, d) -> f(k, d); noise = false)
+    resync!(eqs; moments_unchanged = true)
+    return eqs
 end

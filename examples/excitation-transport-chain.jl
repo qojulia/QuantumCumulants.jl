@@ -29,29 +29,29 @@
 # As always, we start by loading the packages we use and some basic definitions.
 
 using QuantumCumulants
-using ModelingToolkit, OrdinaryDiffEq
+using ModelingToolkitBase, OrdinaryDiffEqLowOrderRK
 using Plots
 
 
 N = 10 # Hilbert space for N atoms
-h = ⊗([NLevelSpace(Symbol(:atom, i), (:g, :e)) for i = 1:N]...)
+h = ⊗([NLevelSpace(Symbol(:atom, i), (:g, :e)) for i in 1:N]...)
 
 σ(i, j, k) = Transition(h, Symbol(:σ_, k), i, j, k) # Operators
 
 
-@cnumbers Ω γ w Δ J0 # Define the symbolic parameters and the interaction
-x = cnumbers(join(["x_$i" for i = 1:N], " "))
+@variables Ω γ w Δ J0 # Define the symbolic parameters and the interaction
+x = [first(@variables $(Symbol("x_$i"))) for i in 1:N]
 J(xᵢ, xⱼ) = J0 / abs(xᵢ - xⱼ)^3
 
 H =
-    -Δ*sum(σ(:e, :e, k) for k = 1:N) +
-    Ω*(σ(:e, :g, 1) + σ(:g, :e, 1)) +
+    -Δ * sum(σ(:e, :e, k) for k in 1:N) +
+    Ω * (σ(:e, :g, 1) + σ(:g, :e, 1)) +
     sum(
-        J(x[k], x[k+1])*(σ(:e, :g, k)*σ(:g, :e, k+1) + σ(:g, :e, k)*σ(:e, :g, k+1)) for
-        k = 1:(N-1)
-    )
+    J(x[k], x[k + 1]) * (σ(:e, :g, k) * σ(:g, :e, k + 1) + σ(:g, :e, k) * σ(:e, :g, k + 1)) for
+        k in 1:(N - 1)
+)
 
-c_ops = [σ(:g, :e, k) for k = 1:N]
+c_ops = [σ(:g, :e, k) for k in 1:N]
 nothing # hide
 
 # The above definitions are all we need to derive the set of equations.
@@ -59,10 +59,11 @@ nothing # hide
 # Note, that in order to include noise, we will not need to make any adaptions on a symbolic level.
 # Rather, we only need to derive the equations once and substitute the noisy positions accordingly when performing the numerical solutions.
 
-eqs = meanfield(σ(:g, :e, 1), H, c_ops; rates = [γ for i = 1:N], order = 2) # Derive the equations to second order
+eqs = meanfield(σ(:g, :e, 1), H, c_ops; rates = [γ for i in 1:N], order = 2) # Derive the equations to second order
 complete!(eqs)  # complete the set
 
-@named sys = System(eqs) # Generate the System
+sys = System(eqs; name = :sys) # Generate the System
+sys_c = mtkcompile(sys)
 nothing # hide
 
 # Once we have our set of equations and converted it to an `System` we are ready to solve for the dynamics.
@@ -71,24 +72,25 @@ nothing # hide
 
 
 d = 0.75 # Define parameters without noise
-x0 = [d*(k-1) for k = 1:N]
-p = [γ => 1.0; Δ => 0.0; Ω => 2.0; J0 => 1.25; x .=> x0;]
+x0 = [d * (k - 1) for k in 1:N]
+p = Dict([γ => 1.0; Δ => 0.0; Ω => 2.0; J0 => 1.25; x .=> x0;])
 
 
-u0 = zeros(ComplexF64, length(eqs))  # initial state -- all atoms in the ground state
-dict = merge(Dict(unknowns(sys) .=> u0), Dict(p))
-prob = ODEProblem(sys, dict, (0.0, 15.0)) # Create ODEProblem
+u0 = initial_values(eqs)  # initial state -- all atoms in the ground state
+prob = ODEProblem(sys_c, merge(u0, p), (0.0, 15.0)) # Create ODEProblem
 
 sol = solve(prob, RK4()) # Solve
 
+pop1 = real.(get_solution(sol, σ(:e, :e, 1), eqs).(sol.t))
+popN = real.(get_solution(sol, σ(:e, :e, N), eqs).(sol.t))
 graph = plot(
     sol.t,
-    real.(sol[σ(:e, :e, 1)]),
+    pop1,
     label = "Driven atom",
     xlabel = "γt",
     ylabel = "Excited state population",
 ) # Plot
-plot!(graph, sol.t, real.(sol[σ(:e, :e, N)]), label = "End of chain", leg = 1)
+plot!(graph, sol.t, popN, label = "End of chain", leg = 1)
 
 
 # As you can see, the excitation transport is reasonably efficient, resulting in an excited state population at the end of the chain well above 10%.
@@ -104,28 +106,25 @@ plot!(graph, sol.t, real.(sol[σ(:e, :e, N)]), label = "End of chain", leg = 1)
 
 # In the following, we define the function that sets up the new `ODEProblem` for a realization and solve a specified number of trajectories.
 
-s = d/30  # strength of fluctuations
-function prob_func(prob, i, repeat)
+s = d / 30  # strength of fluctuations
+function prob_func(prob, args...)
     x_ = x0 .+ s .* randn(N) # Define the new set of parameters
-    p_ = [γ => 1.0; Δ => 0.0; Ω => 2.0; J0 => 1.25; x .=> x_;]
+    p_ = Dict([γ => 1.0; Δ => 0.0; Ω => 2.0; J0 => 1.25; x .=> x_;])
 
-    dict = merge(Dict(unknowns(sys) .=> u0), Dict(p_))
-    return ODEProblem(sys, dict, (0.0, 15.0)) # Return new ODEProblem
+    return ODEProblem(sys_c, merge(u0, p_), (0.0, 15.0)) # Return new ODEProblem
 end
 
 trajectories = 20
 eprob = EnsembleProblem(prob, prob_func = prob_func)
-sim = solve(eprob, RK4(), trajectories = trajectories)
+sim = solve(eprob, RK4(), EnsembleSerial(); trajectories)
 nothing # hide
 
 # Finally, we average over the results and compare them against the results from before, where there was no noise in the atomic positioning.
 
 tspan = range(0.0, sol.t[end], length = 101)
 pops_avg = zeros(length(tspan), N) # Average resulting excitations
-for i = 1:N, j = 1:trajectories
-    sol_ = sim.u[j].(tspan)  # interpolate solution
-    p_idx = findfirst(isequal(average(σ(:e, :e, i))), unknowns(eqs))
-    pop = [u[p_idx] for u ∈ sol_]
+for i in 1:N, j in 1:trajectories
+    pop = real.(get_solution(sim.u[j], σ(:e, :e, i), eqs).(tspan))
     @. pops_avg[:, i] += pop / trajectories
 end
 
@@ -142,11 +141,12 @@ plot!(graph, tspan, pops_avg[:, N], color = :orange, ls = :dash, label = nothing
 # Let's look at each trajectory of the excited state population of the atom at the end of the chain.
 
 graph2 = plot(xlabel = "γt", ylabel = "Excitation at end of chain")
-for i = 1:trajectories
+for i in 1:trajectories
+    popN_i = real.(get_solution(sim.u[i], σ(:e, :e, N), eqs).(sim.u[i].t))
     plot!(
         graph2,
         sim.u[i].t,
-        real.(sim.u[i][σ(:e, :e, N)]),
+        popN_i,
         color = :steelblue,
         label = nothing,
     )
@@ -172,6 +172,6 @@ versioninfo()
 
 using Pkg
 Pkg.status(
-    ["QuantumCumulants", "OrdinaryDiffEq", "ModelingToolkit", "Plots"],
+    ["QuantumCumulants", "OrdinaryDiffEqLowOrderRK", "ModelingToolkitBase", "Plots"],
     mode = PKGMODE_MANIFEST,
 )

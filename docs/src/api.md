@@ -1,9 +1,18 @@
+```@meta
+CollapsedDocStrings = true
+```
+
 # [API](@id API)
+
+```@contents
+Pages = ["API.md"]
+Depth = 2:3
+```
 
 ## [Hilbert Spaces](@id API: Hilbert Spaces)
 
 ```@docs
-HilbertSpace
+SecondQuantizedAlgebra.HilbertSpace
 ```
 
 ```@docs
@@ -31,10 +40,6 @@ PhaseSpace
 ```
 
 ```@docs
-ClusterSpace
-```
-
-```@docs
 ⊗
 ```
 
@@ -45,11 +50,35 @@ tensor
 ## [q-Numbers](@id API: Operators)
 
 ```@docs
-QSym
+SecondQuantizedAlgebra.QSym
 ```
 
 ```@docs
-QTerm
+SecondQuantizedAlgebra.QAdd
+```
+
+```@docs
+SecondQuantizedAlgebra.QTerm
+```
+
+```@docs
+SecondQuantizedAlgebra.prefactor
+SecondQuantizedAlgebra.operators
+```
+
+```@docs
+SecondQuantizedAlgebra.normal_order
+SecondQuantizedAlgebra.qadjoint
+SecondQuantizedAlgebra.inner_adjoint
+SecondQuantizedAlgebra.symmetric_to_normal
+SecondQuantizedAlgebra.normal_to_symmetric
+SecondQuantizedAlgebra.expand_completeness
+SecondQuantizedAlgebra.anticommutator
+SecondQuantizedAlgebra.is_average
+SecondQuantizedAlgebra.undo_average
+SymbolicUtils.substitute
+SymbolicUtils.simplify
+SymbolicUtils.expand
 ```
 
 ```@docs
@@ -99,49 +128,11 @@ acts_on
 ```
 
 ```@docs
+AbstractMeanfieldEquations
+```
+
+```@docs
 MeanfieldEquations
-```
-
-## [Symbolic Numbers](@id API: Symbolic numbers)
-
-```@docs
-CNumber
-```
-
-```@docs
-Parameter
-```
-
-```@docs
-cnumbers
-```
-
-```@docs
-cnumber
-```
-
-```@docs
-@cnumbers
-```
-
-```@docs
-RNumber
-```
-
-```@docs
-RealParameter
-```
-
-```@docs
-rnumbers
-```
-
-```@docs
-rnumber
-```
-
-```@docs
-@rnumbers
 ```
 
 ## [Average](@id API: Average)
@@ -162,10 +153,36 @@ cumulant
 get_order
 ```
 
+## [Introspection](@id API: Introspection)
+
+```@docs
+states
+```
+
+```@docs
+moments
+```
+
+```@docs
+moment_variable_map
+```
+
+```@docs
+closure_report
+```
+
+```@docs
+noise_channels
+```
+
 ## [Correlation functions](@id API: correlation)
 
 ```@docs
 CorrelationFunction
+```
+
+```@docs
+ModelingToolkitBase.System
 ```
 
 ```@docs
@@ -178,6 +195,73 @@ correlation_u0
 
 ```@docs
 correlation_p0
+```
+
+## [Symbolic Summations](@id API: Sums)
+
+```@docs
+Index
+```
+
+```@docs
+IndexedOperator
+```
+
+```@docs
+IndexedVariable
+```
+
+```@docs
+DoubleIndexedVariable
+```
+
+```@docs
+Σ
+```
+
+```@docs
+change_index
+```
+
+```@docs
+get_indices
+SecondQuantizedAlgebra.has_index
+SecondQuantizedAlgebra.assume_distinct_index
+SecondQuantizedAlgebra.index_slot
+```
+
+```@docs
+evaluate
+```
+
+```@docs
+scale
+```
+
+```@docs
+scale!
+```
+
+## [Measurement Backaction](@id API: Measurement Backaction)
+
+```@docs
+NoiseMeanfieldEquations
+```
+
+```@docs
+QuantumCumulants.translate_W_to_Y
+```
+
+```@docs
+EvolutionDirection
+```
+
+```@docs
+Forward
+```
+
+```@docs
+Backward
 ```
 
 ## [Utility functions](@id API: Utils)
@@ -203,15 +287,11 @@ unique_ops
 ```
 
 ```@docs
-unique_ops!
+QuantumCumulants.simplify!
 ```
 
 ```@docs
 fundamental_operators
-```
-
-```@docs
-transition_superscript
 ```
 
 ```@docs
@@ -231,6 +311,10 @@ get_solution
 ```
 
 ```@docs
+parameter_map
+```
+
+```@docs
 modify_equations
 ```
 
@@ -238,119 +322,6 @@ modify_equations
 modify_equations!
 ```
 
-## [Symbolic Summations](@id API: Sums)
-
 ```@docs
-Index
-```
-
-```@docs
-IndexedOperator
-```
-
-```@docs
-IndexedVariable
-```
-
-```@docs
-DoubleIndexedVariable
-```
-
-```@docs
-SingleSum
-```
-
-```@docs
-DoubleSum
-```
-
-```@docs
-change_index
-```
-
-```@docs
-insert_index
-```
-
-```@docs
-SpecialIndexedTerm
-```
-
-```@docs
-reorder
-```
-
-```@docs
-IndexedAverageSum
-```
-
-```@docs
-IndexedAverageDoubleSum
-```
-
-```@docs
-NumberedOperator
-```
-
-```@docs
-evaluate
-```
-
-```@docs
-scale
-```
-
-```@docs
-value_map
-```
-
-```@docs
-indexed_complete
-```
-
-```@docs
-split_sums
-```
-
-```@docs
-find_missing_sums
-```
-
-```@docs
-IndexedCorrelationFunction
-```
-
-```@docs
-indexed_complete!
-```
-
-```@docs
-evalME
-```
-
-```@docs
-scaleME
-```
-
-```@docs
-indexed_meanfield
-```
-
-```@docs
-subst_reds
-```
-
-
-## [Measurement Backaction](@id API: Measurement Backaction)
-
-```@docs
-MeanfieldNoiseEquations
-```
-
-```@docs
-IndexedMeanfieldNoiseEquations
-```
-
-```@docs
-BackwardMeanfieldNoiseEquations
+SecondQuantizedAlgebra.make_time_dependent
 ```

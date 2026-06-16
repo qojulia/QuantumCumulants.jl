@@ -14,7 +14,7 @@ where $\Delta = \omega_\ell - \omega_a$ is the detuning between the laser and th
 using Latexify # hide
 set_default(double_linebreak = true) # hide
 using QuantumCumulants
-using ModelingToolkit, OrdinaryDiffEq
+using ModelingToolkitBase, OrdinaryDiffEq, OrdinaryDiffEqLowOrderRK
 using Plots
 ````
 
@@ -23,16 +23,17 @@ Obtaining the equations of motion for the system is simple. Note that in this ca
 ````@example mollow
 h = NLevelSpace(:atom, (:g, :e)) # Hilbert space
 
-@cnumbers Δ Ω γ # Operators
-@qnumbers σ::Transition(h)
-H = Δ*σ(:e, :e) + Ω*(σ(:g, :e) + σ(:e, :g))
+@variables Δ Ω γ # Operators
+σ(i, j) = Transition(h, :σ, i, j)
+H = Δ * σ(:e, :e) + Ω * (σ(:g, :e) + σ(:e, :g))
 J = [σ(:g, :e)]
 
 
 eqs = meanfield([σ(:e, :g), σ(:e, :e)], H, J; rates = [γ]) # Equations
+complete!(eqs)
 ````
 
-In order to compute the spectrum, we first need to compute the correlation function given by
+In order to compute the correlation function given by
 
 $g(\tau) = \langle \sigma^{eg}(t_0+\tau)\sigma^{ge}(t_0)\rangle \equiv \langle \sigma^{eg}\sigma^{ge}_0\rangle,$
 
@@ -48,7 +49,7 @@ nothing # hide
 Note that the above actually derives another set of equations, which might take some time. Specifically, it is deriving the equation of motion for $g(\tau)$ and automatically completes the system of equation deriving the necessary equations of motion for all average values on which $g(\tau)$ depends. Here, the system of equations reads
 
 ````@example mollow
-c.de
+c.eqs
 nothing # hide
 ````
 
@@ -80,20 +81,21 @@ where the spectrum is then given by the first entry of the solution vector, $S(\
 To find the spectrum, we first need to compute the time evolution of the system up to steady state.
 
 ````@example mollow
-@named sys = System(eqs)
+sys = System(eqs; name = :sys)
+ssys = mtkcompile(sys)
 
 p0 = (0.0, 2.0, 1.0)
 u0 = zeros(ComplexF64, 2)
-dict = merge(Dict(unknowns(sys) .=> u0), Dict(ps .=> p0))
-prob = ODEProblem(sys, dict, (0.0, 20.0))
+dict = merge(Dict(unknowns(ssys) .=> u0), Dict(ps .=> p0))
+prob = ODEProblem(ssys, dict, (0.0, 20.0))
 sol = solve(prob, RK4())
 nothing # hide
 ````
 
 ````@example mollow
 plot(
-    sol,
-    vars = ((x, y)->(x, real(y)), 0, 2),
+    sol.t,
+    real.(get_solution(sol, σ(:e, :e), eqs).(sol.t)),
     xlabel = "γt",
     label = "Excited state population",
 )
@@ -119,7 +121,7 @@ versioninfo()
 
 using Pkg
 Pkg.status(
-    ["QuantumCumulants", "OrdinaryDiffEq", "ModelingToolkit", "Plots"],
+    ["QuantumCumulants", "OrdinaryDiffEq", "ModelingToolkitBase", "Plots"],
     mode = PKGMODE_MANIFEST,
 )
 ````

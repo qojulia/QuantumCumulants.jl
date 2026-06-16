@@ -1,667 +1,406 @@
 """
-    struct CorrelationFunction
+    CorrelationFunction
 
-Type representing the two-time first-order correlation function of two operators.
+Two-time correlation function ⟨op1(t+τ) op2(t)⟩ of a solved mean-field system,
+constructed via the quantum regression theorem. Build one with the
+[`CorrelationFunction(op1, op2, eqs0)`](@ref) constructor, then feed it to
+`ModelingToolkitBase.System` together with [`correlation_u0`](@ref) and
+[`correlation_p0`](@ref) to solve the τ-evolution, or to [`Spectrum`](@ref) for the
+power spectrum.
+
+# Fields
+- `op1`, `op2`: the operators whose correlation is computed.
+- `op2_ancilla`: `op2` re-embedded on the ancilla subspace `aon_ancilla` (internal).
+- `aon_ancilla`: Hilbert-subspace index of the ancilla carrying `op2` (internal).
+- `eqs`: the closed equations of motion in the delay `τ`.
+- `eqs0`: the steady-state system the correlation is built on.
+- `τ`: the delay independent variable.
+- `steady_state`: if `true`, ambient averages are held constant; if `false`, they are
+  evolved alongside the τ-states.
+- `ambient`: the τ-system's ambient averages (steady-state coefficients, not τ-states),
+  computed once from the closed `eqs` so the `u0`/`System`/spectrum paths need not re-walk it.
 """
-struct CorrelationFunction{OP1,OP2,OP0,DE0,DE,S}
-    op1::OP1
-    op2::OP2
-    op2_0::OP0
-    de0::DE0
-    de::DE
-    steady_state::S
+struct CorrelationFunction{T <: MeanfieldEquations, O1 <: QField, O2 <: QField, O2A <: QField}
+    op1::O1
+    op2::O2
+    op2_ancilla::O2A
+    aon_ancilla::Int
+    eqs::T
+    eqs0::MeanfieldEquations
+    τ::Symbolics.Num
+    steady_state::Bool
+    ambient::Vector{SymbolicUtils.BasicSymbolic}
+end
+
+# ---- ancilla embedding -------------------------------------------------------
+
+_embed_on(op::SQA.Destroy, aon::Int) = SQA.Destroy(op.name, aon, op.index)
+_embed_on(op::SQA.Create, aon::Int) = SQA.Create(op.name, aon, op.index)
+_embed_on(op::SQA.Transition, aon::Int) =
+    SQA.Transition(op.name, op.i, op.j, aon, op.index, op.ground_state, op.n_levels)
+
+function _ancilla_aon(eqs0::MeanfieldEquations, op1::QField, op2::QField)
+    aons = Int[]
+    append!(aons, SQA.acts_on(eqs0.hamiltonian))
+    for j in eqs0.jumps
+        append!(aons, SQA.acts_on(j))
+    end
+    for j in eqs0.jumps_dagger
+        append!(aons, SQA.acts_on(j))
+    end
+    for op in eqs0.operators
+        append!(aons, SQA.acts_on(op))
+    end
+    append!(aons, SQA.acts_on(op1)); append!(aons, SQA.acts_on(op2))
+    return isempty(aons) ? 2 : (maximum(aons) + 1)
 end
 
 """
-    CorrelationFunction(op1,op2,de0;steady_state=false,add_subscript=0,mix_choice=maximum)
+Closure filter accepting only leaf averages whose product touches `aon_ancilla` and at
+least one other subspace: the proper correlation states. Pure-ancilla averages
+(⟨op2_ancilla⟩) and non-ancilla averages are steady-state coefficients, not τ-states.
+"""
+function _ancilla_filter(aon_ancilla::Int)
+    return function (x)
+        SQA.is_average(x) || return true
+        SymbolicUtils.iscall(x) || return true
+        SymbolicUtils.operation(x) === SQA.sym_average || return true
+        aons = SQA.acts_on(x)
+        return (aon_ancilla in aons) && length(aons) > 1
+    end
+end
 
-The first-order two-time correlation function of two operators.
+# ---- constructor -------------------------------------------------------------
 
-The first-order two-time correlation function of `op1` and `op2` evolving under
-the system `de0`. The keyword `steady_state` determines whether the original
-system `de0` was evolved up to steady state. The arguments `add_subscript`
-defines the subscript added to the name of `op2` representing the constant time.
+"""
+    CorrelationFunction(op1, op2, eqs0; steady_state=true, filter_func=nothing, max_iter=100_000, iv0=nothing)
 
-Note that the correlation function is stored in the first index of the underlying
-system of equations.
+Build the two-time correlation ⟨op1(τ)·op2(0)⟩ from a solved mean-field system
+`eqs0` via the quantum regression theorem. `op2` is re-embedded onto a fresh ancilla
+subspace and the resulting system is closed only on averages that touch the
+ancilla; the remaining averages are steady-state coefficients. With
+`steady_state=false` the ambient averages are evolved too. `filter_func` further
+restricts the closure, and `max_iter` bounds the closure iterations.
+
+If the Hamiltonian, jumps, or rates depend on the parent time variable `eqs0.iv`
+(e.g. a drive `f(t)`), the τ-evolution is governed by the generator at `iv0 + τ`, where
+`iv0` is the absolute time the parent evolution stopped (conventionally `sol.t[end]`).
+Pass it as a parameter, e.g. `@variables t0::Real; CorrelationFunction(op1, op2, eqs; iv0 = t0)`,
+and supply its value alongside the other parameters in [`correlation_p0`](@ref). `iv0` is
+ignored for time-independent systems and required when a dependence is detected.
+
+# Examples
+```jldoctest
+julia> h = FockSpace(:cavity);
+
+julia> @qnumbers a::Destroy(h);
+
+julia> eqs = meanfield([a' * a], a' * a, [a]; rates = [1.0], order = 2);
+
+julia> CorrelationFunction(a', a, eqs)
+⟨a' * a⟩
+```
 """
 function CorrelationFunction(
-    op1,
-    op2,
-    de0::AbstractMeanfieldEquations;
-    steady_state = false,
-    add_subscript = 0,
-    filter_func = nothing,
-    mix_choice = maximum,
-    iv = nothing,
-    order = nothing,
-    simplify = true,
-    kwargs...,
-)
-    if iv === nothing
-        iv_ = SymbolicUtils.Sym{Real}(:τ)
-        iv_ = SymbolicUtils.setmetadata(iv_, Symbolics.VariableSource, (:parameters, :τ))
-        iv_ = SymbolicUtils.setmetadata(iv_, MTK.MTKVariableTypeCtx, MTK.PARAMETER)
-    else
-        iv_ = iv
-    end
-    h1 = hilbert(op1)
-    h2 = _new_hilbert(hilbert(op2), acts_on(op2))
-    h = h1⊗h2
+        op1::QField, op2::QField, eqs0::MeanfieldEquations;
+        steady_state::Bool = true, filter_func = nothing, max_iter::Int = 100_000,
+        iv0 = nothing,
+    )
+    τ = first(MTK.@independent_variables τ)
+    aon_ancilla = _ancilla_aon(eqs0, op1, op2)
+    op2_ancilla = _embed_on(op2, aon_ancilla)
+    new_op = op1 * op2_ancilla
 
-    H0 = de0.hamiltonian
-    J0 = de0.jumps
-    Jd0 = de0.jumps_dagger
+    ord = eqs0.order
+    order_ext = ord === nothing ? nothing :
+        vcat(ord, fill(maximum(ord), aon_ancilla - length(ord)))
 
-    op1_ = _new_operator(op1, h)
-    op2_ = _new_operator(op2, h, length(h.spaces); add_subscript = add_subscript)
-    op2_0 = _new_operator(op2, h)
-    H = _new_operator(H0, h)
-    J = [_new_operator(j, h) for j in J0]
-    Jd = [_new_operator(j, h) for j in Jd0]
-    lhs_new = [_new_operator(l, h) for l in de0.states]
-
-    order_ = if order===nothing
-        if de0.order===nothing
-            de0.order
-            order_lhs = maximum(get_order(l) for l in de0.states)
-            order_corr = get_order(op1_*op2_)
-            max(order_lhs, order_corr)
-        else
-            de0.order
-        end
-    else
-        order
-    end
-    op_ = op1_*op2_
-    @assert get_order(op_) <= order_
-
-    de = meanfield(op_, H, J; Jdagger = Jd, rates = de0.rates, iv = iv_, order = order_)
-    _complete_corr!(
-        de,
-        length(h.spaces),
-        lhs_new,
-        order_,
-        steady_state;
-        filter_func = filter_func,
-        mix_choice = mix_choice,
-        simplify = simplify,
-        kwargs...,
+    eqs_c = meanfield(
+        [new_op], eqs0.hamiltonian, eqs0.jumps;
+        Jdagger = eqs0.jumps_dagger, rates = eqs0.rates, order = order_ext, iv = τ,
     )
 
-    varmap = make_varmap(lhs_new, de0.iv)
-    de0_ = begin
-        eqs = Symbolics.Equation[]
-        eqs_op = Symbolics.Equation[]
-        ops = map(undo_average, lhs_new)
-        for i = 1:length(de0.equations)
-            rhs = _new_operator(de0.equations[i].rhs, h)
-            rhs_op = _new_operator(de0.operator_equations[i].rhs, h)
-            push!(eqs, Symbolics.Equation(lhs_new[i], rhs))
-            push!(eqs_op, Symbolics.Equation(ops[i], rhs_op))
-        end
-        MeanfieldEquations(
-            eqs,
-            eqs_op,
-            lhs_new,
-            ops,
-            H,
-            J,
-            Jd,
-            de0.rates,
-            de0.iv,
-            varmap,
-            order_,
-        )
+    ancilla_filter = _ancilla_filter(aon_ancilla)
+    closure_filter = filter_func === nothing ? ancilla_filter : x -> ancilla_filter(x) && filter_func(x)
+    # `meanfield` seeds (does not close) the ancilla system, so `eqs_c.graph` is the seeded
+    # graph; close it here, purely.
+    g = closure(eqs_c.graph; filter = closure_filter, get_adjoints = false, max_iter)
+    if !steady_state
+        g = closure(g; filter = x -> !ancilla_filter(x), get_adjoints = false, max_iter)
     end
+    if !isempty(eqs0.graph.treatments)
+        merged = merge(g.treatments, eqs0.graph.treatments)
+        g = MomentGraph(g.nodes, g.sys, g.ctx, merged)
+    end
+    if filter_func !== nothing
+        g = map_drifts(g, (_, d) -> _filter_ancilla_expr(d, ancilla_filter, filter_func))
+    end
+    # Time-dependent generator: substitute the parent IV `t -> iv0 + τ`. No-op if t-independent.
+    iv0_uw = SymbolicUtils.unwrap(eqs0.iv)
+    if _drifts_depend_on(g, iv0_uw)
+        iv0 === nothing && throw(
+            ArgumentError(
+                "the Hamiltonian/jumps depend on the time variable $(eqs0.iv); pass `iv0` " *
+                    "(e.g. `@variables t0::Real; CorrelationFunction(op1, op2, eqs; iv0 = t0)`) and " *
+                    "set it to the parent evolution's stop time when solving. The correlation " *
+                    "evaluates the generator at `iv0 + τ`.",
+            )
+        )
+        sub = Dict(iv0_uw => SymbolicUtils.unwrap(iv0 + τ))
+        g = map_drifts(g, (_, d) -> _subtree_substitute(SymbolicUtils.unwrap(d), sub))
+    end
+    eqs_tau = MeanfieldEquations(g)
+    ambient = _ambient_avgs(eqs_tau, aon_ancilla)
 
-    return CorrelationFunction(op1_, op2_, op2_0, de0_, de, steady_state)
+    return CorrelationFunction(
+        op1, op2, op2_ancilla, aon_ancilla, eqs_tau, eqs0, τ, steady_state, ambient,
+    )
 end
 
 """
-    correlation_u0(c::CorrelationFunction, u_end)
+Whether any drift in `g` references the symbol `iv_uw`, i.e. the parent Hamiltonian/jumps
+carry a time dependence into the τ-equations (e.g. a registered `f(t)`).
+"""
+function _drifts_depend_on(g::MomentGraph, iv_uw)
+    for (_, nd) in g.nodes
+        found = false
+        walk(SymbolicUtils.unwrap(nd.drift)) do n
+            n === iv_uw && (found = true)
+            return !found
+        end
+        found && return true
+    end
+    return false
+end
 
-Find the vector containing the correct initial values when numerical solving
-the time evolution for the correlation function.
+function _filter_ancilla_expr(x, ancilla_filter, user_filter)
+    return rewrite(x) do y
+        _is_avg_leaf(y) ? ((ancilla_filter(y) && !user_filter(y)) ? 0 : y) : nothing
+    end
+end
 
-See also: [`CorrelationFunction`](@ref) [`correlation_p0`](@ref)
+# ---- ambient / lookup helpers ------------------------------------------------
+
+"""
+Averages on the τ-system's RHS that are not τ-states: non-ancilla coefficients or
+pure-ancilla constants. These become MTK parameters in `System(c)`. Computed once at
+construction and stored in `c.ambient`; the `u0`/`System`/spectrum paths read that field.
+"""
+function _ambient_avgs(eqs::MeanfieldEquations, aon_ancilla::Int)
+    found = OrderedCollections.OrderedSet{SymbolicUtils.BasicSymbolic}()
+    states_set = Set(SymbolicUtils.unwrap.(eqs.states))
+    for eq in eqs.equations
+        _collect_ambient!(found, eq.rhs, aon_ancilla, states_set)
+    end
+    return collect(found)
+end
+function _collect_ambient!(found, x, aon_ancilla, states_set)
+    walk(x) do n
+        if SQA.is_average(n) && SymbolicUtils.operation(n) === SQA.sym_average
+            if !(n in states_set)
+                aons = SQA.acts_on(n)
+                (!(aon_ancilla in aons) || length(aons) == 1) && push!(found, n)
+            end
+            return false
+        end
+        return true
+    end
+    return
+end
+
+_ambient_param(avg::SymbolicUtils.BasicSymbolic) =
+    first(@variables $(Symbol("ss_", avg_name(undo_average(avg)))))
+
+_avg_conj_of(x) = SQA.is_average(x) ? average(adjoint(undo_average(x))) : x
+
+"""
+Replace `op2_ancilla` with `op2` (the original subspace) inside `avg`, recovering the
+τ=0 representative.
+"""
+function _undo_ancilla(c::CorrelationFunction, avg::SymbolicUtils.BasicSymbolic)
+    SQA.is_average(avg) || return avg
+    op = undo_average(avg)
+    op isa QAdd || return avg
+    aon0 = c.op2.space_index; aon_ancilla = c.aon_ancilla
+    result = zero(op)
+    for (term, coeff) in op.arguments
+        prod = one(QAdd) * coeff
+        for o in term.ops
+            prod = prod * ((o.space_index == aon_ancilla) ? _embed_on(o, aon0) : o)
+        end
+        result = result + prod
+    end
+    return average(result)
+end
+
+function _as_avg_dict(c::CorrelationFunction, u_end)
+    if u_end isa AbstractDict
+        return Dict{SymbolicUtils.BasicSymbolic, Any}(SymbolicUtils.unwrap(k) => v for (k, v) in u_end)
+    elseif u_end isa AbstractVector
+        return Dict{SymbolicUtils.BasicSymbolic, Any}(
+            SymbolicUtils.unwrap(avg) => v for (avg, v) in zip(c.eqs0.states, u_end)
+        )
+    end
+    throw(ArgumentError("u_end must be Dict or Vector, got $(typeof(u_end))"))
+end
+
+"""
+Steady-state value resolver for the correlation `c`, built once from `u_end`. Returns a
+closure mapping an average (a leaf, or a normal-ordered expression of averages) to its
+numeric steady-state value, `0` for an absent leaf. Matching is by the parent system's
+Hermitian-conjugate representative (`canonical_rep` in `c.eqs0`'s context), not by raw
+symbol identity, so a correlation average resolves to its steady-state value even when the
+correlation and the parent mint different base index names for the same representative atom
+(⟨σ_iₓ₂₂⟩ vs ⟨σ_jₓ₂₂⟩, as when the Hamiltonian's sum index differs from the user's LHS
+index). The conjugate of ⟨X⟩ resolves to ⟨X⟩* via the representative's side bit.
+"""
+function _ss_resolver(c::CorrelationFunction, u_end)
+    u_end_dict = _as_avg_dict(c, u_end)
+    ctx = build_ctx(c.eqs0)
+    treatments = _treatments(c.eqs0, ctx)
+    ks = [k for k in keys(u_end_dict) if undo_average(k) isa QAdd]
+    m = MomentMap(
+        ctx, treatments,
+        QAdd[undo_average(k) for k in ks],
+        ComplexF64[ComplexF64(u_end_dict[k]) for k in ks],
+    )
+    resolve_leaf = function (leaf)
+        r = match_moment(m, undo_average(leaf))
+        r === nothing && return nothing
+        v, same = r
+        return same ? v : conj(v)
+    end
+    return function (avg)
+        avg_u = SymbolicUtils.unwrap(avg)
+        avg_u isa Number && return ComplexF64(avg_u)
+        avg_u isa SymbolicUtils.BasicSymbolic || return ComplexF64(0)
+        if _is_avg_leaf(avg_u)
+            r = resolve_leaf(avg_u)
+            return r === nothing ? ComplexF64(0) : r
+        end
+        sub = Dict{Any, Any}()
+        for l in eachleaf(avg_u)
+            r = resolve_leaf(l)
+            sub[l] = r === nothing ? 0.0 + 0.0im : r
+        end
+        return _scalarize(SymbolicUtils.substitute(avg_u, sub))
+    end
+end
+
+_scalarize(x::Symbolics.Num) = _scalarize(SymbolicUtils.unwrap(x))
+function _scalarize(x::SymbolicUtils.BasicSymbolic)
+    SymbolicUtils.isconst(x) && (v = x.val; return v isa Number ? ComplexF64(v) : ComplexF64(0))
+    y = SymbolicUtils.substitute(x, Dict(SymbolicUtils.unwrap(Symbolics.IM) => im))
+    v = Symbolics.value(y)
+    return v isa Number ? ComplexF64(v) : ComplexF64(0)
+end
+_scalarize(x::Number) = ComplexF64(x)
+_scalarize(x) = ComplexF64(0)
+
+# ---- u0 / p0 -----------------------------------------------------------------
+
+"""
+    correlation_u0(c, u_end)
+
+Initial values for the τ-evolution of the [`CorrelationFunction`](@ref) `c`. Each
+ancilla state ⟨X(τ) op2_ancilla⟩ starts from the steady-state value ⟨X op2⟩ (with `op2` on
+its original subspace), looked up in `u_end`.
+
+See also: [`CorrelationFunction`](@ref), [`correlation_p0`](@ref).
 """
 function correlation_u0(c::CorrelationFunction, u_end)
-    a0 = c.op2_0
-    a1 = c.op2
-    subs = Dict(a1=>a0)
-    ops = c.de.operators
-    lhs = [inorder!(average(substitute(op, subs))) for op in ops]
-    u0 = complex(eltype(u_end))[]
-    lhs0 = c.de0.states
-    τ = MTK.get_iv(c.de)
-    keys = []
-    for j = 1:length(lhs)
-        l=lhs[j]
-        l_adj = _inconj(l)
-        if l ∈ Set(lhs0)
-            i = findfirst(isequal(l), lhs0)
-            push!(u0, u_end[i])
-            push!(keys, make_var(c.de.equations[j].lhs, τ))
-        elseif l_adj ∈ Set(lhs0)
-            i = findfirst(isequal(l_adj), lhs0)
-            push!(u0, conj(u_end[i]))
-            push!(keys, make_var(c.de.equations[j].lhs, τ))
-        elseif l isa Number
-            push!(u0, l)
-            push!(keys, make_var(c.de.equations[j].lhs, τ))
-        else
-            check = false
-            for i = 1:length(lhs0)
-                l_ = substitute(l, Dict(lhs0[i] => u_end[i]))
-                check = !isequal(l_, l)
-                check &&
-                    (push!(u0, l_); push!(keys, make_var(c.de.equations[j].lhs, τ)); break)
-            end
-            check || error("Could not find initial value for $l !")
-        end
+    resolve = _ss_resolver(c, u_end)
+    reg = _state_registry(c.eqs)
+    # Keys are unwrapped `Number`-symtype time-dependent averages, not `Num`-wrappable.
+    u0 = Dict{Any, ComplexF64}()
+    for (i, s) in enumerate(c.eqs.states)
+        u0[reg.vars[i]] = resolve(_undo_ancilla(c, SymbolicUtils.unwrap(s)))
     end
-    return keys .=> u0
+    return u0
 end
 
 """
-    correlation_p0(c::CorrelationFunction, u_end, ps=Pair[])
+    correlation_p0(c, u_end, ps_p0)
 
-Find all occurring steady-state values and add them to a list of parameters to
-pass this to the `ODEProblem`.
+Parameter dictionary for the τ-ODE of the [`CorrelationFunction`](@ref) `c`: the user
+parameters `ps_p0` together with the numeric values of the ambient steady-state averages,
+looked up in `u_end`.
 
-See also: [`CorrelationFunction`](@ref) [`correlation_u0`](@ref)
+See also: [`CorrelationFunction`](@ref), [`correlation_u0`](@ref).
 """
-function correlation_p0(c::CorrelationFunction, u_end, ps = Pair{Any,Any}[])
-    if c.steady_state
-        steady_vals = c.de0.states
-        steady_params = map(_make_parameter, steady_vals)
-        ps′ = (ps..., (steady_params .=> u_end)...)
-    else
-        # Check if <a0> is contained
-        avg = average(c.op2_0)
-        conj_avg = _conj(avg)
-        if avg ∈ Set(c.de0.states)
-            p = _make_parameter(avg)
-            idx = findfirst(isequal(avg), c.de0.states)
-            ps′ = (ps..., p=>u_end[idx])
-        elseif conj_avg ∈ Set(c.de0.states)
-            p = _make_parameter(conj_avg)
-            idx = findfirst(isequal(conj_avg), c.de0.states)
-            ps′ = (ps..., p=>u_end[idx])
-        else
-            ps′ = ps
-        end
+function correlation_p0(c::CorrelationFunction, u_end, ps_p0)
+    resolve = _ss_resolver(c, u_end)
+    reg = _state_registry(c.eqs)
+    out = Dict{Any, ComplexF64}()
+    for (k, v) in ps_p0
+        out[k] = ComplexF64(v)
     end
-    return ps′
+    # One param per conjugate representative (first-wins), matching `System(c)`'s `amb` map;
+    # emitting the folded-away conjugate would be a key absent from the system.
+    seen = Set{QAdd}()
+    for avg in c.ambient
+        rep, _ = canonical_rep(undo_average(avg), reg.ctx; treatments = reg.treatments)
+        rep in seen && continue
+        push!(seen, rep)
+        aons = SQA.acts_on(avg)
+        lookup = (c.aon_ancilla in aons && length(aons) == 1) ? _undo_ancilla(c, avg) : avg
+        out[_ambient_param(avg)] = resolve(lookup)
+    end
+    return out
 end
 
-"""
-    struct Spectrum
-
-Type representing the spectrum, i.e. the Fourier transform of a
-[`CorrelationFunction`](@ref) in steady state.
-
-To actually compute the spectrum at a frequency `ω`, construct the type on top
-of a correlation function and call it with `Spectrum(c)(ω,usteady,p0)`.
-"""
-struct Spectrum
-    corr::Any
-    Afunc::Any
-    bfunc::Any
-    cfunc::Any
-    A::Any
-    b::Any
-    c::Any
-end
+# ---- System(c) ---------------------------------------------------------------
 
 """
-    Spectrum(c::CorrelationFunction, ps=[]; kwargs...)
+    ModelingToolkitBase.System(c::CorrelationFunction; name)
 
-Create an instance of [`Spectrum`](@ref) corresponding to the Fourier transform
-of the [`CorrelationFunction`](@ref) `c`.
-
-
-Examples
-========
-```
-julia> c = CorrelationFunction(a',a,de;steady_state=true)
-⟨a′*a_0⟩
-
-julia> S = Spectrum(c)
-ℱ(⟨a′*a_0⟩)(ω)
-```
+MTK `System` for the τ-evolution. Ambient steady-state averages become parameters
+(values supplied via [`correlation_p0`](@ref)).
 """
-function Spectrum(c::CorrelationFunction, ps = []; w = Parameter(:ω), kwargs...)
-    c.steady_state || error(
-        "Cannot use Laplace transform when not in steady state! Use `CorrelationFunction(op1,op2,de0;steady_state=true)` or try computing the Fourier transform of the time evolution of the correlation function directly.",
+function MTK.System(c::CorrelationFunction; name::Symbol)
+    eqs = c.eqs
+    iv = eqs.iv; iv_uw = SymbolicUtils.unwrap(iv); D = Symbolics.Differential(iv)
+    reg = _state_registry(eqs)
+    # Ambient steady-state averages, keyed by the same Hermitian-conjugate representative as
+    # the state registry (so a folded conjugate ambient resolves via the side bit).
+    amb_avgs = c.ambient
+    amb = MomentMap(
+        reg.ctx, reg.treatments,
+        [undo_average(avg) for avg in amb_avgs],
+        Symbolics.Num[_ambient_param(avg) for avg in amb_avgs],
     )
-    de = c.de
-    de0 = c.de0
-    lhs = getfield.(de.equations, :lhs)
-    rhs = getfield.(de.equations, :rhs)
-    lhs0 = getfield.(de0.equations, :lhs)
-    A, b, c_, Afunc, bfunc, cfunc =
-        _build_spec_func(w, lhs, rhs, c.op2_0, c.op2, lhs0, ps; kwargs...)
-    return Spectrum(c, Afunc, bfunc, cfunc, A, b, c_)
+    # State variable first, then ambient parameter; both via the same conjugation-side rule.
+    resolve = function (leaf)
+        op = undo_average(leaf)
+        op isa QAdd || return leaf
+        r = resolve_moment_sym(reg.moments, op)
+        r === nothing || return r
+        a = resolve_moment_sym(amb, op)
+        return a === nothing ? leaf : a
+    end
+    new_eqs = Vector{Symbolics.Equation}(undef, length(eqs))
+    ps_set = Set{SymbolicUtils.BasicSymbolic}()
+    @inbounds for (i, eq) in enumerate(eqs.equations)
+        rhs = mapleaves(resolve, eq.rhs)
+        new_eqs[i] = D(reg.vars[i]) ~ rhs
+        _collect_params!(ps_set, SymbolicUtils.unwrap(rhs), iv_uw)
+    end
+    ps = [MTK.toparam(p) for p in ps_set]
+    return MTK.System(new_eqs, iv, reg.vars, ps; name = name)
 end
 
 """
-    (s::Spectrum)(ω::Real,usteady,ps=[];wtol=0)
+    scale(c::CorrelationFunction)
 
-From an instance of [`Spectrum`](@ref) `s`, actually compute the spectral power
-density at the frequency `ω`. Numerically solves the equation `x=inv(A)*b` where
-`x` is the vector containing the Fourier transformed correlation function, i.e.
-the spectrum is given by `real(x[1])`.
-`A` and `b` are a matrix and a vector, respectively, describing the linear system
-of equations that needs to be solved to obtain the spectrum.
-The tolerance `wtol=0` specifies in which range the frequency should be treated
-as zero, i.e. whenever `abs(ω) <= wtol` the term proportional to `1/(im*ω)` is
-neglected to avoid divergences.
+Scale both the τ-equations and the underlying `eqs0` so the spectrum's
+steady-state lookup resolves against the same scaled state names.
 """
-function (s::Spectrum)(ω::Real, usteady, ps = []; wtol = 0)
-    A = s.Afunc[1](ω, usteady, ps)
-    b = s.bfunc[1](usteady, ps)
-    if abs(ω) <= wtol
-        b_ = b
-    else
-        c = s.cfunc[1](ω, usteady, ps)
-        b_ = b .+ c
-    end
-    return 2*real(getindex(A \ b_, 1))
-end
-
-"""
-    (s::Spectrum)(ω_ls,usteady,ps=[];wtol=0)
-
-From an instance of [`Spectrum`](@ref) `s`, actually compute the spectral power
-density at all frequencies in `ω_ls`.
-"""
-function (s::Spectrum)(ω_ls, usteady, ps = []; wtol = 0)
-    s_ = Vector{real(eltype(usteady))}(undef, length(ω_ls))
-    A = s.Afunc[1](ω_ls[1], usteady, ps)
-    b0 = s.bfunc[1](usteady, ps)
-    b = copy(b0)
-    c = s.cfunc[1](ω_ls[1], usteady, ps)
-
-    if abs(ω_ls[1]) <= wtol
-        s_[1] = 2*real(getindex(A \ b, 1))
-    else
-        s_[1] = 2*real(getindex(A \ (b .+ c), 1))
-    end
-
-    Afunc! = (A, ω) -> s.Afunc[2](A, ω, usteady, ps)
-    cfunc! = (c, ω) -> s.cfunc[2](c, ω, usteady, ps)
-    @inbounds for i = 2:length(ω_ls)
-        Afunc!(A, ω_ls[i])
-        if abs(ω_ls[i]) <= wtol
-            s_[i] = 2*real(getindex(A \ b0, 1))
-        else
-            cfunc!(c, ω_ls[i])
-            @. b = b0 + c
-            s_[i] = 2*real(getindex(A \ b, 1))
-        end
-    end
-
-    return s_
-end
-
-# Convert to System
-function MTK.System(c::CorrelationFunction; complete_sys = true, kwargs...)
-    τ = MTK.get_iv(c.de)
-
-    ps = extract_parameters(c.de)
-
-    if c.steady_state
-        steady_vals = c.de0.states
-        steady_hashes = map(hash, steady_vals)
-        avg = average(c.op2_0)
-        h = hash(avg)
-        avg_adj = _adjoint(avg)
-        h′ = hash(avg_adj)
-        idx = findfirst(isequal(h), steady_hashes)
-        if idx === nothing
-            idx_ = findfirst(isequal(h′), steady_hashes)
-            if idx_ === nothing
-                de = c.de
-            else
-                subs = Dict(average(c.op2) => _adjoint(steady_vals[idx_]))
-                de = substitute(c.de, subs)
-            end
-        else
-            subs = Dict(average(c.op2) => steady_vals[idx])
-            de = substitute(c.de, subs)
-        end
-        ps_ = [ps..., steady_vals...]
-    else
-        avg = average(c.op2_0)
-        if avg ∈ Set(c.de0.states)
-            avg2 = average(c.op2)
-            ps_ = [ps..., avg]
-            de = substitute(c.de, Dict(avg2 => avg))
-        elseif _conj(avg) ∈ Set(c.de0.states)
-            avg2 = average(c.op2)
-            ps_ = [ps..., _conj(avg)]
-            de = substitute(c.de, Dict(avg2 => avg))
-        else
-            ps_ = ps
-            de = c.de
-        end
-    end
-
-    ps_avg = filter(x->x isa Average, ps_)
-    ps_adj = map(_conj, ps_avg)
-    filter!(x->!(x ∈ Set(ps_avg)), ps_adj)
-    ps_adj_hash = hash.(ps_adj)
-
-    de_ = deepcopy(de)
-    for i = 1:length(de.equations)
-        lhs = de_.equations[i].lhs
-        rhs = substitute_conj(de_.equations[i].rhs, ps_adj, ps_adj_hash)
-        de_.equations[i] = Symbolics.Equation(lhs, rhs)
-    end
-
-    avg0 = average(c.op2_0)
-    if c.steady_state
-        steady_params = map(_make_parameter, steady_vals)
-        subs_params = Dict(steady_vals .=> steady_params)
-        de_ = substitute(de_, subs_params)
-    elseif avg0 ∈ Set(c.de0.states)
-        avg0_par = _make_parameter(avg0)
-        de_ = substitute(de_, Dict(avg0 => avg0_par))
-    elseif _conj(avg0) ∈ Set(c.de0.states)
-        avg0_par = _make_parameter(_conj(avg0))
-        de_ = substitute(de_, Dict(_conj(avg0) => avg0_par))
-    end
-
-    return MTK.System(de_, τ; kwargs...)
-end
-
-SymbolicUtils.substitute(c::CorrelationFunction, args...; kwargs...) = CorrelationFunction(
-    c.op1,
-    c.op2,
-    substitute(c.de0, args...; kwargs...),
-    substitute(c.de, args...; kwargs...),
-)
-
-function _make_parameter(s::Average)
-    name = Symbol(string(s))
-    sym = Parameter(name)
-    return SymbolicUtils.setmetadata(
-        sym,
-        Symbolics.VariableSource,
-        (:_make_parameter, name),
+function scale(c::CorrelationFunction)
+    eqs = scale(c.eqs)
+    # `ambient` is moment-set dependent, so recompute it for the scaled τ-system rather than
+    # carrying the unscaled set.
+    return CorrelationFunction(
+        c.op1, c.op2, c.op2_ancilla, c.aon_ancilla, eqs, scale(c.eqs0), c.τ, c.steady_state,
+        _ambient_avgs(eqs, c.aon_ancilla),
     )
-end
-_make_parameter(s::SymbolicUtils.Symbolic{<:Parameter}) = s
-
-### Auxiliary functions for CorrelationFunction
-function _new_hilbert(h::ProductSpace, aon)
-    if length(aon)==1
-        return _new_hilbert(h.spaces[aon[1]], 0)
-    else
-        spaces = [_new_hilbert(h_, 0) for h_ in h.spaces[aon...]]
-        return ProductSpace(spaces)
-    end
-end
-_new_hilbert(h::FockSpace, aon) = FockSpace(Symbol(h.name, 0))
-_new_hilbert(h::NLevelSpace, aon) = NLevelSpace(Symbol(h.name, 0), h.levels, h.GS)
-
-function _new_operator(op::Destroy, h, aon = op.aon; add_subscript = nothing)
-    if isnothing(add_subscript)
-        Destroy(h, op.name, aon; op.metadata)
-    else
-        Destroy(h, Symbol(op.name, :_, add_subscript), aon; op.metadata)
-    end
-end
-function _new_operator(op::Create, h, aon = op.aon; add_subscript = nothing)
-    if isnothing(add_subscript)
-        Create(h, op.name, aon; op.metadata)
-    else
-        Create(h, Symbol(op.name, :_, add_subscript), aon; op.metadata)
-    end
-end
-function _new_operator(t::Transition, h, aon = t.aon; add_subscript = nothing)
-    if isnothing(add_subscript)
-        Transition(h, t.name, t.i, t.j, aon; t.metadata)
-    else
-        Transition(h, Symbol(t.name, :_, add_subscript), t.i, t.j, aon; t.metadata)
-    end
-end
-_new_operator(x::Number, h, aon = nothing; kwargs...) = x
-function _new_operator(t, h, aon = nothing; kwargs...)
-    if SymbolicUtils.iscall(t)
-        args = []
-        if isnothing(aon)
-            for arg in SymbolicUtils.arguments(t)
-                push!(args, _new_operator(arg, h; kwargs...))
-            end
-        else
-            for arg in SymbolicUtils.arguments(t)
-                push!(args, _new_operator(arg, h, aon; kwargs...))
-            end
-        end
-        f = SymbolicUtils.operation(t)
-        return f(args...)
-    else
-        return t
-    end
-end
-function _new_operator(avg::Average, h, aon = nothing; kwargs...)
-    op = SymbolicUtils.arguments(avg)[1]
-    if isnothing(aon)
-        _average(_new_operator(op, h; kwargs...))
-    else
-        _average(_new_operator(op, h, aon; kwargs...))
-    end
-end
-
-function _complete_corr!(
-    de,
-    aon0,
-    lhs_new,
-    order,
-    steady_state;
-    mix_choice = maximum,
-    simplify = true,
-    filter_func = nothing,
-    kwargs...,
-)
-    vs = de.states
-    H = de.hamiltonian
-    J = de.jumps
-    Jd = de.jumps_dagger
-    rates = de.rates
-
-    vhash = map(hash, vs)
-    vs′ = map(_conj, vs)
-    vs′hash = map(hash, vs′)
-    filter!(!in(vhash), vs′hash)
-    missed = find_missing(de.equations, vhash, vs′hash; get_adjoints = false)
-
-    vhash_new = map(hash, lhs_new)
-    vhash_new′ = map(hash, _adjoint.(lhs_new))
-    filter!(!in(vhash_new), vhash_new′)
-
-    function _filter_aon(x) # Filter values that act only on Hilbert space representing system at time t0
-        aon = acts_on(x)
-        if aon0 in aon
-            length(aon)==1 && return false
-            return true
-        end
-        if steady_state # Include terms without t0-dependence only if the system is not in steady state
-            h = hash(x)
-            return !(h∈vhash_new || h∈vhash_new′)
-        else
-            return true
-        end
-    end
-    filter!(_filter_aon, missed)
-    isnothing(filter_func) || filter!(filter_func, missed) # User-defined filter
-
-    filter_reds = de isa ScaledMeanfieldEquations
-    filter_reds && filter_redundants!(missed, de.scale_aons, de.names)
-
-    while !isempty(missed)
-        ops_ = [SymbolicUtils.arguments(m)[1] for m in missed]
-        me = meanfield(
-            ops_,
-            H,
-            J;
-            Jdagger = Jd,
-            rates = rates,
-            simplify = simplify,
-            order = order,
-            iv = de.iv,
-            kwargs...,
-        )
-
-        _append!(de, me)
-
-        vhash_ = hash.(me.states)
-        vs′hash_ = hash.(_conj.(me.states))
-        append!(vhash, vhash_)
-        for i = 1:length(vhash_)
-            vs′hash_[i] ∈ vhash_ || push!(vs′hash, vs′hash_[i])
-        end
-
-        missed = find_missing(me.equations, vhash, vs′hash; get_adjoints = false)
-        filter!(_filter_aon, missed)
-        isnothing(filter_func) || filter!(filter_func, missed) # User-defined filter
-        filter_reds && filter_redundants!(missed, de.scale_aons, de.names)
-    end
-
-    if !isnothing(filter_func)
-        # Find missing values that are filtered by the custom filter function,
-        # but still occur on the RHS; set those to 0
-        missed = find_missing(de.equations, vhash, vs′hash; get_adjoints = false)
-        filter!(!filter_func, missed)
-        filter_reds && filter_redundants!(missed, de.scale_aons, de.names)
-        missed_adj = map(_adjoint, missed)
-        subs = Dict(vcat(missed, missed_adj) .=> 0)
-        for i = 1:length(de.equations)
-            de.equations[i] = substitute(de.equations[i], subs)
-            de.states[i] = de.equations[i].lhs
-        end
-    end
-
-    return de
-end
-
-### Auxiliary functions for Spectrum
-
-function _build_spec_func(ω, lhs, rhs, a1, a0, steady_vals, ps = [])
-    s = Dict(a0=>a1)
-    ops = [SymbolicUtils.arguments(l)[1] for l in lhs]
-
-    b = [inorder!(average(substitute(op, s))) for op in ops] # Initial values
-    c = [SymbolicUtils.simplify(c_ / (1.0im*ω)) for c_ in _find_independent(rhs, a0)]
-    aon0 = acts_on(a0)
-    @assert length(aon0)==1
-    rhs_ = _find_dependent(rhs, aon0[1])
-    Ax = [im*ω*lhs[i] - rhs_[i] for i = 1:length(lhs)] # Element-wise form of A*x
-
-    # Substitute <a0> by steady-state average <a>
-    s_avg = Dict(average(a0) => average(a1))
-    Ax = [inorder!(substitute(A, s_avg)) for A ∈ Ax]
-    c = [inorder!(substitute(c_, s_avg)) for c_ ∈ c]
-
-    # Compute symbolic A column-wise by substituting unit vectors into element-wise form of A*x
-    A = Matrix{Any}(undef, length(Ax), length(Ax))
-    for i = 1:length(Ax)
-        subs_vals = zeros(length(Ax))
-        subs_vals[i] = 1
-        subs = Dict(lhs .=> subs_vals)
-        A_i =
-            [inorder!(SymbolicUtils.simplify(substitute(Ax[j], subs))) for j = 1:length(Ax)]
-        A[:, i] = A_i
-    end
-
-    # Substitute conjugates
-    vs_adj = map(_conj, steady_vals)
-    filter!(x->!(x ∈ Set(steady_vals)), vs_adj)
-    vs′hash = map(hash, vs_adj)
-    A = [substitute_conj(A_, vs_adj, vs′hash) for A_ ∈ A]
-    b = [substitute_conj(b_, vs_adj, vs′hash) for b_ ∈ b]
-    c = [substitute_conj(c_, vs_adj, vs′hash) for c_ ∈ c]
-
-    # Keep Symbolics.unflatten_long_ops from stepping into symbolic average
-    # functions by substituting. This can be removed once averages store
-    # operators as metadata
-    A1 = [_substitute_vars(A_) for A_ ∈ A]
-    b1 = [_substitute_vars(b_) for b_ ∈ b]
-    c1 = [_substitute_vars(c_) for c_ ∈ c]
-    steady_vals1 = [_substitute_vars(s_) for s_ ∈ steady_vals]
-
-    # Build functions
-    Afunc = Symbolics.build_function(A1, ω, steady_vals1, ps; expression = false)
-    bfunc = Symbolics.build_function(b1, steady_vals1, ps; expression = false)
-    cfunc = Symbolics.build_function(c1, ω, steady_vals1, ps; expression = false)
-
-    return A, b, c, Afunc, bfunc, cfunc
-end
-
-function _substitute_vars(t::T) where {T<:SymbolicUtils.Symbolic}
-    if SymbolicUtils.iscall(t)
-        f = SymbolicUtils.operation(t)
-        if f === sym_average
-            sym = Symbol(string(t))
-            return SymbolicUtils.setmetadata(
-                SymbolicUtils.Sym{Complex{Real}}(sym),
-                Symbolics.VariableSource,
-                (:_substitute_vars, sym),
-            )
-        else
-            args = [_substitute_vars(arg) for arg ∈ SymbolicUtils.arguments(t)]
-            return TermInterface.maketerm(T, f, args, TermInterface.metadata(t))
-        end
-    else
-        return t
-    end
-end
-_substitute_vars(x::Number) = x
-
-_find_independent(rhs::Vector, a0) = [_find_independent(r, a0) for r in rhs]
-function _find_independent(r, a0)
-    if SymbolicUtils.is_operation(+)(r)
-        args_ind = []
-        aon0 = acts_on(a0)
-        for arg in SymbolicUtils.arguments(r)
-            aon = acts_on(arg)
-            (aon0 in acts_on(arg) && length(aon)>1) || push!(args_ind, arg)
-        end
-        isempty(args_ind) && return 0
-        return +(args_ind...)
-    else
-        aon_r = acts_on(r)
-        aon0 = acts_on(a0)
-        same =
-            (length(aon_r)==length(aon0)) &&
-            all(a ∈ aon0 for a ∈ aon_r) &&
-            all(a ∈ aon_r for a ∈ aon0)
-        same && return 0
-        return r
-    end
-end
-
-_find_dependent(rhs::Vector, a0) = [_find_dependent(r, a0) for r in rhs]
-function _find_dependent(r, a0)
-    if SymbolicUtils.is_operation(+)(r)
-        args = []
-        for arg in SymbolicUtils.arguments(r)
-            aon = acts_on(arg)
-            (a0 in aon) && length(aon)>1 && push!(args, arg)
-        end
-        isempty(args) && return 0
-        return +(args...)
-    else
-        aon_r = acts_on(r)
-        aon0 = acts_on(a0)
-        same =
-            (length(aon_r)==length(aon0)) &&
-            all(a ∈ aon0 for a ∈ aon_r) &&
-            all(a ∈ aon_r for a ∈ aon0)
-        same || return 0
-        return r
-    end
 end
