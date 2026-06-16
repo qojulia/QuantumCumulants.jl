@@ -46,6 +46,7 @@ pages = [
         "examples/many-atom-laser.md"
         "examples/optomechanical-cooling.md"
         "examples/excitation-transport-chain.md"
+        "examples/driven_dissipative_ising.md"
         "examples/ramsey_spectroscopy.md"
         "examples/superradiant_laser_indexed.md"
         "examples/weighted_phase_invariance.md"
