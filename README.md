@@ -1,4 +1,8 @@
 # QuantumCumulants.jl
+
+![CI](https://github.com/qojulia/QuantumCumulants.jl/workflows/CI/badge.svg) [![Codecov](https://codecov.io/gh/qojulia/QuantumCumulants.jl/branch/master/graph/badge.svg)](https://codecov.io/gh/qojulia/QuantumCumulants.jl/branch/master/) [![Documentation](https://img.shields.io/badge/docs-stable-blue.svg)](https://qojulia.github.io/QuantumCumulants.jl/stable/) [![Documentation](https://img.shields.io/badge/docs-dev-blue.svg)](https://qojulia.github.io/QuantumCumulants.jl/dev/)
+
+
 **QuantumCumulants.jl** is a package for the symbolic derivation of mean-field equations for quantum mechanical operators in Julia. The equations are derived using fundamental commutation relations of operators. When averaging these equations they can be automatically expanded in terms of cumulants to an arbitrary order (generalized mean-field approximation). This results in a closed set of symbolic differential equations, which can also be solved numerically.
 
 For the application of commutation relations **QuantumCumulants.jl** implements a simple noncommutative algebra, where any commutation relations are applied immediately. All other symbolic simplification and rewriting is done using the [Symbolics.jl](https://github.com/JuliaSymbolics/Symbolics.jl) package.
@@ -15,9 +19,6 @@ The basic working principle boils down to the following steps:
 
 If you only need the second quantized algebra, you can depend on [SecondQuantizedAlgebra.jl](https://github.com/qojulia/SecondQuantizedAlgebra.jl) directly.
 
-## Development status
-
-![CI](https://github.com/qojulia/QuantumCumulants.jl/workflows/CI/badge.svg) [![Codecov](https://codecov.io/gh/qojulia/QuantumCumulants.jl/branch/master/graph/badge.svg)](https://codecov.io/gh/qojulia/QuantumCumulants.jl/branch/master/) [![Documentation](https://img.shields.io/badge/docs-stable-blue.svg)](https://qojulia.github.io/QuantumCumulants.jl/stable/) [![Documentation](https://img.shields.io/badge/docs-dev-blue.svg)](https://qojulia.github.io/QuantumCumulants.jl/dev/)
 
 ## Relationship to SecondQuantizedAlgebra.jl
 
