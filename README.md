@@ -17,7 +17,7 @@ If you only need the second quantized algebra, you can depend on [SecondQuantize
 
 ## Development status
 
-![CI](https://github.com/qojulia/QuantumCumulants.jl/workflows/CI/badge.svg) [![Codecov][codecov-img]][codecov-url] [![Documentation][docs-stable-img]][docs-stable-url] [![Documentation][docs-dev-img]][docs-dev-url]
+![CI](https://github.com/qojulia/QuantumCumulants.jl/workflows/CI/badge.svg) [![Codecov](https://codecov.io/gh/qojulia/QuantumCumulants.jl/branch/master/graph/badge.svg)](https://codecov.io/gh/qojulia/QuantumCumulants.jl/branch/master/) [![Documentation](https://img.shields.io/badge/docs-stable-blue.svg)](https://qojulia.github.io/QuantumCumulants.jl/stable/) [![Documentation](https://img.shields.io/badge/docs-dev-blue.svg)](https://qojulia.github.io/QuantumCumulants.jl/dev/)
 
 ## Relationship to SecondQuantizedAlgebra.jl
 
@@ -92,9 +92,3 @@ If you find **QuantumCumulants.jl** useful in your research, please consider cit
   year = {2022}
 }
 ```
-
-[codecov-url]: https://codecov.io/gh/qojulia/QuantumCumulants.jl/branch/master/ [codecov-img]: https://codecov.io/gh/qojulia/QuantumCumulants.jl/branch/master/graph/badge.svg
-
-[docs-dev-url]: https://qojulia.github.io/QuantumCumulants.jl/dev/ [docs-dev-img]: https://img.shields.io/badge/docs-dev-blue.svg
-
-[docs-stable-url]: https://qojulia.github.io/QuantumCumulants.jl/stable/ [docs-stable-img]: https://img.shields.io/badge/docs-stable-blue.svg

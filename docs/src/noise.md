@@ -38,24 +38,27 @@ scaled_eqs = scale(eqs_c)   # permutation-symmetric ensemble
 
 ## Solving: deterministic vs. stochastic
 
-Converting to a `ModelingToolkitBase.System` keeps both columns. How you *solve* it selects which you use:
+The `System` built from a `NoiseMeanfieldEquations` carries **both** columns: solving it as an `SDEProblem` integrates drift + noise, producing a single conditional trajectory for one measurement realisation. It needs a noise process; for white measurement noise this is a Wiener process from [StochasticDiffEq.jl](https://github.com/SciML/StochasticDiffEq.jl).
 
-- An `ODEProblem` integrates the **drift only**, recovering the unconditional (ensemble-mean) trajectory.
+For the unconditional (ensemble-mean) trajectory you want the **drift only**. Convert to a deterministic `MeanfieldEquations(scaled_eqs)` first; the constructor strips the noise drift, and the resulting `System` integrates as an ordinary `ODEProblem`.
 
-- An `SDEProblem` integrates **drift + noise**, producing a single conditional trajectory for one measurement realisation. It needs a noise process; for white measurement noise this is a Wiener process from [StochasticDiffEq.jl](https://github.com/SciML/StochasticDiffEq.jl).
+In both cases, build the problem from `mtkcompile(System(...))` and pass the parameters through [`parameter_map`](@ref), which keeps only the keys that survive compilation (stripping the noise can drop a parameter such as `ξ` that appeared only in the noise term):
 
 ```julia
 using ModelingToolkitBase, OrdinaryDiffEq, StochasticDiffEq
 
-sys = System(scaled_eqs; name=:sys)
-dict = merge(Dict(unknowns(sys) .=> u0), Dict(p .=> p0))
+u0 = zeros(ComplexF64, length(scaled_eqs))
 
 # Unconditional (drift-only) evolution:
-sol_det = solve(ODEProblem(sys, dict, (0.0, T)), Tsit5())
+sys_det  = mtkcompile(System(MeanfieldEquations(scaled_eqs); name=:sys_det))
+dict_det = parameter_map(sys_det, merge(Dict(unknowns(sys_det) .=> u0), Dict(p .=> p0)))
+sol_det  = solve(ODEProblem(sys_det, dict_det, (0.0, T)), Tsit5())
 
 # A single conditional trajectory:
-noise   = StochasticDiffEq.RealWienerProcess(0.0, 0.0)
-sol_traj = solve(SDEProblem(sys, dict, (0.0, T); noise=noise), EM(); dt=T/2e5)
+sys_st   = mtkcompile(System(scaled_eqs; name=:sys_st))
+dict_st  = parameter_map(sys_st, merge(Dict(unknowns(sys_st) .=> u0), Dict(p .=> p0)))
+noise    = StochasticDiffEq.RealWienerProcess(0.0, 0.0)
+sol_traj = solve(SDEProblem(sys_st, dict_st, (0.0, T); noise=noise), EM(); dt=T/2e5)
 ```
 
 Averaging many conditional trajectories (via an `EnsembleProblem`) reproduces the deterministic result, while individual trajectories show the backaction. [`get_solution`](@ref) extracts averages from either kind of solution.

@@ -14,7 +14,7 @@ So in any case, we need to treat the two-time correlation function before we can
 
 In order to compute a correlation function, we first evolve a system of equations up to a time ``t``. Then, we can derive another set of equations that describe the correlation function. This new set of equations is then evolved from time ``t`` up to a time ``t+\tau``. The correlation function is then stored in the first entry of the result. The initial state of the set of equations describing the correlation function will be determined by the state of the original system at time ``t``.
 
-Whenever an instance of a [`CorrelationFunction`](@ref) is created, a set of equations is derived using a custom version of the [`complete`](@ref) function. Internally, **QuantumCumulants.jl** introduces an *ancilla* subspace carrying the second operator `op2` at time `t`; the τ-equations are derived for averages that touch this ancilla, while non-ancilla averages on the RHS are treated as steady-state coefficients. Depending on the size and order of the considered system, this can take some time. An important distinction that can reduce the computation time substantially is whether the original system has been evolved to steady state. This is controlled by the keyword `steady_state=true` (the default) on [`CorrelationFunction`](@ref).
+Whenever an instance of a [`CorrelationFunction`](@ref) is created, a set of equations is derived with [`meanfield`](@ref) and then closed via the cumulant closure. Internally, **QuantumCumulants.jl** introduces an *ancilla* subspace carrying the second operator `op2` at time `t`; the τ-equations are derived for averages that touch this ancilla, while non-ancilla averages on the RHS are treated as steady-state coefficients. Depending on the size and order of the considered system, this can take some time. An important distinction that can reduce the computation time substantially is whether the original system has been evolved to steady state. This is controlled by the keyword `steady_state=true` (the default) on [`CorrelationFunction`](@ref).
 
 To clarify the usage, consider the simple case of a cavity with resonance frequency $\omega_\mathrm{c}$ that initially has a finite number of photons inside which decay over time at a rate ``\kappa``. We want to compute the two-time correlation function of the field (first-order degree of coherence) given by
 ```math
@@ -75,14 +75,14 @@ g_analytic(τ) = @. sol.u[end][1] * exp((im*ωc_val - 0.5*κ_val)*τ)
 @test isapprox(sol_c.u, g_analytic(sol_c.t), rtol=1e-4)
 ```
 
-Note that this was a very simple case. Usually the system of equations describing the correlation function is much more complex and depends on multiple other correlation functions (see for example [Spectrum of a single atom laser](@ref)).
+Note that this was a very simple case. Usually the system of equations describing the correlation function is much more complex and depends on multiple other correlation functions (see for example [Spectrum of a single-atom laser](@ref)).
 
 
 ## Spectrum calculation
 
 There are two possible ways to compute the spectrum given a correlation function:
 
-2. Solving the differential equation needed to obtain ``g(t,\tau)`` and taking the Fourier transform.
+1. Solving the differential equation needed to obtain ``g(t,\tau)`` and taking the Fourier transform.
 
 2. Taking the (symbolic) Laplace transform of the system of equations describing a correlation function.
 
@@ -138,4 +138,4 @@ nothing # hide
 
 * [Mollow Triplet](@ref)
 
-* [Spectrum of a single atom laser](@ref)
+* [Spectrum of a single-atom laser](@ref)

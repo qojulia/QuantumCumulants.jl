@@ -73,9 +73,9 @@ The source files are loaded in dependency order (`src/QuantumCumulants.jl`):
 | Layer | Files | Role |
 |-------|-------|------|
 | Early types & identity | `equations.jl`, `tree.jl`, `canonical.jl` | abstract equation supertype, treatment enum, direction tags, leaf traversal, moment keys |
-| Algebra to moments | `operator_drift.jl`, `moments.jl`, `cumulant.jl` | Heisenberg RHS, per-moment derivation, cumulant expansion |
-| The hierarchy & its wrappers | `graph.jl`, `equations_concrete.jl` | the cumulant hierarchy as a graph of moment equations; the graph-backed `MeanfieldEquations` / `NoiseMeanfieldEquations` and their derived view |
-| Workflow steps | `meanfield.jl`, `completion.jl`, `scaling.jl`, `evaluate.jl`, `mtk.jl`, `correlation.jl` | the operations the user calls |
+| Algebra to moments | `operator_drift.jl`, `moments.jl` | Heisenberg RHS, per-moment derivation |
+| The hierarchy & its wrappers | `graph.jl`, `equations_concrete.jl`, `cumulant.jl` | the cumulant hierarchy as a graph of moment equations; the graph-backed `MeanfieldEquations` / `NoiseMeanfieldEquations` and their derived view; cumulant expansion |
+| Workflow steps | `meanfield.jl`, `completion.jl`, `scaling.jl`, `evaluate.jl`, `mtk.jl`, `correlation.jl`, `spectrum.jl` | the operations the user calls |
 | Display | `printing.jl` | plain-text and LaTeX |
 
 ## The data model: the moment graph
@@ -90,7 +90,7 @@ MomentGraph
 │             ├─ drift     :: Num    averaged + truncated RHS  (leaves couple to other moments)
 │             ├─ op_drift  :: QAdd   operator-level RHS (inspection / latex / re-truncation)
 │             ├─ noise     :: Num?   measurement-backaction drift (optional)
-│             ├─ op_noise  :: Nothing always nothing (operator-level noise is deferred)
+│             ├─ op_noise  :: Num?   always nothing (operator-level noise is deferred)
 │             ├─ order     :: Int    cached get_order
 │             └─ aon       :: Vector{Int}   cached acts_on
 ├─ sys  :: SystemSpec    frozen derivation inputs (see below)
@@ -114,9 +114,9 @@ Every `Int` key in `treatments`, in `CanonCtx.vocab`, and in `CanonCtx.symmetric
 
 This is the heart of the moment layer, and it is what makes the hierarchy *close on a non-redundant set*. The job of `canonical.jl` is to assign each average a **key** that is identical for two averages exactly when they are the same expectation value. Two averages can coincide three ways:
 
-3. **Relabelling of free atom indices.** ``\langle igma^{ge}_i\rangle`` and ``\langle igma^{ge}_j\rangle`` are the same moment under a rename of the bound index.
+1. **Relabelling of free atom indices.** ``\langle\sigma^{ge}_i\rangle`` and ``\langle\sigma^{ge}_j\rangle`` are the same moment under a rename of the bound index.
 
-3. **The permutation symmetry ``S_n`` of identical atoms.** In a scaled ensemble every atom is interchangeable, so ``\langle igma_i igma_j\rangle`` collapses onto one representative.
+2. **The permutation symmetry ``S_n`` of identical atoms.** In a scaled ensemble every atom is interchangeable, so ``\langle\sigma_i\sigma_j\rangle`` collapses onto one representative.
 
 3. **Hermitian conjugation**, ``\langle A^\dagger\rangle = \langle A\rangle^*``.
 
@@ -193,7 +193,7 @@ The `max_iter` guard is a runaway backstop, not a truncation limiter: hitting it
 
 - [`scale`](@ref) (`scaling.jl`) calls `quotient`, marking the selected symmetric subspaces `Scaled` and merging permutation-equivalent moments. Each surviving drift leaf ``\langle X\rangle`` becomes ``\text{prefactor}\cdot\langle X_{\text{rep}}\rangle``, where the prefactor is ``\prod_b (\text{range}_b - \#\text{ne}_b)`` over the bound indices on the scaled subspaces, and every per-atom `IndexedVariable` coupling is flattened to its scalar (all atoms share the coupling under the symmetry). The `h::Vector{Int}` keyword restricts the quotient to specific subspaces; empty means all symmetric subspaces.
 
-- [`evaluate`](@ref) (`evaluate.jl`) calls `specialize`, unrolling each targeted symbolic range to its concrete integer size (from `limits`) and pinning indices to `Concrete` sites ``1\ldots M`` with distinct-site (``i\neq j``) semantics. A final `_arrayize_indexed_params!` rewrites any leftover per-site coupling (a callable `Sym` like `g(i_2_3)`) into `getindex` on a freshly minted Symbolics array parameter, which is what MTK can scalarise and bind; [`parameter_map`](@ref) later matches user values to that array by name.
+- [`evaluate`](@ref) (`evaluate.jl`) calls `specialize`, unrolling each targeted symbolic range to its concrete integer size (from `limits`) and pinning indices to `Concrete` sites ``1\ldots M`` with distinct-site (``i\neq j``) semantics. A final `arrayize_graph` rewrites any leftover per-site coupling (a callable `Sym` like `g(i_2_3)`) into `getindex` on a freshly minted Symbolics array parameter, which is what MTK can scalarise and bind; [`parameter_map`](@ref) later matches user values to that array by name.
 
 Because both are keyed by treatment rather than a hardcoded representative, a system can be partially scaled and partially evaluated, in any order.
 
@@ -285,26 +285,26 @@ For a permutation-symmetric many-body system built from [`Index`](@ref) and [`Σ
 
 These are the moment-layer rules a contributor must not break, each with its failure mode.
 
-12. **A conjugate pair is one physical unknown, but the default does not minimise on it.** During `closure` a moment whose conjugate is already present is covered. `get_adjoints=true` (default) tracks the conjugate of a genuinely-new moment as a second state; the numerical build keys states by `canonical_rep`/`concrete_rep`, so every occurrence of the pair on a right-hand side resolves to the first representative (or its `conj`), leaving the second variable a redundant shadow that `mtkcompile` does not eliminate. Use `get_adjoints=false` for the minimal set.
+1. **A conjugate pair is one physical unknown, but the default does not minimise on it.** During `closure` a moment whose conjugate is already present is covered. `get_adjoints=true` (default) tracks the conjugate of a genuinely-new moment as a second state; the numerical build keys states by `canonical_rep`/`concrete_rep`, so every occurrence of the pair on a right-hand side resolves to the first representative (or its `conj`), leaving the second variable a redundant shadow that `mtkcompile` does not eliminate. Use `get_adjoints=false` for the minimal set.
 
-12. **The MTK unknown is a dedicated time-dependent variable `var(t)`, never the average symbol itself.** The average is iv-free, `Number`-symtype, and identified structurally; an MTK unknown is a named, time-dependent variable. Registering the average directly would either lose the integration variable, force a `Real` symtype that folds ``\langle A\rangle`` and ``\langle A^\dagger\rangle`` under `conj`, or make MTK's name-based keying the source of truth for identity instead of the `MomentMap`. The bridge keeps the unknown a `Number`-symtype `BasicSymbolic` carrying the operator in metadata, and resolves identity through the map, not the name.
+2. **The MTK unknown is a dedicated time-dependent variable `var(t)`, never the average symbol itself.** The average is iv-free, `Number`-symtype, and identified structurally; an MTK unknown is a named, time-dependent variable. Registering the average directly would either lose the integration variable, force a `Real` symtype that folds ``\langle A\rangle`` and ``\langle A^\dagger\rangle`` under `conj`, or make MTK's name-based keying the source of truth for identity instead of the `MomentMap`. The bridge keeps the unknown a `Number`-symtype `BasicSymbolic` carrying the operator in metadata, and resolves identity through the map, not the name.
 
-12. **`closure` keys with `canon_key`, never `scaled_key`.** Symmetric reduction during closure would collapse the unscaled moment count. The reduction steps relabel with the treatment-matched `_materialised_key`; calling bare `canon_key` on an already-`Concrete` subspace would relabel and merge sites that must stay distinct.
+3. **`closure` keys with `canon_key`, never `scaled_key`.** Symmetric reduction during closure would collapse the unscaled moment count. The reduction steps relabel with the treatment-matched `_materialised_key`; calling bare `canon_key` on an already-`Concrete` subspace would relabel and merge sites that must stay distinct.
 
-12. **Sum-scope metadata must round-trip.** Rebuild summed leaves through the canonical `average(SQA.Σ(...))`, not `setmetadata`, which is `isequal` to the un-summed leaf so the terms never cancel.
+4. **Sum-scope metadata must round-trip.** Rebuild summed leaves through the canonical `average(SQA.Σ(...))`, not `setmetadata`, which is `isequal` to the un-summed leaf so the terms never cancel.
 
-12. **Use `Symbolics.IM`, not Julia's `im`, in symbolic right-hand sides.** A `complex(0, …)` literal does not unify with the factored symbolic form; `_im_form`/`_rebuild` convert it.
+5. **Use `Symbolics.IM`, not Julia's `im`, in symbolic right-hand sides.** A `complex(0, …)` literal does not unify with the factored symbolic form; `_im_form`/`_qc_maketerm` convert it.
 
-12. **Mint indices from the user's vocabulary** via `nth_index` (`reps[1](k)`), never invent fresh prefixes (SQA naming policy). `scale` and `evaluate` agree by construction because both mint through the same `nth_index`.
+6. **Mint indices from the user's vocabulary** via `nth_index` (`reps[1](k)`), never invent fresh prefixes (SQA naming policy). `scale` and `evaluate` agree by construction because both mint through the same `nth_index`.
 
-12. **Route index operations through `SQA.change_index`/`Σ`/`*`.** Hand-rolling a `QAdd` and sorting it yourself reintroduces the bugs the algebra exists to prevent (`` igma_{ee}^2 \ne igma_{ee}``, `` igma_2 igma_1 \ne igma_1 igma_2``).
+7. **Route index operations through `SQA.change_index`/`Σ`/`*`.** Hand-rolling a `QAdd` and sorting it yourself reintroduces the bugs the algebra exists to prevent (``\sigma_{ee}^2 \ne\sigma_{ee}``, ``\sigma_2\sigma_1 \ne\sigma_1\sigma_2``).
 
-12. **Average with the sum scope before truncating**, so the diagonal split fires before factorisation.
+8. **Average with the sum scope before truncating**, so the diagonal split fires before factorisation.
 
-12. **The `iszero` coefficient drop in `average_and_truncate` uses `Base.iszero` deliberately**; SQA's structural check misses uncombined zero forms like ``\lambda/2 - (1/2)\lambda``.
+9. **The `iszero` coefficient drop in `average_and_truncate` uses `Base.iszero` deliberately**; SQA's structural check misses uncombined zero forms like ``\lambda/2 - (1/2)\lambda``.
 
-12. **`max_iter` in `closure` errors, it does not truncate.** It is a runaway backstop only.
+10. **`max_iter` in `closure` errors, it does not truncate.** It is a runaway backstop only.
 
-12. **The ground projector `` igma^{gg}`` stays an atom** except where the `` igma^{gg} = 1 - \Sigma\, igma^{kk}`` fold is the explicit goal (`expand_completeness`/`_reduce_ground_in_drift` in `derive`).
+11. **The ground projector ``\sigma^{gg}`` stays an atom** except where the ``\sigma^{gg} = 1 - \Sigma\,\sigma^{kk}`` fold is the explicit goal (`expand_completeness`/`_reduce_ground_in_drift` in `derive`).
 
 12. **`NodeData.op_noise` is always `nothing`** (deferred); the operator-level noise column is rebuilt in `assemble_equations` when a noise struct is assembled.
