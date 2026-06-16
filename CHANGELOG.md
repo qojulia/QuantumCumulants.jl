@@ -4,7 +4,17 @@ All notable changes to QuantumCumulants.jl will be documented in this file.
 
 ## [0.5.0]
 
-Breaking release: a clean rewrite of QuantumCumulants.jl atop **SecondQuantizedAlgebra.jl v0.5** (which now owns the operator algebra) and **ModelingToolkitBase.jl** (in place of the full ModelingToolkit). Migration from the v0.4 series is hand-driven; there are no deprecation shims. The substantive changes fall into three groups: direct renames, constructs replaced by more general machinery, and behavioural changes in shared API names. All 14 examples from the v0.4 series are ported and pass an automated smoke run. This entry is the migration reference for users with code written against **QuantumCumulants.jl v0.4**. Algebra-surface migration (Hilbert spaces, operators, indices, sums) lives in the [SecondQuantizedAlgebra.jl changelog](https://qojulia.github.io/SecondQuantizedAlgebra.jl/stable/changelog/).
+Breaking release: a clean rewrite of QuantumCumulants.jl atop **SecondQuantizedAlgebra.jl v0.6** (which now owns the operator algebra) and **ModelingToolkitBase.jl** (in place of the full ModelingToolkit). Migration from the v0.4 series is hand-driven; there are no deprecation shims. The substantive changes fall into three groups: direct renames, constructs replaced by more general machinery, and behavioural changes in shared API names. All 14 examples from the v0.4 series are ported and pass an automated smoke run. This entry is the migration reference for users with code written against **QuantumCumulants.jl v0.4**. Algebra-surface migration (Hilbert spaces, operators, indices, sums) lives in the [SecondQuantizedAlgebra.jl changelog](https://qojulia.github.io/SecondQuantizedAlgebra.jl/stable/changelog/).
+
+### Added
+
+**Graph-native core (`MomentGraph`).** The cumulant hierarchy is now carried by a single `MomentGraph`: nodes are canonicalised moments, edges are the drift couplings between them, and per-subspace `treatments` record whether a subspace is left free, unrolled, or scaled. `meanfield` seeds and closes it, and `complete`/`complete!`, `scale`/`scale!`, and `evaluate` transform it; `System` reads from it to emit code. Every `*Equations` struct now stores `graph` as the source of truth, with `equations` a derived view regenerated from the graph rather than a hand-maintained parallel list. Correlation functions and spectra are derived on the same graph.
+
+**Introspection helpers.** New exported accessors over the graph: `states`, `moments`, `moment_variable_map` (moment to `BasicSymbolic` variable), `closure_report` (which moments were truncated and how), `noise_channels` (per-jump noise drift on a `NoiseMeanfieldEquations`), and `parameter_map`.
+
+**Direction types.** `EvolutionDirection` with `Forward` and `Backward` are exported, replacing the separate `meanfield_backward` entry point (`meanfield(...; direction=Backward())`).
+
+**In-place variants.** `scale!` and `simplify!` join the existing `complete!` / `modify_equations!`.
 
 ### Renamed
 
@@ -67,7 +77,7 @@ A few API names survive but their behaviour has shifted. The differences are int
 
 **`meanfield` is the single derivation entry.** `meanfield(ops, H, J; …)` replaces the scalar/indexed/noise/backward split. Noise is opt-in via `efficiencies=…` (yielding a `NoiseMeanfieldEquations`); retrodiction via `direction=Backward()`.
 
-**`scale` and `evaluate` take a subspace selector.** `scale(eqs; h=Int[])` and `evaluate(eqs; limits, h=Int[])` accept a `h::Vector{Int}` of `space_index` values selecting which Hilbert subspaces are collapsed / unrolled. The empty default targets every subspace (the previous behaviour). Hybrid systems can unroll some subspaces with `evaluate` and collapse others with `scale`, in any order.
+**`scale` and `evaluate` take a subspace selector.** `scale(eqs; h=Int[])` and `evaluate(eqs; limits, h=Int[])` accept a `h::Vector{Int}` of `acts_on` indices selecting which Hilbert subspaces are collapsed / unrolled. The empty default targets every subspace (the previous behaviour). Hybrid systems can unroll some subspaces with `evaluate` and collapse others with `scale`, in any order.
 
 **`scale` drops additive constants from the LHS.** When SQA's commutator pipeline produces a `c + ⟨…⟩` shape (e.g. `⟨a a'⟩` collapsing to `1 + ⟨a'a⟩`), the constant-offset equation deduplicates against its normal-ordered sibling.
 
@@ -77,7 +87,7 @@ A few API names survive but their behaviour has shifted. The differences are int
 
 **`cumulant_expansion` redistributes sum-scope metadata.** The `SumIndices`/`SumNonEqual` metadata is pushed onto each factorised product term so `scale` can recover the per-index range prefactor after Wick factorisation. Bound indices that no factored leaf references keep SQA's "spurious bound idx, factor 1" convention.
 
-**Dependencies and CI.** Updated to ModelingToolkitBase 1.36, SymbolicUtils 4, Symbolics 7, SecondQuantizedAlgebra 0.5. Quality gates (Aqua + ExplicitImports + CheckConcreteStructs + JET) are now part of CI.
+**Dependencies and CI.** Updated to ModelingToolkitBase 1.36, SymbolicUtils 4, Symbolics 7, SecondQuantizedAlgebra 0.6.3. Quality gates (Aqua + ExplicitImports + CheckConcreteStructs + JET) are now part of CI.
 
 ### Migration
 
