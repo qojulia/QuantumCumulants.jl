@@ -84,10 +84,10 @@ function solve_cumulant(eqs; tend = 20.0)
     sys = mtkcompile(System(eqs; name = :sys))
     u0 = initial_values(eqs, ψ0)
     dict = parameter_map(sys, merge(Dict(unknowns(sys) .=> u0), p))
-    # `eval_expression = true` compiles the right-hand side via `eval` instead of a
-    # RuntimeGeneratedFunction, which is noticeably faster to compile for the larger
-    # higher-order systems; `build_initializeprob = false` skips the (here redundant)
-    # initialization problem since `initial_values` already provides every state.
+    ## `eval_expression = true` compiles the right-hand side via `eval` instead of a
+    ## RuntimeGeneratedFunction, which is noticeably faster to compile for the larger
+    ## higher-order systems; `build_initializeprob = false` skips the (here redundant)
+    ## initialization problem since `initial_values` already provides every state.
     prob = ODEProblem(sys, dict, (0.0, tend); eval_expression = true, build_initializeprob = false)
     sol = solve(prob, RK4(), saveat = 0.1)
     mz = [real.(get_solution(sol, σz(i), eqs).(sol.t)) for i in 1:N]

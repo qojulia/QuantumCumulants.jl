@@ -88,7 +88,9 @@ makedocs(
     remotes = remotes,
     checkdocs = :exports,
     doctest = false,
-    warnonly = [:cross_references, :example_block],
+    # cross_references stay non-fatal: the only unresolved refs come from
+    # SecondQuantizedAlgebra docstrings (e.g. `(i::Index)(k)`) and must be fixed upstream.
+    warnonly = [:cross_references],
     format = Documenter.HTML(
         mathengine = MathJax(),
         footer = "[**Back to GitHub**](https://github.com/qojulia/QuantumCumulants.jl)",

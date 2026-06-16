@@ -45,7 +45,7 @@ For the unconditional (ensemble-mean) trajectory you want the **drift only**. Co
 In both cases, build the problem from `mtkcompile(System(...))` and pass the parameters through [`parameter_map`](@ref), which keeps only the keys that survive compilation (stripping the noise can drop a parameter such as `ξ` that appeared only in the noise term):
 
 ```julia
-using ModelingToolkitBase, OrdinaryDiffEq, StochasticDiffEq
+using ModelingToolkitBase, OrdinaryDiffEqTsit5, StochasticDiffEqLowOrder, DiffEqNoiseProcess
 
 u0 = zeros(ComplexF64, length(scaled_eqs))
 
@@ -57,7 +57,7 @@ sol_det  = solve(ODEProblem(sys_det, dict_det, (0.0, T)), Tsit5())
 # A single conditional trajectory:
 sys_st   = mtkcompile(System(scaled_eqs; name=:sys_st))
 dict_st  = parameter_map(sys_st, merge(Dict(unknowns(sys_st) .=> u0), Dict(p .=> p0)))
-noise    = StochasticDiffEq.RealWienerProcess(0.0, 0.0)
+noise    = RealWienerProcess(0.0, 0.0)
 sol_traj = solve(SDEProblem(sys_st, dict_st, (0.0, T); noise=noise), EM(); dt=T/2e5)
 ```
 

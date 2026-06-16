@@ -49,7 +49,7 @@ When the [`CorrelationFunction`](@ref) is constructed, an additional Hilbert spa
 
 To solve the original system numerically, build its MTK system via `System` and feed it into OrdinaryDiffEq. The ⟨a'a⟩ equation depends only on `κ`; `ωc` only enters once we evolve the correlation function (which carries a `⟨a†⟩` factor whose phase rotates at `ωc`):
 ```@example correlation
-using ModelingToolkitBase, OrdinaryDiffEq
+using ModelingToolkitBase, OrdinaryDiffEqTsit5
 
 sys = mtkcompile(System(me; name=:cav))
 n0 = 20.0 # Initial number of photons in the cavity

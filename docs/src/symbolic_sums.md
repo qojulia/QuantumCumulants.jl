@@ -73,7 +73,7 @@ The unrolled (or scaled) equations feed into `System` like any other. A per-atom
 using ModelingToolkitBase
 sys = mtkcompile(System(evaled; name=:tc))
 
-using OrdinaryDiffEq
+using OrdinaryDiffEqTsit5
 u0 = zeros(ComplexF64, length(evaled.states))
 p  = parameter_map(evaled, Dict(
     Δ  => 0.0,

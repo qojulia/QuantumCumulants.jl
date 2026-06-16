@@ -60,7 +60,7 @@ using ModelingToolkitBase
 sys = mtkcompile(System(eqs_full; name=:laser))
 
 # Solve the system using the OrdinaryDiffEq package
-using OrdinaryDiffEq
+using OrdinaryDiffEqTsit5
 u0 = zeros(ComplexF64, length(eqs_full.states))
 p0 = [Δ => 0.0, g => 1.5, γ => 0.25, κ => 1.0, ν => 4.0]
 prob = ODEProblem(sys, merge(initial_values(eqs_full, u0), Dict(p0)), (0.0, 10.0))

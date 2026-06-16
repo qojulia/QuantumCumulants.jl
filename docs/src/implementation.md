@@ -71,7 +71,7 @@ A [`MeanfieldEquations`](@ref) is converted to a `ModelingToolkitBase.System` of
 using ModelingToolkitBase
 sys = mtkcompile(System(me_complete; name=:cavity))
 
-using OrdinaryDiffEq
+using OrdinaryDiffEqTsit5
 u0 = zeros(ComplexF64, length(me_complete.states))
 p0 = [ω => 1.0, η => 0.1]
 prob = ODEProblem(sys, merge(initial_values(me_complete, u0), Dict(p0)), (0.0, 1.0))
