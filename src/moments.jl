@@ -4,10 +4,9 @@ function average_and_truncate(R::QAdd, order::TruncOrder, mix_choice, ctx::Canon
     acc = 0
     for (term, c) in R.arguments
         # Drop unsimplified zero coefficients (e.g. `λ/2 - (1//2)λ`) that would seed phantom
-        # moments that never close. Base `iszero` expands and is load-bearing here: SQA's
-        # structural `_iszero_cnum` returns false on that un-combined form.
+        # moments that never close.
         # TODO: check if this can be removed after https://github.com/qojulia/SecondQuantizedAlgebra.jl/pull/167
-        iszero(c) && continue
+        _iszero_coeff(c) && continue
         # Index-dependent coefficients (Γ(i,j)/Ω(i,j)) must ride inside the sum so the
         # diagonal split substitutes them; scalar coefficients stay outside.
         if !isempty(term.ops) && !isempty(_coeff_scope_indices(c, R.indices))
@@ -65,6 +64,23 @@ function _scoped_average_coeff(c, ops::AbstractVector{<:SQA.QSym}, non_equal, sc
     block_scope = SQA.Index[i for i in scope if i in used]
     isempty(block_scope) && return average(cblock)
     return average(SQA.Σ(cblock, block_scope[1], block_scope[2:end]...))
+end
+
+"""
+True when the `Complex{Num}` coefficient is structurally zero. Only a sum can hide an
+un-cancelled zero (`λ/2 - (1//2)λ`), so just those pay for `expand`;
+products/symbols/numbers stay on the cheap `iszero` hot path.
+TODO: check if this can be removed after
+https://github.com/qojulia/SecondQuantizedAlgebra.jl/pull/167
+"""
+_iszero_coeff(c::Complex) = _iszero_part(real(c)) && _iszero_part(imag(c))
+_iszero_coeff(c) = _iszero_part(c)
+
+function _iszero_part(p)
+    u = p isa Symbolics.Num ? SymbolicUtils.unwrap(p) : p
+    is_sum = u isa SymbolicUtils.BasicSymbolic && SymbolicUtils.iscall(u) &&
+        SymbolicUtils.operation(u) === (+)
+    return is_sum ? iszero(Symbolics.expand(p)) : iszero(p)
 end
 
 """

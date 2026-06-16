@@ -242,8 +242,8 @@ end
     htot = hc ⊗ hm
     a = Destroy(htot, :a, 1); b = Destroy(htot, :b, 2)
     @variables g F ωa ωb γa γb
-    H = ωa*a'*a + ωb*b'*b + g*a'*a*(b + b') + F*(a + a')
-    eqs = complete(meanfield([a, b'*b, a'*a], H, [a, b]; rates = [γa, γb], order = 2))
+    H = ωa * a' * a + ωb * b' * b + g * a' * a * (b + b') + F * (a + a')
+    eqs = complete(meanfield([a, b' * b, a' * a], H, [a, b]; rates = [γa, γb], order = 2))
 
     p = [g => 0.1, F => 0.1, ωa => 5.0, ωb => 0.5, γa => 1.0e-3, γb => 1.0e-3]
     sys = mtkcompile(System(eqs; name = :opto))
