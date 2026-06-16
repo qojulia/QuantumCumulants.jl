@@ -34,8 +34,8 @@ using Test
 end
 
 @testset "heterodyne_detection (single-trajectory SDE bounded)" begin
-    using StochasticDiffEq: SDEProblem, EM, RealWienerProcess
-    using StochasticDiffEq.SciMLBase: ReturnCode
+    using StochasticDiffEqLowOrder: SDEProblem, EM, ReturnCode
+    using DiffEqNoiseProcess: RealWienerProcess
     import Random
     @variables N ωa γ η χ ωc κ g ξ ωl
     @register_symbolic _het_pulse2(tt)

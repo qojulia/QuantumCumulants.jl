@@ -54,8 +54,7 @@ end
 end
 
 @testset "multi-channel noise: two-channel SDE ensemble matches deterministic" begin
-    using StochasticDiffEq: SDEProblem, EM, EnsembleProblem
-    using StochasticDiffEq.SciMLBase: ReturnCode
+    using StochasticDiffEqLowOrder: SDEProblem, EM, EnsembleProblem, ReturnCode
     import Random
 
     hc2 = FockSpace(:c1) ⊗ FockSpace(:c2)

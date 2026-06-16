@@ -23,7 +23,7 @@
 # We start by loading the needed packages.
 
 using QuantumCumulants
-using ModelingToolkitBase, OrdinaryDiffEq
+using ModelingToolkitBase, OrdinaryDiffEqTsit5
 using Plots
 
 # Then we define the symbolic parameters of the system, the Hilbertspace and the necessary operators. We define an atomic transition operator function $\sigma(i,j,k)$ for the transition from $|j \rangle$ to $|i \rangle$ of atom $k$. Since we only have one [`FockSpace`](@ref) we do not need to specify the Hilbertspace on which the [`Destroy`](@ref) operator acts. For the different atomic transitions, however, we need to specify this, since there is more than one [`NLevelSpace`](@ref). This information is stored in the `.aon` field of each operator.
@@ -117,6 +117,6 @@ versioninfo()
 
 using Pkg
 Pkg.status(
-    ["QuantumCumulants", "OrdinaryDiffEq", "ModelingToolkitBase", "Plots"],
+    ["QuantumCumulants", "OrdinaryDiffEqTsit5", "ModelingToolkitBase", "Plots"],
     mode = PKGMODE_MANIFEST,
 )

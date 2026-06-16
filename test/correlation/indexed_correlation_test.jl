@@ -2,7 +2,7 @@ using QuantumCumulants
 using Symbolics: Symbolics, @variables
 using SymbolicUtils
 using ModelingToolkitBase: mtkcompile
-using OrdinaryDiffEq: ODEProblem, Tsit5, solve
+using OrdinaryDiffEqTsit5: ODEProblem, Tsit5, solve
 using Test
 
 const _SQA = QuantumCumulants.SecondQuantizedAlgebra

@@ -13,7 +13,7 @@
 # We start by loading the packages.
 
 using QuantumCumulants
-using OrdinaryDiffEq, ModelingToolkitBase
+using OrdinaryDiffEqTsit5, ModelingToolkitBase
 using Plots
 
 # Due to the implementation of symbolic indices and sums we only need to define the Hilbert space for one atom, even though we will simulate a system for several thousand.
@@ -192,4 +192,4 @@ using InteractiveUtils
 versioninfo()
 
 using Pkg
-Pkg.status(["QuantumCumulants", "OrdinaryDiffEq"], mode = PKGMODE_MANIFEST)
+Pkg.status(["QuantumCumulants", "OrdinaryDiffEqTsit5"], mode = PKGMODE_MANIFEST)

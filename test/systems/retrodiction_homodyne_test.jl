@@ -5,8 +5,8 @@ using OrdinaryDiffEqTsit5: ODEProblem, solve, Tsit5
 using Test
 
 @testset "retrodiction_homodyne (forward, noise)" begin
-    using StochasticDiffEq: SDEProblem, EM, RealWienerProcess
-    using StochasticDiffEq.SciMLBase: ReturnCode
+    using StochasticDiffEqLowOrder: SDEProblem, EM, ReturnCode
+    using DiffEqNoiseProcess: RealWienerProcess
     import Random
     h = PhaseSpace(:motion)
     @qnumbers x::Position(h)

@@ -1,7 +1,7 @@
 using QuantumCumulants
 using SymbolicUtils: SymbolicUtils
 using ModelingToolkitBase: @named, mtkcompile, ODEProblem, unknowns
-using OrdinaryDiffEq: Tsit5, solve, ReturnCode
+using OrdinaryDiffEqTsit5: Tsit5, solve, ReturnCode
 using Test
 
 @testset "find_missing on JC" begin

@@ -4,8 +4,8 @@
 using QuantumCumulants
 using ModelingToolkitBase
 using OrdinaryDiffEqLowOrderRK
-using StochasticDiffEq
-using StochasticDiffEq.SciMLBase: ReturnCode
+using StochasticDiffEqLowOrder: SDEProblem, EM, EnsembleProblem, ReturnCode
+using DiffEqNoiseProcess: RealWienerProcess
 using Plots
 using Random # hide
 
@@ -110,7 +110,7 @@ sys_st = mtkcompile(System(scaled_eqs; name = :sys_st))
 dict_st = parameter_map(sys_st, merge(Dict(unknowns(sys_st) .=> u0), Dict(p .=> p0)))
 
 Random.seed!(2) # hide
-noise = StochasticDiffEq.RealWienerProcess(0.0, 0.0)
+noise = RealWienerProcess(0.0, 0.0)
 prob_st = SDEProblem(sys_st, dict_st, (0.0, T_end); noise = noise)
 sol_test = solve(prob_st, EM(); dt = T_end / 2.0e5);
 
@@ -128,7 +128,7 @@ traj = 200
 tspan = range(0.0, T_end, length = 201)
 sol = solve(
     eprob,
-    StochasticDiffEq.EM(),
+    EM(),
     dt = T_end / 2.0e5,
     save_noise = true,
     trajectories = traj,
@@ -183,6 +183,6 @@ versioninfo()
 
 using Pkg
 Pkg.status(
-    ["QuantumCumulants", "ModelingToolkitBase", "OrdinaryDiffEq", "StochasticDiffEq", "Plots"],
+    ["QuantumCumulants", "ModelingToolkitBase", "OrdinaryDiffEqLowOrderRK", "StochasticDiffEqLowOrder", "Plots"],
     mode = PKGMODE_MANIFEST,
 )

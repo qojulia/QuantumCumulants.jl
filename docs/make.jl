@@ -48,6 +48,7 @@ pages = [
         "examples/excitation-transport-chain.md"
         "examples/ramsey_spectroscopy.md"
         "examples/superradiant_laser_indexed.md"
+        "examples/weighted_phase_invariance.md"
         "examples/cavity_antiresonance_indexed.md"
         "examples/filter-cavity_indexed.md"
         "examples/unique_squeezing.md"

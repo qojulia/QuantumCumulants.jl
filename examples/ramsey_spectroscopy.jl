@@ -10,7 +10,7 @@
 # We start by loading the packages.
 
 using QuantumCumulants
-using OrdinaryDiffEq, OrdinaryDiffEqLowOrderRK, ModelingToolkitBase
+using OrdinaryDiffEqTsit5, OrdinaryDiffEqLowOrderRK, ModelingToolkitBase
 using Plots
 
 # Beside defining the symbolic parameters we additionally need to [register](https://mtk.sciml.ai/stable/tutorials/ode_modeling/#Specifying-a-time-variable-forcing-function) a time dependent external function $f(t)$ for our driving laser. To this end we first need to define the independent variable $t$ of our time evolution. Due to the registration, $f(t)$ is treated as a parameter in the symbolic equations, but at the numerical evaluation we can assign every function to it.
@@ -110,4 +110,4 @@ using InteractiveUtils
 versioninfo()
 
 using Pkg
-Pkg.status(["QuantumCumulants", "OrdinaryDiffEq"], mode = PKGMODE_MANIFEST)
+Pkg.status(["QuantumCumulants", "OrdinaryDiffEqTsit5", "OrdinaryDiffEqLowOrderRK"], mode = PKGMODE_MANIFEST)

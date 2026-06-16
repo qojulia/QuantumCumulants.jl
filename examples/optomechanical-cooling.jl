@@ -9,7 +9,7 @@
 
 
 using QuantumCumulants
-using OrdinaryDiffEq, OrdinaryDiffEqLowOrderRK, ModelingToolkitBase
+using OrdinaryDiffEqLowOrderRK, ModelingToolkitBase
 using Plots
 
 hc = FockSpace(:cavity) # Hilbertspace
@@ -98,6 +98,6 @@ versioninfo()
 
 using Pkg
 Pkg.status(
-    ["QuantumCumulants", "OrdinaryDiffEq", "ModelingToolkitBase", "Plots"],
+    ["QuantumCumulants", "OrdinaryDiffEqLowOrderRK", "ModelingToolkitBase", "Plots"],
     mode = PKGMODE_MANIFEST,
 )

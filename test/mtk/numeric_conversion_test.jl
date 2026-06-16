@@ -2,7 +2,7 @@ using QuantumCumulants
 using QuantumOpticsBase
 using Symbolics: @variables
 using ModelingToolkitBase: @named, mtkcompile, ODEProblem, parameters, unknowns
-using OrdinaryDiffEq: Tsit5, solve
+using OrdinaryDiffEqTsit5: Tsit5, solve
 using Random
 using Test
 

@@ -1,7 +1,7 @@
 using QuantumCumulants
 using Symbolics: Symbolics, @variables
 using ModelingToolkitBase: @named, mtkcompile, ODEProblem, unknowns
-using OrdinaryDiffEq: Tsit5, solve, ReturnCode
+using OrdinaryDiffEqTsit5: Tsit5, solve, ReturnCode
 using Test
 
 @testset "indexed_scale: Tavis-Cummings closure + scale + ODE" begin

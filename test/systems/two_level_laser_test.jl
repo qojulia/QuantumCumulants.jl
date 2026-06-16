@@ -2,7 +2,7 @@ using QuantumCumulants
 using Symbolics: Symbolics, @variables, substitute
 using SymbolicUtils
 using ModelingToolkitBase: ModelingToolkitBase, @named, mtkcompile, ODEProblem, unknowns
-using OrdinaryDiffEq: Tsit5, solve, ReturnCode
+using OrdinaryDiffEqTsit5: Tsit5, solve, ReturnCode
 using Test
 
 @testset "JC model: cumulant_expansion ≡ meanfield(order=2)" begin

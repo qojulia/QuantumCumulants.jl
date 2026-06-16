@@ -1,7 +1,7 @@
 using QuantumCumulants
 using Symbolics: Symbolics, @variables
 using ModelingToolkitBase: ModelingToolkitBase, @named, mtkcompile, ODEProblem, unknowns
-using OrdinaryDiffEq: Tsit5, solve, ReturnCode
+using OrdinaryDiffEqTsit5: Tsit5, solve, ReturnCode
 using Test
 
 @testset "Dicke model (Pauli): meanfield + complete + ODE" begin

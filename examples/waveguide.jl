@@ -20,7 +20,7 @@
 
 using QuantumCumulants
 using ModelingToolkitBase
-using OrdinaryDiffEq
+using OrdinaryDiffEqTsit5
 using QuantumOptics
 using Plots
 
@@ -169,4 +169,4 @@ using InteractiveUtils
 versioninfo()
 
 using Pkg
-Pkg.status(["QuantumCumulants", "OrdinaryDiffEq", "QuantumOptics"], mode = PKGMODE_MANIFEST)
+Pkg.status(["QuantumCumulants", "OrdinaryDiffEqTsit5", "QuantumOptics"], mode = PKGMODE_MANIFEST)

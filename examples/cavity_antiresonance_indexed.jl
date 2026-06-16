@@ -18,7 +18,7 @@
 # We start by loading the packages.
 
 using QuantumCumulants
-using OrdinaryDiffEq, ModelingToolkitBase
+using OrdinaryDiffEqTsit5, ModelingToolkitBase
 using Plots
 
 # The Hilbert space for this system is given by one cavity mode and $N$ two-level atoms. Here we use symbolic indices, sums and double sums to define the system.
@@ -141,6 +141,6 @@ versioninfo()
 
 using Pkg
 Pkg.status(
-    ["QuantumCumulants", "OrdinaryDiffEq", "ModelingToolkitBase", "Plots"],
+    ["QuantumCumulants", "OrdinaryDiffEqTsit5", "ModelingToolkitBase", "Plots"],
     mode = PKGMODE_MANIFEST,
 )

@@ -2,7 +2,7 @@ using QuantumCumulants
 using Symbolics: Symbolics, @variables
 using SymbolicUtils: SymbolicUtils
 using ModelingToolkitBase: @named, mtkcompile, ODEProblem, unknowns
-using OrdinaryDiffEq: Tsit5, solve, ReturnCode
+using OrdinaryDiffEqTsit5: Tsit5, solve, ReturnCode
 using Test
 
 @testset "evaluate: indexed Ising-XX (N=3) → mtkcompile" begin

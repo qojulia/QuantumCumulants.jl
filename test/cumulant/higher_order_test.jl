@@ -2,7 +2,7 @@ using QuantumCumulants
 using Symbolics: Symbolics, @variables
 using SymbolicUtils
 using ModelingToolkitBase: @named, mtkcompile, ODEProblem, unknowns
-using OrdinaryDiffEq: Tsit5, solve, ReturnCode
+using OrdinaryDiffEqTsit5: Tsit5, solve, ReturnCode
 using Test
 
 # Higher-order cumulant closure of a damped JC system.

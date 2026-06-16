@@ -9,7 +9,7 @@
 using Latexify # hide
 set_default(double_linebreak = true) # hide
 using QuantumCumulants
-using ModelingToolkitBase, OrdinaryDiffEq, OrdinaryDiffEqLowOrderRK
+using ModelingToolkitBase, OrdinaryDiffEqLowOrderRK
 using Plots
 
 # Obtaining the equations of motion for the system is simple. Note that in this case, we are not actually making any assumptions: in the special case of a single atom (even if it has more than two levels), there exists a simple mapping between the equations of motions for averages and the density operator. In our case, the density operator $\rho$ is determined by only two average values, $\langle\sigma^{eg}\rangle = \rho_{eg} = \rho_{ge}^* $ and $\langle \sigma^{ee}\rangle = \rho_{ee} = 1 - \rho_{gg}$. In other words, we are solving the master equation component-wise.
@@ -103,6 +103,6 @@ versioninfo()
 
 using Pkg
 Pkg.status(
-    ["QuantumCumulants", "OrdinaryDiffEq", "ModelingToolkitBase", "Plots"],
+    ["QuantumCumulants", "OrdinaryDiffEqLowOrderRK", "ModelingToolkitBase", "Plots"],
     mode = PKGMODE_MANIFEST,
 )

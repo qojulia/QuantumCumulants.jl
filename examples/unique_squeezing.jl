@@ -14,7 +14,7 @@
 
 
 using QuantumCumulants
-using OrdinaryDiffEq, ModelingToolkitBase
+using OrdinaryDiffEqTsit5, ModelingToolkitBase
 using ModelingToolkitBase: t_nounits as t
 using Plots
 nothing # hide
@@ -231,4 +231,4 @@ using InteractiveUtils
 versioninfo()
 
 using Pkg
-Pkg.status(["QuantumCumulants", "OrdinaryDiffEq"], mode = PKGMODE_MANIFEST)
+Pkg.status(["QuantumCumulants", "OrdinaryDiffEqTsit5"], mode = PKGMODE_MANIFEST)

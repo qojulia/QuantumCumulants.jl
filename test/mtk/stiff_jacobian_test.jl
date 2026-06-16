@@ -1,6 +1,6 @@
 using QuantumCumulants
 using ModelingToolkitBase: System, mtkcompile, ODEProblem
-using OrdinaryDiffEq: OrdinaryDiffEq, Rosenbrock23, solve
+using OrdinaryDiffEqRosenbrock: OrdinaryDiffEqRosenbrock, Rosenbrock23, solve
 using Symbolics: @variables
 using Test
 
@@ -17,7 +17,7 @@ using Test
     sys = mtkcompile(System(eqs; name = :s))
     u0 = initial_values(eqs; defaults = Dict(average(a) => 1.0 + 0.0im))
     prob = ODEProblem(sys, vcat(collect(u0), [Δ => 2.0, κ => 1.0]), (0.0, 3.0))
-    sol = solve(prob, Rosenbrock23(autodiff = OrdinaryDiffEq.AutoFiniteDiff()); reltol = 1.0e-9, abstol = 1.0e-9)
+    sol = solve(prob, Rosenbrock23(autodiff = OrdinaryDiffEqRosenbrock.AutoFiniteDiff()); reltol = 1.0e-9, abstol = 1.0e-9)
     g = get_solution(sol, average(a), eqs)
     exact = exp((-1im * 2.0 - 0.5) * 3.0)
     @test isapprox(g(3.0), exact; atol = 1.0e-4)

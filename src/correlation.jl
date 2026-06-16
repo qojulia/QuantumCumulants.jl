@@ -135,10 +135,7 @@ function CorrelationFunction(
     if filter_func !== nothing
         g = map_drifts(g, (_, d) -> _filter_ancilla_expr(d, ancilla_filter, filter_func))
     end
-    # Quantum regression with a time-dependent generator L(t): the τ-evolution is governed by
-    # L(t₀+τ), so the parent IV `t` carried into the τ-equations (inside registered functions
-    # like f(t)) must become `iv0 + τ`. A no-op when the equations don't depend on the parent
-    # IV; otherwise `iv0` (the parent stop time t₀) is required.
+    # Time-dependent generator: substitute the parent IV `t -> iv0 + τ`. No-op if t-independent.
     iv0_uw = SymbolicUtils.unwrap(eqs0.iv)
     if _drifts_depend_on(g, iv0_uw)
         iv0 === nothing && throw(
@@ -161,9 +158,8 @@ function CorrelationFunction(
 end
 
 """
-Whether any drift in the closed graph `g` references the symbol `iv_uw` (an unwrapped
-independent variable). True when the parent Hamiltonian/jumps carry a time dependence
-into the τ-equations, e.g. through a registered `f(t)`.
+Whether any drift in `g` references the symbol `iv_uw`, i.e. the parent Hamiltonian/jumps
+carry a time dependence into the τ-equations (e.g. a registered `f(t)`).
 """
 function _drifts_depend_on(g::MomentGraph, iv_uw)
     for (_, nd) in g.nodes
@@ -334,11 +330,18 @@ See also: [`CorrelationFunction`](@ref), [`correlation_u0`](@ref).
 """
 function correlation_p0(c::CorrelationFunction, u_end, ps_p0)
     resolve = _ss_resolver(c, u_end)
+    reg = _state_registry(c.eqs)
     out = Dict{Any, ComplexF64}()
     for (k, v) in ps_p0
         out[k] = ComplexF64(v)
     end
+    # One param per conjugate representative (first-wins), matching `System(c)`'s `amb` map;
+    # emitting the folded-away conjugate would be a key absent from the system.
+    seen = Set{QAdd}()
     for avg in c.ambient
+        rep, _ = canonical_rep(undo_average(avg), reg.ctx; treatments = reg.treatments)
+        rep in seen && continue
+        push!(seen, rep)
         aons = SQA.acts_on(avg)
         lookup = (c.aon_ancilla in aons && length(aons) == 1) ? _undo_ancilla(c, avg) : avg
         out[_ambient_param(avg)] = resolve(lookup)

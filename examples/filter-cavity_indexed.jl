@@ -15,7 +15,7 @@
 # We start by loading the packages.
 
 using QuantumCumulants
-using OrdinaryDiffEq, ModelingToolkitBase
+using OrdinaryDiffEqTsit5, ModelingToolkitBase
 using Plots
 
 # We create the parameters of the system including the $\texttt{IndexedVariable}$ $\delta_i$. For the atoms and filter cavities we only need one Hilbert space each. We define the indices for each Hilbert space and use them to create $\texttt{IndexedOperators}$.
@@ -146,6 +146,6 @@ versioninfo()
 
 using Pkg
 Pkg.status(
-    ["QuantumCumulants", "OrdinaryDiffEq", "ModelingToolkitBase", "Plots"],
+    ["QuantumCumulants", "OrdinaryDiffEqTsit5", "ModelingToolkitBase", "Plots"],
     mode = PKGMODE_MANIFEST,
 )

@@ -2,7 +2,7 @@ using QuantumCumulants
 using Symbolics: Symbolics, @variables
 using SymbolicUtils
 using ModelingToolkitBase: ModelingToolkitBase, @named, mtkcompile, ODEProblem, unknowns
-using OrdinaryDiffEq: Tsit5, solve, ReturnCode
+using OrdinaryDiffEqTsit5: Tsit5, solve, ReturnCode
 using LinearAlgebra: I
 using Test
 
@@ -229,4 +229,38 @@ end
     @test c_nss isa CorrelationFunction
     @test length(c_nss.eqs.equations) >= length(c_ss.eqs.equations)
     @test_throws ArgumentError Spectrum(c_nss)
+end
+
+@testset "CorrelationFunction: multi-mode ambient params fold conjugates" begin
+    # A two-mode coupled system produces conjugate-paired steady-state coefficients (e.g.
+    # ⟨a·b⟩ and ⟨a'·b'⟩) among the correlation's ambient averages. `System(c)` collapses each
+    # pair onto one `ss_` parameter via `canonical_rep`; `correlation_p0` must emit the same
+    # single parameter, not both. Emitting the dropped conjugate hands `ODEProblem` a key that
+    # is not a parameter of the system, which it rejects. Regression for the optomechanical
+    # case reported in issue #93.
+    hc = FockSpace(:cavity); hm = FockSpace(:mirror)
+    htot = hc ⊗ hm
+    a = Destroy(htot, :a, 1); b = Destroy(htot, :b, 2)
+    @variables g F ωa ωb γa γb
+    H = ωa*a'*a + ωb*b'*b + g*a'*a*(b + b') + F*(a + a')
+    eqs = complete(meanfield([a, b'*b, a'*a], H, [a, b]; rates = [γa, γb], order = 2))
+
+    p = [g => 0.1, F => 0.1, ωa => 5.0, ωb => 0.5, γa => 1.0e-3, γb => 1.0e-3]
+    sys = mtkcompile(System(eqs; name = :opto))
+    u0 = initial_values(eqs, zeros(ComplexF64, length(eqs)))
+    sol = solve(ODEProblem(sys, merge(u0, Dict(p)), (0.0, 50.0)), Tsit5())
+
+    c = CorrelationFunction(a', a, eqs)
+    csys = mtkcompile(System(c; name = :cc))
+    p0 = correlation_p0(c, sol.u[end], p)
+    # Every parameter value handed to the τ-ODE must be an actual parameter of the system.
+    sysparams = Set(ModelingToolkitBase.parameters(csys))
+    @test all(SymbolicUtils.unwrap(k) in sysparams for k in keys(p0))
+
+    sol_c = solve(
+        ODEProblem(csys, merge(correlation_u0(c, sol.u[end]), Dict(p0)), (0.0, 30.0)),
+        Tsit5(); save_idxs = 1,
+    )
+    @test sol_c.retcode == ReturnCode.Success
+    @test all(isfinite, abs.(sol_c.u))
 end

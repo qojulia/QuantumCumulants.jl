@@ -2,7 +2,7 @@ using QuantumCumulants
 using Symbolics: Symbolics, @variables
 using SymbolicUtils
 using ModelingToolkitBase: ModelingToolkitBase, @named, mtkcompile, ODEProblem, unknowns
-using OrdinaryDiffEq: Tsit5, solve, ReturnCode
+using OrdinaryDiffEqTsit5: Tsit5, solve, ReturnCode
 using Test
 
 # Mixed-order cumulant on an indexed JC laser: a per-Hilbert order vector

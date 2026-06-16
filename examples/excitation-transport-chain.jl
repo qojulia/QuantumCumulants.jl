@@ -172,6 +172,6 @@ versioninfo()
 
 using Pkg
 Pkg.status(
-    ["QuantumCumulants", "OrdinaryDiffEq", "ModelingToolkitBase", "Plots"],
+    ["QuantumCumulants", "OrdinaryDiffEqLowOrderRK", "ModelingToolkitBase", "Plots"],
     mode = PKGMODE_MANIFEST,
 )

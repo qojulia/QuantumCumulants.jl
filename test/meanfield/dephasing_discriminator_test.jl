@@ -1,7 +1,7 @@
 using QuantumCumulants
 using Symbolics: @variables
 using ModelingToolkitBase: mtkcompile
-using OrdinaryDiffEq: ODEProblem, Tsit5, solve
+using OrdinaryDiffEqTsit5: ODEProblem, Tsit5, solve
 using Test
 
 @testset "dephasing vs concrete-site: closure responds to the channel set" begin

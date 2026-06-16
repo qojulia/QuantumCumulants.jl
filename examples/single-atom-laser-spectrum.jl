@@ -9,7 +9,7 @@
 using Latexify # hide
 set_default(double_linebreak = true) # hide
 using QuantumCumulants
-using ModelingToolkitBase, OrdinaryDiffEq, OrdinaryDiffEqLowOrderRK
+using ModelingToolkitBase, OrdinaryDiffEqLowOrderRK
 using Plots
 
 @variables Δ g γ κ ν # Define parameters
@@ -144,4 +144,4 @@ using InteractiveUtils
 versioninfo()
 
 using Pkg
-Pkg.status(["QuantumCumulants", "OrdinaryDiffEq"], mode = PKGMODE_MANIFEST)
+Pkg.status(["QuantumCumulants", "OrdinaryDiffEqLowOrderRK"], mode = PKGMODE_MANIFEST)

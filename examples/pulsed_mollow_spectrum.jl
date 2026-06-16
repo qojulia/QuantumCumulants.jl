@@ -13,7 +13,7 @@
 # By the quantum regression theorem, with a time-dependent generator the $\tau$-evolution is governed by $H(t_0+\tau)$, **not** $H(\tau)$: the drive keeps running during the correlation delay, starting from the absolute time $t_0$ at which the original evolution stopped. **QuantumCumulants.jl** handles this by substituting the original time variable $t \to t_0 + \tau$ in the correlation equations. We pass $t_0$ via the `iv0` keyword and supply its value alongside the other parameters.
 
 using QuantumCumulants
-using ModelingToolkitBase, OrdinaryDiffEq, OrdinaryDiffEqLowOrderRK
+using ModelingToolkitBase, OrdinaryDiffEqTsit5, OrdinaryDiffEqLowOrderRK
 using QuantumOptics: timecorrelations
 using Plots
 
@@ -131,6 +131,6 @@ versioninfo()
 
 using Pkg
 Pkg.status(
-    ["QuantumCumulants", "OrdinaryDiffEq", "ModelingToolkitBase", "QuantumOptics", "Plots"],
+    ["QuantumCumulants", "OrdinaryDiffEqTsit5", "ModelingToolkitBase", "QuantumOptics", "Plots"],
     mode = PKGMODE_MANIFEST,
 )

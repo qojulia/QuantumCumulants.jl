@@ -1,8 +1,9 @@
 using QuantumCumulants
 using Symbolics: Symbolics, @variables, @register_symbolic
 using ModelingToolkitBase: mtkcompile, unknowns
-using OrdinaryDiffEq: Tsit5, ODEProblem, ReturnCode, solve
-using StochasticDiffEq: StochasticDiffEq, SDEProblem, EM, RealWienerProcess
+using OrdinaryDiffEqTsit5: Tsit5, ODEProblem, ReturnCode, solve
+using StochasticDiffEqLowOrder: SDEProblem, EM
+using DiffEqNoiseProcess: RealWienerProcess
 using Statistics: cor
 using Random
 using Test
@@ -39,7 +40,7 @@ using Test
     Random.seed!(2)
     sys_fw = mtkcompile(System(eqs; name = :sys_fw))
     dict_fw = merge(Dict(unknowns(sys_fw) .=> u0), Dict(ps .=> pn))
-    noise = StochasticDiffEq.RealWienerProcess(0.0, 0.0; save_everystep = true)
+    noise = RealWienerProcess(0.0, 0.0; save_everystep = true)
     prob_fw = SDEProblem(sys_fw, dict_fw, (0, Tend); noise = noise)
     sol_fw = solve(prob_fw, EM(); dt = dt, saveat = T_saveat)
     @test sol_fw.retcode == ReturnCode.Success
