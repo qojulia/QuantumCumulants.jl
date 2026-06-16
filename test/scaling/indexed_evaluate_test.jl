@@ -1,5 +1,6 @@
 using QuantumCumulants
 using Symbolics: Symbolics, @variables
+using SymbolicUtils: SymbolicUtils
 using ModelingToolkitBase: @named, mtkcompile, ODEProblem, unknowns
 using OrdinaryDiffEq: Tsit5, solve, ReturnCode
 using Test
@@ -46,6 +47,42 @@ using Test
         mag = [abs(get_solution(sol, op, eqs_ev)(t)) for t in sol.t]
         @test maximum(mag) <= 1.0 + 1.0e-9
     end
+end
+
+@testset "evaluate: #277 sum over identical=false double-indexed variable" begin
+    # H = Σ_{i,j} Ω_ij σ11^i σ22^j with Ω_ii = 0. evaluate must unroll the sum
+    # into concrete Ω[i,j] entries, leaving no symbolic index behind, and must
+    # honour identical=false so no diagonal Ω[k,k] survives.
+    h = NLevelSpace(:atom, 2)
+    @variables N::Real
+    Ω(a, b) = DoubleIndexedVariable(:Ω, a, b; identical = false)
+    σ(x, y, idx) = IndexedOperator(Transition(h, :σ, x, y), idx)
+    i = Index(h, :i, N, h); j = Index(h, :j, N, h); k = Index(h, :k, N, h)
+    H = Σ(Ω(i, j) * σ(1, 1, i) * σ(2, 2, j), j, i)
+    eqs_c = complete(meanfield([σ(1, 2, k)], H; order = 1))
+
+    eqs_ev = evaluate(eqs_c; limits = (N => 2))
+    @test length(eqs_ev.equations) == 4
+
+    # A materialised index slot is a `getindex` arg: a numeric constant once
+    # resolved, but wrapped as `BasicSymbolic` (so `arg isa Integer` is false and
+    # `Int(arg)` throws). `Symbolics.value` collapses the wrap to the integer.
+    slots = Set{Tuple{Int, Int}}()
+    for eq in eqs_ev.equations, v in Symbolics.get_variables(eq.rhs)
+        u = SymbolicUtils.unwrap(v)
+        if SymbolicUtils.iscall(u) && SymbolicUtils.operation(u) === getindex
+            a = SymbolicUtils.arguments(u)
+            occursin("Ω", string(a[1])) &&
+                push!(slots, (Int(Symbolics.value(a[2])), Int(Symbolics.value(a[3]))))
+        end
+    end
+    # identical=false ⇒ no diagonal Ω[k,k] survives; only off-diagonal entries do.
+    @test slots == Set([(1, 2), (2, 1)])
+
+    # The populations ⟨σ22^k⟩ are conserved: a diagonal-free Ω makes H commute
+    # with each σ22^k, so exactly the two ⟨σ22⟩ equations vanish. A zero rhs is a
+    # `BasicSymbolic` that is not `isequal` to `0`, but carries no free variables.
+    @test count(eq -> isempty(Symbolics.get_variables(eq.rhs)), eqs_ev.equations) == 2
 end
 
 @testset "evaluate: scale agreement at the steady-state limit" begin

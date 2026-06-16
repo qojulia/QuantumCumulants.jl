@@ -165,6 +165,30 @@ end
     @test any(v -> abs(v) > 1.0e-12, values(u0))
 end
 
+# Regression test for https://github.com/qojulia/QuantumCumulants.jl/issues/231:
+# CorrelationFunction with indexed transition operators on *distinct* indices
+# (no Fock mode) used to throw `AssertionError: isequal(acts_on(op), ind.aon)`.
+@testset "indexed CorrelationFunction: distinct-index transition operands (#231)" begin
+    @variables N::Int Δ::Real
+    ha = NLevelSpace(:atom, 2)
+    σ(x, y, z) = IndexedOperator(Transition(ha, :σ, x, y), z)
+    Sp(idx) = σ(2, 1, idx)
+    Sm(idx) = σ(1, 2, idx)
+    S_ee(idx) = σ(2, 2, idx)
+    J(a, b) = DoubleIndexedVariable(:J, a, b)
+    i = Index(ha, :i, N, ha)
+    j = Index(ha, :j, N, ha)
+    k = Index(ha, :k, N, ha)
+    l = Index(ha, :l, N, ha)
+
+    H = Σ(Δ * S_ee(i), i) + Σ((i ≠ j) * J(i, j) * Sp(i) * Sm(j), i, j)
+    eqs = meanfield([Sm(k), S_ee(k)], H, []; rates = [], order = 2)
+
+    corr = CorrelationFunction(Sp(k), Sm(l), eqs; steady_state = true)
+    @test corr isa CorrelationFunction
+    @test length(corr.eqs.equations) >= 1
+end
+
 @testset "indexed Spectrum: steady-state lookup bridges Hamiltonian/LHS index mismatch" begin
     @variables Δ::Real κ::Real Γ::Real R::Real ν::Real N::Real
     g(k) = IndexedVariable(:g, k)

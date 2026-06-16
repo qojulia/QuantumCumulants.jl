@@ -216,3 +216,22 @@ end
     completed = complete(tagged)
     @test any(eq -> occursin("marker", repr(eq.rhs)), completed.equations)
 end
+
+@testset "complete: order-4 product of number ops across subspaces (issue #239)" begin
+    # A 4th-order observable that is a product of number operators on distinct
+    # subspaces used to throw `convert(AvgSym, QNumber)` inside `complete`.
+    ha = FockSpace(:a); hb = FockSpace(:b); h = ha ⊗ hb
+    @qnumbers a::Destroy(h, 1) b::Destroy(h, 2)
+    @variables ω0::Real Ω::Real λ::Real κ::Real g::Real
+    H = ω0 * a' * a + Ω * b' * b + λ * (a' * b + b' * a)
+    eqs = meanfield([a' * a * b' * b], H, [a, b']; rates = [κ, g], order = 4)
+    eqs_c = complete(eqs)
+
+    # The system closes, and the requested 4th-order moment survives as an LHS.
+    @test isempty(find_missing(eqs_c))
+    @test any(eq -> isequal(eq.lhs, eqs.equations[1].lhs), eqs_c.equations)
+    # Closure size is fixed by the algebra and the cumulant order.
+    @test length(eqs_c.equations) == 13
+    # `complete` is idempotent on its own output.
+    @test length(complete(eqs_c).equations) == 13
+end
