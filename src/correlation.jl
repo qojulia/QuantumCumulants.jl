@@ -73,7 +73,7 @@ end
 # ---- constructor -------------------------------------------------------------
 
 """
-    CorrelationFunction(op1, op2, eqs0; steady_state=true, filter_func=nothing, max_iter=100_000)
+    CorrelationFunction(op1, op2, eqs0; steady_state=true, filter_func=nothing, max_iter=100_000, iv0=nothing)
 
 Build the two-time correlation ⟨op1(τ)·op2(0)⟩ from a solved mean-field system
 `eqs0` via the quantum regression theorem. `op2` is re-embedded onto a fresh ancilla
@@ -81,6 +81,13 @@ subspace and the resulting system is closed only on averages that touch the
 ancilla; the remaining averages are steady-state coefficients. With
 `steady_state=false` the ambient averages are evolved too. `filter_func` further
 restricts the closure, and `max_iter` bounds the closure iterations.
+
+If the Hamiltonian, jumps, or rates depend on the parent time variable `eqs0.iv`
+(e.g. a drive `f(t)`), the τ-evolution is governed by the generator at `iv0 + τ`, where
+`iv0` is the absolute time the parent evolution stopped (conventionally `sol.t[end]`).
+Pass it as a parameter, e.g. `@variables t0::Real; CorrelationFunction(op1, op2, eqs; iv0 = t0)`,
+and supply its value alongside the other parameters in [`correlation_p0`](@ref). `iv0` is
+ignored for time-independent systems and required when a dependence is detected.
 
 # Examples
 ```jldoctest
@@ -97,6 +104,7 @@ julia> CorrelationFunction(a', a, eqs)
 function CorrelationFunction(
         op1::QField, op2::QField, eqs0::MeanfieldEquations;
         steady_state::Bool = true, filter_func = nothing, max_iter::Int = 100_000,
+        iv0 = nothing,
     )
     τ = first(MTK.@independent_variables τ)
     aon_ancilla = _ancilla_aon(eqs0, op1, op2)
@@ -127,12 +135,46 @@ function CorrelationFunction(
     if filter_func !== nothing
         g = map_drifts(g, (_, d) -> _filter_ancilla_expr(d, ancilla_filter, filter_func))
     end
+    # Quantum regression with a time-dependent generator L(t): the τ-evolution is governed by
+    # L(t₀+τ), so the parent IV `t` carried into the τ-equations (inside registered functions
+    # like f(t)) must become `iv0 + τ`. A no-op when the equations don't depend on the parent
+    # IV; otherwise `iv0` (the parent stop time t₀) is required.
+    iv0_uw = SymbolicUtils.unwrap(eqs0.iv)
+    if _drifts_depend_on(g, iv0_uw)
+        iv0 === nothing && throw(
+            ArgumentError(
+                "the Hamiltonian/jumps depend on the time variable $(eqs0.iv); pass `iv0` " *
+                    "(e.g. `@variables t0::Real; CorrelationFunction(op1, op2, eqs; iv0 = t0)`) and " *
+                    "set it to the parent evolution's stop time when solving. The correlation " *
+                    "evaluates the generator at `iv0 + τ`.",
+            )
+        )
+        sub = Dict(iv0_uw => SymbolicUtils.unwrap(iv0 + τ))
+        g = map_drifts(g, (_, d) -> _subtree_substitute(SymbolicUtils.unwrap(d), sub))
+    end
     eqs_tau = MeanfieldEquations(g)
     ambient = _ambient_avgs(eqs_tau, aon_ancilla)
 
     return CorrelationFunction(
         op1, op2, op2_ancilla, aon_ancilla, eqs_tau, eqs0, τ, steady_state, ambient,
     )
+end
+
+"""
+Whether any drift in the closed graph `g` references the symbol `iv_uw` (an unwrapped
+independent variable). True when the parent Hamiltonian/jumps carry a time dependence
+into the τ-equations, e.g. through a registered `f(t)`.
+"""
+function _drifts_depend_on(g::MomentGraph, iv_uw)
+    for (_, nd) in g.nodes
+        found = false
+        walk(SymbolicUtils.unwrap(nd.drift)) do n
+            n === iv_uw && (found = true)
+            return !found
+        end
+        found && return true
+    end
+    return false
 end
 
 function _filter_ancilla_expr(x, ancilla_filter, user_filter)

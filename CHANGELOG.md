@@ -16,6 +16,8 @@ Breaking release: a clean rewrite of QuantumCumulants.jl atop **SecondQuantizedA
 
 **In-place variants.** `scale!` and `simplify!` join the existing `complete!` / `modify_equations!`.
 
+**Correlation functions of time-dependent Hamiltonians.** `CorrelationFunction` now supports systems whose Hamiltonian, jumps, or rates depend on the time variable (e.g. a drive `f(t)`); previously these failed with `UndefVarError: t not defined`. See issues [#171](https://github.com/qojulia/QuantumCumulants.jl/issues/171) and [#93](https://github.com/qojulia/QuantumCumulants.jl/issues/93). Per the quantum regression theorem the τ-evolution is governed by the generator at `t₀+τ`, so the parent time variable is substituted by `iv0 + τ`. Pass the parent evolution's stop time `t₀` via the new `iv0` keyword: `@variables t0::Real; CorrelationFunction(op1, op2, eqs; iv0 = t0)`, and supply its value in `correlation_p0`. Time-independent systems are unaffected (the keyword is ignored when no time dependence is present).
+
 ### Renamed
 
 One-to-one renames. Replace the left column with the right column anywhere it appears in your code.

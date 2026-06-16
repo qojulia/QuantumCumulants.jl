@@ -78,6 +78,58 @@ g_analytic(τ) = @. sol.u[end][1] * exp((im*ωc_val - 0.5*κ_val)*τ)
 Note that this was a very simple case. Usually the system of equations describing the correlation function is much more complex and depends on multiple other correlation functions (see for example [Spectrum of a single-atom laser](@ref)).
 
 
+### Time-dependent Hamiltonians
+
+So far the Hamiltonian was time-independent. When ``H`` (or the jump operators or rates) depends on the time variable ``t``, for instance through a registered drive or modulation ``f(t)``, some care is needed. The correlation function
+```math
+g(t_0,\tau) = \langle a^\dagger(t_0+\tau)\,a(t_0)\rangle
+```
+is evaluated by the quantum regression theorem at the *absolute* time ``t_0+\tau``, **not** at ``\tau``: the modulation keeps running during the delay ``\tau``, starting from the time ``t_0`` at which the original evolution stopped. **QuantumCumulants.jl** implements this by substituting ``t \to t_0 + \tau`` in the correlation equations. You supply ``t_0`` through the `iv0` keyword of [`CorrelationFunction`](@ref).
+
+As an illustration, take a cavity with a sinusoidally modulated frequency ``\omega_c(t) = \omega_c + \delta\cos(\nu\,t)``. We register the modulation and build the time-dependent system on the mean-field independent variable `t`:
+```@example correlation
+@variables δ::Real t0::Real
+@register_symbolic ωmod(t)
+ν = 0.8 # modulation frequency (numeric)
+ωmod(t) = cos(ν*t)
+
+t = me.iv
+H_t = (ωc + δ*ωmod(t))*a'*a
+me_t = meanfield(a'*a, H_t, [a]; rates=[κ])
+
+c_t = CorrelationFunction(a', a, me_t; iv0=t0)
+nothing # hide
+```
+Without `iv0`, a time-dependent system raises an informative error, since the correlation equations would otherwise contain the orphaned time variable `t`. We evolve the original system to some stop time `t0`, then evolve the correlation with `t0` propagated as a parameter:
+```@example correlation
+sys_t = mtkcompile(System(me_t; name=:cav_t))
+ωc_val, κ_val, δ_val, t0_val = 2.0, 0.5, 1.5, 5.0
+u0_t = initial_values(me_t, [ComplexF64(4.0)]) # 4 photons initially
+prob_t = ODEProblem(sys_t, merge(u0_t, Dict(κ => κ_val)), (0.0, t0_val))
+sol_t = solve(prob_t, Tsit5(), abstol=1e-12, reltol=1e-12)
+
+csys_t = mtkcompile(System(c_t; name=:cav_t_corr))
+u0_ct = correlation_u0(c_t, sol_t.u[end])
+p0_ct = correlation_p0(c_t, sol_t.u[end], [ωc => ωc_val, κ => κ_val, δ => δ_val, t0 => t0_val])
+prob_ct = ODEProblem(csys_t, merge(u0_ct, Dict(p0_ct)), (0.0, 8.0))
+sol_ct = solve(prob_ct, Tsit5(), abstol=1e-12, reltol=1e-12, save_idxs=1)
+nothing # hide
+```
+The frequency modulation cancels in the photon-number dynamics, so ``\langle a^\dagger a\rangle(t_0) = n_0 e^{-\kappa t_0}``, and the correlation has the closed form
+```math
+g(t_0,\tau) = \langle a^\dagger a\rangle(t_0)\,
+\exp\!\left[-\tfrac{\kappa}{2}\tau + i\,\omega_c\tau + i\,\tfrac{\delta}{\nu}\bigl(\sin(\nu(t_0+\tau)) - \sin(\nu t_0)\bigr)\right],
+```
+which depends on the stop time ``t_0`` through the modulation phase. We verify the numerical solution against it:
+```@example correlation
+using Test # hide
+n_t0 = real(sol_t.u[end][1])
+g_t(τ) = @. n_t0 * exp(-0.5*κ_val*τ + im*(ωc_val*τ + (δ_val/ν)*(sin(ν*(t0_val+τ)) - sin(ν*t0_val))))
+@test isapprox(sol_ct.u, g_t(sol_ct.t), rtol=1e-6)
+```
+A worked physical application, recovering the Mollow triplet of a pulsed drive from a plateau time ``t_0``, is given in [Mollow Triplet from a Pulsed Drive](@ref).
+
+
 ## Spectrum calculation
 
 There are two possible ways to compute the spectrum given a correlation function:

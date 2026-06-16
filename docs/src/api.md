@@ -1,4 +1,13 @@
+```@meta
+CollapsedDocStrings = true
+```
+
 # [API](@id API)
+
+```@contents
+Pages = ["API.md"]
+Depth = 2:3
+```
 
 ## [Hilbert Spaces](@id API: Hilbert Spaces)
 
