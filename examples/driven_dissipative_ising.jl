@@ -37,6 +37,7 @@ using QuantumOptics
 using Plots
 
 N = 6 # number of spins in the chain
+nothing # hide
 
 # Each site lives in its own `PauliSpace`; the full Hilbert space is their tensor product. The
 # last argument of `Pauli` selects the site, and the `axis` argument selects the component

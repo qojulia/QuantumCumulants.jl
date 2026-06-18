@@ -24,6 +24,7 @@ using Plots
 h = NLevelSpace(:atom, 2) # Hilbert space
 
 σ(i, j) = Transition(h, :σ, i, j) # Operators
+nothing # hide
 
 # Seed a meanfield call so we can reuse its MTK-aware iv `t` in the time-dependent Hamiltonian below.
 eqs_seed = meanfield([σ(2, 2), σ(1, 2)], -Δ * σ(2, 2), [σ(1, 2), σ(2, 2)]; rates = [Γ, ν])

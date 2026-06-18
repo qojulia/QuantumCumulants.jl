@@ -90,6 +90,7 @@ t1 = 20.0e-3
 p = [N, ωa, γ, η, χ, ωc, κ, g, ξ, ωl]
 p0 = [N_, ωa_, γ_, η_, χ_, ωc_, κ_, g_, ξ_, ωl_]
 T_end = 0.1 # 0.1ms
+nothing # hide
 
 # To compare the stochastic evolution to the no-measurement case, build the deterministic system by passing `MeanfieldEquations(scaled_eqs)` to `System`. The constructor strips the noise drift, which also drops `ξ` from the compiled parameter list (it appeared only inside the `sqrt(ξ κ)` factor of the noise term). Because the physical parameter dict `p .=> p0` still carries `ξ`, we filter it through `parameter_map(sys, …)`; the helper keeps only the entries whose key is a live parameter or unknown of the compiled system and silently drops the rest.
 

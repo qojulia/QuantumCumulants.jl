@@ -50,6 +50,7 @@ J = [b, σ(1, 2, i)] # Jump operators & and rates
 rates = [κ, γ]
 
 ps = [ω, Ω, ωd, g, η, κ, γ, N, ξ] # symbolic and numeric parameter list
+nothing # hide
 
 # First we derive the mean-field equations in second order for $\langle a \rangle$, $\langle a^\dagger a \rangle$ and $\langle \sigma^{22}_j \rangle$, then we complete the system to obtain a closed set of equations.
 
@@ -92,6 +93,7 @@ u0 = zeros(ComplexF64, length(eqs_sc)); # initial state
 η_ = 4ω_
 κ_ = ω_
 γ_ = ω_
+nothing # hide
 
 # Derived quantities (`gc`, `g`, `ωd`, `ξ`) depend on `N`. We pick the
 # largest `N` (the well-converged case) as the canonical global value used
@@ -103,6 +105,7 @@ gc_ = sqrt(Ω_ * ω_ / N_global)
 g_ = 0.9gc_
 ωd_ = sqrt(1 - g_^2 / gc_^2) * ω_
 ξ_ = 1 / 4 * log(1 - N_global * g_^2 / (ω_ * Ω_))
+nothing # hide
 
 # We solve the dynamics for four different numbers of two-level systems $N = [1, 2, 10, 100]$.
 
