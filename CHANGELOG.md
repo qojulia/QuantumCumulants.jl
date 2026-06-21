@@ -2,6 +2,12 @@
 
 All notable changes to QuantumCumulants.jl will be documented in this file.
 
+## [0.5.2]
+
+### Fixed
+
+`complete(...; get_adjoints = false)` now keeps the conjugation-canonical member of each conjugate pair, instead of whichever side the right-hand-side traversal happened to reach first. That traversal order is `objectid`-seeded and so varies between Julia processes, which made the surviving representative (and therefore the equation count after `scale`) nondeterministic across sessions: the heterodyne-detection system, for instance, scaled to 12 or 13 equations depending on the process. The closed set is now process-independent. See issue [#295](https://github.com/qojulia/QuantumCumulants.jl/issues/295).
+
 ## [0.5.0]
 
 Breaking release: a clean rewrite of QuantumCumulants.jl atop **SecondQuantizedAlgebra.jl v0.6** (which now owns the operator algebra) and **ModelingToolkitBase.jl** (in place of the full ModelingToolkit). Migration from the v0.4 series is hand-driven; there are no deprecation shims. The substantive changes fall into three groups: direct renames, constructs replaced by more general machinery, and behavioural changes in shared API names. All 14 examples from the v0.4 series are ported and pass an automated smoke run. This entry is the migration reference for users with code written against **QuantumCumulants.jl v0.4**. Algebra-surface migration (Hilbert spaces, operators, indices, sums) lives in the [SecondQuantizedAlgebra.jl changelog](https://qojulia.github.io/SecondQuantizedAlgebra.jl/stable/changelog/).

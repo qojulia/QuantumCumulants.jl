@@ -20,6 +20,29 @@ const SQA = SecondQuantizedAlgebra
     @test isempty(find_missing(ev))
 end
 
+@testset "closure: get_adjoints=false stores conjugation-canonical reps (issue #295)" begin
+    # Which member of a conjugate pair survives must not depend on objectid-seeded
+    # leaf order: every stored moment is its own conjugation-canonical representative.
+    ha = NLevelSpace(:atom, 2); hf = FockSpace(:cavity); h = ha ⊗ hf
+    a = Destroy(h, :a)
+    σ(α, β, i) = IndexedOperator(Transition(h, :σ, α, β), i)
+    @variables N::Real Δ::Real g::Real κ::Real
+    i = Index(h, :i, N, ha)
+    H = Δ * a' * a + g * ∑(σ(2, 1, i) * a + σ(1, 2, i) * a', i)
+    eqs = meanfield(a' * a, H, [a]; rates = [κ], order = 2)
+    eqs_c = complete(eqs; get_adjoints = false)
+    ctx = QuantumCumulants.build_ctx(eqs_c)
+    # Non-vacuous only if the system has genuine conjugate pairs (non-Hermitian moments).
+    @test any(
+        op -> QuantumCumulants.canon_key(adjoint(op), ctx) != QuantumCumulants.canon_key(op, ctx),
+        keys(eqs_c.graph.nodes),
+    )
+    # is_conjugate == false ⟺ op is the canonical side of its pair.
+    for op in keys(eqs_c.graph.nodes)
+        @test !QuantumCumulants.canonical_rep(op, ctx)[2]
+    end
+end
+
 @testset "closure: chain N=10 find_missing == 0 (coordinate-consistent)" begin
     N = 10
     h_chain = ⊗([NLevelSpace(Symbol(:atom, i), (:g, :e)) for i in 1:N]...)

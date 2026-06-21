@@ -88,18 +88,17 @@ function closure(
                 push!(seen, k)
                 continue
             end
-            filter(average(k)) || continue
-            # Genuinely new moment (neither rep seen yet).
-            nodes[k] = derive(k, g.sys, ctx)
+            # New pair: store the conjugation-canonical side, not the one this leaf
+            # presented, so the survivor is independent of objectid-seeded leaf order.
+            store = (get_adjoints || kc == k) ? k : canonical_rep(op, ctx)[1]
+            filter(average(store)) || continue
+            nodes[store] = derive(store, g.sys, ctx)
             push!(seen, k)
-            push!(pending, k)
-            if get_adjoints && kc != k
-                # Track the conjugate partner as its own moment.
+            push!(seen, kc)
+            push!(pending, store)
+            if get_adjoints && kc != k   # also track the conjugate as its own moment
                 nodes[kc] = derive(kc, g.sys, ctx)
-                push!(seen, kc)
                 push!(pending, kc)
-            else
-                push!(seen, kc)
             end
         end
     end
