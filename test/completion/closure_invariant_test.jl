@@ -35,7 +35,7 @@ end
     treatments = QuantumCumulants._treatments(sc, ctx)
     reps = [
         QuantumCumulants.canonical_rep(QuantumCumulants.undo_average(s), ctx; treatments)[1]
-        for s in sc.states
+            for s in sc.states
     ]
     @test any(s -> QuantumCumulants.undo_average(s) isa SQA.QAdd, sc.states)  # non-vacuous
     @test allunique(reps)
