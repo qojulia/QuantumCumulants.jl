@@ -6,7 +6,7 @@ All notable changes to QuantumCumulants.jl will be documented in this file.
 
 ### Fixed
 
-`complete(...; get_adjoints = false)` now keeps the conjugation-canonical member of each conjugate pair, instead of whichever side the right-hand-side traversal happened to reach first. That traversal order is `objectid`-seeded and so varies between Julia processes, which made the surviving representative (and therefore the equation count after `scale`) nondeterministic across sessions: the heterodyne-detection system, for instance, scaled to 12 or 13 equations depending on the process. The closed set is now process-independent. See issue [#295](https://github.com/qojulia/QuantumCumulants.jl/issues/295).
+`scale` now folds the conjugate images of a conjugation-reduced system (`complete(...; get_adjoints = false)`), so its equation count is the minimal closed set rather than depending on which member of each conjugate pair the closure happened to keep. `scale` previously reduced only permutation symmetry, leaving moments that coincide only after conjugation as separate equations for a single numerical unknown; which of those survived was `objectid`-seeded and so varied between Julia processes, making the post-`scale` count nondeterministic across sessions (the heterodyne-detection system scaled to 12 or 13 equations depending on the process). `scale` now reduces permutation *and* conjugation symmetry consistently with the generated numerical system, so the count is process-independent. See issue [#295](https://github.com/qojulia/QuantumCumulants.jl/issues/295).
 
 ## [0.5.0]
 

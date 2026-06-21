@@ -12,10 +12,21 @@ function quotient(g::MomentGraph; h::Vector{Int} = Int[])
     for sp in selected
         treatments[sp] = Scaled
     end
+    # `_materialised_key` folds permutation symmetry but not conjugation; a conjugation-folded
+    # graph must also collapse moments that coincide only after conjugation, else the count
+    # depends on which conjugate side closure stored (#295). Key by the permutation rep (so the
+    # drift matches the label), dedup by the conjugation-aware `canonical_rep`.
+    fold_conj = conj_folded(g)
+    seen_reps = Set{NodeKey}()
     nodes = OrderedCollections.OrderedDict{NodeKey, NodeData}()
     for (k, nd) in g.nodes
         ok = _materialised_key(k, ctx, treatments)
-        haskey(nodes, ok) && continue   # symmetric image / folded conjugate already kept
+        haskey(nodes, ok) && continue   # permutation image already kept
+        if fold_conj
+            rep = canonical_rep(k, ctx; treatments)[1]
+            rep in seen_reps && continue   # conjugate image already kept
+            push!(seen_reps, rep)
+        end
         drift = _scale_expr(nd.drift, ctx, selected, sym_to_space)
         noise = nd.noise === nothing ? nothing : _scale_expr(nd.noise, ctx, selected, sym_to_space)
         nodes[ok] = NodeData(drift, nd.op_drift, noise, nd.op_noise, nd.order, nd.aon)

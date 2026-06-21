@@ -22,6 +22,15 @@ end
 """A graph is "quotiented" once any subspace has been reduced to a `Scaled` treatment."""
 quotiented(g::MomentGraph) = any(==(Scaled), values(g.treatments))
 
+"""True when `g` keeps at most one member of each conjugate pair (closed `get_adjoints=false`)."""
+function conj_folded(g::MomentGraph)
+    for k in keys(g.nodes)
+        kc = canon_key(adjoint(k), g.ctx)
+        kc != k && haskey(g.nodes, kc) && return false
+    end
+    return true
+end
+
 """
 The key function matching the graph's current level: `scaled_key` once any subspace is
 `Scaled`, otherwise `canon_key`. Kept for callers that want the treatment-matched key;
@@ -88,17 +97,18 @@ function closure(
                 push!(seen, k)
                 continue
             end
-            # New pair: store the conjugation-canonical side, not the one this leaf
-            # presented, so the survivor is independent of objectid-seeded leaf order.
-            store = (get_adjoints || kc == k) ? k : canonical_rep(op, ctx)[1]
-            filter(average(store)) || continue
-            nodes[store] = derive(store, g.sys, ctx)
+            filter(average(k)) || continue
+            # Genuinely new moment (neither rep seen yet).
+            nodes[k] = derive(k, g.sys, ctx)
             push!(seen, k)
-            push!(seen, kc)
-            push!(pending, store)
-            if get_adjoints && kc != k   # also track the conjugate as its own moment
+            push!(pending, k)
+            if get_adjoints && kc != k
+                # Track the conjugate partner as its own moment.
                 nodes[kc] = derive(kc, g.sys, ctx)
+                push!(seen, kc)
                 push!(pending, kc)
+            else
+                push!(seen, kc)
             end
         end
     end
