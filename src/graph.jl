@@ -22,6 +22,15 @@ end
 """A graph is "quotiented" once any subspace has been reduced to a `Scaled` treatment."""
 quotiented(g::MomentGraph) = any(==(Scaled), values(g.treatments))
 
+"""True when `g` keeps at most one member of each conjugate pair (closed `get_adjoints=false`)."""
+function conj_folded(g::MomentGraph)
+    for k in keys(g.nodes)
+        kc = canon_key(adjoint(k), g.ctx)
+        kc != k && haskey(g.nodes, kc) && return false
+    end
+    return true
+end
+
 """
 The key function matching the graph's current level: `scaled_key` once any subspace is
 `Scaled`, otherwise `canon_key`. Kept for callers that want the treatment-matched key;

@@ -2,6 +2,12 @@
 
 All notable changes to QuantumCumulants.jl will be documented in this file.
 
+## [0.5.2]
+
+### Fixed
+
+`scale` now folds the conjugate images of a conjugation-reduced system (`complete(...; get_adjoints = false)`), so its equation count is the minimal closed set rather than depending on which member of each conjugate pair the closure happened to keep. `scale` previously reduced only permutation symmetry, leaving moments that coincide only after conjugation as separate equations for a single numerical unknown; which of those survived was `objectid`-seeded and so varied between Julia processes, making the post-`scale` count nondeterministic across sessions (the heterodyne-detection system scaled to 12 or 13 equations depending on the process). `scale` now reduces permutation *and* conjugation symmetry consistently with the generated numerical system, so the count is process-independent. See issue [#295](https://github.com/qojulia/QuantumCumulants.jl/issues/295).
+
 ## [0.5.0]
 
 Breaking release: a clean rewrite of QuantumCumulants.jl atop **SecondQuantizedAlgebra.jl v0.6** (which now owns the operator algebra) and **ModelingToolkitBase.jl** (in place of the full ModelingToolkit). Migration from the v0.4 series is hand-driven; there are no deprecation shims. The substantive changes fall into three groups: direct renames, constructs replaced by more general machinery, and behavioural changes in shared API names. All 14 examples from the v0.4 series are ported and pass an automated smoke run. This entry is the migration reference for users with code written against **QuantumCumulants.jl v0.4**. Algebra-surface migration (Hilbert spaces, operators, indices, sums) lives in the [SecondQuantizedAlgebra.jl changelog](https://qojulia.github.io/SecondQuantizedAlgebra.jl/stable/changelog/).

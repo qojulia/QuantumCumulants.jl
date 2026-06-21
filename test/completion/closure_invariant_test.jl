@@ -20,6 +20,27 @@ const SQA = SecondQuantizedAlgebra
     @test isempty(find_missing(ev))
 end
 
+@testset "scale: conjugation-folded count is the minimal set (issue #295)" begin
+    # `scale` of a `get_adjoints=false` system must fold conjugate images: no two scaled
+    # states may share a conjugation representative, regardless of objectid-seeded leaf order.
+    ha = NLevelSpace(:atom, 2); hf = FockSpace(:cavity); h = ha ⊗ hf
+    a = Destroy(h, :a)
+    σ(α, β, i) = IndexedOperator(Transition(h, :σ, α, β), i)
+    @variables N::Real Δ::Real g::Real κ::Real
+    i = Index(h, :i, N, ha)
+    H = Δ * a' * a + g * ∑(σ(2, 1, i) * a + σ(1, 2, i) * a', i)
+    eqs = meanfield(a' * a, H, [a]; rates = [κ], order = 2)
+    sc = scale(complete(eqs; get_adjoints = false))
+    ctx = QuantumCumulants.build_ctx(sc)
+    treatments = QuantumCumulants._treatments(sc, ctx)
+    reps = [
+        QuantumCumulants.canonical_rep(QuantumCumulants.undo_average(s), ctx; treatments)[1]
+            for s in sc.states
+    ]
+    @test any(s -> QuantumCumulants.undo_average(s) isa SQA.QAdd, sc.states)  # non-vacuous
+    @test allunique(reps)
+end
+
 @testset "closure: chain N=10 find_missing == 0 (coordinate-consistent)" begin
     N = 10
     h_chain = ⊗([NLevelSpace(Symbol(:atom, i), (:g, :e)) for i in 1:N]...)
