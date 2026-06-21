@@ -3,6 +3,7 @@ const TruncOrder = Union{Nothing, Int, Vector{Int}}
 function average_and_truncate(R::QAdd, order::TruncOrder, mix_choice, ctx::CanonCtx)
     acc = 0
     for (term, c) in R.arguments
+        c = _coeff_num(c)
         # Drop unsimplified zero coefficients (e.g. `λ/2 - (1//2)λ`) that would seed phantom
         # moments that never close.
         # TODO: check if this can be removed after https://github.com/qojulia/SecondQuantizedAlgebra.jl/pull/167
@@ -43,6 +44,8 @@ function _coeff_vars(c)
     (cc isa Symbolics.Num || cc isa SymbolicUtils.BasicSymbolic) || return ()
     return Symbolics.get_variables(cc)
 end
+
+_coeff_num(c) = Complex(real(c), imag(c))
 
 """
 Average a block with its coefficient inside the sum, scoping over indices used by the
@@ -141,7 +144,7 @@ function _carry_non_equal(block::QAdd, non_equal, scope)
         SQA.has_index(o.index) && push!(present, o.index)
     end
     scopeset = Set{SQA.Index}(scope)
-    kept = SQA.NonEqualPair[
+    kept = Tuple{SQA.Index, SQA.Index}[
         p for p in non_equal if
             (p[1] in present && p[2] in present) ||
             (p[1] in present && !(p[2] in scopeset)) ||

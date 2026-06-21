@@ -162,9 +162,11 @@ end
 """Full view columns of a deterministic graph, for construction (`new` needs every field)."""
 function det_view_columns(g::MomentGraph)
     ks = collect(keys(g.nodes))
-    equations = Symbolics.Equation[average(k) ~ g.nodes[k].drift for k in ks]
-    operator_equations = Symbolics.Equation[k ~ g.nodes[k].op_drift for k in ks]
+    # `average(k)` is the LHS state of equation `k`; build it once and share it between the
+    # `equations` column and the `states` column rather than averaging each key twice.
     states = SymbolicUtils.BasicSymbolic[average(k) for k in ks]
+    equations = Symbolics.Equation[states[i] ~ g.nodes[ks[i]].drift for i in eachindex(ks)]
+    operator_equations = Symbolics.Equation[k ~ g.nodes[k].op_drift for k in ks]
     operators = QAdd[k for k in ks]
     return (; equations, operator_equations, states, operators)
 end

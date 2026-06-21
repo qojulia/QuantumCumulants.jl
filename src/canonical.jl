@@ -294,10 +294,10 @@ function _drop_scope_non_equal(q::QAdd)
         for o in term.ops
             SQA.has_index(o.index) && push!(opidx, o.index)
         end
-        kept = SQA.NonEqualPair[p for p in term.ne if p[1] in opidx && p[2] in opidx]
+        kept = Tuple{SQA.Index, SQA.Index}[p for p in term.ne if p[1] in opidx && p[2] in opidx]
         length(kept) == length(term.ne) || (changed = true)
         nt = SQA.QTerm(copy(term.ops), kept)
-        out[nt] = get(out, nt, zero(c)) + c
+        out[nt] = haskey(out, nt) ? out[nt] + c : c
     end
     return changed ? SQA.QAdd(out, q.indices) : q
 end
@@ -309,9 +309,9 @@ once the constraints are gone.
 function _drop_all_non_equal(q::QAdd)
     out = SQA.QTermDict()
     for (term, c) in q.arguments
-        new_term = isempty(term.ne) ? term : SQA.QTerm(copy(term.ops), SQA.NonEqualPair[])
+        new_term = isempty(term.ne) ? term : SQA.QTerm(copy(term.ops), Tuple{SQA.Index, SQA.Index}[])
         # Accumulate: terms collapsing to the same ops must add their coefficients.
-        out[new_term] = get(out, new_term, zero(c)) + c
+        out[new_term] = haskey(out, new_term) ? out[new_term] + c : c
     end
     return SQA.QAdd(out, q.indices)
 end

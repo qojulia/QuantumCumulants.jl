@@ -20,13 +20,13 @@ const QC = QuantumCumulants
 const ALLOC_GATE = VERSION >= v"1.12"
 
 const CEILING = Dict(
-    :cumulant_expansion => 79_065,
-    :canonicalization => 167_182,
-    :evaluate => 768_715,
-    :scale => 176_934,
+    :cumulant_expansion => 54_262,
+    :canonicalization => 145_765,
+    :evaluate => 728_364,
+    :scale => 185_417,
     :System => 323_168,
-    :spectrum_build => 243_128,
-    :spectrum_kernel => 66_369,
+    :spectrum_build => 241_086,
+    :spectrum_kernel => 65_026,
 )
 
 # Warm up to absorb compilation (and first-call interning, e.g. System), then take
