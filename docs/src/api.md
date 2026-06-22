@@ -75,6 +75,7 @@ SecondQuantizedAlgebra.normal_to_symmetric
 SecondQuantizedAlgebra.expand_completeness
 SecondQuantizedAlgebra.anticommutator
 SecondQuantizedAlgebra.is_average
+SecondQuantizedAlgebra.is_indexed_sum
 SecondQuantizedAlgebra.undo_average
 SymbolicUtils.substitute
 SymbolicUtils.simplify

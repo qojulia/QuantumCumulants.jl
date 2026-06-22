@@ -2,6 +2,12 @@
 
 All notable changes to QuantumCumulants.jl will be documented in this file.
 
+## [0.5.3]
+
+### Changed
+
+Migrated to **SecondQuantizedAlgebra.jl v0.7** on its public API. SQA v0.7 represents indexed sums as a `Term` (rather than the previous `SymbolicUtils` node shape) and exposes the algebra surface QuantumCumulants relies on (tree rewriting, averaging, scaling, cumulant expansion, coefficient handling) through documented entry points, so QuantumCumulants no longer reaches into SQA internals. No user-facing QuantumCumulants API changed. See the [SecondQuantizedAlgebra.jl changelog](https://qojulia.github.io/SecondQuantizedAlgebra.jl/stable/changelog/).
+
 ## [0.5.2]
 
 ### Fixed
