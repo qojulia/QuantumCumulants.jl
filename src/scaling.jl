@@ -19,6 +19,10 @@ function quotient(g::MomentGraph; h::Vector{Int} = Int[])
     fold_conj = conj_folded(g)
     seen_reps = Set{NodeKey}()
     nodes = OrderedCollections.OrderedDict{NodeKey, NodeData}()
+    # A moment ⟨X⟩ recurs across many drifts; `_scale_leaf` is a pure function of the leaf
+    # (given the fixed `selected`/`ctx`), so cache its result once per `quotient`. The cache
+    # is local, not `ctx.cache`: the scaled form depends on `selected`, which varies with `h`.
+    leaf_cache = Dict{Any, Any}()
     for (k, nd) in g.nodes
         ok = _materialised_key(k, ctx, treatments)
         haskey(nodes, ok) && continue   # permutation image already kept
@@ -27,8 +31,9 @@ function quotient(g::MomentGraph; h::Vector{Int} = Int[])
             rep in seen_reps && continue   # conjugate image already kept
             push!(seen_reps, rep)
         end
-        drift = _scale_expr(nd.drift, ctx, selected, sym_to_space)
-        noise = nd.noise === nothing ? nothing : _scale_expr(nd.noise, ctx, selected, sym_to_space)
+        drift = _scale_expr(nd.drift, ctx, selected, sym_to_space, leaf_cache)
+        noise = nd.noise === nothing ? nothing :
+            _scale_expr(nd.noise, ctx, selected, sym_to_space, leaf_cache)
         nodes[ok] = NodeData(drift, nd.op_drift, noise, nd.op_noise, nd.order, nd.aon)
     end
     return MomentGraph(nodes, g.sys, ctx, treatments)
@@ -53,38 +58,33 @@ function _build_sym_to_space(g::MomentGraph)
 end
 
 """
-Rewrite an averaged RHS for scale: each leaf ⟨X⟩ becomes `prefactor * ⟨X_rep⟩`, where
-`X_rep` is the permutation-symmetry representative of `X` (via `_scale_leaf`), then
-flatten every `IndexedVariable(:g, i)` coefficient to its scalar `g` (all atoms share
-the same coupling under the scale symmetry).
+Rewrite an averaged RHS for scale in a single post-order pass: each moment unit ⟨X⟩ becomes
+`prefactor * ⟨X_rep⟩`, where `X_rep` is the permutation-symmetry representative of `X` (via
+`_scale_leaf`), and every `IndexedVariable(:g, i)` coefficient flattens to its scalar `g`
+(all atoms share the coupling under the scale symmetry). `_scale_leaf`'s `average` can factor
+an indexed-variable coefficient back out of a sum body, so the per-leaf result is flattened
+before it is cached; coefficients sitting outside the moments are flattened during descent.
+Memoise per leaf to skip re-folding a moment that recurs across drifts.
 """
-function _scale_expr(x, ctx, selected, sym_to_space)
-    # Graph drifts keep sum scope on each leaf, not on the enclosing node, so this strip of
-    # any `*`-node scope is a no-op safeguard; `_scale_leaf` owns the leaf scope and the
-    # prefactor it implies.
-    stripped = _strip_mul_sum_scope(SymbolicUtils.unwrap(x))
+function _scale_expr(x, ctx, selected, sym_to_space, cache)
     treatments = Dict{Int, SubspaceTreatment}()
     for sp in ctx.symmetric
         treatments[sp] = sp in selected ? Scaled : Concrete
     end
-    reduced = mapleaves(l -> _scale_leaf(l, ctx, selected, treatments), stripped)
-    return Symbolics.Num(_flatten_indexed_vars_in_tree(reduced, selected, sym_to_space))
-end
-
-"""
-Remove the `SumIndices`/`SumNonEqual` metadata `_propagate_sum_scope` placed on non-leaf
-`*`/`+` nodes, leaving each average leaf's own scope intact.
-"""
-function _strip_scope_node(y)
-    if SymbolicUtils.hasmetadata(y, SQA.SumIndices)
-        y = SymbolicUtils.setmetadata(y, SQA.SumIndices, SQA.Index[])
-        SymbolicUtils.hasmetadata(y, SQA.SumNonEqual) &&
-            (y = SymbolicUtils.setmetadata(y, SQA.SumNonEqual, SQA.NonEqualPair[]))
+    reduced = rewrite(SymbolicUtils.unwrap(x)) do l
+        if _is_moment_unit(l)
+            return get!(cache, l) do
+                _flatten_indexed_vars_in_tree(
+                    _scale_leaf(l, ctx, selected, treatments), selected, sym_to_space,
+                )
+            end
+        end
+        (_is_indexed_var(l) && _indexed_var_in_h(l, selected, sym_to_space)) &&
+            return _flatten_indexed_var(l)
+        return nothing
     end
-    return y
+    return Symbolics.Num(reduced)
 end
-_strip_mul_sum_scope(x) =
-    rewrite(Returns(nothing), x; descend = _descend, post = _strip_scope_node, maketerm = _structural_maketerm)
 
 function _scale_leaf(avg, ctx, selected, treatments)
     op = undo_average(avg)
@@ -99,7 +99,7 @@ function _scale_leaf(avg, ctx, selected, treatments)
     # subspace but wrong for a non-selected one whose off-diagonal constraint is
     # physical; re-attach the non-equal index pairs that involve any non-selected index.
     if folded isa QAdd && !isempty(keep_idx)
-        kept_non_equal = SQA.NonEqualPair[]
+        kept_non_equal = Tuple{SQA.Index, SQA.Index}[]
         for (term, _) in op.arguments, p in term.ne
             (p[1].space_index in selected && p[2].space_index in selected) && continue
             p in kept_non_equal || push!(kept_non_equal, p)
@@ -125,7 +125,7 @@ function _reattach_non_equal(folded::QAdd, kept_non_equal, keep_idx)
         for o in term.ops
             SQA.has_index(o.index) && push!(present, o.index)
         end
-        non_equal = SQA.NonEqualPair[p for p in kept_non_equal if p[1] in present && p[2] in present]
+        non_equal = Tuple{SQA.Index, SQA.Index}[p for p in kept_non_equal if p[1] in present && p[2] in present]
         out[SQA.QTerm(copy(term.ops), vcat(term.ne, non_equal))] = c
     end
     return SQA.QAdd(out, keep_idx)
@@ -208,8 +208,8 @@ function _indexed_var_in_h(x::SymbolicUtils.BasicSymbolic, selected::Set{Int}, s
 end
 
 """
-Walk the coefficient tree flattening `IndexedVariable`s, without descending into
-`sym_average` leaves (those are the operator moments, handled by `mapleaves`).
+Walk the coefficient tree flattening `IndexedVariable`s, without descending into moment
+leaves (averages and indexed sums, the operator moments handled by `mapleaves`).
 """
 function _flatten_indexed_vars_in_tree(x, selected::Set{Int}, sym_to_space::Dict{Symbol, Int})
     return rewrite(x; descend = _descend) do y

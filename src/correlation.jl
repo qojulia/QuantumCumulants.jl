@@ -62,9 +62,7 @@ least one other subspace: the proper correlation states. Pure-ancilla averages
 """
 function _ancilla_filter(aon_ancilla::Int)
     return function (x)
-        SQA.is_average(x) || return true
-        SymbolicUtils.iscall(x) || return true
-        SymbolicUtils.operation(x) === SQA.sym_average || return true
+        _is_avg_leaf(x) || return true
         aons = SQA.acts_on(x)
         return (aon_ancilla in aons) && length(aons) > 1
     end
@@ -196,7 +194,7 @@ function _ambient_avgs(eqs::MeanfieldEquations, aon_ancilla::Int)
 end
 function _collect_ambient!(found, x, aon_ancilla, states_set)
     walk(x) do n
-        if SQA.is_average(n) && SymbolicUtils.operation(n) === SQA.sym_average
+        if _is_avg_leaf(n)
             if !(n in states_set)
                 aons = SQA.acts_on(n)
                 (!(aon_ancilla in aons) || length(aons) == 1) && push!(found, n)
@@ -224,7 +222,7 @@ function _undo_ancilla(c::CorrelationFunction, avg::SymbolicUtils.BasicSymbolic)
     aon0 = c.op2.space_index; aon_ancilla = c.aon_ancilla
     result = zero(op)
     for (term, coeff) in op.arguments
-        prod = one(QAdd) * coeff
+        prod = one(QAdd) * _coeff_num(coeff)
         for o in term.ops
             prod = prod * ((o.space_index == aon_ancilla) ? _embed_on(o, aon0) : o)
         end

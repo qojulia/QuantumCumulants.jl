@@ -82,11 +82,12 @@ function _renames_any(op::QAdd, idx_sub::AbstractDict)
 end
 
 """
-Rewrite an averaged RHS for the concrete system, walking the expression tree: average
-leaves go through `_materialise_leaf`, bare leaf `Sym`s through `sym_sub` (the
-Symbolics-side mirror of the operator `change_index`), and a scoped `*` node through
-`_materialise_scoped` so an `IndexedVariable` coefficient `g(i)` unrolls in lockstep
-with its sum leaf.
+Rewrite an averaged RHS for the concrete system, walking the expression tree: plain average
+leaves go through `_materialise_leaf` (a free-index rename), and any node carrying an
+indexed-sum over a targeted index through `_materialise_scoped`, which unrolls that index
+across the whole node, the sum body's operators (`change_index`) and any sibling coefficient
+sharing the index (`sym_sub`) in lockstep. Bare leaf `Sym`s fall back to `sym_sub`, the
+Symbolics-side mirror of the operator rename.
 """
 _materialise(x, idx_sub, sub, ctx, hset, sym_sub = _EMPTY_SYM_SUB) =
     Symbolics.Num(_materialise_walk(SymbolicUtils.unwrap(x), idx_sub, sub, ctx, hset, sym_sub))
@@ -96,42 +97,85 @@ const _EMPTY_SYM_SUB = Dict{Any, Any}()
 function _materialise_walk(x, idx_sub, sub, ctx, hset, sym_sub)
     return rewrite(x; descend = SymbolicUtils.iscall) do y
         _is_avg_leaf(y) && return _materialise_leaf(y, idx_sub, sub, ctx, hset)
-        # leaf Sym: mirror the operator index rename
+        bound, ne = _scoped_unroll(y, idx_sub, sub, hset)
+        isempty(bound) ||
+            return _materialise_scoped(y, bound, ne, idx_sub, sub, ctx, hset, sym_sub)
+        # leaf Sym: mirror the operator index rename for free-index coefficients
         SymbolicUtils.iscall(y) || return get(sym_sub, y, y)
-        if SymbolicUtils.operation(y) === (*) && SymbolicUtils.hasmetadata(y, SQA.SumIndices)
-            bound = SymbolicUtils.getmetadata(y, SQA.SumIndices)
-            bound isa Vector{SQA.Index} && !isempty(bound) &&
-                return _materialise_scoped(y, bound, idx_sub, sub, ctx, hset, sym_sub)
-        end
         return nothing
     end
 end
 
-"""
-Unroll a scoped `*` node over the bound indices it references (those targeted by
-`sub`/`h` and not already in `idx_sub`). Each enumeration extends `idx_sub` (operator
-side) and `sym_sub` (coefficient side) before recursing into the scope-stripped subtree.
-"""
-function _materialise_scoped(x, bound::Vector{SQA.Index}, idx_sub, sub, ctx, hset, sym_sub)
-    substituted = Set{SQA.Index}()
-    for (from, to) in idx_sub
-        push!(substituted, from); push!(substituted, to)
-    end
-    to_unroll = SQA.Index[
-        b for b in bound
-            if SymbolicUtils.unwrap(b.range) in keys(sub) &&
-            _in_h(hset, b.space_index) &&
-            !(b in substituted) &&
-            _references_index(x, b)
+"""Materialise a plain average leaf ⟨op⟩ by renaming its free indices. Non-`QAdd` leaves pass through."""
+function _materialise_leaf(avg, idx_sub, sub, ctx, hset)
+    op = undo_average(avg)
+    op isa QAdd || return avg
+    return average(_apply_free(op, idx_sub))
+end
+
+# The indexed-sum factors `y` carries directly: `y` itself when it is a sum, else its
+# `*`-factors that are sums.
+function _sum_factors(y::SymbolicUtils.BasicSymbolic)
+    SQA.is_indexed_sum(y) && return SymbolicUtils.BasicSymbolic[y]
+    (SymbolicUtils.iscall(y) && SymbolicUtils.operation(y) === (*)) || return SymbolicUtils.BasicSymbolic[]
+    return SymbolicUtils.BasicSymbolic[
+        a for a in SymbolicUtils.arguments(y) if a isa SymbolicUtils.BasicSymbolic && SQA.is_indexed_sum(a)
     ]
-    stripped = SymbolicUtils.setmetadata(x, SQA.SumIndices, SQA.Index[])
-    isempty(to_unroll) && return _materialise_walk(stripped, idx_sub, sub, ctx, hset, sym_sub)
-    ranges = Int[sub[SymbolicUtils.unwrap(b.range)] for b in to_unroll]
+end
+_sum_factors(_) = SymbolicUtils.BasicSymbolic[]
+
+"""
+Targeted summation indices `y` carries (the scope of its indexed-sum factors, restricted to
+ranges named by `limits`, subspaces selected by `h`, and indices not already pinned by
+`idx_sub`), with the non-equal constraints those sums carry.
+"""
+function _scoped_unroll(y, idx_sub, sub, hset)
+    sums = _sum_factors(y)
+    isempty(sums) && return (SQA.Index[], Tuple{SQA.Index, SQA.Index}[])
+    pinned = Set{SQA.Index}()
+    for (f, t) in idx_sub
+        push!(pinned, f); push!(pinned, t)
+    end
+    bound = SQA.Index[]
+    ne = Tuple{SQA.Index, SQA.Index}[]
+    for s in sums
+        for b in SQA.get_sum_indices(s)
+            (_targeted(b, sub, hset) && !(b in pinned) && !(b in bound)) && push!(bound, b)
+        end
+        for p in SQA.get_sum_non_equal(s)
+            p in ne || push!(ne, p)
+        end
+    end
+    return (bound, ne)
+end
+
+"""Replace each indexed-sum factor of `y` with its summand body, exposing the bound indices inline."""
+function _strip_sums(y)
+    SQA.is_indexed_sum(y) && return SymbolicUtils.arguments(y)[1]
+    args = SymbolicUtils.arguments(y)
+    new_args = Any[
+        (a isa SymbolicUtils.BasicSymbolic && SQA.is_indexed_sum(a)) ? SymbolicUtils.arguments(a)[1] : a
+            for a in args
+    ]
+    return TermInterface.maketerm(typeof(y), SymbolicUtils.operation(y), new_args, TermInterface.metadata(y))
+end
+
+"""
+Unroll the indexed-sum scope `bound` over the concrete ranges in `sub`, summing the
+scope-stripped node at each assignment. Each enumeration pins the bound indices on both the
+operator side (`idx_sub`, applied by `change_index` in `_materialise_leaf`) and the
+coefficient side (`sym_sub`), so an index-dependent coefficient `Ω(i, k)` unrolls in lockstep
+with its sum. Assignments violating a non-equal constraint are skipped.
+"""
+function _materialise_scoped(y, bound, ne, idx_sub, sub, ctx, hset, sym_sub)
+    stripped = _strip_sums(y)
+    ranges = Int[sub[SymbolicUtils.unwrap(b.range)] for b in bound]
     terms = Any[]
     for tup in Iterators.product((1:r for r in ranges)...)
+        _assignment_ok(bound, tup, ne, idx_sub) || continue
         local_sub = copy(idx_sub)
         local_sym = copy(sym_sub)
-        for (b, v) in zip(to_unroll, tup)
+        for (b, v) in zip(bound, tup)
             fresh = _concrete_index(b, v, ctx)
             local_sub[b] = fresh
             local_sym[SymbolicUtils.unwrap(b.sym)] = SymbolicUtils.unwrap(fresh.sym)
@@ -140,105 +184,31 @@ function _materialise_scoped(x, bound::Vector{SQA.Index}, idx_sub, sub, ctx, hse
     end
     isempty(terms) && return 0
     length(terms) == 1 && return terms[1]
-    # Build the Add via maketerm: `+` enforces a numeric-symtype guard that rejects
-    # the Any-typed `g(i.sym)` callable children.
+    # Build the Add via maketerm: `+` enforces a numeric-symtype guard that rejects the
+    # Any-typed `Ω(i, k)` callable children.
     proto = findfirst(t -> t isa SymbolicUtils.BasicSymbolic, terms)
     proto === nothing && return sum(terms)
     return TermInterface.maketerm(typeof(terms[proto]), +, terms, nothing)
 end
 
 """
-True if any leaf in `x` references `b`, via the Symbolics variable `b.sym` or a QField
-carrying `b`. Ignores `SumIndices` metadata, which SQA stamps uniformly across a scoped
-sum's terms even where they do not depend on `b`.
+Whether a concrete `bound`-index assignment respects every non-equal constraint in `ne`,
+comparing concrete positions (bound indices from `tup`, already-pinned ones from `idx_sub`).
 """
-function _references_index(x, b::SQA.Index)
-    x isa SymbolicUtils.BasicSymbolic || return false
-    if _is_avg_leaf(x)
-        return _qfield_references_index(undo_average(x), b)
+function _assignment_ok(bound, tup, ne, idx_sub)
+    isempty(ne) && return true
+    pos = Dict{SQA.Index, Int}()
+    for (b, v) in zip(bound, tup)
+        pos[b] = v
     end
-    SymbolicUtils.iscall(x) && return any(a -> _references_index(a, b), SymbolicUtils.arguments(x))
-    return isequal(x, SymbolicUtils.unwrap(b.sym))
-end
-
-function _qfield_references_index(op::QAdd, b::SQA.Index)
-    for (term, _) in op.arguments, o in term.ops
-        SQA.has_index(o.index) && o.index === b && return true
+    for (f, t) in idx_sub
+        s = SQA.index_slot(SymbolicUtils.unwrap(t.sym))
+        s === nothing || (pos[f] = s)
     end
-    return false
-end
-_qfield_references_index(op::SQA.QSym, b::SQA.Index) = SQA.has_index(op.index) && op.index === b
-_qfield_references_index(_, ::SQA.Index) = false
-
-"""
-Propagate `SumIndices`/`SumNonEqual` metadata from an average-leaf factor onto its
-enclosing `*` node, so a coefficient sibling (`g(i)`) unrolls together with the leaf.
-"""
-function _propagate_scope_to_node(y)
-    (SymbolicUtils.iscall(y) && SymbolicUtils.operation(y) === (*)) || return y
-    for a in SymbolicUtils.arguments(y)
-        a isa SymbolicUtils.BasicSymbolic || continue
-        SymbolicUtils.hasmetadata(a, SQA.SumIndices) || continue
-        y = SymbolicUtils.setmetadata(y, SQA.SumIndices, SymbolicUtils.getmetadata(a, SQA.SumIndices))
-        SymbolicUtils.hasmetadata(a, SQA.SumNonEqual) &&
-            (y = SymbolicUtils.setmetadata(y, SQA.SumNonEqual, SymbolicUtils.getmetadata(a, SQA.SumNonEqual)))
-        break
+    for (a, b) in ne
+        (haskey(pos, a) && haskey(pos, b) && pos[a] == pos[b]) && return false
     end
-    return y
-end
-_propagate_sum_scope(x) = rewrite(
-    Returns(nothing), x; descend = SymbolicUtils.iscall,
-    post = _propagate_scope_to_node, maketerm = _structural_maketerm
-)
-
-"""
-Materialise one average leaf ⟨op⟩: apply the free-index substitution, drop targeted sum
-scope that is not being unrolled (it is no longer a real sum), then expand each remaining
-bound index over its concrete range `1:n`. Non-`QAdd` leaves pass through.
-"""
-function _materialise_leaf(avg, idx_sub, sub, ctx, hset)
-    op = undo_average(avg)
-    op isa QAdd || return avg
-    op2 = _apply_free(op, idx_sub)
-    isempty(op2.indices) && return average(op2)
-    targets = Set(values(idx_sub))
-    used = _used_op_indices(op2)
-    bound = SQA.Index[
-        b for b in op2.indices
-            if _targeted(b, sub, hset) && !(b in targets) && (b in used)
-    ]
-    # Strip targeted scope that is NOT being unrolled (no longer a real sum).
-    kept = SQA.Index[
-        b for b in op2.indices
-            if !(_targeted(b, sub, hset)) || (b in bound)
-    ]
-    length(kept) == length(op2.indices) || (op2 = QAdd(op2.arguments, kept))
-    isempty(bound) && return average(op2)
-    cur = op2
-    for b in bound
-        cur = _unroll_one(cur, b, sub[SymbolicUtils.unwrap(b.range)], ctx)
-    end
-    return cur
-end
-
-"""
-Unroll one bound index over `1:n`: strip it from `.indices` and sum
-`change_index(bare, b -> concrete_k)` over `k` (SQA handles projector squashing,
-commuting-op sorting and non-equal-violated drops on the now scope-free `QAdd`).
-"""
-_unroll_one(x::Number, _, _, _) = x
-function _unroll_one(qadd::QAdd, b::SQA.Index, n::Int, ctx)
-    bare = QAdd(qadd.arguments, SQA.Index[i for i in qadd.indices if i != b])
-    terms = Any[average(SQA.change_index(bare, b, _concrete_index(b, k, ctx))) for k in 1:n]
-    return _bulk_add(terms)   # one Add over the n unrolled terms (avoids O(n^2) left-fold)
-end
-function _unroll_one(x::SymbolicUtils.BasicSymbolic, b::SQA.Index, n::Int, ctx)
-    return rewrite(x) do y
-        _is_avg_leaf(y) || return nothing
-        op = undo_average(y)
-        (op isa QAdd && b in op.indices) || return y
-        return _unroll_one(op, b, n, ctx)
-    end
+    return true
 end
 
 _is_zero_qadd(op::QAdd) = isempty(op.arguments)
@@ -309,13 +279,9 @@ function specialize(g::MomentGraph, limits; h::Vector{Int} = Int[])
                     SymbolicUtils.unwrap(b.sym) => SymbolicUtils.unwrap(t.sym)
                     for (b, t) in idx_sub
                 )
-            scoped_drift = Symbolics.Num(_propagate_sum_scope(SymbolicUtils.unwrap(nd.drift)))
-            drift = _materialise(scoped_drift, idx_sub, sub, ctx, hset, sym_sub)
+            drift = _materialise(nd.drift, idx_sub, sub, ctx, hset, sym_sub)
             noise = nd.noise === nothing ? nothing :
-                _materialise(
-                    Symbolics.Num(_propagate_sum_scope(SymbolicUtils.unwrap(nd.noise))),
-                    idx_sub, sub, ctx, hset, sym_sub,
-                )
+                _materialise(nd.noise, idx_sub, sub, ctx, hset, sym_sub)
             nodes[lk] = NodeData(drift, _apply_free(nd.op_drift, idx_sub), noise, nd.op_noise, nd.order, nd.aon)
         end
     end

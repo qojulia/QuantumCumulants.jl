@@ -227,8 +227,8 @@ end
 
 @testset "collective indexed dissipation: off-diagonal recycling keeps j≠LHS" begin
     # The off-diagonal recycling Σ_{j≠i} must keep its constraint through cumulant
-    # factorisation as SumNonEqual metadata on the summed leaf; otherwise it re-admits
-    # the diagonal j=i and double-counts the self-decay (the cavity ~0.2% gap).
+    # factorisation in the indexed-sum scope; otherwise it re-admits the diagonal j=i
+    # and double-counts the self-decay (the cavity ~0.2% gap).
     h = NLevelSpace(:atom, 2)
     @variables N
     i = Index(h, :i, N, h); j = Index(h, :j, N, h)
@@ -242,9 +242,8 @@ end
     found = Ref(false)
     walk(x) = begin
         x isa SymbolicUtils.BasicSymbolic || return
-        if SecondQuantizedAlgebra.is_average(x)
-            sne = SymbolicUtils.getmetadata(x, SecondQuantizedAlgebra.SumNonEqual, nothing)
-            sne !== nothing && !isempty(sne) && (found[] = true)
+        if SecondQuantizedAlgebra.is_indexed_sum(x)
+            isempty(SecondQuantizedAlgebra.get_sum_non_equal(x)) || (found[] = true)
             return
         end
         SymbolicUtils.iscall(x) && foreach(walk, SymbolicUtils.arguments(x))

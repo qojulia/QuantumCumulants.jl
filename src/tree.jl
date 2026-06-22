@@ -1,9 +1,19 @@
-function _is_avg_leaf(x::SymbolicUtils.BasicSymbolic)
-    SQA.is_average(x) || return false
-    (SymbolicUtils.iscall(x) && SymbolicUtils.operation(x) === SQA.sym_average) && return true
-    return SymbolicUtils.hasmetadata(x, SQA.AverageOperator)
-end
+"""
+A moment leaf: a single average ⟨…⟩ (raw or lifted to a time-dependent unknown). The
+closure/dependency traversals stop here, so an indexed-sum `Σᵢ⟨…⟩` is *not* a leaf: they
+descend into its body to reach the per-site moments it references (the moment graph tracks
+those, not the sum). The whole-sum transforms (`scale`, `evaluate`) instead use
+[`_is_moment_unit`](@ref). Uses only SQA's public `is_average`.
+"""
+_is_avg_leaf(x::SymbolicUtils.BasicSymbolic) = SQA.is_average(x)
 _is_avg_leaf(::Any) = false
+
+"""
+A moment that the whole-sum transforms (`scale`, `evaluate`) treat as one unit: a single
+average or an indexed-sum node `Σᵢ⟨…⟩`. They recover its sum scope (and any coefficient
+that rides inside the sum body) through `undo_average`, so they must not descend past it.
+"""
+_is_moment_unit(x) = _is_avg_leaf(x) || SQA.is_indexed_sum(x)
 
 """
 The shared descent condition: recurse into a node only when it is a call and not an

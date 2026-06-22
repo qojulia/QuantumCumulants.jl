@@ -28,14 +28,8 @@ function get_order(q::QAdd)
     return maximum(length(t.ops) for (t, _) in q.arguments)
 end
 function get_order(x::SymbolicUtils.BasicSymbolic)
-    if SQA.is_average(x) &&
-            SymbolicUtils.iscall(x) &&
-            SymbolicUtils.operation(x) === SQA.sym_average
-        return get_order(SQA.undo_average(x))
-    end
-    if SymbolicUtils.iscall(x)
-        return maximum(get_order, SymbolicUtils.arguments(x); init = 0)
-    end
+    _is_avg_leaf(x) && return get_order(SQA.undo_average(x))
+    SymbolicUtils.iscall(x) && return maximum(get_order, SymbolicUtils.arguments(x); init = 0)
     return 0
 end
 get_order(x::Symbolics.Num) = get_order(SymbolicUtils.unwrap(x))
@@ -87,7 +81,7 @@ function cumulant(op::QAdd, n::Int = get_order(op))
     n > get_order(op) && return 0
     terms = Any[]
     for (term, coeff) in op.arguments
-        push!(terms, coeff * _term_cumulant(term.ops, n))
+        push!(terms, _im_form(_coeff_num(coeff)) * _term_cumulant(term.ops, n))
     end
     return _bulk_add(terms)
 end
@@ -164,7 +158,7 @@ function cumulant_expansion(
     )
     # Whole-expression early-out: if no moment exceeds the cap, nothing expands.
     get_order(x) <= order && return x
-    if _is_avg_leaf(x)
+    if _is_moment_unit(x)
         return _expand_average(SQA.undo_average(x), order)
     end
     if SymbolicUtils.iscall(x) && _has_average(x)
@@ -184,7 +178,7 @@ function cumulant_expansion(
     # Conservative whole-expression early-out: total order <= the smallest per-subspace
     # cap guarantees no leaf can exceed its own cap.
     get_order(x) <= minimum(order) && return x
-    if _is_avg_leaf(x)
+    if _is_moment_unit(x)
         ops = SQA.undo_average(x)
         aons = SQA.acts_on(ops)
         ord = isempty(aons) ? maximum(order) : mix_choice(order[k] for k in aons)
@@ -215,7 +209,7 @@ function _expand_average(ops::QField, order; mix_choice = maximum)
     ops isa QAdd || return average(ops)
     terms = Any[]
     for (term, coeff) in ops.arguments
-        piece = coeff * _expand_product(term.ops, order; mix_choice)
+        piece = _im_form(_coeff_num(coeff)) * _expand_product(term.ops, order; mix_choice)
         piece = _stamp_sum_to_first_leaves(piece, ops.indices, term.ne)
         push!(terms, piece)
     end
@@ -224,13 +218,12 @@ end
 
 """
 Re-attach the outer sum scope lost during cumulant factorisation. After
-`Σ_{i_1,…,i_k} ⟨A_1⟩⟨A_2⟩⋯` factorises, the `Σ` (encoded as
-`SumIndices`/`SumNonEqual` metadata on a single average sym) is dropped because
-the factored-out product is no longer one average. Stamp each bound index onto
-the first averaged leaf in the product that references it. Bound indices that
-appear in no leaf are treated as spurious (factor 1 in `scale`'s prefactor
-logic), matching SQA's convention for `_accumulate_with_diag!`-produced leftover
-scope.
+`Σ_{i_1,…,i_k} ⟨A_1⟩⟨A_2⟩⋯` factorises, the indexed sum is dropped because the
+factored-out product is no longer one average. Stamp each bound index onto the first
+averaged leaf in the product that references it, rebuilding that leaf as a canonical
+`average(Σ(op, idx…))` indexed-sum node. Bound indices that appear in no leaf are treated
+as spurious (factor 1 in `scale`'s prefactor logic), matching SQA's convention for
+leftover scope.
 """
 function _stamp_sum_to_first_leaves(piece, indices::Vector{SQA.Index}, non_equal)
     isempty(indices) && return piece
@@ -269,18 +262,17 @@ function _stamp_sum_to_first_leaves(piece, indices::Vector{SQA.Index}, non_equal
     sub = IdDict{Any, Any}()
     for (i, leaf) in enumerate(leaves)
         isempty(leaf_idx_assign[i]) && continue
-        # Rebuild via the canonical `average(SQA.Σ(op, idxs...))`: a plain
-        # `setmetadata(average(op), SumIndices, …)` is isequal to the un-summed leaf, not
-        # to the canonical summed form, so the two never cancel
-        # (`Σ_i⟨σ_i⟩⟨a†a⟩ - ⟨a†a⟩Σ_i⟨σ_i⟩ ≠ 0`).
+        # Rebuild as the canonical `average(SQA.Σ(op, idx…))` indexed-sum node so it shares
+        # structure with sums emitted elsewhere and cancels with them
+        # (`Σ_i⟨σ_i⟩⟨a†a⟩ - ⟨a†a⟩Σ_i⟨σ_i⟩ = 0`).
         op = undo_average(leaf)
         idxs = leaf_idx_assign[i]
         summed = SQA.Σ(op, idxs[1], idxs[2:end]...)
-        new_leaf = SymbolicUtils.unwrap(average(summed))
-        # `SQA.Σ` over a plain operator does not carry a non-equal index constraint; re-attach
-        # the per-leaf non-equal index pairs as metadata when the factorisation produced any.
+        # `SQA.Σ` over a plain operator carries no non-equal index constraint; merge the
+        # per-leaf pairs into the summed term so `average` keeps them in the sum's scope.
         isempty(leaf_non_equal_assign[i]) ||
-            (new_leaf = SymbolicUtils.setmetadata(new_leaf, SQA.SumNonEqual, copy(leaf_non_equal_assign[i])))
+            (summed = _carry_non_equal(summed, leaf_non_equal_assign[i], idxs))
+        new_leaf = SymbolicUtils.unwrap(average(summed))
         sub[leaf] = new_leaf
     end
     isempty(sub) && return piece
