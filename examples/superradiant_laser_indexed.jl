@@ -63,9 +63,12 @@ nothing # hide
 import QuantumCumulants.SecondQuantizedAlgebra as SQA
 
 φ(x) = 0 # custom filter function
-φ(::Destroy) = -1
-φ(::Create) = 1
-φ(x::Transition) = x.i - x.j
+function φ(op::SQA.Op)
+    SQA.is_destroy(op) && return -1
+    SQA.is_create(op) && return 1
+    SQA.is_transition(op) && return op.l1 - op.l2
+    return 0
+end
 function φ(q::SQA.QAdd) # walk operator-product expression
     for (term, _) in q.arguments
         p = 0

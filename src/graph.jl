@@ -102,23 +102,20 @@ function closure(
             k = canon_key(op, ctx)
             k in seen && continue
             kc = canon_key(adjoint(op), ctx)
-            # A moment and its conjugate are ONE physical unknown: if the conjugate
-            # partner is already tracked, this moment is covered (the numerical system
-            # resolves ⟨X⟩ = conj⟨X†⟩). Unconditional in get_adjoints.
-            if kc in seen
+            if kc in seen && foldable(op)
                 push!(seen, k)
                 continue
             end
             filter(average(k)) || continue
-            # Genuinely new moment (neither rep seen yet).
+            # Genuinely new moment (its representative not seen yet).
             nodes[k] = derive(k, g.sys, ctx)
             push!(seen, k)
             push!(pending, k)
-            if kc != k && (get_adjoints || !foldable(op))
+            if kc != k && !(kc in seen) && (get_adjoints || !foldable(op))
                 nodes[kc] = derive(kc, g.sys, ctx)
                 push!(seen, kc)
                 push!(pending, kc)
-            else
+            elseif !(kc in seen)
                 push!(seen, kc)
             end
         end

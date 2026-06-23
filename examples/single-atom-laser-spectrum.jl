@@ -39,16 +39,14 @@ nothing # hide
 import QuantumCumulants.SecondQuantizedAlgebra as SQA
 
 ϕ(x) = 0 # Custom filter function -- include only phase-invariant terms
-ϕ(::Destroy) = -1
-ϕ(::Create) = 1
-function ϕ(t::Transition)
-    return if (t.i == 2 && t.j == 1)
-        1
-    elseif (t.i == 1 && t.j == 2)
-        -1
-    else
-        0
+function ϕ(op::SQA.Op)
+    SQA.is_destroy(op) && return -1
+    SQA.is_create(op) && return 1
+    if SQA.is_transition(op)
+        (op.l1 == 2 && op.l2 == 1) && return 1
+        (op.l1 == 1 && op.l2 == 2) && return -1
     end
+    return 0
 end
 function ϕ(q::SQA.QAdd) # walk the operator-product expression
     for (term, _) in q.arguments

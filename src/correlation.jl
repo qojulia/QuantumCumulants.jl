@@ -30,6 +30,7 @@ struct CorrelationFunction{T <: MeanfieldEquations, O1 <: QField, O2 <: QField, 
     τ::Symbolics.Num
     steady_state::Bool
     ambient::Vector{SymbolicUtils.BasicSymbolic}
+    fold_cache::Dict{QAdd, Bool}
 end
 
 # ---- ancilla embedding -------------------------------------------------------
@@ -121,7 +122,8 @@ function CorrelationFunction(
 
     ancilla_filter = _ancilla_filter(aon_ancilla)
     closure_filter = filter_func === nothing ? ancilla_filter : x -> ancilla_filter(x) && filter_func(x)
-    fold = op -> _corr_foldable(op, op2.space_index, aon_ancilla)
+    fold_cache = Dict{QAdd, Bool}()
+    fold = _memoizing_foldable(fold_cache, op2.space_index, aon_ancilla)
     # `meanfield` seeds (does not close) the ancilla system, so `eqs_c.graph` is the seeded
     # graph; close it here, purely.
     g = closure(eqs_c.graph; filter = closure_filter, get_adjoints = false, foldable = fold, max_iter)
@@ -153,7 +155,7 @@ function CorrelationFunction(
     ambient = _ambient_avgs(eqs_tau, aon_ancilla)
 
     return CorrelationFunction(
-        op1, op2, op2_ancilla, aon_ancilla, eqs_tau, eqs0, τ, steady_state, ambient,
+        op1, op2, op2_ancilla, aon_ancilla, eqs_tau, eqs0, τ, steady_state, ambient, fold_cache,
     )
 end
 
@@ -248,7 +250,18 @@ function _corr_foldable(op, aon0::Integer, aon_ancilla::Integer)
     coadj = _undo_ancilla_op(adjoint(op), aon0, aon_ancilla)
     return isequal(adjoint(co), coadj)
 end
-_corr_foldable(c::CorrelationFunction) = op -> _corr_foldable(op, c.op2.space_index, c.aon_ancilla)
+
+function _memoizing_foldable(cache::Dict{QAdd, Bool}, aon0::Integer, aon_ancilla::Integer)
+    return function (op)
+        op isa QAdd || return true
+        haskey(cache, op) && return cache[op]
+        r = _corr_foldable(op, aon0, aon_ancilla)
+        cache[op] = r
+        return r
+    end
+end
+_corr_foldable(c::CorrelationFunction) =
+    _memoizing_foldable(c.fold_cache, c.op2.space_index, c.aon_ancilla)
 
 function _as_avg_dict(c::CorrelationFunction, u_end)
     if u_end isa AbstractDict
@@ -418,6 +431,6 @@ function scale(c::CorrelationFunction)
     # carrying the unscaled set.
     return CorrelationFunction(
         c.op1, c.op2, c.op2_ancilla, c.aon_ancilla, eqs, scale(c.eqs0), c.τ, c.steady_state,
-        _ambient_avgs(eqs, c.aon_ancilla),
+        _ambient_avgs(eqs, c.aon_ancilla), Dict{QAdd, Bool}(),
     )
 end

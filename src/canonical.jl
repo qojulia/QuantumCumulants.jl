@@ -451,6 +451,13 @@ struct MomentMap{V, F}
     treatments::Dict{Int, SubspaceTreatment}
     by_rep::Dict{QAdd, Tuple{V, Bool}}
     foldable::F
+    # Explicit parametric inner constructor: suppresses the auto-generated
+    # `MomentMap(ctx, treatments, by_rep, foldable)` outer, whose un-parameterised
+    # 4-positional form is ambiguous with the `(ctx, treatments, ops, payloads)`
+    # builder below when `payloads` is itself a `Dict{QAdd, Tuple{V, Bool}}`-shaped
+    # vector. All construction goes through `MomentMap{V, F}(...)` or the builder.
+    MomentMap{V, F}(ctx, treatments, by_rep, foldable) where {V, F} =
+        new{V, F}(ctx, treatments, by_rep, foldable)
 end
 
 _moment_rep(op, ctx::CanonCtx, treatments, foldable) =

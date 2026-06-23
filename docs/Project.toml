@@ -1,4 +1,5 @@
 [deps]
+DiffEqBase = "2b5f629d-d688-5b77-993f-72d75c75574e"
 DiffEqNoiseProcess = "77a26b50-5914-5dd7-bc55-306e6241c503"
 Documenter = "e30172f5-a6a5-5a46-863b-614d45cd2de4"
 InteractiveUtils = "b77e0a4c-d291-57a0-90e8-8db25a27a240"
@@ -18,6 +19,11 @@ SymbolicUtils = "d1185830-fcd6-423d-90d6-eec64667417b"
 Symbolics = "0c5d862f-8b57-4792-8d23-62f2024744c7"
 
 [compat]
+# DiffEqBase 7.5.6 reads `integrator.user_set_discontinuity`, a field absent from
+# OrdinaryDiffEqCore 4.x, so QuantumOptics's `timeevolution.master` (used in the
+# driven_dissipative_ising example) errors. 7.5.5 is the last working release; relax
+# once a fixed 7.5.x ships.
+DiffEqBase = "=7.5.5"
 Documenter = "1"
 Latexify = "0.13, 0.14, 0.15, 0.16"
 MacroTools = "0.5"

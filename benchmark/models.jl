@@ -5,9 +5,12 @@ const SQA = QuantumCumulants.SecondQuantizedAlgebra
 
 # Phase-invariance filter, mirrors examples/superradiant_laser_indexed.jl.
 φ(x) = 0
-φ(::Destroy) = -1
-φ(::Create) = 1
-φ(x::Transition) = x.i - x.j
+function φ(op::SQA.Op)
+    SQA.is_destroy(op) && return -1
+    SQA.is_create(op) && return 1
+    SQA.is_transition(op) && return op.l1 - op.l2
+    return 0
+end
 function φ(q::SQA.QAdd)
     for (term, _) in q.arguments
         p = 0

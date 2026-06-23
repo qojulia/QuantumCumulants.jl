@@ -41,8 +41,11 @@ import QuantumCumulants.SecondQuantizedAlgebra as SQA
 weights = Dict(1 => 2, 2 => 1, 3 => 1) # space_index => U(1) weight
 
 φ(x) = 0
-φ(x::SQA.Destroy) = -weights[x.space_index]
-φ(x::SQA.Create) = weights[x.space_index]
+function φ(op::SQA.Op)
+    SQA.is_destroy(op) && return -weights[op.space_index]
+    SQA.is_create(op) && return weights[op.space_index]
+    return 0
+end
 function φ(q::SQA.QAdd) # walk operator-product expression
     for (term, _) in q.arguments
         p = 0

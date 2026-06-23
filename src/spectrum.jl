@@ -186,7 +186,7 @@ function _build_spectrum_kernel(S::Spectrum; cse::Bool = false)
         spec_ctx, _treatments(eqs, spec_ctx),
         [undo_average(s) for s in eqs.states],
         collect(1:n);
-        foldable = op -> _corr_foldable(op, c.op2.space_index, c.aon_ancilla),
+        foldable = _corr_foldable(c),
     )
     lin_cols = Dict{Int, Vector{Int}}()
     alin_cols = Dict{Int, Vector{Int}}()

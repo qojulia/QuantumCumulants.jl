@@ -2,6 +2,16 @@
 
 All notable changes to QuantumCumulants.jl will be documented in this file.
 
+## [0.5.4]
+
+### Changed
+
+Upgraded to **SecondQuantizedAlgebra.jl v0.8** on its public API. No user-facing QuantumCumulants API changed. See the [SecondQuantizedAlgebra.jl changelog](https://qojulia.github.io/SecondQuantizedAlgebra.jl/stable/changelog/).
+
+### Fixed
+
+The correlation conjugate-fold is now collapse-aware. The identity `⟨A†⟩ = ⟨A⟩*` is unsound for the two-time quantum-regression-theorem τ-states, where the ancilla collapse adds a boson commutator (`⟨a'aσ⟩` versus `⟨aa'σ⟩`), so folding could drive the computed power spectrum negative. The fold is now gated by a collapse-aware `foldable` predicate threaded through `MomentMap`, the closure, the state registry and the spectrum; single-time systems keep folding every conjugate pair and are unchanged.
+
 ## [0.5.3]
 
 ### Changed
