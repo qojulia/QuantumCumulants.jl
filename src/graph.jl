@@ -58,16 +58,28 @@ _drift_leaves(nd::NodeData) = nd.noise === nothing ? eachleaf(nd.drift) :
     vcat(eachleaf(nd.drift), eachleaf(nd.noise))
 
 """
-Close the cumulant hierarchy: starting from the seeded moments, repeatedly derive the
-equation of motion for every moment appearing on a right-hand side until the set is
-self-contained. Moments are keyed by `canon_key`, NOT `scaled_key`: symmetric reduction
-here would collapse the unscaled count. `filter` zeroes unwanted moments (e.g. ancilla /
-phase-invariant); `get_adjoints=false` keeps one moment per conjugate pair, the partner
-recovered via `conj` when the numerical system is built.
+Close the cumulant hierarchy of `g`: starting from its seeded moments, repeatedly derive the
+equation of motion for every moment appearing on a right-hand side until the moment set is
+self-contained, returning the completed `MomentGraph`. Moments are keyed by `canon_key`, NOT
+`scaled_key`: symmetric reduction here would collapse the unscaled count. Errors (rather than
+returning a truncated, non-closed system) if the hierarchy fails to close within `max_iter`
+iterations.
+
+Keyword arguments:
+- `filter`: predicate on `average(moment)`; a moment failing it is dropped from the closure
+  (e.g. ancilla-only or phase-invariant moments). Default keeps everything.
+- `get_adjoints`: when `true` (default), a moment and its conjugate are tracked as two separate
+  unknowns. When `false`, only one member of each conjugate pair is kept and the partner is
+  recovered via `conj` when the numerical system is built.
+- `foldable`: predicate on the moment operator gating that `conj` recovery under
+  `get_adjoints=false`. A pair is folded onto one member only where `foldable` holds; where it
+  does not, both members are kept (the conjugate is a genuinely distinct unknown, as for the
+  correlation τ-states whose adjoint does not survive the ancilla collapse). Default folds all.
+- `max_iter`: runaway backstop on the number of closure iterations.
 """
 function closure(
         g::MomentGraph; filter = _alltrue, get_adjoints::Bool = true,
-        max_iter::Int = 100_000,
+        foldable = _alltrue, max_iter::Int = 100_000,
     )
     ctx = g.ctx
     nodes = copy(g.nodes)   # shallow copy: NodeData values are shared (immutable), new moments appended here
@@ -102,8 +114,7 @@ function closure(
             nodes[k] = derive(k, g.sys, ctx)
             push!(seen, k)
             push!(pending, k)
-            if get_adjoints && kc != k
-                # Track the conjugate partner as its own moment.
+            if kc != k && (get_adjoints || !foldable(op))
                 nodes[kc] = derive(kc, g.sys, ctx)
                 push!(seen, kc)
                 push!(pending, kc)

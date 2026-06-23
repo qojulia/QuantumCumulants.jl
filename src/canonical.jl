@@ -431,19 +431,30 @@ concrete_rep(op) = (op, false)
 # ---- moment lookup -----------------------------------------------------------
 
 """
-Canonical-representative lookup mapping each moment ⟨op⟩ to a payload of type `V`, keyed by
-its Hermitian-conjugate representative (`canonical_rep` under `treatments`). An average, its
-conjugate, and any symmetry- or index-relabelled form resolve to the same entry; the stored
-`Bool` records which conjugation side the representative came from, so a query on the
-opposite side can recover the conjugate payload. The single moment↔quantity matcher shared
-by the state registry, `System`, `get_solution`, the spectrum kernel and the correlation
+Canonical-representative lookup mapping each moment ⟨op⟩ to a payload of type `V`, keyed by the
+representative `_moment_rep` returns under `treatments`. The single moment↔quantity matcher
+shared by the state registry, `System`, `get_solution`, the spectrum kernel and the correlation
 steady-state lookup, in place of separate hand-rolled `rep → (payload, side)` dictionaries.
+
+Fields:
+- `ctx`, `treatments`: the canonicalisation context and per-subspace treatment used for keying.
+- `by_rep`: `representative → (payload, side)`; `side` records which conjugation side the stored
+  representative came from, so a query on the opposite side can recover the conjugate payload.
+- `foldable`: predicate selecting, per moment, whether the Hermitian-conjugate fold applies. Where
+  it holds (the default for single-time systems), an average, its conjugate, and any symmetry- or
+  index-relabelled form resolve to one entry via `canonical_rep`. Where it does not (correlation
+  τ-states whose adjoint does not survive the ancilla collapse), the conjugation-unaware `canon_key`
+  is used, keeping a moment and its adjoint as separate entries.
 """
-struct MomentMap{V}
+struct MomentMap{V, F}
     ctx::CanonCtx
     treatments::Dict{Int, SubspaceTreatment}
     by_rep::Dict{QAdd, Tuple{V, Bool}}
+    foldable::F
 end
+
+_moment_rep(op, ctx::CanonCtx, treatments, foldable) =
+    foldable(op) ? canonical_rep(op, ctx; treatments) : (canon_key(op, ctx), false)
 
 """
 Build a `MomentMap` keying `payloads[k]` by the representative of `ops[k]`. A non-`QAdd` op is
@@ -451,15 +462,16 @@ skipped together with its paired payload; the first payload to reach a represent
 matching the `get!` dedup that collapses conjugate/symmetry-equivalent duplicates.
 """
 function MomentMap(
-        ctx::CanonCtx, treatments::Dict{Int, SubspaceTreatment}, ops, payloads::AbstractVector{V},
-    ) where {V}
+        ctx::CanonCtx, treatments::Dict{Int, SubspaceTreatment}, ops, payloads::AbstractVector{V};
+        foldable::F = _alltrue,
+    ) where {V, F}
     by_rep = Dict{QAdd, Tuple{V, Bool}}()
     for (op, p) in zip(ops, payloads)
         op isa QAdd || continue
-        rep, side = canonical_rep(op, ctx; treatments)
+        rep, side = _moment_rep(op, ctx, treatments, foldable)
         get!(by_rep, rep, (p, side))
     end
-    return MomentMap{V}(ctx, treatments, by_rep)
+    return MomentMap{V, F}(ctx, treatments, by_rep, foldable)
 end
 
 """
@@ -469,7 +481,7 @@ missing representative.
 """
 function match_moment(m::MomentMap, op)
     op isa QAdd || return nothing
-    rep, side = canonical_rep(op, m.ctx; treatments = m.treatments)
+    rep, side = _moment_rep(op, m.ctx, m.treatments, m.foldable)
     haskey(m.by_rep, rep) || return nothing
     payload, rep_side = m.by_rep[rep]
     return (payload, side == rep_side)

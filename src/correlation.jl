@@ -121,11 +121,12 @@ function CorrelationFunction(
 
     ancilla_filter = _ancilla_filter(aon_ancilla)
     closure_filter = filter_func === nothing ? ancilla_filter : x -> ancilla_filter(x) && filter_func(x)
+    fold = op -> _corr_foldable(op, op2.space_index, aon_ancilla)
     # `meanfield` seeds (does not close) the ancilla system, so `eqs_c.graph` is the seeded
     # graph; close it here, purely.
-    g = closure(eqs_c.graph; filter = closure_filter, get_adjoints = false, max_iter)
+    g = closure(eqs_c.graph; filter = closure_filter, get_adjoints = false, foldable = fold, max_iter)
     if !steady_state
-        g = closure(g; filter = x -> !ancilla_filter(x), get_adjoints = false, max_iter)
+        g = closure(g; filter = x -> !ancilla_filter(x), get_adjoints = false, foldable = fold, max_iter)
     end
     if !isempty(eqs0.graph.treatments)
         merged = merge(g.treatments, eqs0.graph.treatments)
@@ -212,15 +213,7 @@ _ambient_param(avg::SymbolicUtils.BasicSymbolic) =
 
 _avg_conj_of(x) = SQA.is_average(x) ? average(adjoint(undo_average(x))) : x
 
-"""
-Replace `op2_ancilla` with `op2` (the original subspace) inside `avg`, recovering the
-τ=0 representative.
-"""
-function _undo_ancilla(c::CorrelationFunction, avg::SymbolicUtils.BasicSymbolic)
-    SQA.is_average(avg) || return avg
-    op = undo_average(avg)
-    op isa QAdd || return avg
-    aon0 = c.op2.space_index; aon_ancilla = c.aon_ancilla
+function _undo_ancilla_op(op::QAdd, aon0::Integer, aon_ancilla::Integer)
     result = zero(op)
     for (term, coeff) in op.arguments
         prod = one(QAdd) * _coeff_num(coeff)
@@ -229,8 +222,33 @@ function _undo_ancilla(c::CorrelationFunction, avg::SymbolicUtils.BasicSymbolic)
         end
         result = result + prod
     end
-    return average(result)
+    return result
 end
+
+"""
+Replace `op2_ancilla` with `op2` (the original subspace) inside `avg`, recovering the
+τ=0 representative.
+"""
+function _undo_ancilla(c::CorrelationFunction, avg::SymbolicUtils.BasicSymbolic)
+    SQA.is_average(avg) || return avg
+    op = undo_average(avg)
+    op isa QAdd || return avg
+    return average(_undo_ancilla_op(op, c.op2.space_index, c.aon_ancilla))
+end
+
+"""
+Whether ⟨`op`⟩ and ⟨`op`†⟩ may be conjugate-folded into one τ-state, true only when the ancilla
+collapse commutes with conjugation (`adjoint(collapse(op)) == collapse(adjoint(op))`). Folding
+fails when collapsing the ancilla onto the system mode introduces a commutator: ⟨a'(τ)a(0)σ⟩
+collapses to ⟨a'aσ⟩ but its adjoint to ⟨aa'σ⟩ = ⟨σ⟩ + ⟨a'aσ⟩, so ⟨op†⟩ ≠ ⟨op⟩*.
+"""
+function _corr_foldable(op, aon0::Integer, aon_ancilla::Integer)
+    op isa QAdd || return true
+    co = _undo_ancilla_op(op, aon0, aon_ancilla)
+    coadj = _undo_ancilla_op(adjoint(op), aon0, aon_ancilla)
+    return isequal(adjoint(co), coadj)
+end
+_corr_foldable(c::CorrelationFunction) = op -> _corr_foldable(op, c.op2.space_index, c.aon_ancilla)
 
 function _as_avg_dict(c::CorrelationFunction, u_end)
     if u_end isa AbstractDict
@@ -309,7 +327,7 @@ See also: [`CorrelationFunction`](@ref), [`correlation_p0`](@ref).
 """
 function correlation_u0(c::CorrelationFunction, u_end)
     resolve = _ss_resolver(c, u_end)
-    reg = _state_registry(c.eqs)
+    reg = _state_registry(c.eqs; foldable = _corr_foldable(c))
     # Keys are unwrapped `Number`-symtype time-dependent averages, not `Num`-wrappable.
     u0 = Dict{Any, ComplexF64}()
     for (i, s) in enumerate(c.eqs.states)
@@ -329,7 +347,7 @@ See also: [`CorrelationFunction`](@ref), [`correlation_u0`](@ref).
 """
 function correlation_p0(c::CorrelationFunction, u_end, ps_p0)
     resolve = _ss_resolver(c, u_end)
-    reg = _state_registry(c.eqs)
+    reg = _state_registry(c.eqs; foldable = _corr_foldable(c))
     out = Dict{Any, ComplexF64}()
     for (k, v) in ps_p0
         out[k] = ComplexF64(v)
@@ -359,7 +377,7 @@ MTK `System` for the τ-evolution. Ambient steady-state averages become paramete
 function MTK.System(c::CorrelationFunction; name::Symbol)
     eqs = c.eqs
     iv = eqs.iv; iv_uw = SymbolicUtils.unwrap(iv); D = Symbolics.Differential(iv)
-    reg = _state_registry(eqs)
+    reg = _state_registry(eqs; foldable = _corr_foldable(c))
     # Ambient steady-state averages, keyed by the same Hermitian-conjugate representative as
     # the state registry (so a folded conjugate ambient resolves via the side bit).
     amb_avgs = c.ambient
