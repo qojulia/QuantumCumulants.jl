@@ -348,8 +348,8 @@ end
     @test isempty(find_missing(eqs_native_c))
 
     # Flattened-jumps form should produce the same algebraic content.
-    JumpOp = Transition[]
-    JumpOpConj = Transition[]
+    JumpOp = Op[]
+    JumpOpConj = Op[]
     for i in 1:N, j in 1:N
         push!(JumpOp, σ_(1, 2, i))
         push!(JumpOpConj, σ_(2, 1, j))

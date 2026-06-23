@@ -19,9 +19,9 @@ function _limits_dict(limits)
     return sub
 end
 
-_in_h(hset::Set{Int}, sp::Int) = isempty(hset) || sp in hset
+_in_h(hset::Set{Int}, sp::Integer) = isempty(hset) || sp in hset
 _targeted(idx::SQA.Index, sub, hset) =
-    SymbolicUtils.unwrap(idx.range) in keys(sub) && _in_h(hset, idx.space_index)
+    SymbolicUtils.unwrap(SQA.index_range(idx)) in keys(sub) && _in_h(hset, idx.space_index)
 
 """
 Mint a concrete index from the subspace's first-declared vocabulary index, suffixed
@@ -169,7 +169,7 @@ with its sum. Assignments violating a non-equal constraint are skipped.
 """
 function _materialise_scoped(y, bound, ne, idx_sub, sub, ctx, hset, sym_sub)
     stripped = _strip_sums(y)
-    ranges = Int[sub[SymbolicUtils.unwrap(b.range)] for b in bound]
+    ranges = Int[sub[SymbolicUtils.unwrap(SQA.index_range(b))] for b in bound]
     terms = Any[]
     for tup in Iterators.product((1:r for r in ranges)...)
         _assignment_ok(bound, tup, ne, idx_sub) || continue
@@ -178,7 +178,7 @@ function _materialise_scoped(y, bound, ne, idx_sub, sub, ctx, hset, sym_sub)
         for (b, v) in zip(bound, tup)
             fresh = _concrete_index(b, v, ctx)
             local_sub[b] = fresh
-            local_sym[SymbolicUtils.unwrap(b.sym)] = SymbolicUtils.unwrap(fresh.sym)
+            local_sym[SymbolicUtils.unwrap(SQA.index_sym(b))] = SymbolicUtils.unwrap(SQA.index_sym(fresh))
         end
         push!(terms, _materialise_walk(stripped, local_sub, sub, ctx, hset, local_sym))
     end
@@ -202,7 +202,7 @@ function _assignment_ok(bound, tup, ne, idx_sub)
         pos[b] = v
     end
     for (f, t) in idx_sub
-        s = SQA.index_slot(SymbolicUtils.unwrap(t.sym))
+        s = SQA.index_slot(SymbolicUtils.unwrap(SQA.index_sym(t)))
         s === nothing || (pos[f] = s)
     end
     for (a, b) in ne
@@ -225,7 +225,7 @@ Lists the system's known symbolic ranges in the error.
 function _check_limit_keys(sub, ctx::CanonCtx)
     known = Set{Any}()
     for (_, idxs) in ctx.vocab, idx in idxs
-        r = SymbolicUtils.unwrap(idx.range)
+        r = SymbolicUtils.unwrap(SQA.index_range(idx))
         r isa Number || push!(known, r)
     end
     unknown = Any[k for k in keys(sub) if !(k in known)]
@@ -258,7 +258,7 @@ function specialize(g::MomentGraph, limits; h::Vector{Int} = Int[])
     seen = Set{QAdd}()
     for (k, nd) in g.nodes
         free = _free_limited_indices(k, sub, hset)
-        ranges = Int[sub[SymbolicUtils.unwrap(idx.range)] for idx in free]
+        ranges = Int[sub[SymbolicUtils.unwrap(SQA.index_range(idx))] for idx in free]
         for tup in Iterators.product((1:r for r in ranges)...)
             _distinct_within_subspace(free, tup) || continue
             idx_sub = Dict{SQA.Index, SQA.Index}(
@@ -276,7 +276,7 @@ function specialize(g::MomentGraph, limits; h::Vector{Int} = Int[])
             # references (e.g. `g(i)`) rename in lockstep with the operators.
             sym_sub = isempty(idx_sub) ? _EMPTY_SYM_SUB :
                 Dict{Any, Any}(
-                    SymbolicUtils.unwrap(b.sym) => SymbolicUtils.unwrap(t.sym)
+                    SymbolicUtils.unwrap(SQA.index_sym(b)) => SymbolicUtils.unwrap(SQA.index_sym(t))
                     for (b, t) in idx_sub
                 )
             drift = _materialise(nd.drift, idx_sub, sub, ctx, hset, sym_sub)
@@ -290,7 +290,7 @@ function specialize(g::MomentGraph, limits; h::Vector{Int} = Int[])
     treatments = copy(g.treatments)
     for (sp, idxs) in ctx.vocab
         _in_h(hset, sp) || continue
-        any(idx -> SymbolicUtils.unwrap(idx.range) in keys(sub), idxs) && (treatments[sp] = Concrete)
+        any(idx -> SymbolicUtils.unwrap(SQA.index_range(idx)) in keys(sub), idxs) && (treatments[sp] = Concrete)
     end
     return MomentGraph(nodes, g.sys, ctx, treatments)
 end

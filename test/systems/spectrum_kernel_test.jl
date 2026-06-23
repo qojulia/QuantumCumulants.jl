@@ -3,23 +3,10 @@ using Symbolics: @variables
 using LinearAlgebra: Diagonal
 using Test
 
-import QuantumCumulants.SecondQuantizedAlgebra as SQA
 const SU = QuantumCumulants.SymbolicUtils
 const Sym = QuantumCumulants.Symbolics
 
-# Phase-invariant filter for the single-atom laser (matches the spectrum test).
-_pi(x) = 0
-_pi(::Destroy) = -1
-_pi(::Create) = 1
-_pi(t::Transition) = (t.i == 2 && t.j == 1) ? 1 : (t.i == 1 && t.j == 2) ? -1 : 0
-function _pi(q::SQA.QAdd)
-    for (term, _) in q.arguments
-        return sum(_pi(op) for op in term.ops; init = 0)
-    end
-    return 0
-end
-_pi(avg) = SQA.is_average(avg) ? _pi(SQA.undo_average(avg)) : 0
-phase_invariant(x) = iszero(_pi(x))
+# `phase_invariant` is the shared U(1) filter from runtests.jl `init_code`.
 
 # Build a spectrum without solving: the kernel is a pure function of the symbolic
 # τ-system, so block-level checks only need a fabricated (u_end, p0).

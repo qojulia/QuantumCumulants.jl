@@ -49,10 +49,10 @@ would otherwise be wrongly flattened (`_indexed_var_in_h` treats unknown as in-`
 function _build_sym_to_space(g::MomentGraph)
     out = Dict{Symbol, Int}()
     for (sp, indices) in g.ctx.vocab, idx in indices
-        out[idx.name] = sp
+        out[SQA.index_name(idx)] = sp
     end
     for k in keys(g.nodes), idx in SQA.get_indices(k)
-        out[idx.name] = idx.space_index
+        out[SQA.index_name(idx)] = idx.space_index
     end
     return out
 end
@@ -133,7 +133,7 @@ end
 
 """
 Sum-scope prefactor: each collapsed bound index `b` on a selected subspace contributes
-`b.range` minus the distinct partners it must differ from that are *already accounted for*
+`index_range(b)` minus the distinct partners it must differ from that are *already accounted for*
 (external indices, or an earlier collapsed bound index). Charging a mutual `i≠j` constraint
 once gives the falling-factorial count `N(N−1)…` rather than `(N−1)^k`. Indices not used by
 any `term.ops` contribute 1.
@@ -167,7 +167,7 @@ function _sum_scope_prefactor(op::QAdd, selected::Set{Int})
             count_b += 1
             push!(excluded, other)
         end
-        prefactor = prefactor * (b.range - count_b)
+        prefactor = prefactor * (SQA.index_range(b) - count_b)
         push!(placed, b)
     end
     return prefactor

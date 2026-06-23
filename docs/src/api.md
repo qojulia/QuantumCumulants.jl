@@ -62,6 +62,10 @@ SecondQuantizedAlgebra.QTerm
 ```
 
 ```@docs
+SecondQuantizedAlgebra.Op
+```
+
+```@docs
 SecondQuantizedAlgebra.prefactor
 SecondQuantizedAlgebra.operators
 ```
@@ -112,6 +116,18 @@ Position
 
 ```@docs
 Momentum
+```
+
+```@docs
+SecondQuantizedAlgebra.optype
+SecondQuantizedAlgebra.operator_name
+SecondQuantizedAlgebra.is_destroy
+SecondQuantizedAlgebra.is_create
+SecondQuantizedAlgebra.is_transition
+SecondQuantizedAlgebra.is_pauli
+SecondQuantizedAlgebra.is_spin
+SecondQuantizedAlgebra.is_position
+SecondQuantizedAlgebra.is_momentum
 ```
 
 ## [Mean field](@id API: Meanfield)
@@ -229,6 +245,9 @@ get_indices
 SecondQuantizedAlgebra.has_index
 SecondQuantizedAlgebra.assume_distinct_index
 SecondQuantizedAlgebra.index_slot
+SecondQuantizedAlgebra.index_range
+SecondQuantizedAlgebra.index_name
+SecondQuantizedAlgebra.index_sym
 ```
 
 ```@docs

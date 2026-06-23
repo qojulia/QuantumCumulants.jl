@@ -53,33 +53,22 @@ end
     Jdagger = adjoint.(J)
     rates = [κ, γ..., ν...]
 
-    SQA = QuantumCumulants.SecondQuantizedAlgebra
-    ϕ(::Destroy) = -1
-    ϕ(::Create) = 1
-    function ϕ(t::Transition)
-        t.i == t.j && return 0
-        return t.i == :e ? 1 : -1
-    end
-    ϕ(q::SQA.QAdd) = sum(ϕ(arg) for (arg, _) in q.arguments)
-    ϕ(q::SQA.QTerm) = sum(ϕ(op) for op in q.ops)
-    function ϕ(avg)
-        avg isa SymbolicUtils.BasicSymbolic && SQA.is_average(avg) || return 0
-        return ϕ(SQA.undo_average(avg))
-    end
-    phase_invariant(x) = iszero(ϕ(x))
-
+    # `phase_invariant` is the shared U(1) filter from runtests.jl `init_code`.
     he = meanfield(a' * a, H, J; Jdagger = Jdagger, rates = rates, order = 2)
-    # The 2N+1 laser closure is the conjugate-FOLDED basis: ⟨a'σ_k⟩ is counted
-    # once per atom (its conjugate ⟨aσ_k⟩ is the same unknown, recovered at
-    # codegen), so complete with get_adjoints=false. The ground populations
-    # ⟨σ_gg_k⟩ fold to 1 - ⟨σ_ee_k⟩ via the moment-level completeness reduction,
-    # so only ⟨σ_ee_k⟩ is tracked.
+    # Conjugate-folded basis (get_adjoints=false): ⟨a'σ_k⟩ ≡ ⟨aσ_k⟩ is one unknown
+    # per atom (the partner is recovered at codegen), and ⟨σ_gg_k⟩ folds to
+    # 1 - ⟨σ_ee_k⟩. For DISTINCT atoms the second-order closure additionally keeps
+    # the cavity-mediated atom-atom coherences ⟨σ_i^+σ_j^-⟩: they are genuine
+    # second-order moments (d⟨a'σ_k⟩/dt couples to g_j⟨σ_k^-σ_j^+⟩) and are
+    # phase-invariant, so the filter keeps them.
     complete!(he; filter_func = phase_invariant, get_adjoints = false)
     @test isempty(find_missing(he; filter_func = phase_invariant))
-    # Closure basis: ⟨a'a⟩ + ⟨σee_k⟩ + ⟨a'σ_k⟩ gives 2N+1 equations.
-    n_eqs = 2N + 1
+    # ⟨a'a⟩ + ⟨σee_k⟩ (N) + ⟨a'σ_k⟩ (N) + ⟨σ_i^+σ_j^-⟩ (N(N-1)/2 atom-atom coherences).
+    n_eqs = 2N + 1 + (N * (N - 1)) ÷ 2
     @test length(he.equations) == n_eqs
 
+    # Seeding exactly the 2N+1 single-atom moments (without closing) yields one
+    # equation per seeded operator; the atom-atom coherences enter only on closure.
     he_ops = meanfield(
         [
             a' * a; [σ(:e, :e, k) for k in 1:N];
@@ -87,5 +76,5 @@ end
         ], H, J;
         Jdagger = Jdagger, rates = rates, order = 2
     )
-    @test length(he_ops.equations) == n_eqs
+    @test length(he_ops.equations) == 2N + 1
 end

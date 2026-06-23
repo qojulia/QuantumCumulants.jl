@@ -15,7 +15,7 @@ Build the per-state `u(t)` variables and the `moments` lookup shared by `System`
 keys each state var by its Hermitian-conjugate representative; resolution (leaves,
 `get_solution`) goes through that one structural matcher.
 """
-function _state_registry(eqs::AbstractMeanfieldEquations)
+function _state_registry(eqs::AbstractMeanfieldEquations; foldable = _alltrue)
     ctx = build_ctx(eqs)
     # Key/match in the system's recorded treatment, not a hardcoded `concrete_rep`
     # (an empty map, scalar systems, reads as all-Free).
@@ -24,7 +24,7 @@ function _state_registry(eqs::AbstractMeanfieldEquations)
     # The time-dependent averages are `Number`-symtype, which `Symbolics.Num` (requires `<:Real`)
     # cannot wrap, so the state variables are carried as unwrapped `BasicSymbolic`.
     vars = _state_vars(ops, eqs.iv)
-    moments = MomentMap(ctx, treatments, ops, vars)
+    moments = MomentMap(ctx, treatments, ops, vars; foldable)
     return (; ctx, treatments, vars, moments)
 end
 

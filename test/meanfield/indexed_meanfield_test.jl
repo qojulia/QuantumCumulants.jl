@@ -68,7 +68,7 @@ end
     # Every index in the completed system traces back to the user's declared
     # vocabulary, including slot reps `Symbol(base, "_", k)` derived from a
     # declared index.
-    declared = Set([i_ind.name, k_ind.name])
+    declared = Set([SecondQuantizedAlgebra.index_name(i_ind), SecondQuantizedAlgebra.index_name(k_ind)])
     function _is_user_derived(name::Symbol)
         name in declared && return true
         s = String(name)
@@ -83,7 +83,7 @@ end
     end
     for op in ceqs.operators
         for idx in SecondQuantizedAlgebra.get_indices(op)
-            @test _is_user_derived(idx.name)
+            @test _is_user_derived(SecondQuantizedAlgebra.index_name(idx))
         end
     end
 end
@@ -116,7 +116,6 @@ end
 end
 
 @testset "indexed jumps: σ_jj equation has no σ²/σ³ leak after scale" begin
-    SQA = SecondQuantizedAlgebra
     hc = FockSpace(:cavity); ha = NLevelSpace(:atom, 2); h = hc ⊗ ha
     @qnumbers a::Destroy(h)
     σ(α, β, k) = IndexedOperator(Transition(h, :σ, α, β), k)
@@ -128,23 +127,7 @@ end
     J = [a, σ(1, 2, i), σ(2, 1, i), σ(2, 2, i)]
     rates = [κ, Γ, R, ν]
 
-    φ(x) = 0
-    φ(::Destroy) = -1
-    φ(::Create) = 1
-    φ(x::SQA.QSym) = x isa SQA.Transition ? x.i - x.j : 0
-    function φ(q::SQA.QAdd)
-        for (term, _) in q.arguments
-            p = 0
-            for op in term.ops
-                p += φ(op)
-            end
-            return p
-        end
-        return 0
-    end
-    φ(avg) = SQA.is_average(avg) ? φ(SQA.undo_average(avg)) : 0
-    phase_invariant(x) = iszero(φ(x))
-
+    # `phase_invariant` is the shared U(1) filter from runtests.jl `init_code`.
     eqs = meanfield([a' * a, σ(2, 2, j)], H, J; rates = rates, order = 2)
     eqs_c = complete(eqs; filter_func = phase_invariant)
     eqs_sc = scale(eqs_c)

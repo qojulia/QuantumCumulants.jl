@@ -4,30 +4,7 @@ using Symbolics: @variables
 using OrdinaryDiffEqTsit5: ODEProblem, solve, Tsit5
 using Test
 
-import QuantumCumulants.SecondQuantizedAlgebra as SQA
-
-_phase_inv(x) = 0
-_phase_inv(::Destroy) = -1
-_phase_inv(::Create) = 1
-function _phase_inv(τ::Transition)
-    return (τ.i == 2 && τ.j == 1) ? 1 :
-        (τ.i == 1 && τ.j == 2) ? -1 : 0
-end
-function _phase_inv(q::SQA.QAdd)
-    for (term, _) in q.arguments
-        p = 0
-        for op in term.ops
-            p += _phase_inv(op)
-        end
-        return p
-    end
-    return 0
-end
-function _phase_inv(avg)
-    SQA.is_average(avg) || return 0
-    return _phase_inv(SQA.undo_average(avg))
-end
-phase_invariant(x) = iszero(_phase_inv(x))
+# `phase_invariant` is the shared U(1) filter from runtests.jl `init_code`.
 
 @testset "superradiant_laser_indexed" begin
     hc = FockSpace(:cavity); ha = NLevelSpace(:atom, 2); h = hc ⊗ ha
