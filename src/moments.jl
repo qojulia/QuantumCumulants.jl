@@ -29,7 +29,7 @@ function _coeff_scope_indices(c, scope)
     isempty(vars) && return SQA.Index[]
     out = SQA.Index[]
     for idx in scope
-        isym = SymbolicUtils.unwrap(idx.sym)
+        isym = SymbolicUtils.unwrap(SQA.index_sym(idx))
         any(v -> isequal(v, isym), vars) && push!(out, idx)
     end
     return out

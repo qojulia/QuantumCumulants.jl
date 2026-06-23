@@ -102,6 +102,33 @@ init_code = quote
         end
         return isequal(s, 0)
     end
+
+    """
+        phase_invariant(x) -> Bool
+
+    U(1) phase-invariance filter for laser-type models. A moment is kept when its
+    net phase vanishes: an annihilator contributes -1, a creator +1, and a
+    transition `σ_{l1,l2}` contributes `l1 - l2`. Pass as `filter_func` to
+    `complete`/`complete!`/`CorrelationFunction` to drop the fast-rotating moments.
+    """
+    phase_invariant(x) = iszero(_net_phase(x))
+    _net_phase(_) = 0
+    function _net_phase(op::Op)
+        is_destroy(op) && return -1
+        is_create(op) && return 1
+        return is_transition(op) ? op.l1 - op.l2 : 0
+    end
+    _net_phase(t::QuantumCumulants.SecondQuantizedAlgebra.QTerm) =
+        isempty(t.ops) ? 0 : sum(_net_phase(op) for op in t.ops)
+    function _net_phase(q::QuantumCumulants.SecondQuantizedAlgebra.QAdd)
+        isempty(q.arguments) && return 0
+        term, _ = first(q.arguments)
+        return _net_phase(term)
+    end
+    function _net_phase(avg::SymbolicUtils.BasicSymbolic)
+        is_average(avg) || return 0
+        return _net_phase(undo_average(avg))
+    end
 end
 
 ParallelTestRunner.runtests(QuantumCumulants, args; testsuite, init_code)

@@ -37,21 +37,7 @@ end
     H = Δ * a' * a + g * (a' * σ(:g, :e) + σ(:e, :g) * a)
     J = [a, σ(:g, :e), σ(:e, :g)]
 
-    ϕ(::Destroy) = -1
-    ϕ(::Create) = 1
-    function ϕ(t::Transition)
-        t.i == t.j && return 0
-        return t.i == :e ? 1 : -1
-    end
-    SQA = QuantumCumulants.SecondQuantizedAlgebra
-    ϕ(q::SQA.QAdd) = sum(ϕ(arg) for (arg, _) in q.arguments)
-    ϕ(q::SQA.QTerm) = sum(ϕ(op) for op in q.ops)
-    function ϕ(avg)
-        avg isa SymbolicUtils.BasicSymbolic && SQA.is_average(avg) || return 0
-        return ϕ(SQA.undo_average(avg))
-    end
-    phase_invariant(x) = iszero(ϕ(x))
-
+    # `phase_invariant` is the shared U(1) filter from runtests.jl `init_code`.
     he = meanfield(a' * a, H, J; rates = [κ, γ, ν], order = 2)
     complete!(he; filter_func = phase_invariant)
     @test isempty(find_missing(he; filter_func = phase_invariant))

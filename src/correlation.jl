@@ -34,10 +34,11 @@ end
 
 # ---- ancilla embedding -------------------------------------------------------
 
-_embed_on(op::SQA.Destroy, aon::Int) = SQA.Destroy(op.name, aon, op.index)
-_embed_on(op::SQA.Create, aon::Int) = SQA.Create(op.name, aon, op.index)
-_embed_on(op::SQA.Transition, aon::Int) =
-    SQA.Transition(op.name, op.i, op.j, aon, op.index, op.ground_state, op.n_levels)
+# One concrete `Op` now carries every role, so re-seating an operator on the
+# ancilla subspace is a single field swap: copy the packed payload, change only
+# the acting-on `space_index`.
+_embed_on(op::SQA.Op, aon::Integer) =
+    SQA.Op(op.kind, op.name_id, Int32(aon), op.index, op.l1, op.l2, op.g, op.nlev)
 
 function _ancilla_aon(eqs0::MeanfieldEquations, op1::QField, op2::QField)
     aons = Int[]

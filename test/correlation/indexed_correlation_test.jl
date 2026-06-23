@@ -7,25 +7,7 @@ using Test
 
 const _SQA = QuantumCumulants.SecondQuantizedAlgebra
 
-# Phase-invariant filter for the JC laser: counts excess of creators over
-# annihilators (cavity) and σ_{2,1} over σ_{1,2} (atom) per term.
-_ϕ(::_SQA.Destroy) = -1
-_ϕ(::_SQA.Create) = 1
-function _ϕ(t::_SQA.Transition)
-    t.i == t.j && return 0
-    return t.i == 2 ? 1 : -1
-end
-function _ϕ(q::_SQA.QAdd)
-    isempty(q.arguments) && return 0
-    qt, _ = first(q.arguments)
-    return sum(_ϕ(op) for op in qt.ops; init = 0)
-end
-function _ϕ(avg)
-    avg isa SymbolicUtils.BasicSymbolic || return 0
-    _SQA.is_average(avg) || return 0
-    return _ϕ(_SQA.undo_average(avg))
-end
-_phase_invariant(x) = iszero(_ϕ(x))
+# `phase_invariant` is the shared U(1) filter from runtests.jl `init_code`.
 
 @testset "indexed CorrelationFunction: JC laser, order=1" begin
     @variables N::Real Δ::Real g::Real κ::Real Γ::Real R::Real ν::Real
@@ -66,13 +48,13 @@ end
 
     eqs = meanfield(ops, H, J; rates = rates, order = 1)
     eqs_c_nofilt = complete(eqs)
-    eqs_c_filt = complete(eqs; filter_func = _phase_invariant)
+    eqs_c_filt = complete(eqs; filter_func = phase_invariant)
 
     # The full closure picks up the coherences ⟨a⟩, ⟨a'⟩, ⟨σ12⟩, ⟨σ21⟩; the
     # phase-invariant filter keeps only ⟨a'a⟩ and ⟨σ22⟩.
     @test length(eqs_c_nofilt.equations) > length(eqs_c_filt.equations)
     @test length(eqs_c_filt.equations) == 2
-    @test isempty(find_missing(eqs_c_filt; filter_func = _phase_invariant))
+    @test isempty(find_missing(eqs_c_filt; filter_func = phase_invariant))
 end
 
 @testset "indexed CorrelationFunction: order=1 laser steady state via evaluate(N=>1)" begin
@@ -201,7 +183,7 @@ end
     J = [a, σ(1, 2, i), σ(2, 1, i), σ(2, 2, i)]
     eqs_c = complete(
         meanfield([a'a, σ(2, 2, j)], H, J; rates = [κ, Γ, R, ν], order = 2);
-        filter_func = _phase_invariant,
+        filter_func = phase_invariant,
     )
     eqs_sc = scale(eqs_c)
 
@@ -211,14 +193,14 @@ end
         term, _ = only(op.arguments)
         length(term.ops) == 1 || return false
         o = only(term.ops)
-        return o isa _SQA.Transition && o.i == 2 && o.j == 2
+        return _SQA.is_transition(o) && o.l1 == 2 && o.l2 == 2
     end
     vals = Dict(
         SymbolicUtils.unwrap(s) => ComplexF64(0.3 + 0.1k) for (k, s) in enumerate(eqs_sc.states)
     )
     σ22_val = vals[SymbolicUtils.unwrap(only(filter(_is_sigma22, eqs_sc.states)))]
 
-    corr = scale(CorrelationFunction(a', a, eqs_c; filter_func = _phase_invariant))
+    corr = scale(CorrelationFunction(a', a, eqs_c; filter_func = phase_invariant))
     p0 = correlation_p0(corr, vals, [κ, Γ, R, ν, N] .=> ComplexF64[1, 1, 1, 1, 10])
     u0 = correlation_u0(corr, vals)
     @test any(v -> abs(v) > 1.0e-12, values(u0))

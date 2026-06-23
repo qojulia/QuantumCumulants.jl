@@ -108,9 +108,9 @@ end
         has_pop = false
         has_cavity = false
         for o in term.ops
-            if o isa SQA.Transition && o.i == 2 && o.j == 2
+            if SQA.is_transition(o) && o.l1 == 2 && o.l2 == 2
                 has_pop = true
-            elseif o isa SQA.Destroy || o isa SQA.Create
+            elseif SQA.is_destroy(o) || SQA.is_create(o)
                 has_cavity = true
             end
         end

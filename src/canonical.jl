@@ -146,10 +146,10 @@ function build_ctx(
         original = copy(v)
         filter!(idx -> !(idx in bound), v)
         if isempty(v) && !isempty(original)
-            sort!(original, by = idx -> idx.name)
+            sort!(original, by = idx -> SQA.index_name(idx))
             push!(v, original[1](2))
         end
-        sort!(v, by = idx -> idx.name)
+        sort!(v, by = idx -> SQA.index_name(idx))
     end
 
     return CanonCtx(vocab, symmetric, Set{Int}(selected))

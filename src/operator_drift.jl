@@ -115,7 +115,9 @@ from the user's existing vocabulary rather than being invented.
 function _partner_index(rk, i_jump::SQA.Index)
     args = SymbolicUtils.arguments(SymbolicUtils.unwrap(rk))
     sym_j = args[2]
-    return SQA.Index(Base.nameof(sym_j), i_jump.range, i_jump.space_index, Symbolics.Num(sym_j))
+    return SQA.Index(
+        SQA._intern_name(Base.nameof(sym_j)), i_jump.range_id, i_jump.space_index, Int32(0)
+    )
 end
 
 """

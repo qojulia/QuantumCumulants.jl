@@ -17,22 +17,7 @@ using Test
     J = [a, s, s']
     rates = [κ, γ, ν]
 
-    SQA = QuantumCumulants.SecondQuantizedAlgebra
-    ϕ(::Number) = 0
-    ϕ(::SQA.Destroy) = -1
-    ϕ(::SQA.Create) = 1
-    function ϕ(t::SQA.Transition)
-        t.i == t.j && return 0
-        return t.i == 2 ? 1 : -1
-    end
-    ϕ(q::SQA.QAdd) = isempty(q.arguments) ? 0 : sum(ϕ(term) for (term, _) in q.arguments)
-    ϕ(t::SQA.QTerm) = isempty(t.ops) ? 0 : sum(ϕ(op) for op in t.ops)
-    function ϕ(avg)
-        avg isa SymbolicUtils.BasicSymbolic && SQA.is_average(avg) || return 0
-        return ϕ(SQA.undo_average(avg))
-    end
-    phase_invariant(x) = iszero(ϕ(x))
-
+    # `phase_invariant` is the shared U(1) filter from runtests.jl `init_code`.
     he6 = complete(
         meanfield(a' * a, H, J; rates = rates);
         order = 6, filter_func = phase_invariant

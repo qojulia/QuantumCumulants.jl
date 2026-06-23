@@ -61,19 +61,7 @@ function jc_fixture()
     return (; raw, ops, H, J, completed)
 end
 
-# Phase-invariance filter for the indexed superradiant laser.
-_φ(x) = 0
-_φ(::Destroy) = -1
-_φ(::Create) = 1
-_φ(x::Transition) = x.i - x.j
-function _φ(q::SQA.QAdd)
-    for (term, _) in q.arguments
-        return sum(_φ(op) for op in term.ops; init = 0)
-    end
-    return 0
-end
-_φ(avg) = SQA.is_average(avg) ? _φ(SQA.undo_average(avg)) : 0
-phase_invariant(x) = iszero(_φ(x))
+# `phase_invariant` is the shared U(1) filter from runtests.jl `init_code`.
 
 # Indexed superradiant laser: scale and evaluate.
 function superradiant_fixture()
@@ -88,20 +76,6 @@ function superradiant_fixture()
     return (; completed, N)
 end
 
-# Phase-invariance filter for the single-atom laser spectrum (matches spectrum_kernel_test.jl).
-_pi(x) = 0
-_pi(::Destroy) = -1
-_pi(::Create) = 1
-_pi(t::Transition) = (t.i == 2 && t.j == 1) ? 1 : (t.i == 1 && t.j == 2) ? -1 : 0
-function _pi(q::SQA.QAdd)
-    for (term, _) in q.arguments
-        return sum(_pi(op) for op in term.ops; init = 0)
-    end
-    return 0
-end
-_pi(avg) = SQA.is_average(avg) ? _pi(SQA.undo_average(avg)) : 0
-pinv(x) = iszero(_pi(x))
-
 # Single-atom laser spectrum kernel: the kernel is a pure function of the symbolic
 # τ-system, so block-level checks only need a fabricated (u_end, p0).
 function spectrum_fixture()
@@ -109,8 +83,8 @@ function spectrum_fixture()
     hf = FockSpace(:cavity); ha = NLevelSpace(:atom, (:g, :e)); h = hf ⊗ ha
     a = Destroy(h, :a); s = Transition(h, :σ, :g, :e)
     H = Δ * a' * a + g * (a' * s + a * s')
-    eqs = complete(meanfield(a' * a, H, [a, s, s']; rates = [κ, γ, ν], order = 2); filter_func = pinv)
-    c = CorrelationFunction(a', a, eqs; steady_state = true, filter_func = pinv)
+    eqs = complete(meanfield(a' * a, H, [a, s, s']; rates = [κ, γ, ν], order = 2); filter_func = phase_invariant)
+    c = CorrelationFunction(a', a, eqs; steady_state = true, filter_func = phase_invariant)
     S = Spectrum(c, (Δ, g, γ, κ, ν))
     p0 = (0.0, 1.5, 0.25, 1.0, 4.0)
     u_end = Dict{Any, ComplexF64}()

@@ -9,8 +9,8 @@ import QuantumCumulants.SecondQuantizedAlgebra as SQA
 _qadd_has_gs(::Any) = false
 function _qadd_has_gs(op::SQA.QAdd)
     for (term, _) in op.arguments, o in term.ops
-        o isa SQA.Transition || continue
-        o.i == o.j == o.ground_state && return true
+        SQA.is_transition(o) || continue
+        o.l1 == o.l2 == o.g && return true
     end
     return false
 end

@@ -28,7 +28,7 @@ import QuantumCumulants.SecondQuantizedAlgebra as SQA
     @test isempty(find_missing(eqs_sc))
 
     # The Scaled minting path was exercised: minted slots appear in the keys.
-    minted = Symbol[idx.name for k in keys(eqs_sc.graph.nodes) for idx in SQA.get_indices(k)]
+    minted = Symbol[SQA.index_name(idx) for k in keys(eqs_sc.graph.nodes) for idx in SQA.get_indices(k)]
     @test :i_1 in minted
 
     # Core property: no indexed coefficient survives scaling, on any equation.
