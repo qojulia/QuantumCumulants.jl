@@ -36,10 +36,12 @@ function _lindblad_rhs(op, J, Jdagger, rates)
             # `rk[i,j]` is the cross-rate between mode operators `J[k][i]` and `J[k][j]`.
             Jv, Jdv = J[k], Jdagger[k]
             for i in eachindex(Jv), j in eachindex(Jv)
-                push!(contributions, (rk[i, j] / 2) * (
-                    Jdv[i] * commutator(op, Jv[j]) +
-                        commutator(Jdv[i], op) * Jv[j]
-                ))
+                push!(
+                    contributions, (rk[i, j] / 2) * (
+                        Jdv[i] * commutator(op, Jv[j]) +
+                            commutator(Jdv[i], op) * Jv[j]
+                    )
+                )
             end
         elseif _is_double_indexed_var(rk) && !isempty(_op_free_indices(J[k]))
             push!(contributions, _collective_indexed_lindblad(op, J[k], Jdagger[k], rk))
