@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Laser with Filter Cavities · QuantumCumulants.jl</title><meta name="title" content="Laser with Filter Cavities · QuantumCumulants.jl"/><meta property="og:title" content="Laser with Filter Cavities · QuantumCumulants.jl"/><meta property="twitter:title" content="Laser with Filter Cavities · QuantumCumulants.jl"/><meta name="description" content="Documentation for QuantumCumulants.jl."/><meta property="og:description" content="Documentation for QuantumCumulants.jl."/><meta property="twitter:description" content="Documentation for QuantumCumulants.jl."/><script data-outdated-warner src="../../assets/warner.js"></script><link href="https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.050/juliamono.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.8/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL="../.."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../../assets/documenter.js"></script><script src="../../search_index.js"></script><script src="../../siteinfo.js"></script><script src="../../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-dark.css" data-theme-name="documenter-dark" data-theme-primary-dark/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../../assets/themeswap.js"></script></head><body><div id="documenter"><nav class="docs-sidebar"><div class="docs-package-name"><span class="docs-autofit"><a href="../../">QuantumCumulants.jl</a></span></div><button class="docs-search-query input is-rounded is-small is-clickable my-2 mx-auto py-1 px-2" id="documenter-search-query">Search docs (Ctrl + /)</button><ul class="docs-menu"><li><a class="tocitem" href="../../">Introduction</a></li><li><a class="tocitem" href="../../theory/">Theoretical background</a></li><li><a class="tocitem" href="../../tutorial/">Tutorial</a></li><li><a class="tocitem" href="../../correlation/">Correlation functions and spectra</a></li><li><a class="tocitem" href="../../symbolic_sums/">Symbolic Sums and Indices</a></li><li><a class="tocitem" href="../../implementation/">Implementation</a></li><li><a class="tocitem" href="../../api/">API</a></li><li><span class="tocitem">Examples</span><ul><li><a class="tocitem" href="../single-atom-laser-spectrum/">Spectrum of a single-atom laser</a></li><li><a class="tocitem" href="../mollow/">Mollow Triplet</a></li><li><a class="tocitem" href="../many-atom-laser/">Many-atom laser</a></li><li><a class="tocitem" href="../optomechanical-cooling/">Optomechanical Cooling</a></li><li><a class="tocitem" href="../excitation-transport-chain/">Noisy excitation transport</a></li><li><a class="tocitem" href="../ramsey_spectroscopy/">Ramsey Spectroscopy</a></li><li><a class="tocitem" href="../superradiant_laser_indexed/">Superradiant Laser</a></li><li><a class="tocitem" href="../cavity_antiresonance_indexed/">Cavity Antiresonance</a></li><li class="is-active"><a class="tocitem" href>Laser with Filter Cavities</a></li><li><a class="tocitem" href="../unique_squeezing/">Unique Steady-State Squeezing</a></li><li><a class="tocitem" href="../superradiant-laser/">Superradiant Laser (outdated)</a></li></ul></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><a class="docs-sidebar-button docs-navbar-link fa-solid fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a><nav class="breadcrumb"><ul class="is-hidden-mobile"><li><a class="is-disabled">Examples</a></li><li class="is-active"><a href>Laser with Filter Cavities</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>Laser with Filter Cavities</a></li></ul></nav><div class="docs-right"><a class="docs-navbar-link" href="https://github.com/qojulia/QuantumCumulants.jl" title="View the repository on GitHub"><span class="docs-icon fa-brands"></span><span class="docs-label is-hidden-touch">GitHub</span></a><a class="docs-navbar-link" href="https://github.com/qojulia/QuantumCumulants.jl/blob/master/docs/src/examples/filter-cavity_indexed.md" title="Edit source on GitHub"><span class="docs-icon fa-solid"></span></a><a class="docs-settings-button docs-navbar-link fa-solid fa-gear" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-article-toggle-button fa-solid fa-chevron-up" id="documenter-article-toggle-button" href="javascript:;" title="Collapse all docstrings"></a></div></header><article class="content" id="documenter-page"><h1 id="Laser-with-Filter-Cavities"><a class="docs-heading-anchor" href="#Laser-with-Filter-Cavities">Laser with Filter Cavities</a><a id="Laser-with-Filter-Cavities-1"></a><a class="docs-heading-anchor-permalink" href="#Laser-with-Filter-Cavities" title="Permalink"></a></h1><p>An intuitive and straightforward approach to calculate the spectrum of a laser is to filter the emitted light. We can do this by coupling filter cavities with different detunings to the main cavity and observe the photon number in these &#39;filters&#39;, see for example <a href="https://journals.aps.org/pra/abstract/10.1103/PhysRevA.98.063837">K. Debnath et al., Phys Rev A 98, 063837 (2018)</a>.</p><p>The main goal of this example is to combine two indexed Hilbert spaces, where one will be scaled and the other evaluated. The model is basically the same as for the <a href="https://qojulia.github.io/QuantumCumulants.jl/stable/examples/superradiant_laser_indexed/">superradiant laser</a> example, but with the additional terms due to the filter cavities. The Hamiltonian of this system is</p><p class="math-container">\[\begin{equation}
+H = - \Delta a^\dagger a + g \sum\limits_{j=1}^{N} (a^\dagger \sigma^{12}_{j} + a \sigma^{21}_{j}) - \sum\limits_{i=1}^{M} \delta_i b_i^\dagger b_i +  g_f \sum\limits_{i=1}^{M} (a^\dagger b_i + a b_i^\dagger),
+\end{equation}\]</p><p>where <span>$\delta_i$</span> is the detuning of the <span>$i$</span>-th filter cavity and <span>$g_f$</span> the coupling to the normal cavity. Furthermore, their decay rate is <span>$\kappa_f$</span>.</p><p>We start by loading the packages.</p><pre><code class="language-julia hljs">using QuantumCumulants
+using OrdinaryDiffEq, ModelingToolkit
+using Plots</code></pre><p>We create the parameters of the system including the <span>$\texttt{IndexedVariable}$</span> <span>$\delta_i$</span>. For the atoms and filter cavities we only need one Hilbert space each. We define the indices for each Hilbert space and use them to create <span>$\texttt{IndexedOperators}$</span>.</p><pre><code class="language-julia hljs"># Paramters
+@cnumbers κ g gf κf R Γ Δ ν N M
+δ(i) = IndexedVariable(:δ, i)
+
+# Hilbertspace
+hc = FockSpace(:cavity)
+hf = FockSpace(:filter)
+ha = NLevelSpace(:atom, 2)
+h = hc ⊗ hf ⊗ ha
+
+# Indices and Operators
+i = Index(h,:i,M,hf)
+j = Index(h,:j,N,ha)
+
+@qnumbers a::Destroy(h,1)
+b(k) = IndexedOperator(Destroy(h,:b,2), k)
+σ(α,β,k) = IndexedOperator(Transition(h,:σ,α,β,3), k)</code></pre><p>We define the Hamiltonian using symbolic sums and define the individual dissipative processes. For an indexed jump operator the (symbolic) sum is build in the Liouvillian, in this case corresponding to individual decay processes.</p><pre><code class="language-julia hljs"># Hamiltonian
+H = Δ*Σ(σ(2,2,j),j) + Σ(δ(i)*b(i)&#39;b(i),i) +
+    gf*(Σ(a&#39;*b(i) + a*b(i)&#39;,i)) + g*(Σ(a&#39;*σ(1,2,j) + a*σ(2,1,j),j))
+
+# Jumps &amp; rates
+J = [a, b(i), σ(1,2,j), σ(2,1,j), σ(2,2,j)]
+rates = [κ, κf, Γ, R, ν]</code></pre><p>We derive the equation for <span>$\langle a^\dagger a \rangle$</span> and complete the system automatically in second order.</p><pre><code class="language-julia hljs">eqs = meanfield(a&#39;a,H,J;rates=rates,order=2)</code></pre><p class="math-container">\[\begin{align}
+\frac{d}{dt} \langle a^\dagger  a\rangle  =&amp; 1 i \underset{i}{\overset{M}{\sum}} gf  \langle a  {b}_{i}^\dagger\rangle  -1 i \underset{i}{\overset{M}{\sum}} gf  \langle a^\dagger  {b}_{i}\rangle  + 1 i \underset{j}{\overset{N}{\sum}} g  \langle a  {\sigma}_{j}^{{21}}\rangle  -1 i \underset{j}{\overset{N}{\sum}} g  \langle a^\dagger  {\sigma}_{j}^{{12}}\rangle  -1.0 \kappa \langle a^\dagger  a\rangle
+\end{align}\]</p><pre><code class="language-julia hljs">eqs_c = complete(eqs);</code></pre><p>Now we assume that all atoms behave identically, but we want to obtain the equations for 20 different filter cavities. To this end we <span>$\texttt{scale}$</span> the Hilbert space of the atoms and <span>$\texttt{evaluate}$</span> the filter cavities. Specifying the Hilbert space is done with the kwarg <span>$\texttt{h}$</span>, which can either be the specific Hilbert space or its acts-on number. Evaluating the filter cavities requires a numeric upper bound for the used <span>$\texttt{Index}$</span>, we provide this with a dictionary on the kwarg <span>$\texttt{limits}$</span>.</p><pre><code class="language-julia hljs">M_ = 20
+eqs_sc = scale(eqs_c;h=[ha]) #h=[3]
+eqs_eval = evaluate(eqs_sc; limits=Dict(M=&gt;M_)) #h=[hf]
+println(&quot;Number of eqs.: $(length(eqs_eval))&quot;)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">Number of eqs.: 552</code></pre><p>To calculate the dynamics of the system we create a system of ordinary differential equations, which can be used by <a href="https://diffeq.sciml.ai/stable/">DifferentialEquations.jl</a>. Finally we need to define the numerical parameters and the initial state of the system.</p><pre><code class="language-julia hljs">@named sys = ODESystem(eqs_eval)</code></pre><pre><code class="language-julia hljs"># Initial state
+u0 = zeros(ComplexF64, length(eqs_eval))
+
+# System parameters
+N_ = 200
+Γ_ = 1.0
+Δ_ = 0Γ_
+g_ = 1Γ_
+κ_ = 100Γ_
+R_ = 10Γ_
+ν_ = 1Γ_
+
+gf_ = 0.1Γ_
+κf_ = 0.1Γ_
+δ_ls = [0:1/M_:1-1/M_;]*10Γ_
+
+ps = [Γ, κ, g, κf, gf, R, [δ(i) for i=1:M_]..., Δ, ν, N]
+p0 = [Γ_, κ_, g_, κf_, gf_, R_, δ_ls..., Δ_, ν_, N_]
+
+prob = ODEProblem(sys,u0,(0.0, 10.0/κf_), ps.=&gt;p0)</code></pre><pre><code class="language-julia hljs"># Solve the numeric problem
+sol = solve(prob, Tsit5(); abstol=1e-10, reltol=1e-10, maxiters=1e7)
+
+t = sol.t
+n = abs.(sol[a&#39;a])
+n_b(i) =  abs.(sol[b(i)&#39;b(i)])
+n_f = [abs(sol[b(i)&#39;b(i)][end]) for i=1:M_] ./ (abs(sol[b(1)&#39;b(1)][end]))</code></pre><pre><code class="language-julia hljs"># Plot results
+p1 = plot(t, n_b(1), alpha=0.5, ylabel=&quot;⟨bᵢ⁺bᵢ⟩&quot;, legend=false)
+for i=2:M_
+    plot!(t, n_b(i), alpha=0.5, legend=false)
+end
+#p1 = plot!(twinx(), t, n, xlabel=&quot;tΓ&quot;, ylabel=&quot;⟨a⁺a⟩&quot;, legend=false)
+
+p2 = plot([-reverse(δ_ls);δ_ls], [reverse(n_f);n_f], xlabel=&quot;δ/Γ&quot;, ylabel=&quot;intensity&quot;, legend=false)
+plot(p1, p2, layout=(1,2), size=(700,300))</code></pre><img src="8692c803.svg" alt="Example block output"/></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../cavity_antiresonance_indexed/">« Cavity Antiresonance</a><a class="docs-footer-nextpage" href="../unique_squeezing/">Unique Steady-State Squeezing »</a><div class="flexbox-break"></div><p class="footer-message"><a href="https://github.com/qojulia/QuantumCumulants.jl"><strong>Back to GitHub</strong></a></p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.3.0 on <span class="colophon-date" title="Monday 15 April 2024 21:33">Monday 15 April 2024</span>. Using Julia version 1.10.2.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
