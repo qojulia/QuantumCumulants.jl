@@ -216,15 +216,15 @@ _ambient_param(avg::SymbolicUtils.BasicSymbolic) =
 _avg_conj_of(x) = SQA.is_average(x) ? average(adjoint(undo_average(x))) : x
 
 function _undo_ancilla_op(op::QAdd, aon0::Integer, aon_ancilla::Integer)
-    result = zero(op)
+    terms = QAdd[]
     for (term, coeff) in op.arguments
         prod = one(QAdd) * _coeff_num(coeff)
         for o in term.ops
             prod = prod * ((o.space_index == aon_ancilla) ? _embed_on(o, aon0) : o)
         end
-        result = result + prod
+        push!(terms, prod)
     end
-    return result
+    return isempty(terms) ? zero(op) : sum(terms)
 end
 
 """
