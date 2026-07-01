@@ -33,6 +33,7 @@ end
 pages = [
     "index.md",
     "theory.md",
+    "convergence.md",
     "tutorial.md",
     "implementation.md",
     "symbolic_sums.md",
