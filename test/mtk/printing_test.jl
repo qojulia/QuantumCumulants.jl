@@ -48,6 +48,11 @@ end
     s = repr(c)
     @test s isa String
     @test !isempty(s)
+    @test occursin("a_0", s)
+    @test !occursin("⟨a' * a⟩", s)
+
+    eqs_s = repr(c.eqs)
+    @test occursin("a_0", eqs_s)
 end
 
 @testset "show: Spectrum" begin
@@ -73,6 +78,7 @@ end
     c, _ = _correlation_and_spectrum()
     s = repr(MIME("text/latex"), c)
     @test !isempty(s)
+    @test occursin("a_0", s)
 end
 
 @testset "show MIME text/latex: Spectrum" begin

@@ -40,6 +40,42 @@ end
 # the acting-on `space_index`.
 _embed_on(op::SQA.Op, aon::Integer) =
     SQA.Op(op.kind, op.name_id, Int32(aon), op.index, op.l1, op.l2, op.g, op.nlev)
+function _embed_on(op::QAdd, aon::Integer)
+    terms = QAdd[]
+    for (term, coeff) in op.arguments
+        prod = one(QAdd) * _coeff_num(coeff)
+        for o in term.ops
+            prod = prod * _embed_on(o, aon)
+        end
+        push!(terms, prod)
+    end
+    return isempty(terms) ? zero(op) : sum(terms)
+end
+
+_ancilla_op_name(name::Symbol) = Symbol(name, "_0")
+_rename_ancilla(op::SQA.Op) = SQA.Op(
+    op.kind, SQA._intern_name(_ancilla_op_name(SQA.operator_name(op))), op.space_index, op.index,
+    op.l1, op.l2, op.g, op.nlev,
+)
+function _rename_ancilla(op::QAdd)
+    terms = QAdd[]
+    for (term, coeff) in op.arguments
+        prod = one(QAdd) * _coeff_num(coeff)
+        for o in term.ops
+            prod = prod * _rename_ancilla(o)
+        end
+        push!(terms, prod)
+    end
+    return isempty(terms) ? zero(op) : sum(terms)
+end
+_rename_ancilla(op) = op
+
+_strip_ancilla_op_name(name::Symbol) = endswith(String(name), "_0") ? Symbol(chop(String(name); tail = 2)) : name
+_restore_ancilla(op::SQA.Op) = SQA.Op(
+    op.kind, SQA._intern_name(_strip_ancilla_op_name(SQA.operator_name(op))), op.space_index, op.index,
+    op.l1, op.l2, op.g, op.nlev,
+)
+_embed_ancilla(op, aon::Integer) = _rename_ancilla(_embed_on(op, aon))
 
 function _ancilla_aon(eqs0::MeanfieldEquations, op1::QField, op2::QField)
     aons = Int[]
@@ -101,22 +137,22 @@ julia> CorrelationFunction(a', a, eqs)
 ⟨a' * a⟩
 ```
 """
-function CorrelationFunction(
-        op1::QField, op2::QField, eqs0::MeanfieldEquations;
+function _correlation_function(
+        op1::QField, op1_seed::AbstractVector{<:QField}, op2::QField, eqs0::MeanfieldEquations;
         steady_state::Bool = true, filter_func = nothing, max_iter::Int = 100_000,
         iv0 = nothing,
     )
     τ = first(MTK.@independent_variables τ)
     aon_ancilla = _ancilla_aon(eqs0, op1, op2)
-    op2_ancilla = _embed_on(op2, aon_ancilla)
-    new_op = op1 * op2_ancilla
+    op2_ancilla = _embed_ancilla(op2, aon_ancilla)
+    new_ops = [op * op2_ancilla for op in op1_seed]
 
     ord = eqs0.order
     order_ext = ord === nothing ? nothing :
         vcat(ord, fill(maximum(ord), aon_ancilla - length(ord)))
 
     eqs_c = meanfield(
-        [new_op], eqs0.hamiltonian, eqs0.jumps;
+        new_ops, eqs0.hamiltonian, eqs0.jumps;
         Jdagger = eqs0.jumps_dagger, rates = eqs0.rates, order = order_ext, iv = τ,
     )
 
@@ -157,6 +193,21 @@ function CorrelationFunction(
     return CorrelationFunction(
         op1, op2, op2_ancilla, aon_ancilla, eqs_tau, eqs0, τ, steady_state, ambient, fold_cache,
     )
+end
+
+function CorrelationFunction(
+        op1::QField, op2::QField, eqs0::MeanfieldEquations;
+        kwargs...,
+    )
+    return _correlation_function(op1, QField[op1], op2, eqs0; kwargs...)
+end
+
+function CorrelationFunction(
+        op1::AbstractVector{<:QField}, op2::QField, eqs0::MeanfieldEquations;
+        kwargs...,
+    )
+    isempty(op1) && throw(ArgumentError("op1 must contain at least one operator"))
+    return _correlation_function(first(op1), op1, op2, eqs0; kwargs...)
 end
 
 """
@@ -220,7 +271,7 @@ function _undo_ancilla_op(op::QAdd, aon0::Integer, aon_ancilla::Integer)
     for (term, coeff) in op.arguments
         prod = one(QAdd) * _coeff_num(coeff)
         for o in term.ops
-            prod = prod * ((o.space_index == aon_ancilla) ? _embed_on(o, aon0) : o)
+            prod = prod * ((o.space_index == aon_ancilla) ? _embed_on(_restore_ancilla(o), aon0) : o)
         end
         push!(terms, prod)
     end
@@ -237,6 +288,8 @@ function _undo_ancilla(c::CorrelationFunction, avg::SymbolicUtils.BasicSymbolic)
     op isa QAdd || return avg
     return average(_undo_ancilla_op(op, c.op2.space_index, c.aon_ancilla))
 end
+
+_display_average(c::CorrelationFunction) = average(c.op1 * c.op2_ancilla)
 
 """
 Whether ⟨`op`⟩ and ⟨`op`†⟩ may be conjugate-folded into one τ-state, true only when the ancilla
