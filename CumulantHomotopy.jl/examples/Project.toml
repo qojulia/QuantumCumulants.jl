@@ -1,0 +1,7 @@
+[deps]
+CumulantHomotopy = "f69ee5af-698c-4ef3-90cb-9bb8d4987419"
+HomotopyContinuation = "f213a82b-91d6-5c5d-acf7-10f1c761b327"
+Literate = "98b081ad-f1c9-55d3-8b20-4c87d4299306"
+QuantumCumulants = "35bcea6d-e19f-57db-af74-8011de6c7255"
+QuantumToolbox = "6c2fb7c5-b903-41d2-bc5e-5a7c320b9fab"
+Symbolics = "0c5d862f-8b57-4792-8d23-62f2024744c7"
