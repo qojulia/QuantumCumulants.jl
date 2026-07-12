@@ -14,9 +14,14 @@ const SQA = QuantumCumulants.SecondQuantizedAlgebra
     ctx = QuantumCumulants.build_ctx([a], a' * a, SQA.QField[], SQA.QField[])
 
     op = (σ(2, 1, i) * a) * 1
-    # All-Free treatment reproduces canon_key exactly.
+    # canonical_rep ADDS the conjugation fold on top of canon_key, so under All-Free
+    # treatment it equals the conjugation-min of canon_key over {op, op†}. Which side
+    # wins is SQA's qadd_order_key convention, so derive it rather than hard-coding op.
     free = QuantumCumulants.all_free_treatments(ctx)
-    @test isequal(QuantumCumulants.canonical_rep(op, ctx; treatments = free)[1], QuantumCumulants.canon_key(op, ctx))
+    ck = QuantumCumulants.canon_key(op, ctx)
+    cka = QuantumCumulants.canon_key(adjoint(op), ctx)
+    expected = SQA.qadd_order_key(cka) < SQA.qadd_order_key(ck) ? cka : ck
+    @test isequal(QuantumCumulants.canonical_rep(op, ctx; treatments = free)[1], expected)
     # idempotence
     rep1 = QuantumCumulants.canonical_rep(op, ctx; treatments = free)[1]
     @test isequal(QuantumCumulants.canonical_rep(rep1 * 1, ctx; treatments = free)[1], rep1)
