@@ -1,0 +1,6 @@
+name = "CumulantHomotopy"
+uuid = "f69ee5af-698c-4ef3-90cb-9bb8d4987419"
+version = "0.1.0-DEV"
+
+[compat]
+julia = "1.10"
