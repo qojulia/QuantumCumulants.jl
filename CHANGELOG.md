@@ -2,6 +2,8 @@
 
 All notable changes to QuantumCumulants.jl will be documented in this file.
 
+## [0.5.5]
+
 ### Changed
 
 The Lindblad drift builders now collect their per-jump contributions into a vector and sum them in a single pass, instead of folding them in with a running `acc += …`. Every `QAdd + QAdd` rebuilds the accumulator's term dictionary, so the running fold cost O(n²) in the number of jump operators; SQA's `sum(::AbstractArray{<:QAdd})` routes the whole list through one MutableArithmetics accumulator (`_QAddBuilder`), making drift assembly O(n). This affects the forward and backward master-equation drifts (`_lindblad_rhs`, `_master_lindblad_backward`), the forward noise-equation builder, and the ancilla-undo step used by `CorrelationFunction`.
