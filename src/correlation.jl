@@ -108,9 +108,8 @@ end
 
 # ---- constructor -------------------------------------------------------------
 
-# Shared constructor body. `op1_seed` is the vector of operators seeding the τ-states
-# (one per correlation ⟨op·op2(0)⟩); `op1` is the representative kept on the returned
-# `CorrelationFunction`. The public methods below dispatch to this.
+# Shared body for the regression-theorem system g(τ) = ⟨op1(τ) op2(0)⟩: seed one two-time
+# correlation ⟨opᵢ(τ) op2(0)⟩ per operator in `op1_seed`; `op1` is kept as the representative.
 function _correlation_function(
         op1::QField, op1_seed::AbstractVector{<:QField}, op2::QField, eqs0::MeanfieldEquations;
         steady_state::Bool = true, filter_func = nothing, max_iter::Int = 100_000,
