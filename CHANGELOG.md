@@ -2,6 +2,20 @@
 
 All notable changes to QuantumCumulants.jl will be documented in this file.
 
+## [0.6.0]
+
+### Added
+
+`CorrelationFunction` now accepts a vector of operators for `op1`, seeding one correlation τ-state ⟨opᵢ(τ) op2(0)⟩ per entry. This guarantees the listed operators are all included in the correlation system and fixes their order, which simplifies defining several correlations that share the same `op2`. The first entry is kept as the representative `op1`. See issue [#311](https://github.com/qojulia/QuantumCumulants.jl/issues/311) and PR [#309](https://github.com/qojulia/QuantumCumulants.jl/pull/309).
+
+### Changed
+
+The time-shifted operator in a `CorrelationFunction` now gets a fresh name. `op2`, re-embedded on the ancilla subspace, is renamed `<name>_0` (e.g. `a` becomes `a_0`), and the correlation prints as ⟨op1 op2_0⟩ rather than `op1*op2` collapsed onto a single subspace. The two-time structure ⟨op1(τ) op2(0)⟩ is now visible in the displayed equations, in `show`, and in the LaTeX output. See issue [#311](https://github.com/qojulia/QuantumCumulants.jl/issues/311).
+
+### Fixed
+
+`CorrelationFunction` no longer emits redundant equations for the conjugate of the ancilla operator. For a transition correlation such as the Mollow case ⟨σᵉᵍ(τ) σᵍᵉ(0)⟩, the closure previously also seeded the disconnected conjugate branch (states carrying the ancilla operator's adjoint σᵉᵍ_0) as extra unknowns, giving five equations where three suffice. Because the ancilla operator is inert, that branch never couples to the requested correlation, so it is now dropped: the closure keeps only the states `g(τ)` depends on, matching the documented Mollow example (three equations). The computed correlation and power spectrum are unchanged. See issue [#311](https://github.com/qojulia/QuantumCumulants.jl/issues/311).
+
 ## [0.5.5]
 
 ### Changed

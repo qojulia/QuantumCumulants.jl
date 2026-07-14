@@ -108,35 +108,9 @@ end
 
 # ---- constructor -------------------------------------------------------------
 
-"""
-    CorrelationFunction(op1, op2, eqs0; steady_state=true, filter_func=nothing, max_iter=100_000, iv0=nothing)
-
-Build the two-time correlation ⟨op1(τ)·op2(0)⟩ from a solved mean-field system
-`eqs0` via the quantum regression theorem. `op2` is re-embedded onto a fresh ancilla
-subspace and the resulting system is closed only on averages that touch the
-ancilla; the remaining averages are steady-state coefficients. With
-`steady_state=false` the ambient averages are evolved too. `filter_func` further
-restricts the closure, and `max_iter` bounds the closure iterations.
-
-If the Hamiltonian, jumps, or rates depend on the parent time variable `eqs0.iv`
-(e.g. a drive `f(t)`), the τ-evolution is governed by the generator at `iv0 + τ`, where
-`iv0` is the absolute time the parent evolution stopped (conventionally `sol.t[end]`).
-Pass it as a parameter, e.g. `@variables t0::Real; CorrelationFunction(op1, op2, eqs; iv0 = t0)`,
-and supply its value alongside the other parameters in [`correlation_p0`](@ref). `iv0` is
-ignored for time-independent systems and required when a dependence is detected.
-
-# Examples
-```jldoctest
-julia> h = FockSpace(:cavity);
-
-julia> @qnumbers a::Destroy(h);
-
-julia> eqs = meanfield([a' * a], a' * a, [a]; rates = [1.0], order = 2);
-
-julia> CorrelationFunction(a', a, eqs)
-⟨a' * a⟩
-```
-"""
+# Shared constructor body. `op1_seed` is the vector of operators seeding the τ-states
+# (one per correlation ⟨op·op2(0)⟩); `op1` is the representative kept on the returned
+# `CorrelationFunction`. The public methods below dispatch to this.
 function _correlation_function(
         op1::QField, op1_seed::AbstractVector{<:QField}, op2::QField, eqs0::MeanfieldEquations;
         steady_state::Bool = true, filter_func = nothing, max_iter::Int = 100_000,
@@ -195,6 +169,40 @@ function _correlation_function(
     )
 end
 
+"""
+    CorrelationFunction(op1, op2, eqs0; steady_state=true, filter_func=nothing, max_iter=100_000, iv0=nothing)
+
+Build the two-time correlation ⟨op1(τ)·op2(0)⟩ from a solved mean-field system
+`eqs0` via the quantum regression theorem. `op2` is re-embedded onto a fresh ancilla
+subspace (and renamed `<name>_0`, so `a` becomes `a_0`) and the resulting system is
+closed only on averages that touch the ancilla; the remaining averages are
+steady-state coefficients. With `steady_state=false` the ambient averages are evolved
+too. `filter_func` further restricts the closure, and `max_iter` bounds the closure
+iterations.
+
+`op1` may be a vector of operators, in which case one correlation τ-state
+⟨opᵢ(τ)·op2(0)⟩ is seeded per entry (guaranteeing they are all included and preserving
+their order); the first entry is kept as the representative `op1`.
+
+If the Hamiltonian, jumps, or rates depend on the parent time variable `eqs0.iv`
+(e.g. a drive `f(t)`), the τ-evolution is governed by the generator at `iv0 + τ`, where
+`iv0` is the absolute time the parent evolution stopped (conventionally `sol.t[end]`).
+Pass it as a parameter, e.g. `@variables t0::Real; CorrelationFunction(op1, op2, eqs; iv0 = t0)`,
+and supply its value alongside the other parameters in [`correlation_p0`](@ref). `iv0` is
+ignored for time-independent systems and required when a dependence is detected.
+
+# Examples
+```jldoctest
+julia> h = FockSpace(:cavity);
+
+julia> @qnumbers a::Destroy(h);
+
+julia> eqs = meanfield([a' * a], a' * a, [a]; rates = [1.0], order = 2);
+
+julia> CorrelationFunction(a', a, eqs)
+⟨a' * a_0⟩
+```
+"""
 function CorrelationFunction(
         op1::QField, op2::QField, eqs0::MeanfieldEquations;
         kwargs...,

@@ -78,7 +78,8 @@ end
     c, _ = _correlation_and_spectrum()
     s = repr(MIME("text/latex"), c)
     @test !isempty(s)
-    @test occursin("a_0", s)
+    # The renamed ancilla `a_0` renders as a subscripted `a_{\mathrm{0}}`.
+    @test occursin("a_{\\mathrm{0}}", s)
 end
 
 @testset "show MIME text/latex: Spectrum" begin

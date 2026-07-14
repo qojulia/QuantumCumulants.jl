@@ -72,9 +72,11 @@ Keyword arguments:
   unknowns. When `false`, only one member of each conjugate pair is kept and the partner is
   recovered via `conj` when the numerical system is built.
 - `foldable`: predicate on the moment operator gating that `conj` recovery under
-  `get_adjoints=false`. A pair is folded onto one member only where `foldable` holds; where it
-  does not, both members are kept (the conjugate is a genuinely distinct unknown, as for the
-  correlation τ-states whose adjoint does not survive the ancilla collapse). Default folds all.
+  `get_adjoints=false`. A conjugate pair with a distinct canonical representative is folded onto
+  one member where `foldable` holds; where it does not, the conjugate is not proactively seeded
+  and is derived only if a genuine right-hand side reaches it. For the correlation τ-states the
+  inert ancilla factor never reappears conjugated, so the conjugate is a disconnected branch
+  that `g(τ)` does not need and is correctly dropped. Default folds all.
 - `max_iter`: runaway backstop on the number of closure iterations.
 """
 function closure(
@@ -111,12 +113,18 @@ function closure(
             nodes[k] = derive(k, g.sys, ctx)
             push!(seen, k)
             push!(pending, k)
-            if kc != k && !(kc in seen) && (get_adjoints || !foldable(op))
-                nodes[kc] = derive(kc, g.sys, ctx)
-                push!(seen, kc)
-                push!(pending, kc)
-            elseif !(kc in seen)
-                push!(seen, kc)
+            if kc != k && !(kc in seen)
+                if get_adjoints
+                    nodes[kc] = derive(kc, g.sys, ctx)
+                    push!(seen, kc)
+                    push!(pending, kc)
+                elseif foldable(op)
+                    # Fold: `kc` is recovered via `conj` when the numerical system is built.
+                    push!(seen, kc)
+                end
+                # get_adjoints=false && !foldable: leave `kc` unseen so it is derived only if a
+                # genuine RHS reaches it. For a correlation the inert ancilla factor never
+                # reappears conjugated, so this drops the disconnected conjugate branch.
             end
         end
     end
