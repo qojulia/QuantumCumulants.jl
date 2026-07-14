@@ -211,7 +211,12 @@ eqs = substitute(eqs, Dict(average(σ(2, 1, i)) => 0 for i in 1:N))
 ```
 """
 function substitute!(eqs::AbstractMeanfieldEquations, dict::AbstractDict)
-    eqs.graph = map_drifts(eqs.graph, (_, d) -> Symbolics.substitute(d, dict))
+    # `_subtree_substitute` rewrites only the matched subtrees, leaving the shape
+    # metadata of the untouched averages intact. `Symbolics.substitute` rebuilds
+    # the whole expression and strips the scalar shape off every `⟨…⟩`, which then
+    # no longer matches the (scalar) LHS averages and breaks downstream simplify.
+    sub = Dict(SymbolicUtils.unwrap(k) => SymbolicUtils.unwrap(v) for (k, v) in dict)
+    eqs.graph = map_drifts(eqs.graph, (_, d) -> _subtree_substitute(SymbolicUtils.unwrap(d), sub))
     resync!(eqs; moments_unchanged = true)
     return eqs
 end
