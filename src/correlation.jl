@@ -40,35 +40,12 @@ end
 # the acting-on `space_index`.
 _embed_on(op::SQA.Op, aon::Integer) =
     SQA.Op(op.kind, op.name_id, Int32(aon), op.index, op.l1, op.l2, op.g, op.nlev)
-function _embed_on(op::QAdd, aon::Integer)
-    terms = QAdd[]
-    for (term, coeff) in op.arguments
-        prod = one(QAdd) * _coeff_num(coeff)
-        for o in term.ops
-            prod = prod * _embed_on(o, aon)
-        end
-        push!(terms, prod)
-    end
-    return isempty(terms) ? zero(op) : sum(terms)
-end
 
 _ancilla_op_name(name::Symbol) = Symbol(name, "_0")
 _rename_ancilla(op::SQA.Op) = SQA.Op(
     op.kind, SQA._intern_name(_ancilla_op_name(SQA.operator_name(op))), op.space_index, op.index,
     op.l1, op.l2, op.g, op.nlev,
 )
-function _rename_ancilla(op::QAdd)
-    terms = QAdd[]
-    for (term, coeff) in op.arguments
-        prod = one(QAdd) * _coeff_num(coeff)
-        for o in term.ops
-            prod = prod * _rename_ancilla(o)
-        end
-        push!(terms, prod)
-    end
-    return isempty(terms) ? zero(op) : sum(terms)
-end
-_rename_ancilla(op) = op
 
 _strip_ancilla_op_name(name::Symbol) = endswith(String(name), "_0") ? Symbol(chop(String(name); tail = 2)) : name
 _restore_ancilla(op::SQA.Op) = SQA.Op(
