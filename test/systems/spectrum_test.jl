@@ -20,6 +20,22 @@ using Test
     @test length(c.eqs.equations) >= 1
 end
 
+@testset "CorrelationFunction: vector op1 construction" begin
+    hc = FockSpace(:cavity)
+    @qnumbers a::Destroy(hc)
+    @variables ω κ
+    H = ω * a' * a
+    eqs = meanfield([a], H, [a]; rates = [κ])
+    complete!(eqs)
+
+    c = CorrelationFunction([a, a'], a, eqs)
+    @test c isa CorrelationFunction
+    @test c.op1 === a
+    @test c.op2 === a
+    @test undo_average(c.eqs.states[1]) == a * c.op2_ancilla
+    @test undo_average(c.eqs.states[2]) == a' * c.op2_ancilla
+end
+
 @testset "Spectrum constructor" begin
     hc = FockSpace(:cavity)
     @qnumbers a::Destroy(hc)

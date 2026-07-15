@@ -10,7 +10,31 @@ Indexed sums with an index-dependent coefficient no longer lose their scope duri
 
 `scale` now handles a factorised indexed-sum node whose body is a product of several averages (e.g. `Σ_{i≠j} J(i,j)·⟨σ⁻ᵢ⟩⟨σ⁻ⱼ⟩`, from a two-atom coupling on an index-free observable). Previously it reconstructed the operator of the whole node, which fused the moment product `⟨σ⁻ᵢ⟩⟨σ⁻ⱼ⟩` into the operator product `σ⁻ᵢσ⁻ⱼ` and re-averaged it to a spurious higher-order moment `⟨σ⁻ᵢσ⁻ⱼ⟩`, leaving the scaled system above its truncation order and unclosed. `scale` now folds each averaged leaf of the sum body to the symmetry representative and charges the falling-factorial `N(N−1)…` prefactor from the node's scope, agreeing with `evaluate` to numerical precision.
 
+`CorrelationFunction` no longer emits redundant equations for the conjugate of the ancilla operator. For a transition correlation such as the Mollow case ⟨σᵉᵍ(τ) σᵍᵉ(0)⟩, the closure previously also seeded the disconnected conjugate branch (states carrying the ancilla operator's adjoint σᵉᵍ_0) as extra unknowns, giving five equations where three suffice. Because the ancilla operator is inert, that branch never couples to the requested correlation, so it is now dropped: the closure keeps only the states `g(τ)` depends on, matching the documented Mollow example (three equations). The computed correlation and power spectrum are unchanged. See issue [#311](https://github.com/qojulia/QuantumCumulants.jl/issues/311).
+
 Indexed sums whose summation index appears **only** in the coefficient (for example a per-site drive `Ω_l = Σ_k u(l,k)` built from a `DoubleIndexedVariable`) now give the correct populations. When such a sum was multiplied by an operator, the moment-layer re-wrapped the already-split off-diagonal body in `Σ` without carrying its `k ≠ l` constraint, so the diagonal was peeled off a second time and the `k = l` term was double-counted (`_carry_non_equal` now keeps every non-equal pair that references an operator index on the block). On an order-2-exact independent-atom model the excited-state population now matches the exact master equation to numerical precision (previously it read 0.447 against an exact 0.325). This fix also depends on the companion diagonal-split fix in SecondQuantizedAlgebra v0.9.3, which keeps the off-diagonal body free of the diagonal coefficient (`u(l,k)` rather than `u(l,k) + u(l,l)`). See issue [#198](https://github.com/qojulia/QuantumCumulants.jl/issues/198).
+
+### Added
+
+`CorrelationFunction` now accepts a vector of operators for `op1`, seeding one correlation τ-state ⟨opᵢ(τ) op2(0)⟩ per entry. This guarantees the listed operators are all included in the correlation system and fixes their order, which simplifies defining several correlations that share the same `op2`. The first entry is kept as the representative `op1`. See issue [#311](https://github.com/qojulia/QuantumCumulants.jl/issues/311) and PR [#309](https://github.com/qojulia/QuantumCumulants.jl/pull/309).
+
+### Changed
+
+The time-shifted operator in a `CorrelationFunction` now gets a fresh name. `op2`, re-embedded on the ancilla subspace, is renamed `<name>_0` (e.g. `a` becomes `a_0`), and the correlation prints as ⟨op1 op2_0⟩ rather than `op1*op2` collapsed onto a single subspace. The two-time structure ⟨op1(τ) op2(0)⟩ is now visible in the displayed equations, in `show`, and in the LaTeX output. See issue [#311](https://github.com/qojulia/QuantumCumulants.jl/issues/311).
+
+## [0.5.6]
+
+### Fixed
+
+The effective-model comparison in the unique-squeezing example now matches the full model again. After the v0.5 rewrite the effective coupling `gΩ = g²/4Ω` was evaluated once at the global `N_global = 100`, but the effective Hamiltonian still multiplied it by a different `N_ = 69`. The original v0.4 version kept `g` symbolic in `N` (so `g² ∝ 1/N` and the intensive product `N g²` was independent of `N`), which made the mismatched `N` harmless; once `g` became a fixed number the effective model ran at 69% of the intended coupling and its squeezing curves fell short of the full model. The example now binds `gΩ` to `N` (see the new `bindings` support below), so the effective model is driven by the single knob `N` and the intensive `N g²` is restored by construction, bringing the two models back into agreement. See issue [#299](https://github.com/qojulia/QuantumCumulants.jl/issues/299).
+
+`substitute` on a `MeanfieldEquations`/`NoiseMeanfieldEquations` works again. The v0.4 method `substitute(eqs, dict)` was dropped in the v0.5 rewrite, so the same call fell through to the generic `SymbolicUtils.substitute`, which treated the equation set as an opaque object and returned it unchanged. The call succeeded silently, having substituted nothing. This broke the minimal-closure idiom of injecting known-zero moments (e.g. by symmetry) to collapse a system onto exactly its observable subset: the substitution did nothing, `System` then correctly rejected the still-open set, and the natural next step of `complete!` closed the full hierarchy instead, ballooning the equation count. `substitute` now rewrites every RHS (and the noise drift RHSs of a `NoiseMeanfieldEquations`) through the graph, so the reduced closure is recovered.
+
+### Added
+
+`ModelingToolkitBase.System(eqs::MeanfieldEquations; name, kwargs...)` and the `NoiseMeanfieldEquations` method now forward extra keyword arguments to the underlying `ModelingToolkitBase.System` constructor. In particular `bindings = [p => expr, ...]` marks a parameter as *derived* from others, so it is computed from the supplied values rather than set independently. This restores the v0.4 convenience of expressing one parameter as a function of the rest (e.g. an intensive collective coupling in terms of the atom number), which had been lost when the rewrite stopped accepting symbolic expressions as parameter values.
+
+`substitute!(eqs::AbstractMeanfieldEquations, dict)` is exported: the in-place counterpart of `substitute`, matching the `simplify!`/`modify_equations!` family. Both rewrite each RHS via the moment graph; `substitute` returns a fresh struct, `substitute!` mutates in place.
 
 ## [0.5.5]
 
