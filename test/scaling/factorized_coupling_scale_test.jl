@@ -126,10 +126,12 @@ end
 
     # Compare a filter-mode population ⟨b_i† b_i⟩ common to both representations.
     ops_A = [SQA.undo_average(s) for s in eqs_A.states]
-    target = ops_A[findfirst(
-        o -> occursin("b_", string(o)) && occursin("'", string(o)) && !occursin("σ", string(o)),
-        ops_A,
-    )]
+    target = ops_A[
+        findfirst(
+            o -> occursin("b_", string(o)) && occursin("'", string(o)) && !occursin("σ", string(o)),
+            ops_A,
+        ),
+    ]
     ops_B = [SQA.undo_average(s) for s in eqs_B.states]
     kB = findfirst(o -> isequal(o, target), ops_B)
     @test kB !== nothing

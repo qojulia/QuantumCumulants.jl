@@ -245,12 +245,12 @@ end
 """The terms of a sum expression (its `+`-summands, or `x` itself when it is not a sum)."""
 _add_terms(x) =
     (x isa SymbolicUtils.BasicSymbolic && SymbolicUtils.iscall(x) && SymbolicUtils.operation(x) === (+)) ?
-        collect(SymbolicUtils.arguments(x)) : Any[x]
+    collect(SymbolicUtils.arguments(x)) : Any[x]
 
 """The factors of a product (its `*`-factors, or `x` itself when it is not a product)."""
 _mul_factors(x) =
     (x isa SymbolicUtils.BasicSymbolic && SymbolicUtils.iscall(x) && SymbolicUtils.operation(x) === (*)) ?
-        collect(SymbolicUtils.arguments(x)) : Any[x]
+    collect(SymbolicUtils.arguments(x)) : Any[x]
 
 """
 Which summation indices `f` depends on: the site labels of a moment ⟨A_i⟩, or the indices a
