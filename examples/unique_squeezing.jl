@@ -188,8 +188,9 @@ sys_a = mtkcompile(sys_a)
 
 u0_a = zeros(ComplexF64, length(eqs_a)) # initial state
 
-gΩ_ = g_^2 / (4Ω_) # Additional parameter
-N_ = 69 # the final result does not depend on N
+N_ = 69 # the final result does not depend on N, as long as N g² is held fixed
+g_eff = 0.9 * sqrt(Ω_ * ω_ / N_) # coupling for this N (g² ∝ 1/N keeps N g² intensive)
+gΩ_ = g_eff^2 / (4Ω_) # Additional parameter, g²/4Ω
 
 ps_a = [ω, ωd, η, κ, N, gΩ, ξ] # symbolic parameter list (matches sys_a)
 p0_a = [ω_, ωd_, η_, κ_, N_, gΩ_, ξ_]

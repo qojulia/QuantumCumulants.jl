@@ -6,6 +6,8 @@ All notable changes to QuantumCumulants.jl will be documented in this file.
 
 ### Fixed
 
+The effective-model comparison in the unique-squeezing example now matches the full model again. After the v0.5 rewrite the effective coupling `gΩ = g²/4Ω` was evaluated once at the global `N_global = 100`, but the effective Hamiltonian still multiplied it by a different `N_ = 69`. The original version kept `g` symbolic in `N` (so `g² ∝ 1/N` and the intensive product `N g²` was independent of `N`), which made the mismatched `N` harmless; once `g` became a fixed number the effective model ran at 69% of the intended coupling and its squeezing curves fell short of the full model. The example now recomputes `g` for the chosen `N_`, restoring the intensive `N g²` and bringing the two models back into agreement. See issue [#299](https://github.com/qojulia/QuantumCumulants.jl/issues/299).
+
 `substitute` on a `MeanfieldEquations`/`NoiseMeanfieldEquations` works again. The v0.4 method `substitute(eqs, dict)` was dropped in the v0.5 rewrite, so the same call fell through to the generic `SymbolicUtils.substitute`, which treated the equation set as an opaque object and returned it unchanged. The call succeeded silently, having substituted nothing. This broke the minimal-closure idiom of injecting known-zero moments (e.g. by symmetry) to collapse a system onto exactly its observable subset: the substitution did nothing, `System` then correctly rejected the still-open set, and the natural next step of `complete!` closed the full hierarchy instead, ballooning the equation count. `substitute` now rewrites every RHS (and the noise drift RHSs of a `NoiseMeanfieldEquations`) through the graph, so the reduced closure is recovered.
 
 ### Added
