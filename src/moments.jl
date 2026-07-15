@@ -8,9 +8,10 @@ function average_and_truncate(R::QAdd, order::TruncOrder, mix_choice, ctx::Canon
         # moments that never close.
         # TODO: check if this can be removed after https://github.com/qojulia/SecondQuantizedAlgebra.jl/pull/167
         _iszero_coeff(c) && continue
-        # Index-dependent coefficients (Γ(i,j)/Ω(i,j)) must ride inside the sum so the
-        # diagonal split substitutes them; scalar coefficients stay outside.
-        if !isempty(term.ops) && !isempty(_coeff_scope_indices(c, R.indices))
+        # Index-dependent coefficients (Γ(i,j)/Ω(i,j)) must ride inside the sum so the diagonal
+        # split substitutes them (including pure c-number terms; see `_scoped_average_coeff`);
+        # scalar coefficients stay outside.
+        if !isempty(_coeff_scope_indices(c, R.indices))
             acc = acc + cumulant_expansion(
                 _scoped_average_coeff(c, term.ops, term.ne, R.indices), order; mix_choice,
             )
@@ -52,6 +53,17 @@ Average a block with its coefficient inside the sum, scoping over indices used b
 operators or the coefficient so the diagonal split substitutes the coefficient.
 """
 function _scoped_average_coeff(c, ops::AbstractVector{<:SQA.QSym}, non_equal, scope)
+    if isempty(ops)
+        # Pure c-number term whose coefficient still carries a summation index (the `σ^gg →
+        # 1 − σ^ee` fold turned a scoped `Σ_k c·σ^gg_l` into a scope-less `Σ_k c·1`). Wrap the
+        # coefficient back in its `Σ` so `evaluate` unrolls the index; the scalar body needs
+        # SQA's diagonal split (`_accumulate_with_diag!`, SQA ≥ 0.9.3) to keep the off-diagonal
+        # coefficient exact. See `_carry_non_equal` for the QC half of the same over-count (#198).
+        block_scope = _coeff_scope_indices(c, scope)
+        isempty(block_scope) && return _im_form(c)
+        ne = _scope_non_equal(non_equal, block_scope, scope)
+        return _make_indexed_sum(SymbolicUtils.unwrap(_im_form(c)), block_scope, ne)
+    end
     cblock = c * reduce(*, ops)
     cblock isa QAdd || return average(cblock)
     # Carry the non-equal index constraints on `cblock` (always a QAdd); a single-op
@@ -135,20 +147,19 @@ function _scoped_average(ops::AbstractVector{<:SQA.QSym}, non_equal, scope)
 end
 
 """
-Reattach the term's non-equal index pairs so the diagonal split sees them: keep a pair when both
-indices are on the block, or one is on the block and its partner is external.
+Reattach the term's non-equal index pairs so the diagonal split sees them: keep any pair that
+references an operator index on the block. This includes a `(scope_idx, block_idx)` pair (the
+scope index is about to be summed and its partner sits on the block): dropping it lets the
+subsequent `SQA.Σ` re-split a diagonal that upstream already peeled off, double-counting it.
+A pair touching no block index is irrelevant to this block's sum and is dropped.
 """
 function _carry_non_equal(block::QAdd, non_equal, scope)
     present = Set{SQA.Index}()
     for (term, _) in block.arguments, o in term.ops
         SQA.has_index(o.index) && push!(present, o.index)
     end
-    scopeset = Set{SQA.Index}(scope)
     kept = Tuple{SQA.Index, SQA.Index}[
-        p for p in non_equal if
-            (p[1] in present && p[2] in present) ||
-            (p[1] in present && !(p[2] in scopeset)) ||
-            (p[2] in present && !(p[1] in scopeset))
+        p for p in non_equal if p[1] in present || p[2] in present
     ]
     isempty(kept) && return block
     out = SQA.QTermDict()

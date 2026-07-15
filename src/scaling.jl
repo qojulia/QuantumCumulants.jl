@@ -72,19 +72,105 @@ function _scale_expr(x, ctx, selected, sym_to_space, cache)
         treatments[sp] = sp in selected ? Scaled : Concrete
     end
     reduced = rewrite(SymbolicUtils.unwrap(x)) do l
-        if _is_moment_unit(l)
-            return get!(cache, l) do
-                _flatten_indexed_vars_in_tree(
-                    _scale_leaf(l, ctx, selected, treatments), selected, sym_to_space,
-                )
-            end
-        end
-        (_is_indexed_var(l) && _indexed_var_in_h(l, selected, sym_to_space)) &&
-            return _flatten_indexed_var(l)
-        return nothing
+        _scale_node(l, ctx, selected, treatments, sym_to_space, cache)
     end
     return Symbolics.Num(reduced)
 end
+
+"""
+Reduce one node under the permutation symmetry `scale` exploits: return the reduced
+subtree, or `nothing` to let `rewrite` descend. A sum whose summand is a *product of several
+moments* (a mean-field-factorised `Σ c·⟨A⟩⟨B⟩⋯`) needs care: rebuilding its operator would
+fuse the moment product `⟨A⟩⟨B⟩` into a single higher moment `⟨A B⟩`, a different and
+higher-order quantity. Such a sum is reduced by [`_scale_sum`](@ref); an ordinary moment (or
+a sum over a single moment) is reduced by `_scale_leaf`, and a stray site-dependent coupling
+outside a moment is replaced by its symmetric (site-independent) value.
+"""
+function _scale_node(l, ctx, selected, treatments, sym_to_space, cache)
+    if SQA.is_indexed_sum(l) && length(eachleaf(_indexed_sum_body(l))) >= 2
+        return get!(cache, l) do
+            _scale_sum(l, ctx, selected, treatments, sym_to_space, cache)
+        end
+    end
+    if _is_moment_unit(l)
+        return get!(cache, l) do
+            _flatten_indexed_vars_in_tree(
+                _scale_leaf(l, ctx, selected, treatments), selected, sym_to_space,
+            )
+        end
+    end
+    (_is_indexed_var(l) && _indexed_var_in_h(l, selected, sym_to_space)) &&
+        return _flatten_indexed_var(l)
+    return nothing
+end
+
+"""
+Reduce a mean-field-factorised sum `Σ_{i,j,…} c·⟨A_i⟩⟨B_j⟩⋯` under permutation symmetry.
+Every atom/site is equivalent, so each single-site moment ⟨A_i⟩ equals the representative
+⟨A⟩ and the sum collapses to `(number of distinct site assignments)·c·⟨A⟩⟨B⟩⋯`. That count
+is the falling factorial `N(N−1)⋯` from `_scope_prefactor` (honouring any `i≠j`); each
+moment folds to its representative and each site-dependent coupling takes its symmetric
+value. Summation indices on subsystems that are *not* being scaled stay summed and are
+re-wrapped in the residual `Σ` with their internal `≠` constraints.
+"""
+function _scale_sum(node, ctx, selected, treatments, sym_to_space, cache)
+    indices = SQA.get_sum_indices(node)
+    ne = SQA.get_sum_non_equal(node)
+    body = _indexed_sum_body(node)
+    keep = SQA.Index[b for b in indices if !(b.space_index in selected)]
+    pref = _scope_prefactor(indices, ne, selected)
+    scaled_body = rewrite(body) do l
+        _scale_node(l, ctx, selected, treatments, sym_to_space, cache)
+    end
+    result = pref === 1 ? scaled_body : SymbolicUtils.unwrap(pref) * scaled_body
+    isempty(keep) && return result
+    kept_ne = Tuple{SQA.Index, SQA.Index}[p for p in ne if p[1] in keep && p[2] in keep]
+    return _make_indexed_sum(SymbolicUtils.unwrap(result), keep, kept_ne)
+end
+
+"""
+Falling-factorial multiplicity `∏_b (index_range(b) − partners-already-fixed)` for the
+`collapsing` indices, visited in the order of `ordered`. `ne` is any collection of index
+pairs; a mutual `i≠j` between two collapsing indices is charged once (skipped for the later
+of the two), while a constraint against an external or kept index is charged. Shared by the
+single-moment (`_sum_scope_prefactor`) and multi-moment (`_scope_prefactor`) scale paths.
+"""
+function _falling_factorial(ordered, ne, collapsing::Set{SQA.Index})
+    placed = Set{SQA.Index}()
+    prefactor = 1
+    for b in ordered
+        b in collapsing || continue
+        count_b = 0
+        excluded = Set{SQA.Index}()
+        for pair in ne
+            if pair[1] == b
+                other = pair[2]
+            elseif pair[2] == b
+                other = pair[1]
+            else
+                continue
+            end
+            # Charge a mutual `≠` once: skip a collapsed partner not yet placed.
+            (other in collapsing && !(other in placed)) && continue
+            other in excluded && continue
+            count_b += 1
+            push!(excluded, other)
+        end
+        prefactor = prefactor * (SQA.index_range(b) - count_b)
+        push!(placed, b)
+    end
+    return prefactor
+end
+
+"""
+How many distinct assignments the collapsing (scaled) summation indices have: the falling
+factorial `N(N−1)⋯`, read straight from a sum node's `indices`/`ne`. This multiplicity is
+what multiplies the representative moment when the symmetric sum collapses. Companion to
+`_sum_scope_prefactor`, which derives the same count from an operator `QAdd`.
+"""
+_scope_prefactor(indices, ne, selected::Set{Int}) = _falling_factorial(
+    indices, ne, Set{SQA.Index}(b for b in indices if b.space_index in selected),
+)
 
 function _scale_leaf(avg, ctx, selected, treatments)
     op = undo_average(avg)
@@ -147,30 +233,8 @@ function _sum_scope_prefactor(op::QAdd, selected::Set{Int})
     collapsing = Set{SQA.Index}(
         b for b in op.indices if b in op_indices && b.space_index in selected
     )
-    placed = Set{SQA.Index}()
-    prefactor = 1
-    for b in op.indices
-        b in collapsing || continue
-        count_b = 0
-        excluded = Set{SQA.Index}()
-        for (term, _) in op.arguments, pair in term.ne
-            if pair[1] == b
-                other = pair[2]
-            elseif pair[2] == b
-                other = pair[1]
-            else
-                continue
-            end
-            # Charge a mutual `≠` once: skip a collapsed partner not yet placed.
-            (other in collapsing && !(other in placed)) && continue
-            other in excluded && continue
-            count_b += 1
-            push!(excluded, other)
-        end
-        prefactor = prefactor * (SQA.index_range(b) - count_b)
-        push!(placed, b)
-    end
-    return prefactor
+    ne = Tuple{SQA.Index, SQA.Index}[pair for (term, _) in op.arguments for pair in term.ne]
+    return _falling_factorial(op.indices, ne, collapsing)
 end
 
 """

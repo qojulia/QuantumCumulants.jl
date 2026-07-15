@@ -4,6 +4,16 @@ All notable changes to QuantumCumulants.jl will be documented in this file.
 
 ## [0.6.0]
 
+### Fixed
+
+Indexed sums with an index-dependent coefficient no longer lose their scope during the cumulant expansion. When a moment inside a sum `Σ_{i,j} c(i,j)·⟨A_i A_j⟩` exceeded the truncation order, the factorised product `c(i,j)·⟨A_i⟩⟨A_j⟩` was re-scoped by stamping the summation indices onto the first averaged leaf that used them, which left index-dependent coefficients (e.g. a `DoubleIndexedVariable` coupling `J(i,j)`) and any sibling leaves outside the sum with a dangling free index. `evaluate` then could not unroll them and `ODEProblem` construction failed with an `UndefVarError` on the dangling index. The factorised term is now wrapped back in a dedicated moment-layer indexed-sum node covering exactly the coefficient and leaves that share each bound index, so `evaluate` unrolls the whole product in lockstep and the concrete system builds and solves. See issues [#288](https://github.com/qojulia/QuantumCumulants.jl/issues/288) and [#198](https://github.com/qojulia/QuantumCumulants.jl/issues/198).
+
+`scale` now handles a factorised indexed-sum node whose body is a product of several averages (e.g. `Σ_{i≠j} J(i,j)·⟨σ⁻ᵢ⟩⟨σ⁻ⱼ⟩`, from a two-atom coupling on an index-free observable). Previously it reconstructed the operator of the whole node, which fused the moment product `⟨σ⁻ᵢ⟩⟨σ⁻ⱼ⟩` into the operator product `σ⁻ᵢσ⁻ⱼ` and re-averaged it to a spurious higher-order moment `⟨σ⁻ᵢσ⁻ⱼ⟩`, leaving the scaled system above its truncation order and unclosed. `scale` now folds each averaged leaf of the sum body to the symmetry representative and charges the falling-factorial `N(N−1)…` prefactor from the node's scope, agreeing with `evaluate` to numerical precision.
+
+`CorrelationFunction` no longer emits redundant equations for the conjugate of the ancilla operator. For a transition correlation such as the Mollow case ⟨σᵉᵍ(τ) σᵍᵉ(0)⟩, the closure previously also seeded the disconnected conjugate branch (states carrying the ancilla operator's adjoint σᵉᵍ_0) as extra unknowns, giving five equations where three suffice. Because the ancilla operator is inert, that branch never couples to the requested correlation, so it is now dropped: the closure keeps only the states `g(τ)` depends on, matching the documented Mollow example (three equations). The computed correlation and power spectrum are unchanged. See issue [#311](https://github.com/qojulia/QuantumCumulants.jl/issues/311).
+
+Indexed sums whose summation index appears **only** in the coefficient (for example a per-site drive `Ω_l = Σ_k u(l,k)` built from a `DoubleIndexedVariable`) now give the correct populations. When such a sum was multiplied by an operator, the moment-layer re-wrapped the already-split off-diagonal body in `Σ` without carrying its `k ≠ l` constraint, so the diagonal was peeled off a second time and the `k = l` term was double-counted (`_carry_non_equal` now keeps every non-equal pair that references an operator index on the block). On an order-2-exact independent-atom model the excited-state population now matches the exact master equation to numerical precision (previously it read 0.447 against an exact 0.325). This fix also depends on the companion diagonal-split fix in SecondQuantizedAlgebra v0.9.3, which keeps the off-diagonal body free of the diagonal coefficient (`u(l,k)` rather than `u(l,k) + u(l,l)`). See issue [#198](https://github.com/qojulia/QuantumCumulants.jl/issues/198).
+
 ### Added
 
 `CorrelationFunction` now accepts a vector of operators for `op1`, seeding one correlation τ-state ⟨opᵢ(τ) op2(0)⟩ per entry. This guarantees the listed operators are all included in the correlation system and fixes their order, which simplifies defining several correlations that share the same `op2`. The first entry is kept as the representative `op1`. See issue [#311](https://github.com/qojulia/QuantumCumulants.jl/issues/311) and PR [#309](https://github.com/qojulia/QuantumCumulants.jl/pull/309).
@@ -12,9 +22,6 @@ All notable changes to QuantumCumulants.jl will be documented in this file.
 
 The time-shifted operator in a `CorrelationFunction` now gets a fresh name. `op2`, re-embedded on the ancilla subspace, is renamed `<name>_0` (e.g. `a` becomes `a_0`), and the correlation prints as ⟨op1 op2_0⟩ rather than `op1*op2` collapsed onto a single subspace. The two-time structure ⟨op1(τ) op2(0)⟩ is now visible in the displayed equations, in `show`, and in the LaTeX output. See issue [#311](https://github.com/qojulia/QuantumCumulants.jl/issues/311).
 
-### Fixed
-
-`CorrelationFunction` no longer emits redundant equations for the conjugate of the ancilla operator. For a transition correlation such as the Mollow case ⟨σᵉᵍ(τ) σᵍᵉ(0)⟩, the closure previously also seeded the disconnected conjugate branch (states carrying the ancilla operator's adjoint σᵉᵍ_0) as extra unknowns, giving five equations where three suffice. Because the ancilla operator is inert, that branch never couples to the requested correlation, so it is now dropped: the closure keeps only the states `g(τ)` depends on, matching the documented Mollow example (three equations). The computed correlation and power spectrum are unchanged. See issue [#311](https://github.com/qojulia/QuantumCumulants.jl/issues/311).
 ## [0.5.6]
 
 ### Fixed
