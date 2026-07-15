@@ -1,7 +1,7 @@
 using QuantumCumulants
 using Symbolics: Symbolics, @variables
 using SymbolicUtils: SymbolicUtils
-using ModelingToolkitBase: @named, mtkcompile, ODEProblem, unknowns
+using ModelingToolkitBase: ModelingToolkitBase, @named, mtkcompile, ODEProblem, unknowns, t_nounits as t
 using OrdinaryDiffEqTsit5: Tsit5, solve, ReturnCode
 using Test
 
@@ -162,6 +162,94 @@ end
     op1 = SQA.undo_average(eqs_ev.states[1])
     op2 = SQA.undo_average(eqs_ev.states[2])
     @test !isequal(op1, op2)
+end
+
+@testset "evaluate: #288/#198 double-indexed coupling leaves no free sum index" begin
+    # Regression for #198/#288: an order-2 term inside a sum whose coefficient is a
+    # double-indexed variable J(l,k) factorises into a product of averages. The bound
+    # index `k` lives in the c-number coefficient AND in several averaged leaves at
+    # once, so stamping the scope onto a single leaf left `k` dangling on the
+    # coefficient (`UndefVarError: δjk`). The sum node must wrap the whole
+    # index-dependent product, so after `evaluate` no RHS carries a free index.
+    ha = NLevelSpace(:atoms, 2); hb = FockSpace(:bus); h = hb ⊗ ha
+    b = Destroy(h, :b)
+    @variables L::Real Δ_b::Real κ::Real γ::Real ν::Real
+    j = Index(h, :j, L, ha); k = Index(h, :k, L, ha); l = Index(h, :l, L, ha)
+    χ(x) = IndexedVariable(:χ, x)
+    Δ(x) = IndexedVariable(:Δ, x)
+    J(x, y) = DoubleIndexedVariable(:J, x, y)
+    σz(i) = IndexedOperator(Transition(h, :σ, 2, 2), i)
+    σp(i) = IndexedOperator(Transition(h, :σ, 1, 2), i)
+    σm(i) = IndexedOperator(Transition(h, :σ, 2, 1), i)
+    H = Δ_b * b' * b + Σ(Δ(j) * σz(j), j) +
+        Σ(χ(j) * (b' * σm(j) + b * σp(j)), j) +
+        Σ(J(j, k) * (σp(j) * σm(k)), j, k)
+    ops = [b' * b, σz(l)]
+    Jops = [b, σp(j), σm(j)]
+    eqs_c = complete(meanfield(ops, H, Jops; rates = [κ, γ, ν], order = 2))
+    eqs_ev = evaluate(eqs_c; limits = (L => 2))
+
+    # The system closes: every moment on an RHS has its own equation.
+    @test isempty(find_missing(eqs_ev))
+
+    # The summation indices `j`, `k` are fully unrolled; only concrete atom labels
+    # (the observable index `l` materialised to `l_1`/`l_2`) may remain. A surviving
+    # `j`/`k` is the #198 dangling-index bug.
+    SQA = QuantumCumulants.SecondQuantizedAlgebra
+    for eq in eqs_ev.equations
+        names = Set(SQA.index_name(i) for i in SQA.get_indices(SymbolicUtils.unwrap(eq.rhs)))
+        @test :j ∉ names && :k ∉ names
+    end
+
+    # The concrete system builds and solves (the #198 acceptance criterion).
+    sys_c = mtkcompile(System(eqs_ev; name = :sys288))
+    init = initial_values(eqs_ev, zeros(ComplexF64, length(eqs_ev.equations)))
+    pmap = Dict{Any, Any}()
+    for p in ModelingToolkitBase.parameters(sys_c)
+        nm = string(p)
+        nm == "Δ_b" && (pmap[p] = 0.0)
+        nm == "κ" && (pmap[p] = 0.5)
+        nm == "γ" && (pmap[p] = 0.1)
+        nm == "ν" && (pmap[p] = 0.05)
+        nm == "χ" && (pmap[p] = [0.7, 0.9])
+        nm == "Δ" && (pmap[p] = [-2.5, -1.9])
+        nm == "J" && (pmap[p] = [0.0 0.1; 0.12 0.0])
+    end
+    prob = ODEProblem(sys_c, merge(init, pmap), (0.0, 5.0))
+    sol = solve(prob, Tsit5())
+    @test sol.retcode == ReturnCode.Success
+end
+
+@testset "evaluate: #288 time-dependent multi-factor indexed coefficient keeps scope" begin
+    # The issue's exact failure mode: a sum coefficient `sin(δ(k)·t)·u(k)` is a *product* of a
+    # time+index-dependent factor and an index-dependent factor. Canonicalising such a
+    # multi-factor coefficient is what stripped the old leaf-level scope; the sum node must keep
+    # the coefficient scoped so `evaluate` leaves no free summation index and preserves `t`.
+    ha = NLevelSpace(:atoms, 2); hb = FockSpace(:bus); h = hb ⊗ ha
+    b = Destroy(h, :b)
+    @variables L::Real κ::Real γ::Real
+    k = Index(h, :k, L, ha); l = Index(h, :l, L, ha)
+    u(x) = IndexedVariable(:u, x)
+    δ(x) = IndexedVariable(:δ, x)
+    σz(idx) = IndexedOperator(Transition(h, :σ, 2, 2), idx)
+    σp(idx) = IndexedOperator(Transition(h, :σ, 1, 2), idx)
+    σm(idx) = IndexedOperator(Transition(h, :σ, 2, 1), idx)
+    H = Σ(sin(δ(k) * t) * u(k) * (b' * σm(k) + b * σp(k)), k)
+    eqs_c = complete(meanfield([b' * b, σz(l)], H, [b, σm(k)]; rates = [κ, γ], order = 2))
+    eqs_ev = evaluate(eqs_c; limits = (L => 2))
+
+    @test isempty(find_missing(eqs_ev))
+    SQA = QuantumCumulants.SecondQuantizedAlgebra
+    for eq in eqs_ev.equations
+        nms = Set(SQA.index_name(x) for x in SQA.get_indices(SymbolicUtils.unwrap(eq.rhs)))
+        @test :k ∉ nms
+    end
+    # The independent variable survives the unrolling (time-dependence preserved).
+    t_uw = SymbolicUtils.unwrap(t)
+    @test any(
+        eq -> any(v -> isequal(v, t_uw), Symbolics.get_variables(eq.rhs)),
+        eqs_ev.equations,
+    )
 end
 
 @testset "evaluate: invalid limits type throws" begin

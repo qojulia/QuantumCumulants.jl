@@ -2,6 +2,14 @@
 
 All notable changes to QuantumCumulants.jl will be documented in this file.
 
+## [0.6.0]
+
+### Fixed
+
+Indexed sums with an index-dependent coefficient no longer lose their scope during the cumulant expansion. When a moment inside a sum `Σ_{i,j} c(i,j)·⟨A_i A_j⟩` exceeded the truncation order, the factorised product `c(i,j)·⟨A_i⟩⟨A_j⟩` was re-scoped by stamping the summation indices onto the first averaged leaf that used them, which left index-dependent coefficients (e.g. a `DoubleIndexedVariable` coupling `J(i,j)`) and any sibling leaves outside the sum with a dangling free index. `evaluate` then could not unroll them and `ODEProblem` construction failed with an `UndefVarError` on the dangling index. The factorised term is now wrapped back in a dedicated moment-layer indexed-sum node covering exactly the coefficient and leaves that share each bound index, so `evaluate` unrolls the whole product in lockstep and the concrete system builds and solves. See issues [#288](https://github.com/qojulia/QuantumCumulants.jl/issues/288) and [#198](https://github.com/qojulia/QuantumCumulants.jl/issues/198).
+
+`scale` now handles a factorised indexed-sum node whose body is a product of several averages (e.g. `Σ_{i≠j} J(i,j)·⟨σ⁻ᵢ⟩⟨σ⁻ⱼ⟩`, from a two-atom coupling on an index-free observable). Previously it reconstructed the operator of the whole node, which fused the moment product `⟨σ⁻ᵢ⟩⟨σ⁻ⱼ⟩` into the operator product `σ⁻ᵢσ⁻ⱼ` and re-averaged it to a spurious higher-order moment `⟨σ⁻ᵢσ⁻ⱼ⟩`, leaving the scaled system above its truncation order and unclosed. `scale` now folds each averaged leaf of the sum body to the symmetry representative and charges the falling-factorial `N(N−1)…` prefactor from the node's scope, agreeing with `evaluate` to numerical precision.
+
 ## [0.5.5]
 
 ### Changed

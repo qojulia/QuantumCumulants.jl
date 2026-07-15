@@ -15,6 +15,16 @@ that rides inside the sum body) through `undo_average`, so they must not descend
 """
 _is_moment_unit(x) = _is_avg_leaf(x) || SQA.is_indexed_sum(x)
 
+# The moment-layer indexed-sum node (SQA's `SumFunc`, see QC #288 / SQA #175) is created and
+# read through these two helpers, the ONLY spots that touch SQA's not-yet-exported sum-node
+# API. `_indexed_sum_body` reads argument 1 with the public `arguments` (the same structural
+# assumption `evaluate` already makes); `_make_indexed_sum` still calls the unexported
+# `SQA._indexed_sum` constructor.
+# TODO: swap both to SQA's public constructor/accessor once
+# https://github.com/qojulia/SecondQuantizedAlgebra.jl/issues/209 is released (then bump compat).
+_make_indexed_sum(body, indices::Vector{SQA.Index}, ne) = SQA._indexed_sum(body, indices, ne)
+_indexed_sum_body(x) = SymbolicUtils.arguments(x)[1]
+
 """
 The shared descent condition: recurse into a node only when it is a call and not an
 average leaf. The `iscall` guard keeps read traversals from recursing into numbers and
