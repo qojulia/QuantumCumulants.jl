@@ -8,11 +8,9 @@ function average_and_truncate(R::QAdd, order::TruncOrder, mix_choice, ctx::Canon
         # moments that never close.
         # TODO: check if this can be removed after https://github.com/qojulia/SecondQuantizedAlgebra.jl/pull/167
         _iszero_coeff(c) && continue
-        # Index-dependent coefficients (Γ(i,j)/Ω(i,j)) must ride inside the sum so the
-        # diagonal split substitutes them; scalar coefficients stay outside. A pure
-        # c-number term (empty `ops`) whose coefficient still carries a summation index is
-        # scoped too: the operator-level `σ^gg` fold can leave a scope-less constant
-        # `Σ_k u(l,k)·1` that would otherwise lose its sum (issue #198).
+        # Index-dependent coefficients (Γ(i,j)/Ω(i,j)) must ride inside the sum so the diagonal
+        # split substitutes them (including pure c-number terms; see `_scoped_average_coeff`);
+        # scalar coefficients stay outside.
         if !isempty(_coeff_scope_indices(c, R.indices))
             acc = acc + cumulant_expansion(
                 _scoped_average_coeff(c, term.ops, term.ne, R.indices), order; mix_choice,
@@ -56,17 +54,11 @@ operators or the coefficient so the diagonal split substitutes the coefficient.
 """
 function _scoped_average_coeff(c, ops::AbstractVector{<:SQA.QSym}, non_equal, scope)
     if isempty(ops)
-        # Pure c-number term whose coefficient carries a summation index. This arises when
-        # the ground-projector fold `σ^gg → 1 − σ^ee` (run at the operator level, before
-        # averaging) turns a scoped `Σ_k c·σ^gg_l` into a scope-less constant `Σ_k c·1`.
-        # Wrap the coefficient back in its `Σ` so `evaluate` unrolls the summed index; there
-        # is no operator to average, so the moment-layer sum node carries the scalar body.
-        #
-        # A coefficient-only-index sum `Σ_k u(l,k)·σ(l)` (the summed index appears only in the
-        # coefficient) also needs the SecondQuantizedAlgebra diagonal-split to keep the
-        # off-diagonal body free of the diagonal coefficient (`u(l,k)`, not `u(l,k)+u(l,l)`);
-        # that lives in SQA's `_accumulate_with_diag!` and requires SQA ≥ 0.9.3. See the
-        # `_carry_non_equal` docstring below for the QC half of the same over-count (#198).
+        # Pure c-number term whose coefficient still carries a summation index (the `σ^gg →
+        # 1 − σ^ee` fold turned a scoped `Σ_k c·σ^gg_l` into a scope-less `Σ_k c·1`). Wrap the
+        # coefficient back in its `Σ` so `evaluate` unrolls the index; the scalar body needs
+        # SQA's diagonal split (`_accumulate_with_diag!`, SQA ≥ 0.9.3) to keep the off-diagonal
+        # coefficient exact. See `_carry_non_equal` for the QC half of the same over-count (#198).
         block_scope = _coeff_scope_indices(c, scope)
         isempty(block_scope) && return _im_form(c)
         ne = _scope_non_equal(non_equal, block_scope, scope)

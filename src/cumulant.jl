@@ -258,11 +258,12 @@ site-dependent coupling is a function of (a `DoubleIndexedVariable` `J(i,j)` dep
 `i` and `j`).
 """
 function _factor_indices(f, indices::Vector{SQA.Index})
-    f isa SymbolicUtils.BasicSymbolic || return SQA.Index[]
-    opinds = SQA.get_indices(f)
-    # Only a c-number coupling exposes its indices through `get_variables`; a moment leaf
-    # already carries all of them in `get_indices`, so skip the extra walk for it.
-    vars = _is_avg_leaf(f) ? () : _coeff_vars(f)
+    # Unwrap `Num` so a site-dependent coupling isn't dropped as scope-free (#198).
+    fu = f isa Symbolics.Num ? SymbolicUtils.unwrap(f) : f
+    # A moment leaf carries its site labels in `get_indices`; a c-number coupling exposes them
+    # through `_coeff_vars` (which also handles `Num`/`Complex`). Plain numbers carry none.
+    opinds = fu isa SymbolicUtils.BasicSymbolic ? SQA.get_indices(fu) : SQA.Index[]
+    vars = (fu isa SymbolicUtils.BasicSymbolic && _is_avg_leaf(fu)) ? () : _coeff_vars(fu)
     out = SQA.Index[]
     for idx in indices
         (idx in opinds) && (push!(out, idx); continue)
