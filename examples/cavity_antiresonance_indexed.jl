@@ -70,15 +70,6 @@ nothing # hide
 
 eqs = meanfield(a, H, J; rates = rates, order = 1)
 complete!(eqs)
-nothing # hide
-
-# ```math
-# \begin{align}
-# \frac{d}{dt} \langle a\rangle  =& -1 i \eta -1 i \underset{i}{\overset{N}{\sum}} {g}_{i}  \langle {\sigma}_{i}^{{12}}\rangle  -0.5 \kappa \langle a\rangle  -1 i {\Delta}c \langle a\rangle  \\
-# \frac{d}{dt} \langle {\sigma}_{k}^{{12}}\rangle  =& \underset{j{\ne}k}{\overset{N}{\sum}} {\Gamma}_{k,j}  \langle {\sigma}_{j}^{{12}}\rangle   \langle {\sigma}_{k}^{{22}}\rangle  -0.5 \underset{j}{\overset{N}{\sum}} {\Gamma}_{k,j}  \langle {\sigma}_{j}^{{12}}\rangle  -1 i \underset{j{\ne}i,k}{\overset{N}{\sum}} {\Omega}_{k,j}  \langle {\sigma}_{j}^{{12}}\rangle  + 2 i \underset{j{\ne}i,k}{\overset{N}{\sum}} {\Omega}_{k,j}  \langle {\sigma}_{j}^{{12}}\rangle   \langle {\sigma}_{k}^{{22}}\rangle  -1 i {g}_{k} \langle a\rangle  -1 i {\Delta}a \langle {\sigma}_{k}^{{12}}\rangle  + 2 i {g}_{k} \langle a\rangle  \langle {\sigma}_{k}^{{22}}\rangle  \\
-# \frac{d}{dt} \langle {\sigma}_{k}^{{22}}\rangle  =& -0.5 \underset{i{\ne}j,k}{\overset{N}{\sum}} {\Gamma}_{i,k}  \langle {\sigma}_{i}^{{21}}\rangle   \langle {\sigma}_{k}^{{12}}\rangle  + 1 i \underset{i{\ne}j,k}{\overset{N}{\sum}} {\Omega}_{i,k}  \langle {\sigma}_{i}^{{21}}\rangle   \langle {\sigma}_{k}^{{12}}\rangle  -1 i \underset{j{\ne}i,k}{\overset{N}{\sum}} {\Omega}_{k,j}  \langle {\sigma}_{k}^{{21}}\rangle   \langle {\sigma}_{j}^{{12}}\rangle  -0.5 \underset{j{\ne}k}{\overset{N}{\sum}} {\Gamma}_{k,j}  \langle {\sigma}_{k}^{{21}}\rangle   \langle {\sigma}_{j}^{{12}}\rangle  -1.0 {\Gamma}_{k,k} \langle {\sigma}_{k}^{{22}}\rangle  -1 i {g}_{k} \langle a\rangle  \langle {\sigma}_{k}^{{21}}\rangle  + 1 i {g}_{k} \langle a^\dagger\rangle  \langle {\sigma}_{k}^{{12}}\rangle
-# \end{align}
-# ```
 
 # To create the equations for a specific number of atoms we use the function [`evaluate`](@ref).
 

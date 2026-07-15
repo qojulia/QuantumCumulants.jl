@@ -65,7 +65,10 @@ end
 @testset "show MIME text/latex: MeanfieldEquations" begin
     eqs = _damped_cavity_eqs()
     s = repr(MIME("text/latex"), eqs)
-    @test occursin("\\partial", s) || occursin("begin{align}", s)
+    # Equations render as a display-math `aligned` environment so Documenter/Markdown does
+    # not mangle the subscripts (see `_latex_display`).
+    @test occursin("begin{aligned}", s)
+    @test startswith(s, "\$\$") && endswith(rstrip(s), "\$\$")
 end
 
 @testset "show MIME text/latex: NoiseMeanfieldEquations" begin

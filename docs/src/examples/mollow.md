@@ -14,7 +14,7 @@ where $\Delta = \omega_\ell - \omega_a$ is the detuning between the laser and th
 using Latexify # hide
 set_default(double_linebreak = true) # hide
 using QuantumCumulants
-using ModelingToolkitBase, OrdinaryDiffEq, OrdinaryDiffEqLowOrderRK
+using ModelingToolkitBase, OrdinaryDiffEqLowOrderRK
 using Plots
 ````
 
@@ -50,16 +50,8 @@ Note that the above actually derives another set of equations, which might take 
 
 ````@example mollow
 c.eqs
-nothing # hide
 ````
 
-```math
-\begin{align}
-\frac{d}{dt} \langle {\sigma}^{{eg}}  {\sigma_0}^{{ge}}\rangle  =& 1.0 i \langle {\sigma_0}^{{ge}}\rangle  \Omega + 1.0 i \Delta \langle {\sigma}^{{eg}}  {\sigma_0}^{{ge}}\rangle  -2.0 i \Omega \langle {\sigma}^{{ee}}  {\sigma_0}^{{ge}}\rangle  -0.5 \gamma \langle {\sigma}^{{eg}}  {\sigma_0}^{{ge}}\rangle  \\
-\frac{d}{dt} \langle {\sigma}^{{ee}}  {\sigma_0}^{{ge}}\rangle  =& -1.0 i \Omega \langle {\sigma}^{{eg}}  {\sigma_0}^{{ge}}\rangle  + 1.0 i \Omega \langle {\sigma}^{{ge}}  {\sigma_0}^{{ge}}\rangle  -1.0 \gamma \langle {\sigma}^{{ee}}  {\sigma_0}^{{ge}}\rangle  \\
-\frac{d}{dt} \langle {\sigma}^{{ge}}  {\sigma_0}^{{ge}}\rangle  =& -1.0 i \langle {\sigma_0}^{{ge}}\rangle  \Omega -1.0 i \Delta \langle {\sigma}^{{ge}}  {\sigma_0}^{{ge}}\rangle  + 2.0 i \Omega \langle {\sigma}^{{ee}}  {\sigma_0}^{{ge}}\rangle  -0.5 \gamma \langle {\sigma}^{{ge}}  {\sigma_0}^{{ge}}\rangle
-\end{align}
-```
 As mentioned above, to compute the time evolution of the system itself, we are effectively solving a master equation. One way to obtain the spectrum would be to solve the system in order to obtain the time evolution of the correlation function, and then take the Fourier transform. However, a computationally more efficient way is to take the Laplace transform of the correlation function directly, which yields a simple linear system of equations. Then we only have to compute a matrix inverse instead of the time evolution to obtain the spectrum.
 
 In the following, we will use the latter approach:
@@ -67,10 +59,7 @@ In the following, we will use the latter approach:
 ````@example mollow
 ps = (Δ, Ω, γ)
 S = Spectrum(c, ps)
-nothing # hide
 ````
-
-$\mathcal{F}(\langle {σ}^{{eg}}  {σ_0}^{{ge}}\rangle )(\omega)$
 
 Constructing the [`Spectrum`](@ref Spectrum) from the correlation function, automatically derives a matrix $A$ and a vector $b$ determining the set of linear equations
 
@@ -121,7 +110,7 @@ versioninfo()
 
 using Pkg
 Pkg.status(
-    ["QuantumCumulants", "OrdinaryDiffEq", "ModelingToolkitBase", "Plots"],
+    ["QuantumCumulants", "OrdinaryDiffEqLowOrderRK", "ModelingToolkitBase", "Plots"],
     mode = PKGMODE_MANIFEST,
 )
 ````

@@ -14,7 +14,7 @@ where $\Delta = \omega_\mathrm{c} - \omega_\mathrm{a}$ is the detuning between t
 using Latexify # hide
 set_default(double_linebreak = true) # hide
 using QuantumCumulants
-using ModelingToolkitBase, OrdinaryDiffEq, OrdinaryDiffEqLowOrderRK
+using ModelingToolkitBase, OrdinaryDiffEqLowOrderRK
 using Plots
 
 @variables Δ g γ κ ν # Define parameters
@@ -46,16 +46,14 @@ The remaining equations will be computed automatically using the [`complete`](@r
 import QuantumCumulants.SecondQuantizedAlgebra as SQA
 
 ϕ(x) = 0 # Custom filter function -- include only phase-invariant terms
-ϕ(::Destroy) = -1
-ϕ(::Create) = 1
-function ϕ(t::Transition)
-    return if (t.i == 2 && t.j == 1)
-        1
-    elseif (t.i == 1 && t.j == 2)
-        -1
-    else
-        0
+function ϕ(op::SQA.Op)
+    SQA.is_destroy(op) && return -1
+    SQA.is_create(op) && return 1
+    if SQA.is_transition(op)
+        (op.l1 == 2 && op.l2 == 1) && return 1
+        (op.l1 == 1 && op.l2 == 2) && return -1
     end
+    return 0
 end
 function ϕ(q::SQA.QAdd) # walk the operator-product expression
     for (term, _) in q.arguments
@@ -82,23 +80,13 @@ Note that the [`CorrelationFunction`](@ref) finds the equation for $g(\tau)$ and
 
 ````@example single-atom-laser-spectrum
 c = CorrelationFunction(a', a, eqs; steady_state = true, filter_func = phase_invariant) # Correlation function
-nothing # hide
 ````
-
-$\langle a^\dagger a_0\rangle$
 
 As we can see, there are only two equations necessary to obtain the correlation function:
 
 ````@example single-atom-laser-spectrum
 c.eqs
-nothing # hide
 ````
-
-```math
-\begin{align} \frac{d}{dt} \langle a^\dagger a_0\rangle =& 1.0 i g \langle {\sigma}^{{eg}} a_0\rangle + 1.0 i \Delta \langle a^\dagger a_0\rangle -0.5 \kappa \langle a^\dagger a_0\rangle \\
-\frac{d}{dt} \langle {\sigma}^{{eg}} a_0\rangle =& 1.0 i g \langle a^\dagger a_0\rangle -0.5 \gamma \langle {\sigma}^{{eg}} a_0\rangle -0.5 \nu \langle {\sigma}^{{eg}} a_0\rangle -2.0 i \langle {\sigma}^{{ee}}\rangle g \langle a^\dagger a_0\rangle
-\end{align}
-```
 
 The spectrum can now be computed by solving the above system of equations and then taking the Fourier transform, or by taking the Fourier transform directly, which is done by constructing an instance of the [`Spectrum`](@ref Spectrum) type. Here, we will compare both approaches.
 
@@ -160,7 +148,7 @@ using InteractiveUtils
 versioninfo()
 
 using Pkg
-Pkg.status(["QuantumCumulants", "OrdinaryDiffEq"], mode = PKGMODE_MANIFEST)
+Pkg.status(["QuantumCumulants", "OrdinaryDiffEqLowOrderRK"], mode = PKGMODE_MANIFEST)
 ````
 
 ---

@@ -2,6 +2,12 @@
 
 All notable changes to QuantumCumulants.jl will be documented in this file.
 
+## [0.6.1]
+
+### Fixed
+
+`show(::MIME"text/latex", ::MeanfieldEquations)` now wraps its output in `$$ … $$` with the `aligned` environment. The bare `\begin{align}` was mangled by Markdown renderers like Documenter (subscripts parsed as emphasis), so equation systems now render correctly in the docs and notebooks. The example pages are cleaned up accordingly. See issue [#310](https://github.com/qojulia/QuantumCumulants.jl/issues/310).
+
 ## [0.6.0]
 
 ### Fixed

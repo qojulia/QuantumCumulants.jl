@@ -46,4 +46,19 @@ end
 end
 
 const _LATEX_TYPES = Union{AbstractMeanfieldEquations, CorrelationFunction, Spectrum}
-Base.show(io::IO, ::MIME"text/latex", x::_LATEX_TYPES) = write(io, latexify(x))
+Base.show(io::IO, ::MIME"text/latex", x::_LATEX_TYPES) = write(io, _latex_display(x))
+
+# `CorrelationFunction` and `Spectrum` already return math-delimited strings (via
+# `latexstring`), so they are safe to emit verbatim.
+_latex_display(x::Union{CorrelationFunction, Spectrum}) = string(latexify(x))
+
+# Equation systems render as an `align` environment. A bare `\begin{align}` carries no math
+# delimiters, so consumers that treat the payload as Markdown (e.g. Documenter) parse the
+# `_`/`^` subscripts as emphasis and corrupt the LaTeX. Wrap the body in display-math
+# delimiters and switch to the `aligned` environment, which is valid inside `$$ … $$` and
+# renders correctly both in the docs and in notebooks.
+function _latex_display(x::AbstractMeanfieldEquations)
+    s = string(latexify(x))
+    s = replace(s, "\\begin{align}" => "\\begin{aligned}", "\\end{align}" => "\\end{aligned}")
+    return string("\$\$\n", s, "\n\$\$")
+end

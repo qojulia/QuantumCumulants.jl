@@ -88,6 +88,7 @@ coh = abs2(get_solution(sol, σ(:g, :e), eqs)(tstop))   # |⟨σᵍᵉ⟩|² at 
 τ = collect(range(0.0, τ_end; length = 2001))          # equidistant grid for the FFT
 g_inel = sol_c.(τ) .- coh
 ω, S = timecorrelations.correlation2spectrum(τ, g_inel)
+nothing # hide
 
 # To confirm the result, we compare against the textbook **constant-drive** Mollow triplet: the same atom driven by a time-independent field $\Omega$, evolved to steady state, with its correlation computed the standard way (no `iv0`).
 
@@ -116,6 +117,7 @@ sol_cc = solve(
 )
 coh_const = abs2(get_solution(sol_const, σ(:g, :e), eqs_const)(40.0))
 _, S_const = timecorrelations.correlation2spectrum(τ, sol_cc.(τ) .- coh_const)
+nothing # hide
 
 # The two spectra lie on top of each other: the pulsed drive, sampled from a plateau time $t_0$ via `iv0`, reproduces the steady-state Mollow triplet. The sidebands sit at $\omega \approx \pm 2\Omega$ (the dressed-state splitting at resonance), flanking the central line at $\omega = 0$.
 

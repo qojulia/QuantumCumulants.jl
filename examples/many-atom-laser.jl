@@ -56,15 +56,6 @@ nothing # hide
 ops = [a'a, σ(2, 2, 1), σ(3, 3, 1)] # list of operators
 
 eqs = meanfield(ops, H, J; rates = rates, order = 2) #second order average
-nothing # hide
-
-# ```math
-# \begin{align}
-# \frac{d}{dt} \langle a^\dagger  a\rangle  =& -1.0 i g \left( \langle a^\dagger  \sigma_{1}^{12}\rangle  + \langle a^\dagger  \sigma_{2}^{12}\rangle  \right) + 1.0 i g \left( \langle a  \sigma_{1}^{21}\rangle  + \langle a  \sigma_{2}^{21}\rangle  \right) -1.0 \kappa \langle a^\dagger  a\rangle  \\
-# \frac{d}{dt} \langle \sigma_{1}^{22}\rangle  =& \langle \sigma_{1}^{33}\rangle  \Gamma_{{23}} -1.0 \langle \sigma_{1}^{22}\rangle  \Gamma_{{12}} + 1.0 i g \langle a^\dagger  \sigma_{1}^{12}\rangle  -1.0 i g \langle a  \sigma_{1}^{21}\rangle  \\
-# \frac{d}{dt} \langle \sigma_{1}^{33}\rangle  =& -1.0 i \langle \sigma_{1}^{31}\rangle  \Omega + 1.0 i \langle \sigma_{1}^{13}\rangle  \Omega -1.0 \langle \sigma_{1}^{33}\rangle  \left( \Gamma_{{13}} + \Gamma_{{23}} \right)
-# \end{align}
-# ```
 
 complete!(eqs) # automatically complete the system
 nothing # hide
@@ -106,7 +97,7 @@ n_t = real.(get_solution(sol, a' * a, eqs).(sol.t))
 
 p1 = plot(sol.t, n_t, xlabel = "tΓ₁₂", ylabel = "⟨a⁺a⟩", legend = false) # Plot
 p2 = plot(sol.t, σ22m11_t, xlabel = "tΓ₁₂", ylabel = "⟨σ22⟩ - ⟨σ11⟩", legend = false)
-plot(p1, p2, layout = (1, 2), size = (800, 300))
+plot(p1, p2, layout = (1, 2), size = (800, 320), left_margin = 5Plots.mm, bottom_margin = 5Plots.mm, dpi = 300)
 
 # ## Package versions
 
