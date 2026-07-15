@@ -343,5 +343,9 @@ modify_equations!
 ```
 
 ```@docs
+substitute!
+```
+
+```@docs
 SecondQuantizedAlgebra.make_time_dependent
 ```

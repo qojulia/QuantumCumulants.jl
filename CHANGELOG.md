@@ -2,6 +2,16 @@
 
 All notable changes to QuantumCumulants.jl will be documented in this file.
 
+## [0.5.6]
+
+### Fixed
+
+`substitute` on a `MeanfieldEquations`/`NoiseMeanfieldEquations` works again. The v0.4 method `substitute(eqs, dict)` was dropped in the v0.5 rewrite, so the same call fell through to the generic `SymbolicUtils.substitute`, which treated the equation set as an opaque object and returned it unchanged. The call succeeded silently, having substituted nothing. This broke the minimal-closure idiom of injecting known-zero moments (e.g. by symmetry) to collapse a system onto exactly its observable subset: the substitution did nothing, `System` then correctly rejected the still-open set, and the natural next step of `complete!` closed the full hierarchy instead, ballooning the equation count. `substitute` now rewrites every RHS (and the noise drift RHSs of a `NoiseMeanfieldEquations`) through the graph, so the reduced closure is recovered.
+
+### Added
+
+`substitute!(eqs::AbstractMeanfieldEquations, dict)` is exported: the in-place counterpart of `substitute`, matching the `simplify!`/`modify_equations!` family. Both rewrite each RHS via the moment graph; `substitute` returns a fresh struct, `substitute!` mutates in place.
+
 ## [0.5.5]
 
 ### Changed
