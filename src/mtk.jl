@@ -160,16 +160,21 @@ _make_brownians(names::Vector{Symbol}) = [_make_brownian(name) for name in names
 # ---- System ------------------------------------------------------------------
 
 """
-    ModelingToolkitBase.System(eqs::MeanfieldEquations; name)
-    ModelingToolkitBase.System(eqs::NoiseMeanfieldEquations; name)
+    ModelingToolkitBase.System(eqs::MeanfieldEquations; name, kwargs...)
+    ModelingToolkitBase.System(eqs::NoiseMeanfieldEquations; name, kwargs...)
 
 Build an MTK `System` from the equation set: one `u(t)` variable per state, the
 drift resolved to those variables. A `NoiseMeanfieldEquations` becomes an SDE
 with one independent Brownian column per monitored channel, each carrying that
 channel's noise drift (sign +1 Forward, -1 Backward). RHS leaves not matching a
 state become parameters.
+
+Any extra `kwargs` are forwarded to the underlying `ModelingToolkitBase.System`
+constructor. In particular `bindings = [p => expr, ...]` marks a parameter as
+derived from others, so it is computed from the supplied values rather than set
+directly (see the effective model in the unique-squeezing example).
 """
-function MTK.System(eqs::MeanfieldEquations; name::Symbol)
+function MTK.System(eqs::MeanfieldEquations; name::Symbol, kwargs...)
     iv = eqs.iv
     iv_uw = SymbolicUtils.unwrap(iv)
     D = Symbolics.Differential(iv)
@@ -185,15 +190,15 @@ function MTK.System(eqs::MeanfieldEquations; name::Symbol)
     end
     isempty(unresolved) || throw(_unclosed_error(unresolved))
     ps = [MTK.toparam(p) for p in _sorted_params(ps_set)]
-    return MTK.System(new_eqs, iv, reg.vars, ps; name = name)
+    return MTK.System(new_eqs, iv, reg.vars, ps; name = name, kwargs...)
 end
 
-MTK.System(eqs::NoiseMeanfieldEquations{O, H, Op, Jt, Jdt, R, E, S, Forward}; name::Symbol) where {O, H, Op, Jt, Jdt, R, E, S} =
-    _to_system_sde(eqs, name, +1)
-MTK.System(eqs::NoiseMeanfieldEquations{O, H, Op, Jt, Jdt, R, E, S, Backward}; name::Symbol) where {O, H, Op, Jt, Jdt, R, E, S} =
-    _to_system_sde(eqs, name, -1)
+MTK.System(eqs::NoiseMeanfieldEquations{O, H, Op, Jt, Jdt, R, E, S, Forward}; name::Symbol, kwargs...) where {O, H, Op, Jt, Jdt, R, E, S} =
+    _to_system_sde(eqs, name, +1; kwargs...)
+MTK.System(eqs::NoiseMeanfieldEquations{O, H, Op, Jt, Jdt, R, E, S, Backward}; name::Symbol, kwargs...) where {O, H, Op, Jt, Jdt, R, E, S} =
+    _to_system_sde(eqs, name, -1; kwargs...)
 
-function _to_system_sde(eqs::NoiseMeanfieldEquations, name::Symbol, sign::Int)
+function _to_system_sde(eqs::NoiseMeanfieldEquations, name::Symbol, sign::Int; kwargs...)
     iv = eqs.iv
     iv_uw = SymbolicUtils.unwrap(iv)
     D = Symbolics.Differential(iv)
@@ -225,7 +230,7 @@ function _to_system_sde(eqs::NoiseMeanfieldEquations, name::Symbol, sign::Int)
     end
     isempty(unresolved) || throw(_unclosed_error(unresolved))
     ps = [MTK.toparam(p) for p in _sorted_params(ps_set)]
-    return MTK.System(new_eqs, iv, reg.vars, ps, ws; name = name)
+    return MTK.System(new_eqs, iv, reg.vars, ps, ws; name = name, kwargs...)
 end
 
 # ---- initial values / parameter map / solution ------------------------------
