@@ -220,6 +220,78 @@ end
     @test sol.retcode == ReturnCode.Success
 end
 
+@testset "evaluate: coefficient-only summation index matches single-atom exact (#198)" begin
+    # The numerical half of #198. Each atom `l` is driven at Rabi frequency
+    # Ω_l = Σ_k u(l,k) built from a DoubleIndexedVariable, so the summation index `k`
+    # appears ONLY in the coefficient (no operator carries it). The atoms are otherwise
+    # uncoupled, so a second-order cumulant expansion is exact and every atom must
+    # reproduce a single two-level atom driven at its own Ω_l. Before the fix the
+    # diagonal `k=l` slice of the coefficient sum was over-counted (the off-diagonal body
+    # picked up `u(l,k)+u(l,l)` and the diagonal was applied a second time), which
+    # inflated the populations (atom 1 read 0.447 against the exact 0.325) while the system
+    # still built and solved, so the existing structural #288/#198 test could not catch it.
+    # Needs SecondQuantizedAlgebra ≥ 0.9.3 for the companion diagonal-split fix.
+    ha = NLevelSpace(:atom, 2); h = ha
+    @variables L::Real Δ::Real γ::Real
+    u(a, b) = DoubleIndexedVariable(:u, a, b)
+    j = Index(h, :j, L, ha); k = Index(h, :k, L, ha); l = Index(h, :l, L, ha)
+    σ(a, b, idx) = IndexedOperator(Transition(h, :σ, a, b), idx)
+    H = Δ * Σ(σ(2, 2, j), j) + Σ(Σ(u(j, k) * (σ(2, 1, j) + σ(1, 2, j)), j), k)
+    eqs_ev = evaluate(
+        complete(meanfield(σ(2, 2, l), H, [σ(1, 2, j)]; rates = [γ], order = 2));
+        limits = (L => 2),
+    )
+    @test isempty(find_missing(eqs_ev))
+
+    umat = [0.3 0.5; 0.4 0.2]; Δv, γv = 0.7, 1.0
+    sys = mtkcompile(System(eqs_ev; name = :cc198))
+    init = initial_values(eqs_ev, zeros(ComplexF64, length(eqs_ev.equations)))
+    pmap = Dict{Any, Any}()
+    for p in ModelingToolkitBase.parameters(sys)
+        nm = string(p)
+        nm == "Δ" && (pmap[p] = Δv)
+        nm == "γ" && (pmap[p] = γv)
+        nm == "u" && (pmap[p] = umat)
+    end
+    sol = solve(ODEProblem(sys, merge(init, pmap), (0.0, 5.0)), Tsit5(); reltol = 1.0e-10, abstol = 1.0e-12)
+    @test sol.retcode == ReturnCode.Success
+
+    # Reference: a single two-level atom driven at a scalar Ω (order 2 is exact for one atom).
+    haR = NLevelSpace(:atomR, 2)
+    @variables Ω::Real
+    σR(a, b) = Transition(haR, :σ, a, b)
+    HR = Δ * σR(2, 2) + Ω * (σR(2, 1) + σR(1, 2))
+    eqsR = complete(meanfield(σR(2, 2), HR, [σR(1, 2)]; rates = [γ], order = 2))
+    sysR = mtkcompile(System(eqsR; name = :ref198))
+    function ref_solve(Ωv)
+        initR = initial_values(eqsR, zeros(ComplexF64, length(eqsR.equations)))
+        pmapR = Dict{Any, Any}()
+        for p in ModelingToolkitBase.parameters(sysR)
+            nm = string(p)
+            nm == "Δ" && (pmapR[p] = Δv)
+            nm == "γ" && (pmapR[p] = γv)
+            nm == "Ω" && (pmapR[p] = Ωv)
+        end
+        solve(ODEProblem(sysR, merge(initR, pmapR), (0.0, 5.0)), Tsit5(); reltol = 1.0e-10, abstol = 1.0e-12)
+    end
+    sol1 = ref_solve(sum(umat[1, :]))   # Ω_1 = u(1,1) + u(1,2)
+    sol2 = ref_solve(sum(umat[2, :]))   # Ω_2 = u(2,1) + u(2,2)
+    @test sol1.retcode == ReturnCode.Success
+    @test sol2.retcode == ReturnCode.Success
+
+    # Each atom's excited population tracks the single-atom solution at its own Ω_l.
+    for τ in (0.5, 1.0, 2.0, 5.0)
+        @test isapprox(
+            real(get_solution(sol, σ(2, 2, l(1)), eqs_ev)(τ)),
+            real(get_solution(sol1, σR(2, 2), eqsR)(τ)); atol = 1.0e-6,
+        )
+        @test isapprox(
+            real(get_solution(sol, σ(2, 2, l(2)), eqs_ev)(τ)),
+            real(get_solution(sol2, σR(2, 2), eqsR)(τ)); atol = 1.0e-6,
+        )
+    end
+end
+
 @testset "evaluate: #288 time-dependent multi-factor indexed coefficient keeps scope" begin
     # The issue's exact failure mode: a sum coefficient `sin(δ(k)·t)·u(k)` is a *product* of a
     # time+index-dependent factor and an index-dependent factor. Canonicalising such a

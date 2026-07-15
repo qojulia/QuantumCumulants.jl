@@ -10,6 +10,8 @@ Indexed sums with an index-dependent coefficient no longer lose their scope duri
 
 `scale` now handles a factorised indexed-sum node whose body is a product of several averages (e.g. `Σ_{i≠j} J(i,j)·⟨σ⁻ᵢ⟩⟨σ⁻ⱼ⟩`, from a two-atom coupling on an index-free observable). Previously it reconstructed the operator of the whole node, which fused the moment product `⟨σ⁻ᵢ⟩⟨σ⁻ⱼ⟩` into the operator product `σ⁻ᵢσ⁻ⱼ` and re-averaged it to a spurious higher-order moment `⟨σ⁻ᵢσ⁻ⱼ⟩`, leaving the scaled system above its truncation order and unclosed. `scale` now folds each averaged leaf of the sum body to the symmetry representative and charges the falling-factorial `N(N−1)…` prefactor from the node's scope, agreeing with `evaluate` to numerical precision.
 
+Indexed sums whose summation index appears **only** in the coefficient (for example a per-site drive `Ω_l = Σ_k u(l,k)` built from a `DoubleIndexedVariable`) now give the correct populations. When such a sum was multiplied by an operator, the moment-layer re-wrapped the already-split off-diagonal body in `Σ` without carrying its `k ≠ l` constraint, so the diagonal was peeled off a second time and the `k = l` term was double-counted (`_carry_non_equal` now keeps every non-equal pair that references an operator index on the block). On an order-2-exact independent-atom model the excited-state population now matches the exact master equation to numerical precision (previously it read 0.447 against an exact 0.325). This fix also depends on the companion diagonal-split fix in SecondQuantizedAlgebra v0.9.3, which keeps the off-diagonal body free of the diagonal coefficient (`u(l,k)` rather than `u(l,k) + u(l,l)`). See issue [#198](https://github.com/qojulia/QuantumCumulants.jl/issues/198).
+
 ## [0.5.5]
 
 ### Changed
