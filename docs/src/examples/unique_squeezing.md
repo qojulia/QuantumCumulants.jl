@@ -204,18 +204,17 @@ nothing # hide
 \end{align}
 ```
 
+The coupling `gΩ = g²/4Ω` is not an independent knob: with `g = 0.9 g_c` and `g_c² = Ωω/N` it equals `0.9² ω/(4N)`, so the collective term `N gΩ` is intensive (independent of `N`). We express this by *binding* `gΩ` to `N`, so the effective model is driven by the single knob `N` and cannot be given a value inconsistent with the full model. The `bindings` keyword is forwarded to the underlying `ModelingToolkitBase.System`.
+
 ````@example unique_squeezing
-sys_a = System(eqs_a; name = :sys_a) # symbolic ordinary differential equation system
+sys_a = System(eqs_a; name = :sys_a, bindings = [gΩ => 0.9^2 * ω / (4N)])
 sys_a = mtkcompile(sys_a)
 
 u0_a = zeros(ComplexF64, length(eqs_a)) # initial state
 
-N_ = 69 # the final result does not depend on N, as long as N g² is held fixed
-g_eff = 0.9 * sqrt(Ω_ * ω_ / N_) # coupling for this N (g² ∝ 1/N keeps N g² intensive)
-gΩ_ = g_eff^2 / (4Ω_) # Additional parameter, g²/4Ω
-
-ps_a = [ω, ωd, η, κ, N, gΩ, ξ] # symbolic parameter list (matches sys_a)
-p0_a = [ω_, ωd_, η_, κ_, N_, gΩ_, ξ_]
+N_ = 69 # the final result does not depend on N; gΩ is derived from it via the binding
+ps_a = [ω, ωd, η, κ, N, ξ] # gΩ is a bound parameter, so it is not supplied here
+p0_a = [ω_, ωd_, η_, κ_, N_, ξ_]
 
 u0_a_dict = initial_values(eqs_a, u0_a)
 dict_a = merge(u0_a_dict, Dict(ps_a .=> p0_a))
