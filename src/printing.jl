@@ -9,7 +9,7 @@ function Base.show(io::IO, de::AbstractMeanfieldEquations)
     return
 end
 
-Base.show(io::IO, c::CorrelationFunction) = show(io, average(c.op1 * c.op2))
+Base.show(io::IO, c::CorrelationFunction) = show(io, _display_average(c))
 
 function Base.show(io::IO, s::Spectrum)
     write(io, "ℱ(")
@@ -37,11 +37,11 @@ end
 end
 
 @latexrecipe function f(c::CorrelationFunction)
-    return average(c.op1 * c.op2)
+    return _display_average(c)
 end
 
 @latexrecipe function f(s::Spectrum)
-    inner = latexify(average(s.c.op1 * s.c.op2); env = :raw)
+    inner = latexify(_display_average(s.c); env = :raw)
     return latexstring("\\mathcal{F}(", inner, ")(\\omega)")
 end
 

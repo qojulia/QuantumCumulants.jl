@@ -71,10 +71,10 @@ Keyword arguments:
 - `get_adjoints`: when `true` (default), a moment and its conjugate are tracked as two separate
   unknowns. When `false`, only one member of each conjugate pair is kept and the partner is
   recovered via `conj` when the numerical system is built.
-- `foldable`: predicate on the moment operator gating that `conj` recovery under
-  `get_adjoints=false`. A pair is folded onto one member only where `foldable` holds; where it
-  does not, both members are kept (the conjugate is a genuinely distinct unknown, as for the
-  correlation τ-states whose adjoint does not survive the ancilla collapse). Default folds all.
+- `foldable`: predicate on the moment operator deciding whether the conjugate moment ⟨O†⟩ can be
+  recovered as the complex conjugate of ⟨O⟩. When it holds (under `get_adjoints=false`) only ⟨O⟩ is
+  kept and ⟨O†⟩ follows by conjugation; when it does not, ⟨O†⟩ is an independent unknown, whose
+  equation of motion is added only if the dynamics actually couple to it. Default folds all.
 - `max_iter`: runaway backstop on the number of closure iterations.
 """
 function closure(
@@ -111,12 +111,15 @@ function closure(
             nodes[k] = derive(k, g.sys, ctx)
             push!(seen, k)
             push!(pending, k)
-            if kc != k && !(kc in seen) && (get_adjoints || !foldable(op))
-                nodes[kc] = derive(kc, g.sys, ctx)
-                push!(seen, kc)
-                push!(pending, kc)
-            elseif !(kc in seen)
-                push!(seen, kc)
+            if kc != k && !(kc in seen)
+                if get_adjoints
+                    nodes[kc] = derive(kc, g.sys, ctx)
+                    push!(seen, kc)
+                    push!(pending, kc)
+                elseif foldable(op)
+                    push!(seen, kc)  # ⟨O†⟩ = ⟨O⟩*, recovered by conjugation when the ODEs are built
+                end
+                # otherwise ⟨O†⟩ cannot be obtained from ⟨O⟩: add its equation of motion only if the dynamics reach it
             end
         end
     end
