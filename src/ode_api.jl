@@ -1,0 +1,264 @@
+# Public ODE surface (issue #294): `ODEFunction`/`ODEProblem` constructors on
+# `MeanfieldEquations` (QC owns the type, no piracy). The `System(eqs)`/MTK route
+# stays untouched for interop; these constructors compile the RHS directly.
+
+"""
+    RHSBackend
+
+Abstract supertype of the RHS compilation strategies accepted by
+`ODEFunction(eqs, ps; backend)` and `ODEProblem(eqs, u0, tspan, ps; backend)`.
+"""
+abstract type RHSBackend end
+
+"""
+    KernelBackend(; cache = nothing)
+
+Compile the RHS to the moment-polynomial kernel `du = M * v`: the completed drifts are
+lowered once to sparse data (no per-model native code), so construction is fast and the
+RHS allocation-free. Requires drifts polynomial in the moments (anything
+`meanfield`/`complete!` produces). Pass `cache = path` to persist the lowered tables in
+a JLD2 file keyed by a digest of the equations (requires `using JLD2`).
+"""
+struct KernelBackend <: RHSBackend
+    cache::Union{Nothing, String}
+end
+KernelBackend(; cache = nothing) = KernelBackend(cache)
+
+"""
+    ShardedBackend(; chunk = 10, threads = Threads.nthreads())
+
+Compile the RHS to native code in chunks of `chunk` equations (RuntimeGeneratedFunctions
+behind a FunctionWrapper table), precompiled on `threads` threads. Handles anything
+`Symbolics.build_function` can compile, including t-dependent and non-polynomial drifts;
+cold construction is slower than `KernelBackend` and grows with system size.
+"""
+struct ShardedBackend <: RHSBackend
+    chunk::Int
+    threads::Int
+end
+ShardedBackend(; chunk = 10, threads = Threads.nthreads()) = ShardedBackend(chunk, threads)
+
+"""
+    AutoBackend()
+
+The default: try `KernelBackend()`, falling back to `ShardedBackend()` exactly when the
+drift is not polynomial in the moments (`NonPolynomialDriftError`). Every other lowering
+error stays a hard error.
+"""
+struct AutoBackend <: RHSBackend end
+
+struct KernelRHS{F, J}
+    kernel::MomentKernel
+    kp::KernelParameters{F}
+    jacobian::J                  # `nothing`, or a `JacKernel` sharing the kernel's `v`
+end
+KernelRHS(kernel::MomentKernel, kp::KernelParameters) = KernelRHS(kernel, kp, nothing)
+(r::KernelRHS)(du, u::AbstractVector{ComplexF64}, p::KernelParameters, t) =
+    r.kernel(du, u, p, t)
+function (r::KernelRHS)(du, u, p::KernelParameters, t)
+    throw(
+        ArgumentError(
+            "the moment kernel is compiled for ComplexF64 states; got eltype $(eltype(u)). " *
+                "Implicit solvers with ForwardDiff autodiff are unsupported on this RHS; use an " *
+                "explicit solver, or `jac = true` for the analytic sparse Jacobian.",
+        )
+    )
+end
+function (r::KernelRHS)(du, u, p, t)
+    throw(
+        ArgumentError(
+            "a kernel ODEProblem carries a `KernelParameters` object as `prob.p`; got " *
+                "$(typeof(p)). Use `update_parameters!(prob, Dict(...))` instead of " *
+                "`remake(prob, p = ...)`.",
+        )
+    )
+end
+
+function _build_rhs(eqs::MeanfieldEquations, ps, backend::KernelBackend; jac::Bool = false)
+    # cache flow (jac = true relowers fresh: the stored tables lack the Jacobian's
+    # complement monomials, so a hit would be structurally incomplete)
+    text = digest = nothing
+    if backend.cache !== nothing && !jac
+        text = canonical_text(eqs)
+        digest = bytes2hex(sha256(text))
+        entry = _cache_load(backend.cache, text, digest)
+        entry === nothing || return _loaded_rhs(entry, eqs, ps)
+    end
+    ir = lower(eqs)
+    backend.cache === nothing || jac || _cache_store!(backend.cache, text, digest, ir)
+    values = kernel_pdict(ir.params, parameter_map(eqs, ps))
+    cvals = coefficient_values(ir, values)
+    if !jac
+        kernel = MomentKernel(ir, cvals)
+        return KernelRHS(kernel, KernelParameters(ir, kernel.M, values))
+    end
+    # extended IR so `v` covers the delete-one complement monomials; RHS and Jacobian
+    # share one monomial id space (and the same workspace `v`)
+    ir_ext, jir = jacobian_ir(ir)
+    kernel = MomentKernel(ir_ext, cvals)
+    jk = JacKernel(jir, kernel.parent, kernel.leaf, cvals, kernel.v)
+    return KernelRHS(kernel, KernelParameters(ir_ext, kernel.M, values), jk)
+end
+
+"""
+Kernel RHS from a cache entry: plain tables plus the stored coefficient evaluator RGF.
+Parameters match by printed name (`kernel_pdict` on the stored name strings), so a
+loaded kernel is fully sweepable through the same `KernelParameters` machinery.
+"""
+function _loaded_rhs(entry, eqs, ps)
+    values = kernel_pdict(Any[entry.params...], parameter_map(eqs, ps))
+    evalcoeffs = vals -> ComplexF64.(entry.rgf(ComplexF64[vals[n] for n in entry.params]))
+    cvals = evalcoeffs(values)
+    M = sparse(entry.coo_i, entry.coo_j, cvals[entry.coo_c], entry.nstates, length(entry.parent), +)
+    v = zeros(ComplexF64, length(entry.parent))
+    v[1] = one(ComplexF64)
+    kernel = MomentKernel(M, entry.parent, entry.leaf, v)
+    kp = KernelParameters(
+        Any[entry.params...], values, evalcoeffs, entry.coo_c,
+        nz_map(M, entry.coo_i, entry.coo_j),
+    )
+    return KernelRHS(kernel, kp)
+end
+
+function _build_rhs(eqs::MeanfieldEquations, ps, ::AutoBackend; jac::Bool = false)
+    return try
+        _build_rhs(eqs, ps, KernelBackend(); jac)
+    catch e
+        e isa NonPolynomialDriftError || rethrow()
+        @info "drift is not polynomial in the moments; falling back to ShardedBackend " *
+            "(chunked native codegen). Cold construction will be slower and no analytic " *
+            "Jacobian is available." maxlog = 1
+        _build_rhs(eqs, ps, ShardedBackend(); jac)
+    end
+end
+
+"""
+    SciMLBase.ODEFunction(eqs::MeanfieldEquations, ps; backend = AutoBackend(), jac = false)
+
+In-place `ODEFunction` over the completed moment equations, compiled by `backend`.
+Parameters are required at construction; `ps` is a `Dict` or pairs of
+`parameter => value`. With `jac = true` (kernel backend only) the function carries the
+analytic sparse Jacobian and its `jac_prototype`.
+"""
+function SciMLBase.ODEFunction(
+        eqs::MeanfieldEquations, ps; backend::RHSBackend = AutoBackend(), jac::Bool = false
+    )
+    rhs = _build_rhs(eqs, ps, backend; jac)
+    return _ode_function(rhs)
+end
+
+_ode_function(rhs) = SciMLBase.ODEFunction{true}(rhs)
+function _ode_function(rhs::KernelRHS)
+    rhs.jacobian === nothing && return SciMLBase.ODEFunction{true}(rhs)
+    return SciMLBase.ODEFunction{true}(
+        rhs; jac = rhs.jacobian, jac_prototype = copy(rhs.jacobian.jac.Jproto),
+    )
+end
+
+_prob_p(r::KernelRHS) = r.kp
+
+"""
+    SciMLBase.ODEProblem(eqs::MeanfieldEquations, u0, tspan, ps; backend = AutoBackend(), kwargs...)
+
+Build the `ODEProblem` directly from the completed moment equations. `u0` is a numeric
+vector aligned with `eqs.states`, an `AbstractDict` keyed by state averages, or a numeric
+quantum state (ket / density operator). `ps` maps every symbolic parameter to its value.
+"""
+function SciMLBase.ODEProblem(
+        eqs::MeanfieldEquations, u0, tspan, ps;
+        backend::RHSBackend = AutoBackend(), jac::Bool = false, kwargs...,
+    )
+    f = SciMLBase.ODEFunction(eqs, ps; backend, jac)
+    return SciMLBase.ODEProblem(f, _u0_vector(eqs, u0), tspan, _prob_p(f.f); kwargs...)
+end
+
+function _u0_vector(eqs, u0::AbstractVector{<:Number})
+    length(u0) == length(eqs.states) || throw(
+        DimensionMismatch(
+            "u0 length $(length(u0)) does not match number of states $(length(eqs.states))",
+        )
+    )
+    return ComplexF64.(u0)
+end
+function _u0_vector(eqs, u0::AbstractDict)
+    reg = _state_registry(eqs)
+    return ComplexF64[
+        haskey(u0, reg.vars[k]) ? ComplexF64(u0[reg.vars[k]]) :
+            ComplexF64(get(u0, eqs.states[k], 0)) for k in eachindex(eqs.states)
+    ]
+end
+_u0_vector(eqs, state) = initial_values(eqs, state)   # kets / density operators
+
+# ---- parameter sweeps and ensembles ---------------------------------------------------
+
+"""
+    update_parameters!(prob, pdict)
+    update_parameters!(f::ODEFunction, pdict)
+
+Rewrite the compiled RHS in place for new parameter values (a `Dict` or pairs of
+`parameter => value`; unmentioned parameters keep their current values). This is the
+sweep path: the lowered tables are reused, only the numeric coefficients are refreshed.
+"""
+function update_parameters!(r::KernelRHS, pdict)
+    kp = r.kp
+    # resolve the user's dict on its own (arrays expand to their per-slot accesses), so a
+    # fresh value always overrides the stored one; undetermined parameters keep theirs
+    fresh = kernel_pdict(kp.params, pdict; strict = false)
+    merge!(kp.values, fresh)
+    cvals = kp.evalcoeffs(kp.values)
+    write_nzval!(r.kernel, kp, cvals)
+    r.jacobian === nothing || copyto!(r.jacobian.c, cvals)
+    return r
+end
+
+function Base.copy(r::KernelRHS)
+    k = r.kernel
+    k2 = MomentKernel(copy(k.M), k.parent, k.leaf, copy(k.v))
+    kp = r.kp
+    kp2 = KernelParameters(
+        kp.params, Dict{Any, Any}(kp.values), kp.evalcoeffs, kp.coo_c, kp.nzmap
+    )
+    r.jacobian === nothing && return KernelRHS(k2, kp2)
+    # own coefficient values, shared structure tables, workspace shared with the copy's kernel
+    jk = r.jacobian
+    return KernelRHS(k2, kp2, JacKernel(jk.jac, k2.parent, k2.leaf, copy(jk.c), k2.v))
+end
+
+function update_parameters!(prob::SciMLBase.ODEProblem, pdict)
+    r = prob.f.f
+    if r isa ShardedRHS
+        # write the vector the problem actually carries (a remade prob.p copy included)
+        update_parameters!(r, prob.p, pdict)
+    else
+        update_parameters!(prob.f, pdict)
+    end
+    return prob
+end
+update_parameters!(f::SciMLBase.ODEFunction, pdict) = (update_parameters!(f.f, pdict); f)
+
+function Base.copy(f::SciMLBase.ODEFunction{iip, spec, <:KernelRHS}) where {iip, spec}
+    r2 = copy(f.f)
+    r2.jacobian === nothing && return SciMLBase.ODEFunction{iip}(r2)
+    return SciMLBase.ODEFunction{iip}(
+        r2; jac = r2.jacobian, jac_prototype = copy(f.jac_prototype),
+    )
+end
+
+# ---- guard methods: typed errors on QC types, no fall-through to SciMLBase -------------
+
+SciMLBase.ODEProblem(eqs::AbstractMeanfieldEquations, u0, tspan) = throw(
+    ArgumentError(
+        "parameters are required at construction: `ODEProblem(eqs, u0, tspan, ps; ...)` with " *
+            "`ps` a Dict or pairs of parameter => value (the kernel backend bakes them into " *
+            "its tables).",
+    )
+)
+SciMLBase.ODEFunction(eqs::AbstractMeanfieldEquations) = throw(
+    ArgumentError("parameters are required at construction: `ODEFunction(eqs, ps; ...)`.")
+)
+SciMLBase.ODEProblem(eqs::NoiseMeanfieldEquations, u0, tspan, ps; kwargs...) = throw(
+    ArgumentError(
+        "noise systems are SDEs; the fast RHS backends are deterministic-only in v1. Build " *
+            "the MTK path instead: `System(eqs; name = ...)`.",
+    )
+)

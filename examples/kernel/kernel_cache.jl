@@ -38,7 +38,11 @@ eqs = meanfield([σz(i) for i in 1:N], H, [σm(i) for i in 1:N]; rates = [γ for
 complete!(eqs)
 ir = lower(eqs)
 
-_pkgver(m) = try string(pkgversion(m)) catch; "unknown" end
+_pkgver(m) = try
+    string(pkgversion(m))
+catch
+    "unknown"
+end
 
 function canonical_text(eqs, ir)
     io = IOBuffer()
@@ -132,8 +136,10 @@ u = ComplexF64[0.1 * cos(3.7i) + 0.05im * sin(1.3i) for i in 1:ir.nstates]
 du_f = zeros(ComplexF64, ir.nstates); du_l = similar(du_f)
 k_f(du_f, u, nothing, 0.0); k_l(du_l, u, nothing, 0.0)
 dnz = k_f.M.nzval == k_l.M.nzval
-println("CACHE roundtrip: nzval bit-exact=$(dnz) du bit-exact=$(du_f == du_l)",
-    dnz ? "" : " (max rel dev $(maximum(abs.(k_f.M.nzval .- k_l.M.nzval) ./ abs.(k_f.M.nzval))))")
+println(
+    "CACHE roundtrip: nzval bit-exact=$(dnz) du bit-exact=$(du_f == du_l)",
+    dnz ? "" : " (max rel dev $(maximum(abs.(k_f.M.nzval .- k_l.M.nzval) ./ abs.(k_f.M.nzval))))"
+)
 
 # 2. sweep after load: loaded evaluator at pd2 vs fresh substitute path at pd2
 k_f2 = MomentKernel(ir, coefficient_values(ir, pd2))

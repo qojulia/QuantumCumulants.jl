@@ -78,8 +78,8 @@ t_subst = minimum(@elapsed(coefficient_values(kp.ir, kp.values)) for _ in 1:5)
 cv = coefficient_values(kp.ir, kp.values)
 t_map = minimum(@elapsed(write_nzval!(k1, kp, cv)) for _ in 1:20)
 println(
-    "PARAMS timing order=$ORDER: substitute=$(round(t_subst * 1e6, digits = 1))µs " *
-        "mappass=$(round(t_map * 1e6, digits = 1))µs " *
+    "PARAMS timing order=$ORDER: substitute=$(round(t_subst * 1.0e6, digits = 1))µs " *
+        "mappass=$(round(t_map * 1.0e6, digits = 1))µs " *
         "ncoeffs=$(length(ir.coeffs)) nnz=$(length(k1.M.nzval)) ncoo=$(length(kp.nzmap))",
 )
 
@@ -102,25 +102,40 @@ println("TAXONOMY cancellation: old params=$old_n (J lost), new params=$new_n")
 
 # 2. non-polynomial drift -> NonPolynomialDriftError (the one AutoBackend catches)
 eqs_np = modify_equations(eqs_s, (op, d) -> d + exp(average(op)))
-r_np = try lower(eqs_np); "NO ERROR (FAIL)" catch e; string(typeof(e)) end
+r_np = try
+    lower(eqs_np); "NO ERROR (FAIL)"
+catch e
+    string(typeof(e))
+end
 println("TAXONOMY nonpoly: $r_np")
 
 # 3. t in a coefficient -> TimeDependentCoefficientError at lower() time
 tsym = eqs_s.iv
 eqs_t = modify_equations(eqs_s, (op, d) -> cos(tsym) * d)
-r_t = try lower(eqs_t); "NO ERROR (FAIL)" catch e; string(typeof(e)) end
+r_t = try
+    lower(eqs_t); "NO ERROR (FAIL)"
+catch e
+    string(typeof(e))
+end
 println("TAXONOMY tdep: $r_t")
 
 # 4a. user variable literally named `im` in a coefficient -> collision at lower() time
 imvar = Symbolics.variable(:im)
 eqs_im = modify_equations(eqs_s, (op, d) -> imvar * d)
-r_im = try lower(eqs_im); "NO ERROR (FAIL)" catch e; string(typeof(e)) end
+r_im = try
+    lower(eqs_im); "NO ERROR (FAIL)"
+catch e
+    string(typeof(e))
+end
 println("TAXONOMY im-in-coeff: $r_im")
 
 # 4b. user passes a pdict key named `im` -> collision at coefficient_values time
 ir_s = lower(eqs_s)
-r_imp = try coefficient_values(ir_s, merge(pd1, Dict(imvar => 2.0))); "NO ERROR (FAIL)"
-catch e; string(typeof(e)) end
+r_imp = try
+    coefficient_values(ir_s, merge(pd1, Dict(imvar => 2.0))); "NO ERROR (FAIL)"
+catch e
+    string(typeof(e))
+end
 println("TAXONOMY im-in-pdict: $r_imp")
 
 # regression guard: benchmark coefficients still evaluate (algebra's own Sym(:im) must

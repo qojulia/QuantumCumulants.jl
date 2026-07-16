@@ -136,7 +136,7 @@ function check_du_resolved(eqs, pmap; npoints = 3, seed = 1)
         end
         for i in 1:n
             ref = ComplexF64(SymbolicUtils.unwrap_const(Symbolics.substitute(drifts[i], subs)))
-            maxrel = max(maxrel, abs(du[i] - ref) / max(abs(ref), 1e-12))
+            maxrel = max(maxrel, abs(du[i] - ref) / max(abs(ref), 1.0e-12))
         end
     end
     return maxrel
@@ -237,7 +237,7 @@ function probe_old_path(label, eqs)
     catch e
         "threw $(typeof(e))"
     end
-    println("SCALED old all-Free path on $label: ", r)
+    return println("SCALED old all-Free path on $label: ", r)
 end
 
 eqs_sc = scale(eqs_src)

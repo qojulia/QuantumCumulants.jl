@@ -36,7 +36,7 @@ function check_du(eqs, pdict; nsample = 40, npoints = 3, seed = 1)
         end
         for i in sel
             ref = ComplexF64(SymbolicUtils.unwrap_const(Symbolics.substitute(drifts[i], subs)))
-            maxrel = max(maxrel, abs(du[i] - ref) / max(abs(ref), 1e-12))
+            maxrel = max(maxrel, abs(du[i] - ref) / max(abs(ref), 1.0e-12))
         end
     end
     return maxrel
@@ -75,5 +75,5 @@ complete!(eqs6)
 e3 = check_du(eqs6, Dict(J => 1.0, hx => 1.0, γ => 0.2))
 println("ising N=6 order=3 (693 eqs, 40 sampled): max rel err = ", e3)
 
-ok = max(e1, e2, e3) < 1e-10
+ok = max(e1, e2, e3) < 1.0e-10
 println(ok ? "PASS" : "FAIL")

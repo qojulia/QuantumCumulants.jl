@@ -37,7 +37,7 @@ try
     println("symLet constructed: ", typeof(letex))
     ex = SymbolicUtils.Code.toexpr(letex)
     println("lowered Expr:\n", ex)
-    fn = eval(:( (x1, x2, x3) -> $ex ))
+    fn = eval(:((x1, x2, x3) -> $ex))
     val = Base.invokelatest(fn, 1.0, 2.0, 3.0)
     println("evaluates to: ", val, "  (expected ", (1.0 + 2.0) + (2.0 * 3.0), ")")
     println("SYMSTAR: USABLE")
