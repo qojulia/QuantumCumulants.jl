@@ -28,6 +28,10 @@ NLevelSpace
 ```
 
 ```@docs
+SecondQuantizedAlgebra.CollectiveNLevelSpace
+```
+
+```@docs
 PauliSpace
 ```
 
@@ -103,6 +107,10 @@ Transition
 ```
 
 ```@docs
+SecondQuantizedAlgebra.CollectiveTransition
+```
+
+```@docs
 Pauli
 ```
 
@@ -121,9 +129,11 @@ Momentum
 ```@docs
 SecondQuantizedAlgebra.optype
 SecondQuantizedAlgebra.operator_name
+SecondQuantizedAlgebra.operator_index
 SecondQuantizedAlgebra.is_destroy
 SecondQuantizedAlgebra.is_create
 SecondQuantizedAlgebra.is_transition
+SecondQuantizedAlgebra.is_collective_transition
 SecondQuantizedAlgebra.is_pauli
 SecondQuantizedAlgebra.is_spin
 SecondQuantizedAlgebra.is_position
