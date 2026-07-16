@@ -8,6 +8,8 @@
 #
 #   PATH  = :ode_default | :ode_eval | :legacy_serial | :legacy_sharded | :legacy_support | :legacy_rcm
 #   ORDER = 1 | 2 | 3   (optional, default 3)
+#   CUTOFF, NCALLS (optional, default 10, 4): ShardedForm(cutoff, ncalls) is a recursive
+#   tree split; leaves hold <= CUTOFF equations, internal nodes fan out NCALLS ways.
 
 using QuantumCumulants
 using ModelingToolkitBase
@@ -19,6 +21,8 @@ using QuantumOptics
 include(joinpath(@__DIR__, "shard_partition.jl"))
 
 isdefined(Main, :ORDER) || (ORDER = 3)
+isdefined(Main, :CUTOFF) || (CUTOFF = 10)
+isdefined(Main, :NCALLS) || (NCALLS = 4)
 const N = 6
 
 h = ⊗([PauliSpace(Symbol(:spin, i)) for i in 1:N]...)
@@ -47,7 +51,7 @@ else
     rhss = [eq.rhs for eq in equations(sys)]
     perm = PATH === :legacy_support ? support_ordering(eqs.graph) :
         PATH === :legacy_rcm ? rcm_ordering(eqs.graph) : collect(1:neq)
-    parallel = PATH === :legacy_serial ? nothing : ShardedForm(10, 4)
+    parallel = PATH === :legacy_serial ? nothing : ShardedForm(CUTOFF, NCALLS)
     kw = parallel === nothing ? (; cse = true) : (; cse = true, parallel)
     # legacy path reorders equations; permute u0 to match so the solve is valid
     fexpr = build_function(rhss[perm], dvs[perm], ps, tiv; expression = Val{true}, kw...)[2]
@@ -59,4 +63,4 @@ end
 t_cold = @elapsed solve(prob, RK4(); saveat = 0.5)
 t_warm = @elapsed solve(prob, RK4(); saveat = 0.5)
 total = t_prob + t_cold
-println("RESULT order=$ORDER neq=$neq PATH=$PATH prob=$(round(t_prob, digits = 2))s first_solve=$(round(t_cold, digits = 2))s total_cold=$(round(total, digits = 2))s warm=$(round(t_warm, digits = 3))s compile≈$(round(total - t_warm, digits = 2))s")
+println("RESULT order=$ORDER neq=$neq PATH=$PATH cutoff=$CUTOFF ncalls=$NCALLS prob=$(round(t_prob, digits = 2))s first_solve=$(round(t_cold, digits = 2))s total_cold=$(round(total, digits = 2))s warm=$(round(t_warm, digits = 3))s compile≈$(round(total - t_warm, digits = 2))s")
