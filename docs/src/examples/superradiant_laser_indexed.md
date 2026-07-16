@@ -43,6 +43,7 @@ g(i) = IndexedVariable(:g, i)
 
 i = Index(h, :i, N, ha)
 j = Index(h, :j, N, ha)
+nothing # hide
 ````
 
 We define the Hamiltonian using symbolic sums and define the individual dissipative processes. For an indexed jump operator the (symbolic) sum is build in the Liouvillian.

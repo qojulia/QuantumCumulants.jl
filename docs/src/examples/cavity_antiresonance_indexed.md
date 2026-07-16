@@ -44,6 +44,7 @@ g(i) = IndexedVariable(:g, i)
 
 i = Index(h, :i, N, ha) # Indices
 j = Index(h, :j, N, ha)
+nothing # hide
 ````
 
 The kwarg ’identical=false’ for the double indexed variable specifies that $\Omega_{ij} = 0$ for $i = j$.
