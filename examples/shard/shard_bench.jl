@@ -2,7 +2,8 @@
 # equal split. This file does NOT time compilation: first-call/first-solve compile time is
 # shared across builds within one Julia session (and perturbed by Revise), so any two builds
 # timed back-to-back are not comparable. Use shard_measure.jl for timing, one path per fresh
-# session. See docs/superpowers/specs/2026-07-15-coupling-aware-shard-findings.md.
+# session. See the sharding design space section of
+# docs/superpowers/specs/2026-07-16-moment-polynomial-kernel-design.md.
 #
 # Cold, isolated first-solve times measured via shard_measure.jl (order 3, N=6, 693 eqs,
 # Symbolics 7.32 / MTKBase 1.52):
