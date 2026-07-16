@@ -1,0 +1,13 @@
+SCALED identity on unscaled system (IR tables equal): true
+SCALED old all-Free path on scaled superradiant: lowered but tables DIFFER (silent wrong RHS)
+SCALED scaled superradiant: nstates=5 params=Any[N, g, κ, R, Γ, Δ, ν]
+SCALED scaled superradiant du vs substitution: max rel err = 1.829969330399419e-16
+SCALED scaled superradiant trajectory vs MTK: max dev = 2.6645352591003757e-15
+SCALED old all-Free path on evaluated superradiant: lowered but tables DIFFER (silent wrong RHS)
+SCALED evaluated superradiant: nstates=15 nparams=9
+SCALED evaluated superradiant du vs substitution: max rel err = 9.253754950872666e-16
+SCALED evaluated superradiant trajectory vs MTK: max dev = 4.440892098500626e-16
+SCALED old all-Free path on evaluated antiresonance: lowered but tables DIFFER (silent wrong RHS)
+SCALED evaluated antiresonance: nstates=5 params=Any[κ2, Δc, g2[2], g2[1], η, Γ2[1, 2], Ω2[1, 2], Δa, Γ2[1, 1], Ω2[1, 1], Γ2[2, 2], Ω2[2, 2], Γ2[2, 1], Ω2[2, 1]]
+SCALED evaluated antiresonance du vs substitution: max rel err = 3.380969403433307e-16
+SCALED evaluated antiresonance trajectory vs MTK: max dev = 4.96749206466014e-17

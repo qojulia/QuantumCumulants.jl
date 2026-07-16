@@ -1,0 +1,4 @@
+DRIVER dyn percall=37.5µs warmsolve=28.7ms
+DRIVER fw percall=24.4µs warmsolve=18.8ms
+DRIVER il percall=37.9µs warmsolve=31.5ms
+AGREEMENT dyn-fw=0.0 dyn-il=0.0

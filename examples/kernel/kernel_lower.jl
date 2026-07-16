@@ -21,6 +21,53 @@ using SymbolicUtils
 using SymbolicUtils: iscall, operation, arguments
 using SparseArrays
 
+# Typed error taxonomy (spec finding 4): AutoBackend catches exactly
+# NonPolynomialDriftError; everything else stays a hard error.
+abstract type KernelLoweringError <: Exception end
+struct NonPolynomialDriftError <: KernelLoweringError
+    eqindex::Int
+    residual::Any
+end
+function Base.showerror(io::IO, e::NonPolynomialDriftError)
+    print(
+        io,
+        "NonPolynomialDriftError: equation $(e.eqindex) has a non-polynomial part: " *
+            "$(e.residual). The moment-kernel path requires drifts polynomial in the " *
+            "moments (anything meanfield/complete! produces); use the sharded or " *
+            "ModelingToolkit path for rewritten non-polynomial drifts.",
+    )
+end
+struct TimeDependentCoefficientError <: KernelLoweringError
+    coeff::Any
+end
+function Base.showerror(io::IO, e::TimeDependentCoefficientError)
+    print(
+        io,
+        "TimeDependentCoefficientError: coefficient $(e.coeff) depends on the " *
+            "independent variable. t-dependent coefficients are not supported by the " *
+            "kernel path yet; use the ModelingToolkit path.",
+    )
+end
+struct ImParameterCollisionError <: KernelLoweringError end
+function Base.showerror(io::IO, ::ImParameterCollisionError)
+    print(
+        io,
+        "ImParameterCollisionError: a user parameter named `im` collides with the " *
+            "algebra's symbolic imaginary unit; rename the parameter.",
+    )
+end
+struct UnresolvedMomentError <: KernelLoweringError
+    moment::Any
+end
+function Base.showerror(io::IO, e::UnresolvedMomentError)
+    print(
+        io,
+        "UnresolvedMomentError: the right-hand sides reference the average $(e.moment), " *
+            "which does not resolve to any state. Call `complete(eqs)` first, or check " *
+            "that the system was fully scaled/evaluated.",
+    )
+end
+
 """
 States plus folded conjugate partners of a completed graph, as unwrapped average terms.
 Returns `(vars, idx)` where `vars` is the list to hand `polynomial_coeffs` and
@@ -88,6 +135,12 @@ end
 function lower(eqs)
     g = eqs.graph
     vars, idx = statevars(g)
+    return _lower_ir(g, vars, idx, Symbolics.unwrap(eqs.iv))
+end
+
+"""IR builder over a prepared state resolution (`vars` for `polynomial_coeffs`, `idx`
+mapping each average leaf form to its signed state index)."""
+function _lower_ir(g, vars, idx, iv_uw)
     mono_ids = Dict{Vector{Int32}, Int32}(Int32[] => Int32(1))
     parent = Int32[0]
     leaf = Int32[0]
@@ -106,11 +159,7 @@ function lower(eqs)
 
     for (i, nd) in enumerate(values(g.nodes))
         dict, res = Symbolics.polynomial_coeffs(Symbolics.unwrap(nd.drift), vars)
-        SymbolicUtils._iszero(res) || error(
-            "equation $i has a non-polynomial part: $res. The moment-kernel path requires " *
-                "drifts polynomial in the moments (anything meanfield/complete! produces); " *
-                "use the ModelingToolkit path for rewritten non-polynomial drifts.",
-        )
+        SymbolicUtils._iszero(res) || throw(NonPolynomialDriftError(i, res))
         for (mono, c) in dict
             j = mono_id!(monomial_factors(mono, idx))
             cid = get!(coeff_ids, c) do
@@ -120,8 +169,35 @@ function lower(eqs)
             push!(coo_i, Int32(i)); push!(coo_j, j); push!(coo_c, cid)
         end
     end
-    params = Symbolics.unwrap.(Symbolics.get_variables(sum(coeffs)))
+    params = discover_params(coeffs, iv_uw)
     return MomentIR(length(g.nodes), parent, leaf, coeffs, coo_i, coo_j, coo_c, params)
+end
+
+"""
+Union of the variables of each pooled coefficient. NOT `get_variables(sum(coeffs))`:
+summing can cancel a parameter (coefficients `J` and `-J` sum to 0 and lose `J`).
+Throws `TimeDependentCoefficientError` if the independent variable appears in a
+coefficient, and `ImParameterCollisionError` for a user-created variable named `im`
+(the algebra's symbolic imaginary unit has symtype Number; a user `@variables im` has
+symtype Real and would silently be bound to `Base.im`).
+"""
+function discover_params(coeffs, iv = nothing)
+    seen = Set{Any}()
+    params = Any[]
+    for c in coeffs
+        (c isa Number || SymbolicUtils.isconst(c)) && continue
+        for v in Symbolics.get_variables(c)
+            u = Symbolics.unwrap(v)
+            iv !== nothing && isequal(u, iv) && throw(TimeDependentCoefficientError(c))
+            if SymbolicUtils.issym(u) && SymbolicUtils.nameof(u) === :im
+                # the algebra's own imaginary unit (symtype Number) is not a parameter
+                SymbolicUtils.symtype(u) === Number || throw(ImParameterCollisionError())
+                continue
+            end
+            u in seen || (push!(seen, u); push!(params, u))
+        end
+    end
+    return params
 end
 
 """
@@ -131,6 +207,11 @@ coefficients (native codegen never sees this: `toexpr` emits the literal symbol 
 resolves to `Base.im` in the generated code); the data path substitutes it explicitly.
 """
 function coefficient_values(ir::MomentIR, pdict)
+    for k in keys(pdict)
+        u = Symbolics.unwrap(k)
+        SymbolicUtils.issym(u) && SymbolicUtils.nameof(u) === :im &&
+            throw(ImParameterCollisionError())
+    end
     pd = Dict{Any, Any}(Symbolics.unwrap(k) => v for (k, v) in pdict)
     for c in ir.coeffs
         c isa Number && continue

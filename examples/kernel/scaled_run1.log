@@ -1,0 +1,22 @@
+SCALED identity on unscaled system (IR tables equal): true
+SCALED old all-Free path on scaled system: lowered without error (5 states; resolution unanchored)
+SCALED scaled superradiant: nstates=5 params=Any[N, g, im, κ, R, Γ, Δ, ν]
+ERROR: LoadError: unmatched kernel parameters: Any[im]
+Stacktrace:
+ [1] error(s::String)
+   @ Base ./error.jl:44
+ [2] kernel_pdict(ir::MomentIR, pmap::Dict{Any, Any})
+   @ Main /var/home/oameye/Documents/QuantumCumulants.jl/examples/kernel_scaled.jl:108
+ [3] check_du_resolved(eqs::MeanfieldEquations{Vector{Int64}, QAdd, QAdd, Op, Op, Num, SymbolicUtils.BasicSymbolicImpl.var"typeof(BasicSymbolicImpl)"{T} where T, Forward, QuantumCumulants.SystemSpec{QAdd, Vector{Op}, Vector{Op}, Vector{Num}, Nothing, typeof(maximum), Forward}}, pmap::Dict{Any, Any}; npoints::Int64, seed::Int64)
+   @ Main /var/home/oameye/Documents/QuantumCumulants.jl/examples/kernel_scaled.jl:117
+ [4] check_du_resolved(eqs::MeanfieldEquations{Vector{Int64}, QAdd, QAdd, Op, Op, Num, SymbolicUtils.BasicSymbolicImpl.var"typeof(BasicSymbolicImpl)"{T} where T, Forward, QuantumCumulants.SystemSpec{QAdd, Vector{Op}, Vector{Op}, Vector{Num}, Nothing, typeof(maximum), Forward}}, pmap::Dict{Any, Any})
+   @ Main /var/home/oameye/Documents/QuantumCumulants.jl/examples/kernel_scaled.jl:115
+ [5] top-level scope
+   @ /var/home/oameye/Documents/QuantumCumulants.jl/examples/kernel_scaled.jl:239
+ [6] include(mod::Module, _path::String)
+   @ Base ./Base.jl:306
+ [7] exec_options(opts::Base.JLOptions)
+   @ Base ./client.jl:317
+ [8] _start()
+   @ Base ./client.jl:550
+in expression starting at /var/home/oameye/Documents/QuantumCumulants.jl/examples/kernel_scaled.jl:239

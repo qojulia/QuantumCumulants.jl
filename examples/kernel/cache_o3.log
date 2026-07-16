@@ -1,0 +1,11 @@
+DIGEST order=3 ab77c556730da89ff17ac723bec44a59be56b90daab7ce2e7c3a2189f3b59f48
+CACHE file size = 975562 bytes
+CACHE roundtrip: nzval bit-exact=true du bit-exact=true
+CACHE sweep-after-load: nzval bit-exact=true
+CACHE tampered-text treated as miss: true
+┌ Warning: kernel cache unreadable; lowering fresh
+│   path = "/var/home/oameye/Documents/QuantumCumulants.jl/examples/kernel_cache_corrupt.jld2"
+│   err = EOFError: read end of file
+└ @ Main /var/home/oameye/Documents/QuantumCumulants.jl/examples/kernel_cache.jl:100
+CACHE corrupt-file degrades to miss: true
+CACHE load-path: first_load=0.357s full_reload=0.002s
