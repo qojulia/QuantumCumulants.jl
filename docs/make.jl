@@ -38,6 +38,7 @@ pages = [
     "symbolic_sums.md",
     "correlation.md",
     "noise.md",
+    "ode_backends.md",
     "api.md",
     "Examples" => [
         "examples/single-atom-laser-spectrum.md"

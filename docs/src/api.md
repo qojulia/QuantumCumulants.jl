@@ -284,6 +284,38 @@ Forward
 Backward
 ```
 
+## [RHS backends](@id API: RHS backends)
+
+See [Solving the equations directly (RHS backends)](@ref) for the guide.
+
+```@docs
+RHSBackend
+```
+
+```@docs
+AutoBackend
+```
+
+```@docs
+KernelBackend
+```
+
+```@docs
+ShardedBackend
+```
+
+```@docs
+update_parameters!
+```
+
+```@docs
+SciMLBase.ODEFunction(::MeanfieldEquations, ::Any)
+```
+
+```@docs
+SciMLBase.ODEProblem(::MeanfieldEquations, ::Any, ::Any, ::Any)
+```
+
 ## [Utility functions](@id API: Utils)
 
 ```@docs

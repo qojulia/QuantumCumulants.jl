@@ -434,3 +434,12 @@ function scale(c::CorrelationFunction)
         _ambient_avgs(eqs, c.aon_ancilla), Dict{QAdd, Bool}(),
     )
 end
+
+# `CorrelationFunction` stays on the MTK codegen path in v1 (the τ-system carries ambient
+# steady-state moments the direct backends do not model); guard here, after the type exists.
+SciMLBase.ODEProblem(c::CorrelationFunction, args...; kwargs...) = throw(
+    ArgumentError(
+        "CorrelationFunction stays on the MTK codegen path in v1; see " *
+            "`correlation_u0`/`correlation_p0`.",
+    )
+)

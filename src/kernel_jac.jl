@@ -9,10 +9,8 @@
 #
 # Holomorphic case only: a conj(u) factor has zero holomorphic derivative but a nonzero
 # Wirtinger derivative ∂f/∂ū, so for conj-folded systems this J would be silently wrong.
-# `jacobian_ir` errors on any conj factor; unfolded systems (get_adjoints=true, the
-# default) contain none.
-
-using SparseArrays
+# `jacobian_ir` throws `HolomorphicJacobianError` on any conj factor; unfolded systems
+# (get_adjoints=true, the default) contain none.
 
 struct JacIR
     Jproto::SparseMatrixCSC{ComplexF64, Int32}  # sparsity pattern, values overwritten per call
@@ -41,7 +39,8 @@ monomials); construct the `MomentKernel` from it so `v` covers the complements.
 function jacobian_ir(ir::MomentIR)
     factors = ir_factors(ir)
     mono_ids = Dict{Vector{Int32}, Int32}(f => Int32(m) for (m, f) in enumerate(factors))
-    parent = copy(ir.parent); leaf = copy(ir.leaf)
+    parent = copy(ir.parent)
+    leaf = copy(ir.leaf)
     function mono_id!(fs::Vector{Int32})
         return get!(mono_ids, fs) do
             p = mono_id!(fs[1:(end - 1)])
@@ -56,24 +55,27 @@ function jacobian_ir(ir::MomentIR)
         i, m, cid = ir.coo_i[t], ir.coo_j[t], ir.coo_c[t]
         fs = factors[m]
         for j in unique(fs)
-            j < 0 && error(
-                "conj factor in monomial: holomorphic Jacobian is wrong for conj-folded " *
-                    "systems (needs the Wirtinger pair); close with get_adjoints=true.",
-            )
+            j < 0 && throw(HolomorphicJacobianError())
             mult = Int32(count(==(j), fs))
             comp = fs[1:end]
             deleteat!(comp, findfirst(==(j), comp))
             push!(get!(entries, (i, j), NTuple{3, Int32}[]), (cid, mono_id!(comp), mult))
         end
     end
-    ir_ext = MomentIR(ir.nstates, parent, leaf, ir.coeffs, ir.coo_i, ir.coo_j, ir.coo_c, ir.params)
+    ir_ext = MomentIR(
+        ir.nstates, parent, leaf, ir.coeffs, ir.coo_i, ir.coo_j, ir.coo_c, ir.params
+    )
     # CSC order: sort positions column-major, flatten entry lists with pointers
     pos = sort!(collect(keys(entries)); by = p -> (p[2], p[1]))
     nzptr = Int32[1]
-    e_cid = Int32[]; e_mono = Int32[]; e_mult = Int32[]
+    e_cid = Int32[]
+    e_mono = Int32[]
+    e_mult = Int32[]
     for p in pos
         for (cid, comp, mult) in entries[p]
-            push!(e_cid, cid); push!(e_mono, comp); push!(e_mult, mult)
+            push!(e_cid, cid)
+            push!(e_mono, comp)
+            push!(e_mult, mult)
         end
         push!(nzptr, Int32(length(e_cid) + 1))
     end
