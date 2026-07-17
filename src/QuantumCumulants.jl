@@ -16,7 +16,7 @@ using Combinatorics: Combinatorics, partitions
 using TermInterface: TermInterface
 using LinearAlgebra: I
 using SciMLBase: SciMLBase
-using SparseArrays: SparseMatrixCSC, sparse
+using SparseArrays: SparseMatrixCSC, sparse, nonzeros, rowvals, nzrange, nnz
 using RuntimeGeneratedFunctions: RuntimeGeneratedFunctions, @RuntimeGeneratedFunction
 using FunctionWrappers: FunctionWrapper
 using Polyester: Polyester

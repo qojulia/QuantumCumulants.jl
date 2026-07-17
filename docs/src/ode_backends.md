@@ -23,7 +23,7 @@ The `backend` keyword picks the RHS compilation strategy:
 |---|---|---|
 | `AutoBackend()` (default) | tries the kernel, falls back to sharded exactly when the drift is not polynomial in the moments | almost always the right choice |
 | `KernelBackend(; cache, parallel)` | the moment-polynomial kernel `du = M * v`: the drifts are lowered once to sparse data (CSR layout; both RHS passes optionally threaded via Polyester), no per-model native code | cold construction everywhere; warm runtime beyond roughly a thousand equations; analytic Jacobian; caching |
-| `ShardedBackend(; chunk, threads, parallel)` | chunked native codegen (`build_function` per chunk of equations, codegen parallelized with OhMyThreads; the chunks also run concurrently at solve time for large systems) | warm RHS runtime on small and mid-size systems; t-dependent or rewritten non-polynomial drifts |
+| `ShardedBackend(; chunk, threads, parallel)` | chunked native codegen (`build_function` per chunk of equations, codegen parallelized with OhMyThreads; the chunks also run concurrently at solve time for large systems) | warm RHS runtime on small and mid-size systems; t-dependent or rewritten non-polynomial drifts; stiff solves via a colored-FD or symbolic Jacobian (including conjugate-folded closures) |
 
 Both backends resolve the drifts through the same treatments-aware machinery as
 `System(eqs)`, so scaled (`scale`) and evaluated (`evaluate`) systems, indexed
@@ -54,20 +54,38 @@ prob2 = remake(prob; f = f2, p = f2.f.kp)
 update_parameters!(prob2, Dict(κ => 3.0))       # prob is unaffected
 ```
 
-## Analytic Jacobian (`jac = true`)
+## Jacobian for stiff solvers (`jac = true`)
 
-The kernel backend can attach the analytic sparse Jacobian, enabling implicit
-(stiff) solvers on the complex-valued state without ForwardDiff:
+Both backends can attach a sparse Jacobian, enabling implicit (stiff) solvers on the
+complex-valued state without ForwardDiff (which does not support complex numbers).
+
+The **kernel backend** attaches its exact analytic Jacobian, derived from the same M·v
+structure as the RHS:
 
 ```julia
-prob = ODEProblem(eqs, ψ0, tspan, ps; jac = true)
+prob = ODEProblem(eqs, ψ0, tspan, ps; jac = true)   # kernel backend
 sol = solve(prob, Rodas5P(autodiff = AutoFiniteDiff()))
 ```
 
-The Jacobian is holomorphic-only: a system closed with `get_adjoints = false`
-(conjugate-folded) raises `HolomorphicJacobianError`, because its true derivative
-needs the Wirtinger pair. `ShardedBackend` has no analytic Jacobian and rejects
-`jac = true`.
+It is holomorphic-only: a system closed with `get_adjoints = false` (conjugate-folded)
+raises `HolomorphicJacobianError`, because its true derivative needs the Wirtinger pair.
+
+The **sharded backend** attaches a Jacobian driven through its chunked RHS, plus a
+finite-difference time-gradient, so plain `Rodas5P()` runs (no `autodiff` keyword needed):
+
+```julia
+prob = ODEProblem(eqs, ψ0, tspan, ps; backend = ShardedBackend(), jac = true)
+sol = solve(prob, Rodas5P())
+```
+
+`jac = true` (equivalently `:fd`) computes a colored finite-difference Jacobian: the
+sparsity is read from the drift expressions, greedily colored, and filled in `ncolors + 1`
+RHS evaluations instead of `n + 1`. `jac = :analytic` instead codegens a symbolic Jacobian
+(exact, and cheaper to evaluate at runtime). Both compute the same real-directional
+linearization, so both work for conjugate-folded *and* unfolded closures, no
+`HolomorphicJacobianError`. Solving a complex-state problem with the sparse Jacobian emits a
+benign `"incompatible with sparse automatic differentiation"` warning from the integrator;
+the supplied Jacobian is still used and the linear solve stays sparse.
 
 ## Kernel cache
 

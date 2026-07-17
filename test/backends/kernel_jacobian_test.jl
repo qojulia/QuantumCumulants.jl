@@ -111,8 +111,8 @@ end
         eqs_k, zeros(ComplexF64, length(eqs_k.states)), (0.0, 1.0), ps_k;
         backend = KernelBackend(), jac = true,
     )
-    # sharded has no analytic Jacobian
+    # the kernel's Jacobian is analytic-only; :fd is a ShardedBackend option
     @test_throws ArgumentError ODEProblem(
-        eqs, u0, (0.0, 1.0), ps; backend = ShardedBackend(), jac = true
+        eqs, u0, (0.0, 1.0), ps; backend = KernelBackend(), jac = :fd
     )
 end
