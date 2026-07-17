@@ -5,8 +5,10 @@
 #      per monomial; parents have smaller ids, so ascending order is a valid schedule),
 #   2. du = M * v (one complex SpMV).
 #
-# Note: the kernel carries its workspace `v`, so one kernel instance must not be called
-# concurrently from multiple threads (same caveat as any cache-carrying RHS closure).
+# Reentrancy: the kernel keeps one scratch `v` per thread (see `_make_vbufs`), so a single
+# instance is safe to call concurrently, e.g. many trajectories under `EnsembleThreads()`
+# sharing one `prob`. `v` is pure scratch (fully rewritten from `u` on every call, never read
+# across calls), so per-thread buffers need no locking and never duplicate `Mt`.
 
 # Equation count above which threading the RHS pays off end to end. Both passes thread
 # through Polyester's persistent task pool (`@batch`), whose per-call dispatch cost is ~1 µs
@@ -22,35 +24,50 @@ _resolve_kernel_parallel(flag, neq) =
 # layout is both cache-friendlier than a CSC `mul!` (sequential `du` writes) and trivially
 # parallel (no write conflicts). `fac`/`fac_ptr` are the flat factor chains used by the
 # threaded monomial update (see `update_v_flat!`); they are derived from `parent`/`leaf` and
-# add no cache format. The kernel carries its workspace `v`, so one instance must not be
-# called concurrently from multiple threads (same caveat as any cache-carrying RHS).
+# add no cache format. `v` is one scratch buffer per thread (see `_make_vbufs`), so a single
+# kernel instance is reentrant: concurrent callers (e.g. `EnsembleThreads()` on a shared
+# `prob`) each write their own buffer.
 struct MomentKernel
     Mt::SparseMatrixCSC{ComplexF64, Int32}   # transpose of the coefficient matrix M
     parent::Vector{Int32}
     leaf::Vector{Int32}
     fac::Vector{Int32}                       # flat factor chains (threaded update path)
     fac_ptr::Vector{Int32}                   # CSR offsets into `fac`, one range per monomial
-    v::Vector{ComplexF64}
+    v::Vector{Vector{ComplexF64}}            # per-thread scratch (indexed by `threadid()`)
     parallel::Bool                           # thread the RHS (monomial update + SpMV)
 end
 
 # `ir` untyped so this constructor also serves cache hits, which carry the plain tables
 # (parent, leaf) without ever constructing a MomentIR.
 function MomentKernel(ir, cvals::Vector{ComplexF64}; parallel::Bool = false)
-    v = zeros(ComplexF64, length(ir.parent))
-    v[1] = one(ComplexF64)
     fac, fac_ptr = build_flat(ir.parent, ir.leaf)
+    v = _make_vbufs(length(ir.parent))
     return MomentKernel(assemble(ir, cvals), ir.parent, ir.leaf, fac, fac_ptr, v, parallel)
 end
 
-# Convenience constructor over prebuilt tables (cache load / copy): derives `fac`/`fac_ptr`.
+# Convenience constructor over prebuilt tables (cache load): derives `fac`/`fac_ptr`.
 function MomentKernel(
         Mt::SparseMatrixCSC, parent::Vector{Int32}, leaf::Vector{Int32},
-        v::Vector{ComplexF64}, parallel::Bool,
+        v::Vector{Vector{ComplexF64}}, parallel::Bool,
     )
     fac, fac_ptr = build_flat(parent, leaf)
     return MomentKernel(Mt, parent, leaf, fac, fac_ptr, v, parallel)
 end
+
+"""A fresh scratch buffer: zeros with `v[1] = 1` (monomial 1 is the empty product)."""
+function _init_vbuf(n::Integer)
+    v = zeros(ComplexF64, n)
+    v[1] = one(ComplexF64)
+    return v
+end
+
+"""One scratch buffer per thread so a shared kernel is reentrant (thread-local `v`). Sized by
+`maxthreadid()` to cover interactive-pool threads, not just the default pool; a single kernel
+call never yields (Polyester's `@batch` does not yield the calling task), so indexing the
+buffer by `threadid()` within a call is race-free even under task migration between calls."""
+_make_vbufs(n::Integer) = [_init_vbuf(n) for _ in 1:Threads.maxthreadid()]
+
+@inline _vbuf(vs::Vector{Vector{ComplexF64}}) = @inbounds vs[Threads.threadid()]
 
 """Refresh the distinct-monomial vector in place via the prefix chains (serial; also used by
 the Jacobian). Each monomial is `(parent monomial) * (one state factor)`, and parents have
@@ -132,12 +149,13 @@ function spmv!(du, Mt::SparseMatrixCSC, v, parallel::Bool)
 end
 
 function (k::MomentKernel)(du, u, p, t)
+    v = _vbuf(k.v)                            # this thread's scratch (reentrant)
     if k.parallel
-        update_v_flat!(k.v, k.fac, k.fac_ptr, u)
+        update_v_flat!(v, k.fac, k.fac_ptr, u)
     else
-        update_v!(k.v, k.parent, k.leaf, u)
+        update_v!(v, k.parent, k.leaf, u)
     end
-    spmv!(du, k.Mt, k.v, k.parallel)
+    spmv!(du, k.Mt, v, k.parallel)
     return nothing
 end
 

@@ -114,6 +114,35 @@ end
     @test !ODEProblem(eqs, u0, (0.0, 1.0), ps; backend = KernelBackend()).f.f.kernel.parallel
 end
 
+# The kernel keeps one scratch `v` per thread, so a single instance is safe to call
+# concurrently (e.g. `EnsembleThreads()` sharing one `prob`). Structural check always runs;
+# the contention check exposes a shared-`v` race only when the test process has >1 thread.
+@testset "kernel is reentrant across threads (thread-local v)" begin
+    prob = ODEProblem(eqs, u0, (0.0, 1.0), ps; backend = KernelBackend())
+    k = prob.f.f.kernel
+    @test k.v isa Vector{Vector{ComplexF64}}
+    @test length(k.v) == Threads.maxthreadid()
+    @test all(buf -> buf[1] == one(ComplexF64), k.v)
+    # distinct inputs, each with its own serially-computed reference du
+    us = [ComplexF64[0.1cos(2.3i + 0.7j) + 0.05im * sin(1.1i - 0.3j) for i in 1:nst] for j in 1:8]
+    refs = map(us) do uu
+        du = similar(uu)
+        k(du, uu, prob.p, 0.0)
+        du
+    end
+    # hammer the shared kernel from many tasks at once; a shared `v` would let one task's
+    # monomial update be clobbered before its SpMV reads it, so some du would not match
+    mism = Threads.Atomic{Int}(0)
+    @sync for _ in 1:400, (uu, ref) in zip(us, refs)
+        Threads.@spawn begin
+            du = similar(uu)
+            k(du, uu, prob.p, 0.0)
+            du == ref || Threads.atomic_add!(mism, 1)
+        end
+    end
+    @test mism[] == 0
+end
+
 @testset "u0 input forms agree" begin
     prob_state = ODEProblem(eqs, ψ0, (0.0, 1.0), ps; backend = KernelBackend())
     vec0 = initial_values(eqs, ψ0)
