@@ -43,7 +43,10 @@ update_parameters!(prob, Dict(κ => 2.0))       # unmentioned parameters keep th
 `prob.p` is a `KernelParameters` object) and raises a typed error pointing back to
 `update_parameters!`.
 
-For ensembles, `copy` the `ODEFunction` so each trajectory owns its tables:
+The kernel keeps one scratch buffer per thread, so a single `prob` is safe to solve
+concurrently: an `EnsembleProblem` with `EnsembleThreads()` that only varies `u0` (same
+parameters) needs no copy. To give a trajectory its *own* parameters, `copy` the
+`ODEFunction` so it owns an independent `Mt`, then `update_parameters!` it:
 
 ```julia
 f2 = copy(prob.f)

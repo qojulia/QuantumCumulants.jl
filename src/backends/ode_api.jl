@@ -133,8 +133,7 @@ function _loaded_rhs(entry, eqs, ps, parallel_flag)
     evalcoeffs = vals -> ComplexF64.(entry.rgf(ComplexF64[vals[n] for n in entry.params]))
     cvals = evalcoeffs(values)
     Mt = sparse(entry.coo_j, entry.coo_i, cvals[entry.coo_c], length(entry.parent), entry.nstates, +)
-    v = zeros(ComplexF64, length(entry.parent))
-    v[1] = one(ComplexF64)
+    v = _make_vbufs(length(entry.parent))
     par = _resolve_kernel_parallel(parallel_flag, entry.nstates)
     kernel = MomentKernel(Mt, entry.parent, entry.leaf, v, par)
     kp = KernelParameters(
@@ -238,7 +237,8 @@ end
 function Base.copy(r::KernelRHS)
     k = r.kernel
     # structure tables (parent/leaf/fac/fac_ptr) are read-only and shared; own Mt and v
-    k2 = MomentKernel(copy(k.Mt), k.parent, k.leaf, k.fac, k.fac_ptr, copy(k.v), k.parallel)
+    # (deep-copy the per-thread scratch set so the copy's buffers are independent)
+    k2 = MomentKernel(copy(k.Mt), k.parent, k.leaf, k.fac, k.fac_ptr, map(copy, k.v), k.parallel)
     kp = r.kp
     kp2 = KernelParameters(
         kp.params, Dict{Any, Any}(kp.values), kp.evalcoeffs, kp.coo_c, kp.nzmap

@@ -86,28 +86,29 @@ function jacobian_ir(ir::MomentIR)
     return ir_ext, JacIR(Jproto, nzptr, e_cid, e_mono, e_mult)
 end
 
-"""Jacobian callable: fills `Jmat.nzval` (Jmat must share Jproto's sparsity pattern)."""
+"""Jacobian callable: fills `Jmat.nzval` (Jmat must share Jproto's sparsity pattern). `v` is
+the same per-thread scratch set as the RHS kernel (shared within a `prob`, thread-local
+across concurrent callers), so the Jacobian is reentrant on the same footing as the RHS."""
 struct JacKernel
     jac::JacIR
     parent::Vector{Int32}
     leaf::Vector{Int32}
     c::Vector{ComplexF64}
-    v::Vector{ComplexF64}
+    v::Vector{Vector{ComplexF64}}
 end
 
 function JacKernel(ir_ext::MomentIR, jac::JacIR, cvals::Vector{ComplexF64})
-    v = zeros(ComplexF64, length(ir_ext.parent))
-    v[1] = one(ComplexF64)
-    return JacKernel(jac, ir_ext.parent, ir_ext.leaf, cvals, v)
+    return JacKernel(jac, ir_ext.parent, ir_ext.leaf, cvals, _make_vbufs(length(ir_ext.parent)))
 end
 
 function (jk::JacKernel)(Jmat, u, p, t)
-    update_v!(jk.v, jk.parent, jk.leaf, u)
+    v = _vbuf(jk.v)                           # this thread's scratch (reentrant)
+    update_v!(v, jk.parent, jk.leaf, u)
     nzv = Jmat.nzval
     @inbounds for k in eachindex(nzv)
         acc = zero(ComplexF64)
         for e in jk.jac.nzptr[k]:(jk.jac.nzptr[k + 1] - 1)
-            acc += jk.jac.e_mult[e] * jk.c[jk.jac.e_cid[e]] * jk.v[jk.jac.e_mono[e]]
+            acc += jk.jac.e_mult[e] * jk.c[jk.jac.e_cid[e]] * v[jk.jac.e_mono[e]]
         end
         nzv[k] = acc
     end
