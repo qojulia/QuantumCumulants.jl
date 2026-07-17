@@ -2,8 +2,7 @@
 #
 # These passes allocate by design (they build expression trees, dicts and arrays);
 # the goal is a deterministic gate that fails when a hot spot's allocation count
-# grows, not zero allocations. See
-# docs/superpowers/specs/2026-06-15-allocation-regression-tests-design.md.
+# grows, not zero allocations.
 
 using QuantumCumulants
 using Symbolics: @variables

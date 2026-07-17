@@ -1,4 +1,0 @@
-pauli N=3 order=2 (36 eqs, all):        max rel err = 1.6177097691877443e-15
-kerr folded order=2 (3 eqs, all):        max rel err = 1.8802021965583217e-16
-ising N=6 order=3 (693 eqs, 40 sampled): max rel err = 2.190486243695053e-15
-PASS

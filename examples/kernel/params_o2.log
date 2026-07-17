@@ -1,9 +1,0 @@
-PARAMS nzval bit-exact after update_parameters!: true
-PARAMS du bit-exact: true
-PARAMS timing order=2: substitute=47.0µs mappass=0.9µs ncoeffs=10 nnz=1441 ncoo=1441
-TAXONOMY cancellation: old params=0 (J lost), new params=1
-TAXONOMY nonpoly: NonPolynomialDriftError
-TAXONOMY tdep: TimeDependentCoefficientError
-TAXONOMY im-in-coeff: ImParameterCollisionError
-TAXONOMY im-in-pdict: ImParameterCollisionError
-TAXONOMY regression: benchmark cvals ok = true

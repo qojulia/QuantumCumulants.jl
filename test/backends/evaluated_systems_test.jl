@@ -7,10 +7,10 @@ using OrdinaryDiffEqLowOrderRK: RK4, solve
 using Random: MersenneTwister
 using Test
 
-# Scaled and evaluated locks: the same treatments-aware resolution feeds both backends,
-# so kernel-vs-sharded du agreement is a strong cross-implementation lock (the prototype
-# additionally verified all three models against direct substitution to ~1e-15, see
-# examples/kernel/kernel_scaled.jl).
+# Scaled and evaluated locks: the two backends share only the treatments-aware moment
+# resolution and compute the RHS through entirely different code (sparse M*v kernel vs
+# compiled symbolic expressions), so kernel-vs-sharded du agreement is a strong
+# cross-implementation lock.
 
 function crosscheck_du(eqs, ps; npoints = 3, seed = 1)
     n = length(eqs.states)
