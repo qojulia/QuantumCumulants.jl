@@ -96,22 +96,41 @@ function (r::KernelRHS)(du, u, p, t)
     )
 end
 
-function _build_rhs(eqs::MeanfieldEquations, ps, backend::KernelBackend; jac::Bool = false)
+"""
+Normalize the `jac` keyword for the kernel backend to a `Bool`. The kernel's Jacobian is
+always analytic (the M·v structure), so `true`/`:analytic` request it and `:fd` is rejected
+(finite differences are a `ShardedBackend` option).
+"""
+function _kernel_jac_flag(jac)
+    jac === false && return false
+    (jac === true || jac === :analytic) && return true
+    return throw(
+        ArgumentError(
+            "KernelBackend's Jacobian is analytic; `jac` must be `false`, `true` or " *
+                "`:analytic`, got $(repr(jac)). Use `ShardedBackend` for `:fd`.",
+        )
+    )
+end
+
+function _build_rhs(
+        eqs::MeanfieldEquations, ps, backend::KernelBackend; jac::Union{Bool, Symbol} = false
+    )
+    dojac = _kernel_jac_flag(jac)
     # cache flow (jac = true relowers fresh: the stored tables lack the Jacobian's
     # complement monomials, so a hit would be structurally incomplete)
     text = digest = nothing
-    if backend.cache !== nothing && !jac
+    if backend.cache !== nothing && !dojac
         text = canonical_text(eqs)
         digest = bytes2hex(sha256(text))
         entry = _cache_load(backend.cache, text, digest)
         entry === nothing || return _loaded_rhs(entry, eqs, ps, backend.parallel)
     end
     ir = lower(eqs)
-    backend.cache === nothing || jac || _cache_store!(backend.cache, text, digest, ir)
+    backend.cache === nothing || dojac || _cache_store!(backend.cache, text, digest, ir)
     values = kernel_pdict(ir.params, parameter_map(eqs, ps))
     cvals = coefficient_values(ir, values)
     par = _resolve_kernel_parallel(backend.parallel, ir.nstates)
-    if !jac
+    if !dojac
         kernel = MomentKernel(ir, cvals; parallel = par)
         return KernelRHS(kernel, KernelParameters(ir, kernel.Mt, values))
     end
@@ -143,14 +162,15 @@ function _loaded_rhs(entry, eqs, ps, parallel_flag)
     return KernelRHS(kernel, kp)
 end
 
-function _build_rhs(eqs::MeanfieldEquations, ps, ::AutoBackend; jac::Bool = false)
+function _build_rhs(eqs::MeanfieldEquations, ps, ::AutoBackend; jac::Union{Bool, Symbol} = false)
     return try
-        _build_rhs(eqs, ps, KernelBackend(); jac)
+        # the kernel's only Jacobian is analytic, so any request maps to `true` there
+        _build_rhs(eqs, ps, KernelBackend(); jac = (jac === false ? false : true))
     catch e
         e isa NonPolynomialDriftError || rethrow()
         @info "drift is not polynomial in the moments; falling back to ShardedBackend " *
-            "(chunked native codegen). Cold construction will be slower and no analytic " *
-            "Jacobian is available." maxlog = 1
+            "(chunked native codegen). Cold construction will be slower; `jac` uses finite " *
+            "differences unless `:analytic` is requested." maxlog = 1
         _build_rhs(eqs, ps, ShardedBackend(); jac)
     end
 end
@@ -159,12 +179,15 @@ end
     SciMLBase.ODEFunction(eqs::MeanfieldEquations, ps; backend = AutoBackend(), jac = false)
 
 In-place `ODEFunction` over the completed moment equations, compiled by `backend`.
-Parameters are required at construction; `ps` is a `Dict` or pairs of
-`parameter => value`. With `jac = true` (kernel backend only) the function carries the
-analytic sparse Jacobian and its `jac_prototype`.
+Parameters are required at construction; `ps` is a `Dict` or pairs of `parameter => value`.
+With `jac = true` the function carries a sparse Jacobian and its `jac_prototype`: the kernel
+backend attaches its analytic M·v Jacobian, while `ShardedBackend` attaches a colored
+finite-difference Jacobian (`jac = :analytic` there requests a symbolic one instead) plus a
+finite-difference time-gradient, so implicit solvers run on the complex state directly.
 """
 function SciMLBase.ODEFunction(
-        eqs::MeanfieldEquations, ps; backend::RHSBackend = AutoBackend(), jac::Bool = false
+        eqs::MeanfieldEquations, ps; backend::RHSBackend = AutoBackend(),
+        jac::Union{Bool, Symbol} = false,
     )
     rhs = _build_rhs(eqs, ps, backend; jac)
     return _ode_function(rhs)
@@ -189,7 +212,7 @@ quantum state (ket / density operator). `ps` maps every symbolic parameter to it
 """
 function SciMLBase.ODEProblem(
         eqs::MeanfieldEquations, u0, tspan, ps;
-        backend::RHSBackend = AutoBackend(), jac::Bool = false, kwargs...,
+        backend::RHSBackend = AutoBackend(), jac::Union{Bool, Symbol} = false, kwargs...,
     )
     f = SciMLBase.ODEFunction(eqs, ps; backend, jac)
     return SciMLBase.ODEProblem(f, _u0_vector(eqs, u0), tspan, _prob_p(f.f); kwargs...)
