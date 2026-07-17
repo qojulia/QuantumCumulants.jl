@@ -81,6 +81,27 @@ u0s = zeros(ComplexF64, length(eqs_s.states))
     @test solve(prob, RK4()).retcode == SciMLBase.ReturnCode.Success
 end
 
+# The parallel driver runs the compiled chunks through `Threads.@threads :dynamic`. CI is
+# single-threaded, so forcing `parallel = true` exercises the threaded code path (which is
+# bit-identical to the serial loop on one thread) without depending on real concurrency.
+@testset "sharded parallel driver matches serial (bit-exact)" begin
+    ser = ODEProblem(eqs, u0, (0.0, 5.0), ps; backend = ShardedBackend(parallel = false))
+    par = ODEProblem(eqs, u0, (0.0, 5.0), ps; backend = ShardedBackend(parallel = true))
+    @test par.f.f.parallel
+    @test !ser.f.f.parallel
+    du_ser, du_par = similar(u0), similar(u0)
+    ser.f(du_ser, u, ser.p, 0.0)
+    par.f(du_par, u, par.p, 0.0)
+    @test du_par == du_ser
+    # small system (36 eqs < SHARD_PARALLEL_MIN): :auto stays serial
+    @test !ODEProblem(eqs, u0, (0.0, 5.0), ps; backend = ShardedBackend()).f.f.parallel
+    # :auto chunking still produces a correct RHS
+    auto = ODEProblem(eqs, u0, (0.0, 5.0), ps; backend = ShardedBackend())
+    du_auto = similar(u0)
+    auto.f(du_auto, u, auto.p, 0.0)
+    @test du_auto == du_ser
+end
+
 @testset "sharded update_parameters! and dual guard" begin
     psh = ODEProblem(eqs, u0, (0.0, 5.0), ps; backend = ShardedBackend())
     du_k, du_s = similar(u0), similar(u0)

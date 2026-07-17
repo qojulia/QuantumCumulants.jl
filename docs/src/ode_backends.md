@@ -22,8 +22,8 @@ The `backend` keyword picks the RHS compilation strategy:
 | Backend | What it is | When it wins |
 |---|---|---|
 | `AutoBackend()` (default) | tries the kernel, falls back to sharded exactly when the drift is not polynomial in the moments | almost always the right choice |
-| `KernelBackend(; cache)` | the moment-polynomial kernel `du = M * v`: the drifts are lowered once to sparse data, no per-model native code | cold construction everywhere; warm runtime beyond roughly a thousand equations; analytic Jacobian; caching |
-| `ShardedBackend(; chunk, threads)` | chunked native codegen (`build_function` per chunk of equations, precompiled in parallel) | warm RHS runtime on small and mid-size systems; t-dependent or rewritten non-polynomial drifts |
+| `KernelBackend(; cache, parallel)` | the moment-polynomial kernel `du = M * v`: the drifts are lowered once to sparse data (CSR layout; both RHS passes optionally threaded via Polyester), no per-model native code | cold construction everywhere; warm runtime beyond roughly a thousand equations; analytic Jacobian; caching |
+| `ShardedBackend(; chunk, threads, parallel)` | chunked native codegen (`build_function` per chunk of equations, codegen parallelized with OhMyThreads; the chunks also run concurrently at solve time for large systems) | warm RHS runtime on small and mid-size systems; t-dependent or rewritten non-polynomial drifts |
 
 Both backends resolve the drifts through the same treatments-aware machinery as
 `System(eqs)`, so scaled (`scale`) and evaluated (`evaluate`) systems, indexed

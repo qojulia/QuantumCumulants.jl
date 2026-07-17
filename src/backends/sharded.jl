@@ -12,10 +12,19 @@ struct ShardedRHS
     ranges::Vector{UnitRange{Int}}
     params::Vector{Any}
     pvec::Vector{ComplexF64}     # the live parameter vector handed out as prob.p
+    parallel::Bool               # run the chunks concurrently (disjoint du ranges)
 end
 function (r::ShardedRHS)(du::Vector{ComplexF64}, u::Vector{ComplexF64}, p, t)
-    @inbounds for i in eachindex(r.fws)
-        r.fws[i](view(du, r.ranges[i]), u, p, t)
+    if r.parallel
+        # chunks write disjoint `du` ranges and only read shared `u`/`p`, so the loop is
+        # data-race free without locking; :dynamic load-balances the uneven chunk costs.
+        Threads.@threads :dynamic for i in eachindex(r.fws)
+            @inbounds r.fws[i](view(du, r.ranges[i]), u, p, t)
+        end
+    else
+        @inbounds for i in eachindex(r.fws)
+            r.fws[i](view(du, r.ranges[i]), u, p, t)
+        end
     end
     return nothing
 end
@@ -84,23 +93,31 @@ function _build_rhs(eqs::MeanfieldEquations, ps, backend::ShardedBackend; jac::B
     end
     pvec = ComplexF64[ComplexF64(vals[p]) for p in pars]
     neq = length(rhss)
-    ranges = UnitRange{Int}[r[1]:r[end] for r in Iterators.partition(1:neq, backend.chunk)]
-    fexprs = [
-        Symbolics.build_function(
-                rhss[r], vars, codegen_pars, eqs.iv; expression = Val{true}, cse = true,
-            )[2] for r in ranges
-    ]
+    nth = clamp(backend.threads, 1, Threads.nthreads())
+    chunk = backend.chunk === :auto ? max(1, cld(neq, 3 * nth)) : backend.chunk
+    parallel = backend.parallel === :auto ? (nth > 1 && neq >= SHARD_PARALLEL_MIN) :
+        backend.parallel
+    ranges = UnitRange{Int}[r[1]:r[end] for r in Iterators.partition(1:neq, chunk)]
+    # `build_function` Expr generation is pure and heterogeneous across chunks; run it in
+    # parallel (was serial) on `nth` tasks. `tmap` returns Exprs in `ranges` order.
+    # `@RuntimeGeneratedFunction` construction stays serial (global RGF registration).
+    # The `let` localizes `rhss`/`codegen_pars` (reassigned above, hence boxed) so the task
+    # closure does not capture boxed variables, which OhMyThreads rejects.
+    fexprs = let rhss = rhss, vars = vars, codegen_pars = codegen_pars, iv = eqs.iv
+        tmap(
+            r -> Symbolics.build_function(
+                rhss[r], vars, codegen_pars, iv; expression = Val{true}, cse = true,
+            )[2],
+            Expr, ranges; scheduler = DynamicScheduler(; ntasks = nth),
+        )
+    end
     fs = [@RuntimeGeneratedFunction(fe) for fe in fexprs]
     sig = (VT, Vector{ComplexF64}, Vector{ComplexF64}, Float64)
-    nth = clamp(backend.threads, 1, Threads.nthreads())
-    tasks = [
-        Threads.@spawn(
-                for f in fs[i:nth:end]
-                    precompile(f, sig)
-            end
-            ) for i in 1:nth
-    ]
-    foreach(wait, tasks)
+    # warm up each chunk's native code; per-chunk compile cost varies widely, so a greedy
+    # schedule balances better than the round-robin static split it replaces.
+    tforeach(fs; scheduler = GreedyScheduler(; ntasks = nth)) do f
+        precompile(f, sig)
+    end
     fws = FWT[
         FWT(
                 let g = f
@@ -108,7 +125,7 @@ function _build_rhs(eqs::MeanfieldEquations, ps, backend::ShardedBackend; jac::B
             end
             ) for f in fs
     ]
-    return ShardedRHS(fws, ranges, pars, pvec)
+    return ShardedRHS(fws, ranges, pars, pvec, parallel)
 end
 
 _prob_p(r::ShardedRHS) = r.pvec

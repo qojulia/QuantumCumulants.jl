@@ -97,6 +97,23 @@ end
     @test du_a == du_b
 end
 
+# The RHS threads both passes (the flat monomial update and the SpMV) through Polyester's
+# `@batch` when `parallel` is set. CI is single-threaded, so forcing `parallel = true`
+# exercises the threaded code path (Polyester runs serially on one thread, bit-identical to
+# the prefix update and CSC-order gather) without depending on real concurrency.
+@testset "parallel RHS matches serial (bit-exact)" begin
+    ser = ODEProblem(eqs, u0, (0.0, 1.0), ps; backend = KernelBackend(parallel = false))
+    par = ODEProblem(eqs, u0, (0.0, 1.0), ps; backend = KernelBackend(parallel = true))
+    @test par.f.f.kernel.parallel
+    @test !ser.f.f.kernel.parallel
+    du_ser, du_par = similar(u), similar(u)
+    ser.f(du_ser, u, ser.p, 0.0)
+    par.f(du_par, u, par.p, 0.0)
+    @test du_par == du_ser
+    # small system (36 eqs < KERNEL_PARALLEL_MIN): :auto stays serial
+    @test !ODEProblem(eqs, u0, (0.0, 1.0), ps; backend = KernelBackend()).f.f.kernel.parallel
+end
+
 @testset "u0 input forms agree" begin
     prob_state = ODEProblem(eqs, ψ0, (0.0, 1.0), ps; backend = KernelBackend())
     vec0 = initial_values(eqs, ψ0)
