@@ -1,1 +1,0 @@
-RESULT order=3 neq=693 WARM=precompile chunk=10 nthreads=10 sys=15.19s build=4.08s rgf=0.2s warmphase=11.92s call1=68.48ms call2=0.16ms prob=0.02s first_solve=1.81s total_cold=18.03s warm=0.076s finalmax=0.23792207

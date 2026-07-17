@@ -1,1 +1,0 @@
-RESULT order=3 neq=693 WARM=call chunk=10 nthreads=10 sys=15.23s build=3.97s rgf=0.21s warmphase=12.33s call1=65.33ms call2=0.25ms prob=0.02s first_solve=1.85s total_cold=18.38s warm=0.075s finalmax=0.23792207
