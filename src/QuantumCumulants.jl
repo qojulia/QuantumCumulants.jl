@@ -14,11 +14,13 @@ using ModelingToolkitBase: ModelingToolkitBase, complete, System
 using OrderedCollections: OrderedCollections
 using Combinatorics: Combinatorics, partitions
 using TermInterface: TermInterface
-using LinearAlgebra: I, mul!
+using LinearAlgebra: I
 using SciMLBase: SciMLBase
 using SparseArrays: SparseMatrixCSC, sparse
 using RuntimeGeneratedFunctions: RuntimeGeneratedFunctions, @RuntimeGeneratedFunction
 using FunctionWrappers: FunctionWrapper
+using Polyester: Polyester
+using OhMyThreads: tmap, tforeach, GreedyScheduler, DynamicScheduler
 using SHA: sha256
 using PrecompileTools: PrecompileTools
 const MTK = ModelingToolkitBase

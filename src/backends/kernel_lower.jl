@@ -163,14 +163,17 @@ function _lower_ir(g, vars, idx, iv_uw)
         end
     end
 
-    # phase 1: polynomial_coeffs per equation, embarrassingly parallel (the dominant
-    # lowering cost; measured 2.3x on 12 threads in the prototype)
+    # phase 1: polynomial_coeffs per equation, the dominant lowering cost and highly
+    # heterogeneous across equations, so a greedy scheduler load-balances best (measured
+    # ~3.1x vs ~2.7x for a static split on 12 threads; both capped below thread count by
+    # contention on SymbolicUtils' shared caches). `tmap` returns results in input order, so
+    # the serial phase 2 below stays bit-deterministic.
     drifts = Any[Symbolics.unwrap(nd.drift) for nd in values(g.nodes)]
     neq = length(drifts)
-    polys = Vector{Any}(undef, neq)
-    Threads.@threads for i in 1:neq
-        polys[i] = Symbolics.polynomial_coeffs(drifts[i], vars)
-    end
+    polys = tmap(
+        d -> Symbolics.polynomial_coeffs(d, vars), Any, drifts;
+        scheduler = GreedyScheduler(),
+    )
 
     # phase 2: serial table build in equation order, so `mono_id!` assignment, coefficient
     # pooling, and the residual-check error order are bit-identical to a serial build
@@ -244,9 +247,11 @@ function coefficient_values(ir::MomentIR, pdict)
     ]
 end
 
-"""Materialize the sparse coefficient matrix M (neq × nmonomials) for coefficient values `c`."""
+"""Materialize `Mᵀ` (nmonomials × neq), the transpose of the coefficient matrix, for
+coefficient values `c`. Storing the transpose (M in CSR) makes the RHS a row-parallel
+gather; see `MomentKernel`."""
 assemble(ir::MomentIR, cvals::Vector{ComplexF64}) = sparse(
-    ir.coo_i, ir.coo_j, cvals[ir.coo_c], ir.nstates, length(ir.parent), +,
+    ir.coo_j, ir.coo_i, cvals[ir.coo_c], length(ir.parent), ir.nstates, +,
 )
 
 # ---- array-aware parameter values ----------------------------------------------------
