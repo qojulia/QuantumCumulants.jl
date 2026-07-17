@@ -1,6 +1,6 @@
 # JLD2 storage for the kernel cache (`KernelBackend(cache = path)`). The extension only
 # moves bytes: the digest/verify logic and the RGF reconstruction stay in the package
-# (`src/kernel_cache.jl`), so this file carries no knowledge of the IR.
+# (`src/backends/kernel_cache.jl`), so this file carries no knowledge of the IR.
 module QuantumCumulantsJLD2Ext
 
 using QuantumCumulants: QuantumCumulants

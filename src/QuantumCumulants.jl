@@ -62,13 +62,13 @@ include("scaling.jl")
 include("evaluate.jl")
 include("mtk.jl")
 
-# direct RHS compilation (issue #294): moment-polynomial kernel + ODE surface
-include("kernel_lower.jl")
-include("kernel_eval.jl")
-include("kernel_jac.jl")
-include("kernel_cache.jl")
-include("ode_api.jl")
-include("sharded.jl")
+# direct RHS compilation: moment-polynomial kernel + ODE surface
+include("backends/kernel_lower.jl")
+include("backends/kernel_eval.jl")
+include("backends/kernel_jac.jl")
+include("backends/kernel_cache.jl")
+include("backends/ode_api.jl")
+include("backends/sharded.jl")
 
 include("correlation.jl")
 include("spectrum.jl")
