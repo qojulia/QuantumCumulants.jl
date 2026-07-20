@@ -35,7 +35,7 @@ const _DWDT_LATEX = "\\frac{\\mathrm{d}W}{\\mathrm{d}t}"
 const _IM_RENDERED = "\\mathtt{im}"
 const _IM_LATEX = "i"
 
-const _ROW_GAP = "-0.3em"
+const _ROW_GAP = "-0.0em"
 
 @latexrecipe function f(de::NoiseMeanfieldEquations)
     env --> :align
