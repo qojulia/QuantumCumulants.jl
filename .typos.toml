@@ -7,6 +7,7 @@ anc = "anc"
 iz = "iz"
 nd = "nd"
 mis = "mis"
+Sur = "Sur"
 
 [type.ipynb]
 extend-glob = ["*.ipynb"]

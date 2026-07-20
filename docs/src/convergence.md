@@ -117,7 +117,9 @@ behavior spans a spectrum:
 * **Good.** For the collective radiative decay of a dipole-dipole interacting
   atom chain, the truncation converges smoothly, with monotone improvement as the
   order increases. Even here the gains beyond second order are modest, so second
-  order is usually the best accuracy-for-cost choice.
+  order is usually the best accuracy-for-cost choice. Order-by-order comparisons
+  in ordered atomic arrays reach the same conclusion (Rubies-Bigorda, Ostermann
+  and Yelin, 2023).
 * **Bad.** Higher-order interaction terms in the Hamiltonian can make a
   higher-order truncation agree *less* with the exact solution than a lower-order
   one.
@@ -146,6 +148,15 @@ findings overturn common expectations:
 
 The practical takeaway is blunt: a higher order is not guaranteed to be more
 accurate, neither in the truncation order nor in the system size.
+
+A benchmark of Dicke superradiance against an exact solution (Fasser, Genes,
+Ritsch and Holzinger, 2025) reaches a compatible verdict in the collective
+setting: time and magnitude of the peak emission converge reliably with order,
+but the long-time populations are only captured for small emitter numbers, odd
+orders show unphysical behavior, and at large emitter number both an
+individual-spin and a collective-spin cumulant expansion fail to converge to the
+exact result. There too an individual-spin expansion proves more reliable than
+the collective-spin variant.
 
 ## Connection to classical moment closure and realizability
 
@@ -244,46 +255,33 @@ truncation turns non-physical.
 
 ## References
 
-* J. Marcinkiewicz. "Sur une propriété de la loi de Gauß." *Mathematische
-  Zeitschrift* **44**, 612 (1939). URL:
-  [https://link.springer.com/article/10.1007/BF01210677](https://link.springer.com/article/10.1007/BF01210677)
-* R. Kubo. "Generalized cumulant expansion method." *Journal of the Physical
-  Society of Japan* **17**, 1100 (1962). URL:
-  [https://www.jstage.jst.go.jp/article/jpsj1946/17/7/17_7_1100/_article/-char/ja/](https://www.jstage.jst.go.jp/article/jpsj1946/17/7/17_7_1100/_article/-char/ja/)
-* A. K. Rajagopal and E. C. G. Sudarshan. "Some generalizations of the
-  Marcinkiewicz theorem and its implications to certain approximation schemes in
-  many-particle physics." *Physical Review A* **10**, 1852 (1974). URL:
-  [https://journals.aps.org/pra/abstract/10.1103/PhysRevA.10.1852](https://journals.aps.org/pra/abstract/10.1103/PhysRevA.10.1852)
-* M. Kira and S. W. Koch. "Cluster-expansion representation in quantum optics."
-  *Physical Review A* **78**, 022102 (2008). URL:
-  [https://journals.aps.org/pra/abstract/10.1103/PhysRevA.78.022102](https://journals.aps.org/pra/abstract/10.1103/PhysRevA.78.022102).
+* J. Marcinkiewicz.
+  [Sur une propriété de la loi de Gauß. *Mathematische Zeitschrift* **44**, 612 (1939)](https://link.springer.com/article/10.1007/BF01210677).
+* R. Kubo.
+  [Generalized cumulant expansion method. *Journal of the Physical Society of Japan* **17**, 1100 (1962)](https://www.jstage.jst.go.jp/article/jpsj1946/17/7/17_7_1100/_article/-char/ja/).
+* A. K. Rajagopal and E. C. G. Sudarshan.
+  [Some generalizations of the Marcinkiewicz theorem and its implications to certain approximation schemes in many-particle physics. *Physical Review A* **10**, 1852 (1974)](https://journals.aps.org/pra/abstract/10.1103/PhysRevA.10.1852).
+* M. Kira and S. W. Koch.
+  [Cluster-expansion representation in quantum optics. *Physical Review A* **78**, 022102 (2008)](https://journals.aps.org/pra/abstract/10.1103/PhysRevA.78.022102).
   See also M. Kira and S. W. Koch, *Semiconductor Quantum Optics* (Cambridge
   University Press, 2011).
-* M. Bianucci and M. Bologna. "About the foundation of the Kubo Generalized
-  Cumulants theory. A revisited and corrected approach." *Journal of Statistical
-  Mechanics* (2020) 043405. URL:
-  [https://arxiv.org/abs/1911.09620](https://arxiv.org/abs/1911.09620)
-* D. Plankensteiner, C. Hotter and H. Ritsch. "QuantumCumulants.jl: A Julia
-  framework for generalized mean-field equations in open quantum systems."
-  *Quantum* **6**, 617 (2022). URL:
-  [https://doi.org/10.22331/q-2022-01-04-617](https://doi.org/10.22331/q-2022-01-04-617)
+* M. Bianucci and M. Bologna.
+  [About the foundation of the Kubo Generalized Cumulants theory. A revisited and corrected approach. *Journal of Statistical Mechanics* (2020) 043405](https://arxiv.org/abs/1911.09620).
+* D. Plankensteiner, C. Hotter and H. Ritsch.
+  [QuantumCumulants.jl: A Julia framework for generalized mean-field equations in open quantum systems. *Quantum* **6**, 617 (2022)](https://doi.org/10.22331/q-2022-01-04-617).
+* O. Rubies-Bigorda, S. Ostermann and S. F. Yelin.
+  [Characterizing superradiant dynamics in atomic arrays via a cumulant expansion approach. *Physical Review Research* **5**, 013091 (2023)](https://doi.org/10.1103/PhysRevResearch.5.013091).
+* M. Fasser, C. Genes, H. Ritsch and R. Holzinger.
+  [Benchmarking the Cumulant Expansion Method Using Dicke Superradiance. *Photonics* **12**, 996 (2025)](https://doi.org/10.3390/photonics12100996).
 * P. Fowler-Wright, K. B. Arnardóttir, P. Kirton, B. W. Lovett and J. Keeling.
-  "Determining the validity of cumulant expansions for central spin models."
-  *Physical Review Research* **5**, 033148 (2023). URL:
-  [https://journals.aps.org/prresearch/abstract/10.1103/PhysRevResearch.5.033148](https://journals.aps.org/prresearch/abstract/10.1103/PhysRevResearch.5.033148)
-* W. Verstraelen, D. Huybrechts, T. Roscilde and M. Wouters. "Quantum and
-  classical correlations in open quantum-spin lattices via truncated-cumulant
-  trajectories." *PRX Quantum* **4**, 030304 (2023). URL:
-  [https://journals.aps.org/prxquantum/abstract/10.1103/PRXQuantum.4.030304](https://journals.aps.org/prxquantum/abstract/10.1103/PRXQuantum.4.030304)
-* C. D. Levermore. "Moment closure hierarchies for kinetic theories." *Journal of
-  Statistical Physics* **83**, 1021 (1996). URL:
-  [https://link.springer.com/article/10.1007/BF02179552](https://link.springer.com/article/10.1007/BF02179552)
-* D. S. Goldobin and A. V. Dolmatova. "Ott-Antonsen ansatz truncation of a
-  circular cumulant series." *Physical Review Research* **1**, 033139 (2019). URL:
-  [https://journals.aps.org/prresearch/abstract/10.1103/PhysRevResearch.1.033139](https://journals.aps.org/prresearch/abstract/10.1103/PhysRevResearch.1.033139)
-* J. Kerber, H. Ritsch and L. Ostermann. "The Cumulants Expansion Approach: The
-  Good, The Bad and The Ugly." arXiv:2511.20115 (2025). URL:
-  [https://arxiv.org/abs/2511.20115](https://arxiv.org/abs/2511.20115)
-* Chen et al. "Convergence of the Cumulant Expansion and Polynomial-Time
-  Algorithm for Weakly Interacting Fermions." arXiv:2512.12010 (2025). URL:
-  [https://arxiv.org/abs/2512.12010](https://arxiv.org/abs/2512.12010)
+  [Determining the validity of cumulant expansions for central spin models. *Physical Review Research* **5**, 033148 (2023)](https://journals.aps.org/prresearch/abstract/10.1103/PhysRevResearch.5.033148).
+* W. Verstraelen, D. Huybrechts, T. Roscilde and M. Wouters.
+  [Quantum and classical correlations in open quantum-spin lattices via truncated-cumulant trajectories. *PRX Quantum* **4**, 030304 (2023)](https://journals.aps.org/prxquantum/abstract/10.1103/PRXQuantum.4.030304).
+* C. D. Levermore.
+  [Moment closure hierarchies for kinetic theories. *Journal of Statistical Physics* **83**, 1021 (1996)](https://link.springer.com/article/10.1007/BF02179552).
+* D. S. Goldobin and A. V. Dolmatova.
+  [Ott-Antonsen ansatz truncation of a circular cumulant series. *Physical Review Research* **1**, 033139 (2019)](https://journals.aps.org/prresearch/abstract/10.1103/PhysRevResearch.1.033139).
+* J. Kerber, H. Ritsch and L. Ostermann.
+  [The Cumulants Expansion Approach: The Good, The Bad and The Ugly. arXiv:2511.20115 (2025)](https://arxiv.org/abs/2511.20115).
+* Chen et al.
+  [Convergence of the Cumulant Expansion and Polynomial-Time Algorithm for Weakly Interacting Fermions. arXiv:2512.12010 (2025)](https://arxiv.org/abs/2512.12010).
