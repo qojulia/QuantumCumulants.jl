@@ -92,7 +92,7 @@ makedocs(
     # SecondQuantizedAlgebra docstrings (e.g. `(i::Index)(k)`) and must be fixed upstream.
     warnonly = [:cross_references],
     format = Documenter.HTML(
-        mathengine = MathJax(),
+        mathengine = KaTeX(),
         footer = "[**Back to GitHub**](https://github.com/qojulia/QuantumCumulants.jl)",
         example_size_threshold = 800 * 2^10,
         size_threshold_warn = 400 * 2^10,
