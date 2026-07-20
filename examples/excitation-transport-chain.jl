@@ -39,7 +39,7 @@ h = ⊗([NLevelSpace(Symbol(:atom, i), (:g, :e)) for i in 1:N]...)
 σ(i, j, k) = Transition(h, Symbol(:σ_, k), i, j, k) # Operators
 
 
-@variables Ω γ w Δ J0 # Define the symbolic parameters and the interaction
+@variables Ω γ Δ J0 # Define the symbolic parameters and the interaction
 x = [first(@variables $(Symbol("x_$i"))) for i in 1:N]
 J(xᵢ, xⱼ) = J0 / abs(xᵢ - xⱼ)^3
 

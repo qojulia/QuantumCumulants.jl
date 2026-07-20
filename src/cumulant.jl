@@ -209,92 +209,144 @@ function _expand_average(ops::QField, order; mix_choice = maximum)
     ops isa QAdd || return average(ops)
     terms = Any[]
     for (term, coeff) in ops.arguments
-        piece = _im_form(_coeff_num(coeff)) * _expand_product(term.ops, order; mix_choice)
-        piece = _stamp_sum_to_first_leaves(piece, ops.indices, term.ne)
-        push!(terms, piece)
+        c = _im_form(_coeff_num(coeff))
+        expanded = _expand_product(term.ops, order; mix_choice)
+        push!(terms, _reattach_scope(c, expanded, ops.indices, term.ne))
     end
     return _bulk_add(terms)
 end
 
 """
-Re-attach the outer sum scope lost during cumulant factorisation. After
-`Σ_{i_1,…,i_k} ⟨A_1⟩⟨A_2⟩⋯` factorises, the indexed sum is dropped because the
-factored-out product is no longer one average. Stamp each bound index onto the first
-averaged leaf in the product that references it, rebuilding that leaf as a canonical
-`average(Σ(op, idx…))` indexed-sum node. Bound indices that appear in no leaf are treated
-as spurious (factor 1 in `scale`'s prefactor logic), matching SQA's convention for
-leftover scope.
+Put the sum `Σ_{i_1,…,i_k}` back around a moment that the cumulant expansion has just
+factorised. A summand `Σ_{i_1,…,i_k} c·⟨A_1 A_2 ⋯⟩` above the truncation order is replaced
+by its mean-field factorisation `c·⟨A_1⟩⟨A_2⟩⋯`; the single-site moments ⟨A_1⟩, ⟨A_2⟩ and
+the coupling `c` now sit side by side as a plain product, and the fact that they were summed
+over the sites `i_1,…,i_k` is lost, leaving those site labels dangling (issue #198).
+
+Reattach the sum: distribute `c` over the factorised terms, and in each term collect every
+factor that carries a summed site (a single-site moment ⟨A_i⟩, or a site-dependent coupling
+like `J(i,j)`) back under one `Σ` over exactly the sites it uses. Factors carrying no summed
+site (a plain c-number, or a moment on a different, unsummed subsystem) stay outside the
+sum, so mean-field products that are physically identical still cancel between the `+`/`−`
+terms of the equation of motion (`⟨a†a⟩·Σ_i⟨σ_i⟩`). A site label that no factor uses is
+spurious and dropped.
 """
-function _stamp_sum_to_first_leaves(piece, indices::Vector{SQA.Index}, non_equal)
-    isempty(indices) && return piece
-    piece isa SymbolicUtils.BasicSymbolic || return piece
-    # Recurse per additive term: the sum scope distributes over `+`, so every Wick term
-    # that references a bound index must carry it on its own leaf, not just the first
-    # term's (else e.g. `⟨a'σ_i⟩⟨a⟩` loses its `Σ_i` while `⟨σ_i⟩⟨a'a⟩` keeps it).
-    if SymbolicUtils.iscall(piece) && SymbolicUtils.operation(piece) === (+)
-        terms = SymbolicUtils.arguments(piece)
-        stamped = Any[_stamp_sum_to_first_leaves(t, indices, non_equal) for t in terms]
-        return _bulk_add(stamped)
+function _reattach_scope(c, expanded, indices::Vector{SQA.Index}, non_equal)
+    isempty(indices) && return c * expanded
+    out = Any[]
+    for t in _add_terms(expanded)
+        factors = Any[c]
+        append!(factors, _mul_factors(t))
+        push!(out, _group_scope(factors, indices, non_equal))
     end
-    leaves = eachleaf(piece)
-    isempty(leaves) && return piece
-    leaf_idx_assign = [SQA.Index[] for _ in leaves]
-    leaf_non_equal_assign = [Tuple{SQA.Index, SQA.Index}[] for _ in leaves]
+    return _bulk_add(out)
+end
+
+"""The terms of a sum expression (its `+`-summands, or `x` itself when it is not a sum)."""
+_add_terms(x) =
+    (x isa SymbolicUtils.BasicSymbolic && SymbolicUtils.iscall(x) && SymbolicUtils.operation(x) === (+)) ?
+    collect(SymbolicUtils.arguments(x)) : Any[x]
+
+"""The factors of a product (its `*`-factors, or `x` itself when it is not a product)."""
+_mul_factors(x) =
+    (x isa SymbolicUtils.BasicSymbolic && SymbolicUtils.iscall(x) && SymbolicUtils.operation(x) === (*)) ?
+    collect(SymbolicUtils.arguments(x)) : Any[x]
+
+"""
+Which summation indices `f` depends on: the site labels of a moment ⟨A_i⟩, or the indices a
+site-dependent coupling is a function of (a `DoubleIndexedVariable` `J(i,j)` depends on both
+`i` and `j`).
+"""
+function _factor_indices(f, indices::Vector{SQA.Index})
+    # Unwrap `Num` so a site-dependent coupling isn't dropped as scope-free (#198).
+    fu = f isa Symbolics.Num ? SymbolicUtils.unwrap(f) : f
+    # A moment leaf carries its site labels in `get_indices`; a c-number coupling exposes them
+    # through `_coeff_vars` (which also handles `Num`/`Complex`). Plain numbers carry none.
+    opinds = fu isa SymbolicUtils.BasicSymbolic ? SQA.get_indices(fu) : SQA.Index[]
+    vars = (fu isa SymbolicUtils.BasicSymbolic && _is_avg_leaf(fu)) ? () : _coeff_vars(fu)
+    out = SQA.Index[]
     for idx in indices
-        slot = _first_leaf_using(leaves, idx)
-        slot === nothing && continue
-        push!(leaf_idx_assign[slot], idx)
+        (idx in opinds) && (push!(out, idx); continue)
+        isym = SymbolicUtils.unwrap(SQA.index_sym(idx))
+        any(v -> isequal(v, isym), vars) && push!(out, idx)
     end
-    # Keep a non-equal pair if both indices land on this leaf, or one does and its
-    # partner is external (a `Σ_{j≠ext}` constraint); a pair split across two bound
-    # leaves is dropped (the bound-vs-bound truncation case).
-    for (slot, bidxs) in enumerate(leaf_idx_assign)
-        isempty(bidxs) && continue
-        for pair in non_equal
-            a_in = pair[1] in bidxs
-            b_in = pair[2] in bidxs
-            keep = (a_in && b_in) ||
-                (a_in && !(pair[2] in indices)) ||
-                (b_in && !(pair[1] in indices))
-            keep && push!(leaf_non_equal_assign[slot], pair)
-        end
-    end
-    sub = IdDict{Any, Any}()
-    for (i, leaf) in enumerate(leaves)
-        isempty(leaf_idx_assign[i]) && continue
-        # Rebuild as the canonical `average(SQA.Σ(op, idx…))` indexed-sum node so it shares
-        # structure with sums emitted elsewhere and cancels with them
-        # (`Σ_i⟨σ_i⟩⟨a†a⟩ - ⟨a†a⟩Σ_i⟨σ_i⟩ = 0`).
-        op = undo_average(leaf)
-        idxs = leaf_idx_assign[i]
-        summed = SQA.Σ(op, idxs[1], idxs[2:end]...)
-        # `SQA.Σ` over a plain operator carries no non-equal index constraint; merge the
-        # per-leaf pairs into the summed term so `average` keeps them in the sum's scope.
-        isempty(leaf_non_equal_assign[i]) ||
-            (summed = _carry_non_equal(summed, leaf_non_equal_assign[i], idxs))
-        new_leaf = SymbolicUtils.unwrap(average(summed))
-        sub[leaf] = new_leaf
-    end
-    isempty(sub) && return piece
-    return _substitute_by_identity(piece, sub)
+    return out
 end
 
-function _first_leaf_using(leaves, idx::SQA.Index)
-    for (i, leaf) in enumerate(leaves)
-        op = SQA.undo_average(leaf)
-        if op isa QAdd
-            for (term, _) in op.arguments, o in term.ops
-                if SQA.has_index(o.index) && o.index == idx
-                    return i
-                end
-            end
+"""
+Reattach the sum for one factorised term. Factors are grouped so that everything sharing a
+site sums together: a site-dependent coupling `J(i,j)` and the moments ⟨A_i⟩, ⟨A_j⟩ it
+multiplies go under one `Σ_{i,j}`, while moments on unrelated sites keep independent sums
+`Σ_i·Σ_j`. Two sites tied by a `≠` constraint (`Σ_{i≠j}`) are grouped as well, so the
+constraint rides on that sum. Factors that carry no summed site multiply the sums from
+outside.
+"""
+function _group_scope(factors, indices::Vector{SQA.Index}, non_equal)
+    used = [_factor_indices(f, indices) for f in factors]
+    # Fast path (the common case): a single summation index needs no grouping. The factors
+    # that use it go under one `Σ`; the rest multiply from outside.
+    if length(indices) == 1
+        any(!isempty, used) || return _bulk_mul(factors)
+        inside = Any[f for (f, u) in zip(factors, used) if !isempty(u)]
+        outside = Any[f for (f, u) in zip(factors, used) if isempty(u)]
+        sumnode = _make_indexed_sum(
+            SymbolicUtils.unwrap(_bulk_mul(inside)), copy(indices),
+            _scope_non_equal(non_equal, indices, indices),
+        )
+        push!(outside, sumnode)
+        return _bulk_mul(outside)
+    end
+    # Merge sites into shared groups: two sites belong together if some factor depends on
+    # both (a coupling `J(i,j)`) or a `≠` constraint links them. `find`/`link!` are the
+    # standard union-find over the (few) summation indices.
+    parent = Dict{SQA.Index, SQA.Index}(idx => idx for idx in indices)
+    find(x) = parent[x] == x ? x : (parent[x] = find(parent[x]))
+    link!(a, b) = (parent[find(a)] = find(b))
+    for fu in used, m in 2:length(fu)
+        link!(fu[1], fu[m])
+    end
+    for (p, q) in non_equal
+        (p in indices && q in indices) && link!(p, q)
+    end
+    outside = Any[]
+    members = OrderedCollections.OrderedDict{SQA.Index, Vector{Any}}()
+    grp_inds = Dict{SQA.Index, Vector{SQA.Index}}()
+    for (f, fu) in zip(factors, used)
+        if isempty(fu)
+            push!(outside, f)
+            continue
+        end
+        r = find(fu[1])
+        push!(get!(() -> Any[], members, r), f)
+        gi = get!(() -> SQA.Index[], grp_inds, r)
+        for idx in fu
+            idx in gi || push!(gi, idx)
         end
     end
-    return nothing
+    isempty(members) && return _bulk_mul(factors)
+    result = copy(outside)
+    for (r, fs) in members
+        gi = SQA.Index[idx for idx in indices if idx in grp_inds[r]]
+        ne = _scope_non_equal(non_equal, gi, indices)
+        # One Σ over this group's sites, wrapping the coupled factors (coupling + moments).
+        body = _bulk_mul(fs)
+        push!(result, _make_indexed_sum(SymbolicUtils.unwrap(body), gi, ne))
+    end
+    return _bulk_mul(result)
 end
 
-# Substitute by object identity (the leaves were obtained from `piece` itself).
-_substitute_by_identity(x, sub::IdDict) = _subtree_substitute(x, sub)
+"""
+The `≠` constraints a sum over the sites `gi` must carry: a pair with both sites in this
+group, or one site here whose partner is an external (unsummed) label (a `Σ_{j≠ext}`
+constraint). A pair whose two sites landed in different groups cannot be written on a single
+sum and is dropped.
+"""
+_scope_non_equal(non_equal, gi, indices) = Tuple{SQA.Index, SQA.Index}[
+    p for p in non_equal if
+        (p[1] in gi && p[2] in gi) ||
+        (p[1] in gi && !(p[2] in indices)) ||
+        (p[2] in gi && !(p[1] in indices))
+]
 
 """
 The cumulant-truncation kernel: rewrite ⟨a product of `args`⟩ that exceeds `order` as

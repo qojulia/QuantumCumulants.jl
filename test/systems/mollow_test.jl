@@ -28,7 +28,7 @@ using Test
         -0.33088938061453155 + 0.016559911920571824im; rtol = 1.0e-5,
     )
     c = CorrelationFunction(σ(:e, :g), σ(:g, :e), eqs; steady_state = true)
-    @test length(c.eqs.equations) == 5
+    @test length(c.eqs.equations) == 3
     ps_tup = (Δ, Ω, γ)
     p0 = (0.0, 2.0, 1.0)
     sys = mtkcompile(System(eqs; name = :mollow_steady))

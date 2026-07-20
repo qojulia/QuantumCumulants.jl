@@ -23,6 +23,7 @@ using Plots
 
 # The Hilbert space for this system is given by one cavity mode and $N$ two-level atoms. Here we use symbolic indices, sums and double sums to define the system.
 # The parameters $g_j, \, \Gamma_{ij}$ and $\Omega_{ij}$ are defined as indexed variables of atom $i$ and $j$. We will describe the system in first order mean-field.
+# Because $\Gamma_{ij}$ and $\Omega_{ij}$ depend on both atom labels, they enter the double sums as index-dependent coefficients; this per-pair dependence is carried through the cumulant expansion and [`evaluate`](@ref) without losing the summation scope.
 
 hc = FockSpace(:cavity) # Hilbert space
 ha = NLevelSpace(Symbol(:atom), 2)

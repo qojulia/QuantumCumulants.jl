@@ -188,3 +188,33 @@ end
     mut = modify_equations!(input, f)
     assert_pair_identical(nonmut, mut)
 end
+
+# ---- substitute / substitute! -------------------------------------------------
+
+@testset "substitute vs substitute! (deterministic)" begin
+    @variables ω U marker
+    dict = Dict(ω => marker, U => 0)
+    nonmut = SymbolicUtils.substitute(complete(_det_eqs()), dict)
+    input = complete(_det_eqs())
+    mut = substitute!(input, dict)
+    @test mut === input
+    assert_pair_identical(nonmut, mut)
+end
+
+@testset "substitute leaves its input untouched" begin
+    @variables ω marker
+    input = complete(_det_eqs())
+    snapshot = complete(_det_eqs())
+    SymbolicUtils.substitute(input, Dict(ω => marker))
+    assert_unchanged(input, snapshot)
+end
+
+@testset "substitute vs substitute! (noise)" begin
+    @variables κ marker
+    dict = Dict(κ => marker)
+    nonmut = SymbolicUtils.substitute(complete(_noise_eqs()), dict)
+    @test nonmut isa NoiseMeanfieldEquations
+    input = complete(_noise_eqs())
+    mut = substitute!(input, dict)
+    assert_pair_identical(nonmut, mut)
+end

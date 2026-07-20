@@ -188,3 +188,38 @@ function modify_equations!(eqs::AbstractMeanfieldEquations, f::Function)
     resync!(eqs; moments_unchanged = true)
     return eqs
 end
+
+# ---- substitute into the RHS ----
+
+"""
+    substitute(eqs::AbstractMeanfieldEquations, dict::AbstractDict)
+    substitute!(eqs::AbstractMeanfieldEquations, dict::AbstractDict)
+
+Substitute `dict` into every RHS of `eqs` (and into the noise drift RHSs of a
+`NoiseMeanfieldEquations`). Keys of `dict` are symbolic expressions to replace: parameters,
+or averages known to vanish (e.g. by symmetry), so that zeroing them closes the hierarchy
+onto the remaining moments. `substitute!` mutates `eqs`; `substitute` returns a fresh struct.
+
+Only the drifts are rewritten; the moment set (the LHS states and operators) is unchanged. To
+also drop the substituted moments as unknowns, complete onto the reduced subset (e.g. with a
+`filter_func`) or rebuild `meanfield` on it.
+
+```julia
+# close a phase-invariant model onto ⟨σ⁺ᵢσ⁻ⱼ⟩ by asserting the single-operator averages vanish
+eqs = meanfield(ops, H, J; rates, order = 2)
+eqs = substitute(eqs, Dict(average(σ(2, 1, i)) => 0 for i in 1:N))
+```
+"""
+function substitute!(eqs::AbstractMeanfieldEquations, dict::AbstractDict)
+    # `_subtree_substitute` rewrites only the matched subtrees, leaving the shape
+    # metadata of the untouched averages intact. `Symbolics.substitute` rebuilds
+    # the whole expression and strips the scalar shape off every `⟨…⟩`, which then
+    # no longer matches the (scalar) LHS averages and breaks downstream simplify.
+    sub = Dict(SymbolicUtils.unwrap(k) => SymbolicUtils.unwrap(v) for (k, v) in dict)
+    eqs.graph = map_drifts(eqs.graph, (_, d) -> _subtree_substitute(SymbolicUtils.unwrap(d), sub))
+    resync!(eqs; moments_unchanged = true)
+    return eqs
+end
+
+SymbolicUtils.substitute(eqs::AbstractMeanfieldEquations, dict::AbstractDict) =
+    substitute!(_copy(eqs), dict)
