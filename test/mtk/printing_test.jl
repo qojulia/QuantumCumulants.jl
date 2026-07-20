@@ -76,10 +76,10 @@ end
     hc = FockSpace(:cavity)
     a = Destroy(hc, :a)
     @variables ω κ
-    # Two rows exercise the tightened `\\[-0.3em]` separator.
+    # Two rows exercise the tightened `\\[-0.0em]` separator.
     eqs = meanfield([a, a'], ω * a' * a, [a]; rates = [κ])
     @test repr(MIME("text/latex"), eqs) == "\$\$\n\\begin{aligned}\n" *
-        "\\partial_{t} \\langle a \\rangle &= \\langle a \\rangle \\left(  - 0.5 \\kappa - i \\omega \\right) \\\\[-0.3em]\n" *
+        "\\partial_{t} \\langle a \\rangle &= \\langle a \\rangle \\left(  - 0.5 \\kappa - i \\omega \\right) \\\\[-0.0em]\n" *
         "\\partial_{t} \\langle a^{\\dagger} \\rangle &= \\langle a^{\\dagger} \\rangle \\left(  - 0.5 \\kappa + i \\omega \\right)\n" *
         "\\end{aligned}\n\n\$\$"
 end
