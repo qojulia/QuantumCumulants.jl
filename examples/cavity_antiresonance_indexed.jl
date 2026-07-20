@@ -29,7 +29,7 @@ hc = FockSpace(:cavity) # Hilbert space
 ha = NLevelSpace(Symbol(:atom), 2)
 h = hc ⊗ ha
 
-@variables N Δc η Δa κ # Parameters
+@variables N Δc η Δₐ κ # Parameters
 g(i) = IndexedVariable(:g, i)
 Γ(i, j) = DoubleIndexedVariable(:Γ, i, j)
 Ω(i, j) = DoubleIndexedVariable(:Ω, i, j; identical = false)
@@ -59,7 +59,7 @@ nothing # hide
 # `non_equal` vector `[i]` to the inner `Σ` (SQA v0.5 replaced the old
 # `non_equal=true` keyword with this explicit form).
 Hc = Δc * a'a + η * (a' + a) # Hamiltonian
-Ha = Δa * Σ(σ(2, 2, i), i) + Σ(Σ(Ω(i, j) * σ(2, 1, i) * σ(1, 2, j), j, [i]), i)
+Ha = Δₐ * Σ(σ(2, 2, i), i) + Σ(Σ(Ω(i, j) * σ(2, 1, i) * σ(1, 2, j), j, [i]), i)
 Hi = Σ(g(i) * (a' * σ(1, 2, i) + a * σ(2, 1, i)), i)
 H = Hc + Ha + Hi
 
@@ -95,7 +95,7 @@ d = 2π * 0.08 #0.08λ
 
 g_ = 2Γ_
 κ_ = 20Γ_
-Δa_ = 0Γ_
+Δₐ_ = 0Γ_
 Δc_ = 0Γ_
 η_ = κ_ / 100
 
@@ -107,10 +107,10 @@ gi_ = [g_ * (-1)^k for k in 1:N_]
 n_ls = zeros(length(Δ_ls))
 for k in eachindex(Δ_ls)
     Δc_i = Δ_ls[k]
-    Δa_i = Δc_i + Ωij(1, 2)
+    Δₐ_i = Δc_i + Ωij(1, 2)
     p = parameter_map(
         eqs_, Dict(
-            Δc => Δc_i, η => η_, Δa => Δa_i, κ => κ_,
+            Δc => Δc_i, η => η_, Δₐ => Δₐ_i, κ => κ_,
             g(i) => gi_, Γ(i, j) => Γij_, Ω(i, j) => Ωij_,
         )
     )

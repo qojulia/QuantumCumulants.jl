@@ -62,19 +62,40 @@ end
     @test occursin(")(ω)", s)
 end
 
-@testset "show MIME text/latex: MeanfieldEquations" begin
-    eqs = _damped_cavity_eqs()
-    s = repr(MIME("text/latex"), eqs)
-    # Equations render as a display-math `aligned` environment so Documenter/Markdown does
-    # not mangle the subscripts (see `_latex_display`).
-    @test occursin("begin{aligned}", s)
-    @test startswith(s, "\$\$") && endswith(rstrip(s), "\$\$")
+@testset "show MIME text/latex: MeanfieldEquations (single row)" begin
+    hc = FockSpace(:cavity)
+    a = Destroy(hc, :a)
+    @variables ω κ
+    eqs = meanfield([a], ω * a' * a, [a]; rates = [κ])
+    @test repr(MIME("text/latex"), eqs) == "\$\$\n\\begin{aligned}\n" *
+        "\\partial_{t} \\langle a \\rangle &= \\langle a \\rangle \\left(  - 0.5 \\kappa - i \\omega \\right)\n" *
+        "\\end{aligned}\n\n\$\$"
+end
+
+@testset "show MIME text/latex: MeanfieldEquations (row break)" begin
+    hc = FockSpace(:cavity)
+    a = Destroy(hc, :a)
+    @variables ω κ
+    # Two rows exercise the tightened `\\[-0.3em]` separator.
+    eqs = meanfield([a, a'], ω * a' * a, [a]; rates = [κ])
+    @test repr(MIME("text/latex"), eqs) == "\$\$\n\\begin{aligned}\n" *
+        "\\partial_{t} \\langle a \\rangle &= \\langle a \\rangle \\left(  - 0.5 \\kappa - i \\omega \\right) \\\\[-0.3em]\n" *
+        "\\partial_{t} \\langle a^{\\dagger} \\rangle &= \\langle a^{\\dagger} \\rangle \\left(  - 0.5 \\kappa + i \\omega \\right)\n" *
+        "\\end{aligned}\n\n\$\$"
 end
 
 @testset "show MIME text/latex: NoiseMeanfieldEquations" begin
-    eqs = _noise_eqs()
-    s = repr(MIME("text/latex"), eqs)
-    @test !isempty(s)
+    hc = FockSpace(:cavity)
+    a = Destroy(hc, :a)
+    @variables ω κ η
+    # The noise term renders as a factored `dW/dt`, not `\frac{coeff·dW}{dt}`.
+    eqs = meanfield([a], ω * a' * a, [a]; rates = [κ], efficiencies = [η], order = 2)
+    @test repr(MIME("text/latex"), eqs) == "\$\$\n\\begin{aligned}\n" *
+        "\\partial_{t} \\langle a \\rangle &= \\langle a \\rangle \\left(  - 0.5 \\kappa - i \\omega \\right) + " *
+        "\\frac{\\mathrm{d}W}{\\mathrm{d}t} \\left( \\langle aa \\rangle \\sqrt{\\eta \\kappa} + " *
+        "\\langle a^{\\dagger}a \\rangle \\sqrt{\\eta \\kappa} + " *
+        "\\left(  - \\langle a \\rangle - \\langle a^{\\dagger} \\rangle \\right) \\langle a \\rangle \\sqrt{\\eta \\kappa} \\right)\n" *
+        "\\end{aligned}\n\n\$\$"
 end
 
 @testset "show MIME text/latex: CorrelationFunction" begin

@@ -49,9 +49,9 @@ h = ⊗([PauliSpace(Symbol(:spin, i)) for i in 1:N]...)
 σz(i) = Pauli(h, :σ, 3, i)
 σm(i) = (σx(i) - 1im * σy(i)) / 2 # lowering operator |g><e| on site i
 
-@variables J hx γ
+@variables J hₓ γ
 
-H = -J * sum(σz(i) * σz(i + 1) for i in 1:(N - 1)) - hx * sum(σx(i) for i in 1:N)
+H = -J * sum(σz(i) * σz(i + 1) for i in 1:(N - 1)) - hₓ * sum(σx(i) for i in 1:N)
 c_ops = [σm(i) for i in 1:N]
 nothing # hide
 
@@ -78,7 +78,7 @@ nothing # hide
 # obtained directly from this product state with `initial_values(eqs, ψ₀)`, which converts the
 # [QuantumOptics.jl](https://qojulia.org) state into the correct moments.
 
-p = Dict(J => 1.0, hx => 1.0, γ => 0.2)
+p = Dict(J => 1.0, hₓ => 1.0, γ => 0.2)
 ψ0 = tensor([spinup(SpinBasis(1 // 2)) for _ in 1:N]...)
 
 function solve_cumulant(eqs; tend = 20.0)
@@ -104,7 +104,7 @@ nothing # hide
 # [`to_numeric`](@ref).
 
 b = tensor([SpinBasis(1 // 2) for _ in 1:N]...)
-Hn = to_numeric(-p[J] * sum(σz(i) * σz(i + 1) for i in 1:(N - 1)) - p[hx] * sum(σx(i) for i in 1:N), b)
+Hn = to_numeric(-p[J] * sum(σz(i) * σz(i + 1) for i in 1:(N - 1)) - p[hₓ] * sum(σx(i) for i in 1:N), b)
 Jn = [to_numeric(σm(i), b) for i in 1:N]
 
 tout, ρt = timeevolution.master(collect(0:0.1:20.0), ψ0, Hn, Jn; rates = [p[γ] for _ in 1:N])

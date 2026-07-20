@@ -26,12 +26,12 @@ hf = FockSpace(:f)
 h = ha ⊗ hb ⊗ hf
 
 @qnumbers a::Destroy(h, 1) b::Destroy(h, 2) f::Destroy(h, 3)
-@variables Δa Δb Δf g κa κb κf
+@variables Δₐ Δb Δf g κₐ κb κf
 
-H = Δa * a' * a + Δb * b' * b + Δf * f' * f + g * (a' * b * f + a * b' * f')
+H = Δₐ * a' * a + Δb * b' * b + Δf * f' * f + g * (a' * b * f + a * b' * f')
 
 J = [a, b, f] # photon loss from each mode
-rates = [κa, κb, κf]
+rates = [κₐ, κb, κf]
 nothing # hide
 
 # We now build the filter. The phase function $\varphi$ assigns to each operator its weight under the $U(1)$ rotation. The only change compared to the unweighted case is that an annihilation or creation operator contributes $\mp w$, where $w$ is the weight of the mode it acts on. We read the mode off the operator's `space_index` and look the weight up in a dictionary.
@@ -84,7 +84,7 @@ sys = complete(sys)
 
 u0 = zeros(ComplexF64, length(eqs_c))
 u0[1] = 4.0 # ⟨a'a⟩(0) = 4, all other averages zero
-ps = [Δa => 0.0, Δb => 0.0, Δf => 0.0, g => 1.0, κa => 0.1, κb => 0.2, κf => 0.2]
+ps = [Δₐ => 0.0, Δb => 0.0, Δf => 0.0, g => 1.0, κₐ => 0.1, κb => 0.2, κf => 0.2]
 
 prob = ODEProblem(sys, merge(initial_values(eqs_c, u0), Dict(ps)), (0.0, 30.0))
 sol = solve(prob, Tsit5())

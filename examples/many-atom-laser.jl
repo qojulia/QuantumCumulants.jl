@@ -29,7 +29,7 @@ using Plots
 # Then we define the symbolic parameters of the system, the Hilbertspace and the necessary operators. We define an atomic transition operator function $\sigma(i,j,k)$ for the transition from $|j \rangle$ to $|i \rangle$ of atom $k$. Since we only have one [`FockSpace`](@ref) we do not need to specify the Hilbertspace on which the [`Destroy`](@ref) operator acts. For the different atomic transitions, however, we need to specify this, since there is more than one [`NLevelSpace`](@ref). This information is stored in the `.aon` field of each operator.
 
 N = 2 # number of atoms
-@variables κ g Γ23 Γ13 Γ12 Ω Δc Δ3
+@variables κ g Γ₂₃ Γ₁₃ Γ₁₂ Ω Δc Δ₃
 
 hf = FockSpace(:cavity) # Hilbertspace
 ha = ⊗([NLevelSpace(Symbol(:atom, i), 3) for i in 1:N]...)
@@ -44,11 +44,11 @@ nothing # hide
 H =
     -Δc * a'a +
     sum(g * (a' * σ(1, 2, i) + a * σ(2, 1, i)) for i in 1:N) +
-    sum(Ω * (σ(3, 1, i) + σ(1, 3, i)) for i in 1:N) - sum(Δ3 * σ(3, 3, i) for i in 1:N) # Hamiltonian
+    sum(Ω * (σ(3, 1, i) + σ(1, 3, i)) for i in 1:N) - sum(Δ₃ * σ(3, 3, i) for i in 1:N) # Hamiltonian
 
 J = [a; [σ(1, 2, i) for i in 1:N]; [σ(1, 3, i) for i in 1:N]; [σ(2, 3, i) for i in 1:N]] # Jumps
 
-rates = [κ; [Γ12 for i in 1:N]; [Γ13 for i in 1:N]; [Γ23 for i in 1:N]] # Rates
+rates = [κ; [Γ₁₂ for i in 1:N]; [Γ₁₃ for i in 1:N]; [Γ₂₃ for i in 1:N]] # Rates
 nothing # hide
 
 # Later we will complete the system automatically, which has the disadvantage that the equations are not ordered. Therefore we define a list of interesting operators, which we want to use later. Note that at least one operator(-product) is needed. We derive the equations for these operators, average them, and automatically complete the system of equations.
@@ -71,17 +71,17 @@ nothing # hide
 
 u0 = initial_values(eqs) # initial state
 
-Γ12n = 1.0
-Γ23n = 20Γ12n
-Γ13n = 2Γ12n
-Ωn = 5Γ13n
-gn = 2Γ12n
+Γ₁₂n = 1.0
+Γ₂₃n = 20Γ₁₂n
+Γ₁₃n = 2Γ₁₂n
+Ωn = 5Γ₁₃n
+gn = 2Γ₁₂n
 Δcn = 0.0
-Δ3n = 0.0
-κn = 0.5Γ12n
+Δ₃n = 0.0
+κn = 0.5Γ₁₂n
 
-ps = (g, Γ23, Γ13, Γ12, Ω, Δc, Δ3, κ) # list of parameters
-p0 = Dict(ps .=> (gn, Γ23n, Γ13n, Γ12n, Ωn, Δcn, Δ3n, κn))
+ps = (g, Γ₂₃, Γ₁₃, Γ₁₂, Ω, Δc, Δ₃, κ) # list of parameters
+p0 = Dict(ps .=> (gn, Γ₂₃n, Γ₁₃n, Γ₁₂n, Ωn, Δcn, Δ₃n, κn))
 tend = 10.0 / κn
 
 prob = ODEProblem(sys_c, merge(u0, p0), (0.0, tend))

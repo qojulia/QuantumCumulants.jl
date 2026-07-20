@@ -15,7 +15,7 @@ using Random # hide
 
 # $H=\omega_c\hat a^\dagger\hat a+\omega_a\sum_j\sigma^{22}_j+\hat a^\dagger\sigma^{12}_j+g\hat a\sigma^{21}_j.$
 
-@variables N ωa γ η χ ωc κ g ξ ωl
+@variables N ωₐ γ η χ ωc κ g ξ ωₗ
 @register_symbolic pulse(t)
 
 hc = FockSpace(:resonator)
@@ -31,16 +31,16 @@ k = Index(h, :k, N, ha)
 eqs_seed = meanfield(a, ωc * a' * a, [a]; rates = [κ])
 t = eqs_seed.iv
 
-H = ωc * a' * a + ωa * Σ(σ(2, 2, j), j) + g * a' * Σ(σ(1, 2, j), j) + g * a * Σ(σ(2, 1, j), j);
+H = ωc * a' * a + ωₐ * Σ(σ(2, 2, j), j) + g * a' * Σ(σ(1, 2, j), j) + g * a * Σ(σ(2, 1, j), j);
 
 # We include decay of the cavity mode, where we choose the decay operator to be $\hat a\exp(\rm{i}\omega_lt)$ for convenience (we will see later why this is reasonable, and you can convince yourself that it gives the same decay term as $\hat a$). The individual decay of the atoms with rate $\gamma$ is given by the decay operator $\sigma^{12}_j$.
 
 # We also include an incoherent pump $\sigma^{21}_j$ with amplitude $\eta$, which is a pulse that is on between $t_0$ and $t_0+t_1$. The last Lindblad term is a dephasing term with strength $\chi$ corresponding to the operator $\sigma^{22}_j$.
 
-J = [a * exp(1.0im * ωl * t), σ(1, 2, j), σ(2, 1, j), σ(2, 2, j)]
+J = [a * exp(1.0im * ωₗ * t), σ(1, 2, j), σ(2, 1, j), σ(2, 2, j)]
 rates = [κ, γ, η * pulse(t), 2 * χ]
 
-pulse(t) = (t > t0 && t < t0 + t1) * 1.0
+pulse(t) = (t > t₀ && t < t₀ + t₁) * 1.0
 nothing # hide
 
 # The measurement terms are included by defining measurement efficiencies for all decay channels. A channel with efficiency zero is ignored, i.e. not measured. The operator $\hat a\exp(\rm{i}\omega_lt)$ corresponding to heterodyne detection with local oscillator frequency $\omega_l$ is measured with efficiency $\xi$.
@@ -72,16 +72,16 @@ nothing # hide
 κ_ = 2π * 1.13e3
 ξ_ = 0.12
 N_ = 5.0e4
-ωa_ = 0.0
+ωₐ_ = 0.0
 γ_ = 2π * 0.375
 η_ = 2π * 20
 χ_ = 0.016
 g_ = 2π * 0.73
-ωl_ = 2π * 1.0e3
-t0 = 0.0
-t1 = 20.0e-3
-p = [N, ωa, γ, η, χ, ωc, κ, g, ξ, ωl]
-p0 = [N_, ωa_, γ_, η_, χ_, ωc_, κ_, g_, ξ_, ωl_]
+ωₗ_ = 2π * 1.0e3
+t₀ = 0.0
+t₁ = 20.0e-3
+p = [N, ωₐ, γ, η, χ, ωc, κ, g, ξ, ωₗ]
+p0 = [N_, ωₐ_, γ_, η_, χ_, ωc_, κ_, g_, ξ_, ωₗ_]
 T_end = 0.1 # 0.1ms
 nothing # hide
 
