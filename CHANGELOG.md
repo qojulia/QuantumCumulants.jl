@@ -2,6 +2,13 @@
 
 All notable changes to QuantumCumulants.jl will be documented in this file.
 
+## [0.6.1]
+
+### Documentation
+
+Added a documentation page, [Convergence and validity of the cumulant expansion](https://qojulia.github.io/QuantumCumulants.jl/stable/convergence/), collecting what is known about when a cumulant truncation can be trusted: the exactness of the expansion, the Marcinkiewicz obstruction and the special role of second order, the absence of a general convergence theorem, the good/bad/ugly benchmark behaviour, the central-spin non-monotonicity lessons, the connection to classical moment closure, the regimes in which the method is provably controlled, and practical guidance for users.
+
+
 ## [0.6.0]
 
 ### Fixed

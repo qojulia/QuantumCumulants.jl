@@ -28,6 +28,10 @@ NLevelSpace
 ```
 
 ```@docs
+CollectiveNLevelSpace
+```
+
+```@docs
 PauliSpace
 ```
 
@@ -50,6 +54,10 @@ tensor
 ## [q-Numbers](@id API: Operators)
 
 ```@docs
+SecondQuantizedAlgebra.QField
+```
+
+```@docs
 SecondQuantizedAlgebra.QSym
 ```
 
@@ -62,12 +70,22 @@ SecondQuantizedAlgebra.QTerm
 ```
 
 ```@docs
+SecondQuantizedAlgebra.QTermDict
+```
+
+```@docs
 SecondQuantizedAlgebra.Op
+```
+
+```@docs
+SecondQuantizedAlgebra.OpKind
 ```
 
 ```@docs
 SecondQuantizedAlgebra.prefactor
 SecondQuantizedAlgebra.operators
+SecondQuantizedAlgebra.sorted_arguments
+SecondQuantizedAlgebra.constraint_pairs
 ```
 
 ```@docs
@@ -103,6 +121,10 @@ Transition
 ```
 
 ```@docs
+CollectiveTransition
+```
+
+```@docs
 Pauli
 ```
 
@@ -121,9 +143,11 @@ Momentum
 ```@docs
 SecondQuantizedAlgebra.optype
 SecondQuantizedAlgebra.operator_name
+SecondQuantizedAlgebra.operator_index
 SecondQuantizedAlgebra.is_destroy
 SecondQuantizedAlgebra.is_create
 SecondQuantizedAlgebra.is_transition
+SecondQuantizedAlgebra.is_collective_transition
 SecondQuantizedAlgebra.is_pauli
 SecondQuantizedAlgebra.is_spin
 SecondQuantizedAlgebra.is_position
@@ -248,6 +272,9 @@ SecondQuantizedAlgebra.index_slot
 SecondQuantizedAlgebra.index_range
 SecondQuantizedAlgebra.index_name
 SecondQuantizedAlgebra.index_sym
+SecondQuantizedAlgebra.get_sum_indices
+SecondQuantizedAlgebra.get_sum_non_equal
+SecondQuantizedAlgebra.has_sum_metadata
 ```
 
 ```@docs
@@ -304,6 +331,7 @@ complete!
 
 ```@docs
 unique_ops
+SecondQuantizedAlgebra.unique_ops!
 ```
 
 ```@docs
