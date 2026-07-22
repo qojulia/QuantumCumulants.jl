@@ -90,12 +90,18 @@ end
     @variables ω κ η
     # The noise term renders as a factored `dW/dt`, not `\frac{coeff·dW}{dt}`.
     eqs = meanfield([a], ω * a' * a, [a]; rates = [κ], efficiencies = [η], order = 2)
-    @test repr(MIME("text/latex"), eqs) == "\$\$\n\\begin{aligned}\n" *
+    # The coefficient product ⟨a⟩·(−⟨a⟩−⟨a†⟩) is commutative, and SymbolicUtils orders
+    # its two factors differently across Julia versions (the Real-symtype sort key from
+    # SQA #217 diverges between 1.10 and 1.12), so accept either factor order.
+    prefix = "\$\$\n\\begin{aligned}\n" *
         "\\partial_{t} \\langle a \\rangle &= \\langle a \\rangle \\left(  - 0.5 \\kappa - i \\omega \\right) + " *
         "\\frac{\\mathrm{d}W}{\\mathrm{d}t} \\left( \\langle aa \\rangle \\sqrt{\\eta \\kappa} + " *
-        "\\langle a^{\\dagger}a \\rangle \\sqrt{\\eta \\kappa} + " *
-        "\\langle a \\rangle \\left(  - \\langle a \\rangle - \\langle a^{\\dagger} \\rangle \\right) \\sqrt{\\eta \\kappa} \\right)\n" *
-        "\\end{aligned}\n\n\$\$"
+        "\\langle a^{\\dagger}a \\rangle \\sqrt{\\eta \\kappa} + "
+    suffix = " \\sqrt{\\eta \\kappa} \\right)\n\\end{aligned}\n\n\$\$"
+    order_a = "\\langle a \\rangle \\left(  - \\langle a \\rangle - \\langle a^{\\dagger} \\rangle \\right)"
+    order_b = "\\left(  - \\langle a \\rangle - \\langle a^{\\dagger} \\rangle \\right) \\langle a \\rangle"
+    out = repr(MIME("text/latex"), eqs)
+    @test out == prefix * order_a * suffix || out == prefix * order_b * suffix
 end
 
 @testset "show MIME text/latex: CorrelationFunction" begin

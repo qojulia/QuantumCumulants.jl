@@ -88,6 +88,11 @@ makedocs(
     pages = pages,
     remotes = remotes,
     checkdocs = :exports,
+    # QuantumCumulants' own exports are checked strictly, but it re-exports the whole
+    # SecondQuantizedAlgebra surface and defers the low-level algebra/numeric-backend API
+    # to SQA's own docs (see implementation.md). Don't require every SQA export (e.g. the
+    # v0.10 `numeric_*` backend hooks) to be mirrored in this manual.
+    checkdocs_ignored_modules = [SecondQuantizedAlgebra],
     doctest = false,
     # cross_references stay non-fatal: the only unresolved refs come from
     # SecondQuantizedAlgebra docstrings (e.g. `(i::Index)(k)`) and must be fixed upstream.
