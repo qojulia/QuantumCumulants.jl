@@ -94,7 +94,7 @@ end
         "\\partial_{t} \\langle a \\rangle &= \\langle a \\rangle \\left(  - 0.5 \\kappa - i \\omega \\right) + " *
         "\\frac{\\mathrm{d}W}{\\mathrm{d}t} \\left( \\langle aa \\rangle \\sqrt{\\eta \\kappa} + " *
         "\\langle a^{\\dagger}a \\rangle \\sqrt{\\eta \\kappa} + " *
-        "\\left(  - \\langle a \\rangle - \\langle a^{\\dagger} \\rangle \\right) \\langle a \\rangle \\sqrt{\\eta \\kappa} \\right)\n" *
+        "\\langle a \\rangle \\left(  - \\langle a \\rangle - \\langle a^{\\dagger} \\rangle \\right) \\sqrt{\\eta \\kappa} \\right)\n" *
         "\\end{aligned}\n\n\$\$"
 end
 
