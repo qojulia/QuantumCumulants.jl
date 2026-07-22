@@ -24,18 +24,23 @@ using ExplicitImports
         ) === nothing
         @test check_no_self_qualified_accesses(QuantumCumulants) === nothing
 
-        @test check_all_explicit_imports_are_public(QuantumCumulants) === nothing
-        @test check_all_qualified_accesses_are_public(
-            QuantumCumulants;
-            ignore = (
-                :FnType, # SU.jl
-                :isconst, # SU.jl
-                :IM, # Symbolics.jl
-                :RefValue, # Base
-                :tobrownian, # MTK.jl
-                :toparam, # MTK.jl
-            ),
-        ) === nothing
+        # `public`-ness is only detectable on Julia 1.11+ (the `public` keyword);
+        # on older versions ExplicitImports sees every `@public`/`public` name as
+        # non-public, so these two checks are meaningful only there.
+        @static if VERSION >= v"1.11"
+            @test check_all_explicit_imports_are_public(QuantumCumulants) === nothing
+            @test check_all_qualified_accesses_are_public(
+                QuantumCumulants;
+                ignore = (
+                    :FnType, # SU.jl
+                    :isconst, # SU.jl
+                    :IM, # Symbolics.jl
+                    :RefValue, # Base
+                    :tobrownian, # MTK.jl
+                    :toparam, # MTK.jl
+                ),
+            ) === nothing
+        end
     end
 
     @testset "CheckConcreteStructs" begin
