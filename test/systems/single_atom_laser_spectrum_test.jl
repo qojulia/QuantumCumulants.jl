@@ -14,9 +14,9 @@ using Test
     H = Δ * a' * a + g * (a' * s + a * s')
     eq_n = meanfield(a' * a, H, [a, s, s']; rates = [κ, γ, ν], order = 2)
     eqs = complete(eq_n; filter_func = phase_invariant)
-    @test length(eqs.equations) == 4
+    @test length(eqs.equations) == 3
     sys_c = mtkcompile(System(eqs; name = :sal_sys))
-    @test length(unknowns(sys_c)) == 4
+    @test length(unknowns(sys_c)) == 3
     u0 = zeros(ComplexF64, length(eqs.equations))
     init = initial_values(eqs, u0)
     ps = Dict(Δ => 0.0, g => 1.5, γ => 0.25, κ => 1.0, ν => 4.0)

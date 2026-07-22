@@ -21,9 +21,9 @@ using Test
     ops = [a' * a, σ(2, 2, 1), σ(3, 3, 1)]
     eqs = meanfield(ops, H, J; rates = rates, order = 2)
     complete!(eqs)
-    @test length(eqs.equations) == 117
+    @test length(eqs.equations) == 63
     sys_c = mtkcompile(System(eqs; name = :mal_sys))
-    @test length(unknowns(sys_c)) == 117
+    @test length(unknowns(sys_c)) == 63
     u0 = zeros(ComplexF64, length(eqs.equations))
     init = initial_values(eqs, u0)
     ps = Dict(

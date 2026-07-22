@@ -270,11 +270,11 @@ end
     eqs = meanfield(a' * a, H, [a]; rates = [κ])   # exact: no truncation order
     # Bounded max_iter: if the zero-coefficient drop regresses, completion chases
     # phantom moments and would grind to the 100k default (~1hr) instead of erroring
-    # fast. 50 is far above the true closure size (3) yet fails in seconds on regression.
+    # fast. 50 is far above the true closure size (2) yet fails in seconds on regression.
     complete!(eqs; max_iter = 50)
 
-    # Closes at the three independent second moments ⟨a†a⟩, ⟨a†a†⟩, ⟨aa⟩.
-    @test length(eqs.equations) == 3
+    # Closes at ⟨a†a⟩ and one of the ⟨a†a†⟩/⟨aa⟩ conjugate pair (folded default).
+    @test length(eqs.equations) == 2
     @test isempty(find_missing(eqs))
     # No phantom higher-order moments survive on any RHS.
     @test all(get_order(eq.rhs) <= 2 for eq in eqs.equations)

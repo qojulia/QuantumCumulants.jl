@@ -230,8 +230,8 @@ end
     # The system closes, and the requested 4th-order moment survives as an LHS.
     @test isempty(find_missing(eqs_c))
     @test any(eq -> isequal(eq.lhs, eqs.equations[1].lhs), eqs_c.equations)
-    # Closure size is fixed by the algebra and the cumulant order.
-    @test length(eqs_c.equations) == 13
+    # Closure size fixed by the algebra and cumulant order (conjugate-folded default).
+    @test length(eqs_c.equations) == 9
     # `complete` is idempotent on its own output.
-    @test length(complete(eqs_c).equations) == 13
+    @test length(complete(eqs_c).equations) == 9
 end
