@@ -60,8 +60,10 @@ end
         rates = rates, efficiencies = efficiencies, order = 2
     )
     det_eqs = meanfield(ops, H, J; rates = rates, order = 2)
-    stoch_c = complete(stoch_eqs)
-    det_c = complete(det_eqs)
+    # Compare with `get_adjoints=true`: exact LHS-set equality needs both conjugate
+    # members present. The folded default keeps one per pair, picked per pipeline.
+    stoch_c = complete(stoch_eqs; get_adjoints = true)
+    det_c = complete(det_eqs; get_adjoints = true)
 
     # The deterministic and stochastic pipelines reach the same closure with
     # identical LHS sets.

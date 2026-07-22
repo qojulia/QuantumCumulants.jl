@@ -2,7 +2,11 @@
 
 All notable changes to QuantumCumulants.jl will be documented in this file.
 
-## [0.6.1]
+## [0.7.0]
+
+### Changed
+
+**Breaking.** `complete!` and `complete` now default to `get_adjoints = false`, keeping one representative per conjugate pair instead of a separate state for every conjugate moment. The partner is recovered by `conj` at code generation, so the dynamics are unchanged while the closed system is smaller (the optomechanical-cooling example closes at 8 equations instead of 14). Pass `get_adjoints = true` for the full conjugate-closed state set. See issue [#319](https://github.com/qojulia/QuantumCumulants.jl/issues/319).
 
 ### Fixed
 

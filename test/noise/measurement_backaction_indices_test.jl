@@ -60,15 +60,17 @@ end
     J = [a, b(i), σ(1, 2, j), σ(2, 1, j), σ(2, 2, j)]
     rates = [κ, κf, Γ, R, ν]
 
+    # Compare with `get_adjoints=true`: the exact `det ⊆ stoch` subset needs both
+    # conjugate members present. The folded default keeps one per pair, picked per pipeline.
     eqs_det = meanfield(a' * a, H, J; rates = rates, order = 2)
-    eqs_det_c = complete(eqs_det)
+    eqs_det_c = complete(eqs_det; get_adjoints = true)
 
     efficiencies = [η, 0, 0, 0, 0]
     eqs_noise = meanfield(
         a' * a, H, J; rates = rates, efficiencies = efficiencies, order = 2
     )
     @test eqs_noise isa NoiseMeanfieldEquations
-    eqs_noise_c = complete(eqs_noise)
+    eqs_noise_c = complete(eqs_noise; get_adjoints = true)
 
     # The stochastic state set contains the deterministic state set.
     @test length(eqs_noise_c.equations) >= length(eqs_det_c.equations)
