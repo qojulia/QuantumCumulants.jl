@@ -2,6 +2,12 @@
 
 All notable changes to QuantumCumulants.jl will be documented in this file.
 
+## [Unreleased]
+
+### Changed
+
+QuantumCumulants now relies only on the public SecondQuantizedAlgebra API and requires SQA v0.9.4 (internal refactor, no change to behaviour). See issue [#300](https://github.com/qojulia/QuantumCumulants.jl/issues/300).
+
 ## [0.6.1]
 
 ### Fixed
