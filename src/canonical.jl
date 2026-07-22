@@ -1,3 +1,8 @@
+# Scalar acting-on subspace of a single-subspace operator or an index, via SQA's
+# public `acts_on` (which returns a one-element vector for such an operand). Used as a
+# `Dict{Int}`/`Set{Int}` key throughout canonicalisation, scaling, and evaluation.
+_aon(x) = only(SQA.acts_on(x))
+
 """
 A treatment fingerprint: the per-subspace `(space_index, treatment)` pairs in sorted
 order. It identifies a `treatments` map cheaply for use as a memo key. The map has one
@@ -132,8 +137,8 @@ function build_ctx(
     vocab = Dict{Int, Vector{SQA.Index}}()
     symmetric = Set{Int}()
     for src in sources, idx in SQA.get_indices(src)
-        push!(symmetric, idx.space_index)
-        v = get!(vocab, idx.space_index, SQA.Index[])
+        push!(symmetric, _aon(idx))
+        v = get!(vocab, _aon(idx), SQA.Index[])
         idx in v || push!(v, idx)
     end
 
@@ -236,10 +241,10 @@ function _relabel_spaces(op::QAdd, ctx::CanonCtx, spaces::Set{Int})
     rename = Dict{SQA.Index, SQA.Index}()
     pos_by_space = Dict{Int, Int}()
     for idx in encountered
-        idx.space_index in spaces || continue
-        pos = get(pos_by_space, idx.space_index, 0) + 1
-        pos_by_space[idx.space_index] = pos
-        reps = get(ctx.vocab, idx.space_index, SQA.Index[])
+        _aon(idx) in spaces || continue
+        pos = get(pos_by_space, _aon(idx), 0) + 1
+        pos_by_space[_aon(idx)] = pos
+        reps = get(ctx.vocab, _aon(idx), SQA.Index[])
         isempty(reps) && continue
         target = pos <= length(reps) ? reps[pos] : nth_index(reps, pos)
         target == idx && continue
@@ -270,7 +275,7 @@ function _reorder_commuting(op::QAdd)
     by_space = Dict{Int, Vector{SQA.Index}}()
     for (term, _) in op.arguments, o in term.ops
         SQA.has_index(o.index) || continue
-        v = get!(by_space, o.index.space_index, SQA.Index[])
+        v = get!(by_space, _aon(o.index), SQA.Index[])
         o.index in v || push!(v, o.index)
     end
     pairs = Tuple{SQA.Index, SQA.Index}[]
@@ -386,7 +391,7 @@ function _free_by_space(op::QAdd)
     out = Dict{Int, Vector{SQA.Index}}()
     for (term, _) in op.arguments, o in term.ops
         SQA.has_index(o.index) || continue
-        v = get!(out, o.index.space_index, SQA.Index[])
+        v = get!(out, _aon(o.index), SQA.Index[])
         o.index in v || push!(v, o.index)
     end
     return out

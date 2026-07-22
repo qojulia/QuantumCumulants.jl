@@ -21,14 +21,14 @@ end
 
 _in_h(hset::Set{Int}, sp::Integer) = isempty(hset) || sp in hset
 _targeted(idx::SQA.Index, sub, hset) =
-    SymbolicUtils.unwrap(SQA.index_range(idx)) in keys(sub) && _in_h(hset, idx.space_index)
+    SymbolicUtils.unwrap(SQA.index_range(idx)) in keys(sub) && _in_h(hset, _aon(idx))
 
 """
 Mint a concrete index from the subspace's first-declared vocabulary index, suffixed
 with the position `k` (SQA naming policy: trace back to the user's vocabulary).
 """
 function _concrete_index(b::SQA.Index, k::Int, ctx::CanonCtx)
-    reps = get(ctx.vocab, b.space_index, SQA.Index[])
+    reps = get(ctx.vocab, _aon(b), SQA.Index[])
     isempty(reps) && return b(k)
     return nth_index(reps, k)
 end
@@ -58,7 +58,7 @@ diagonal split rather than enumerated here.
 """
 function _distinct_within_subspace(free::Vector{SQA.Index}, tup)
     @inbounds for p in 1:length(free), q in (p + 1):length(free)
-        free[p].space_index == free[q].space_index || continue
+        _aon(free[p]) == _aon(free[q]) || continue
         tup[p] == tup[q] && return false
     end
     return true

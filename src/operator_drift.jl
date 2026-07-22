@@ -117,9 +117,7 @@ from the user's existing vocabulary rather than being invented.
 function _partner_index(rk, i_jump::SQA.Index)
     args = SymbolicUtils.arguments(SymbolicUtils.unwrap(rk))
     sym_j = args[2]
-    return SQA.Index(
-        SQA._intern_name(Base.nameof(sym_j)), i_jump.range_id, i_jump.space_index, Int32(0)
-    )
+    return SQA.rename(i_jump, Base.nameof(sym_j))
 end
 
 """
@@ -215,15 +213,15 @@ function _assume_distinct_atom_indices(q::SQA.QAdd, distinct::Vector{SQA.Index})
     by_space = Dict{Int, Set{SQA.Index}}()
     for (term, _) in q.arguments, o in term.ops
         SQA.has_index(o.index) || continue
-        push!(get!(by_space, o.index.space_index, Set{SQA.Index}()), o.index)
+        push!(get!(by_space, _aon(o.index), Set{SQA.Index}()), o.index)
     end
     for b in q.indices
-        push!(get!(by_space, b.space_index, Set{SQA.Index}()), b)
+        push!(get!(by_space, _aon(b), Set{SQA.Index}()), b)
     end
     pairs = Tuple{SQA.Index, SQA.Index}[]
     seen_pairs = Set{Tuple{SQA.Index, SQA.Index}}()
     for d in distinct
-        idxs = get(by_space, d.space_index, Set{SQA.Index}())
+        idxs = get(by_space, _aon(d), Set{SQA.Index}())
         for other in idxs
             other == d && continue
             key = d < other ? (d, other) : (other, d)
@@ -271,7 +269,7 @@ end
 _collect_atom_space_indices_by_space!(_, ::Any) = nothing
 function _collect_atom_space_indices_by_space!(by_space, op::SQA.QSym)
     SQA.has_index(op.index) || return nothing
-    v = get!(by_space, op.index.space_index, SQA.Index[])
+    v = get!(by_space, _aon(op.index), SQA.Index[])
     op.index in v || push!(v, op.index)
     return nothing
 end

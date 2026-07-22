@@ -15,12 +15,11 @@ that rides inside the sum body) through `undo_average`, so they must not descend
 """
 _is_moment_unit(x) = _is_avg_leaf(x) || SQA.is_indexed_sum(x)
 
-# The moment-layer indexed-sum node (SQA's `SumFunc`, QC #288 / SQA #175). These two helpers
-# are the only spots touching SQA's not-yet-exported sum-node API: `_make_indexed_sum` calls
-# the unexported constructor, `_indexed_sum_body` reads argument 1 (as `evaluate` already does).
-# TODO: swap to SQA's public constructor/accessor once SQA #209 lands (then bump compat).
-_make_indexed_sum(body, indices::Vector{SQA.Index}, ne) = SQA._indexed_sum(body, indices, ne)
-_indexed_sum_body(x) = SymbolicUtils.arguments(x)[1]
+# The moment-layer indexed-sum node (SQA's `SumFunc`, QC #288 / SQA #175), built and read
+# through SQA's public sum-node API (SQA #209, available from SQA 0.9.4): `indexed_sum` is
+# the public constructor and `get_sum_body` the public body accessor.
+_make_indexed_sum(body, indices::Vector{SQA.Index}, ne) = SQA.indexed_sum(body, indices; non_equal = ne)
+_indexed_sum_body(x) = SQA.get_sum_body(x)
 
 """
 The shared descent condition: recurse into a node only when it is a call and not an

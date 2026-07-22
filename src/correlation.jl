@@ -35,23 +35,16 @@ end
 
 # ---- ancilla embedding -------------------------------------------------------
 
-# One concrete `Op` now carries every role, so re-seating an operator on the
-# ancilla subspace is a single field swap: copy the packed payload, change only
-# the acting-on `space_index`.
-_embed_on(op::SQA.Op, aon::Integer) =
-    SQA.Op(op.kind, op.name_id, Int32(aon), op.index, op.l1, op.l2, op.g, op.nlev)
+# One concrete `Op` now carries every role, so re-seating an operator on the ancilla
+# subspace is a single call to SQA's public `set_acts_on`: it returns a copy on the new
+# subspace with role, name, index, and levels preserved.
+_embed_on(op::SQA.Op, aon::Integer) = SQA.set_acts_on(op, aon)
 
 _ancilla_op_name(name::Symbol) = Symbol(name, "_0")
-_rename_ancilla(op::SQA.Op) = SQA.Op(
-    op.kind, SQA._intern_name(_ancilla_op_name(SQA.operator_name(op))), op.space_index, op.index,
-    op.l1, op.l2, op.g, op.nlev,
-)
+_rename_ancilla(op::SQA.Op) = SQA.rename(op, _ancilla_op_name(SQA.operator_name(op)))
 
 _strip_ancilla_op_name(name::Symbol) = endswith(String(name), "_0") ? Symbol(chop(String(name); tail = 2)) : name
-_restore_ancilla(op::SQA.Op) = SQA.Op(
-    op.kind, SQA._intern_name(_strip_ancilla_op_name(SQA.operator_name(op))), op.space_index, op.index,
-    op.l1, op.l2, op.g, op.nlev,
-)
+_restore_ancilla(op::SQA.Op) = SQA.rename(op, _strip_ancilla_op_name(SQA.operator_name(op)))
 _embed_ancilla(op, aon::Integer) = _rename_ancilla(_embed_on(op, aon))
 
 function _ancilla_aon(eqs0::MeanfieldEquations, op1::QField, op2::QField)
@@ -109,7 +102,7 @@ function _correlation_function(
     ancilla_filter = _ancilla_filter(aon_ancilla)
     closure_filter = filter_func === nothing ? ancilla_filter : x -> ancilla_filter(x) && filter_func(x)
     fold_cache = Dict{QAdd, Bool}()
-    fold = _memoizing_foldable(fold_cache, op2.space_index, aon_ancilla)
+    fold = _memoizing_foldable(fold_cache, _aon(op2), aon_ancilla)
     # `meanfield` seeds (does not close) the ancilla system, so `eqs_c.graph` is the seeded
     # graph; close it here, purely.
     g = closure(eqs_c.graph; filter = closure_filter, get_adjoints = false, foldable = fold, max_iter)
@@ -255,7 +248,7 @@ function _undo_ancilla_op(op::QAdd, aon0::Integer, aon_ancilla::Integer)
     for (term, coeff) in op.arguments
         prod = one(QAdd) * _coeff_num(coeff)
         for o in term.ops
-            prod = prod * ((o.space_index == aon_ancilla) ? _embed_on(_restore_ancilla(o), aon0) : o)
+            prod = prod * ((_aon(o) == aon_ancilla) ? _embed_on(_restore_ancilla(o), aon0) : o)
         end
         push!(terms, prod)
     end
@@ -270,7 +263,7 @@ function _undo_ancilla(c::CorrelationFunction, avg::SymbolicUtils.BasicSymbolic)
     SQA.is_average(avg) || return avg
     op = undo_average(avg)
     op isa QAdd || return avg
-    return average(_undo_ancilla_op(op, c.op2.space_index, c.aon_ancilla))
+    return average(_undo_ancilla_op(op, _aon(c.op2), c.aon_ancilla))
 end
 
 _display_average(c::CorrelationFunction) = average(c.op1 * c.op2_ancilla)
@@ -298,7 +291,7 @@ function _memoizing_foldable(cache::Dict{QAdd, Bool}, aon0::Integer, aon_ancilla
     end
 end
 _corr_foldable(c::CorrelationFunction) =
-    _memoizing_foldable(c.fold_cache, c.op2.space_index, c.aon_ancilla)
+    _memoizing_foldable(c.fold_cache, _aon(c.op2), c.aon_ancilla)
 
 function _as_avg_dict(c::CorrelationFunction, u_end)
     if u_end isa AbstractDict
@@ -356,7 +349,7 @@ end
 
 _scalarize(x::Symbolics.Num) = _scalarize(SymbolicUtils.unwrap(x))
 function _scalarize(x::SymbolicUtils.BasicSymbolic)
-    SymbolicUtils.isconst(x) && (v = x.val; return v isa Number ? ComplexF64(v) : ComplexF64(0))
+    SymbolicUtils.isconst(x) && (v = SymbolicUtils.unwrap_const(x); return v isa Number ? ComplexF64(v) : ComplexF64(0))
     y = SymbolicUtils.substitute(x, Dict(SymbolicUtils.unwrap(Symbolics.IM) => im))
     v = Symbolics.value(y)
     return v isa Number ? ComplexF64(v) : ComplexF64(0)

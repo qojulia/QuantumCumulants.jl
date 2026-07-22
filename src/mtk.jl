@@ -358,13 +358,14 @@ _param_slots(_) = nothing
 
 """
 Concrete per-axis lengths of a shaped array-variable sym, or `nothing` for scalars and
-symbolically-sized arrays. The single place that inspects `SymbolicUtils.shape`'s layout
-(scalars yield an empty shape, so emptiness distinguishes them from arrays).
+symbolically-sized arrays. Reads the public `Base.size`, which yields a concrete integer
+tuple only for a concretely-shaped array (an empty tuple for scalars, a non-tuple for
+symbolically-sized arrays).
 """
 function _array_dims(x)
-    sh = SymbolicUtils.shape(x)
-    (sh isa SymbolicUtils.SmallVec{UnitRange{Int}} && !isempty(sh)) || return nothing
-    return ntuple(d -> length(sh[d]), length(sh))
+    sz = size(x)
+    (sz isa Tuple{Vararg{Integer}} && !isempty(sz)) || return nothing
+    return sz
 end
 
 """
