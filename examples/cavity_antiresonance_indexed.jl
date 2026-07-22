@@ -29,7 +29,7 @@ hc = FockSpace(:cavity) # Hilbert space
 ha = NLevelSpace(Symbol(:atom), 2)
 h = hc ⊗ ha
 
-@variables N Δc η Δa κ # Parameters
+@variables N Δc η Δₐ κ # Parameters
 g(i) = IndexedVariable(:g, i)
 Γ(i, j) = DoubleIndexedVariable(:Γ, i, j)
 Ω(i, j) = DoubleIndexedVariable(:Ω, i, j; identical = false)
@@ -37,6 +37,7 @@ g(i) = IndexedVariable(:g, i)
 
 i = Index(h, :i, N, ha) # Indices
 j = Index(h, :j, N, ha)
+nothing # hide
 
 
 # The kwarg ’identical=false’ for the double indexed variable specifies that $\Omega_{ij} = 0$ for $i = j$.
@@ -58,7 +59,7 @@ nothing # hide
 # `non_equal` vector `[i]` to the inner `Σ` (SQA v0.5 replaced the old
 # `non_equal=true` keyword with this explicit form).
 Hc = Δc * a'a + η * (a' + a) # Hamiltonian
-Ha = Δa * Σ(σ(2, 2, i), i) + Σ(Σ(Ω(i, j) * σ(2, 1, i) * σ(1, 2, j), j, [i]), i)
+Ha = Δₐ * Σ(σ(2, 2, i), i) + Σ(Σ(Ω(i, j) * σ(2, 1, i) * σ(1, 2, j), j, [i]), i)
 Hi = Σ(g(i) * (a' * σ(1, 2, i) + a * σ(2, 1, i)), i)
 H = Hc + Ha + Hi
 
@@ -70,15 +71,6 @@ nothing # hide
 
 eqs = meanfield(a, H, J; rates = rates, order = 1)
 complete!(eqs)
-nothing # hide
-
-# ```math
-# \begin{align}
-# \frac{d}{dt} \langle a\rangle  =& -1 i \eta -1 i \underset{i}{\overset{N}{\sum}} {g}_{i}  \langle {\sigma}_{i}^{{12}}\rangle  -0.5 \kappa \langle a\rangle  -1 i {\Delta}c \langle a\rangle  \\
-# \frac{d}{dt} \langle {\sigma}_{k}^{{12}}\rangle  =& \underset{j{\ne}k}{\overset{N}{\sum}} {\Gamma}_{k,j}  \langle {\sigma}_{j}^{{12}}\rangle   \langle {\sigma}_{k}^{{22}}\rangle  -0.5 \underset{j}{\overset{N}{\sum}} {\Gamma}_{k,j}  \langle {\sigma}_{j}^{{12}}\rangle  -1 i \underset{j{\ne}i,k}{\overset{N}{\sum}} {\Omega}_{k,j}  \langle {\sigma}_{j}^{{12}}\rangle  + 2 i \underset{j{\ne}i,k}{\overset{N}{\sum}} {\Omega}_{k,j}  \langle {\sigma}_{j}^{{12}}\rangle   \langle {\sigma}_{k}^{{22}}\rangle  -1 i {g}_{k} \langle a\rangle  -1 i {\Delta}a \langle {\sigma}_{k}^{{12}}\rangle  + 2 i {g}_{k} \langle a\rangle  \langle {\sigma}_{k}^{{22}}\rangle  \\
-# \frac{d}{dt} \langle {\sigma}_{k}^{{22}}\rangle  =& -0.5 \underset{i{\ne}j,k}{\overset{N}{\sum}} {\Gamma}_{i,k}  \langle {\sigma}_{i}^{{21}}\rangle   \langle {\sigma}_{k}^{{12}}\rangle  + 1 i \underset{i{\ne}j,k}{\overset{N}{\sum}} {\Omega}_{i,k}  \langle {\sigma}_{i}^{{21}}\rangle   \langle {\sigma}_{k}^{{12}}\rangle  -1 i \underset{j{\ne}i,k}{\overset{N}{\sum}} {\Omega}_{k,j}  \langle {\sigma}_{k}^{{21}}\rangle   \langle {\sigma}_{j}^{{12}}\rangle  -0.5 \underset{j{\ne}k}{\overset{N}{\sum}} {\Gamma}_{k,j}  \langle {\sigma}_{k}^{{21}}\rangle   \langle {\sigma}_{j}^{{12}}\rangle  -1.0 {\Gamma}_{k,k} \langle {\sigma}_{k}^{{22}}\rangle  -1 i {g}_{k} \langle a\rangle  \langle {\sigma}_{k}^{{21}}\rangle  + 1 i {g}_{k} \langle a^\dagger\rangle  \langle {\sigma}_{k}^{{12}}\rangle
-# \end{align}
-# ```
 
 # To create the equations for a specific number of atoms we use the function [`evaluate`](@ref).
 
@@ -103,7 +95,7 @@ d = 2π * 0.08 #0.08λ
 
 g_ = 2Γ_
 κ_ = 20Γ_
-Δa_ = 0Γ_
+Δₐ_ = 0Γ_
 Δc_ = 0Γ_
 η_ = κ_ / 100
 
@@ -115,10 +107,10 @@ gi_ = [g_ * (-1)^k for k in 1:N_]
 n_ls = zeros(length(Δ_ls))
 for k in eachindex(Δ_ls)
     Δc_i = Δ_ls[k]
-    Δa_i = Δc_i + Ωij(1, 2)
+    Δₐ_i = Δc_i + Ωij(1, 2)
     p = parameter_map(
         eqs_, Dict(
-            Δc => Δc_i, η => η_, Δa => Δa_i, κ => κ_,
+            Δc => Δc_i, η => η_, Δₐ => Δₐ_i, κ => κ_,
             g(i) => gi_, Γ(i, j) => Γij_, Ω(i, j) => Ωij_,
         )
     )

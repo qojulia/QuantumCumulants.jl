@@ -15,7 +15,7 @@ using Random # hide
 
 # $H=\omega_c\hat a^\dagger\hat a+\omega_a\sum_j\sigma^{22}_j+\hat a^\dagger\sigma^{12}_j+g\hat a\sigma^{21}_j.$
 
-@variables N ωa γ η χ ωc κ g ξ ωl
+@variables N ωₐ γ η χ ωc κ g ξ ωₗ
 @register_symbolic pulse(t)
 
 hc = FockSpace(:resonator)
@@ -31,16 +31,16 @@ k = Index(h, :k, N, ha)
 eqs_seed = meanfield(a, ωc * a' * a, [a]; rates = [κ])
 t = eqs_seed.iv
 
-H = ωc * a' * a + ωa * Σ(σ(2, 2, j), j) + g * a' * Σ(σ(1, 2, j), j) + g * a * Σ(σ(2, 1, j), j);
+H = ωc * a' * a + ωₐ * Σ(σ(2, 2, j), j) + g * a' * Σ(σ(1, 2, j), j) + g * a * Σ(σ(2, 1, j), j);
 
 # We include decay of the cavity mode, where we choose the decay operator to be $\hat a\exp(\rm{i}\omega_lt)$ for convenience (we will see later why this is reasonable, and you can convince yourself that it gives the same decay term as $\hat a$). The individual decay of the atoms with rate $\gamma$ is given by the decay operator $\sigma^{12}_j$.
 
 # We also include an incoherent pump $\sigma^{21}_j$ with amplitude $\eta$, which is a pulse that is on between $t_0$ and $t_0+t_1$. The last Lindblad term is a dephasing term with strength $\chi$ corresponding to the operator $\sigma^{22}_j$.
 
-J = [a * exp(1.0im * ωl * t), σ(1, 2, j), σ(2, 1, j), σ(2, 2, j)]
+J = [a * exp(1.0im * ωₗ * t), σ(1, 2, j), σ(2, 1, j), σ(2, 2, j)]
 rates = [κ, γ, η * pulse(t), 2 * χ]
 
-pulse(t) = (t > t0 && t < t0 + t1) * 1.0
+pulse(t) = (t > t₀ && t < t₀ + t₁) * 1.0
 nothing # hide
 
 # The measurement terms are included by defining measurement efficiencies for all decay channels. A channel with efficiency zero is ignored, i.e. not measured. The operator $\hat a\exp(\rm{i}\omega_lt)$ corresponding to heterodyne detection with local oscillator frequency $\omega_l$ is measured with efficiency $\xi$.
@@ -58,13 +58,6 @@ nothing # hide
 efficiencies = [ξ, 0, 0, 0]
 ops = [a', a' * a, σ(2, 2, k), σ(1, 2, k), a * a]
 eqs = meanfield(ops, H, J; rates = rates, efficiencies = efficiencies, direction = Forward(), order = 2, iv = t)
-nothing # hide
-
-# ```math
-# \begin{align}
-# \frac{d}{dt} \langle a^\dagger\rangle &= -0.5 \kappa \langle a^\dagger\rangle + dW/dt \left( -1 \sqrt{\xi \kappa} e^{-1.0 i {\omega}l t} \langle a^\dagger\rangle ^{2} + \sqrt{\xi \kappa} e^{1.0 i {\omega}l t} \langle a^\dagger a\rangle -1 \langle a\rangle \sqrt{\xi \kappa} e^{1.0 i {\omega}l t} \langle a^\dagger\rangle + \sqrt{\xi \kappa} e^{-1.0 i {\omega}l t} \langle a^\dagger a^\dagger\rangle \right) + 1 i \underset{j}{\overset{N}{\sum}} g \langle {\sigma}{j}^{{21}}\rangle + 1 i {\omega}c \langle a^\dagger\rangle \ \frac{d}{dt} \langle a^\dagger a\rangle &= -1 i \underset{j}{\overset{N}{\sum}} g \langle a^\dagger {\sigma}{j}^{{12}}\rangle + 1 i \underset{j}{\overset{N}{\sum}} g \langle a {\sigma}{j}^{{21}}\rangle + \left( -1 \langle a\rangle \sqrt{\xi \kappa} e^{1.0 i {\omega}l t} \langle a^\dagger a\rangle + \sqrt{\xi \kappa} e^{-1.0 i {\omega}l t} \left( -2 \langle a\rangle \langle a^\dagger\rangle ^{2} + 2 \langle a^\dagger\rangle \langle a^\dagger a\rangle + \langle a\rangle \langle a^\dagger a^\dagger\rangle \right) + \left( \langle a a\rangle \langle a^\dagger\rangle + 2 \langle a\rangle \langle a^\dagger a\rangle -2 \langle a\rangle ^{2} \langle a^\dagger\rangle \right) \sqrt{\xi \kappa} e^{1.0 i {\omega}l t} -1 \sqrt{\xi \kappa} e^{-1.0 i {\omega}l t} \langle a^\dagger\rangle \langle a^\dagger a\rangle \right) dW/dt -1.0 \kappa \langle a^\dagger a\rangle \ \frac{d}{dt} \langle {\sigma}{k}^{{22}}\rangle &= -1.0 \mathrm{pulse}\left( t \right) \eta \langle {\sigma}{k}^{{22}}\rangle + 1 i \langle a^\dagger {\sigma}{k}^{{12}}\rangle g + dW/dt \left( \langle a {\sigma}{k}^{{22}}\rangle \sqrt{\xi \kappa} e^{1.0 i {\omega}l t} -1 \langle a\rangle \sqrt{\xi \kappa} e^{1.0 i {\omega}l t} \langle {\sigma}{k}^{{22}}\rangle -1 \sqrt{\xi \kappa} e^{-1.0 i {\omega}l t} \langle {\sigma}{k}^{{22}}\rangle \langle a^\dagger\rangle + \langle a^\dagger {\sigma}{k}^{{22}}\rangle \sqrt{\xi \kappa} e^{-1.0 i {\omega}l t} \right) -1.0 \gamma \langle {\sigma}{k}^{{22}}\rangle -1 i g \langle a {\sigma}{k}^{{21}}\rangle + \mathrm{pulse}\left( t \right) \eta \ \frac{d}{dt} \langle {\sigma}{k}^{{12}}\rangle &= -0.5 \gamma \langle {\sigma}{k}^{{12}}\rangle -1 i {\omega}a \langle {\sigma}{k}^{{12}}\rangle -1 \chi \langle {\sigma}{k}^{{12}}\rangle + dW/dt \left( \sqrt{\xi \kappa} \langle a^\dagger {\sigma}{k}^{{12}}\rangle e^{-1.0 i {\omega}l t} -1 \sqrt{\xi \kappa} e^{-1.0 i {\omega}l t} \langle {\sigma}{k}^{{12}}\rangle \langle a^\dagger\rangle -1 \langle a\rangle \sqrt{\xi \kappa} \langle {\sigma}{k}^{{12}}\rangle e^{1.0 i {\omega}l t} + \langle a {\sigma}{k}^{{12}}\rangle \sqrt{\xi \kappa} e^{1.0 i {\omega}l t} \right) -1 i \langle a\rangle g -0.5 \mathrm{pulse}\left( t \right) \eta \langle {\sigma}{k}^{{12}}\rangle + 2 i \langle a {\sigma}{k}^{{22}}\rangle g \ \frac{d}{dt} \langle a a\rangle &= -1.0 \langle a a\rangle \kappa + \left( \left( 3 \langle a a\rangle \langle a\rangle -2 \langle a\rangle ^{3} \right) \sqrt{\xi \kappa} e^{1.0 i {\omega}l t} + \left( \langle a a\rangle \langle a^\dagger\rangle + 2 \langle a\rangle \langle a^\dagger a\rangle -2 \langle a\rangle ^{2} \langle a^\dagger\rangle \right) \sqrt{\xi \kappa} e^{-1.0 i {\omega}l t} -1 \langle a a\rangle \sqrt{\xi \kappa} e^{-1.0 i {\omega}l t} \langle a^\dagger\rangle -1 \langle a a\rangle \langle a\rangle \sqrt{\xi \kappa} e^{1.0 i {\omega}l t} \right) dW/dt -2 i \underset{j}{\overset{N}{\sum}} g \langle a {\sigma}_{j}^{{12}}\rangle -2 i \langle a a\rangle {\omega}c
-# \end{align}
-# ```
 
 # The completion and scaling as previously discussed in other examples work exactly the same way for equations including noise terms.
 
@@ -79,16 +72,16 @@ nothing # hide
 κ_ = 2π * 1.13e3
 ξ_ = 0.12
 N_ = 5.0e4
-ωa_ = 0.0
+ωₐ_ = 0.0
 γ_ = 2π * 0.375
 η_ = 2π * 20
 χ_ = 0.016
 g_ = 2π * 0.73
-ωl_ = 2π * 1.0e3
-t0 = 0.0
-t1 = 20.0e-3
-p = [N, ωa, γ, η, χ, ωc, κ, g, ξ, ωl]
-p0 = [N_, ωa_, γ_, η_, χ_, ωc_, κ_, g_, ξ_, ωl_]
+ωₗ_ = 2π * 1.0e3
+t₀ = 0.0
+t₁ = 20.0e-3
+p = [N, ωₐ, γ, η, χ, ωc, κ, g, ξ, ωₗ]
+p0 = [N_, ωₐ_, γ_, η_, χ_, ωc_, κ_, g_, ξ_, ωₗ_]
 T_end = 0.1 # 0.1ms
 nothing # hide
 

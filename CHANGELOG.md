@@ -4,6 +4,10 @@ All notable changes to QuantumCumulants.jl will be documented in this file.
 
 ## [0.6.1]
 
+### Fixed
+
+`show(::MIME"text/latex", ::MeanfieldEquations)` now wraps its output in `$$ … $$` with the `aligned` environment. The bare `\begin{align}` was mangled by Markdown renderers like Documenter (subscripts parsed as emphasis), so equation systems now render correctly in the docs and notebooks. The example pages are cleaned up accordingly. See issue [#310](https://github.com/qojulia/QuantumCumulants.jl/issues/310).
+
 ### Documentation
 
 Added a documentation page, [Convergence and validity of the cumulant expansion](https://qojulia.github.io/QuantumCumulants.jl/stable/convergence/), collecting what is known about when a cumulant truncation can be trusted: the exactness of the expansion, the Marcinkiewicz obstruction and the special role of second order, the absence of a general convergence theorem, the good/bad/ugly benchmark behaviour, the central-spin non-monotonicity lessons, the connection to classical moment closure, the regimes in which the method is provably controlled, and practical guidance for users.

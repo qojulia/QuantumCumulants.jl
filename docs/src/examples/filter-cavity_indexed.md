@@ -20,7 +20,7 @@ We start by loading the packages.
 
 ````@example filter-cavity_indexed
 using QuantumCumulants
-using OrdinaryDiffEq, ModelingToolkitBase
+using OrdinaryDiffEqTsit5, ModelingToolkitBase
 using Plots
 ````
 
@@ -40,6 +40,7 @@ j = Index(h, :j, N, ha)
 
 @qnumbers a::Destroy(h, 1)
 b(k) = IndexedOperator(Destroy(h, :b, 2), k)
+nothing # hide
 ````
 
 `i` is bound by the Hamiltonian sums and the dissipator. The canonical
@@ -72,16 +73,7 @@ We derive the equation for $\langle a^\dagger a \rangle$ and complete the system
 
 ````@example filter-cavity_indexed
 eqs = meanfield(a'a, H, J; rates = rates, order = 2)
-nothing # hide
-````
 
-```math
-\begin{align}
-\frac{d}{dt} \langle a^\dagger  a\rangle  =& 1 i \underset{i}{\overset{M}{\sum}} gf  \langle a  {b}_{i}^\dagger\rangle  -1 i \underset{i}{\overset{M}{\sum}} gf  \langle a^\dagger  {b}_{i}\rangle  + 1 i \underset{j}{\overset{N}{\sum}} g  \langle a  {\sigma}_{j}^{{21}}\rangle  -1 i \underset{j}{\overset{N}{\sum}} g  \langle a^\dagger  {\sigma}_{j}^{{12}}\rangle  -1.0 \kappa \langle a^\dagger  a\rangle
-\end{align}
-```
-
-````@example filter-cavity_indexed
 eqs_c = complete!(deepcopy(eqs));
 nothing # hide
 ````
@@ -168,7 +160,7 @@ versioninfo()
 
 using Pkg
 Pkg.status(
-    ["QuantumCumulants", "OrdinaryDiffEq", "ModelingToolkitBase", "Plots"],
+    ["QuantumCumulants", "OrdinaryDiffEqTsit5", "ModelingToolkitBase", "Plots"],
     mode = PKGMODE_MANIFEST,
 )
 ````

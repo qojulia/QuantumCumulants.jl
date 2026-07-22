@@ -18,7 +18,7 @@ We start by loading the packages.
 
 ````@example superradiant_laser_indexed
 using QuantumCumulants
-using OrdinaryDiffEq, ModelingToolkitBase
+using OrdinaryDiffEqTsit5, ModelingToolkitBase
 using Plots
 ````
 
@@ -43,6 +43,7 @@ g(i) = IndexedVariable(:g, i)
 
 i = Index(h, :i, N, ha)
 j = Index(h, :j, N, ha)
+nothing # hide
 ````
 
 We define the Hamiltonian using symbolic sums and define the individual dissipative processes. For an indexed jump operator the (symbolic) sum is build in the Liouvillian.
@@ -60,24 +61,20 @@ First we want to derive the equation for $\langle a^\dagger a \rangle$ and $\lan
 ````@example superradiant_laser_indexed
 ops = [a' * a, σ(2, 2, j)] # Derive equations
 eqs = meanfield(ops, H, J; rates = rates, order = 2)
-nothing # hide
 ````
 
-```math
-\begin{align}
-\frac{d}{dt} \langle a^\dagger  a\rangle  =& 1 i \underset{i}{\overset{N}{\sum}} {g}_{i}  \langle a  {\sigma}_{i}^{{21}}\rangle  -1 i \underset{i}{\overset{N}{\sum}} {g}_{i}  \langle a^\dagger  {\sigma}_{i}^{{12}}\rangle  -1.0 \kappa \langle a^\dagger  a\rangle  \\
-\frac{d}{dt} \langle {\sigma}_{j}^{{22}}\rangle  =& R -1.0 R \langle {\sigma}_{j}^{{22}}\rangle  + 1 i {g}_{j} \langle a^\dagger  {\sigma}_{j}^{{12}}\rangle  -1 i {g}_{j} \langle a  {\sigma}_{j}^{{21}}\rangle  -1.0 \Gamma \langle {\sigma}_{j}^{{22}}\rangle
-\end{align}
-```
 To get a closed set of equations we automatically complete the system. Since this system is phase invariant we know that all averages with a phase are zero, therefore we exclude these terms with a filter function. To be able to dispatch on all kind of sums containing averages we defined the Union $\texttt{AvgSums}$.
 
 ````@example superradiant_laser_indexed
 import QuantumCumulants.SecondQuantizedAlgebra as SQA
 
 φ(x) = 0 # custom filter function
-φ(::Destroy) = -1
-φ(::Create) = 1
-φ(x::Transition) = x.i - x.j
+function φ(op::SQA.Op)
+    SQA.is_destroy(op) && return -1
+    SQA.is_create(op) && return 1
+    SQA.is_transition(op) && return op.l1 - op.l2
+    return 0
+end
 function φ(q::SQA.QAdd) # walk operator-product expression
     for (term, _) in q.arguments
         p = 0
@@ -95,33 +92,13 @@ end
 phase_invariant(x) = iszero(φ(x))
 
 eqs_c = complete(eqs; filter_func = phase_invariant) # Complete equations
-nothing # hide
 ````
-
-```math
-\begin{align}
-\frac{d}{dt} \langle a^\dagger  a\rangle  =& 1 i \underset{i}{\overset{N}{\sum}} {g}_{i}  \langle a  {\sigma}_{i}^{{21}}\rangle  -1 i \underset{i}{\overset{N}{\sum}} {g}_{i}  \langle a^\dagger  {\sigma}_{i}^{{12}}\rangle  -1.0 \kappa \langle a^\dagger  a\rangle  \\
-\frac{d}{dt} \langle {\sigma}_{j}^{{22}}\rangle  =& R -1.0 R \langle {\sigma}_{j}^{{22}}\rangle  + 1 i {g}_{j} \langle a^\dagger  {\sigma}_{j}^{{12}}\rangle  -1 i {g}_{j} \langle a  {\sigma}_{j}^{{21}}\rangle  -1.0 \Gamma \langle {\sigma}_{j}^{{22}}\rangle  \\
-\frac{d}{dt} \langle a^\dagger  {\sigma}_{j}^{{12}}\rangle  =& 1 i \underset{i{\ne}j}{\overset{N}{\sum}} {g}_{i}  \langle {\sigma}_{i}^{{21}}  {\sigma}_{j}^{{12}}\rangle  + 1 i {g}_{j} \langle {\sigma}_{j}^{{22}}\rangle  -1 i {g}_{j} \langle a^\dagger  a\rangle  -0.5 R \langle a^\dagger  {\sigma}_{j}^{{12}}\rangle  -0.5 \Gamma \langle a^\dagger  {\sigma}_{j}^{{12}}\rangle  -0.5 \kappa \langle a^\dagger  {\sigma}_{j}^{{12}}\rangle  -0.5 \nu \langle a^\dagger  {\sigma}_{j}^{{12}}\rangle  -1 i \Delta \langle a^\dagger  {\sigma}_{j}^{{12}}\rangle  + 2 i {g}_{j} \langle {\sigma}_{j}^{{22}}\rangle  \langle a^\dagger  a\rangle  \\
-\frac{d}{dt} \langle {\sigma}_{j}^{{12}}  {\sigma}_{k}^{{21}}\rangle  =& \left( -1.0 R -1.0 \Gamma \right) \langle {\sigma}_{j}^{{12}}  {\sigma}_{k}^{{21}}\rangle  -1 i {g}_{j} \langle a  {\sigma}_{k}^{{21}}\rangle  + 1 i {g}_{k} \langle a^\dagger  {\sigma}_{j}^{{12}}\rangle  -1.0 \nu \langle {\sigma}_{j}^{{12}}  {\sigma}_{k}^{{21}}\rangle  + 2 i {g}_{j} \langle {\sigma}_{j}^{{22}}\rangle  \langle a  {\sigma}_{k}^{{21}}\rangle  -2 i {g}_{k} \langle {\sigma}_{k}^{{22}}\rangle  \langle a^\dagger  {\sigma}_{j}^{{12}}\rangle
-\end{align}
-```
 
 As mentioned before, we assume that all atoms behave identically. This means that e.g. the excited state population is equal for all atoms, hence we only need to calculate it for the first $\langle \sigma^{22}_1 \rangle = \langle \sigma^{22}_j \rangle$. Furthermore, it is clear that a sum over $N$ identical objects can be replaced by $N$ times the object. The function $\texttt{scale()}$ uses these rules to simplify the equations.
 
 ````@example superradiant_laser_indexed
 eqs_sc = scale(eqs_c)
-nothing # hide
 ````
-
-```math
-\begin{align}
-\frac{d}{dt} \langle a^\dagger  a\rangle  =& -1.0 \kappa \langle a^\dagger  a\rangle  -1 i N g_{1} \langle a^\dagger  {\sigma}_{1}^{{12}}\rangle  + 1 i N g_{1} \langle a  {\sigma}_{1}^{{21}}\rangle  \\
-\frac{d}{dt} \langle {\sigma}_{1}^{{22}}\rangle  =& R -1.0 R \langle {\sigma}_{1}^{{22}}\rangle  -1.0 \Gamma \langle {\sigma}_{1}^{{22}}\rangle  + 1 i g_{1} \langle a^\dagger  {\sigma}_{1}^{{12}}\rangle  -1 i g_{1} \langle a  {\sigma}_{1}^{{21}}\rangle  \\
-\frac{d}{dt} \langle a^\dagger  {\sigma}_{1}^{{12}}\rangle  =& -0.5 R \langle a^\dagger  {\sigma}_{1}^{{12}}\rangle  -0.5 \Gamma \langle a^\dagger  {\sigma}_{1}^{{12}}\rangle  -0.5 \kappa \langle a^\dagger  {\sigma}_{1}^{{12}}\rangle  -0.5 \nu \langle a^\dagger  {\sigma}_{1}^{{12}}\rangle  + 1 i g_{1} \langle {\sigma}_{1}^{{22}}\rangle  -1 i g_{1} \langle a^\dagger  a\rangle  -1 i \Delta \langle a^\dagger  {\sigma}_{1}^{{12}}\rangle  + 1 i g_{1} \left( -1 + N \right) \langle {\sigma}_{1}^{{12}}  {\sigma}_{2}^{{21}}\rangle  + 2 i g_{1} \langle {\sigma}_{1}^{{22}}\rangle  \langle a^\dagger  a\rangle  \\
-\frac{d}{dt} \langle {\sigma}_{1}^{{12}}  {\sigma}_{2}^{{21}}\rangle  =& \left( -1.0 R -1.0 \Gamma \right) \langle {\sigma}_{1}^{{12}}  {\sigma}_{2}^{{21}}\rangle  + 1 i g_{1} \langle a^\dagger  {\sigma}_{1}^{{12}}\rangle  -1 i g_{1} \langle a  {\sigma}_{1}^{{21}}\rangle  -1.0 \nu \langle {\sigma}_{1}^{{12}}  {\sigma}_{2}^{{21}}\rangle  -2 i g_{1} \langle {\sigma}_{1}^{{22}}\rangle  \langle a^\dagger  {\sigma}_{1}^{{12}}\rangle  + 2 i g_{1} \langle {\sigma}_{1}^{{22}}\rangle  \langle a  {\sigma}_{1}^{{21}}\rangle
-\end{align}
-```
 
 To calculate the dynamics of the system we create a system of ordinary differential equations, which can be used by [DifferentialEquations.jl](https://diffeq.sciml.ai/stable/).
 
@@ -183,15 +160,7 @@ The set of equations for the correlation function is given by
 
 ````@example superradiant_laser_indexed
 corr_sc.eqs
-nothing # hide
 ````
-
-```math
-\begin{align}
-\frac{d}{d\tau} \langle a^\dagger  a_0\rangle  =& -0.5 \kappa \langle a^\dagger  a_0\rangle  -1 i \Delta \langle a^\dagger  a_0\rangle  + 1 i N g_{1} \langle {\sigma}_{1}^{{21}}  a_0\rangle  \\
-\frac{d}{d\tau} \langle {\sigma}_{1}^{{21}}  a_0\rangle  =& -0.5 R \langle {\sigma}_{1}^{{21}}  a_0\rangle  + 1 i g_{1} \langle a^\dagger  a_0\rangle  -0.5 \Gamma \langle {\sigma}_{1}^{{21}}  a_0\rangle  -0.5 \nu \langle {\sigma}_{1}^{{21}}  a_0\rangle  -2 i g_{1} \langle {\sigma}_{1}^{{22}}\rangle  \langle a^\dagger  a_0\rangle
-\end{align}
-```
 
 The spectrum is then calculated with
 
@@ -215,7 +184,7 @@ using InteractiveUtils
 versioninfo()
 
 using Pkg
-Pkg.status(["QuantumCumulants", "OrdinaryDiffEq"], mode = PKGMODE_MANIFEST)
+Pkg.status(["QuantumCumulants", "OrdinaryDiffEqTsit5"], mode = PKGMODE_MANIFEST)
 ````
 
 ---

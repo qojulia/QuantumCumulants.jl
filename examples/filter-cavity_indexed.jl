@@ -33,6 +33,8 @@ j = Index(h, :j, N, ha)
 
 @qnumbers a::Destroy(h, 1)
 b(k) = IndexedOperator(Destroy(h, :b, 2), k)
+nothing # hide
+
 # `i` is bound by the Hamiltonian sums and the dissipator. The canonical
 # free-index slot on the filter Hilbert space mints `i_2` (lex-first
 # declared index, suffix 2) to keep state names disjoint from H's bound
@@ -57,14 +59,6 @@ nothing # hide
 # We derive the equation for $\langle a^\dagger a \rangle$ and complete the system automatically in second order.
 
 eqs = meanfield(a'a, H, J; rates = rates, order = 2)
-nothing # hide
-
-
-# ```math
-# \begin{align}
-# \frac{d}{dt} \langle a^\dagger  a\rangle  =& 1 i \underset{i}{\overset{M}{\sum}} gf  \langle a  {b}_{i}^\dagger\rangle  -1 i \underset{i}{\overset{M}{\sum}} gf  \langle a^\dagger  {b}_{i}\rangle  + 1 i \underset{j}{\overset{N}{\sum}} g  \langle a  {\sigma}_{j}^{{21}}\rangle  -1 i \underset{j}{\overset{N}{\sum}} g  \langle a^\dagger  {\sigma}_{j}^{{12}}\rangle  -1.0 \kappa \langle a^\dagger  a\rangle
-# \end{align}
-# ```
 
 eqs_c = complete!(deepcopy(eqs));
 nothing # hide

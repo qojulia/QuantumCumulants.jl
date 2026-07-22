@@ -19,10 +19,10 @@ h = hc ⊗ hm
 @qnumbers a::Destroy(h, 1) b::Destroy(h, 2) # Operators
 
 
-@variables Δ ωm E G κ # Parameters
+@variables Δ ωₘ E G κ # Parameters
 
 
-H = -Δ * a' * a + ωm * b' * b + G * a' * a * (b + b') + E * (a + a') # Hamiltonian
+H = -Δ * a' * a + ωₘ * b' * b + G * a' * a * (b + b') + E * (a + a') # Hamiltonian
 
 
 J = [a] # Jump operators & rates
@@ -33,33 +33,10 @@ nothing # hide
 
 ops = [a' * a, b' * b] # Derive equations
 eqs = meanfield(ops, H, J; rates = rates, order = 2)
-nothing # hide
-
-# ```math
-# \begin{align}
-# \frac{d}{dt} \langle a^\dagger  a\rangle  =& -1 i E \langle a^\dagger\rangle  + 1 i E \langle a\rangle  -1.0 \kappa \langle a^\dagger  a\rangle  \\
-# \frac{d}{dt} \langle b^\dagger  b\rangle  =& -1 i G \left( \langle a^\dagger\rangle  \langle a  b^\dagger\rangle  + \langle b^\dagger\rangle  \langle a^\dagger  a\rangle  + \langle a\rangle  \langle a^\dagger  b^\dagger\rangle  -2 \langle a^\dagger\rangle  \langle b^\dagger\rangle  \langle a\rangle  \right) + 1 i G \left( \langle a^\dagger\rangle  \langle a  b\rangle  + \langle a\rangle  \langle a^\dagger  b\rangle  + \langle b\rangle  \langle a^\dagger  a\rangle  -2 \langle a^\dagger\rangle  \langle a\rangle  \langle b\rangle  \right)
-# \end{align}
-# ```
 
 # To get a closed set of equations we automatically complete the system.
 
 eqs_completed = complete!(deepcopy(eqs)) # Complete equations
-nothing # hide
-
-# ```math
-# \begin{align}
-# \frac{d}{dt} \langle a^\dagger  a\rangle  =& -1 i E \langle a^\dagger\rangle  + 1 i E \langle a\rangle  -1.0 \kappa \langle a^\dagger  a\rangle  \\
-# \frac{d}{dt} \langle b^\dagger  b\rangle  =& -1 i G \left( \langle a^\dagger\rangle  \langle a  b^\dagger\rangle  + \langle b^\dagger\rangle  \langle a^\dagger  a\rangle  + \langle a\rangle  \langle a^\dagger  b^\dagger\rangle  -2 \langle a^\dagger\rangle  \langle b^\dagger\rangle  \langle a\rangle  \right) + 1 i G \left( \langle a^\dagger\rangle  \langle a  b\rangle  + \langle a\rangle  \langle a^\dagger  b\rangle  + \langle b\rangle  \langle a^\dagger  a\rangle  -2 \langle a^\dagger\rangle  \langle a\rangle  \langle b\rangle  \right) \\
-# \frac{d}{dt} \langle a^\dagger\rangle  =& 1 i E + G \left( 1 i \langle a^\dagger  b^\dagger\rangle  + 1 i \langle a^\dagger  b\rangle  \right) -1 i \Delta \langle a^\dagger\rangle  -0.5 \kappa \langle a^\dagger\rangle  \\
-# \frac{d}{dt} \langle a  b^\dagger\rangle  =& G \left( -2 i \langle b^\dagger\rangle  \langle a  b^\dagger\rangle  -1 i \langle b^\dagger\rangle  \langle a  b\rangle  -1 i \langle a\rangle  \langle b^\dagger  b^\dagger\rangle  -1 i \langle a\rangle  \langle b^\dagger  b\rangle  + 2 i \langle a\rangle  \langle b^\dagger\rangle ^{2} -1 i \langle b\rangle  \langle a  b^\dagger\rangle  + 2 i \langle b^\dagger\rangle  \langle a\rangle  \langle b\rangle  \right) -1 i E \langle b^\dagger\rangle  + 1 i G \left( \langle a^\dagger\rangle  \langle a  a\rangle  -2 \langle a^\dagger\rangle  \langle a\rangle ^{2} + 2 \langle a\rangle  \langle a^\dagger  a\rangle  \right) + 1 i \Delta \langle a  b^\dagger\rangle  -0.5 \kappa \langle a  b^\dagger\rangle  + 1 i {\omega}m \langle a  b^\dagger\rangle  \\
-# \frac{d}{dt} \langle b^\dagger\rangle  =& 1 i G \langle a^\dagger  a\rangle  + 1 i {\omega}m \langle b^\dagger\rangle  \\
-# \frac{d}{dt} \langle a^\dagger  b^\dagger\rangle  =& G \left( 1 i \langle a^\dagger\rangle  + 2 i \langle a^\dagger\rangle  \langle a^\dagger  a\rangle  + 1 i \langle a^\dagger\rangle  \langle b^\dagger  b^\dagger\rangle  + 1 i \langle a^\dagger\rangle  \langle b^\dagger  b\rangle  -2 i \langle a^\dagger\rangle  \langle b^\dagger\rangle ^{2} + 2 i \langle b^\dagger\rangle  \langle a^\dagger  b^\dagger\rangle  + 1 i \langle b^\dagger\rangle  \langle a^\dagger  b\rangle  + 1 i \langle a\rangle  \langle a^\dagger  a^\dagger\rangle  -2 i \langle a\rangle  \langle a^\dagger\rangle ^{2} + 1 i \langle b\rangle  \langle a^\dagger  b^\dagger\rangle  -2 i \langle a^\dagger\rangle  \langle b^\dagger\rangle  \langle b\rangle  \right) + 1 i E \langle b^\dagger\rangle  -1 i \Delta \langle a^\dagger  b^\dagger\rangle  -0.5 \kappa \langle a^\dagger  b^\dagger\rangle  + 1 i {\omega}m \langle a^\dagger  b^\dagger\rangle  \\
-# \frac{d}{dt} \langle b^\dagger  b^\dagger\rangle  =& 2 i G \left( \langle a^\dagger\rangle  \langle a  b^\dagger\rangle  + \langle b^\dagger\rangle  \langle a^\dagger  a\rangle  + \langle a\rangle  \langle a^\dagger  b^\dagger\rangle  -2 \langle a^\dagger\rangle  \langle b^\dagger\rangle  \langle a\rangle  \right) + 2 i {\omega}m \langle b^\dagger  b^\dagger\rangle  \\
-# \frac{d}{dt} \langle a  a\rangle  =& G \left( -2 i \langle b^\dagger\rangle  \langle a  a\rangle  + 4 i \langle b^\dagger\rangle  \langle a\rangle ^{2} -4 i \langle a\rangle  \langle a  b^\dagger\rangle  -4 i \langle a\rangle  \langle a  b\rangle  -2 i \langle b\rangle  \langle a  a\rangle  + 4 i \langle b\rangle  \langle a\rangle ^{2} \right) -2 i E \langle a\rangle  + 2 i \Delta \langle a  a\rangle  -1.0 \kappa \langle a  a\rangle
-# \end{align}
-# ```
-
 
 # To calculate the dynamics we create a system of ordinary differential equations, which can be used by [DifferentialEquations.jl](https://diffeq.sciml.ai/stable/).
 
@@ -72,7 +49,7 @@ nothing # hide
 
 u0 = initial_values(eqs_completed; defaults = Dict(average(b' * b) => 4.0e6 + 0im)) # Initial state (4e6 phonons)
 
-p0 = Dict{Num, ComplexF64}(Δ => -10.0 + 0im, ωm => 1.0 + 0im, E => 200.0 + 0im, G => 0.0125 + 0im, κ => 20.0 + 0im) # System parameters
+p0 = Dict{Num, ComplexF64}(Δ => -10.0 + 0im, ωₘ => 1.0 + 0im, E => 200.0 + 0im, G => 0.0125 + 0im, κ => 20.0 + 0im) # System parameters
 prob = ODEProblem(sys_c, merge(u0, p0), (0.0, 60000.0))
 sol = solve(prob, RK4())
 nothing # hide
@@ -86,7 +63,7 @@ T = 7.5e-5 * phonons
 photons = real.(get_solution(sol, a'a, eqs_completed).(sol.t))
 
 p1 = plot(t, T, ylabel = "T in K", legend = false)
-p2 = plot(t, photons, xlabel = "t⋅ωm", ylabel = "⟨a⁺a⟩", legend = false)
+p2 = plot(t, photons, xlabel = "t⋅ωₘ", ylabel = "⟨a⁺a⟩", legend = false)
 plot(p1, p2, layout = (2, 1), size = (650, 400))
 
 # ## Package versions

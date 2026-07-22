@@ -40,14 +40,6 @@ nothing # hide
 
 eqs = meanfield([σ(2, 2), σ(1, 2)], H, J; rates = rates, iv = t)
 complete!(eqs)
-nothing # hide
-
-# ```math
-# \begin{align}
-# \frac{d}{dt} \langle {\sigma}^{{22}}\rangle  =& -1.0 \Gamma \langle {\sigma}^{{22}}\rangle  + \frac{1}{2} i \Omega f\left( t \right) \langle {\sigma}^{{12}}\rangle  + \frac{-1}{2} i \Omega f\left( t \right) \langle {\sigma}^{{21}}\rangle  \\
-# \frac{d}{dt} \langle {\sigma}^{{12}}\rangle  =& \frac{-1}{2} i \Omega f\left( t \right) -0.5 \Gamma \langle {\sigma}^{{12}}\rangle  -0.5 \nu \langle {\sigma}^{{12}}\rangle  + 1 i \Delta \langle {\sigma}^{{12}}\rangle  + 1 i \Omega f\left( t \right) \langle {\sigma}^{{22}}\rangle
-# \end{align}
-# ```
 
 # To calculate the dynamic of the system we create a system of ordinary differential equations and define the numeric parameters with the time dependent function.
 

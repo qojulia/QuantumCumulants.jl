@@ -28,7 +28,7 @@ NLevelSpace
 ```
 
 ```@docs
-CollectiveNLevelSpace
+SecondQuantizedAlgebra.CollectiveNLevelSpace
 ```
 
 ```@docs
@@ -121,7 +121,7 @@ Transition
 ```
 
 ```@docs
-CollectiveTransition
+SecondQuantizedAlgebra.CollectiveTransition
 ```
 
 ```@docs

@@ -73,20 +73,10 @@ eqs = complete(eq_n; filter_func = phase_invariant) # Complete equations
 
 
 c = CorrelationFunction(a', a, eqs; steady_state = true, filter_func = phase_invariant) # Correlation function
-nothing # hide
-
-# $\langle a^\dagger a_0\rangle$
 
 # As we can see, there are only two equations necessary to obtain the correlation function:
 
 c.eqs
-nothing # hide
-
-# ```math
-# \begin{align} \frac{d}{dt} \langle a^\dagger a_0\rangle =& 1.0 i g \langle {\sigma}^{{eg}} a_0\rangle + 1.0 i \Delta \langle a^\dagger a_0\rangle -0.5 \kappa \langle a^\dagger a_0\rangle \\
-# \frac{d}{dt} \langle {\sigma}^{{eg}} a_0\rangle =& 1.0 i g \langle a^\dagger a_0\rangle -0.5 \gamma \langle {\sigma}^{{eg}} a_0\rangle -0.5 \nu \langle {\sigma}^{{eg}} a_0\rangle -2.0 i \langle {\sigma}^{{ee}}\rangle g \langle a^\dagger a_0\rangle
-# \end{align}
-# ```
 
 # The spectrum can now be computed by solving the above system of equations and then taking the Fourier transform, or by taking the Fourier transform directly, which is done by constructing an instance of the [`Spectrum`](@ref Spectrum) type. Here, we will compare both approaches.
 
