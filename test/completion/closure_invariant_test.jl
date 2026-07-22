@@ -54,7 +54,6 @@ end
     c_ops = [σ_ch(:g, :e, k) for k in 1:N]
     eqs = meanfield(σ_ch(:g, :e, 1), H, c_ops; rates = [γ for _ in 1:N], order = 2)
     complete!(eqs)
-    # find_missing must agree with the resolver: the system closes at 373, so
-    # find_missing must be empty (was 54 before Task 2 unified the code paths).
+    # The system closes, so find_missing must be empty.
     @test isempty(find_missing(eqs))
 end

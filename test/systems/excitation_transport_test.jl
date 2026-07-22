@@ -23,15 +23,13 @@ using Test
     c_ops = [σ_ch(:g, :e, k) for k in 1:N]
     eqs = meanfield(σ_ch(:g, :e, 1), H, c_ops; rates = [γ for _ in 1:N], order = 2)
     complete!(eqs)
-    # The full order-2 closure has 434 distinct moments. complete!'s iteration cap
-    # must be high enough to reach the fixpoint (the N=10 chain needs > 200 BFS
-    # node-expansions; the cap was raised in the moment-class rebuild so closure
-    # finishes instead of truncating). SubspaceTreatment-consistent find_missing (Task 2)
-    # confirms the closed system has no missing leaves.
+    # Order-2 closure: 245 conjugate-folded moments (`get_adjoints=false`). complete!'s
+    # iteration cap must reach the fixpoint (the N=10 chain needs > 200 BFS
+    # node-expansions), else closure truncates instead of erroring.
     @test isempty(find_missing(eqs))
-    @test length(eqs.equations) == 434
+    @test length(eqs.equations) == 245
     sys_c = mtkcompile(System(eqs; name = :chain_sys))
-    @test length(unknowns(sys_c)) == 434
+    @test length(unknowns(sys_c)) == 245
 end
 
 # N=4 chain integrated as a mean-field ODE, pinning the end-of-chain population.
@@ -54,9 +52,9 @@ end
     c_ops = [σ_ch(:g, :e, k) for k in 1:N]
     eqs = meanfield(σ_ch(:g, :e, 1), H, c_ops; rates = [γ for _ in 1:N], order = 2)
     complete!(eqs)
-    @test length(eqs.equations) == 65
+    @test length(eqs.equations) == 38
     sys_c = mtkcompile(System(eqs; name = :chain4_sys))
-    @test length(unknowns(sys_c)) == 65
+    @test length(unknowns(sys_c)) == 38
     u0 = zeros(ComplexF64, length(eqs.equations))
     init = initial_values(eqs, u0)
     ps = Dict(

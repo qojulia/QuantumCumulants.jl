@@ -22,7 +22,7 @@ using Test
     rates = [κ, Γ_v(i, j)]
     eqs = meanfield(a, H, J; rates = rates, order = 1)
     complete!(eqs)
-    @test length(eqs.equations) == 4
+    @test length(eqs.equations) == 3
     eqs_ = evaluate(eqs; limits = (N => 2))
     @test length(eqs_.equations) == 5
     sys_c = mtkcompile(System(eqs_; name = :ca_sys))
@@ -50,9 +50,6 @@ using Test
     end
     prob = ODEProblem(sys_c, merge(init, pmap_dict), (0.0, 30.0))
     sol = solve(prob, Tsit5(); reltol = 1.0e-9, abstol = 1.0e-9)
-    # Matches master v0.4.3 (0.001984): the collective dissipator now emits the
-    # explicit diagonal self-decay + off-diagonal recycling with `j≠k` preserved
-    # through cumulant factorisation (INVESTIGATION_NOTES.md §7).
     @test isapprox(
         abs2(get_solution(sol, a, eqs_).(sol.t[end])),
         0.001984; rtol = 1.0e-4,

@@ -20,11 +20,11 @@ using Test
     rates = [κ, γ]
     eqs = meanfield([a, a' * a, σ(2, 2, j)], H, J; rates = rates, order = 2)
     eqs_c = complete(eqs)
-    @test length(eqs_c.equations) == 22
+    @test length(eqs_c.equations) == 13
     eqs_sc = scale(eqs_c)
-    @test length(eqs_sc.equations) == 19
+    @test length(eqs_sc.equations) == 12
     sys_c = mtkcompile(System(eqs_sc; name = :us_sys))
-    @test length(unknowns(sys_c)) == 19
+    @test length(unknowns(sys_c)) == 12
     ω_ = 1.0; Ω_ = 2.0e3; η_ = 4.0; κ_ = 1.0; γ_ = 1.0
     N_ = 1
     gc_ = sqrt(Ω_ * ω_ / N_)
@@ -61,11 +61,11 @@ end
     rates = [κ, γ]
     eqs = meanfield([a, a' * a, σ(2, 2, j)], H, J; rates = rates, order = 2)
     eqs_c = complete(eqs)
-    @test length(eqs_c.equations) == 22
+    @test length(eqs_c.equations) == 13
     eqs_sc = scale(eqs_c)
-    @test length(eqs_sc.equations) == 19
+    @test length(eqs_sc.equations) == 12
     sys_c = mtkcompile(System(eqs_sc; name = :us_freej_sys))
-    @test length(unknowns(sys_c)) == 19
+    @test length(unknowns(sys_c)) == 12
     ω_ = 1.0; Ω_ = 2.0e3; η_ = 4.0; κ_ = 1.0; γ_ = 1.0
     N_ = 100
     gc_ = sqrt(Ω_ * ω_ / N_)

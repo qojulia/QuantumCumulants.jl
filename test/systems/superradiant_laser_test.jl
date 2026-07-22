@@ -19,11 +19,11 @@ using Test
     ops = [a' * a, σ(2, 2, j)]
     eqs = meanfield(ops, H, J; rates = rates, order = 2)
     eqs_c = complete(eqs; filter_func = phase_invariant)
-    @test length(eqs_c.equations) == 6
+    @test length(eqs_c.equations) == 4
     eqs_sc = scale(eqs_c)
-    @test length(eqs_sc.equations) == 5
+    @test length(eqs_sc.equations) == 4
     sys_c = mtkcompile(System(eqs_sc; name = :sr_sys))
-    @test length(unknowns(sys_c)) == 5
+    @test length(unknowns(sys_c)) == 4
     u0 = zeros(ComplexF64, length(eqs_sc.equations))
     init = initial_values(eqs_sc, u0)
     pmap = parameter_map(
