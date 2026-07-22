@@ -23,6 +23,19 @@ using ExplicitImports
             QuantumCumulants; skip = (Base => Core,),
         ) === nothing
         @test check_no_self_qualified_accesses(QuantumCumulants) === nothing
+
+        @test check_all_explicit_imports_are_public(QuantumCumulants) === nothing
+        @test check_all_qualified_accesses_are_public(
+            QuantumCumulants;
+            ignore = (
+                :FnType, # SU.jl
+                :isconst, # SU.jl
+                :IM, # Symbolics.jl
+                :RefValue, # Base
+                :tobrownian, # MTK.jl
+                :toparam # MTK.jl
+                ),
+        ) === nothing
     end
 
     @testset "CheckConcreteStructs" begin

@@ -52,7 +52,7 @@ function _build_sym_to_space(g::MomentGraph)
         out[SQA.index_name(idx)] = sp
     end
     for k in keys(g.nodes), idx in SQA.get_indices(k)
-        out[SQA.index_name(idx)] = idx.space_index
+        out[SQA.index_name(idx)] = _aon(idx)
     end
     return out
 end
@@ -117,7 +117,7 @@ function _scale_sum(node, ctx, selected, treatments, sym_to_space, cache)
     indices = SQA.get_sum_indices(node)
     ne = SQA.get_sum_non_equal(node)
     body = _indexed_sum_body(node)
-    keep = SQA.Index[b for b in indices if !(b.space_index in selected)]
+    keep = SQA.Index[b for b in indices if !(_aon(b) in selected)]
     pref = _scope_prefactor(indices, ne, selected)
     scaled_body = rewrite(body) do l
         _scale_node(l, ctx, selected, treatments, sym_to_space, cache)
@@ -169,7 +169,7 @@ what multiplies the representative moment when the symmetric sum collapses. Comp
 `_sum_scope_prefactor`, which derives the same count from an operator `QAdd`.
 """
 _scope_prefactor(indices, ne, selected::Set{Int}) = _falling_factorial(
-    indices, ne, Set{SQA.Index}(b for b in indices if b.space_index in selected),
+    indices, ne, Set{SQA.Index}(b for b in indices if _aon(b) in selected),
 )
 
 function _scale_leaf(avg, ctx, selected, treatments)
@@ -179,7 +179,7 @@ function _scale_leaf(avg, ctx, selected, treatments)
     # Fold only the selected subspaces (Scaled); keep the rest verbatim (Concrete).
     # `_treatment_key` empties `.indices`, so re-attach the non-selected bound indices
     # afterwards to preserve their `Σ`.
-    keep_idx = SQA.Index[b for b in op.indices if !(b.space_index in selected)]
+    keep_idx = SQA.Index[b for b in op.indices if !(_aon(b) in selected)]
     folded = _treatment_key(op, ctx, treatments)
     # `_treatment_key` drops all non-equal index constraints, correct for the selected
     # subspace but wrong for a non-selected one whose off-diagonal constraint is
@@ -187,7 +187,7 @@ function _scale_leaf(avg, ctx, selected, treatments)
     if folded isa QAdd && !isempty(keep_idx)
         kept_non_equal = Tuple{SQA.Index, SQA.Index}[]
         for (term, _) in op.arguments, p in term.ne
-            (p[1].space_index in selected && p[2].space_index in selected) && continue
+            (_aon(p[1]) in selected && _aon(p[2]) in selected) && continue
             p in kept_non_equal || push!(kept_non_equal, p)
         end
         reduced_op = isempty(kept_non_equal) ? SQA.QAdd(folded.arguments, keep_idx) :
@@ -231,7 +231,7 @@ function _sum_scope_prefactor(op::QAdd, selected::Set{Int})
         SQA.has_index(o.index) && push!(op_indices, o.index)
     end
     collapsing = Set{SQA.Index}(
-        b for b in op.indices if b in op_indices && b.space_index in selected
+        b for b in op.indices if b in op_indices && _aon(b) in selected
     )
     ne = Tuple{SQA.Index, SQA.Index}[pair for (term, _) in op.arguments for pair in term.ne]
     return _falling_factorial(op.indices, ne, collapsing)
