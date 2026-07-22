@@ -33,8 +33,8 @@ using ExplicitImports
                 :IM, # Symbolics.jl
                 :RefValue, # Base
                 :tobrownian, # MTK.jl
-                :toparam # MTK.jl
-                ),
+                :toparam, # MTK.jl
+            ),
         ) === nothing
     end
 
