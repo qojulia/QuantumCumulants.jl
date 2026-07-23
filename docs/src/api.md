@@ -377,3 +377,30 @@ substitute!
 ```@docs
 SecondQuantizedAlgebra.make_time_dependent
 ```
+
+## [Numeric backends](@id API: Numeric backends)
+
+Symbolic-to-numeric conversion ([`to_numeric`](@ref), [`numeric_average`](@ref),
+[`initial_values`](@ref)) runs through SecondQuantizedAlgebra's pluggable backend
+interface. Loading a backend (`using QuantumOpticsBase` or `using QuantumToolbox`) selects
+the concrete implementation; the conversion details are documented in SQA's
+[numeric conversion section](https://qojulia.github.io/SecondQuantizedAlgebra.jl/stable/implementation/#Numeric-conversion).
+The re-exported types and hooks below are the interface for selecting and implementing a
+backend.
+
+```@docs
+NumericBackend
+QuantumOpticsBackend
+QuantumToolboxBackend
+numeric_backend
+numeric_basis
+numeric_subbasis
+numeric_operator
+numeric_identity
+numeric_embed
+numeric_num_subsystems
+numeric_assemble
+numeric_assemble_td
+numeric_materialize
+numeric_expect
+```

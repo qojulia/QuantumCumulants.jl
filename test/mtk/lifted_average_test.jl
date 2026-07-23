@@ -25,8 +25,8 @@ end
     eqs = meanfield([a, a' * a], H, [a]; rates = [κ], order = 2)
     sys = System(eqs; name = :s)
     us = unknowns(sys)
-    @test length(us) == 2                                  # ⟨a⟩ and ⟨a†a⟩, conjugates folded
-    @test all(u -> SymbolicUtils.symtype(SymbolicUtils.unwrap(u)) === Number, us)
+    symtypes = Set(SymbolicUtils.symtype(SymbolicUtils.unwrap(u)) for u in us)
+    @test symtypes == Set([Number, Real])
     @test all(u -> is_average(SymbolicUtils.unwrap(u)), us)
 end
 

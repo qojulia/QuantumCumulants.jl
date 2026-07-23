@@ -3,6 +3,13 @@
 All notable changes to QuantumCumulants.jl will be documented in this file.
 
 
+## [0.8.0]
+
+### Changed
+
+**Breaking.** Moved to SecondQuantizedAlgebra v0.10. Load a numeric backend yourself (`using QuantumOpticsBase` or `using QuantumToolbox`), and Hermitian-operator averages now carry the `Real` symtype.
+
+
 ## [0.7.0]
 
 ### Changed
