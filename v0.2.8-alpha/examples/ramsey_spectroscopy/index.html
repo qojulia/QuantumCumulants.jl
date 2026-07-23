@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Ramsey Spectroscopy · QuantumCumulants.jl</title><link href="https://fonts.googleapis.com/css?family=Lato|Roboto+Mono" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.0/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.0/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.0/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.11.1/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL="../.."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../../assets/documenter.js"></script><script src="../../siteinfo.js"></script><script src="../../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-dark.css" data-theme-name="documenter-dark" data-theme-primary-dark/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../../assets/themeswap.js"></script></head><body><div id="documenter"><nav class="docs-sidebar"><div class="docs-package-name"><span class="docs-autofit">QuantumCumulants.jl</span></div><form class="docs-search" action="../../search/"><input class="docs-search-query" id="documenter-search-query" name="q" type="text" placeholder="Search docs"/></form><ul class="docs-menu"><li><a class="tocitem" href="../../">Introduction</a></li><li><a class="tocitem" href="../../theory/">Theoretical background</a></li><li><a class="tocitem" href="../../tutorial/">Tutorial</a></li><li><a class="tocitem" href="../../correlation/">Correlation functions and spectra</a></li><li><a class="tocitem" href="../../implementation/">Implementation</a></li><li><a class="tocitem" href="../../api/">API</a></li><li><span class="tocitem">Examples</span><ul><li><a class="tocitem" href="../single-atom-laser-spectrum/">Spectrum of a single-atom laser</a></li><li><a class="tocitem" href="../mollow/">Mollow Triplet</a></li><li><a class="tocitem" href="../many-atom-laser/">Many-atom laser</a></li><li><a class="tocitem" href="../optomechanical-cooling/">Optomechanical Cooling</a></li><li><a class="tocitem" href="../superradiant-laser/">Superradiant Laser</a></li><li><a class="tocitem" href="../excitation-transport-chain/">Noisy excitation transport</a></li><li><a class="tocitem" href="../cavity_antiresonance/">Cavity Antiresonance</a></li><li class="is-active"><a class="tocitem" href>Ramsey Spectroscopy</a></li></ul></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><nav class="breadcrumb"><ul class="is-hidden-mobile"><li><a class="is-disabled">Examples</a></li><li class="is-active"><a href>Ramsey Spectroscopy</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>Ramsey Spectroscopy</a></li></ul></nav><div class="docs-right"><a class="docs-edit-link" href="https://github.com/qojulia/QuantumCumulants.jl/blob/master/docs/src/examples/ramsey_spectroscopy.md" title="Edit on GitHub"><span class="docs-icon fab"></span><span class="docs-label is-hidden-touch">Edit on GitHub</span></a><a class="docs-settings-button fas fa-cog" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-sidebar-button fa fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a></div></header><article class="content" id="documenter-page"><h1 id="Ramsey-Spectroscopy"><a class="docs-heading-anchor" href="#Ramsey-Spectroscopy">Ramsey Spectroscopy</a><a id="Ramsey-Spectroscopy-1"></a><a class="docs-heading-anchor-permalink" href="#Ramsey-Spectroscopy" title="Permalink"></a></h1><p>A typical problem in quantum optics is the interrogation of an atom with an external driving field. In this brief example we apply the <a href="https://en.wikipedia.org/wiki/Ramsey_interferometry">Ramsey interferometry</a> on a single two-level atom. The distinctiveness of this method is the time dependent laser field. In particular, two short <span>$\pi/2$</span>-pulses are employed with a free evolution between them. This system is described by the simple Hamiltonian</p><p class="math-container">\[H = - \Delta \sigma^{22} +  \Omega(t) (\sigma^{21} + \sigma^{12}),\]</p><p>where <span>$\Delta = \omega_l - \omega_a$</span> is the detuning between the laser and atomic resonance frequency, and <span>$\Omega(t)$</span> describes the time dependent driving field. Additionally we include atomic decay and dephasing, with the rates <span>$\Gamma$</span> and <span>$\nu$</span>, respectively.</p><p>We start by loading the packages.</p><pre><code class="language-julia">using QuantumCumulants
+using OrdinaryDiffEq, ModelingToolkit
+using Plots</code></pre><p>Beside defining the symbolic parameters we additionally need to <a href="https://mtk.sciml.ai/stable/tutorials/ode_modeling/#Specifying-a-time-variable-forcing-function">register</a> a time dependent external function <span>$f(t)$</span> for our driving laser. To this end we first need to define the independent variable <span>$t$</span> of our time evolution. Due to the registration, <span>$f(t)$</span> is treated as a parameter in the symbolic equations, but at the numerical evaluation we can assign every function to it.</p><pre><code class="language-julia">@cnumbers Δ Ω Γ ν
+@syms t::Real
+@register f(t)</code></pre><p>After defining the Hilbert space and the operator of the two-level atom we construct the time dependent Hamiltonian as well as the jump operator list with the corresponding rates.</p><pre><code class="language-julia"># Hilbert space
+h = NLevelSpace(:atom,2)
+
+# operator
+σ(i,j) = Transition(h, :σ, i, j, 2)
+
+# Hamiltonian
+H = -Δ*σ(2,2) + f(t)*Ω/2*(σ(1,2) + σ(2,1))
+
+# Jump operators &amp; rates
+J = [σ(1,2), σ(2,2)]
+rates = [Γ, ν]</code></pre><p>The two-level atom is completely described with the excited state population and the coherence. Therefore we derive the equations for these two operators.</p><pre><code class="language-julia">eqs = meanfield([σ(2,2), σ(1,2)],H,J;rates=rates)</code></pre><p class="math-container">\[\begin{align}
+\frac{d}{dt} \langle {\sigma}^{{22}}\rangle  =&amp; -1.0 \Gamma \langle {\sigma}^{{22}}\rangle  + \frac{1}{2} i \Omega f\left( t \right) \langle {\sigma}^{{12}}\rangle  + \frac{-1}{2} i \Omega f\left( t \right) \langle {\sigma}^{{21}}\rangle  \\
+\frac{d}{dt} \langle {\sigma}^{{12}}\rangle  =&amp; \frac{-1}{2} i \Omega f\left( t \right) -0.5 \Gamma \langle {\sigma}^{{12}}\rangle  -0.5 \nu \langle {\sigma}^{{12}}\rangle  + 1 i \Delta \langle {\sigma}^{{12}}\rangle  + 1 i \Omega f\left( t \right) \langle {\sigma}^{{22}}\rangle
+\end{align}\]</p><p>To calculate the dynamic of the system we create a system of ordinary differential equations and define the numeric parameters with the time dependent function.</p><pre><code class="language-julia">@named sys = ODESystem(eqs)
+
+# Parameter
+Γ_ = 1.0
+Ω_ = 500Γ_
+Δ_ = 0Γ_
+ν_ = 0.2Γ_
+
+tp = π/2Ω_ # π/2-pulse
+tf = 1/20Γ_ # free evolution without drive
+
+function f(t)
+    if t&lt;tp || (t&gt;tp+tf &amp;&amp; t&lt;2tp+tf)
+        return 1
+    else
+        0
+    end
+end
+
+ps = [Γ; Ω; Δ; ν]
+p0 = [Γ_; Ω_; Δ_; ν_]
+
+# Initial state
+u0 = zeros(ComplexF64, length(eqs))</code></pre><p>Finally, we calculate and plot the time evolution.</p><pre><code class="language-julia">prob = ODEProblem(sys,u0,(0.0, 2tp+tf), ps.=&gt;p0)
+sol = solve(prob,Tsit5(),maxiters=1e7)
+
+# Plot time evolution
+t = sol.t
+s22 = real.(sol[σ(2,2)])
+plot(t, s22, xlabel=&quot;tΓ&quot;, ylabel=&quot;⟨σ22⟩&quot;, legend=false, size=(600,300))</code></pre><p><img src="../timeevolution_ramsey.svg" alt="svg"/></p><p>Scanning over the detuning for the excited state population leads to the well-known Ramsey fringes.</p><pre><code class="language-julia">Δ_ls = [-2000:4:2000;]Γ_
+s22_ls = zeros(length(Δ_ls))
+
+for i=1:length(Δ_ls)
+    prob_i = ODEProblem(sys,u0,(0.0, 2tp+tf), [Γ; Ω; Δ; ν].=&gt;[Γ_; Ω_; Δ_ls[i]; ν_])
+    sol_i = solve(prob_i, RK4(); adaptive=false, dt=1e-5)
+    s22_ls[i] = real.(sol_i[σ(2,2)])[end]
+end
+
+plot(Δ_ls, s22_ls, xlabel=&quot;Δ/Γ&quot;, ylabel=&quot;⟨σ22⟩&quot;, legend=false, size=(600,300))</code></pre><p><img src="../scan_ramsey.svg" alt="svg"/></p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../cavity_antiresonance/">« Cavity Antiresonance</a><div class="flexbox-break"></div><p class="footer-message"><a href="https://github.com/qojulia/QuantumCumulants.jl"><strong>Back to GitHub</strong></a></p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> on <span class="colophon-date" title="Friday 16 September 2022 06:07">Friday 16 September 2022</span>. Using Julia version 1.8.1.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
