@@ -23,7 +23,7 @@ h = NLevelSpace(:atom, (:g, :e))
 σ(i, j) = Transition(h, :σ, i, j)
 
 @variables Δ Ω γ
-@variables t0::Real   # absolute time at which the drive evolution stops (t₀)
+@variables t₀::Real   # absolute time at which the drive evolution stops (t₀)
 @register_symbolic r(t)
 
 eqs_seed = meanfield([σ(:e, :e), σ(:e, :g)], Δ * σ(:e, :e), [σ(:g, :e)]; rates = [γ])
@@ -58,9 +58,9 @@ plot(
     size = (600, 300),
 )
 
-# The population settles onto a plateau: at `t0 = tstop` the atom is in a quasi-steady state under the (now constant) drive. We build the emission correlation function on this system, passing `iv0 = t0`.
+# The population settles onto a plateau: at `t₀ = tstop` the atom is in a quasi-steady state under the (now constant) drive. We build the emission correlation function on this system, passing `iv0 = t₀`.
 
-c = CorrelationFunction(σ(:e, :g), σ(:g, :e), eqs; iv0 = t0)
+c = CorrelationFunction(σ(:e, :g), σ(:g, :e), eqs; iv0 = t₀)
 nothing # hide
 
 # Without `iv0`, a time-dependent system raises an informative error, since the correlation equations would otherwise contain the orphaned time variable `t`:
@@ -71,11 +71,11 @@ catch e
     println(e isa ArgumentError ? "ArgumentError: iv0 is required" : e)
 end
 
-# We solve the $\tau$-evolution. The steady-state initial values are read off the original solution with [`correlation_u0`](@ref); the parameters, **including** `t0`, are propagated with [`correlation_p0`](@ref).
+# We solve the $\tau$-evolution. The steady-state initial values are read off the original solution with [`correlation_u0`](@ref); the parameters, **including** `t₀`, are propagated with [`correlation_p0`](@ref).
 
 csys = mtkcompile(System(c; name = :corr))
 u0_c = correlation_u0(c, sol.u[end])
-p0_c = correlation_p0(c, sol.u[end], [γ => γv, Ω => Ωv, Δ => Δv, t0 => tstop])
+p0_c = correlation_p0(c, sol.u[end], [γ => γv, Ω => Ωv, Δ => Δv, t₀ => tstop])
 
 τ_end = 30.0
 prob_c = ODEProblem(csys, merge(u0_c, Dict(p0_c)), (0.0, τ_end))
@@ -88,6 +88,7 @@ coh = abs2(get_solution(sol, σ(:g, :e), eqs)(tstop))   # |⟨σᵍᵉ⟩|² at 
 τ = collect(range(0.0, τ_end; length = 2001))          # equidistant grid for the FFT
 g_inel = sol_c.(τ) .- coh
 ω, S = timecorrelations.correlation2spectrum(τ, g_inel)
+nothing # hide
 
 # To confirm the result, we compare against the textbook **constant-drive** Mollow triplet: the same atom driven by a time-independent field $\Omega$, evolved to steady state, with its correlation computed the standard way (no `iv0`).
 
@@ -116,6 +117,7 @@ sol_cc = solve(
 )
 coh_const = abs2(get_solution(sol_const, σ(:g, :e), eqs_const)(40.0))
 _, S_const = timecorrelations.correlation2spectrum(τ, sol_cc.(τ) .- coh_const)
+nothing # hide
 
 # The two spectra lie on top of each other: the pulsed drive, sampled from a plateau time $t_0$ via `iv0`, reproduces the steady-state Mollow triplet. The sidebands sit at $\omega \approx \pm 2\Omega$ (the dressed-state splitting at resonance), flanking the central line at $\omega = 0$.
 

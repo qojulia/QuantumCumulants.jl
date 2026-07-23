@@ -92,15 +92,6 @@ println("Number of equations = $(length(ops))")
 
 eqs = meanfield(ops, H, J; rates = rates, order = 2) # derive equations
 meanfield(Sz(1), H, J; rates = rates, order = 2)
-nothing # hide
-
-
-# ```math
-# \begin{align}
-# \frac{d}{dt} \langle {S1}^{{z}}\rangle  =& -1.0 \langle {S1}^{{y}}  {S4}^{{y}}\rangle  \Gamma_{1\_4} -1.0 \langle {S1}^{{x}}  {S3}^{{x}}\rangle  \Gamma_{1\_3} -1.0 \langle {S1}^{{y}}  {S1}^{{y}}\rangle  \Gamma_{1\_1} -1.0 \langle {S1}^{{y}}  {S2}^{{y}}\rangle  \Gamma_{1\_2} -1.0 \langle {S1}^{{z}}\rangle  \Gamma_{1\_1} -1.0 \langle {S1}^{{x}}  {S1}^{{x}}\rangle  \Gamma_{1\_1} + 2 \langle {S1}^{{y}}  {S2}^{{x}}\rangle  \Omega_{1\_2} + 2 \langle {S1}^{{y}}  {S4}^{{x}}\rangle  \Omega_{1\_4} -1.0 \langle {S1}^{{x}}  {S2}^{{x}}\rangle  \Gamma_{1\_2} -1.0 \langle {S1}^{{x}}  {S4}^{{x}}\rangle  \Gamma_{1\_4} -2 \langle {S1}^{{x}}  {S3}^{{y}}\rangle  \Omega_{1\_3} -2 \langle {S1}^{{x}}  {S4}^{{y}}\rangle  \Omega_{1\_4} -1.0 \langle {S1}^{{y}}  {S3}^{{y}}\rangle  \Gamma_{1\_3} + 2 \langle {S1}^{{y}}  {S3}^{{x}}\rangle  \Omega_{1\_3} -2 \langle {S1}^{{x}}  {S2}^{{y}}\rangle  \Omega_{1\_2}
-# \end{align}
-# ```
-
 
 # We define the numerical system Parameters and the initial state. For spin operators the initial state is unfortunately not fully trivial with all zeros. Therefore, we use the [numeric conversion](https://qojulia.github.io/QuantumCumulants.jl/stable/implementation/#Numeric-averages-and-conversion) which allows us to define the quantum state in [QuantumOptics.jl](https://docs.qojulia.org/quantumobjects/states/) and convert it to the correct initial average values.
 

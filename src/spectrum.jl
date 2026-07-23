@@ -39,7 +39,7 @@ julia> eqs = meanfield([a' * a], a' * a, [a]; rates = [1.0], order = 2);
 julia> c = CorrelationFunction(a', a, eqs);
 
 julia> Spectrum(c)
-ℱ(⟨a' * a⟩)(ω)
+ℱ(⟨a' * a_0⟩)(ω)
 ```
 """
 struct Spectrum{C <: CorrelationFunction, P}

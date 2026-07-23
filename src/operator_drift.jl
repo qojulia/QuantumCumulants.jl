@@ -29,29 +29,31 @@ indices.
 function _lindblad_rhs(op, J, Jdagger, rates)
     isempty(J) && return zero(op)
     op_idx = _op_free_indices(op)
-    acc = zero(op)
+    contributions = QAdd[]
     @inbounds for k in eachindex(J)
         rk = rates[k]
         if rk isa AbstractMatrix
             # `rk[i,j]` is the cross-rate between mode operators `J[k][i]` and `J[k][j]`.
             Jv, Jdv = J[k], Jdagger[k]
             for i in eachindex(Jv), j in eachindex(Jv)
-                acc += (rk[i, j] / 2) * (
-                    Jdv[i] * commutator(op, Jv[j]) +
-                        commutator(Jdv[i], op) * Jv[j]
+                push!(
+                    contributions, (rk[i, j] / 2) * (
+                        Jdv[i] * commutator(op, Jv[j]) +
+                            commutator(Jdv[i], op) * Jv[j]
+                    )
                 )
             end
         elseif _is_double_indexed_var(rk) && !isempty(_op_free_indices(J[k]))
-            acc += _collective_indexed_lindblad(op, J[k], Jdagger[k], rk)
+            push!(contributions, _collective_indexed_lindblad(op, J[k], Jdagger[k], rk))
         else
             term = (rk / 2) * (
                 Jdagger[k] * commutator(op, J[k]) +
                     commutator(Jdagger[k], op) * J[k]
             )
-            acc += _sum_over_jump_indices(term, J[k], op_idx)
+            push!(contributions, _sum_over_jump_indices(term, J[k], op_idx))
         end
     end
-    return acc
+    return isempty(contributions) ? zero(op) : sum(contributions)
 end
 
 """
@@ -115,9 +117,7 @@ from the user's existing vocabulary rather than being invented.
 function _partner_index(rk, i_jump::SQA.Index)
     args = SymbolicUtils.arguments(SymbolicUtils.unwrap(rk))
     sym_j = args[2]
-    return SQA.Index(
-        SQA._intern_name(Base.nameof(sym_j)), i_jump.range_id, i_jump.space_index, Int32(0)
-    )
+    return SQA.rename(i_jump, Base.nameof(sym_j))
 end
 
 """
@@ -158,7 +158,7 @@ picture. Matrix (nondiagonal) measurement rates are not supported here.
 function _master_lindblad_backward(op, J, Jdagger, rates)
     isempty(J) && return zero(op)
     op_idx = _op_free_indices(op)
-    acc = zero(op)
+    contributions = QAdd[]
     @inbounds for k in eachindex(J)
         rk = rates[k]
         rk isa AbstractMatrix && throw(
@@ -172,9 +172,9 @@ function _master_lindblad_backward(op, J, Jdagger, rates)
         term = (-rk / 2) * op * Jdagger[k] * J[k] +
             (-rk / 2) * Jdagger[k] * J[k] * op +
             rk * J[k] * op * Jdagger[k]
-        acc += _sum_over_jump_indices(term, J[k], op_idx)
+        push!(contributions, _sum_over_jump_indices(term, J[k], op_idx))
     end
-    return acc
+    return sum(contributions)
 end
 
 """
@@ -213,15 +213,15 @@ function _assume_distinct_atom_indices(q::SQA.QAdd, distinct::Vector{SQA.Index})
     by_space = Dict{Int, Set{SQA.Index}}()
     for (term, _) in q.arguments, o in term.ops
         SQA.has_index(o.index) || continue
-        push!(get!(by_space, o.index.space_index, Set{SQA.Index}()), o.index)
+        push!(get!(by_space, _aon(o.index), Set{SQA.Index}()), o.index)
     end
     for b in q.indices
-        push!(get!(by_space, b.space_index, Set{SQA.Index}()), b)
+        push!(get!(by_space, _aon(b), Set{SQA.Index}()), b)
     end
     pairs = Tuple{SQA.Index, SQA.Index}[]
     seen_pairs = Set{Tuple{SQA.Index, SQA.Index}}()
     for d in distinct
-        idxs = get(by_space, d.space_index, Set{SQA.Index}())
+        idxs = get(by_space, _aon(d), Set{SQA.Index}())
         for other in idxs
             other == d && continue
             key = d < other ? (d, other) : (other, d)
@@ -269,7 +269,7 @@ end
 _collect_atom_space_indices_by_space!(_, ::Any) = nothing
 function _collect_atom_space_indices_by_space!(by_space, op::SQA.QSym)
     SQA.has_index(op.index) || return nothing
-    v = get!(by_space, op.index.space_index, SQA.Index[])
+    v = get!(by_space, _aon(op.index), SQA.Index[])
     op.index in v || push!(v, op.index)
     return nothing
 end
@@ -303,16 +303,17 @@ function _build_noise_equations_forward(ops, J, Jdagger, rates, efficiencies)
     operator_noise_eqs = Vector{Symbolics.Equation}(undef, n_ops)
     noise_eqs = Vector{Symbolics.Equation}(undef, n_ops)
     @inbounds for (i, op) in enumerate(ops)
-        op_drift = 0 * op
+        drifts = QAdd[]
         avg_drift = 0
         for k in 1:n_J
             iszero(efficiencies[k]) && continue
             d = SQA.expand_completeness(
                 _noise_drift_one(op, J[k], Jdagger[k], rates[k], efficiencies[k])
             )
-            op_drift = op_drift + d
+            push!(drifts, d)
             avg_drift = avg_drift + average(d)
         end
+        op_drift = isempty(drifts) ? 0 * op : sum(drifts)
         operator_noise_eqs[i] = op ~ op_drift
         noise_eqs[i] = average(op) ~ avg_drift
     end

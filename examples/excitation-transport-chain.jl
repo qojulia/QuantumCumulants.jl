@@ -39,9 +39,9 @@ h = ⊗([NLevelSpace(Symbol(:atom, i), (:g, :e)) for i in 1:N]...)
 σ(i, j, k) = Transition(h, Symbol(:σ_, k), i, j, k) # Operators
 
 
-@variables Ω γ w Δ J0 # Define the symbolic parameters and the interaction
+@variables Ω γ Δ J₀ # Define the symbolic parameters and the interaction
 x = [first(@variables $(Symbol("x_$i"))) for i in 1:N]
-J(xᵢ, xⱼ) = J0 / abs(xᵢ - xⱼ)^3
+J(xᵢ, xⱼ) = J₀ / abs(xᵢ - xⱼ)^3
 
 H =
     -Δ * sum(σ(:e, :e, k) for k in 1:N) +
@@ -73,7 +73,7 @@ nothing # hide
 
 d = 0.75 # Define parameters without noise
 x0 = [d * (k - 1) for k in 1:N]
-p = Dict([γ => 1.0; Δ => 0.0; Ω => 2.0; J0 => 1.25; x .=> x0;])
+p = Dict([γ => 1.0; Δ => 0.0; Ω => 2.0; J₀ => 1.25; x .=> x0;])
 
 
 u0 = initial_values(eqs)  # initial state -- all atoms in the ground state
@@ -109,7 +109,7 @@ plot!(graph, sol.t, popN, label = "End of chain", leg = 1)
 s = d / 30  # strength of fluctuations
 function prob_func(prob, args...)
     x_ = x0 .+ s .* randn(N) # Define the new set of parameters
-    p_ = Dict([γ => 1.0; Δ => 0.0; Ω => 2.0; J0 => 1.25; x .=> x_;])
+    p_ = Dict([γ => 1.0; Δ => 0.0; Ω => 2.0; J₀ => 1.25; x .=> x_;])
 
     return ODEProblem(sys_c, merge(u0, p_), (0.0, 15.0)) # Return new ODEProblem
 end

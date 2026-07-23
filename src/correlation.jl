@@ -35,11 +35,17 @@ end
 
 # ---- ancilla embedding -------------------------------------------------------
 
-# One concrete `Op` now carries every role, so re-seating an operator on the
-# ancilla subspace is a single field swap: copy the packed payload, change only
-# the acting-on `space_index`.
-_embed_on(op::SQA.Op, aon::Integer) =
-    SQA.Op(op.kind, op.name_id, Int32(aon), op.index, op.l1, op.l2, op.g, op.nlev)
+# One concrete `Op` now carries every role, so re-seating an operator on the ancilla
+# subspace is a single call to SQA's public `set_acts_on`: it returns a copy on the new
+# subspace with role, name, index, and levels preserved.
+_embed_on(op::SQA.Op, aon::Integer) = SQA.set_acts_on(op, aon)
+
+_ancilla_op_name(name::Symbol) = Symbol(name, "_0")
+_rename_ancilla(op::SQA.Op) = SQA.rename(op, _ancilla_op_name(SQA.operator_name(op)))
+
+_strip_ancilla_op_name(name::Symbol) = endswith(String(name), "_0") ? Symbol(chop(String(name); tail = 2)) : name
+_restore_ancilla(op::SQA.Op) = SQA.rename(op, _strip_ancilla_op_name(SQA.operator_name(op)))
+_embed_ancilla(op, aon::Integer) = _rename_ancilla(_embed_on(op, aon))
 
 function _ancilla_aon(eqs0::MeanfieldEquations, op1::QField, op2::QField)
     aons = Int[]
@@ -72,58 +78,31 @@ end
 
 # ---- constructor -------------------------------------------------------------
 
-"""
-    CorrelationFunction(op1, op2, eqs0; steady_state=true, filter_func=nothing, max_iter=100_000, iv0=nothing)
-
-Build the two-time correlation ⟨op1(τ)·op2(0)⟩ from a solved mean-field system
-`eqs0` via the quantum regression theorem. `op2` is re-embedded onto a fresh ancilla
-subspace and the resulting system is closed only on averages that touch the
-ancilla; the remaining averages are steady-state coefficients. With
-`steady_state=false` the ambient averages are evolved too. `filter_func` further
-restricts the closure, and `max_iter` bounds the closure iterations.
-
-If the Hamiltonian, jumps, or rates depend on the parent time variable `eqs0.iv`
-(e.g. a drive `f(t)`), the τ-evolution is governed by the generator at `iv0 + τ`, where
-`iv0` is the absolute time the parent evolution stopped (conventionally `sol.t[end]`).
-Pass it as a parameter, e.g. `@variables t0::Real; CorrelationFunction(op1, op2, eqs; iv0 = t0)`,
-and supply its value alongside the other parameters in [`correlation_p0`](@ref). `iv0` is
-ignored for time-independent systems and required when a dependence is detected.
-
-# Examples
-```jldoctest
-julia> h = FockSpace(:cavity);
-
-julia> @qnumbers a::Destroy(h);
-
-julia> eqs = meanfield([a' * a], a' * a, [a]; rates = [1.0], order = 2);
-
-julia> CorrelationFunction(a', a, eqs)
-⟨a' * a⟩
-```
-"""
-function CorrelationFunction(
-        op1::QField, op2::QField, eqs0::MeanfieldEquations;
+# Shared body for the regression-theorem system g(τ) = ⟨op1(τ) op2(0)⟩: seed one two-time
+# correlation ⟨opᵢ(τ) op2(0)⟩ per operator in `op1_seed`; `op1` is kept as the representative.
+function _correlation_function(
+        op1::QField, op1_seed::AbstractVector{<:QField}, op2::QField, eqs0::MeanfieldEquations;
         steady_state::Bool = true, filter_func = nothing, max_iter::Int = 100_000,
         iv0 = nothing,
     )
     τ = first(MTK.@independent_variables τ)
     aon_ancilla = _ancilla_aon(eqs0, op1, op2)
-    op2_ancilla = _embed_on(op2, aon_ancilla)
-    new_op = op1 * op2_ancilla
+    op2_ancilla = _embed_ancilla(op2, aon_ancilla)
+    new_ops = [op * op2_ancilla for op in op1_seed]
 
     ord = eqs0.order
     order_ext = ord === nothing ? nothing :
         vcat(ord, fill(maximum(ord), aon_ancilla - length(ord)))
 
     eqs_c = meanfield(
-        [new_op], eqs0.hamiltonian, eqs0.jumps;
+        new_ops, eqs0.hamiltonian, eqs0.jumps;
         Jdagger = eqs0.jumps_dagger, rates = eqs0.rates, order = order_ext, iv = τ,
     )
 
     ancilla_filter = _ancilla_filter(aon_ancilla)
     closure_filter = filter_func === nothing ? ancilla_filter : x -> ancilla_filter(x) && filter_func(x)
     fold_cache = Dict{QAdd, Bool}()
-    fold = _memoizing_foldable(fold_cache, op2.space_index, aon_ancilla)
+    fold = _memoizing_foldable(fold_cache, _aon(op2), aon_ancilla)
     # `meanfield` seeds (does not close) the ancilla system, so `eqs_c.graph` is the seeded
     # graph; close it here, purely.
     g = closure(eqs_c.graph; filter = closure_filter, get_adjoints = false, foldable = fold, max_iter)
@@ -157,6 +136,55 @@ function CorrelationFunction(
     return CorrelationFunction(
         op1, op2, op2_ancilla, aon_ancilla, eqs_tau, eqs0, τ, steady_state, ambient, fold_cache,
     )
+end
+
+"""
+    CorrelationFunction(op1, op2, eqs0; steady_state=true, filter_func=nothing, max_iter=100_000, iv0=nothing)
+
+Build the two-time correlation ⟨op1(τ)·op2(0)⟩ from a solved mean-field system
+`eqs0` via the quantum regression theorem. `op2` is re-embedded onto a fresh ancilla
+subspace (and renamed `<name>_0`, so `a` becomes `a_0`) and the resulting system is
+closed only on averages that touch the ancilla; the remaining averages are
+steady-state coefficients. With `steady_state=false` the ambient averages are evolved
+too. `filter_func` further restricts the closure, and `max_iter` bounds the closure
+iterations.
+
+`op1` may be a vector of operators, in which case one correlation τ-state
+⟨opᵢ(τ)·op2(0)⟩ is seeded per entry (guaranteeing they are all included and preserving
+their order); the first entry is kept as the representative `op1`.
+
+If the Hamiltonian, jumps, or rates depend on the parent time variable `eqs0.iv`
+(e.g. a drive `f(t)`), the τ-evolution is governed by the generator at `iv0 + τ`, where
+`iv0` is the absolute time the parent evolution stopped (conventionally `sol.t[end]`).
+Pass it as a parameter, e.g. `@variables t0::Real; CorrelationFunction(op1, op2, eqs; iv0 = t0)`,
+and supply its value alongside the other parameters in [`correlation_p0`](@ref). `iv0` is
+ignored for time-independent systems and required when a dependence is detected.
+
+# Examples
+```jldoctest
+julia> h = FockSpace(:cavity);
+
+julia> @qnumbers a::Destroy(h);
+
+julia> eqs = meanfield([a' * a], a' * a, [a]; rates = [1.0], order = 2);
+
+julia> CorrelationFunction(a', a, eqs)
+⟨a' * a_0⟩
+```
+"""
+function CorrelationFunction(
+        op1::QField, op2::QField, eqs0::MeanfieldEquations;
+        kwargs...,
+    )
+    return _correlation_function(op1, QField[op1], op2, eqs0; kwargs...)
+end
+
+function CorrelationFunction(
+        op1::AbstractVector{<:QField}, op2::QField, eqs0::MeanfieldEquations;
+        kwargs...,
+    )
+    isempty(op1) && throw(ArgumentError("op1 must contain at least one operator"))
+    return _correlation_function(first(op1), op1, op2, eqs0; kwargs...)
 end
 
 """
@@ -216,15 +244,15 @@ _ambient_param(avg::SymbolicUtils.BasicSymbolic) =
 _avg_conj_of(x) = SQA.is_average(x) ? average(adjoint(undo_average(x))) : x
 
 function _undo_ancilla_op(op::QAdd, aon0::Integer, aon_ancilla::Integer)
-    result = zero(op)
+    terms = QAdd[]
     for (term, coeff) in op.arguments
         prod = one(QAdd) * _coeff_num(coeff)
         for o in term.ops
-            prod = prod * ((o.space_index == aon_ancilla) ? _embed_on(o, aon0) : o)
+            prod = prod * ((_aon(o) == aon_ancilla) ? _embed_on(_restore_ancilla(o), aon0) : o)
         end
-        result = result + prod
+        push!(terms, prod)
     end
-    return result
+    return isempty(terms) ? zero(op) : sum(terms)
 end
 
 """
@@ -235,8 +263,10 @@ function _undo_ancilla(c::CorrelationFunction, avg::SymbolicUtils.BasicSymbolic)
     SQA.is_average(avg) || return avg
     op = undo_average(avg)
     op isa QAdd || return avg
-    return average(_undo_ancilla_op(op, c.op2.space_index, c.aon_ancilla))
+    return average(_undo_ancilla_op(op, _aon(c.op2), c.aon_ancilla))
 end
+
+_display_average(c::CorrelationFunction) = average(c.op1 * c.op2_ancilla)
 
 """
 Whether ⟨`op`⟩ and ⟨`op`†⟩ may be conjugate-folded into one τ-state, true only when the ancilla
@@ -261,7 +291,7 @@ function _memoizing_foldable(cache::Dict{QAdd, Bool}, aon0::Integer, aon_ancilla
     end
 end
 _corr_foldable(c::CorrelationFunction) =
-    _memoizing_foldable(c.fold_cache, c.op2.space_index, c.aon_ancilla)
+    _memoizing_foldable(c.fold_cache, _aon(c.op2), c.aon_ancilla)
 
 function _as_avg_dict(c::CorrelationFunction, u_end)
     if u_end isa AbstractDict
@@ -319,7 +349,7 @@ end
 
 _scalarize(x::Symbolics.Num) = _scalarize(SymbolicUtils.unwrap(x))
 function _scalarize(x::SymbolicUtils.BasicSymbolic)
-    SymbolicUtils.isconst(x) && (v = x.val; return v isa Number ? ComplexF64(v) : ComplexF64(0))
+    SymbolicUtils.isconst(x) && (v = SymbolicUtils.unwrap_const(x); return v isa Number ? ComplexF64(v) : ComplexF64(0))
     y = SymbolicUtils.substitute(x, Dict(SymbolicUtils.unwrap(Symbolics.IM) => im))
     v = Symbolics.value(y)
     return v isa Number ? ComplexF64(v) : ComplexF64(0)

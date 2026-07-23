@@ -27,7 +27,7 @@ export evaluate
 export System, initial_values, get_solution, parameter_map
 export CorrelationFunction, Spectrum, correlation_u0, correlation_p0
 export translate_W_to_Y, modify_equations, modify_equations!
-export simplify!
+export simplify!, substitute!
 
 #  early types (abstract eqs supertype, treatment enum, direction tags), identity
 include("equations.jl")

@@ -11,9 +11,9 @@ using Test
     H = -Δ * a' * a + ωm * b' * b + G * a' * a * (b + b') + E * (a + a')
     eqs = meanfield([a' * a, b' * b], H, [a]; rates = [κ], order = 2)
     eqs_c = complete!(deepcopy(eqs))
-    @test length(eqs_c.equations) == 14
+    @test length(eqs_c.equations) == 8
     sys_c = mtkcompile(System(eqs_c; name = :om_sys))
-    @test length(unknowns(sys_c)) == 14
+    @test length(unknowns(sys_c)) == 8
     u0 = zeros(ComplexF64, length(eqs_c.equations))
     init = initial_values(
         eqs_c, u0; defaults = Dict(average(b' * b) => 100.0 + 0im),

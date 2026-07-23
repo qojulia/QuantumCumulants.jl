@@ -48,6 +48,11 @@ end
     s = repr(c)
     @test s isa String
     @test !isempty(s)
+    @test occursin("a_0", s)
+    @test !occursin("⟨a' * a⟩", s)
+
+    eqs_s = repr(c.eqs)
+    @test occursin("a_0", eqs_s)
 end
 
 @testset "show: Spectrum" begin
@@ -57,22 +62,54 @@ end
     @test occursin(")(ω)", s)
 end
 
-@testset "show MIME text/latex: MeanfieldEquations" begin
-    eqs = _damped_cavity_eqs()
-    s = repr(MIME("text/latex"), eqs)
-    @test occursin("\\partial", s) || occursin("begin{align}", s)
+@testset "show MIME text/latex: MeanfieldEquations (single row)" begin
+    hc = FockSpace(:cavity)
+    a = Destroy(hc, :a)
+    @variables ω κ
+    eqs = meanfield([a], ω * a' * a, [a]; rates = [κ])
+    @test repr(MIME("text/latex"), eqs) == "\$\$\n\\begin{aligned}\n" *
+        "\\partial_{t} \\langle a \\rangle &= \\langle a \\rangle \\left(  - 0.5 \\kappa - i \\omega \\right)\n" *
+        "\\end{aligned}\n\n\$\$"
+end
+
+@testset "show MIME text/latex: MeanfieldEquations (row break)" begin
+    hc = FockSpace(:cavity)
+    a = Destroy(hc, :a)
+    @variables ω κ
+    # Two rows exercise the tightened `\\[-0.0em]` separator.
+    eqs = meanfield([a, a'], ω * a' * a, [a]; rates = [κ])
+    @test repr(MIME("text/latex"), eqs) == "\$\$\n\\begin{aligned}\n" *
+        "\\partial_{t} \\langle a \\rangle &= \\langle a \\rangle \\left(  - 0.5 \\kappa - i \\omega \\right) \\\\[-0.0em]\n" *
+        "\\partial_{t} \\langle a^{\\dagger} \\rangle &= \\langle a^{\\dagger} \\rangle \\left(  - 0.5 \\kappa + i \\omega \\right)\n" *
+        "\\end{aligned}\n\n\$\$"
 end
 
 @testset "show MIME text/latex: NoiseMeanfieldEquations" begin
-    eqs = _noise_eqs()
-    s = repr(MIME("text/latex"), eqs)
-    @test !isempty(s)
+    hc = FockSpace(:cavity)
+    a = Destroy(hc, :a)
+    @variables ω κ η
+    # The noise term renders as a factored `dW/dt`, not `\frac{coeff·dW}{dt}`.
+    eqs = meanfield([a], ω * a' * a, [a]; rates = [κ], efficiencies = [η], order = 2)
+    # The coefficient product ⟨a⟩·(−⟨a⟩−⟨a†⟩) is commutative, and SymbolicUtils orders
+    # its two factors differently across Julia versions (the Real-symtype sort key from
+    # SQA #217 diverges between 1.10 and 1.12), so accept either factor order.
+    prefix = "\$\$\n\\begin{aligned}\n" *
+        "\\partial_{t} \\langle a \\rangle &= \\langle a \\rangle \\left(  - 0.5 \\kappa - i \\omega \\right) + " *
+        "\\frac{\\mathrm{d}W}{\\mathrm{d}t} \\left( \\langle aa \\rangle \\sqrt{\\eta \\kappa} + " *
+        "\\langle a^{\\dagger}a \\rangle \\sqrt{\\eta \\kappa} + "
+    suffix = " \\sqrt{\\eta \\kappa} \\right)\n\\end{aligned}\n\n\$\$"
+    order_a = "\\langle a \\rangle \\left(  - \\langle a \\rangle - \\langle a^{\\dagger} \\rangle \\right)"
+    order_b = "\\left(  - \\langle a \\rangle - \\langle a^{\\dagger} \\rangle \\right) \\langle a \\rangle"
+    out = repr(MIME("text/latex"), eqs)
+    @test out == prefix * order_a * suffix || out == prefix * order_b * suffix
 end
 
 @testset "show MIME text/latex: CorrelationFunction" begin
     c, _ = _correlation_and_spectrum()
     s = repr(MIME("text/latex"), c)
     @test !isempty(s)
+    # The renamed ancilla `a_0` renders as a subscripted `a_{\mathrm{0}}`.
+    @test occursin("a_{\\mathrm{0}}", s)
 end
 
 @testset "show MIME text/latex: Spectrum" begin

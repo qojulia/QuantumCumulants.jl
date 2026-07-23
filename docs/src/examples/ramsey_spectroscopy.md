@@ -15,7 +15,7 @@ We start by loading the packages.
 
 ````@example ramsey_spectroscopy
 using QuantumCumulants
-using OrdinaryDiffEq, OrdinaryDiffEqLowOrderRK, ModelingToolkitBase
+using OrdinaryDiffEqTsit5, OrdinaryDiffEqLowOrderRK, ModelingToolkitBase
 using Plots
 ````
 
@@ -32,6 +32,7 @@ After defining the Hilbert space and the operator of the two-level atom we const
 h = NLevelSpace(:atom, 2) # Hilbert space
 
 σ(i, j) = Transition(h, :σ, i, j) # Operators
+nothing # hide
 ````
 
 Seed a meanfield call so we can reuse its MTK-aware iv `t` in the time-dependent Hamiltonian below.
@@ -52,15 +53,7 @@ The two-level atom is completely described with the excited state population and
 ````@example ramsey_spectroscopy
 eqs = meanfield([σ(2, 2), σ(1, 2)], H, J; rates = rates, iv = t)
 complete!(eqs)
-nothing # hide
 ````
-
-```math
-\begin{align}
-\frac{d}{dt} \langle {\sigma}^{{22}}\rangle  =& -1.0 \Gamma \langle {\sigma}^{{22}}\rangle  + \frac{1}{2} i \Omega f\left( t \right) \langle {\sigma}^{{12}}\rangle  + \frac{-1}{2} i \Omega f\left( t \right) \langle {\sigma}^{{21}}\rangle  \\
-\frac{d}{dt} \langle {\sigma}^{{12}}\rangle  =& \frac{-1}{2} i \Omega f\left( t \right) -0.5 \Gamma \langle {\sigma}^{{12}}\rangle  -0.5 \nu \langle {\sigma}^{{12}}\rangle  + 1 i \Delta \langle {\sigma}^{{12}}\rangle  + 1 i \Omega f\left( t \right) \langle {\sigma}^{{22}}\rangle
-\end{align}
-```
 
 To calculate the dynamic of the system we create a system of ordinary differential equations and define the numeric parameters with the time dependent function.
 
@@ -133,7 +126,7 @@ using InteractiveUtils
 versioninfo()
 
 using Pkg
-Pkg.status(["QuantumCumulants", "OrdinaryDiffEq"], mode = PKGMODE_MANIFEST)
+Pkg.status(["QuantumCumulants", "OrdinaryDiffEqTsit5", "OrdinaryDiffEqLowOrderRK"], mode = PKGMODE_MANIFEST)
 ````
 
 ---

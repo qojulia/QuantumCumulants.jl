@@ -1,6 +1,6 @@
 """
     complete!(eqs::AbstractMeanfieldEquations; max_iter=100_000, filter_func=nothing,
-              get_adjoints=true)
+              get_adjoints=false)
 
 Close `eqs` in place by repeatedly deriving equations of motion for every average that
 appears on a right-hand side but is not yet a state, until the set is self-contained.
@@ -12,15 +12,15 @@ already recorded there survive. Right-hand sides are left unsimplified.
   within this many iterations.
 * `filter_func=nothing`: a predicate `filter_func(avg)`; rejected averages are dropped
   (substituted by 0), e.g. to discard phase-invariant terms.
-* `get_adjoints=true`: when `false`, track one representative per conjugate pair, with the
-  partner recovered by `conj` at code generation. The default integrates each conjugate as
-  its own (redundant) state; pass `false` for the minimal state set.
+* `get_adjoints=false`: by default only one representative per conjugate pair is tracked,
+  with the partner recovered by `conj` at code generation (the minimal state set). Pass
+  `true` to integrate each conjugate as its own (redundant) state.
 
 See also: [`complete`](@ref), [`find_missing`](@ref), [`meanfield`](@ref).
 """
 function complete!(
         eqs::AbstractMeanfieldEquations; max_iter::Int = 100_000,
-        filter_func = nothing, get_adjoints::Bool = true,
+        filter_func = nothing, get_adjoints::Bool = false,
     )
     keep = filter_func === nothing ? _alltrue : filter_func
     g = closure(eqs.graph; filter = keep, get_adjoints, max_iter)

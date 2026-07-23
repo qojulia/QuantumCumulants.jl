@@ -55,15 +55,6 @@ nothing # hide
 # First we derive the mean-field equations in second order for $\langle a \rangle$, $\langle a^\dagger a \rangle$ and $\langle \sigma^{22}_j \rangle$, then we complete the system to obtain a closed set of equations.
 
 eqs = meanfield([a, a'a, σ(2, 2, j)], H, J; rates = rates, order = 2)
-nothing # hide
-
-# ```math
-# \begin{align}
-# \frac{d}{dt} \langle a\rangle  =& -0.5 i \left( \underset{i}{\overset{N}{\sum}} g  \langle {\sigma}_{i}^{{12}}\rangle  + \underset{i}{\overset{N}{\sum}} g  \langle {\sigma}_{i}^{{21}}\rangle  \right) -1 i \omega \langle a\rangle  -1 i \eta \sinh\left( \xi \right) e^{1 i t {\omega}d} -1 i \eta e^{-1 i t {\omega}d} {cosh(\xi)^{*}} -0.5 \kappa \cosh\left( \xi \right) \langle a\rangle  {cosh(\xi)^{*}} + 0.5 \kappa \sinh\left( \xi \right) \langle a\rangle  {sinh(\xi)^{*}} \\
-# \frac{d}{dt} \langle a^\dagger  a\rangle  =& 0.5 i \left( \underset{i}{\overset{N}{\sum}} g  \langle a  {\sigma}_{i}^{{12}}\rangle  + \underset{i}{\overset{N}{\sum}} g  \langle a  {\sigma}_{i}^{{21}}\rangle  \right) -0.5 i \left( \underset{i}{\overset{N}{\sum}} g  \langle a^\dagger  {\sigma}_{i}^{{12}}\rangle  + \underset{i}{\overset{N}{\sum}} g  \langle a^\dagger  {\sigma}_{i}^{{21}}\rangle  \right) + \kappa \sinh\left( \xi \right) {sinh(\xi)^{*}} + \kappa \sinh\left( \xi \right) {sinh(\xi)^{*}} \langle a^\dagger  a\rangle  -1 i \eta \sinh\left( \xi \right) \langle a^\dagger\rangle  e^{1 i t {\omega}d} + 1 i \eta \cosh\left( \xi \right) \langle a\rangle  e^{1 i t {\omega}d} -1 i \eta \langle a^\dagger\rangle  e^{-1 i t {\omega}d} {cosh(\xi)^{*}} + 1 i \eta \langle a\rangle  e^{-1 i t {\omega}d} {sinh(\xi)^{*}} -1.0 \kappa \cosh\left( \xi \right) {cosh(\xi)^{*}} \langle a^\dagger  a\rangle  \\
-# \frac{d}{dt} \langle {\sigma}_{j}^{{22}}\rangle  =& -1.0 \gamma \langle {\sigma}_{j}^{{22}}\rangle  -0.5 i g \left( \langle a^\dagger  {\sigma}_{j}^{{21}}\rangle  + \langle a  {\sigma}_{j}^{{21}}\rangle  \right) + 0.5 i g \left( \langle a^\dagger  {\sigma}_{j}^{{12}}\rangle  + \langle a  {\sigma}_{j}^{{12}}\rangle  \right)
-# \end{align}
-# ```
 
 eqs_c = complete(eqs)
 length(eqs_c)
@@ -71,15 +62,6 @@ length(eqs_c)
 # All two-level systems behave identically, due to this permutation symmetry of the system we can scale-up the equations.
 eqs_sc = scale(eqs_c)
 scale(eqs) # Example scaling on the first three equations
-nothing # hide
-
-# ```math
-# \begin{align}
-# \frac{d}{dt} \langle a\rangle  =& -0.5 i \left( N g \langle {\sigma}_{1}^{{21}}\rangle  + N g \langle {\sigma}_{1}^{{12}}\rangle  \right) -1 i \omega \langle a\rangle  -1 i \eta \sinh\left( \xi \right) e^{1 i t {\omega}d} -1 i \eta e^{-1 i t {\omega}d} {cosh(\xi)^{*}} -0.5 \kappa \cosh\left( \xi \right) \langle a\rangle  {cosh(\xi)^{*}} + 0.5 \kappa \sinh\left( \xi \right) \langle a\rangle  {sinh(\xi)^{*}} \\
-# \frac{d}{dt} \langle a^\dagger  a\rangle  =& -0.5 i \left( N g \langle a^\dagger  {\sigma}_{1}^{{21}}\rangle  + N g \langle a^\dagger  {\sigma}_{1}^{{12}}\rangle  \right) + 0.5 i \left( N g \langle a  {\sigma}_{1}^{{21}}\rangle  + N g \langle a  {\sigma}_{1}^{{12}}\rangle  \right) + \kappa \sinh\left( \xi \right) {sinh(\xi)^{*}} + \kappa \sinh\left( \xi \right) {sinh(\xi)^{*}} \langle a^\dagger  a\rangle  -1 i \eta \sinh\left( \xi \right) \langle a^\dagger\rangle  e^{1 i t {\omega}d} + 1 i \eta \cosh\left( \xi \right) \langle a\rangle  e^{1 i t {\omega}d} -1 i \eta \langle a^\dagger\rangle  e^{-1 i t {\omega}d} {cosh(\xi)^{*}} + 1 i \eta \langle a\rangle  e^{-1 i t {\omega}d} {sinh(\xi)^{*}} -1.0 \kappa \cosh\left( \xi \right) {cosh(\xi)^{*}} \langle a^\dagger  a\rangle  \\
-# \frac{d}{dt} \langle {\sigma}_{1}^{{22}}\rangle  =& -0.5 i g \left( \langle a^\dagger  {\sigma}_{1}^{{21}}\rangle  + \langle a  {\sigma}_{1}^{{21}}\rangle  \right) + 0.5 i g \left( \langle a^\dagger  {\sigma}_{1}^{{12}}\rangle  + \langle a  {\sigma}_{1}^{{12}}\rangle  \right) -1.0 \gamma \langle {\sigma}_{1}^{{22}}\rangle
-# \end{align}
-# ```
 
 # To calculate the dynamics of the system we create a system of ordinary differential equations with its initial state and numerical parameters.
 
@@ -172,27 +154,17 @@ plot(
 H_a = Hf - N * gΩ * (a + a')^2 # effective Hamiltonian, N is added for the sake of intensitivity
 
 eqs_a = meanfield([a, a'a, a * a], H_a, [b]; rates = [κ], order = 2)
-nothing # hide
 
-# ```math
-# \begin{align}
-# \frac{d}{dt} \langle a\rangle  =& -1 i \omega \langle a\rangle  + 2 i N g\Omega \left( \langle a^\dagger\rangle  + \langle a\rangle  \right) -1 i \eta \sinh\left( \xi \right) e^{1 i t {\omega}d} -1 i \eta e^{-1 i t {\omega}d} {cosh(\xi)^{*}} -0.5 \kappa \cosh\left( \xi \right) \langle a\rangle  {cosh(\xi)^{*}} + 0.5 \kappa \sinh\left( \xi \right) \langle a\rangle  {sinh(\xi)^{*}} \\
-# \frac{d}{dt} \langle a^\dagger  a\rangle  =& \kappa \sinh\left( \xi \right) {sinh(\xi)^{*}} + 2 i N g\Omega \langle a^\dagger  a^\dagger\rangle  -2 i N g\Omega \langle a  a\rangle  + \kappa \sinh\left( \xi \right) {sinh(\xi)^{*}} \langle a^\dagger  a\rangle  -1 i \eta \sinh\left( \xi \right) \langle a^\dagger\rangle  e^{1 i t {\omega}d} + 1 i \eta \cosh\left( \xi \right) \langle a\rangle  e^{1 i t {\omega}d} -1 i \eta \langle a^\dagger\rangle  e^{-1 i t {\omega}d} {cosh(\xi)^{*}} + 1 i \eta \langle a\rangle  e^{-1 i t {\omega}d} {sinh(\xi)^{*}} -1.0 \kappa \cosh\left( \xi \right) {cosh(\xi)^{*}} \langle a^\dagger  a\rangle  \\
-# \frac{d}{dt} \langle a  a\rangle  =& 2 i N g\Omega -2 i \omega \langle a  a\rangle  + 4 i N g\Omega \left( \langle a^\dagger  a\rangle  + \langle a  a\rangle  \right) -1.0 \kappa \sinh\left( \xi \right) {cosh(\xi)^{*}} + \kappa \sinh\left( \xi \right) {sinh(\xi)^{*}} \langle a  a\rangle  -1.0 \kappa \cosh\left( \xi \right) {cosh(\xi)^{*}} \langle a  a\rangle  -2 i \eta \sinh\left( \xi \right) \langle a\rangle  e^{1 i t {\omega}d} -2 i \eta \langle a\rangle  e^{-1 i t {\omega}d} {cosh(\xi)^{*}}
-# \end{align}
-# ```
+# The coupling `gΩ = g²/4Ω` is not an independent knob: with `g = 0.9 g_c` and `g_c² = Ωω/N` it equals `0.9² ω/(4N)`, so the collective term `N gΩ` is intensive (independent of `N`). We express this by *binding* `gΩ` to `N`, so the effective model is driven by the single knob `N` and cannot be given a value inconsistent with the full model. The `bindings` keyword is forwarded to the underlying `ModelingToolkitBase.System`.
 
-
-sys_a = System(eqs_a; name = :sys_a) # symbolic ordinary differential equation system
+sys_a = System(eqs_a; name = :sys_a, bindings = [gΩ => 0.9^2 * ω / (4N)])
 sys_a = mtkcompile(sys_a)
 
 u0_a = zeros(ComplexF64, length(eqs_a)) # initial state
 
-gΩ_ = g_^2 / (4Ω_) # Additional parameter
-N_ = 69 # the final result does not depend on N
-
-ps_a = [ω, ωd, η, κ, N, gΩ, ξ] # symbolic parameter list (matches sys_a)
-p0_a = [ω_, ωd_, η_, κ_, N_, gΩ_, ξ_]
+N_ = 69 # the final result does not depend on N; gΩ is derived from it via the binding
+ps_a = [ω, ωd, η, κ, N, ξ] # gΩ is a bound parameter, so it is not supplied here
+p0_a = [ω_, ωd_, η_, κ_, N_, ξ_]
 
 u0_a_dict = initial_values(eqs_a, u0_a)
 dict_a = merge(u0_a_dict, Dict(ps_a .=> p0_a))

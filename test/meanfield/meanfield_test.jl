@@ -1,6 +1,7 @@
 using QuantumCumulants
 using Symbolics: Symbolics, @variables, expand
 using SymbolicUtils
+using ModelingToolkitBase: ModelingToolkitBase
 using Test
 
 function _iz(x)
@@ -269,11 +270,11 @@ end
     eqs = meanfield(a' * a, H, [a]; rates = [κ])   # exact: no truncation order
     # Bounded max_iter: if the zero-coefficient drop regresses, completion chases
     # phantom moments and would grind to the 100k default (~1hr) instead of erroring
-    # fast. 50 is far above the true closure size (3) yet fails in seconds on regression.
+    # fast. 50 is far above the true closure size (2) yet fails in seconds on regression.
     complete!(eqs; max_iter = 50)
 
-    # Closes at the three independent second moments ⟨a†a⟩, ⟨a†a†⟩, ⟨aa⟩.
-    @test length(eqs.equations) == 3
+    # Closes at ⟨a†a⟩ and one of the ⟨a†a†⟩/⟨aa⟩ conjugate pair (folded default).
+    @test length(eqs.equations) == 2
     @test isempty(find_missing(eqs))
     # No phantom higher-order moments survive on any RHS.
     @test all(get_order(eq.rhs) <= 2 for eq in eqs.equations)
@@ -328,6 +329,69 @@ end
     eqs = meanfield([a], H, [a]; rates = [κ], efficiencies = [η], order = 2)
     eqs2 = simplify!(eqs)
     @test eqs2 === eqs
+end
+
+@testset "substitute! rewrites parameters in the RHS" begin
+    # Damped cavity: d⟨a⟩/dt = (-iω - κ/2)⟨a⟩; substituting ω => 0 leaves exactly
+    # the decay term -κ/2 ⟨a⟩.
+    hc = FockSpace(:cavity)
+    @qnumbers a::Destroy(hc)
+    @variables ω κ
+
+    H = ω * a' * a
+    eqs = meanfield([a], H, [a]; rates = [κ])
+    @test any(isequal(ω, v) for v in Symbolics.get_variables(eqs[1].rhs))
+
+    eqs2 = substitute!(eqs, Dict(ω => 0))
+    @test eqs2 === eqs
+    @test isequal(eqs[1].lhs, average(a))
+    @test _iz(eqs[1].rhs - (-κ / 2) * average(a))
+    @test !any(isequal(ω, v) for v in Symbolics.get_variables(eqs[1].rhs))
+end
+
+@testset "substitute closes the hierarchy by zeroing known-vanishing moments" begin
+    # Driven damped cavity, but tracking only ⟨a'a⟩: the drive couples it to the
+    # amplitudes ⟨a⟩/⟨a'⟩, so the one-equation set is open. Asserting the
+    # amplitudes vanish closes it onto d⟨a'a⟩/dt = -κ⟨a'a⟩ and leaves a set that
+    # `System` accepts. The non-mutating `substitute` must not touch its input.
+    hc = FockSpace(:cavity)
+    @qnumbers a::Destroy(hc)
+    @variables Δ::Real κ::Real η::Real
+
+    H = Δ * a' * a + η * (a + a')
+    eqs = meanfield([a' * a], H, [a]; rates = [κ], order = 2)
+    @test !isempty(find_missing(eqs))
+
+    dict = Dict(average(a) => 0, average(a') => 0)
+    eqs2 = SymbolicUtils.substitute(eqs, dict)
+    @test !(eqs2 === eqs)
+    @test isempty(find_missing(eqs2))
+    @test _iz(eqs2[1].rhs - (-κ) * average(a' * a))
+    sys = System(eqs2; name = :closed_cavity)
+    @test length(ModelingToolkitBase.equations(sys)) == 1
+
+    # input untouched: still open, drive terms still present.
+    @test !isempty(find_missing(eqs))
+    @test !_iz(eqs[1].rhs - (-κ) * average(a' * a))
+end
+
+@testset "substitute! rewrites the noise drift of NoiseMeanfieldEquations" begin
+    # substitute! must reach the noise drift, not only the deterministic drift.
+    # Replacing κ with a fresh symbol κ2 must make κ2 appear (and κ vanish) in
+    # the noise-equation RHS specifically.
+    hc = FockSpace(:cavity)
+    @qnumbers a::Destroy(hc)
+    @variables ω κ η κ2
+
+    H = ω * a' * a
+    eqs = meanfield([a], H, [a]; rates = [κ], efficiencies = [η], order = 2)
+    noise_vars = Symbolics.get_variables(eqs.noise_equations[1].rhs)
+    @test any(isequal(κ, v) for v in noise_vars)
+
+    substitute!(eqs, Dict(κ => κ2))
+    noise_vars = Symbolics.get_variables(eqs.noise_equations[1].rhs)
+    @test !any(isequal(κ, v) for v in noise_vars)
+    @test any(isequal(κ2, v) for v in noise_vars)
 end
 
 @testset "meanfield: collective decay rate matrix" begin

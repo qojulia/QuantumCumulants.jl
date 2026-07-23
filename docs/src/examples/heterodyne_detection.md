@@ -9,8 +9,8 @@ This example implements the heterodyne detection of the light emitted by an ense
 using QuantumCumulants
 using ModelingToolkitBase
 using OrdinaryDiffEqLowOrderRK
-using StochasticDiffEq
-using StochasticDiffEq.SciMLBase: ReturnCode
+using StochasticDiffEqLowOrder: SDEProblem, EM, EnsembleProblem, ReturnCode
+using DiffEqNoiseProcess: RealWienerProcess
 using Plots
 using Random # hide
 ````
@@ -70,14 +70,7 @@ for the operator $\hat a \rm{e}^{\rm{i}\omega_lt}$ corresponding to heterodyne d
 efficiencies = [ξ, 0, 0, 0]
 ops = [a', a' * a, σ(2, 2, k), σ(1, 2, k), a * a]
 eqs = meanfield(ops, H, J; rates = rates, efficiencies = efficiencies, direction = Forward(), order = 2, iv = t)
-nothing # hide
 ````
-
-```math
-\begin{align}
-\frac{d}{dt} \langle a^\dagger\rangle &= -0.5 \kappa \langle a^\dagger\rangle + dW/dt \left( -1 \sqrt{\xi \kappa} e^{-1.0 i {\omega}l t} \langle a^\dagger\rangle ^{2} + \sqrt{\xi \kappa} e^{1.0 i {\omega}l t} \langle a^\dagger a\rangle -1 \langle a\rangle \sqrt{\xi \kappa} e^{1.0 i {\omega}l t} \langle a^\dagger\rangle + \sqrt{\xi \kappa} e^{-1.0 i {\omega}l t} \langle a^\dagger a^\dagger\rangle \right) + 1 i \underset{j}{\overset{N}{\sum}} g \langle {\sigma}{j}^{{21}}\rangle + 1 i {\omega}c \langle a^\dagger\rangle \ \frac{d}{dt} \langle a^\dagger a\rangle &= -1 i \underset{j}{\overset{N}{\sum}} g \langle a^\dagger {\sigma}{j}^{{12}}\rangle + 1 i \underset{j}{\overset{N}{\sum}} g \langle a {\sigma}{j}^{{21}}\rangle + \left( -1 \langle a\rangle \sqrt{\xi \kappa} e^{1.0 i {\omega}l t} \langle a^\dagger a\rangle + \sqrt{\xi \kappa} e^{-1.0 i {\omega}l t} \left( -2 \langle a\rangle \langle a^\dagger\rangle ^{2} + 2 \langle a^\dagger\rangle \langle a^\dagger a\rangle + \langle a\rangle \langle a^\dagger a^\dagger\rangle \right) + \left( \langle a a\rangle \langle a^\dagger\rangle + 2 \langle a\rangle \langle a^\dagger a\rangle -2 \langle a\rangle ^{2} \langle a^\dagger\rangle \right) \sqrt{\xi \kappa} e^{1.0 i {\omega}l t} -1 \sqrt{\xi \kappa} e^{-1.0 i {\omega}l t} \langle a^\dagger\rangle \langle a^\dagger a\rangle \right) dW/dt -1.0 \kappa \langle a^\dagger a\rangle \ \frac{d}{dt} \langle {\sigma}{k}^{{22}}\rangle &= -1.0 \mathrm{pulse}\left( t \right) \eta \langle {\sigma}{k}^{{22}}\rangle + 1 i \langle a^\dagger {\sigma}{k}^{{12}}\rangle g + dW/dt \left( \langle a {\sigma}{k}^{{22}}\rangle \sqrt{\xi \kappa} e^{1.0 i {\omega}l t} -1 \langle a\rangle \sqrt{\xi \kappa} e^{1.0 i {\omega}l t} \langle {\sigma}{k}^{{22}}\rangle -1 \sqrt{\xi \kappa} e^{-1.0 i {\omega}l t} \langle {\sigma}{k}^{{22}}\rangle \langle a^\dagger\rangle + \langle a^\dagger {\sigma}{k}^{{22}}\rangle \sqrt{\xi \kappa} e^{-1.0 i {\omega}l t} \right) -1.0 \gamma \langle {\sigma}{k}^{{22}}\rangle -1 i g \langle a {\sigma}{k}^{{21}}\rangle + \mathrm{pulse}\left( t \right) \eta \ \frac{d}{dt} \langle {\sigma}{k}^{{12}}\rangle &= -0.5 \gamma \langle {\sigma}{k}^{{12}}\rangle -1 i {\omega}a \langle {\sigma}{k}^{{12}}\rangle -1 \chi \langle {\sigma}{k}^{{12}}\rangle + dW/dt \left( \sqrt{\xi \kappa} \langle a^\dagger {\sigma}{k}^{{12}}\rangle e^{-1.0 i {\omega}l t} -1 \sqrt{\xi \kappa} e^{-1.0 i {\omega}l t} \langle {\sigma}{k}^{{12}}\rangle \langle a^\dagger\rangle -1 \langle a\rangle \sqrt{\xi \kappa} \langle {\sigma}{k}^{{12}}\rangle e^{1.0 i {\omega}l t} + \langle a {\sigma}{k}^{{12}}\rangle \sqrt{\xi \kappa} e^{1.0 i {\omega}l t} \right) -1 i \langle a\rangle g -0.5 \mathrm{pulse}\left( t \right) \eta \langle {\sigma}{k}^{{12}}\rangle + 2 i \langle a {\sigma}{k}^{{22}}\rangle g \ \frac{d}{dt} \langle a a\rangle &= -1.0 \langle a a\rangle \kappa + \left( \left( 3 \langle a a\rangle \langle a\rangle -2 \langle a\rangle ^{3} \right) \sqrt{\xi \kappa} e^{1.0 i {\omega}l t} + \left( \langle a a\rangle \langle a^\dagger\rangle + 2 \langle a\rangle \langle a^\dagger a\rangle -2 \langle a\rangle ^{2} \langle a^\dagger\rangle \right) \sqrt{\xi \kappa} e^{-1.0 i {\omega}l t} -1 \langle a a\rangle \sqrt{\xi \kappa} e^{-1.0 i {\omega}l t} \langle a^\dagger\rangle -1 \langle a a\rangle \langle a\rangle \sqrt{\xi \kappa} e^{1.0 i {\omega}l t} \right) dW/dt -2 i \underset{j}{\overset{N}{\sum}} g \langle a {\sigma}_{j}^{{12}}\rangle -2 i \langle a a\rangle {\omega}c
-\end{align}
-```
 
 The completion and scaling as previously discussed in other examples work exactly the same way for equations including noise terms.
 
@@ -106,6 +99,7 @@ t1 = 20.0e-3
 p = [N, ωa, γ, η, χ, ωc, κ, g, ξ, ωl]
 p0 = [N_, ωa_, γ_, η_, χ_, ωc_, κ_, g_, ξ_, ωl_]
 T_end = 0.1 # 0.1ms
+nothing # hide
 ````
 
 To compare the stochastic evolution to the no-measurement case, build the deterministic system by passing `MeanfieldEquations(scaled_eqs)` to `System`. The constructor strips the noise drift, which also drops `ξ` from the compiled parameter list (it appeared only inside the `sqrt(ξ κ)` factor of the noise term). Because the physical parameter dict `p .=> p0` still carries `ξ`, we filter it through `parameter_map(sys, …)`; the helper keeps only the entries whose key is a live parameter or unknown of the compiled system and silently drops the rest.
@@ -130,7 +124,7 @@ sys_st = mtkcompile(System(scaled_eqs; name = :sys_st))
 dict_st = parameter_map(sys_st, merge(Dict(unknowns(sys_st) .=> u0), Dict(p .=> p0)))
 
 Random.seed!(2) # hide
-noise = StochasticDiffEq.RealWienerProcess(0.0, 0.0)
+noise = RealWienerProcess(0.0, 0.0)
 prob_st = SDEProblem(sys_st, dict_st, (0.0, T_end); noise = noise)
 sol_test = solve(prob_st, EM(); dt = T_end / 2.0e5);
 
@@ -148,7 +142,7 @@ traj = 200
 tspan = range(0.0, T_end, length = 201)
 sol = solve(
     eprob,
-    StochasticDiffEq.EM(),
+    EM(),
     dt = T_end / 2.0e5,
     save_noise = true,
     trajectories = traj,
@@ -209,7 +203,7 @@ versioninfo()
 
 using Pkg
 Pkg.status(
-    ["QuantumCumulants", "ModelingToolkitBase", "OrdinaryDiffEq", "StochasticDiffEq", "Plots"],
+    ["QuantumCumulants", "ModelingToolkitBase", "OrdinaryDiffEqLowOrderRK", "StochasticDiffEqLowOrder", "Plots"],
     mode = PKGMODE_MANIFEST,
 )
 ````
