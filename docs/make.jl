@@ -23,7 +23,8 @@ end
 # the docs index. Same write-only-on-change guard as the changelog above.
 let src = normpath(@__FILE__, "../../README.md"),
         dst = normpath(@__FILE__, "../src/index.md"),
-        new = read(src, String)
+        # Rewrite repository-relative asset paths for the copied docs source.
+        new = replace(read(src, String), "docs/src/assets/" => "assets/")
 
     if !isfile(dst) || read(dst, String) != new
         write(dst, new)
@@ -94,6 +95,8 @@ makedocs(
     warnonly = [:cross_references],
     format = Documenter.HTML(
         mathengine = KaTeX(),
+        assets = ["assets/favicon.ico"],
+        canonical = "https://qojulia.github.io/QuantumCumulants.jl/stable/",
         footer = "[**Back to GitHub**](https://github.com/qojulia/QuantumCumulants.jl)",
         example_size_threshold = 800 * 2^10,
         size_threshold_warn = 400 * 2^10,
