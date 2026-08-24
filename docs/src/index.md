@@ -1,4 +1,4 @@
-![QuantumCumulants.jl logo](assets/quantumcumulants.png)
+![QuantumCumulants.jl logo](assets/logo.png)
 
 # QuantumCumulants.jl
 **QuantumCumulants.jl** is a package for the symbolic derivation of mean-field equations for quantum mechanical operators in Julia. The equations are derived using fundamental commutation relations of operators. When averaging these equations they can be automatically expanded in terms of cumulants to an arbitrary order (generalized mean-field approximation). This results in a closed set of symbolic differential equations, which can also be solved numerically.

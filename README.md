@@ -1,4 +1,4 @@
-![QuantumCumulants.jl logo](docs/src/assets/quantumcumulants.png)
+![QuantumCumulants.jl logo](docs/src/assets/logo.png)
 
 # QuantumCumulants.jl
 
