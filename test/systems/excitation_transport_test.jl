@@ -15,9 +15,9 @@ using Test
         Ω * (σ_ch(:e, :g, 1) + σ_ch(:g, :e, 1)) +
         sum(
         Jc(x_[k], x_[k + 1]) * (
-                σ_ch(:e, :g, k) * σ_ch(:g, :e, k + 1) +
+            σ_ch(:e, :g, k) * σ_ch(:g, :e, k + 1) +
                 σ_ch(:g, :e, k) * σ_ch(:e, :g, k + 1)
-            )
+        )
             for k in 1:(N - 1)
     )
     c_ops = [σ_ch(:g, :e, k) for k in 1:N]
@@ -44,9 +44,9 @@ end
         Ω * (σ_ch(:e, :g, 1) + σ_ch(:g, :e, 1)) +
         sum(
         Jc(x_[k], x_[k + 1]) * (
-                σ_ch(:e, :g, k) * σ_ch(:g, :e, k + 1) +
+            σ_ch(:e, :g, k) * σ_ch(:g, :e, k + 1) +
                 σ_ch(:g, :e, k) * σ_ch(:e, :g, k + 1)
-            )
+        )
             for k in 1:(N - 1)
     )
     c_ops = [σ_ch(:g, :e, k) for k in 1:N]

@@ -4,6 +4,12 @@ using Symbolics: Symbolics, @variables
 using SymbolicUtils: SymbolicUtils
 using Test
 
+function _numeric_symbolic_value(x)
+    value = Symbolics.simplify(x; expand = true)
+    value isa Number && return value
+    return SymbolicUtils.isconst(value) ? value.val : value
+end
+
 @testset "indexed meanfield: collective atomic emission" begin
     hc = FockSpace(:cavity); ha = NLevelSpace(:atom, 2); h = hc ⊗ ha
     @qnumbers a::Destroy(h, 1)
@@ -188,7 +194,7 @@ end
         for v in Symbolics.get_variables(eq.rhs)
             sub[v] = 1.0
         end
-        Symbolics.value(Symbolics.substitute(eq.rhs, sub))
+        _numeric_symbolic_value(Symbolics.substitute(eq.rhs, sub))
     end
     for nlev in (2, 3)
         h = NLevelSpace(:atom, nlev)
@@ -281,7 +287,7 @@ end
         vals[Γ[a, b]] = float(2a + b)   # asymmetric so a transposed index is caught
     end
     v(x) = vals[x]
-    rhsval(e) = Symbolics.value(Symbolics.substitute(e.rhs, vals))
+    rhsval(e) = _numeric_symbolic_value(Symbolics.substitute(e.rhs, vals))
     eqof(sfx) = only(e for e in ev.equations if endswith(string(e.lhs), sfx))
 
     for k in 1:2

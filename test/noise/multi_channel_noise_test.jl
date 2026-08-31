@@ -37,9 +37,9 @@ end
     # drifts (no cross terms), per equation.
     @test all(
         _iz(
-                m12.noise_equations[i].rhs -
+            m12.noise_equations[i].rhs -
                 (ma.noise_equations[i].rhs + mb.noise_equations[i].rhs)
-            )
+        )
             for i in eachindex(m12.noise_equations)
     )
 
