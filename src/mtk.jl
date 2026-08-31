@@ -138,11 +138,11 @@ function _noise_channel_rhss(eqs::NoiseMeanfieldEquations)
         )
         channels[j] = Any[
             SymbolicUtils.unwrap(
-                    _reduce_ground_in_drift(
-                        eqs.order === nothing ? Symbolics.Num(eq.rhs) :
+                _reduce_ground_in_drift(
+                    eqs.order === nothing ? Symbolics.Num(eq.rhs) :
                         Symbolics.Num(cumulant_expansion(eq.rhs, eqs.order))
-                    ),
-                ) for eq in noise_eqs
+                ),
+            ) for eq in noise_eqs
         ]
     end
     return active, channels
