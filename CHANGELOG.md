@@ -2,6 +2,10 @@
 
 All notable changes to QuantumCumulants.jl will be documented in this file.
 
+## [0.7.1]
+
+Move to SecondQuantizedAlgebra v0.11
+
 ## [0.7.0]
 
 ### Changed
