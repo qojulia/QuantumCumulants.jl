@@ -99,6 +99,7 @@ SecondQuantizedAlgebra.anticommutator
 SecondQuantizedAlgebra.is_average
 SecondQuantizedAlgebra.is_indexed_sum
 SecondQuantizedAlgebra.undo_average
+SecondQuantizedAlgebra.dagger(::SecondQuantizedAlgebra.QField)
 SymbolicUtils.substitute
 SymbolicUtils.simplify
 SymbolicUtils.expand
@@ -152,6 +153,19 @@ SecondQuantizedAlgebra.is_pauli
 SecondQuantizedAlgebra.is_spin
 SecondQuantizedAlgebra.is_position
 SecondQuantizedAlgebra.is_momentum
+```
+
+## [Unitary Transformations](@id API: Unitary)
+
+```@docs
+SecondQuantizedAlgebra.UnitaryTransform
+SecondQuantizedAlgebra.conjugate
+SecondQuantizedAlgebra.transform
+SecondQuantizedAlgebra.Displace
+SecondQuantizedAlgebra.Rotation
+SecondQuantizedAlgebra.Squeeze
+SecondQuantizedAlgebra.gauge_term
+SecondQuantizedAlgebra.generators
 ```
 
 ## [Mean field](@id API: Meanfield)

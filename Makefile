@@ -13,7 +13,7 @@ servedocs:
 	${JULIA} --project=docs -e 'using LiveServer; LiveServer.servedocs()'
 
 test:
-	${JULIA} --project -e 'using Pkg; Pkg.resolve(); Pkg.test()'
+	${JULIA} --project -e 'using Pkg; Pkg.resolve(); Pkg.test(test_args=["--jobs=6"])'
 
 jet:
 	${JULIA} --project=test -e 'using Pkg; Pkg.develop(PackageSpec(path=pwd())); Pkg.instantiate()'

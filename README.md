@@ -1,3 +1,5 @@
+![QuantumCumulants.jl logo](docs/src/assets/logo.png)
+
 # QuantumCumulants.jl
 
 [![](https://img.shields.io/badge/docs-dev-blue.svg)](https://qojulia.github.io/QuantumCumulants.jl/dev/)
