@@ -32,8 +32,6 @@ using ExplicitImports
             @test check_all_qualified_accesses_are_public(
                 QuantumCumulants;
                 ignore = (
-                    :FnType, # SU.jl
-                    :isconst, # SU.jl
                     :IM, # Symbolics.jl
                     :RefValue, # Base
                     :tobrownian, # MTK.jl
