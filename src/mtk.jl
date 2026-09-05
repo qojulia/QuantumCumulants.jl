@@ -3,9 +3,11 @@ avg_name(op::QAdd) = Symbol(string(SQA.average(op)))
 
 # The moment's time-dependent `Number` unknown, built by SQA's `make_time_dependent`.
 # `iv` is MTK's `t_nounits` (see `_make_iv`), so the result is a first-class MTK unknown.
-time_dependent_var(op::QAdd, iv) = SymbolicUtils.unwrap(SQA.make_time_dependent(SQA.average(op), iv))
+time_dependent_var(op::QAdd, iv) =
+    SymbolicUtils.unwrap(SQA.make_time_dependent(SQA.average(op), iv))
 
-_state_vars(ops::AbstractVector, iv) = SymbolicUtils.BasicSymbolic[time_dependent_var(op, iv) for op in ops]
+_state_vars(ops::AbstractVector, iv) =
+    SymbolicUtils.BasicSymbolic[time_dependent_var(op, iv) for op in ops]
 
 # ---- state variable registry -------------------------------------------------
 
@@ -93,12 +95,15 @@ function _collect_params!(set, x, iv_uw)
         args = SymbolicUtils.arguments(n)
         # Array access `δ[k]`: collect the array BASE symbol as a parameter (the scalar
         # branch above skips it, symtype not <: Real); MTK scalarizes it at compile.
-        if op === getindex && !isempty(args) && args[1] isa SymbolicUtils.BasicSymbolic &&
-                SymbolicUtils.symtype(args[1]) <: AbstractArray
+        if op === getindex &&
+           !isempty(args) &&
+           args[1] isa SymbolicUtils.BasicSymbolic &&
+           SymbolicUtils.symtype(args[1]) <: AbstractArray
             push!(set, args[1])
             return false
         end
-        (length(args) == 1 && args[1] === iv_uw && op isa SymbolicUtils.BasicSymbolic) && return false
+        (length(args) == 1 && args[1] === iv_uw && op isa SymbolicUtils.BasicSymbolic) &&
+            return false
         return true
     end
     return
@@ -119,8 +124,12 @@ independent Brownian in the SDE [`System`](@ref) builds. Each entry is
 noise_channels(::MeanfieldEquations) = NamedTuple[]
 function noise_channels(eqs::NoiseMeanfieldEquations)
     return [
-        (; index = k, jump = eqs.jumps[k], rate = eqs.rates[k], efficiency = eqs.efficiencies[k])
-            for k in eachindex(eqs.efficiencies) if !iszero(eqs.efficiencies[k])
+        (;
+            index = k,
+            jump = eqs.jumps[k],
+            rate = eqs.rates[k],
+            efficiency = eqs.efficiencies[k],
+        ) for k in eachindex(eqs.efficiencies) if !iszero(eqs.efficiencies[k])
     ]
 end
 
@@ -140,7 +149,7 @@ function _noise_channel_rhss(eqs::NoiseMeanfieldEquations)
             SymbolicUtils.unwrap(
                 _reduce_ground_in_drift(
                     eqs.order === nothing ? Symbolics.Num(eq.rhs) :
-                        Symbolics.Num(cumulant_expansion(eq.rhs, eqs.order))
+                    Symbolics.Num(cumulant_expansion(eq.rhs, eqs.order)),
                 ),
             ) for eq in noise_eqs
         ]
@@ -151,7 +160,8 @@ end
 # Build a Brownian variable programmatically (mirrors the `@brownians` macro
 # expansion) so System construction avoids a runtime `eval` per call.
 function _make_brownian(name::Symbol)
-    sym = SymbolicUtils.Sym{Symbolics.SymReal}(name; type = Real, shape = UnitRange{Int64}[])
+    sym =
+        SymbolicUtils.Sym{Symbolics.SymReal}(name; type = Real, shape = UnitRange{Int64}[])
     tagged = SymbolicUtils.setmetadata(sym, Symbolics.VariableSource, (:brownian, name))
     return MTK.tobrownian(Symbolics.wrap(tagged))
 end
@@ -193,10 +203,16 @@ function MTK.System(eqs::MeanfieldEquations; name::Symbol, kwargs...)
     return MTK.System(new_eqs, iv, reg.vars, ps; name = name, kwargs...)
 end
 
-MTK.System(eqs::NoiseMeanfieldEquations{O, H, Op, Jt, Jdt, R, E, S, Forward}; name::Symbol, kwargs...) where {O, H, Op, Jt, Jdt, R, E, S} =
-    _to_system_sde(eqs, name, +1; kwargs...)
-MTK.System(eqs::NoiseMeanfieldEquations{O, H, Op, Jt, Jdt, R, E, S, Backward}; name::Symbol, kwargs...) where {O, H, Op, Jt, Jdt, R, E, S} =
-    _to_system_sde(eqs, name, -1; kwargs...)
+MTK.System(
+    eqs::NoiseMeanfieldEquations{O,H,Op,Jt,Jdt,R,E,S,Forward};
+    name::Symbol,
+    kwargs...,
+) where {O,H,Op,Jt,Jdt,R,E,S} = _to_system_sde(eqs, name, +1; kwargs...)
+MTK.System(
+    eqs::NoiseMeanfieldEquations{O,H,Op,Jt,Jdt,R,E,S,Backward};
+    name::Symbol,
+    kwargs...,
+) where {O,H,Op,Jt,Jdt,R,E,S} = _to_system_sde(eqs, name, -1; kwargs...)
 
 function _to_system_sde(eqs::NoiseMeanfieldEquations, name::Symbol, sign::Int; kwargs...)
     iv = eqs.iv
@@ -209,7 +225,7 @@ function _to_system_sde(eqs::NoiseMeanfieldEquations, name::Symbol, sign::Int; k
     # One independent Brownian per monitored channel. With no active channel keep a
     # single zero-noise column so the result is still a valid SDE.
     nch = max(length(active), 1)
-    ws = _make_brownians([Symbol("_qc_dW_", j) for j in 1:nch])
+    ws = _make_brownians([Symbol("_qc_dW_", j) for j = 1:nch])
     ws_uw = SymbolicUtils.unwrap.(ws)
     T = typeof(first(ws_uw))
     new_eqs = Vector{Symbolics.Equation}(undef, length(eqs.equations))
@@ -219,7 +235,8 @@ function _to_system_sde(eqs::NoiseMeanfieldEquations, name::Symbol, sign::Int; k
         signed_rhs = sign == 1 ? rhs : TermInterface.maketerm(T, *, Any[sign, rhs], nothing)
         total_rhs = signed_rhs
         for (j, w_uw) in enumerate(ws_uw)
-            noise_rhs = isempty(active) ? 0 :
+            noise_rhs =
+                isempty(active) ? 0 :
                 SymbolicUtils.unwrap(mapleaves(resolve, channel_noise[j][i]))
             noise_term = TermInterface.maketerm(T, *, Any[noise_rhs, w_uw], nothing)
             total_rhs = TermInterface.maketerm(T, +, Any[total_rhs, noise_term], nothing)
@@ -244,7 +261,7 @@ Map every state's `u(t)` variable to its initial value, defaulting to
 function initial_values(eqs::AbstractMeanfieldEquations; defaults::AbstractDict = Dict())
     reg = _state_registry(eqs)
     # Keys are unwrapped `Number`-symtype average variables, not `Num`-wrappable.
-    out = Dict{Any, ComplexF64}()
+    out = Dict{Any,ComplexF64}()
     for (k, avg) in enumerate(eqs.states)
         out[reg.vars[k]] = ComplexF64(get(defaults, avg, 0))
     end
@@ -259,14 +276,18 @@ function initial_values(eqs::AbstractMeanfieldEquations, state)
     return ComplexF64[ComplexF64(SQA.numeric_average(v, state)) for v in eqs.states]
 end
 
-function initial_values(eqs::AbstractMeanfieldEquations, u0::AbstractVector{<:Number}; kwargs...)
+function initial_values(
+    eqs::AbstractMeanfieldEquations,
+    u0::AbstractVector{<:Number};
+    kwargs...,
+)
     length(u0) == length(eqs.states) || throw(
         DimensionMismatch(
             "initial value vector length $(length(u0)) does not match number of states $(length(eqs.states))",
         ),
     )
     reg = _state_registry(eqs)
-    return Dict{Any, ComplexF64}(reg.vars[k] => ComplexF64(u0[k]) for k in eachindex(u0))
+    return Dict{Any,ComplexF64}(reg.vars[k] => ComplexF64(u0[k]) for k in eachindex(u0))
 end
 
 """
@@ -283,7 +304,7 @@ function parameter_map(sys::MTK.System, pairs)
     for u in MTK.unknowns(sys)
         push!(live, SymbolicUtils.unwrap(u))
     end
-    out = Dict{Any, Any}()
+    out = Dict{Any,Any}()
     for (k, v) in pairs
         SymbolicUtils.unwrap(k) in live && (out[k] = v)
     end
@@ -301,16 +322,16 @@ value is broadcast to fill that array, an `AbstractArray` value passes through
 as the explicit per-atom values. Scalar (non-array) parameters pass through.
 """
 function parameter_map(eqs::AbstractMeanfieldEquations, pairs)
-    arr_by_name = Dict{Symbol, SymbolicUtils.BasicSymbolic}()
-    scalar_by_name = Dict{Symbol, SymbolicUtils.BasicSymbolic}()
+    arr_by_name = Dict{Symbol,SymbolicUtils.BasicSymbolic}()
+    scalar_by_name = Dict{Symbol,SymbolicUtils.BasicSymbolic}()
     for eq in eqs.equations
         _collect_named_params!(arr_by_name, scalar_by_name, SymbolicUtils.unwrap(eq.rhs))
         _collect_named_params!(arr_by_name, scalar_by_name, SymbolicUtils.unwrap(eq.lhs))
     end
-    pmap = Dict{Any, Any}()
+    pmap = Dict{Any,Any}()
     # Per-slot accumulator: keys like `δ(i_2_1)=>v1` carry a concrete slot, so each
     # fills a distinct array slot (a bare scalar broadcasts via `fill` instead).
-    slot_acc = Dict{Symbol, Dict{Vector{Int}, Any}}()
+    slot_acc = Dict{Symbol,Dict{Vector{Int},Any}}()
     for (k, v) in pairs
         ku = SymbolicUtils.unwrap(k)
         name = _param_name(ku)
@@ -320,7 +341,7 @@ function parameter_map(eqs::AbstractMeanfieldEquations, pairs)
             if v isa AbstractArray
                 pmap[arr] = v
             elseif slots !== nothing
-                get!(slot_acc, name, Dict{Vector{Int}, Any}())[slots] = v
+                get!(slot_acc, name, Dict{Vector{Int},Any}())[slots] = v
             else
                 dims = _array_dims(arr)
                 pmap[arr] = dims === nothing ? v : fill(v, dims[1])
@@ -373,7 +394,7 @@ Assemble a concrete array parameter from per-slot scalar assignments. The size c
 from the synthesised array's declared shape when available, otherwise from the maximum
 slot per dimension; unassigned slots stay zero.
 """
-function _build_slot_array(arr, slots_to_v::Dict{Vector{Int}, Any})
+function _build_slot_array(arr, slots_to_v::Dict{Vector{Int},Any})
     ndim = length(first(keys(slots_to_v)))
     dims = _array_dims(arr)
     if dims === nothing || length(dims) != ndim
@@ -395,7 +416,8 @@ _param_name(x) = nothing
 function _param_name(x::SymbolicUtils.BasicSymbolic)
     SymbolicUtils.iscall(x) || return Base.nameof(x)
     op = SymbolicUtils.operation(x)
-    (op isa SymbolicUtils.BasicSymbolic && !SymbolicUtils.iscall(op)) && return Base.nameof(op)
+    (op isa SymbolicUtils.BasicSymbolic && !SymbolicUtils.iscall(op)) &&
+        return Base.nameof(op)
     return nothing
 end
 
@@ -429,20 +451,30 @@ single structural matcher `match_moment`, which folds Hermitian conjugation (the
 side bit recovers a stored conjugate) and the system's index/symmetry treatment, so
 a query posed in any equivalent symbolic form hits the same state.
 """
-function get_solution(sol, avg::SymbolicUtils.BasicSymbolic, eqs::AbstractMeanfieldEquations)
+function get_solution(
+    sol,
+    avg::SymbolicUtils.BasicSymbolic,
+    eqs::AbstractMeanfieldEquations,
+)
     reg = _state_registry(eqs)
     op = undo_average(avg)
     if op isa QAdd
         r = match_moment(reg.moments, op)
         if r !== nothing
             var, same = r
-            return same ? (τ -> _eval_at(sol, var, τ)) :
-                (τ -> conj.(_eval_at(sol, var, τ)))
+            # Both ModelingToolkit and a direct SciML solution expose positional state
+            # indexing. Resolving the registry variable to that position avoids relying on
+            # the solution object's symbolic-indexing extension.
+            index = findfirst(v -> isequal(v, var), reg.vars)
+            index === nothing && throw(KeyError(avg))
+            return same ? (τ -> _eval_at(sol, index, τ)) :
+                   (τ -> conj.(_eval_at(sol, index, τ)))
         end
     end
     throw(KeyError(avg))
 end
-get_solution(sol, op::QField, eqs::AbstractMeanfieldEquations) = get_solution(sol, average(op), eqs)
+get_solution(sol, op::QField, eqs::AbstractMeanfieldEquations) =
+    get_solution(sol, average(op), eqs)
 
-_eval_at(sol, var, τ::AbstractVector) = Array(sol(τ; idxs = var))
-_eval_at(sol, var, τ) = sol(τ; idxs = var)
+_eval_at(sol, index::Int, τ::AbstractVector) = Array(sol(τ; idxs = index))
+_eval_at(sol, index::Int, τ) = sol(τ; idxs = index)

@@ -5,10 +5,10 @@
 #      per monomial; parents have smaller ids, so ascending order is a valid schedule),
 #   2. du = M * v (one complex SpMV).
 #
-# Reentrancy: the kernel keeps one scratch `v` per thread (see `_make_vbufs`), so a single
+# Reentrancy: the kernel keeps one scratch `v` per task (see `_make_vbufs`), so a single
 # instance is safe to call concurrently, e.g. many trajectories under `EnsembleThreads()`
 # sharing one `prob`. `v` is pure scratch (fully rewritten from `u` on every call, never read
-# across calls), so per-thread buffers need no locking and never duplicate `Mt`.
+# across calls), so task-owned buffers need no locking and never duplicate `Mt`.
 
 # Equation count above which threading the RHS pays off end to end. Both passes thread
 # through Polyester's persistent task pool (`@batch`), whose per-call dispatch cost is ~1 µs
@@ -24,32 +24,41 @@ _resolve_kernel_parallel(flag, neq) =
 # layout is both cache-friendlier than a CSC `mul!` (sequential `du` writes) and trivially
 # parallel (no write conflicts). `fac`/`fac_ptr` are the flat factor chains used by the
 # threaded monomial update (see `update_v_flat!`); they are derived from `parent`/`leaf` and
-# add no cache format. `v` is one scratch buffer per thread (see `_make_vbufs`), so a single
+# add no cache format. `v` is one scratch buffer per task (see `ScratchPool`), so a single
 # kernel instance is reentrant: concurrent callers (e.g. `EnsembleThreads()` on a shared
-# `prob`) each write their own buffer.
+# `prob`) each write their own buffer without relying on internal thread-count APIs.
+mutable struct ScratchPool
+    n::Int
+    buffers::IdDict{Task,Vector{ComplexF64}}
+    lock::ReentrantLock
+end
+
 struct MomentKernel
-    Mt::SparseMatrixCSC{ComplexF64, Int32}   # transpose of the coefficient matrix M
+    Mt::SparseMatrixCSC{ComplexF64,Int32}   # transpose of the coefficient matrix M
     parent::Vector{Int32}
     leaf::Vector{Int32}
     fac::Vector{Int32}                       # flat factor chains (threaded update path)
     fac_ptr::Vector{Int32}                   # CSR offsets into `fac`, one range per monomial
-    v::Vector{Vector{ComplexF64}}            # per-thread scratch (indexed by `threadid()`)
+    v::ScratchPool                            # per-task scratch
     parallel::Bool                           # thread the RHS (monomial update + SpMV)
 end
 
-# `ir` untyped so this constructor also serves cache hits, which carry the plain tables
-# (parent, leaf) without ever constructing a MomentIR.
+# `ir` is intentionally structural here so the evaluator can be built from the lowered
+# representation without retaining the symbolic equation set.
 function MomentKernel(ir, cvals::Vector{ComplexF64}; parallel::Bool = false)
     fac, fac_ptr = build_flat(ir.parent, ir.leaf)
     v = _make_vbufs(length(ir.parent))
     return MomentKernel(assemble(ir, cvals), ir.parent, ir.leaf, fac, fac_ptr, v, parallel)
 end
 
-# Convenience constructor over prebuilt tables (cache load): derives `fac`/`fac_ptr`.
+# Convenience constructor over prebuilt numeric tables.
 function MomentKernel(
-        Mt::SparseMatrixCSC, parent::Vector{Int32}, leaf::Vector{Int32},
-        v::Vector{Vector{ComplexF64}}, parallel::Bool,
-    )
+    Mt::SparseMatrixCSC,
+    parent::Vector{Int32},
+    leaf::Vector{Int32},
+    v::ScratchPool,
+    parallel::Bool,
+)
     fac, fac_ptr = build_flat(parent, leaf)
     return MomentKernel(Mt, parent, leaf, fac, fac_ptr, v, parallel)
 end
@@ -61,19 +70,33 @@ function _init_vbuf(n::Integer)
     return v
 end
 
-"""One scratch buffer per thread so a shared kernel is reentrant (thread-local `v`). Sized by
-`maxthreadid()` to cover interactive-pool threads, not just the default pool; a single kernel
-call never yields (Polyester's `@batch` does not yield the calling task), so indexing the
-buffer by `threadid()` within a call is race-free even under task migration between calls."""
-_make_vbufs(n::Integer) = [_init_vbuf(n) for _ in 1:Threads.maxthreadid()]
+"""Task-owned scratch makes a shared kernel reentrant across all Julia thread pools."""
+ScratchPool(n::Integer) =
+    ScratchPool(Int(n), IdDict{Task,Vector{ComplexF64}}(), ReentrantLock())
 
-@inline _vbuf(vs::Vector{Vector{ComplexF64}}) = @inbounds vs[Threads.threadid()]
+function Base.copy(pool::ScratchPool)
+    return ScratchPool(pool.n, IdDict{Task,Vector{ComplexF64}}(), ReentrantLock())
+end
+
+function _vbuf(pool::ScratchPool)
+    task = current_task()
+    lock(pool.lock)
+    try
+        return get!(pool.buffers, task) do
+            _init_vbuf(pool.n)
+        end
+    finally
+        unlock(pool.lock)
+    end
+end
+
+_make_vbufs(n::Integer) = ScratchPool(n)
 
 """Refresh the distinct-monomial vector in place via the prefix chains (serial; also used by
 the Jacobian). Each monomial is `(parent monomial) * (one state factor)`, and parents have
 smaller ids, so ascending order is a valid schedule."""
 function update_v!(v, parent, leaf, u)
-    @inbounds for m in 2:length(v)
+    @inbounds for m = 2:length(v)
         j = leaf[m]
         x = j > 0 ? u[j] : conj(u[-j])
         v[m] = v[parent[m]] * x
@@ -88,23 +111,23 @@ form's cross-iteration dependency; the shared order keeps it bit-identical to `u
 function build_flat(parent::Vector{Int32}, leaf::Vector{Int32})
     n = length(parent)
     depth = zeros(Int32, n)
-    @inbounds for m in 2:n
+    @inbounds for m = 2:n
         depth[m] = depth[parent[m]] + Int32(1)
     end
     fac_ptr = Vector{Int32}(undef, n + 1)
     fac_ptr[1] = 1
-    @inbounds for m in 1:n
-        fac_ptr[m + 1] = fac_ptr[m] + depth[m]
+    @inbounds for m = 1:n
+        fac_ptr[m+1] = fac_ptr[m] + depth[m]
     end
     fac = Vector{Int32}(undef, Int(fac_ptr[end]) - 1)
-    @inbounds for m in 2:n
+    @inbounds for m = 2:n
         pl = fac_ptr[parent[m]]
         plen = depth[parent[m]]
         base = fac_ptr[m]
-        for t in 0:(plen - 1)
-            fac[base + t] = fac[pl + t]
+        for t = 0:(plen-1)
+            fac[base+t] = fac[pl+t]
         end
-        fac[base + plen] = leaf[m]
+        fac[base+plen] = leaf[m]
     end
     return fac, fac_ptr
 end
@@ -113,9 +136,9 @@ end
 there is no cross-iteration dependency. Bit-identical to `update_v!` (same factor order) and
 to a serial run (`@batch` runs serially on one thread)."""
 function update_v_flat!(v, fac, fac_ptr, u)
-    Polyester.@batch for m in 2:length(v)
+    Polyester.@batch for m = 2:length(v)
         s = one(ComplexF64)
-        @inbounds for k in fac_ptr[m]:(fac_ptr[m + 1] - 1)
+        @inbounds for k = fac_ptr[m]:(fac_ptr[m+1]-1)
             j = fac[k]
             s *= j > 0 ? u[j] : conj(u[-j])
         end
@@ -126,7 +149,7 @@ end
 
 @inline function _rowsum(Mt::SparseMatrixCSC, v, i)
     s = zero(eltype(v))
-    @inbounds for k in Mt.colptr[i]:(Mt.colptr[i + 1] - 1)
+    @inbounds for k = Mt.colptr[i]:(Mt.colptr[i+1]-1)
         s += Mt.nzval[k] * v[Mt.rowval[k]]
     end
     return s
@@ -168,7 +191,7 @@ function nz_map(A, rows, cols)
     nzmap = Vector{Int}(undef, length(rows))
     for k in eachindex(rows)
         j = cols[k]
-        r = Int(A.colptr[j]):(Int(A.colptr[j + 1]) - 1)
+        r = Int(A.colptr[j]):(Int(A.colptr[j+1])-1)
         p = searchsortedfirst(view(A.rowval, r), rows[k]) + first(r) - 1
         @assert A.rowval[p] == rows[k]
         nzmap[k] = p
@@ -179,13 +202,12 @@ end
 """
 The parameter payload of a kernel `ODEProblem` (`prob.p`). Carries the discovered
 parameter occurrences, the current values, and everything needed to rewrite `Mt.nzval`
-in place on a parameter update. `evalcoeffs` abstracts how pooled coefficients are
-evaluated: fresh lowerings substitute into the symbolic coefficients, cache-loaded
-kernels call the stored coefficient evaluator.
+in place on a parameter update. `evalcoeffs` evaluates pooled coefficients from the retained
+symbolic representation.
 """
 struct KernelParameters{F}
     params::Vector{Any}
-    values::Dict{Any, Any}
+    values::Dict{Any,Any}
     evalcoeffs::F                 # values dict -> Vector{ComplexF64} of pooled coefficients
     coo_c::Vector{Int32}
     nzmap::Vector{Int}
@@ -194,7 +216,10 @@ end
 function KernelParameters(ir::MomentIR, Mt::SparseMatrixCSC, values::Dict)
     evalcoeffs = vals -> coefficient_values(ir, vals)
     return KernelParameters(
-        ir.params, Dict{Any, Any}(values), evalcoeffs, ir.coo_c,
+        ir.params,
+        Dict{Any,Any}(values),
+        evalcoeffs,
+        ir.coo_c,
         nz_map(Mt, ir.coo_j, ir.coo_i),   # Mt is transposed: (row, col) = (monomial, state)
     )
 end

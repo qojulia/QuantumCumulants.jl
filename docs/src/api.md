@@ -327,22 +327,14 @@ Backward
 
 ## [RHS backends](@id API: RHS backends)
 
-See [Solving the equations directly (RHS backends)](@ref) for the guide.
+See [Solving `MeanfieldEquations` directly](ode_backends.md) for the guide.
 
 ```@docs
 RHSBackend
 ```
 
 ```@docs
-AutoBackend
-```
-
-```@docs
 KernelBackend
-```
-
-```@docs
-ShardedBackend
 ```
 
 ```@docs

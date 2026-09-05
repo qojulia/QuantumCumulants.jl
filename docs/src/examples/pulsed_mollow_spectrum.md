@@ -30,7 +30,7 @@ h = NLevelSpace(:atom, (:g, :e))
 σ(i, j) = Transition(h, :σ, i, j)
 
 @variables Δ Ω γ
-@variables t0::Real   # absolute time at which the drive evolution stops (t₀)
+@variables t₀::Real   # absolute time at which the drive evolution stops (t₀)
 @register_symbolic r(t)
 
 eqs_seed = meanfield([σ(:e, :e), σ(:e, :g)], Δ * σ(:e, :e), [σ(:g, :e)]; rates = [γ])
@@ -68,10 +68,10 @@ plot(
 )
 ````
 
-The population settles onto a plateau: at `t0 = tstop` the atom is in a quasi-steady state under the (now constant) drive. We build the emission correlation function on this system, passing `iv0 = t0`.
+The population settles onto a plateau: at `t₀ = tstop` the atom is in a quasi-steady state under the (now constant) drive. We build the emission correlation function on this system, passing `iv0 = t₀`.
 
 ````@example pulsed_mollow_spectrum
-c = CorrelationFunction(σ(:e, :g), σ(:g, :e), eqs; iv0 = t0)
+c = CorrelationFunction(σ(:e, :g), σ(:g, :e), eqs; iv0 = t₀)
 nothing # hide
 ````
 
@@ -85,12 +85,12 @@ catch e
 end
 ````
 
-We solve the $\tau$-evolution. The steady-state initial values are read off the original solution with [`correlation_u0`](@ref); the parameters, **including** `t0`, are propagated with [`correlation_p0`](@ref).
+We solve the $\tau$-evolution. The steady-state initial values are read off the original solution with [`correlation_u0`](@ref); the parameters, **including** `t₀`, are propagated with [`correlation_p0`](@ref).
 
 ````@example pulsed_mollow_spectrum
 csys = mtkcompile(System(c; name = :corr))
 u0_c = correlation_u0(c, sol.u[end])
-p0_c = correlation_p0(c, sol.u[end], [γ => γv, Ω => Ωv, Δ => Δv, t0 => tstop])
+p0_c = correlation_p0(c, sol.u[end], [γ => γv, Ω => Ωv, Δ => Δv, t₀ => tstop])
 
 τ_end = 30.0
 prob_c = ODEProblem(csys, merge(u0_c, Dict(p0_c)), (0.0, τ_end))

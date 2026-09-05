@@ -3,8 +3,8 @@ module QuantumCumulants
 using Reexport: @reexport
 @reexport using SecondQuantizedAlgebra
 
-using SecondQuantizedAlgebra: SecondQuantizedAlgebra, QField, QAdd,
-    average, commutator, undo_average, operators
+using SecondQuantizedAlgebra:
+    SecondQuantizedAlgebra, QField, QAdd, average, commutator, undo_average, operators
 import SecondQuantizedAlgebra as SQA
 using SymbolicUtils: SymbolicUtils
 using Symbolics: Symbolics, @variables
@@ -16,16 +16,10 @@ using Combinatorics: Combinatorics, partitions
 using TermInterface: TermInterface
 using LinearAlgebra: I
 using SciMLBase: SciMLBase
-using SparseArrays: SparseMatrixCSC, sparse, nonzeros, rowvals, nzrange, nnz
-using RuntimeGeneratedFunctions: RuntimeGeneratedFunctions, @RuntimeGeneratedFunction
-using FunctionWrappers: FunctionWrapper
+using SparseArrays: SparseMatrixCSC, sparse
 using Polyester: Polyester
-using OhMyThreads: tmap, tforeach, GreedyScheduler, DynamicScheduler
-using SHA: sha256
-using PrecompileTools: PrecompileTools
+using OhMyThreads: tmap, GreedyScheduler
 const MTK = ModelingToolkitBase
-
-RuntimeGeneratedFunctions.init(@__MODULE__)
 
 export AbstractMeanfieldEquations, MeanfieldEquations, NoiseMeanfieldEquations
 export EvolutionDirection, Forward, Backward
@@ -38,10 +32,14 @@ export System, initial_values, get_solution, parameter_map
 export CorrelationFunction, Spectrum, correlation_u0, correlation_p0
 export translate_W_to_Y, modify_equations, modify_equations!
 export simplify!, substitute!
-export RHSBackend, KernelBackend, ShardedBackend, AutoBackend
+export RHSBackend, KernelBackend
 export update_parameters!
-export KernelLoweringError, NonPolynomialDriftError, TimeDependentCoefficientError,
-    ImParameterCollisionError, UnresolvedMomentError, HolomorphicJacobianError
+export KernelLoweringError,
+    NonPolynomialDriftError,
+    TimeDependentCoefficientError,
+    ImParameterCollisionError,
+    UnresolvedMomentError,
+    HolomorphicJacobianError
 
 #  early types (abstract eqs supertype, treatment enum, direction tags), identity
 include("equations.jl")
@@ -68,17 +66,12 @@ include("mtk.jl")
 include("backends/kernel_lower.jl")
 include("backends/kernel_eval.jl")
 include("backends/kernel_jac.jl")
-include("backends/kernel_cache.jl")
 include("backends/ode_api.jl")
-include("backends/sharded.jl")
 
 include("correlation.jl")
 include("spectrum.jl")
 
 # plain-text and LaTeX display (after all displayed types are defined)
 include("printing.jl")
-
-# precompile workload last: it drives the full public path end to end
-include("precompile.jl")
 
 end # module

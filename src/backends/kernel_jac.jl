@@ -13,7 +13,7 @@
 # (get_adjoints=true, the default) contain none.
 
 struct JacIR
-    Jproto::SparseMatrixCSC{ComplexF64, Int32}  # sparsity pattern, values overwritten per call
+    Jproto::SparseMatrixCSC{ComplexF64,Int32}  # sparsity pattern, values overwritten per call
     nzptr::Vector{Int32}                        # per structural nz: range into the entry lists
     e_cid::Vector{Int32}                        # entry: pooled coefficient id
     e_mono::Vector{Int32}                       # entry: complement monomial id
@@ -24,7 +24,7 @@ end
 function ir_factors(ir::MomentIR)
     fs = Vector{Vector{Int32}}(undef, length(ir.parent))
     fs[1] = Int32[]
-    for m in 2:length(ir.parent)
+    for m = 2:length(ir.parent)
         fs[m] = vcat(fs[ir.parent[m]], ir.leaf[m])   # parents precede children
     end
     return fs
@@ -38,19 +38,19 @@ monomials); construct the `MomentKernel` from it so `v` covers the complements.
 """
 function jacobian_ir(ir::MomentIR)
     factors = ir_factors(ir)
-    mono_ids = Dict{Vector{Int32}, Int32}(f => Int32(m) for (m, f) in enumerate(factors))
+    mono_ids = Dict{Vector{Int32},Int32}(f => Int32(m) for (m, f) in enumerate(factors))
     parent = copy(ir.parent)
     leaf = copy(ir.leaf)
     function mono_id!(fs::Vector{Int32})
         return get!(mono_ids, fs) do
-            p = mono_id!(fs[1:(end - 1)])
+            p = mono_id!(fs[1:(end-1)])
             push!(parent, p)
             push!(leaf, fs[end])
             Int32(length(parent))
         end
     end
     # accumulate entries per Jacobian position (i, j)
-    entries = Dict{Tuple{Int32, Int32}, Vector{NTuple{3, Int32}}}()
+    entries = Dict{Tuple{Int32,Int32},Vector{NTuple{3,Int32}}}()
     for t in eachindex(ir.coo_i)
         i, m, cid = ir.coo_i[t], ir.coo_j[t], ir.coo_c[t]
         fs = factors[m]
@@ -59,11 +59,18 @@ function jacobian_ir(ir::MomentIR)
             mult = Int32(count(==(j), fs))
             comp = fs[1:end]
             deleteat!(comp, findfirst(==(j), comp))
-            push!(get!(entries, (i, j), NTuple{3, Int32}[]), (cid, mono_id!(comp), mult))
+            push!(get!(entries, (i, j), NTuple{3,Int32}[]), (cid, mono_id!(comp), mult))
         end
     end
     ir_ext = MomentIR(
-        ir.nstates, parent, leaf, ir.coeffs, ir.coo_i, ir.coo_j, ir.coo_c, ir.params
+        ir.nstates,
+        parent,
+        leaf,
+        ir.coeffs,
+        ir.coo_i,
+        ir.coo_j,
+        ir.coo_c,
+        ir.params,
     )
     # CSC order: sort positions column-major, flatten entry lists with pointers
     pos = sort!(collect(keys(entries)); by = p -> (p[2], p[1]))
@@ -80,25 +87,36 @@ function jacobian_ir(ir::MomentIR)
         push!(nzptr, Int32(length(e_cid) + 1))
     end
     Jproto = sparse(
-        [p[1] for p in pos], [p[2] for p in pos], zeros(ComplexF64, length(pos)),
-        ir.nstates, ir.nstates,
+        [p[1] for p in pos],
+        [p[2] for p in pos],
+        zeros(ComplexF64, length(pos)),
+        ir.nstates,
+        ir.nstates,
     )
     return ir_ext, JacIR(Jproto, nzptr, e_cid, e_mono, e_mult)
 end
 
-"""Jacobian callable: fills `Jmat.nzval` (Jmat must share Jproto's sparsity pattern). `v` is
-the same per-thread scratch set as the RHS kernel (shared within a `prob`, thread-local
-across concurrent callers), so the Jacobian is reentrant on the same footing as the RHS."""
+"""Jacobian callable: fills `Jmat.nzval` (Jmat must share Jproto's sparsity pattern).
+
+The Jacobian owns its own per-thread scratch set, so concurrent RHS and Jacobian calls cannot
+overwrite one another's monomial values.
+"""
 struct JacKernel
     jac::JacIR
     parent::Vector{Int32}
     leaf::Vector{Int32}
     c::Vector{ComplexF64}
-    v::Vector{Vector{ComplexF64}}
+    v::ScratchPool
 end
 
 function JacKernel(ir_ext::MomentIR, jac::JacIR, cvals::Vector{ComplexF64})
-    return JacKernel(jac, ir_ext.parent, ir_ext.leaf, cvals, _make_vbufs(length(ir_ext.parent)))
+    return JacKernel(
+        jac,
+        ir_ext.parent,
+        ir_ext.leaf,
+        cvals,
+        _make_vbufs(length(ir_ext.parent)),
+    )
 end
 
 function (jk::JacKernel)(Jmat, u, p, t)
@@ -107,7 +125,7 @@ function (jk::JacKernel)(Jmat, u, p, t)
     nzv = Jmat.nzval
     @inbounds for k in eachindex(nzv)
         acc = zero(ComplexF64)
-        for e in jk.jac.nzptr[k]:(jk.jac.nzptr[k + 1] - 1)
+        for e = jk.jac.nzptr[k]:(jk.jac.nzptr[k+1]-1)
             acc += jk.jac.e_mult[e] * jk.c[jk.jac.e_cid[e]] * v[jk.jac.e_mono[e]]
         end
         nzv[k] = acc

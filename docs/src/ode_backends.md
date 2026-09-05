@@ -1,127 +1,83 @@
-# Solving the equations directly (RHS backends)
+# Solving `MeanfieldEquations` directly
 
-QuantumCumulants can compile the completed moment equations straight into a
-`SciMLBase.ODEProblem`, without constructing a `ModelingToolkit.System` first:
-
-```julia
-eqs = meanfield(ops, H, J; rates, order = 2)
-complete!(eqs)
-prob = ODEProblem(eqs, ψ0, (0.0, 10.0), Dict(Δ => 1.0, κ => 0.5))
-sol = solve(prob, RK4())
-```
-
-`u0` can be a numeric quantum state (a ket or density operator from
-QuantumOpticsBase), a `ComplexF64` vector aligned with `eqs.states`, or a `Dict`
-keyed by the state averages. Read results with the same
-[`get_solution`](@ref) used on the ModelingToolkit path.
-
-## Backend selection
-
-The `backend` keyword picks the RHS compilation strategy:
-
-| Backend | What it is | When it wins |
-|---|---|---|
-| `AutoBackend()` (default) | tries the kernel, falls back to sharded exactly when the drift is not polynomial in the moments | almost always the right choice |
-| `KernelBackend(; cache, parallel)` | the moment-polynomial kernel `du = M * v`: the drifts are lowered once to sparse data (CSR layout; both RHS passes optionally threaded via Polyester), no per-model native code | cold construction everywhere; warm runtime beyond roughly a thousand equations; analytic Jacobian; caching |
-| `ShardedBackend(; chunk, threads, parallel)` | chunked native codegen (`build_function` per chunk of equations, codegen parallelized with OhMyThreads; the chunks also run concurrently at solve time for large systems) | warm RHS runtime on small and mid-size systems; t-dependent or rewritten non-polynomial drifts; stiff solves via a colored-FD or symbolic Jacobian (including conjugate-folded closures) |
-
-Both backends resolve the drifts through the same treatments-aware machinery as
-`System(eqs)`, so scaled (`scale`) and evaluated (`evaluate`) systems, indexed
-operators, and array-valued parameters work identically on either.
-
-## Parameters
-
-Parameters are required at construction and baked into the compiled RHS; there is no
-symbolic parameter object at solve time. For sweeps and ensembles, rewrite the
-compiled problem in place:
+Completed deterministic `MeanfieldEquations` can be lowered directly to a compact numerical
+evaluator and passed to SciML without first constructing a ModelingToolkit system:
 
 ```julia
-update_parameters!(prob, Dict(κ => 2.0))       # unmentioned parameters keep their values
+using QuantumCumulants
+using SciMLBase: ODEProblem
+
+eqs = complete(meanfield([a], H, [a]; rates = [κ], order = 2))
+prob = ODEProblem(eqs, u0, (0.0, 10.0), Dict(κ => 0.5); backend = KernelBackend())
 ```
 
-`remake(prob, p = ...)` with a plain vector does not work on the kernel backend (its
-`prob.p` is a `KernelParameters` object) and raises a typed error pointing back to
-`update_parameters!`.
+The direct path has one execution strategy:
 
-The kernel keeps one scratch buffer per thread, so a single `prob` is safe to solve
-concurrently: an `EnsembleProblem` with `EnsembleThreads()` that only varies `u0` (same
-parameters) needs no copy. To give a trajectory its *own* parameters, `copy` the
-`ODEFunction` so it owns an independent `Mt`, then `update_parameters!` it:
+```text
+MeanfieldEquations → structured lowering → compact tables → ODEFunction
+```
+
+The structured representation is independent of the evaluator. Distinct state monomials are
+shared globally and represented as signed state factors. A positive factor reads `u[j]`; a
+negative factor reads `conj(u[j])`. The evaluator computes the monomial vector `v` and then
+applies the sparse coefficient table `M`, giving `du = M * v`.
+
+## Supported systems
+
+The direct evaluator supports completed, deterministic cumulant equations whose drifts are
+polynomial in the tracked moments with parameter-only coefficients. Ordinary unfolded systems,
+conjugate-folded systems for RHS evaluation, and systems produced by `scale` or `evaluate` are
+supported. The current numeric representation is specialized to `ComplexF64` state vectors and
+coefficient values.
+
+Parameters are supplied when the problem is constructed. The lowering and monomial structure
+are independent of those values, so a sweep only refreshes the numeric coefficient table:
 
 ```julia
-f2 = copy(prob.f)
-prob2 = remake(prob; f = f2, p = f2.f.kp)
-update_parameters!(prob2, Dict(κ => 3.0))       # prob is unaffected
+update_parameters!(prob, Dict(κ => 0.7))
 ```
 
-## Jacobian for stiff solvers (`jac = true`)
+Scalar parameters, evaluated one- and multi-dimensional array parameters, and repeated solves
+are supported. The parameter update is equivalent to constructing a fresh problem with the new
+values, without re-lowering the equations.
 
-Both backends can attach a sparse Jacobian, enabling implicit (stiff) solvers on the
-complex-valued state without ForwardDiff (which does not support complex numbers).
-
-The **kernel backend** attaches its exact analytic Jacobian, derived from the same M·v
-structure as the RHS:
+Non-polynomial rewrites, time-dependent coefficients, noise equations, and correlation systems
+are outside this first direct path. They should use the existing ModelingToolkit route:
 
 ```julia
-prob = ODEProblem(eqs, ψ0, tspan, ps; jac = true)   # kernel backend
-sol = solve(prob, Rodas5P(autodiff = AutoFiniteDiff()))
+sys = System(eqs; name = :meanfield)
 ```
 
-It is holomorphic-only: a system closed with `get_adjoints = false` (conjugate-folded)
-raises `HolomorphicJacobianError`, because its true derivative needs the Wirtinger pair.
+The direct constructors fail with a capability error for unsupported input. There is no silent
+generated-code fallback.
 
-The **sharded backend** attaches a Jacobian driven through its chunked RHS, plus a
-finite-difference time-gradient, so plain `Rodas5P()` runs (no `autodiff` keyword needed):
+## Jacobians
+
+`jac = true` and `jac = :analytic` attach the sparse analytic Jacobian derived from the same
+monomial tables:
 
 ```julia
-prob = ODEProblem(eqs, ψ0, tspan, ps; backend = ShardedBackend(), jac = true)
-sol = solve(prob, Rodas5P())
+prob = ODEProblem(eqs, u0, tspan, ps; backend = KernelBackend(), jac = true)
 ```
 
-`jac = true` (equivalently `:fd`) computes a colored finite-difference Jacobian: the
-sparsity is read from the drift expressions, greedily colored, and filled in `ncolors + 1`
-RHS evaluations instead of `n + 1`. `jac = :analytic` instead codegens a symbolic Jacobian
-(exact, and cheaper to evaluate at runtime). Both compute the same real-directional
-linearization, so both work for conjugate-folded *and* unfolded closures, no
-`HolomorphicJacobianError`. Solving a complex-state problem with the sparse Jacobian emits a
-benign `"incompatible with sparse automatic differentiation"` warning from the integrator;
-the supplied Jacobian is still used and the linear solve stays sparse.
+This mode is valid only for holomorphic closures. For a drift
+``f(u, \bar u)`` the differential is ``δf = Aδu + Bδ\bar u``. A single complex `n × n`
+Jacobian represents the differential only when `B == 0`. A folded system containing conjugate
+state factors therefore raises `HolomorphicJacobianError`; it is never silently replaced by a
+one-sided finite difference or a real-directional approximation. Use an unfolded holomorphic
+closure or the ModelingToolkit path when that Jacobian is required.
 
-## Kernel cache
+## Direct solution access
 
-Lowering large systems takes seconds; the kernel tables can be persisted:
+The QC state registry is used for direct solutions as well as ModelingToolkit solutions:
 
 ```julia
-using JLD2                                       # activates the cache extension
-kb = KernelBackend(cache = "my_kernels.jld2")
-prob = ODEProblem(eqs, u0, tspan, ps; backend = kb)   # first run lowers and stores
-prob = ODEProblem(eqs, u0, tspan, ps; backend = kb)   # later runs load the tables
+sol = solve(prob, Tsit5())
+get_solution(sol, a, eqs)(1.0)
+get_solution(sol, a', eqs)(1.0)
 ```
 
-The cache key is a SHA-256 digest of a canonical text of the equations plus version
-stamps, and every hit re-verifies the stored text byte-for-byte, so a stale or
-colliding entry silently degrades to a fresh lowering. Corrupt or unreadable files
-warn and fall back; they never error. A loaded kernel is fully sweepable with
-`update_parameters!`. With `jac = true` the cache is bypassed (the stored tables do
-not carry the Jacobian's complement monomials).
-
-## Error taxonomy
-
-All lowering failures are typed (subtypes of `KernelLoweringError`) with guidance in
-the message:
-
-| Error | Meaning | Fix |
-|---|---|---|
-| `NonPolynomialDriftError` | a rewritten drift is not polynomial in the moments | use `ShardedBackend` (what `AutoBackend` does automatically) |
-| `TimeDependentCoefficientError` | a coefficient depends on `t` | use `ShardedBackend()` or the MTK path |
-| `ImParameterCollisionError` | a user parameter named `im` | rename the parameter |
-| `UnresolvedMomentError` | an RHS average is not among the states | `complete!(eqs)` first |
-| `HolomorphicJacobianError` | `jac = true` on a conjugate-folded system | close with `get_adjoints = true` or drop `jac` |
-
-## What stays on the ModelingToolkit path
-
-Events and callbacks defined at the `System` level, observed variables, symbolic
-indexing of solutions, [`CorrelationFunction`](@ref)/[`Spectrum`](@ref), and
-noise/SDE systems (`NoiseMeanfieldEquations`) are not handled by the direct
-backends in this version. Build those through `System(eqs; name = ...)` as before;
-the two routes coexist and agree.
+The requested operator is resolved to a registered integer state index. If a folded query is the
+conjugate side of the stored representative, `get_solution` returns the conjugated trajectory.
+This keeps the user-facing `get_solution(sol, op, eqs)` behavior the same for both numerical
+routes.

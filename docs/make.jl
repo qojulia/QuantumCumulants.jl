@@ -1,5 +1,6 @@
 using Documenter
 using QuantumCumulants, SecondQuantizedAlgebra
+using SciMLBase
 using SymbolicUtils, ModelingToolkitBase
 
 ENV["JULIA_DEBUG"] = "Documenter"

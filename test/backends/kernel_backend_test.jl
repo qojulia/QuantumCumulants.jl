@@ -10,7 +10,7 @@ using Test
 # Reference RHS by direct substitution into the completed equations, built from the
 # public surface only (equations, states, average, adjoint, undo_average).
 function reference_du(eqs, pdict, u)
-    subs = Dict{Any, Any}(Symbolics.unwrap(k) => v for (k, v) in pdict)
+    subs = Dict{Any,Any}(Symbolics.unwrap(k) => v for (k, v) in pdict)
     for (i, s) in enumerate(eqs.states)
         subs[Symbolics.unwrap(s)] = u[i]
     end
@@ -32,22 +32,25 @@ end
 
 # Transverse-field Ising chain of 3 Pauli spins at order 2: 36 coupled moment equations.
 Np = 3
-h = ⊗([PauliSpace(Symbol(:spin, i)) for i in 1:Np]...)
+h = ⊗([PauliSpace(Symbol(:spin, i)) for i = 1:Np]...)
 σx(i) = Pauli(h, :σ, 1, i)
 σy(i) = Pauli(h, :σ, 2, i)
 σz(i) = Pauli(h, :σ, 3, i)
 σm(i) = (σx(i) - 1im * σy(i)) / 2
 @variables J hx γ
-H = -J * sum(σz(i) * σz(i + 1) for i in 1:(Np - 1)) - hx * sum(σx(i) for i in 1:Np)
+H = -J * sum(σz(i) * σz(i + 1) for i = 1:(Np-1)) - hx * sum(σx(i) for i = 1:Np)
 eqs = meanfield(
-    [σz(i) for i in 1:Np], H, [σm(i) for i in 1:Np];
-    rates = [γ for i in 1:Np], order = 2,
+    [σz(i) for i = 1:Np],
+    H,
+    [σm(i) for i = 1:Np];
+    rates = [γ for i = 1:Np],
+    order = 2,
 )
 complete!(eqs)
 ps = Dict(J => 1.0, hx => 1.0, γ => 0.2)
 nst = length(eqs.states)
 u0 = zeros(ComplexF64, nst)
-u = ComplexF64[0.1cos(3.7i) + 0.05im * sin(1.3i) for i in 1:nst]
+u = ComplexF64[0.1cos(3.7i) + 0.05im * sin(1.3i) for i = 1:nst]
 
 @testset "du vs substitution reference (Pauli chain)" begin
     prob = ODEProblem(eqs, u0, (0.0, 1.0), ps; backend = KernelBackend())
@@ -68,15 +71,21 @@ end
     complete!(eqs_k; get_adjoints = false)
     ps_k = Dict(Δ => -1.0, Ω => 1.3, κ => 1.0, U => 0.1)
     nk = length(eqs_k.states)
-    uk = ComplexF64[0.3cos(2.1i) + 0.2im * sin(0.7i) for i in 1:nk]
-    prob = ODEProblem(eqs_k, zeros(ComplexF64, nk), (0.0, 1.0), ps_k; backend = KernelBackend())
+    uk = ComplexF64[0.3cos(2.1i) + 0.2im * sin(0.7i) for i = 1:nk]
+    prob = ODEProblem(
+        eqs_k,
+        zeros(ComplexF64, nk),
+        (0.0, 1.0),
+        ps_k;
+        backend = KernelBackend(),
+    )
     du = similar(uk)
     prob.f(du, uk, prob.p, 0.0)
     ref = reference_du(eqs_k, ps_k, uk)
     @test maximum(abs.(du .- ref) ./ max.(abs.(ref), 1.0e-12)) < 1.0e-12
 end
 
-ψ0 = tensor([spinup(SpinBasis(1 // 2)) for _ in 1:Np]...)
+ψ0 = tensor([spinup(SpinBasis(1 // 2)) for _ = 1:Np]...)
 
 @testset "trajectory vs the MTK path" begin
     prob = ODEProblem(eqs, ψ0, (0.0, 5.0), ps; backend = KernelBackend())
@@ -117,14 +126,15 @@ end
 # The kernel keeps one scratch `v` per thread, so a single instance is safe to call
 # concurrently (e.g. `EnsembleThreads()` sharing one `prob`). Structural check always runs;
 # the contention check exposes a shared-`v` race only when the test process has >1 thread.
-@testset "kernel is reentrant across threads (thread-local v)" begin
+@testset "kernel is reentrant across concurrent tasks" begin
     prob = ODEProblem(eqs, u0, (0.0, 1.0), ps; backend = KernelBackend())
     k = prob.f.f.kernel
-    @test k.v isa Vector{Vector{ComplexF64}}
-    @test length(k.v) == Threads.maxthreadid()
-    @test all(buf -> buf[1] == one(ComplexF64), k.v)
+    @test k.v isa QuantumCumulants.ScratchPool
     # distinct inputs, each with its own serially-computed reference du
-    us = [ComplexF64[0.1cos(2.3i + 0.7j) + 0.05im * sin(1.1i - 0.3j) for i in 1:nst] for j in 1:8]
+    us = [
+        ComplexF64[0.1cos(2.3i + 0.7j) + 0.05im * sin(1.1i - 0.3j) for i = 1:nst] for
+        j = 1:8
+    ]
     refs = map(us) do uu
         du = similar(uu)
         k(du, uu, prob.p, 0.0)
@@ -133,7 +143,7 @@ end
     # hammer the shared kernel from many tasks at once; a shared `v` would let one task's
     # monomial update be clobbered before its SpMV reads it, so some du would not match
     mism = Threads.Atomic{Int}(0)
-    @sync for _ in 1:400, (uu, ref) in zip(us, refs)
+    @sync for _ = 1:400, (uu, ref) in zip(us, refs)
         Threads.@spawn begin
             du = similar(uu)
             k(du, uu, prob.p, 0.0)
@@ -141,6 +151,38 @@ end
         end
     end
     @test mism[] == 0
+end
+
+@testset "direct solution indexing and folded conjugates" begin
+    sol = solve(
+        ODEProblem(eqs, ψ0, (0.0, 1.0), ps; backend = KernelBackend()),
+        RK4();
+        saveat = 0.25,
+    )
+    state = get_solution(sol, eqs.states[1], eqs)
+    @test state.(sol.t) == [u[1] for u in sol.u]
+
+    hc = FockSpace(:direct_solution_cavity)
+    a = Destroy(hc, :a)
+    @variables Δs Ωs κs Us
+    Hs = Δs * a' * a + Us * a' * a' * a * a + Ωs * (a + a')
+    folded = meanfield([a], Hs, [a]; rates = [κs], order = 2)
+    complete!(folded; get_adjoints = false)
+    p_folded = Dict(Δs => -1.0, Ωs => 1.3, κs => 1.0, Us => 0.1)
+    sol_folded = solve(
+        ODEProblem(
+            folded,
+            zeros(ComplexF64, length(folded.states)),
+            (0.0, 0.5),
+            p_folded;
+            backend = KernelBackend(),
+        ),
+        RK4();
+        saveat = 0.1,
+    )
+    a_traj = get_solution(sol_folded, a, folded).(sol_folded.t)
+    adag_traj = get_solution(sol_folded, a', folded).(sol_folded.t)
+    @test adag_traj == conj.(a_traj)
 end
 
 @testset "u0 input forms agree" begin
