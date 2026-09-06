@@ -75,9 +75,9 @@ end
 """
 Resolution of every drift average leaf through the system's recorded treatments, the
 `_state_registry` pattern with the state INDEX as the `MomentMap` payload. Returns
-`(vars, idx)` in the `_lower_ir` contract: `vars` are the distinct leaf forms as they
-appear in the drifts (handed to `polynomial_coeffs`), `idx[leaf]` the signed state index
-(negative = conjugate side of the stored representative).
+`(vars, idx)` in the lowering contract: `vars` are the distinct leaf forms as they appear
+in the drifts, and `idx[leaf]` is the signed state index (negative = conjugate side of the
+stored representative).
 """
 function statevars_resolved(eqs)
     g = eqs.graph
@@ -143,65 +143,6 @@ end
 """Lower a completed equation set to its moment-polynomial representation."""
 _lower_moment_ir(eqs) =
     _build_moment_ir(eqs.graph, statevars_resolved(eqs)..., Symbolics.unwrap(eqs.iv))
-
-"""IR builder over a prepared state resolution (`vars` for `polynomial_coeffs`, `idx`
-mapping each average leaf form to its signed state index)."""
-function _build_moment_ir(g, vars, idx, iv_uw)
-    mono_ids = Dict{Vector{Int32}, Int32}(Int32[] => Int32(1))
-    parent = Int32[0]
-    leaf = Int32[0]
-    coeff_ids = Dict{Any, Int32}()
-    coeffs = Any[]
-    coo_i = Int32[]
-    coo_j = Int32[]
-    coo_c = Int32[]
-
-    function mono_id!(fs::Vector{Int32})
-        return get!(mono_ids, fs) do
-            p = mono_id!(fs[1:(end - 1)])
-            push!(parent, p)
-            push!(leaf, fs[end])
-            Int32(length(parent))
-        end
-    end
-
-    # phase 1: polynomial_coeffs per equation, the dominant lowering cost and highly
-    # heterogeneous across equations, so a greedy scheduler load-balances best (measured
-    # ~3.1x vs ~2.7x for a static split on 12 threads; both capped below thread count by
-    # contention on SymbolicUtils' shared caches). `tmap` returns results in input order, so
-    # the serial phase 2 below stays bit-deterministic.
-    drifts = Any[Symbolics.unwrap(nd.drift) for nd in values(g.nodes)]
-    neq = length(drifts)
-    polys = tmap(
-        d -> Symbolics.polynomial_coeffs(d, vars),
-        Any,
-        drifts;
-        scheduler = GreedyScheduler(),
-    )
-
-    # phase 2: serial table build in equation order, so `mono_id!` assignment, coefficient
-    # pooling, and the residual-check error order are bit-identical to a serial build
-    for i in 1:neq
-        dict, res = polys[i]
-        _iszero_part(res) || throw(NonPolynomialDriftError(i, res))
-        terms = collect(dict)
-        # `polynomial_coeffs` returns a dictionary. Sort by the structural factor tuple so
-        # monomial and pooled-coefficient ids do not depend on dictionary iteration order.
-        sort!(terms; by = pair -> Tuple(monomial_factors(pair[1], idx)))
-        for (mono, c) in terms
-            j = mono_id!(monomial_factors(mono, idx))
-            cid = get!(coeff_ids, c) do
-                push!(coeffs, c)
-                Int32(length(coeffs))
-            end
-            push!(coo_i, Int32(i))
-            push!(coo_j, j)
-            push!(coo_c, cid)
-        end
-    end
-    params = discover_params(coeffs, iv_uw)
-    return MomentIR(length(g.nodes), parent, leaf, coeffs, coo_i, coo_j, coo_c, params)
-end
 
 """
 Union of the variables of each pooled coefficient. NOT `get_variables(sum(coeffs))`:
