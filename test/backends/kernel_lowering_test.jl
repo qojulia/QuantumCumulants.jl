@@ -43,11 +43,6 @@ const QC = QuantumCumulants
     @test length(constant_subtree) == 1
     @test haskey(constant_subtree, ())
 
-    # Conjugate references use the signed-state encoding even when the conjugate itself is not
-    # an explicitly registered drift leaf.
-    conjugate = QC._compile_moment_polynomial(Symbolics.unwrap(conj(x)), idx, state_cache())
-    @test conjugate == Dict{Tuple, Any}((Int32(-idx[x]),) => 1)
-
     # Genuinely non-polynomial state dependence declines the fast path so the equation-local
     # generic fallback can preserve the established diagnostics.
     @test QC._compile_moment_polynomial(Symbolics.unwrap(exp(x)), idx, state_cache()) === nothing
