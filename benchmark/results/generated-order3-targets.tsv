@@ -1,0 +1,4 @@
+order	equations	stage	target	monomial_units	row_units	generated_setup_s	first_call_compile_s	first_solution_s	total_after_complete_s	warm_rhs_s	warm_allocations	validation_max_rhs_error	validation_updated_error	validation_trajectory_error
+3	693	both	64	485	374	5.064414988	34.001706618	1.957055774	41.023178010	0.0004469625	379	0.0	0.0	0.0
+3	693	both	128	241	167	5.116465557	31.364493434	1.964662714	38.445622225	0.0003504765	172	0.0	0.0	0.0
+3	693	both	256	121	78	5.103490262	33.379751418	1.967288706	40.450531066	0.0001686110	83	0.0	0.0	0.0

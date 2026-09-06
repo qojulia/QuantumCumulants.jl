@@ -1,0 +1,17 @@
+# package-load and precompilation time excluded
+metadata julia=1.12.7 threads=12 order=3 mode=compact long_tend=1.0
+metadata package_load=excluded warm_runs_are_not_used_for_cold_stages=true
+stage meanfield seconds=13.106438496 bytes=921663808
+stage complete seconds=1.197415088 bytes=437269096 equations=693
+stage moment_ir seconds=2.647961395 bytes=3090542832 monomials=12341 coo=18241
+stage compact_kernel seconds=0.053728589 bytes=6720896
+stage parameter_payload seconds=2.134502857 bytes=159826280
+stage ode_function seconds=3.0e-7 bytes=0
+stage compact_problem seconds=4.4e-7 bytes=240
+stage compact_first_solution seconds=2.68959457 bytes=542623824 saved=2
+compact_total_after_complete seconds=7.525788151
+profile scratch_lookup median_seconds=1.1e-7 allocations=1 bytes=16
+profile monomial_pass median_seconds=9.82e-6 allocations=0 bytes=0
+profile sparse_accumulation median_seconds=1.2055e-5 allocations=0 bytes=0
+profile compact_rhs median_seconds=2.33e-5 allocations=2 bytes=64
+long_integration seconds=0.858759726 bytes=209523312 saved=101

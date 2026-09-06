@@ -1,0 +1,6 @@
+# package-load and precompilation time excluded
+metadata julia=1.12.7 threads=12 order=4 mode=mtk long_tend=1.0
+metadata package_load=excluded warm_runs_are_not_used_for_cold_stages=true
+stage meanfield seconds=11.956051537 bytes=843889664
+stage complete seconds=3.623562891 bytes=2278947376 equations=1908
+result bounded_timeout seconds=600 rss_limit_bytes=6442450944 last_completed_stage=complete

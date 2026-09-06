@@ -1,0 +1,22 @@
+# package-load and precompilation time excluded
+metadata julia=1.12.7 threads=12 order=4 mode=generated long_tend=1.0
+metadata package_load=excluded warm_runs_are_not_used_for_cold_stages=true
+stage meanfield seconds=12.87961795 bytes=921657384
+stage complete seconds=3.649541875 bytes=2278974112 equations=1908
+stage moment_ir seconds=12.82143417 bytes=44376474568 monomials=66451 coo=121516
+stage parameter_payload seconds=2.098149414 bytes=162258640
+stage generated_units target=256 monomial_units=0 row_units=645 monomial_ops=191026 row_ops=121516
+stage moment_ir seconds=10.869013773 bytes=44114945472 monomials=66451 coo=121516
+stage compact_kernel seconds=0.001463576 bytes=4008344
+stage parameter_payload seconds=0.034055825 bytes=2954896
+stage ode_function seconds=2.5e-7 bytes=0
+stage generated_ode_function seconds=2.9e-7 bytes=0
+stage generated_problem seconds=4.1e-7 bytes=288
+stage generated_first_call_compile seconds=100.536820341 bytes=18130690248
+stage generated_first_solution seconds=1.953972092 bytes=465642320
+stage generated_setup_total seconds=15.610686073 bytes=44990826136
+profile generated_rhs median_seconds=0.000776248 allocations=650 bytes=113304
+validation rhs_states=0.0,0.0,0.0
+validation rhs_updated_parameter=0.0
+validation trajectory_max_error=0.0 samples=11
+generated_total_after_complete seconds=118.101479206
