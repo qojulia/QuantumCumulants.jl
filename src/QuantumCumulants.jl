@@ -18,7 +18,6 @@ using LinearAlgebra: I
 using SciMLBase: SciMLBase
 using SparseArrays: SparseMatrixCSC, sparse
 using Polyester: Polyester
-using OhMyThreads: tmap, GreedyScheduler
 const MTK = ModelingToolkitBase
 
 export AbstractMeanfieldEquations, MeanfieldEquations, NoiseMeanfieldEquations
