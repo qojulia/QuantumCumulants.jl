@@ -245,9 +245,8 @@ function _moment_equation_terms(drift, vars, idx, eqindex, state_cache)
     return terms
 end
 
-# More-specific production builder. The generic builder in kernel_lower.jl remains available
-# as the compatibility/reference implementation, while normal statevars_resolved output
-# dispatches here without the expensive whole-equation polynomial conversion.
+# Production builder. Unsupported equations fall back locally through _generic_moment_terms;
+# there is no second whole-system polynomial builder.
 function _build_moment_ir(
         g::MomentGraph,
         vars::Vector{Any},
