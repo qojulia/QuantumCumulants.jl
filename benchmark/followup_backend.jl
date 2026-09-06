@@ -57,8 +57,10 @@ end
 function benchmark_stats(f; samples = 100)
     trial = @benchmark $f() samples = samples evals = 1
     med = median(trial)
-    return (; median_seconds = med.time / 1e9, allocations = minimum(trial).allocs,
-        allocated_bytes = minimum(trial).memory)
+    return (;
+        median_seconds = med.time / 1.0e9, allocations = minimum(trial).allocs,
+        allocated_bytes = minimum(trial).memory,
+    )
 end
 
 function ising_model(order)
@@ -92,7 +94,7 @@ end
 
 function stage_header(order, mode)
     emit("metadata julia=$(VERSION) threads=$(Threads.nthreads()) order=$order mode=$mode long_tend=$LONG_TEND")
-    emit("metadata package_load=excluded warm_runs_are_not_used_for_cold_stages=true")
+    return emit("metadata package_load=excluded warm_runs_are_not_used_for_cold_stages=true")
 end
 
 function common_pipeline(order)
@@ -118,8 +120,10 @@ function direct_setup(eqs, ps)
     emit("stage compact_kernel seconds=$(kernel_time) bytes=$(kernel_bytes)")
     emit("stage parameter_payload seconds=$(parameter_time) bytes=$(parameter_bytes)")
     emit("stage ode_function seconds=$(function_time) bytes=$(function_bytes)")
-    return (; ir, kernel, parameters, rhs, direct_f,
-        lowering_time, kernel_time, parameter_time, function_time)
+    return (;
+        ir, kernel, parameters, rhs, direct_f,
+        lowering_time, kernel_time, parameter_time, function_time,
+    )
 end
 
 function compact_problem(eqs, setup)
@@ -146,8 +150,10 @@ function compact_profile(setup)
         () -> QC.spmv!(du, setup.kernel.pattern, setup.parameters.nzval, v, false),
     )
     rhs = benchmark_stats(() -> setup.direct_f(du, u, setup.parameters, 0.0))
-    for (name, result) in (("scratch_lookup", scratch), ("monomial_pass", monomial),
-        ("sparse_accumulation", accumulation), ("compact_rhs", rhs))
+    for (name, result) in (
+            ("scratch_lookup", scratch), ("monomial_pass", monomial),
+            ("sparse_accumulation", accumulation), ("compact_rhs", rhs),
+        )
         emit("profile $name median_seconds=$(result.median_seconds) allocations=$(result.allocations) bytes=$(result.allocated_bytes)")
     end
     return nothing
@@ -216,15 +222,17 @@ function define_monomial_unit!(range, parent, leaf)
     statements = Expr[]
     for m in range
         j = leaf[m]
-        factor = j > 0 ? :(u[$j]) : :(Base.conj(u[$(-j)]) )
+        factor = j > 0 ? :(u[$j]) : :(Base.conj(u[$(-j)]))
         push!(statements, :(v[$m] = v[$(parent[m])] * $factor))
     end
-    expr = :((v, u) -> begin
-        @inbounds begin
-            $(statements...)
+    expr = :(
+        (v, u) -> begin
+            @inbounds begin
+                $(statements...)
+            end
+            return nothing
         end
-        return nothing
-    end)
+    )
     return RuntimeGeneratedFunction(@__MODULE__, @__MODULE__, expr)
 end
 
@@ -238,12 +246,14 @@ function define_row_unit!(range, pattern)
         value = isempty(terms) ? :(zero(ComplexF64)) : foldl((a, b) -> :($a + $b), terms)
         push!(statements, :(du[$i] = $value))
     end
-    expr = :((du, p, v) -> begin
-        @inbounds begin
-            $(statements...)
+    expr = :(
+        (du, p, v) -> begin
+            @inbounds begin
+                $(statements...)
+            end
+            return nothing
         end
-        return nothing
-    end)
+    )
     return RuntimeGeneratedFunction(@__MODULE__, @__MODULE__, expr)
 end
 
@@ -251,18 +261,22 @@ function define_runner!(units, args)
     # Keep the units in a Vector{Function} and call through a noinline wrapper.
     # This prevents the dispatcher from folding all units into one giant method.
     expr = args == (:v, :u) ?
-        :((units, v, u) -> begin
-            for unit in units
-                call_generated_unit(unit, v, u)
+        :(
+            (units, v, u) -> begin
+                for unit in units
+                    call_generated_unit(unit, v, u)
             end
-            return nothing
-        end) :
-        :((units, du, p, v) -> begin
-            for unit in units
-                call_generated_unit(unit, du, p, v)
+                return nothing
             end
-            return nothing
-        end)
+        ) :
+        :(
+            (units, du, p, v) -> begin
+                for unit in units
+                    call_generated_unit(unit, du, p, v)
+            end
+                return nothing
+            end
+        )
     return RuntimeGeneratedFunction(@__MODULE__, @__MODULE__, expr)
 end
 
@@ -276,7 +290,7 @@ function generated_setup(eqs, ps, target, stage)
     monomial_costs = Int[compact.fac_ptr[m + 1] - compact.fac_ptr[m] for m in 1:length(ir.parent)]
     row_costs = Int[pattern.colptr[i + 1] - pattern.colptr[i] for i in 1:ir.nstates]
     monomial_ranges = operation_ranges(monomial_costs[2:end], target)
-    monomial_ranges = [first(r) + 1:last(r) + 1 for r in monomial_ranges]
+    monomial_ranges = [(first(r) + 1):(last(r) + 1) for r in monomial_ranges]
     row_ranges = operation_ranges(row_costs, target)
     monomial_units = stage in (:monomial, :both) ?
         Function[define_monomial_unit!(r, ir.parent, ir.leaf) for r in monomial_ranges] :
@@ -286,8 +300,10 @@ function generated_setup(eqs, ps, target, stage)
         Function[]
     monomial_runner = define_runner!(monomial_units, (:v, :u))
     row_runner = define_runner!(row_units, (:du, :p, :v))
-    generated = GeneratedKernel(monomial_units, row_units, monomial_runner, row_runner,
-        QC._make_vbufs(length(ir.parent)), compact, stage)
+    generated = GeneratedKernel(
+        monomial_units, row_units, monomial_runner, row_runner,
+        QC._make_vbufs(length(ir.parent)), compact, stage
+    )
     emit("stage moment_ir seconds=$(lowering_time) bytes=$(lowering_bytes) monomials=$(length(ir.parent)) coo=$(length(ir.coo_i))")
     emit("stage parameter_payload seconds=$(parameter_time) bytes=$(parameter_bytes)")
     emit("stage generated_units target=$(target) monomial_units=$(length(monomial_units)) row_units=$(length(row_units)) monomial_ops=$(sum(monomial_costs)) row_ops=$(sum(row_costs))")
@@ -332,7 +348,7 @@ function compact_run(order)
     setup = direct_setup(eqs, ps)
     problem, _ = compact_problem(eqs, setup)
     compact_profile(setup)
-    compact_long_integration(problem)
+    return compact_long_integration(problem)
 end
 
 function generated_run(order, target, stage)
@@ -381,7 +397,7 @@ function mtk_run(order)
     emit("stage mtk_first_solution seconds=$(solve_time) bytes=$(solve_bytes)")
     warm = benchmark_stats(() -> problem.f(similar(u0), problem.u0, problem.p, 0.0))
     emit("profile mtk_rhs median_seconds=$(warm.median_seconds) allocations=$(warm.allocations) bytes=$(warm.allocated_bytes)")
-    emit("mtk_total_after_complete seconds=$(system_time + compile_time + parameter_time + problem_time + solve_time)")
+    return emit("mtk_total_after_complete seconds=$(system_time + compile_time + parameter_time + problem_time + solve_time)")
 end
 
 mode = get(ENV, "QC_FOLLOWUP_MODE", "compact")

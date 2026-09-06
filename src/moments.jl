@@ -1,4 +1,4 @@
-const TruncOrder = Union{Nothing,Int,Vector{Int}}
+const TruncOrder = Union{Nothing, Int, Vector{Int}}
 
 function average_and_truncate(R::QAdd, order::TruncOrder, mix_choice, ctx::CanonCtx)
     acc = 0
@@ -14,10 +14,10 @@ function average_and_truncate(R::QAdd, order::TruncOrder, mix_choice, ctx::Canon
         if !isempty(_coeff_scope_indices(c, R.indices))
             acc =
                 acc + cumulant_expansion(
-                    _scoped_average_coeff(c, term.ops, term.ne, R.indices),
-                    order;
-                    mix_choice,
-                )
+                _scoped_average_coeff(c, term.ops, term.ne, R.indices),
+                order;
+                mix_choice,
+            )
         else
             acc =
                 acc +
@@ -105,8 +105,8 @@ function _iszero_part(p)
         SymbolicUtils.operation(u) === (+)
     v = is_sum ? SymbolicUtils.unwrap(Symbolics.expand(p)) : u
     return v isa SymbolicUtils.BasicSymbolic &&
-           SymbolicUtils.isconst(v) &&
-           iszero(SymbolicUtils.unwrap_const(v))
+        SymbolicUtils.isconst(v) &&
+        iszero(SymbolicUtils.unwrap_const(v))
 end
 
 """
@@ -124,7 +124,7 @@ average-valued coefficient (`⟨J†J⟩ − ⟨JJ†⟩`) that must respect `or
 function _truncate_coeff(c, order, mix_choice)
     if c isa Complex
         return _truncate_coeff(real(c), order, mix_choice) +
-               _truncate_coeff(imag(c), order, mix_choice) * im
+            _truncate_coeff(imag(c), order, mix_choice) * im
     end
     u = c isa Symbolics.Num ? SymbolicUtils.unwrap(c) : c
     (u isa SymbolicUtils.BasicSymbolic && _has_average(u)) || return c
@@ -134,12 +134,12 @@ average_and_truncate(R::SQA.QField, order::TruncOrder, mix_choice, ::CanonCtx) =
     order === nothing ? average(R) : cumulant_expansion(average(R), order; mix_choice)
 
 function _truncate_term(
-    ops::AbstractVector{<:SQA.QSym},
-    non_equal,
-    scope,
-    order,
-    mix_choice,
-)
+        ops::AbstractVector{<:SQA.QSym},
+        non_equal,
+        scope,
+        order,
+        mix_choice,
+    )
     # Average WITH the sum scope first so SQA's diagonal split collapses same-index
     # operator pairs, THEN cumulant-truncate; truncating the raw product first splits
     # them into different blocks and the collapse never fires.
@@ -177,7 +177,7 @@ function _carry_non_equal(block::QAdd, non_equal, scope)
     for (term, _) in block.arguments, o in term.ops
         SQA.has_index(o.index) && push!(present, o.index)
     end
-    kept = Tuple{SQA.Index,SQA.Index}[
+    kept = Tuple{SQA.Index, SQA.Index}[
         p for p in non_equal if p[1] in present || p[2] in present
     ]
     isempty(kept) && return block
@@ -207,8 +207,8 @@ end
 struct NodeData
     drift::Symbolics.Num                      # faithful averaged-and-truncated RHS
     op_drift::QAdd                            # operator RHS (latex / inspection / re-truncation)
-    noise::Union{Nothing,Symbolics.Num}      # averaged + truncated noise drift (optional)
-    op_noise::Union{Nothing,Symbolics.Num}   # operator-level noise form: deferred (always `nothing`)
+    noise::Union{Nothing, Symbolics.Num}      # averaged + truncated noise drift (optional)
+    op_noise::Union{Nothing, Symbolics.Num}   # operator-level noise form: deferred (always `nothing`)
     order::Int                                # cached
     aon::Vector{Int}                          # cached acts_on
 end
@@ -252,7 +252,7 @@ function derive(op::QAdd, sys, ctx::CanonCtx)
         noise_rhs = noise_eqs[1].rhs
         noise = Symbolics.Num(
             sys.order === nothing ? noise_rhs :
-            cumulant_expansion(noise_rhs, sys.order; mix_choice = sys.mix_choice),
+                cumulant_expansion(noise_rhs, sys.order; mix_choice = sys.mix_choice),
         )
         noise = _reduce_ground_in_drift(noise)
     end

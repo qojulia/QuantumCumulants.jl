@@ -11,7 +11,7 @@ using Test
 # Substitution dict at a numeric point (params + states + conjugate partners + the
 # algebra's symbolic imaginary unit), on the public surface only.
 function build_subs(eqs, pdict, u)
-    subs = Dict{Any,Any}(Symbolics.unwrap(k) => v for (k, v) in pdict)
+    subs = Dict{Any, Any}(Symbolics.unwrap(k) => v for (k, v) in pdict)
     for (i, s) in enumerate(eqs.states)
         subs[Symbolics.unwrap(s)] = u[i]
     end
@@ -29,25 +29,25 @@ end
 # Transverse-field Ising chain of 3 Pauli spins at order 2 (unfolded closure, so the
 # drift is holomorphic in the states and the analytic Jacobian exists).
 Np = 3
-h = ⊗([PauliSpace(Symbol(:spin, i)) for i = 1:Np]...)
+h = ⊗([PauliSpace(Symbol(:spin, i)) for i in 1:Np]...)
 σx(i) = Pauli(h, :σ, 1, i)
 σy(i) = Pauli(h, :σ, 2, i)
 σz(i) = Pauli(h, :σ, 3, i)
 σm(i) = (σx(i) - 1im * σy(i)) / 2
 @variables J hx γ
-H = -J * sum(σz(i) * σz(i + 1) for i = 1:(Np-1)) - hx * sum(σx(i) for i = 1:Np)
+H = -J * sum(σz(i) * σz(i + 1) for i in 1:(Np - 1)) - hx * sum(σx(i) for i in 1:Np)
 eqs = meanfield(
-    [σz(i) for i = 1:Np],
+    [σz(i) for i in 1:Np],
     H,
-    [σm(i) for i = 1:Np];
-    rates = [γ for i = 1:Np],
+    [σm(i) for i in 1:Np];
+    rates = [γ for i in 1:Np],
     order = 2,
 )
 complete!(eqs)
 ps = Dict(J => 1.0, hx => 1.0, γ => 0.2)
 nst = length(eqs.states)
 u0 = zeros(ComplexF64, nst)
-u = ComplexF64[0.1cos(3.7i) + 0.05im * sin(1.3i) for i = 1:nst]
+u = ComplexF64[0.1cos(3.7i) + 0.05im * sin(1.3i) for i in 1:nst]
 
 @testset "analytic Jacobian vs Symbolics.derivative" begin
     prob = ODEProblem(eqs, u0, (0.0, 1.0), ps; backend = KernelBackend(), jac = true)
@@ -56,7 +56,7 @@ u = ComplexF64[0.1cos(3.7i) + 0.05im * sin(1.3i) for i = 1:nst]
     subs = build_subs(eqs, ps, u)
     rng = MersenneTwister(1)
     maxrel = 0.0
-    for _ = 1:25
+    for _ in 1:25
         i, j = rand(rng, 1:nst), rand(rng, 1:nst)
         d = Symbolics.derivative(
             eqs.equations[i].rhs,
@@ -70,7 +70,7 @@ u = ComplexF64[0.1cos(3.7i) + 0.05im * sin(1.3i) for i = 1:nst]
     @test maxrel < 1.0e-10
 end
 
-ψ0 = tensor([spinup(SpinBasis(1 // 2)) for _ = 1:Np]...)
+ψ0 = tensor([spinup(SpinBasis(1 // 2)) for _ in 1:Np]...)
 
 @testset "implicit solve with analytic J" begin
     prob = ODEProblem(eqs, ψ0, (0.0, 5.0), ps; jac = true)

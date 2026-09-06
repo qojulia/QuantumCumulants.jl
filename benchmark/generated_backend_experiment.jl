@@ -73,12 +73,14 @@ function _define_monomial_unit!(lo, hi, parent, leaf)
         factor = j > 0 ? :(u[$j]) : :(Base.conj(u[$(-j)]))
         push!(statements, :(v[$m] = v[$(parent[m])] * $factor))
     end
-    expr = :((v, u) -> begin
-        @inbounds begin
-            $(statements...)
+    expr = :(
+        (v, u) -> begin
+            @inbounds begin
+                $(statements...)
+            end
+            return nothing
         end
-        return nothing
-    end)
+    )
     return RuntimeGeneratedFunction(@__MODULE__, @__MODULE__, expr)
 end
 
@@ -92,21 +94,25 @@ function _define_row_unit!(lo, hi, pattern)
         value = isempty(terms) ? :(zero(ComplexF64)) : foldl((a, b) -> :($a + $b), terms)
         push!(statements, :(du[$i] = $value))
     end
-    expr = :((du, p, v) -> begin
-        @inbounds begin
-            $(statements...)
+    expr = :(
+        (du, p, v) -> begin
+            @inbounds begin
+                $(statements...)
+            end
+            return nothing
         end
-        return nothing
-    end)
+    )
     return RuntimeGeneratedFunction(@__MODULE__, @__MODULE__, expr)
 end
 
 function _define_dispatch!(units, args)
     calls = [Expr(:call, Expr(:ref, :units, i), args...) for i in eachindex(units)]
-    expr = :((units, $(args...)) -> begin
-        $(calls...)
-        return nothing
-    end)
+    expr = :(
+        (units, $(args...)) -> begin
+            $(calls...)
+            return nothing
+        end
+    )
     return RuntimeGeneratedFunction(@__MODULE__, @__MODULE__, expr)
 end
 
@@ -196,7 +202,7 @@ function report(order, mode, unit_size)
         println("  generated_pattern_nnz=$(length(pattern.nzval))")
     end
 
-    if mode == "mtk" || mode == "all"
+    return if mode == "mtk" || mode == "all"
         problem, system_time, system_bytes, compile_time, compile_bytes, problem_time, problem_bytes =
             mtk_problem(eqs, ps, u0)
         _, solve_time, solve_bytes = timed(() -> solve(problem, Tsit5(); saveat = TSPAN[2]))
