@@ -10,10 +10,10 @@
 # Holomorphic case only: a conj(u) factor has zero holomorphic derivative but a nonzero
 # Wirtinger derivative ∂f/∂ū, so for conj-folded systems this J would be silently wrong.
 # `jacobian_ir` throws `HolomorphicJacobianError` on any conj factor; unfolded systems
-# (get_adjoints=true, the default) contain none.
+# (get_adjoints=true) contain none.
 
 struct JacIR
-    Jproto::SparseMatrixCSC{ComplexF64,Int32}  # sparsity pattern, values overwritten per call
+    Jproto::SparseMatrixCSC{ComplexF64, Int32}  # sparsity pattern, values overwritten per call
     nzptr::Vector{Int32}                        # per structural nz: range into the entry lists
     e_cid::Vector{Int32}                        # entry: pooled coefficient id
     e_mono::Vector{Int32}                       # entry: complement monomial id
@@ -24,7 +24,7 @@ end
 function ir_factors(ir::MomentIR)
     fs = Vector{Vector{Int32}}(undef, length(ir.parent))
     fs[1] = Int32[]
-    for m = 2:length(ir.parent)
+    for m in 2:length(ir.parent)
         fs[m] = vcat(fs[ir.parent[m]], ir.leaf[m])   # parents precede children
     end
     return fs
@@ -38,19 +38,19 @@ monomials); construct the `MomentKernel` from it so `v` covers the complements.
 """
 function jacobian_ir(ir::MomentIR)
     factors = ir_factors(ir)
-    mono_ids = Dict{Vector{Int32},Int32}(f => Int32(m) for (m, f) in enumerate(factors))
+    mono_ids = Dict{Vector{Int32}, Int32}(f => Int32(m) for (m, f) in enumerate(factors))
     parent = copy(ir.parent)
     leaf = copy(ir.leaf)
     function mono_id!(fs::Vector{Int32})
         return get!(mono_ids, fs) do
-            p = mono_id!(fs[1:(end-1)])
+            p = mono_id!(fs[1:(end - 1)])
             push!(parent, p)
             push!(leaf, fs[end])
             Int32(length(parent))
         end
     end
     # accumulate entries per Jacobian position (i, j)
-    entries = Dict{Tuple{Int32,Int32},Vector{NTuple{3,Int32}}}()
+    entries = Dict{Tuple{Int32, Int32}, Vector{NTuple{3, Int32}}}()
     for t in eachindex(ir.coo_i)
         i, m, cid = ir.coo_i[t], ir.coo_j[t], ir.coo_c[t]
         fs = factors[m]
@@ -59,7 +59,7 @@ function jacobian_ir(ir::MomentIR)
             mult = Int32(count(==(j), fs))
             comp = fs[1:end]
             deleteat!(comp, findfirst(==(j), comp))
-            push!(get!(entries, (i, j), NTuple{3,Int32}[]), (cid, mono_id!(comp), mult))
+            push!(get!(entries, (i, j), NTuple{3, Int32}[]), (cid, mono_id!(comp), mult))
         end
     end
     ir_ext = MomentIR(
@@ -105,28 +105,26 @@ struct JacKernel
     jac::JacIR
     parent::Vector{Int32}
     leaf::Vector{Int32}
-    c::Vector{ComplexF64}
     v::ScratchPool
 end
 
-function JacKernel(ir_ext::MomentIR, jac::JacIR, cvals::Vector{ComplexF64})
+function JacKernel(ir_ext::MomentIR, jac::JacIR)
     return JacKernel(
         jac,
         ir_ext.parent,
         ir_ext.leaf,
-        cvals,
         _make_vbufs(length(ir_ext.parent)),
     )
 end
 
-function (jk::JacKernel)(Jmat, u, p, t)
+function (jk::JacKernel)(Jmat, u, p::KernelParameters, t)
     v = _vbuf(jk.v)                           # this thread's scratch (reentrant)
     update_v!(v, jk.parent, jk.leaf, u)
     nzv = Jmat.nzval
     @inbounds for k in eachindex(nzv)
         acc = zero(ComplexF64)
-        for e = jk.jac.nzptr[k]:(jk.jac.nzptr[k+1]-1)
-            acc += jk.jac.e_mult[e] * jk.c[jk.jac.e_cid[e]] * v[jk.jac.e_mono[e]]
+        for e in jk.jac.nzptr[k]:(jk.jac.nzptr[k + 1] - 1)
+            acc += jk.jac.e_mult[e] * p.coeffs[jk.jac.e_cid[e]] * v[jk.jac.e_mono[e]]
         end
         nzv[k] = acc
     end

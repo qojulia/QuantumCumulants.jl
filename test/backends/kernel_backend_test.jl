@@ -10,7 +10,7 @@ using Test
 # Reference RHS by direct substitution into the completed equations, built from the
 # public surface only (equations, states, average, adjoint, undo_average).
 function reference_du(eqs, pdict, u)
-    subs = Dict{Any,Any}(Symbolics.unwrap(k) => v for (k, v) in pdict)
+    subs = Dict{Any, Any}(Symbolics.unwrap(k) => v for (k, v) in pdict)
     for (i, s) in enumerate(eqs.states)
         subs[Symbolics.unwrap(s)] = u[i]
     end
@@ -32,25 +32,25 @@ end
 
 # Transverse-field Ising chain of 3 Pauli spins at order 2: 36 coupled moment equations.
 Np = 3
-h = ⊗([PauliSpace(Symbol(:spin, i)) for i = 1:Np]...)
+h = ⊗([PauliSpace(Symbol(:spin, i)) for i in 1:Np]...)
 σx(i) = Pauli(h, :σ, 1, i)
 σy(i) = Pauli(h, :σ, 2, i)
 σz(i) = Pauli(h, :σ, 3, i)
 σm(i) = (σx(i) - 1im * σy(i)) / 2
 @variables J hx γ
-H = -J * sum(σz(i) * σz(i + 1) for i = 1:(Np-1)) - hx * sum(σx(i) for i = 1:Np)
+H = -J * sum(σz(i) * σz(i + 1) for i in 1:(Np - 1)) - hx * sum(σx(i) for i in 1:Np)
 eqs = meanfield(
-    [σz(i) for i = 1:Np],
+    [σz(i) for i in 1:Np],
     H,
-    [σm(i) for i = 1:Np];
-    rates = [γ for i = 1:Np],
+    [σm(i) for i in 1:Np];
+    rates = [γ for i in 1:Np],
     order = 2,
 )
 complete!(eqs)
 ps = Dict(J => 1.0, hx => 1.0, γ => 0.2)
 nst = length(eqs.states)
 u0 = zeros(ComplexF64, nst)
-u = ComplexF64[0.1cos(3.7i) + 0.05im * sin(1.3i) for i = 1:nst]
+u = ComplexF64[0.1cos(3.7i) + 0.05im * sin(1.3i) for i in 1:nst]
 
 @testset "du vs substitution reference (Pauli chain)" begin
     prob = ODEProblem(eqs, u0, (0.0, 1.0), ps; backend = KernelBackend())
@@ -71,7 +71,7 @@ end
     complete!(eqs_k; get_adjoints = false)
     ps_k = Dict(Δ => -1.0, Ω => 1.3, κ => 1.0, U => 0.1)
     nk = length(eqs_k.states)
-    uk = ComplexF64[0.3cos(2.1i) + 0.2im * sin(0.7i) for i = 1:nk]
+    uk = ComplexF64[0.3cos(2.1i) + 0.2im * sin(0.7i) for i in 1:nk]
     prob = ODEProblem(
         eqs_k,
         zeros(ComplexF64, nk),
@@ -85,7 +85,7 @@ end
     @test maximum(abs.(du .- ref) ./ max.(abs.(ref), 1.0e-12)) < 1.0e-12
 end
 
-ψ0 = tensor([spinup(SpinBasis(1 // 2)) for _ = 1:Np]...)
+ψ0 = tensor([spinup(SpinBasis(1 // 2)) for _ in 1:Np]...)
 
 @testset "trajectory vs the MTK path" begin
     prob = ODEProblem(eqs, ψ0, (0.0, 5.0), ps; backend = KernelBackend())
@@ -94,7 +94,11 @@ end
     u0_mtk = Dict(unknowns(sys) .=> initial_values(eqs, ψ0))
     prob_mtk = ODEProblem(sys, merge(u0_mtk, Dict(collect(ps))), (0.0, 5.0))
     sol_mtk = solve(prob_mtk, RK4(); abstol = 1.0e-10, reltol = 1.0e-10, saveat = 0.5)
-    @test maximum(maximum(abs, a .- b) for (a, b) in zip(sol.u, sol_mtk.u)) < 1.0e-6
+    for state in eqs.states
+        direct = get_solution(sol, state, eqs).(sol.t)
+        mtk = get_solution(sol_mtk, state, eqs).(sol_mtk.t)
+        @test maximum(abs, direct .- mtk) < 1.0e-6
+    end
 end
 
 @testset "construction is deterministic (bit-exact du across builds)" begin
@@ -111,14 +115,14 @@ end
 # exercises the threaded code path (Polyester runs serially on one thread, bit-identical to
 # the prefix update and CSC-order gather) without depending on real concurrency.
 @testset "parallel RHS matches serial (bit-exact)" begin
-    ser = ODEProblem(eqs, u0, (0.0, 1.0), ps; backend = KernelBackend(parallel = false))
+    serial = ODEProblem(eqs, u0, (0.0, 1.0), ps; backend = KernelBackend(parallel = false))
     par = ODEProblem(eqs, u0, (0.0, 1.0), ps; backend = KernelBackend(parallel = true))
     @test par.f.f.kernel.parallel
-    @test !ser.f.f.kernel.parallel
-    du_ser, du_par = similar(u), similar(u)
-    ser.f(du_ser, u, ser.p, 0.0)
+    @test !serial.f.f.kernel.parallel
+    du_serial, du_par = similar(u), similar(u)
+    serial.f(du_serial, u, serial.p, 0.0)
     par.f(du_par, u, par.p, 0.0)
-    @test du_par == du_ser
+    @test du_par == du_serial
     # small system (36 eqs < KERNEL_PARALLEL_MIN): :auto stays serial
     @test !ODEProblem(eqs, u0, (0.0, 1.0), ps; backend = KernelBackend()).f.f.kernel.parallel
 end
@@ -132,8 +136,8 @@ end
     @test k.v isa QuantumCumulants.ScratchPool
     # distinct inputs, each with its own serially-computed reference du
     us = [
-        ComplexF64[0.1cos(2.3i + 0.7j) + 0.05im * sin(1.1i - 0.3j) for i = 1:nst] for
-        j = 1:8
+        ComplexF64[0.1cos(2.3i + 0.7j) + 0.05im * sin(1.1i - 0.3j) for i in 1:nst] for
+            j in 1:8
     ]
     refs = map(us) do uu
         du = similar(uu)
@@ -143,7 +147,7 @@ end
     # hammer the shared kernel from many tasks at once; a shared `v` would let one task's
     # monomial update be clobbered before its SpMV reads it, so some du would not match
     mism = Threads.Atomic{Int}(0)
-    @sync for _ = 1:400, (uu, ref) in zip(us, refs)
+    @sync for _ in 1:400, (uu, ref) in zip(us, refs)
         Threads.@spawn begin
             du = similar(uu)
             k(du, uu, prob.p, 0.0)
@@ -151,6 +155,18 @@ end
         end
     end
     @test mism[] == 0
+end
+
+@testset "scratch pools do not retain tasks or kernels" begin
+    function weak_pool_after_task()
+        pool = QuantumCumulants.ScratchPool(4)
+        weak_pool = Base.WeakRef(pool)
+        @sync Threads.@spawn QuantumCumulants._vbuf(pool)
+        pool = nothing
+        GC.gc()
+        return weak_pool
+    end
+    @test weak_pool_after_task().value === nothing
 end
 
 @testset "direct solution indexing and folded conjugates" begin

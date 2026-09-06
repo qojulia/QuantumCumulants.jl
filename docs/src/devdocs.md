@@ -181,7 +181,7 @@ The subtle part is the **sum-scope metadata round-trip**. A summed average such 
 
 `seed` (`graph.jl`) derives the equations for the user's requested operators, the first entries in the graph. `closure` then repeatedly takes one moment, looks at the moments on the right-hand side of its equation (the *leaves* of the symbolic drift), and derives an equation for any not yet present, until no new moments appear; it is pure, returning a new graph rather than mutating its input.
 
-A moment and its conjugate are one physical unknown, and the closure exploits that *partially*. A moment whose conjugate partner is already present is covered automatically (no new equation). The `get_adjoints` flag controls only the genuinely-new case. With `get_adjoints=true` (the default for `meanfield`/`complete`) a new moment's conjugate is also added as its own moment; with `get_adjoints=false` (used by [`CorrelationFunction`](@ref)) only one representative is kept and the partner is recovered by complex conjugation when the numerical system is built. The consequences are spelled out in the worked example below and in invariant 1.
+A moment and its conjugate are one physical unknown, and the closure exploits that *partially*. A moment whose conjugate partner is already present is covered automatically (no new equation). The `get_adjoints` flag controls only the genuinely-new case. With `get_adjoints=false` (the default for [`complete`](@ref)/[`complete!`](@ref), and also used by [`CorrelationFunction`](@ref)) only one representative is kept and the partner is recovered by complex conjugation when the numerical system is built. Passing `get_adjoints=true` adds a new moment's conjugate as its own moment. The consequences are spelled out in the worked example below and in invariant 1.
 
 The `max_iter` guard is a runaway backstop, not a truncation limiter: hitting it raises an error rather than silently returning a non-closed system, which the numerical build would otherwise mask.
 
@@ -250,17 +250,17 @@ meanfield([a], H, [a]; rates=[κ])
 eqs = meanfield([a], H, [a]; rates=[κ], order=2)
 ```
 
-**Closure.** The right-hand side now references ``\langle a^\dagger a\rangle``, ``\langle a a\rangle`` and ``\langle a^\dagger\rangle``. The conjugate ``\langle a^\dagger\rangle`` is covered (its partner ``\langle a\rangle`` is already a state), but because the default is `get_adjoints=true`, the new moment ``\langle a a\rangle`` has its conjugate ``\langle a^\dagger a^\dagger\rangle`` tracked as its own state too, giving four states:
+**Closure.** The right-hand side now references ``\langle a^\dagger a\rangle``, ``\langle a a\rangle`` and ``\langle a^\dagger\rangle``. The conjugate ``\langle a^\dagger\rangle`` is covered (its partner ``\langle a\rangle`` is already a state), and the default `get_adjoints=false` keeps the new moment ``\langle a a\rangle`` without adding its conjugate as a separate state:
 
 ```@example devdocs
 eqs_c = complete(eqs)
 eqs_c.states
 ```
 
-Asking for the minimal set with `get_adjoints=false` keeps three, recovering ``\langle a^\dagger a^\dagger\rangle`` purely by conjugation:
+Asking for the full conjugate-closed set with `get_adjoints=true` adds the redundant conjugate shadow:
 
 ```@example devdocs
-complete(eqs; get_adjoints=false).states
+complete(eqs; get_adjoints=true).states
 ```
 
 **Numerics.** Building the MTK system names one variable per state and looks up every moment through the `MomentMap`. The ``\langle a^\dagger\rangle`` terms resolve to the `conj` of the ``\langle a\rangle`` unknown:
@@ -275,7 +275,7 @@ unknowns(sys)
 equations(sys)[1]   # ⟨a⟩: note the conj of the ⟨a⟩ unknown standing in for ⟨a†⟩
 ```
 
-Note the honest subtlety from the default `get_adjoints=true`: the ``\langle a^\dagger a^\dagger\rangle`` unknown is integrated in its own right, but its right-hand side resolves to the `conj` of the ``\langle a a\rangle`` unknown and nothing else reads it, so it is a redundant shadow. `mtkcompile` does **not** detect the conjugate alias and keeps it, so the default integrates one redundant ODE. Use `get_adjoints=false` when the minimal state set matters.
+Note the honest subtlety from `get_adjoints=true`: the ``\langle a^\dagger a^\dagger\rangle`` unknown is integrated in its own right, but its right-hand side resolves to the `conj` of the ``\langle a a\rangle`` unknown and nothing else reads it, so it is a redundant shadow. `mtkcompile` does **not** detect the conjugate alias and keeps it. The default `get_adjoints=false` avoids that redundant ODE.
 
 ### What changes for an indexed system
 
@@ -285,7 +285,7 @@ For a permutation-symmetric many-body system built from [`Index`](@ref) and [`Σ
 
 These are the moment-layer rules a contributor must not break, each with its failure mode.
 
-1. **A conjugate pair is one physical unknown, but the default does not minimise on it.** During `closure` a moment whose conjugate is already present is covered. `get_adjoints=true` (default) tracks the conjugate of a genuinely-new moment as a second state; the numerical build keys states by `canonical_rep`/`concrete_rep`, so every occurrence of the pair on a right-hand side resolves to the first representative (or its `conj`), leaving the second variable a redundant shadow that `mtkcompile` does not eliminate. Use `get_adjoints=false` for the minimal set.
+1. **A conjugate pair is one physical unknown, but the full closure can retain a redundant shadow.** During `closure` a moment whose conjugate is already present is covered. `get_adjoints=true` tracks the conjugate of a genuinely-new moment as a second state; the numerical build keys states by `canonical_rep`/`concrete_rep`, so every occurrence of the pair on a right-hand side resolves to the first representative (or its `conj`), leaving the second variable a redundant shadow that `mtkcompile` does not eliminate. The public `complete`/`complete!` default is `get_adjoints=false`, which keeps the minimal set.
 
 2. **The MTK unknown is a dedicated time-dependent variable `var(t)`, never the average symbol itself.** The average is iv-free, `Number`-symtype, and identified structurally; an MTK unknown is a named, time-dependent variable. Registering the average directly would either lose the integration variable, force a `Real` symtype that folds ``\langle A\rangle`` and ``\langle A^\dagger\rangle`` under `conj`, or make MTK's name-based keying the source of truth for identity instead of the `MomentMap`. The bridge keeps the unknown a `Number`-symtype `BasicSymbolic` carrying the operator in metadata, and resolves identity through the map, not the name.
 

@@ -23,10 +23,10 @@ h = hc ⊗ hm
 @qnumbers a::Destroy(h, 1) b::Destroy(h, 2) # Operators
 
 
-@variables Δ ωₘ E G κ # Parameters
+@variables Δ ωm E G κ # Parameters
 
 
-H = -Δ * a' * a + ωₘ * b' * b + G * a' * a * (b + b') + E * (a + a') # Hamiltonian
+H = -Δ * a' * a + ωm * b' * b + G * a' * a * (b + b') + E * (a + a') # Hamiltonian
 
 
 J = [a] # Jump operators & rates
@@ -60,7 +60,7 @@ Finally, we need to define the numerical parameters and the initial state of the
 ````@example optomechanical-cooling
 u0 = initial_values(eqs_completed; defaults = Dict(average(b' * b) => 4.0e6 + 0im)) # Initial state (4e6 phonons)
 
-p0 = Dict{Num, ComplexF64}(Δ => -10.0 + 0im, ωₘ => 1.0 + 0im, E => 200.0 + 0im, G => 0.0125 + 0im, κ => 20.0 + 0im) # System parameters
+p0 = Dict{Num, ComplexF64}(Δ => -10.0 + 0im, ωm => 1.0 + 0im, E => 200.0 + 0im, G => 0.0125 + 0im, κ => 20.0 + 0im) # System parameters
 prob = ODEProblem(sys_c, merge(u0, p0), (0.0, 60000.0))
 sol = solve(prob, RK4())
 nothing # hide
@@ -73,7 +73,7 @@ T = 7.5e-5 * phonons
 photons = real.(get_solution(sol, a'a, eqs_completed).(sol.t))
 
 p1 = plot(t, T, ylabel = "T in K", legend = false)
-p2 = plot(t, photons, xlabel = "t⋅ωₘ", ylabel = "⟨a⁺a⟩", legend = false)
+p2 = plot(t, photons, xlabel = "t⋅ωm", ylabel = "⟨a⁺a⟩", legend = false)
 plot(p1, p2, layout = (2, 1), size = (650, 400))
 ````
 

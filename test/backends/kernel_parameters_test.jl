@@ -35,15 +35,31 @@ u = ComplexF64[0.1cos(3.7i) + 0.05im * sin(1.3i) for i in 1:nst]
     @test du_a == du_b
 end
 
-@testset "copy isolation for ensembles" begin
+@testset "remake uses replacement parameter state" begin
+    prob = ODEProblem(eqs, u0, (0.0, 5.0), ps; backend = KernelBackend())
+    p2 = copy(prob.p)
+    update_parameters!(p2, Dict(J => 2.0))
+    prob2 = SciMLBase.remake(prob; p = p2)
+    fresh = ODEProblem(eqs, u0, (0.0, 5.0), Dict(J => 2.0, hx => 1.0, γ => 0.2); backend = KernelBackend())
+    @test prob2.f === prob.f
+
+    du_old, du_new, du_fresh = similar(u), similar(u), similar(u)
+    prob.f(du_old, u, prob.p, 0.0)
+    prob2.f(du_new, u, prob2.p, 0.0)
+    fresh.f(du_fresh, u, fresh.p, 0.0)
+    @test du_new == du_fresh
+    @test du_old != du_new
+end
+
+@testset "parameter state isolation for ensembles" begin
     prob = ODEProblem(eqs, u0, (0.0, 5.0), ps; backend = KernelBackend())
     update_parameters!(prob, pd2)
     du_a, du_b = similar(u0), similar(u0)
     prob.f(du_a, u, prob.p, 0.0)
 
-    f2 = copy(prob.f)
-    prob2 = SciMLBase.remake(prob; f = f2, p = f2.f.kp)
-    update_parameters!(prob2, Dict(J => 0.3))
+    p2 = copy(prob.p)
+    update_parameters!(p2, Dict(J => 0.3))
+    prob2 = SciMLBase.remake(prob; p = p2)
     # the original is untouched by the copy's update
     prob.f(du_b, u, prob.p, 0.0)
     @test du_a == du_b

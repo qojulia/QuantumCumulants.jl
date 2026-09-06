@@ -68,9 +68,10 @@ iterations.
 Keyword arguments:
 - `filter`: predicate on `average(moment)`; a moment failing it is dropped from the closure
   (e.g. ancilla-only or phase-invariant moments). Default keeps everything.
-- `get_adjoints`: when `true` (default), a moment and its conjugate are tracked as two separate
-  unknowns. When `false`, only one member of each conjugate pair is kept and the partner is
-  recovered via `conj` when the numerical system is built.
+- `get_adjoints`: when `true`, a moment and its conjugate are tracked as two separate unknowns.
+  When `false`, only one member of each conjugate pair is kept and the partner is recovered via
+  `conj` when the numerical system is built. The public `complete`/`complete!` default is
+  `false`.
 - `foldable`: predicate on the moment operator deciding whether the conjugate moment ⟨O†⟩ can be
   recovered as the complex conjugate of ⟨O⟩. When it holds (under `get_adjoints=false`) only ⟨O⟩ is
   kept and ⟨O†⟩ follows by conjugation; when it does not, ⟨O†⟩ is an independent unknown, whose

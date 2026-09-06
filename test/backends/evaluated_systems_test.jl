@@ -17,9 +17,9 @@ function traj_vs_mtk(eqs, ps, backend, tspan; saveat)
         ODEProblem(sys, merge(initial_values(eqs, u0), Dict(parameter_map(eqs, ps))), tspan)
     sol_m = solve(prob_m, RK4(); saveat, abstol = 1.0e-10, reltol = 1.0e-10)
     maxdev = 0.0
-    for (i, st) in enumerate(eqs.states)
-        ref = get_solution(sol_m, SymbolicUtils.unwrap(st), eqs).(sol.t)
-        mine = [sol.u[j][i] for j in eachindex(sol.t)]
+    for st in eqs.states
+        ref = get_solution(sol_m, st, eqs).(sol_m.t)
+        mine = get_solution(sol, st, eqs).(sol.t)
         maxdev = max(maxdev, maximum(abs.(ref .- mine)))
     end
     return maxdev
@@ -44,7 +44,7 @@ pvals = Dict(Δ => 2.0, κ => 8.0, Γ => 1.0, R => 2.0, ν => 1.0)
 
 Nev = 4
 eqs_ev = evaluate(eqs_src; limits = (N => Nev))
-gvals = [1.5 - 0.1k for k = 1:Nev]
+gvals = [1.5 - 0.1k for k in 1:Nev]
 ps_ev = merge(pvals, Dict(g(i) => gvals))
 
 @testset "evaluated superradiant laser (1D array parameter)" begin
@@ -52,11 +52,11 @@ ps_ev = merge(pvals, Dict(g(i) => gvals))
 end
 
 @testset "array-parameter update_parameters!" begin
-    g2vals = [0.9 + 0.05k for k = 1:Nev]
+    g2vals = [0.9 + 0.05k for k in 1:Nev]
     ps_new = merge(pvals, Dict(g(i) => g2vals))
     n = length(eqs_ev.states)
     u0 = zeros(ComplexF64, n)
-    u = ComplexF64[0.1cos(3.7k) + 0.05im * sin(1.3k) for k = 1:n]
+    u = ComplexF64[0.1cos(3.7k) + 0.05im * sin(1.3k) for k in 1:n]
     du_a, du_b = similar(u0), similar(u0)
     prob = ODEProblem(eqs_ev, u0, (0.0, 1.0), ps_ev; backend = KernelBackend())
     update_parameters!(prob, Dict(g(i) => g2vals))
@@ -95,8 +95,8 @@ end
     complete!(eqs_a)
     Na = 2
     eqs_ae = evaluate(eqs_a; limits = (N2 => Na))
-    Γm = [k == l ? 1.0 : 0.4 for k = 1:Na, l = 1:Na]
-    Ωm = [k == l ? 0.0 : 1.1 for k = 1:Na, l = 1:Na]
+    Γm = [k == l ? 1.0 : 0.4 for k in 1:Na, l in 1:Na]
+    Ωm = [k == l ? 0.0 : 1.1 for k in 1:Na, l in 1:Na]
     ps_a = Dict(
         Δc => 1.0,
         η => 0.2,
@@ -113,7 +113,7 @@ end
     ps_a2 = merge(ps_a, Dict(Γ2(i2, j2) => Γm2))
     n = length(eqs_ae.states)
     u0 = zeros(ComplexF64, n)
-    u = ComplexF64[0.1cos(3.7k) + 0.05im * sin(1.3k) for k = 1:n]
+    u = ComplexF64[0.1cos(3.7k) + 0.05im * sin(1.3k) for k in 1:n]
     du_a, du_b = similar(u0), similar(u0)
     prob = ODEProblem(eqs_ae, u0, (0.0, 1.0), ps_a; backend = KernelBackend())
     update_parameters!(prob, Dict(Γ2(i2, j2) => Γm2))

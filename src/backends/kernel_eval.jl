@@ -19,22 +19,21 @@ const KERNEL_PARALLEL_MIN = 64
 _resolve_kernel_parallel(flag, neq) =
     flag === :auto ? (Threads.nthreads() > 1 && neq >= KERNEL_PARALLEL_MIN) : flag
 
-# The RHS stores Mᵀ (the coefficient matrix transposed, i.e. M in CSR): `du = M * v` then
-# becomes a row-wise gather where each `du[i]` sums one column of `Mt` independently. That
+# The RHS stores the sparsity pattern of Mᵀ (the coefficient matrix transposed, i.e. M in
+# CSR): `du = M * v` then becomes a row-wise gather where each `du[i]` sums one column of the
+# pattern independently. That
 # layout is both cache-friendlier than a CSC `mul!` (sequential `du` writes) and trivially
 # parallel (no write conflicts). `fac`/`fac_ptr` are the flat factor chains used by the
 # threaded monomial update (see `update_v_flat!`); they are derived from `parent`/`leaf` and
-# add no cache format. `v` is one scratch buffer per task (see `ScratchPool`), so a single
-# kernel instance is reentrant: concurrent callers (e.g. `EnsembleThreads()` on a shared
-# `prob`) each write their own buffer without relying on internal thread-count APIs.
+# add no cache format. `v` is task-local scratch (see `ScratchPool`), so a single kernel
+# instance is reentrant: concurrent callers (e.g. `EnsembleThreads()` on a shared `prob`)
+# each write their own buffer without retaining the task.
 mutable struct ScratchPool
     n::Int
-    buffers::IdDict{Task,Vector{ComplexF64}}
-    lock::ReentrantLock
 end
 
 struct MomentKernel
-    Mt::SparseMatrixCSC{ComplexF64,Int32}   # transpose of the coefficient matrix M
+    pattern::SparseMatrixCSC{Int32, Int32}   # sparsity pattern of Mᵀ
     parent::Vector{Int32}
     leaf::Vector{Int32}
     fac::Vector{Int32}                       # flat factor chains (threaded update path)
@@ -44,23 +43,25 @@ struct MomentKernel
 end
 
 # `ir` is intentionally structural here so the evaluator can be built from the lowered
-# representation without retaining the symbolic equation set.
-function MomentKernel(ir, cvals::Vector{ComplexF64}; parallel::Bool = false)
+# representation without retaining the symbolic equation set or its numeric coefficients.
+function MomentKernel(ir; parallel::Bool = false)
     fac, fac_ptr = build_flat(ir.parent, ir.leaf)
     v = _make_vbufs(length(ir.parent))
-    return MomentKernel(assemble(ir, cvals), ir.parent, ir.leaf, fac, fac_ptr, v, parallel)
+    return MomentKernel(
+        assemble_pattern(ir), ir.parent, ir.leaf, fac, fac_ptr, v, parallel
+    )
 end
 
-# Convenience constructor over prebuilt numeric tables.
+# Convenience constructor over a prebuilt sparsity pattern.
 function MomentKernel(
-    Mt::SparseMatrixCSC,
-    parent::Vector{Int32},
-    leaf::Vector{Int32},
-    v::ScratchPool,
-    parallel::Bool,
-)
+        pattern::SparseMatrixCSC{Int32, Int32},
+        parent::Vector{Int32},
+        leaf::Vector{Int32},
+        v::ScratchPool,
+        parallel::Bool,
+    )
     fac, fac_ptr = build_flat(parent, leaf)
-    return MomentKernel(Mt, parent, leaf, fac, fac_ptr, v, parallel)
+    return MomentKernel(pattern, parent, leaf, fac, fac_ptr, v, parallel)
 end
 
 """A fresh scratch buffer: zeros with `v[1] = 1` (monomial 1 is the empty product)."""
@@ -70,23 +71,28 @@ function _init_vbuf(n::Integer)
     return v
 end
 
-"""Task-owned scratch makes a shared kernel reentrant across all Julia thread pools."""
-ScratchPool(n::Integer) =
-    ScratchPool(Int(n), IdDict{Task,Vector{ComplexF64}}(), ReentrantLock())
+"""Task-local scratch makes a shared kernel reentrant across all Julia thread pools."""
+ScratchPool(n::Integer) = ScratchPool(Int(n))
 
-function Base.copy(pool::ScratchPool)
-    return ScratchPool(pool.n, IdDict{Task,Vector{ComplexF64}}(), ReentrantLock())
+Base.copy(pool::ScratchPool) = ScratchPool(pool.n)
+
+const _SCRATCH_TLS_KEY = Ref{Nothing}()
+
+function _scratch_pools()
+    try
+        return task_local_storage(_SCRATCH_TLS_KEY)
+    catch err
+        err isa KeyError || rethrow()
+        pools = WeakKeyDict{ScratchPool, Vector{ComplexF64}}()
+        task_local_storage(_SCRATCH_TLS_KEY, pools)
+        return pools
+    end
 end
 
 function _vbuf(pool::ScratchPool)
-    task = current_task()
-    lock(pool.lock)
-    try
-        return get!(pool.buffers, task) do
-            _init_vbuf(pool.n)
-        end
-    finally
-        unlock(pool.lock)
+    pools = _scratch_pools()
+    return get!(pools, pool) do
+        _init_vbuf(pool.n)
     end
 end
 
@@ -96,7 +102,7 @@ _make_vbufs(n::Integer) = ScratchPool(n)
 the Jacobian). Each monomial is `(parent monomial) * (one state factor)`, and parents have
 smaller ids, so ascending order is a valid schedule."""
 function update_v!(v, parent, leaf, u)
-    @inbounds for m = 2:length(v)
+    @inbounds for m in 2:length(v)
         j = leaf[m]
         x = j > 0 ? u[j] : conj(u[-j])
         v[m] = v[parent[m]] * x
@@ -111,23 +117,23 @@ form's cross-iteration dependency; the shared order keeps it bit-identical to `u
 function build_flat(parent::Vector{Int32}, leaf::Vector{Int32})
     n = length(parent)
     depth = zeros(Int32, n)
-    @inbounds for m = 2:n
+    @inbounds for m in 2:n
         depth[m] = depth[parent[m]] + Int32(1)
     end
     fac_ptr = Vector{Int32}(undef, n + 1)
     fac_ptr[1] = 1
-    @inbounds for m = 1:n
-        fac_ptr[m+1] = fac_ptr[m] + depth[m]
+    @inbounds for m in 1:n
+        fac_ptr[m + 1] = fac_ptr[m] + depth[m]
     end
     fac = Vector{Int32}(undef, Int(fac_ptr[end]) - 1)
-    @inbounds for m = 2:n
+    @inbounds for m in 2:n
         pl = fac_ptr[parent[m]]
         plen = depth[parent[m]]
         base = fac_ptr[m]
-        for t = 0:(plen-1)
-            fac[base+t] = fac[pl+t]
+        for t in 0:(plen - 1)
+            fac[base + t] = fac[pl + t]
         end
-        fac[base+plen] = leaf[m]
+        fac[base + plen] = leaf[m]
     end
     return fac, fac_ptr
 end
@@ -136,9 +142,9 @@ end
 there is no cross-iteration dependency. Bit-identical to `update_v!` (same factor order) and
 to a serial run (`@batch` runs serially on one thread)."""
 function update_v_flat!(v, fac, fac_ptr, u)
-    Polyester.@batch for m = 2:length(v)
+    Polyester.@batch for m in 2:length(v)
         s = one(ComplexF64)
-        @inbounds for k = fac_ptr[m]:(fac_ptr[m+1]-1)
+        @inbounds for k in fac_ptr[m]:(fac_ptr[m + 1] - 1)
             j = fac[k]
             s *= j > 0 ? u[j] : conj(u[-j])
         end
@@ -147,25 +153,25 @@ function update_v_flat!(v, fac, fac_ptr, u)
     return v
 end
 
-@inline function _rowsum(Mt::SparseMatrixCSC, v, i)
+@inline function _rowsum(pattern::SparseMatrixCSC, nzval, v, i)
     s = zero(eltype(v))
-    @inbounds for k = Mt.colptr[i]:(Mt.colptr[i+1]-1)
-        s += Mt.nzval[k] * v[Mt.rowval[k]]
+    @inbounds for k in pattern.colptr[i]:(pattern.colptr[i + 1] - 1)
+        s += nzval[k] * v[pattern.rowval[k]]
     end
     return s
 end
 
-"""`du = M * v` via `Mt` (CSR); serial and threaded sum each row in the same order, so the
+"""`du = M * v` via the transposed pattern (CSR); serial and threaded sum each row in the same order, so the
 results are identical bit-for-bit regardless of `parallel`. The threaded branch uses
 Polyester's persistent pool (`@batch`), which runs serially on a single thread."""
-function spmv!(du, Mt::SparseMatrixCSC, v, parallel::Bool)
+function spmv!(du, pattern::SparseMatrixCSC, nzval, v, parallel::Bool)
     if parallel
         Polyester.@batch for i in eachindex(du)
-            @inbounds du[i] = _rowsum(Mt, v, i)
+            @inbounds du[i] = _rowsum(pattern, nzval, v, i)
         end
     else
         @inbounds for i in eachindex(du)
-            du[i] = _rowsum(Mt, v, i)
+            du[i] = _rowsum(pattern, nzval, v, i)
         end
     end
     return du
@@ -178,7 +184,7 @@ function (k::MomentKernel)(du, u, p, t)
     else
         update_v!(v, k.parent, k.leaf, u)
     end
-    spmv!(du, k.Mt, v, k.parallel)
+    spmv!(du, k.pattern, p.nzval, v, k.parallel)
     return nothing
 end
 
@@ -191,7 +197,7 @@ function nz_map(A, rows, cols)
     nzmap = Vector{Int}(undef, length(rows))
     for k in eachindex(rows)
         j = cols[k]
-        r = Int(A.colptr[j]):(Int(A.colptr[j+1])-1)
+        r = Int(A.colptr[j]):(Int(A.colptr[j + 1]) - 1)
         p = searchsortedfirst(view(A.rowval, r), rows[k]) + first(r) - 1
         @assert A.rowval[p] == rows[k]
         nzmap[k] = p
@@ -201,33 +207,51 @@ end
 
 """
 The parameter payload of a kernel `ODEProblem` (`prob.p`). Carries the discovered
-parameter occurrences, the current values, and everything needed to rewrite `Mt.nzval`
-in place on a parameter update. `evalcoeffs` evaluates pooled coefficients from the retained
-symbolic representation.
+parameter occurrences, the current values, pooled coefficient values, and the sparse
+coefficient values used by the structural kernel. `evalcoeffs` evaluates pooled coefficients
+from the retained symbolic representation.
 """
 struct KernelParameters{F}
     params::Vector{Any}
-    values::Dict{Any,Any}
+    values::Dict{Any, Any}
     evalcoeffs::F                 # values dict -> Vector{ComplexF64} of pooled coefficients
     coo_c::Vector{Int32}
     nzmap::Vector{Int}
+    coeffs::Vector{ComplexF64}
+    nzval::Vector{ComplexF64}
 end
 
-function KernelParameters(ir::MomentIR, Mt::SparseMatrixCSC, values::Dict)
+function KernelParameters(ir::MomentIR, pattern::SparseMatrixCSC, values::Dict)
     evalcoeffs = vals -> coefficient_values(ir, vals)
-    return KernelParameters(
+    kp = KernelParameters(
         ir.params,
-        Dict{Any,Any}(values),
+        Dict{Any, Any}(values),
         evalcoeffs,
         ir.coo_c,
-        nz_map(Mt, ir.coo_j, ir.coo_i),   # Mt is transposed: (row, col) = (monomial, state)
+        nz_map(pattern, ir.coo_j, ir.coo_i), # pattern is transposed: (row, col) = (monomial, state)
+        evalcoeffs(values),
+        zeros(ComplexF64, length(pattern.nzval)),
+    )
+    write_nzval!(kp)
+    return kp
+end
+
+function Base.copy(kp::KernelParameters)
+    return KernelParameters(
+        kp.params,
+        Dict{Any, Any}(kp.values),
+        kp.evalcoeffs,
+        kp.coo_c,
+        kp.nzmap,
+        copy(kp.coeffs),
+        copy(kp.nzval),
     )
 end
 
-function write_nzval!(k::MomentKernel, kp::KernelParameters, cvals)
-    fill!(k.Mt.nzval, zero(ComplexF64))
+function write_nzval!(kp::KernelParameters)
+    fill!(kp.nzval, zero(ComplexF64))
     @inbounds for t in eachindex(kp.nzmap)
-        k.Mt.nzval[kp.nzmap[t]] += cvals[kp.coo_c[t]]
+        kp.nzval[kp.nzmap[t]] += kp.coeffs[kp.coo_c[t]]
     end
-    return k
+    return kp
 end

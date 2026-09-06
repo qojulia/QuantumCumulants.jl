@@ -25,9 +25,9 @@ function Base.showerror(io::IO, e::NonPolynomialDriftError)
     return print(
         io,
         "NonPolynomialDriftError: equation $(e.eqindex) has a non-polynomial part: " *
-        "$(e.residual). The moment-kernel path requires drifts polynomial in the " *
-        "moments (anything meanfield/complete! produces). Use " *
-        "`System(eqs)` and the ModelingToolkit path for rewritten non-polynomial drifts.",
+            "$(e.residual). The moment-kernel path requires drifts polynomial in the " *
+            "moments (anything meanfield/complete! produces). Use " *
+            "`System(eqs)` and the ModelingToolkit path for rewritten non-polynomial drifts.",
     )
 end
 struct TimeDependentCoefficientError{T} <: KernelLoweringError
@@ -37,8 +37,8 @@ function Base.showerror(io::IO, e::TimeDependentCoefficientError)
     return print(
         io,
         "TimeDependentCoefficientError: coefficient $(e.coeff) depends on the " *
-        "independent variable. t-dependent coefficients are not supported by the " *
-        "direct path; use `System(eqs)` and the ModelingToolkit path.",
+            "independent variable. t-dependent coefficients are not supported by the " *
+            "direct path; use `System(eqs)` and the ModelingToolkit path.",
     )
 end
 struct ImParameterCollisionError <: KernelLoweringError end
@@ -46,7 +46,7 @@ function Base.showerror(io::IO, ::ImParameterCollisionError)
     return print(
         io,
         "ImParameterCollisionError: a user parameter named `im` collides with the " *
-        "algebra's symbolic imaginary unit; rename the parameter.",
+            "algebra's symbolic imaginary unit; rename the parameter.",
     )
 end
 struct HolomorphicJacobianError <: KernelLoweringError end
@@ -54,10 +54,10 @@ function Base.showerror(io::IO, ::HolomorphicJacobianError)
     return print(
         io,
         "HolomorphicJacobianError: the analytic Jacobian is holomorphic-only, and this " *
-        "system's drift references conj(state) monomials (a conj-folded closure); its " *
-        "true derivative needs the Wirtinger pair, which is not implemented. Close the " *
-        "system with `get_adjoints = true` (the default) to unfold the conjugate " *
-        "partners, or use an explicit solver without `jac = true`.",
+            "system's drift references conj(state) monomials (a conj-folded closure); its " *
+            "true derivative needs the Wirtinger pair, which is not implemented. Close the " *
+            "system with `get_adjoints = true` to unfold the conjugate partners, or use an " *
+            "explicit solver without `jac = true`.",
     )
 end
 struct UnresolvedMomentError{T} <: KernelLoweringError
@@ -67,8 +67,8 @@ function Base.showerror(io::IO, e::UnresolvedMomentError)
     return print(
         io,
         "UnresolvedMomentError: the right-hand sides reference the average $(e.moment), " *
-        "which does not resolve to any state. Call `complete(eqs)` first, or check " *
-        "that the system was fully scaled/evaluated.",
+            "which does not resolve to any state. Call `complete(eqs)` first, or check " *
+            "that the system was fully scaled/evaluated.",
     )
 end
 
@@ -85,7 +85,7 @@ function statevars_resolved(eqs)
     treatments = _treatments(eqs, ctx)
     ops = QAdd[(o = undo_average(s); o isa QAdd ? o : o * 1) for s in eqs.states]
     moments = MomentMap(ctx, treatments, ops, collect(Int32, 1:length(ops)))
-    idx = Dict{Any,Int32}()
+    idx = Dict{Any, Int32}()
     vars = Any[]
     for nd in values(g.nodes), leaf in eachleaf(Symbolics.unwrap(nd.drift))
         haskey(idx, leaf) && continue
@@ -103,16 +103,16 @@ end
 function monomial_factors(mono, idx)
     fs = Int32[]
     addfac(f) =
-        if SymbolicUtils.iscall(f) && SymbolicUtils.operation(f) === (^)
-            b, e = SymbolicUtils.arguments(f)
-            n = Int(SymbolicUtils.unwrap_const(e))
-            j = idx[b]
-            for _ = 1:n
-                push!(fs, j)
-            end
-        else
-            push!(fs, idx[f])
+    if SymbolicUtils.iscall(f) && SymbolicUtils.operation(f) === (^)
+        b, e = SymbolicUtils.arguments(f)
+        n = Int(SymbolicUtils.unwrap_const(e))
+        j = idx[b]
+        for _ in 1:n
+            push!(fs, j)
         end
+    else
+        push!(fs, idx[f])
+    end
     if mono isa Number || SymbolicUtils.isconst(mono)
         # empty product (constant term of the drift)
     elseif SymbolicUtils.iscall(mono) && SymbolicUtils.operation(mono) === (*)
@@ -147,10 +147,10 @@ _lower_moment_ir(eqs) =
 """IR builder over a prepared state resolution (`vars` for `polynomial_coeffs`, `idx`
 mapping each average leaf form to its signed state index)."""
 function _build_moment_ir(g, vars, idx, iv_uw)
-    mono_ids = Dict{Vector{Int32},Int32}(Int32[] => Int32(1))
+    mono_ids = Dict{Vector{Int32}, Int32}(Int32[] => Int32(1))
     parent = Int32[0]
     leaf = Int32[0]
-    coeff_ids = Dict{Any,Int32}()
+    coeff_ids = Dict{Any, Int32}()
     coeffs = Any[]
     coo_i = Int32[]
     coo_j = Int32[]
@@ -158,7 +158,7 @@ function _build_moment_ir(g, vars, idx, iv_uw)
 
     function mono_id!(fs::Vector{Int32})
         return get!(mono_ids, fs) do
-            p = mono_id!(fs[1:(end-1)])
+            p = mono_id!(fs[1:(end - 1)])
             push!(parent, p)
             push!(leaf, fs[end])
             Int32(length(parent))
@@ -181,7 +181,7 @@ function _build_moment_ir(g, vars, idx, iv_uw)
 
     # phase 2: serial table build in equation order, so `mono_id!` assignment, coefficient
     # pooling, and the residual-check error order are bit-identical to a serial build
-    for i = 1:neq
+    for i in 1:neq
         dict, res = polys[i]
         _iszero_part(res) || throw(NonPolynomialDriftError(i, res))
         terms = collect(dict)
@@ -243,7 +243,7 @@ function coefficient_values(ir::MomentIR, pdict)
             Base.nameof(u) === :im &&
             throw(ImParameterCollisionError())
     end
-    pd = Dict{Any,Any}(Symbolics.unwrap(k) => v for (k, v) in pdict)
+    pd = Dict{Any, Any}(Symbolics.unwrap(k) => v for (k, v) in pdict)
     for c in ir.coeffs
         c isa Number && continue
         for v in Symbolics.get_variables(c)
@@ -272,11 +272,20 @@ function _numeric_coefficient(c, pd)
     end
 end
 
-"""Materialize `Mᵀ` (nmonomials × neq), the transpose of the coefficient matrix, for
-coefficient values `c`. Storing the transpose (M in CSR) makes the RHS a row-parallel
-gather; see `MomentKernel`."""
-assemble(ir::MomentIR, cvals::Vector{ComplexF64}) =
-    sparse(ir.coo_j, ir.coo_i, cvals[ir.coo_c], length(ir.parent), ir.nstates, +)
+"""Materialize the sparsity pattern of `Mᵀ` (nmonomials × neq).
+
+The numeric coefficient values live in `KernelParameters`, which is the `prob.p` payload;
+the `MomentKernel` retains this pattern only. Storing the transpose (M in CSR) makes the RHS
+a row-parallel gather; see `MomentKernel`.
+"""
+assemble_pattern(ir::MomentIR) = sparse(
+    ir.coo_j,
+    ir.coo_i,
+    fill(Int32(1), length(ir.coo_i)),
+    length(ir.parent),
+    ir.nstates,
+    +,
+)
 
 # ---- array-aware parameter values ----------------------------------------------------
 
@@ -287,7 +296,7 @@ function _pslots(p)
     if SymbolicUtils.iscall(p) && SymbolicUtils.operation(p) === getindex
         return Int[
             a isa Number ? Int(a) : Int(SymbolicUtils.unwrap_const(a)) for
-            a in SymbolicUtils.arguments(p)[2:end]
+                a in SymbolicUtils.arguments(p)[2:end]
         ]
     end
     return _param_slots(p)
@@ -304,9 +313,9 @@ instead of erroring (the partial-update path of `update_parameters!`, where miss
 entries keep their stored values).
 """
 function kernel_pdict(params::Vector, pmap; strict::Bool = true)
-    pd = Dict{Any,Any}()
-    arrs = Dict{Symbol,Any}()
-    named = Dict{Any,Any}()
+    pd = Dict{Any, Any}()
+    arrs = Dict{Symbol, Any}()
+    named = Dict{Any, Any}()
     for (k, v) in pmap
         ku = Symbolics.unwrap(k)
         name = _pname(ku)
@@ -335,9 +344,9 @@ function kernel_pdict(params::Vector, pmap; strict::Bool = true)
     strict &&
         !isempty(unmatched) &&
         throw(
-            ArgumentError(
-                "missing values for kernel parameters: $(unmatched). Pass them in `ps`.",
-            ),
-        )
+        ArgumentError(
+            "missing values for kernel parameters: $(unmatched). Pass them in `ps`.",
+        ),
+    )
     return pd
 end

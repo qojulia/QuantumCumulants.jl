@@ -5,7 +5,7 @@ evaluator and passed to SciML without first constructing a ModelingToolkit syste
 
 ```julia
 using QuantumCumulants
-using SciMLBase: ODEProblem
+using SciMLBase: ODEProblem, remake
 
 eqs = complete(meanfield([a], H, [a]; rates = [κ], order = 2))
 prob = ODEProblem(eqs, u0, (0.0, 10.0), Dict(κ => 0.5); backend = KernelBackend())
@@ -22,6 +22,10 @@ shared globally and represented as signed state factors. A positive factor reads
 negative factor reads `conj(u[j])`. The evaluator computes the monomial vector `v` and then
 applies the sparse coefficient table `M`, giving `du = M * v`.
 
+`KernelBackend()` evaluates serially by default. Pass `parallel = true` to force the threaded
+path or `parallel = :auto` to enable it for sufficiently large systems on a multi-threaded
+process.
+
 ## Supported systems
 
 The direct evaluator supports completed, deterministic cumulant equations whose drifts are
@@ -35,6 +39,15 @@ are independent of those values, so a sweep only refreshes the numeric coefficie
 
 ```julia
 update_parameters!(prob, Dict(κ => 0.7))
+```
+
+The parameter payload is `prob.p`, so SciML's normal `remake` semantics also replace the
+values used by the same structural evaluator:
+
+```julia
+p2 = copy(prob.p)
+update_parameters!(p2, Dict(κ => 0.7))
+prob2 = remake(prob; p = p2)
 ```
 
 Scalar parameters, evaluated one- and multi-dimensional array parameters, and repeated solves
@@ -77,7 +90,8 @@ get_solution(sol, a, eqs)(1.0)
 get_solution(sol, a', eqs)(1.0)
 ```
 
-The requested operator is resolved to a registered integer state index. If a folded query is the
-conjugate side of the stored representative, `get_solution` returns the conjugated trajectory.
-This keeps the user-facing `get_solution(sol, op, eqs)` behavior the same for both numerical
-routes.
+For a direct solution, the requested operator is resolved to its integer position in
+`eqs.states`. For an MTK solution, the corresponding symbolic unknown is passed to the
+solution, because compilation may reorder the unknowns. If a folded query is the conjugate side
+of the stored representative, `get_solution` returns the conjugated trajectory. This keeps the
+user-facing `get_solution(sol, op, eqs)` behavior the same for both numerical routes.

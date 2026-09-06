@@ -11,6 +11,15 @@ structured `KernelBackend`, including parameter-table refresh, direct `get_solut
 and strict analytic Jacobians for holomorphic closures. Unsupported direct systems should use
 the existing `System(eqs)` and ModelingToolkit path.
 
+### Fixed
+
+The direct backend now reads its numeric coefficient tables from `prob.p`, so
+`remake(prob; p = new_p)` correctly changes the dynamics without rebuilding the structural
+kernel. `get_solution` preserves symbolic indexing for compiled ModelingToolkit solutions, and
+direct kernel scratch buffers are task-local without retaining completed tasks. The conservative
+serial evaluator is now the default; use `parallel = true` or `:auto` to opt into threaded RHS
+evaluation.
+
 ## [0.7.1]
 
 Move to SecondQuantizedAlgebra v0.11
