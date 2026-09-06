@@ -64,6 +64,7 @@ include("mtk.jl")
 
 # direct RHS compilation: moment-polynomial kernel + ODE surface
 include("backends/kernel_lower.jl")
+include("backends/kernel_poly_lower.jl")
 include("backends/kernel_eval.jl")
 include("backends/kernel_jac.jl")
 include("backends/ode_api.jl")
