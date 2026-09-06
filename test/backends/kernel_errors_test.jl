@@ -4,6 +4,8 @@ using Symbolics: Symbolics, @variables
 using SciMLBase: SciMLBase, ODEFunction, ODEProblem
 using Test
 
+const QC = QuantumCumulants
+
 # Two-spin transverse-field Ising model, order 1: small fixture for the error taxonomy.
 Ns = 2
 hs = ⊗([PauliSpace(Symbol(:s, i)) for i in 1:Ns]...)
