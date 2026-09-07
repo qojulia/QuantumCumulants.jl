@@ -49,6 +49,11 @@ include("completion.jl")
 include("scaling.jl")
 include("evaluate.jl")
 include("mtk.jl")
+
+# evaluator-independent structured numerical lowering
+include("backends/moment_ir.jl")
+include("backends/moment_poly_lower.jl")
+
 include("correlation.jl")
 include("spectrum.jl")
 
