@@ -1,0 +1,99 @@
+name: Bisect #339 allocation drift
+
+on:
+  push:
+    branches:
+      - ci/bisect-339-dependencies
+
+jobs:
+  allocation-bisect:
+    name: allocation bisect (${{ matrix.variant }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        variant:
+          - current
+          - symbolicutils-4.46.2
+          - mtkbase-1.68.2
+          - scimlbase-3.50.2
+          - quantumopticsbase-0.5.14
+          - old-all
+    steps:
+      - uses: actions/checkout@v7
+      - uses: julia-actions/setup-julia@v3
+        with:
+          version: '1.12'
+      - name: Resolve dependency variant
+        env:
+          BISECT_VARIANT: ${{ matrix.variant }}
+          JULIA_PKG_PRECOMPILE_AUTO: '0'
+        run: |
+          julia --project=. - <<'JULIA'
+          using Pkg
+
+          variant = ENV["BISECT_VARIANT"]
+          Pkg.instantiate()
+
+          specs = if variant == "current"
+              PackageSpec[]
+          elseif variant == "symbolicutils-4.46.2"
+              [PackageSpec(name = "SymbolicUtils", version = v"4.46.2")]
+          elseif variant == "mtkbase-1.68.2"
+              [PackageSpec(name = "ModelingToolkitBase", version = v"1.68.2")]
+          elseif variant == "scimlbase-3.50.2"
+              [PackageSpec(name = "SciMLBase", version = v"3.50.2")]
+          elseif variant == "quantumopticsbase-0.5.14"
+              [PackageSpec(name = "QuantumOpticsBase", version = v"0.5.14")]
+          elseif variant == "old-all"
+              [
+                  PackageSpec(name = "SymbolicUtils", version = v"4.46.2"),
+                  PackageSpec(name = "ModelingToolkitBase", version = v"1.68.2"),
+                  PackageSpec(name = "SciMLBase", version = v"3.50.2"),
+                  PackageSpec(name = "QuantumOpticsBase", version = v"0.5.14"),
+              ]
+          else
+              error("unknown bisect variant: $variant")
+          end
+
+          isempty(specs) || Pkg.add(specs)
+
+          wanted = Set(["SymbolicUtils", "ModelingToolkitBase", "SciMLBase", "QuantumOpticsBase", "Symbolics"])
+          println("resolved dependency set for ", variant)
+          for dep in sort!(collect(values(Pkg.dependencies())); by = x -> x.name)
+              dep.name in wanted || continue
+              println("  ", dep.name, " = ", dep.version)
+          end
+          JULIA
+
+      - name: Run allocation regression gate
+        env:
+          BISECT_VARIANT: ${{ matrix.variant }}
+        run: |
+          julia --project=. - <<'JULIA'
+          using QuantumCumulants
+          using SymbolicUtils: SymbolicUtils
+          using Test
+
+          phase_invariant(x) = iszero(_net_phase(x))
+          _net_phase(_) = 0
+          function _net_phase(op::Op)
+              is_destroy(op) && return -1
+              is_create(op) && return 1
+              return is_transition(op) ? op.l1 - op.l2 : 0
+          end
+          _net_phase(t::QuantumCumulants.SecondQuantizedAlgebra.QTerm) =
+              isempty(t.ops) ? 0 : sum(_net_phase(op) for op in t.ops)
+          function _net_phase(q::QuantumCumulants.SecondQuantizedAlgebra.QAdd)
+              isempty(q.arguments) && return 0
+              term, _ = first(q.arguments)
+              return _net_phase(term)
+          end
+          function _net_phase(avg::SymbolicUtils.BasicSymbolic)
+              is_average(avg) || return 0
+              return _net_phase(undo_average(avg))
+          end
+
+          println("allocation bisect variant: ", ENV["BISECT_VARIANT"])
+          include("test/allocations/allocation_test.jl")
+          JULIA
