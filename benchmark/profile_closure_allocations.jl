@@ -1,5 +1,6 @@
 using QuantumCumulants
 using Symbolics
+using SymbolicUtils
 
 const QC = QuantumCumulants
 const SQA = QuantumCumulants.SecondQuantizedAlgebra
@@ -66,6 +67,68 @@ function profiled_derive(op::QC.QAdd, sys, ctx::QC.CanonCtx, totals::StageTotals
     return QC.NodeData(drift, op_drift, noise, op_noise, order, aon)
 end
 
+# Experimental path: retain one product-expansion memo for the whole operator -> moment
+# conversion of a single node. Production currently creates a fresh memo for each separately
+# encountered average/product expansion. This experiment stays benchmark-local until measured.
+function _expand_average_shared(ops, order::Int, memo)
+    ops isa QC.QAdd || return average(ops)
+    terms = Any[]
+    for (term, coeff) in ops.arguments
+        c = QC._im_form(QC._coeff_num(coeff))
+        expanded = QC._expand_product!(term.ops, order, memo)
+        push!(terms, QC._reattach_scope(c, expanded, ops.indices, term.ne))
+    end
+    return QC._bulk_add(terms)
+end
+
+function _cumulant_expansion_shared(x, order::Int, memo)
+    x isa Number && return x
+    x isa Symbolics.Num && return _cumulant_expansion_shared(SymbolicUtils.unwrap(x), order, memo)
+    x isa SymbolicUtils.BasicSymbolic || return x
+    QC.get_order(x) <= order && return x
+    if QC._is_moment_unit(x)
+        return _expand_average_shared(SQA.undo_average(x), order, memo)
+    end
+    if SymbolicUtils.iscall(x) && QC._has_average(x)
+        op = SymbolicUtils.operation(x)
+        args = SymbolicUtils.arguments(x)
+        new_args = Any[_cumulant_expansion_shared(a, order, memo) for a in args]
+        all(i -> new_args[i] === args[i], eachindex(args)) && return x
+        return op(new_args...)
+    end
+    return x
+end
+
+function _average_and_truncate_shared(R::QC.QAdd, order::Int, mix_choice, ctx::QC.CanonCtx)
+    acc = 0
+    memo = Dict{Any, Any}()
+    for (term, coeff) in R.arguments
+        c = QC._coeff_num(coeff)
+        QC._iszero_coeff(c) && continue
+        if !isempty(QC._coeff_scope_indices(c, R.indices))
+            avg = QC._scoped_average_coeff(c, term.ops, term.ne, R.indices)
+            acc = acc + _cumulant_expansion_shared(avg, order, memo)
+        else
+            truncated_coeff = QC._im_form(QC._truncate_coeff(c, order, mix_choice))
+            avg = QC._scoped_average(term.ops, term.ne, R.indices)
+            acc = acc + truncated_coeff * _cumulant_expansion_shared(avg, order, memo)
+        end
+    end
+    return acc
+end
+
+function memo_derive(op::QC.QAdd, sys, ctx::QC.CanonCtx)
+    op_drift = QC._operator_rhs(
+        sys.direction, op, im * sys.hamiltonian,
+        sys.jumps, sys.jumps_dagger, sys.rates,
+    )
+    op_drift = SQA.expand_completeness(op_drift)
+    op_drift = QC._assume_distinct_atom_indices(op_drift, QC._distinct_atom_indices([op]))
+    drift = Symbolics.Num(_average_and_truncate_shared(op_drift, sys.order, sys.mix_choice, ctx))
+    drift = QC._reduce_ground_in_drift(drift)
+    return QC.NodeData(drift, op_drift, nothing, nothing, QC.get_order(op), SQA.acts_on(op))
+end
+
 function ising_graph(order)
     N = 6
     h = ⊗([PauliSpace(Symbol(:spin, i)) for i in 1:N]...)
@@ -81,6 +144,30 @@ function ising_graph(order)
         rates = [γ for _ in 1:N], order = order,
     )
     return eqs.graph
+end
+
+function graphs_exact(a, b)
+    collect(keys(a.nodes)) == collect(keys(b.nodes)) || return false
+    for k in keys(a.nodes)
+        x, y = a.nodes[k], b.nodes[k]
+        isequal(x.drift, y.drift) || return false
+        isequal(x.op_drift, y.op_drift) || return false
+        isequal(x.noise, y.noise) || return false
+        isequal(x.op_noise, y.op_noise) || return false
+        x.order == y.order || return false
+        x.aon == y.aon || return false
+    end
+    return true
+end
+
+function serial_frontier(derive_one)
+    return function(keys, sys, ctx)
+        out = Vector{QC.NodeData}(undef, length(keys))
+        @inbounds for i in eachindex(keys)
+            out[i] = derive_one(keys[i], sys, ctx)
+        end
+        return out
+    end
 end
 
 function run_profile(order)
@@ -109,8 +196,38 @@ function run_profile(order)
         )
     end
     println("STAGE_SUM bytes=$sum_stage_bytes time_s=$(round(sum_stage_time / 1e9; digits=6))")
+    return completed
+end
+
+function run_memo_experiment(order)
+    # Fresh contexts for both sides avoid warming the monotonic canonicalization cache.
+    gb = ising_graph(order)
+    gm = ising_graph(order)
+    baseline_frontier = serial_frontier(QC.derive)
+    memo_frontier = serial_frontier(memo_derive)
+
+    # Compilation warmup on independent small graphs before the measured closure.
+    order == 2 && begin
+        QC._closure(ising_graph(2), baseline_frontier)
+        QC._closure(ising_graph(2), memo_frontier)
+    end
+
+    GC.gc()
+    bt = @timed QC._closure(gb, baseline_frontier)
+    GC.gc()
+    mt = @timed QC._closure(gm, memo_frontier)
+    exact = graphs_exact(bt.value, mt.value)
+    println(
+        "MEMO order=$order exact=$exact baseline_time=$(round(bt.time; digits=6)) " *
+        "memo_time=$(round(mt.time; digits=6)) speedup=$(round(bt.time / mt.time; digits=4)) " *
+        "baseline_bytes=$(bt.bytes) memo_bytes=$(mt.bytes) alloc_ratio=$(round(mt.bytes / bt.bytes; digits=5))",
+    )
+    exact || error("memo experiment changed graph semantics at order $order")
 end
 
 for order in (2, 3, 4)
     run_profile(order)
+end
+for order in (2, 3, 4)
+    run_memo_experiment(order)
 end
