@@ -29,6 +29,13 @@ const QC = QuantumCumulants
     nk = first(keys(neqs.graph.nodes))
     nnode = QC.derive(nk, neqs.graph.sys, neqs.graph.ctx)
     @test QC._may_need_ground_reduction(nnode.op_drift)
+    @test QC._may_need_ground_reduction(σ(1, 2))
+    @test !QC._may_need_ground_reduction(sx)
+
+    noise_eqs = meanfield(
+        [σ(2, 2)], H, [σ(1, 2)]; rates = [γ], efficiencies = [1], order = 2,
+    )
+    @test first(values(noise_eqs.graph.nodes)).noise !== nothing
 
     ground = average(σ(1, 1))
     excited = average(σ(2, 2))
