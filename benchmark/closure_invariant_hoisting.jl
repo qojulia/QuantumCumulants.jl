@@ -1,6 +1,6 @@
 using QuantumCumulants
 using Statistics: median
-using Symbolics: Symbolics, @variables
+using Symbolics: @variables
 
 const QC = QuantumCumulants
 const SQA = QuantumCumulants.SecondQuantizedAlgebra
@@ -25,54 +25,59 @@ function ising_graph(order)
     return eqs.graph
 end
 
-function derive_with_iH(op::SQA.QAdd, sys, ctx::QC.CanonCtx, iH)
-    op_drift = QC._operator_rhs(
-        sys.direction, op, iH,
-        sys.jumps, sys.jumps_dagger, sys.rates,
+# Same canonical key calculation as `_treatment_key`, but with the treatment
+# fingerprint supplied by the caller so it is not reconstructed for every probe.
+function treatment_key_pre_fp(
+        op::SQA.QAdd,
+        ctx::QC.CanonCtx,
+        treatments::Dict{Int, QC.SubspaceTreatment},
+        fp::QC.TreatmentFP,
     )
-    op_drift = SQA.expand_completeness(op_drift)
-    op_drift = QC._assume_distinct_atom_indices(
-        op_drift,
-        QC._distinct_atom_indices([op]),
-    )
-    drift = Symbolics.Num(QC.average_and_truncate(op_drift, sys.order, sys.mix_choice, ctx))
-    drift = QC._reduce_ground_in_drift(drift)
+    return get!(ctx.cache.key, (op, fp)) do
+        scaled = Set{Int}()
+        concrete = Set{Int}()
+        for (sp, t) in treatments
+            t == QC.Scaled && push!(scaled, sp)
+            t == QC.Concrete && push!(concrete, sp)
+        end
+        rename_spaces = Set{Int}()
+        for sp in ctx.symmetric
+            sp in concrete || push!(rename_spaces, sp)
+        end
 
-    if sys.efficiencies === nothing
-        op_noise = nothing
-        noise = nothing
-    else
-        _, noise_eqs = QC._noise_builder(sys.direction)(
-            [op], sys.jumps,
-            sys.jumps_dagger, sys.rates, sys.efficiencies,
+        base = QC._reorder_commuting(
+            QC._drop_scope_non_equal(SQA.QAdd(op.arguments, SQA.Index[])),
         )
-        op_noise = nothing
-        noise_rhs = noise_eqs[1].rhs
-        noise = Symbolics.Num(
-            sys.order === nothing ? noise_rhs :
-                QC.cumulant_expansion(noise_rhs, sys.order; mix_choice = sys.mix_choice),
-        )
-        noise = QC._reduce_ground_in_drift(noise)
+        base = QC._relabel_spaces(base, ctx, rename_spaces)
+        key = QC._drop_all_non_equal(SQA.QAdd(base.arguments, SQA.Index[]))
+        isempty(scaled) && return key
+        return QC.symmetric_min(key, ctx, scaled)
     end
-
-    return QC.NodeData(
-        drift,
-        op_drift,
-        noise,
-        op_noise,
-        QC.get_order(op),
-        SQA.acts_on(op),
-    )
 end
+treatment_key_pre_fp(op, ::QC.CanonCtx, treatments, fp) = op
 
-canon_default(op, g) = QC.canon_key(op, g.ctx)
-canon_reuse_treatments(op::SQA.QAdd, g) = QC._treatment_key(op, g.ctx, g.treatments)
-canon_reuse_treatments(op, g) = op
+# Closure always uses the all-Free treatment. In that specialization `scaled` and
+# `concrete` are empty and every symmetric subspace is relabelled. Supply both the
+# fingerprint and rename set once for the whole construction pass.
+function treatment_key_free_plan(
+        op::SQA.QAdd,
+        ctx::QC.CanonCtx,
+        fp::QC.TreatmentFP,
+        rename_spaces::Set{Int},
+    )
+    return get!(ctx.cache.key, (op, fp)) do
+        base = QC._reorder_commuting(
+            QC._drop_scope_non_equal(SQA.QAdd(op.arguments, SQA.Index[])),
+        )
+        base = QC._relabel_spaces(base, ctx, rename_spaces)
+        return QC._drop_all_non_equal(SQA.QAdd(base.arguments, SQA.Index[]))
+    end
+end
+treatment_key_free_plan(op, ::QC.CanonCtx, fp, rename_spaces) = op
 
 function close_custom(
-        g::QC.MomentGraph;
-        hoist_iH::Bool = false,
-        reuse_treatments::Bool = false,
+        g::QC.MomentGraph,
+        mode::Symbol;
         filter = QC._alltrue,
         get_adjoints::Bool = false,
         foldable = QC._alltrue,
@@ -83,9 +88,24 @@ function close_custom(
     seen = Set(keys(nodes))
     pending = collect(keys(nodes))
     cursor = 1
-    iH = hoist_iH ? im * g.sys.hamiltonian : nothing
 
-    keyfn = reuse_treatments ? canon_reuse_treatments : canon_default
+    # Preserve closure semantics: this pass is always all-Free, independent of any
+    # treatment map stored on a transformed graph.
+    free_treatments = mode === :baseline ? nothing : QC.all_free_treatments(ctx)
+    fp = mode in (:fp_once, :free_plan) ? QC.treatment_fp(free_treatments) : nothing
+    rename_spaces = mode === :free_plan ? copy(ctx.symmetric) : nothing
+
+    keyfn = if mode === :baseline
+        op -> QC.canon_key(op, ctx)
+    elseif mode === :map_once
+        op -> op isa SQA.QAdd ? QC._treatment_key(op, ctx, free_treatments) : op
+    elseif mode === :fp_once
+        op -> treatment_key_pre_fp(op, ctx, free_treatments, fp)
+    elseif mode === :free_plan
+        op -> treatment_key_free_plan(op, ctx, fp, rename_spaces)
+    else
+        error("unknown mode $mode")
+    end
 
     while cursor <= length(pending)
         cursor > max_iter && error(
@@ -95,23 +115,22 @@ function close_custom(
         cursor += 1
         for leaf in QC._drift_leaves(nd)
             op = SQA.undo_average(leaf)
-            k = keyfn(op, g)
+            k = keyfn(op)
             k in seen && continue
-            kc = keyfn(adjoint(op), g)
+            kc = keyfn(adjoint(op))
             if kc in seen && foldable(op)
                 push!(seen, k)
                 continue
             end
             filter(SQA.average(k)) || continue
 
-            nodes[k] = hoist_iH ? derive_with_iH(k, g.sys, ctx, iH) : QC.derive(k, g.sys, ctx)
+            nodes[k] = QC.derive(k, g.sys, ctx)
             push!(seen, k)
             push!(pending, k)
 
             if kc != k && !(kc in seen)
                 if get_adjoints
-                    nodes[kc] = hoist_iH ?
-                        derive_with_iH(kc, g.sys, ctx, iH) : QC.derive(kc, g.sys, ctx)
+                    nodes[kc] = QC.derive(kc, g.sys, ctx)
                     push!(seen, kc)
                     push!(pending, kc)
                 elseif foldable(op)
@@ -149,15 +168,15 @@ function timed(f)
 end
 
 run_baseline(g) = QC.closure(g; get_adjoints = false)
-run_iH(g) = close_custom(g; hoist_iH = true, reuse_treatments = false)
-run_treatments(g) = close_custom(g; hoist_iH = false, reuse_treatments = true)
-run_both(g) = close_custom(g; hoist_iH = true, reuse_treatments = true)
+run_map_once(g) = close_custom(g, :map_once; get_adjoints = false)
+run_fp_once(g) = close_custom(g, :fp_once; get_adjoints = false)
+run_free_plan(g) = close_custom(g, :free_plan; get_adjoints = false)
 
 const METHODS = (
     ("baseline cursor", run_baseline),
-    ("hoist iH", run_iH),
-    ("reuse free treatments", run_treatments),
-    ("hoist both", run_both),
+    ("free map once", run_map_once),
+    ("free map + fp once", run_fp_once),
+    ("all-Free canonical plan", run_free_plan),
 )
 
 println("samples per method: ", NSAMPLES)
