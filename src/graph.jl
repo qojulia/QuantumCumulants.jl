@@ -32,7 +32,7 @@ function conj_folded(g::MomentGraph)
 end
 
 """
-The key function matching the graph's current level: `scaled_key` once any subspace is
+The key function matching the graph's current level: `scaled_key` once any subspace has been
 `Scaled`, otherwise `canon_key`. Kept for callers that want the treatment-matched key;
 `closure` keys with `canon_key` directly.
 """
@@ -85,18 +85,23 @@ function closure(
     nodes = copy(g.nodes)   # shallow copy: NodeData values are shared (immutable), new moments appended here
     seen = Set(keys(nodes))
     pending = collect(keys(nodes))
+    pending_index = firstindex(pending)
     iters = 0
-    while !isempty(pending)
+    while pending_index <= length(pending)
         # `max_iter` is a runaway backstop, NOT a closure limiter. Hitting it means the
         # hierarchy did not close; ERROR rather than silently return a truncated
         # (non-closed) system, which the numerical-system build would mask (it would
         # look closed but leak/drop moments).
-        iters >= max_iter && error(
-            "closure did not close the hierarchy within $max_iter iterations " *
-                "($(length(pending)) moments still pending); the system may not close.",
-        )
+        if iters >= max_iter
+            remaining = length(pending) - pending_index + 1
+            error(
+                "closure did not close the hierarchy within $max_iter iterations " *
+                    "($remaining moments still pending); the system may not close.",
+            )
+        end
         iters += 1
-        nd = nodes[popfirst!(pending)]
+        nd = nodes[pending[pending_index]]
+        pending_index += 1
         for leaf in _drift_leaves(nd)
             op = undo_average(leaf)
             k = canon_key(op, ctx)
