@@ -5,7 +5,7 @@ on:
       - 'perf/closure-allocation-profile'
     paths:
       - '.github/workflows/ProfileClosureAllocations.yml'
-      - 'benchmark/profile_closure_allocations.jl'
+      - 'benchmark/profile_ground_skip.jl'
       - 'src/**'
       - 'Project.toml'
 
@@ -23,13 +23,13 @@ jobs:
           version: '1.12'
           arch: x64
       - uses: julia-actions/cache@v3
-      - name: Profile closure allocations
+      - name: Test ground-fold skip
         run: |
           set -o pipefail
           julia --project --threads=1 --color=no -e '
             using Pkg;
             Pkg.instantiate();
-            include("benchmark/profile_closure_allocations.jl")' | tee closure_profile.txt
+            include("benchmark/profile_ground_skip.jl")' | tee closure_profile.txt
       - uses: actions/upload-artifact@v4
         if: always()
         with:
