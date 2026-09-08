@@ -12,6 +12,7 @@ using Latexify: Latexify, latexify, @latexrecipe
 using LaTeXStrings: latexstring
 using ModelingToolkitBase: ModelingToolkitBase, complete, System
 using OrderedCollections: OrderedCollections
+import Polyester
 using Combinatorics: Combinatorics, partitions
 using TermInterface: TermInterface
 using LinearAlgebra: I
