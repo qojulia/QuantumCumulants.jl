@@ -40,8 +40,6 @@ jobs:
           julia --project=. - <<'JULIA'
           using QuantumCumulants
           using SymbolicUtils: SymbolicUtils
-          using Symbolics: @variables
-          import Symbolics
           using Test
 
           if ENV["PATCH_MEMO"] == "true"
@@ -80,24 +78,24 @@ jobs:
               end
           end
 
-          # Exercise the exact pathological shape #1052 exists to protect: two
-          # structurally equal non-identical DAGs with each level sharing its child.
-          function shared_dag_pair(depth)
-              @variables z
-              left = SymbolicUtils.setmetadata(Symbolics.unwrap(z), Int, 1)
-              right = SymbolicUtils.setmetadata(Symbolics.unwrap(z), Int, 2)
-              T = typeof(left).parameters[1]
-              for _ in 1:depth
-                  left = SymbolicUtils.Term{T}(+, [left, left])
-                  right = SymbolicUtils.Term{T}(+, [right, right])
+          # Exact reproducer shape from SymbolicUtils #1049: a depth-n DAG in which
+          # `e` is shared by both factors. Metadata keeps the roots distinct while
+          # ordinary equality intentionally ignores it.
+          struct EqualityMemoTag end
+          SymbolicUtils.@syms equality_x::Real equality_y::Real
+          function deep_equality_dag(leaf, n)
+              e = leaf
+              for i in 1:n
+                  e = (e + i) * (e + equality_y)
               end
-              return left, right
+              return e
           end
-
-          dag_a, dag_b = shared_dag_pair(100)
+          equality_tagged = SymbolicUtils.setmetadata(equality_x, EqualityMemoTag, 1)
+          dag_a = deep_equality_dag(equality_x, 100)
+          dag_b = deep_equality_dag(equality_tagged, 100)
           @test isequal(dag_a, dag_b)
-          t = @elapsed @test isequal(dag_a, dag_b)
-          println("shared DAG depth=100 isequal time: ", t, " s")
+          dag_time = @elapsed @test isequal(dag_a, dag_b)
+          println("#1049 DAG depth=100 isequal time: ", dag_time, " s")
 
           phase_invariant(x) = iszero(_net_phase(x))
           _net_phase(_) = 0
