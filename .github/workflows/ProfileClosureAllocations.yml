@@ -21,7 +21,13 @@ jobs:
       - uses: julia-actions/cache@v3
       - name: Profile closure allocations
         run: |
-          julia --project --threads=1 --color=yes -e '
+          set -o pipefail
+          julia --project --threads=1 --color=no -e '
             using Pkg;
             Pkg.instantiate();
-            include("benchmark/profile_closure_allocations.jl")'
+            include("benchmark/profile_closure_allocations.jl")' | tee closure_profile.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: closure-allocation-profile
+          path: closure_profile.txt
