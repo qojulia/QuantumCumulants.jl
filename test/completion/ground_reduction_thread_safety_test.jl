@@ -15,9 +15,11 @@ const QC = QuantumCumulants
     pk = first(keys(peqs.graph.nodes))
     pnode = QC.derive(pk, peqs.graph.sys, peqs.graph.ctx)
     @test !QC._may_need_ground_reduction(pnode.op_drift)
-    raw = Symbolics.Num(QC.average_and_truncate(
-        pnode.op_drift, peqs.graph.sys.order, peqs.graph.sys.mix_choice, peqs.graph.ctx,
-    ))
+    raw = Symbolics.Num(
+        QC.average_and_truncate(
+            pnode.op_drift, peqs.graph.sys.order, peqs.graph.sys.mix_choice, peqs.graph.ctx,
+        )
+    )
     @test isequal(pnode.drift, raw)
 
     hn = NLevelSpace(:atom, 2)
