@@ -1,0 +1,33 @@
+name: Parallel closure production benchmark
+
+on:
+  push:
+    branches:
+      - 'bench/parallel-closure-production'
+
+concurrency:
+  group: parallel-closure-production-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  JULIA_NUM_THREADS: 4
+  JULIA_PKG_PRECOMPILE_AUTO: 0
+
+jobs:
+  benchmark:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+      - uses: julia-actions/setup-julia@v3
+        with:
+          version: '1.12'
+      - name: Instantiate benchmark environment
+        run: |
+          julia --project=benchmark -e '
+            using Pkg
+            Pkg.develop(path=".")
+            Pkg.instantiate()
+          '
+      - name: Run exact-head closure benchmark
+        run: julia --project=benchmark benchmark/parallel_closure_production.jl
