@@ -28,8 +28,12 @@ const QC = QuantumCumulants
     nnode = QC.derive(nk, neqs.graph.sys, neqs.graph.ctx)
     @test QC._may_need_ground_reduction(nnode.op_drift)
 
-    d = nnode.drift
-    tasks = [Threads.@spawn QC._reduce_ground_in_drift_threadsafe(d) for _ in 1:16]
+    ground = average(σ(1, 1))
+    excited = average(σ(2, 2))
+    shared = Symbolics.Num(ground + 2 * ground * excited + excited^2)
+    tasks = [Threads.@spawn QC._reduce_ground_in_drift_threadsafe(shared) for _ in 1:16]
     vals = fetch.(tasks)
-    @test all(x -> isequal(x, vals[1]), vals)
+    expected = QC._reduce_ground_in_drift(shared)
+    @test !isequal(expected, shared)
+    @test all(x -> isequal(x, expected), vals)
 end
