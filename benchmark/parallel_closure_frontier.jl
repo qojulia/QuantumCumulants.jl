@@ -47,7 +47,7 @@ end
 
 function derive_polyester(keys, sys, ctx)
     out = Vector{QC.NodeData}(undef, length(keys))
-    Polyester.@batch per=threads for i in eachindex(keys)
+    Polyester.@batch per=thread for i in eachindex(keys)
         @inbounds out[i] = QC.derive(keys[i], sys, ctx)
     end
     return out
