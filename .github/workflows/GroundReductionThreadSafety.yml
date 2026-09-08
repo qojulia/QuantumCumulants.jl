@@ -82,6 +82,8 @@ jobs:
               @test all(x -> isequal(x, vals[1]), vals)
           end
           JL
+      - name: Instantiate validation environment
+        run: julia --project --color=yes -e 'using Pkg; Pkg.instantiate()'
       - name: Run focused ground-reduction test
         run: julia --project --threads=4 --color=yes test/completion/ground_reduction_thread_safety_test.jl
       - name: Run completeness invariant test
