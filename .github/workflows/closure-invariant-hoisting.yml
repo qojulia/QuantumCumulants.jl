@@ -1,0 +1,30 @@
+name: Closure invariant hoisting experiment
+
+on:
+  push:
+    branches:
+      - bench/closure-invariant-hoisting
+
+permissions:
+  contents: read
+
+jobs:
+  benchmark:
+    runs-on: ubuntu-latest
+    env:
+      JULIA_NUM_THREADS: 1
+      JULIA_PKG_PRECOMPILE_AUTO: 0
+    steps:
+      - uses: actions/checkout@v7
+      - uses: julia-actions/setup-julia@v3
+        with:
+          version: '1.12'
+      - name: Instantiate benchmark environment
+        run: |
+          julia --project=benchmark -e '
+            using Pkg
+            Pkg.develop(path=".")
+            Pkg.instantiate()
+          '
+      - name: Run invariant-hoisting comparison
+        run: julia --project=benchmark benchmark/closure_invariant_hoisting.jl
