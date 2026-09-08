@@ -1,0 +1,121 @@
+name: Materialize closure canonical plan
+
+on:
+  push:
+    branches:
+      - ci/materialize-closure-canonical-plan
+
+permissions:
+  contents: write
+
+jobs:
+  materialize:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Apply source patch
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          canonical = Path('src/canonical.jl')
+          text = canonical.read_text()
+          old = '''function _treatment_key(op::QAdd, ctx::CanonCtx, treatments::Dict{Int, SubspaceTreatment})
+    return get!(ctx.cache.key, (op, treatment_fp(treatments))) do
+        scaled = Set{Int}()
+        concrete = Set{Int}()
+        for (sp, t) in treatments
+            t == Scaled && push!(scaled, sp)
+            t == Concrete && push!(concrete, sp)
+        end
+        # Relabel everything not Concrete (Free and Scaled relabel to vocab reps).
+        rename_spaces = Set{Int}()
+        for sp in ctx.symmetric
+            sp in concrete || push!(rename_spaces, sp)
+        end
+
+        base = _reorder_commuting(_drop_scope_non_equal(SQA.QAdd(op.arguments, SQA.Index[])))   # totality on all subspaces
+        base = _relabel_spaces(base, ctx, rename_spaces)
+        key = _drop_all_non_equal(SQA.QAdd(base.arguments, SQA.Index[]))
+        isempty(scaled) && return key
+        return symmetric_min(key, ctx, scaled)
+    end
+end
+_treatment_key(op, ::CanonCtx, ::Dict{Int, SubspaceTreatment}) = op
+'''
+          new = '''function _treatment_key(op::QAdd, ctx::CanonCtx, treatments::Dict{Int, SubspaceTreatment})
+    return _treatment_key(op, ctx, treatments, treatment_fp(treatments))
+end
+
+function _treatment_key(
+        op::QAdd, ctx::CanonCtx, treatments::Dict{Int, SubspaceTreatment}, fp::TreatmentFP,
+    )
+    return get!(ctx.cache.key, (op, fp)) do
+        scaled = Set{Int}()
+        concrete = Set{Int}()
+        for (sp, t) in treatments
+            t == Scaled && push!(scaled, sp)
+            t == Concrete && push!(concrete, sp)
+        end
+        # Relabel everything not Concrete (Free and Scaled relabel to vocab reps).
+        rename_spaces = Set{Int}()
+        for sp in ctx.symmetric
+            sp in concrete || push!(rename_spaces, sp)
+        end
+
+        base = _reorder_commuting(_drop_scope_non_equal(SQA.QAdd(op.arguments, SQA.Index[])))   # totality on all subspaces
+        base = _relabel_spaces(base, ctx, rename_spaces)
+        key = _drop_all_non_equal(SQA.QAdd(base.arguments, SQA.Index[]))
+        isempty(scaled) && return key
+        return symmetric_min(key, ctx, scaled)
+    end
+end
+_treatment_key(op, ::CanonCtx, ::Dict{Int, SubspaceTreatment}) = op
+_treatment_key(op, ::CanonCtx, ::Dict{Int, SubspaceTreatment}, ::TreatmentFP) = op
+'''
+          if old not in text:
+              raise SystemExit('canonical replacement anchor not found')
+          canonical.write_text(text.replace(old, new, 1))
+
+          graph = Path('src/graph.jl')
+          text = graph.read_text()
+          old = '''    ctx = g.ctx
+    nodes = copy(g.nodes)   # shallow copy: NodeData values are shared (immutable), new moments appended here
+    seen = Set(keys(nodes))
+    pending = collect(keys(nodes))
+    iters = 0
+'''
+          new = '''    ctx = g.ctx
+    free_treatments = all_free_treatments(ctx)
+    free_fp = treatment_fp(free_treatments)
+    nodes = copy(g.nodes)   # shallow copy: NodeData values are shared (immutable), new moments appended here
+    seen = Set(keys(nodes))
+    pending = collect(keys(nodes))
+    iters = 0
+'''
+          if old not in text:
+              raise SystemExit('graph setup replacement anchor not found')
+          text = text.replace(old, new, 1)
+          text = text.replace('''            k = canon_key(op, ctx)
+''', '''            k = _treatment_key(op, ctx, free_treatments, free_fp)
+''', 1)
+          text = text.replace('''            kc = canon_key(adjoint(op), ctx)
+''', '''            kc = _treatment_key(adjoint(op), ctx, free_treatments, free_fp)
+''', 1)
+          graph.write_text(text)
+          PY
+          git diff --check
+          git diff -- src/canonical.jl src/graph.jl
+      - name: Commit source patch
+        shell: bash
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/canonical.jl src/graph.jl
+          if git diff --cached --quiet; then
+            echo 'No source changes to commit'
+            exit 0
+          fi
+          git commit -m 'perf: reuse closure canonicalization fingerprint [skip ci]'
+          git push
