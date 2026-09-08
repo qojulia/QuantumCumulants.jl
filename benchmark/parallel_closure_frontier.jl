@@ -1,11 +1,13 @@
 using QuantumCumulants
 using OhMyThreads
 using Polyester
+using Statistics: median
 using Symbolics: @variables
 
 const QC = QuantumCumulants
 const SQA = QuantumCumulants.SecondQuantizedAlgebra
 const N = 6
+const NSAMPLES = 3
 
 function ising_graph(order)
     h = ⊗([PauliSpace(Symbol(:spin, i)) for i in 1:N]...)
@@ -21,6 +23,22 @@ function ising_graph(order)
         [σm(i) for i in 1:N];
         rates = fill(γ, N),
         order,
+    )
+    return eqs.graph
+end
+
+function indexed_collective_graph()
+    h = NLevelSpace(:atom, 2)
+    @variables Nat
+    i = Index(h, :i, Nat, h)
+    j = Index(h, :j, Nat, h)
+    σ(x, y, k) = IndexedOperator(Transition(h, :σ, x, y), k)
+    eqs = meanfield(
+        [σ(1, 2, i), σ(2, 2, i)],
+        0 * Σ(σ(2, 2, i), i),
+        [σ(1, 2, i)];
+        rates = [DoubleIndexedVariable(:Γ, i, j)],
+        order = 2,
     )
     return eqs.graph
 end
@@ -65,6 +83,52 @@ function derive_omt_dynamic(keys, sys, ctx)
     end
 end
 
+function closure_popfirst(
+        g::QC.MomentGraph;
+        filter = QC._alltrue,
+        get_adjoints::Bool = false,
+        foldable = QC._alltrue,
+        max_iter::Int = 100_000,
+    )
+    ctx = g.ctx
+    nodes = copy(g.nodes)
+    seen = Set(keys(nodes))
+    pending = collect(keys(nodes))
+    iters = 0
+    while !isempty(pending)
+        iters >= max_iter && error(
+            "closure did not close the hierarchy within $max_iter iterations " *
+                "($(length(pending)) moments still pending); the system may not close.",
+        )
+        iters += 1
+        nd = nodes[popfirst!(pending)]
+        for leaf in QC._drift_leaves(nd)
+            op = SQA.undo_average(leaf)
+            k = QC.canon_key(op, ctx)
+            k in seen && continue
+            kc = QC.canon_key(adjoint(op), ctx)
+            if kc in seen && foldable(op)
+                push!(seen, k)
+                continue
+            end
+            filter(SQA.average(k)) || continue
+            nodes[k] = QC.derive(k, g.sys, ctx)
+            push!(seen, k)
+            push!(pending, k)
+            if kc != k && !(kc in seen)
+                if get_adjoints
+                    nodes[kc] = QC.derive(kc, g.sys, ctx)
+                    push!(seen, kc)
+                    push!(pending, kc)
+                elseif foldable(op)
+                    push!(seen, kc)
+                end
+            end
+        end
+    end
+    return QC.MomentGraph(nodes, g.sys, ctx, g.treatments)
+end
+
 function closure_frontier(
         g::QC.MomentGraph,
         derive_frontier;
@@ -72,6 +136,7 @@ function closure_frontier(
         get_adjoints::Bool = false,
         foldable = QC._alltrue,
         max_iter::Int = 100_000,
+        assert_intern_stable::Bool = true,
     )
     ctx = g.ctx
     nodes = copy(g.nodes)
@@ -99,8 +164,7 @@ function closure_frontier(
                 end
                 filter(SQA.average(k)) || continue
 
-                # Decide membership and ordering serially, exactly in frontier/node/leaf order.
-                # Only the already-decided `derive` work below is parallelized.
+                # Discovery, deduplication, and ordering remain serial and deterministic.
                 push!(seen, k)
                 push!(newkeys, k)
                 if kc != k && !(kc in seen)
@@ -114,7 +178,16 @@ function closure_frontier(
             end
         end
 
+        # The worker phase must not mint SQA names/ranges. SQA's intern tables allow
+        # concurrent canonicalisation only after construction has populated them.
+        names_before = length(SQA.NAME_BY_ID)
+        ranges_before = length(SQA.RANGE_BY_ID)
         derived = derive_frontier(newkeys, g.sys, ctx)
+        if assert_intern_stable
+            @assert length(SQA.NAME_BY_ID) == names_before
+            @assert length(SQA.RANGE_BY_ID) == ranges_before
+        end
+
         @inbounds for i in eachindex(newkeys)
             nodes[newkeys[i]] = derived[i]
         end
@@ -148,40 +221,69 @@ function timed(f)
     return result.value, result.time, result.bytes
 end
 
+run_popfirst(g) = closure_popfirst(g; get_adjoints = false)
+run_cursor(g) = QC.closure(g; get_adjoints = false)
+run_frontier_serial(g) = closure_frontier(g, derive_serial; get_adjoints = false)
+run_threads_static(g) = closure_frontier(g, derive_threads_static; get_adjoints = false)
+run_threads_dynamic(g) = closure_frontier(g, derive_threads_dynamic; get_adjoints = false)
+run_polyester(g) = closure_frontier(g, derive_polyester; get_adjoints = false)
+run_omt_static(g) = closure_frontier(g, derive_omt_static; get_adjoints = false)
+run_omt_dynamic(g) = closure_frontier(g, derive_omt_dynamic; get_adjoints = false)
+
 const METHODS = (
-    ("frontier serial", derive_serial),
-    ("Threads static", derive_threads_static),
-    ("Threads dynamic", derive_threads_dynamic),
-    ("Polyester", derive_polyester),
-    ("OhMyThreads static", derive_omt_static),
-    ("OhMyThreads dynamic", derive_omt_dynamic),
+    ("queue popfirst", run_popfirst),
+    ("queue cursor", run_cursor),
+    ("frontier serial", run_frontier_serial),
+    ("Threads static", run_threads_static),
+    ("Threads dynamic", run_threads_dynamic),
+    ("Polyester", run_polyester),
+    ("OhMyThreads static", run_omt_static),
+    ("OhMyThreads dynamic", run_omt_dynamic),
 )
 
 println("Julia threads: ", Threads.nthreads())
-println("warming schedulers on order 2")
-warm = ising_graph(2)
-warm_ref = QC.closure(warm; get_adjoints = false)
-for (name, derive_frontier) in METHODS
-    candidate = closure_frontier(warm, derive_frontier; get_adjoints = false)
+println("samples per method: ", NSAMPLES)
+println("warming methods on fresh order-2 graphs")
+warm_ref = run_cursor(ising_graph(2))
+for (name, method) in METHODS
+    candidate = method(ising_graph(2))
     assert_same_graph(warm_ref, candidate)
     println("  warm $name: exact")
 end
 
 for order in (3, 4)
     println("\norder $order")
-    graph = ising_graph(order)
-    reference, queue_time, queue_bytes =
-        timed(() -> QC.closure(graph; get_adjoints = false))
-    println(
-        "  queue cursor: time=$(queue_time)s bytes=$(queue_bytes) states=$(length(reference.nodes))",
-    )
+    reference = run_cursor(ising_graph(order))
+    println("  states=$(length(reference.nodes))")
+    results = Dict{String, Tuple{Float64, Float64}}()
 
-    for (name, derive_frontier) in METHODS
-        candidate, elapsed, bytes = timed(
-            () -> closure_frontier(graph, derive_frontier; get_adjoints = false),
-        )
-        assert_same_graph(reference, candidate)
-        speedup = queue_time / elapsed
-        println("  $name: time=$(elapsed)s bytes=$(bytes) speedup=$(speedup)x exact=true")
+    for (name, method) in METHODS
+        times = Float64[]
+        bytes = Float64[]
+        for sample in 1:NSAMPLES
+            graph = ising_graph(order) # fresh CanonCtx/cache for every timed closure
+            candidate, elapsed, allocated = timed(() -> method(graph))
+            assert_same_graph(reference, candidate)
+            push!(times, elapsed)
+            push!(bytes, allocated)
+        end
+        mt = median(times)
+        mb = median(bytes)
+        results[name] = (mt, mb)
+        println("  $name: median_time=$(mt)s median_bytes=$(mb) exact=true")
+    end
+
+    cursor_time = results["queue cursor"][1]
+    println("  speedups_vs_cursor")
+    for (name, _) in METHODS
+        println("    $name=$(cursor_time / results[name][1])x")
     end
 end
+
+println("\nindexed collective-rate stress")
+indexed_reference = run_cursor(indexed_collective_graph())
+for rep in 1:20
+    candidate = run_polyester(indexed_collective_graph())
+    assert_same_graph(indexed_reference, candidate)
+end
+println("  Polyester: 20/20 fresh-context exact; worker derive did not grow SQA name/range intern tables")
