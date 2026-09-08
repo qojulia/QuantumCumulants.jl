@@ -1,0 +1,113 @@
+name: Ground Reduction Thread Safety
+on:
+  push:
+    branches:
+      - 'perf/ground-reduction-thread-safety'
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: perf/ground-reduction-thread-safety
+      - uses: julia-actions/setup-julia@v3
+        with:
+          version: '1.12'
+          arch: x64
+      - uses: julia-actions/cache@v3
+      - name: Apply source and regression patch
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('src/moments.jl')
+          s = p.read_text()
+          needle = '''function _reduce_ground_in_drift(x)\n    return mapleaves(x) do leaf\n        op = undo_average(leaf)\n        op isa QAdd || return leaf\n        expanded = SQA.expand_completeness(op)\n        isequal(expanded, op) ? leaf : SymbolicUtils.unwrap(average(expanded))\n    end\nend\n'''
+          repl = needle + '''\n# `SymbolicUtils.arguments(::AddMul)` lazily fills an internal argument cache.\n# Independent derived drifts can share symbolic subtrees, so the first traversal of\n# one such subtree is not safe to perform concurrently. Keep only this required\n# post-cumulant rewrite serialized; the expensive operator and cumulant work remains\n# parallel.\nconst _GROUND_REDUCTION_LOCK = ReentrantLock()\n\nfunction _reduce_ground_in_drift_threadsafe(x)\n    return lock(_GROUND_REDUCTION_LOCK) do\n        _reduce_ground_in_drift(x)\n    end\nend\n\n\"\"\"Whether an operator expression can produce an N-level ground projector.\"\"\"\nfunction _may_need_ground_reduction(q::QAdd)\n    for (term, _) in q.arguments, op in term.ops\n        SQA.is_transition(op) && return true\n    end\n    return false\nend\n'''
+          if needle not in s:
+              raise SystemExit('ground reduction insertion point not found')
+          s = s.replace(needle, repl, 1)
+          old = '''    drift = Symbolics.Num(average_and_truncate(op_drift, sys.order, sys.mix_choice, ctx))\n    drift = _reduce_ground_in_drift(drift)\n'''
+          new = '''    drift = Symbolics.Num(average_and_truncate(op_drift, sys.order, sys.mix_choice, ctx))\n    if _may_need_ground_reduction(op_drift)\n        drift = _reduce_ground_in_drift_threadsafe(drift)\n    end\n'''
+          if old not in s:
+              raise SystemExit('drift replacement point not found')
+          s = s.replace(old, new, 1)
+          old_noise = '''        noise = _reduce_ground_in_drift(noise)\n'''
+          new_noise = '''        if _may_need_ground_reduction(op) || any(_may_need_ground_reduction, sys.jumps)\n            noise = _reduce_ground_in_drift_threadsafe(noise)\n        end\n'''
+          if old_noise not in s:
+              raise SystemExit('noise replacement point not found')
+          p.write_text(s.replace(old_noise, new_noise, 1))
+          PY
+          cat > test/completion/ground_reduction_thread_safety_test.jl <<'JL'
+          using QuantumCumulants
+          import Symbolics
+          using Symbolics: @variables
+          using Test
+
+          const QC = QuantumCumulants
+
+          @testset "ground reduction capability and serialized traversal" begin
+              hp = PauliSpace(:spin)
+              sx = Pauli(hp, :σ, 1)
+              sy = Pauli(hp, :σ, 2)
+              sz = Pauli(hp, :σ, 3)
+              @variables Ω γ
+              peqs = meanfield([sz], Ω * sx, [(sx - 1im * sy) / 2]; rates = [γ], order = 2)
+              pk = first(keys(peqs.graph.nodes))
+              pnode = QC.derive(pk, peqs.graph.sys, peqs.graph.ctx)
+              @test !QC._may_need_ground_reduction(pnode.op_drift)
+              raw = Symbolics.Num(QC.average_and_truncate(
+                  pnode.op_drift, peqs.graph.sys.order, peqs.graph.sys.mix_choice, peqs.graph.ctx,
+              ))
+              @test isequal(pnode.drift, raw)
+
+              hn = NLevelSpace(:atom, 2)
+              σ(i, j) = Transition(hn, :σ, i, j)
+              H = Ω * (σ(1, 2) + σ(2, 1))
+              neqs = meanfield([σ(2, 2)], H, [σ(1, 2)]; rates = [γ], order = 2)
+              nk = first(keys(neqs.graph.nodes))
+              nnode = QC.derive(nk, neqs.graph.sys, neqs.graph.ctx)
+              @test QC._may_need_ground_reduction(nnode.op_drift)
+
+              # Exercise the serialized wrapper concurrently on the same symbolic DAG.\n              # This is precisely the access pattern for which SymbolicUtils lazily materializes\n              # AddMul argument caches and which is unsafe without serialization.\n              d = nnode.drift
+              tasks = [Threads.@spawn QC._reduce_ground_in_drift_threadsafe(d) for _ in 1:16]
+              vals = fetch.(tasks)
+              @test all(x -> isequal(x, vals[1]), vals)
+          end
+          JL
+      - name: Run focused semantic tests
+        run: |
+          julia --project=test --threads=4 --color=yes -e '
+            using Pkg;
+            Pkg.develop(PackageSpec(path=pwd()));
+            Pkg.instantiate();
+            include("test/completion/ground_reduction_thread_safety_test.jl");
+            include("test/completion/completeness_invariant_test.jl");
+            include("test/completion/parallel_closure_test.jl")'
+      - name: Validate high-order threaded closure
+        run: |
+          julia --project --threads=4 --color=no -e '
+            using Pkg; Pkg.instantiate(); using QuantumCumulants, Symbolics;
+            const QC = QuantumCumulants;
+            N=6; h=⊗([PauliSpace(Symbol(:spin,i)) for i in 1:N]...);
+            sx(i)=Pauli(h,:σ,1,i); sy(i)=Pauli(h,:σ,2,i); sz(i)=Pauli(h,:σ,3,i);
+            sm(i)=(sx(i)-1im*sy(i))/2;
+            @variables J hx γ;
+            H=-J*sum(sz(i)*sz(i+1) for i=1:N-1)-hx*sum(sx(i) for i=1:N);
+            makeg()=meanfield([sz(i) for i=1:N],H,[sm(i) for i=1:N];rates=fill(γ,N),order=4).graph;
+            serial=QC._closure(makeg(),QC._derive_frontier_serial);
+            threaded=QC._closure(makeg(),QC._derive_frontier_polyester);
+            ks=collect(keys(serial.nodes)); kt=collect(keys(threaded.nodes));
+            exact=length(ks)==length(kt) && all(i->isequal(ks[i],kt[i]),eachindex(ks)) && all(i->begin a=serial.nodes[ks[i]]; b=threaded.nodes[kt[i]]; isequal(a.drift,b.drift)&&isequal(a.op_drift,b.op_drift)&&isequal(a.noise,b.noise)&&isequal(a.op_noise,b.op_noise)&&a.order==b.order&&a.aon==b.aon end,eachindex(ks));
+            println("HIGH_ORDER_THREADED exact=",exact," states=",length(ks)," threads=",Threads.nthreads());
+            exact || error("serial/threaded graph mismatch")'
+      - name: Commit semantic patch
+        if: success()
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/moments.jl test/completion/ground_reduction_thread_safety_test.jl
+          git commit -m 'perf: skip and serialize ground reduction'
+          git push origin HEAD:perf/ground-reduction-thread-safety
