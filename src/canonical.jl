@@ -200,7 +200,13 @@ symmetry of the identical atoms (via `symmetric_min`), and `Concrete` keeps its 
 site labels. Hermitian conjugation is not applied.
 """
 function _treatment_key(op::QAdd, ctx::CanonCtx, treatments::Dict{Int, SubspaceTreatment})
-    return get!(ctx.cache.key, (op, treatment_fp(treatments))) do
+    return _treatment_key(op, ctx, treatments, treatment_fp(treatments))
+end
+
+function _treatment_key(
+        op::QAdd, ctx::CanonCtx, treatments::Dict{Int, SubspaceTreatment}, fp::TreatmentFP,
+    )
+    return get!(ctx.cache.key, (op, fp)) do
         scaled = Set{Int}()
         concrete = Set{Int}()
         for (sp, t) in treatments
@@ -221,6 +227,7 @@ function _treatment_key(op::QAdd, ctx::CanonCtx, treatments::Dict{Int, SubspaceT
     end
 end
 _treatment_key(op, ::CanonCtx, ::Dict{Int, SubspaceTreatment}) = op
+_treatment_key(op, ::CanonCtx, ::Dict{Int, SubspaceTreatment}, ::TreatmentFP) = op
 
 """
 The `k`-th canonical index slot of a subspace, minted from its first declared vocabulary

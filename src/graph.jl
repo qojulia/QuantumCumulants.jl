@@ -82,6 +82,8 @@ function closure(
         foldable = _alltrue, max_iter::Int = 100_000,
     )
     ctx = g.ctx
+    free_treatments = all_free_treatments(ctx)
+    free_fp = treatment_fp(free_treatments)
     nodes = copy(g.nodes)   # shallow copy: NodeData values are shared (immutable), new moments appended here
     seen = Set(keys(nodes))
     pending = collect(keys(nodes))
@@ -99,9 +101,9 @@ function closure(
         nd = nodes[popfirst!(pending)]
         for leaf in _drift_leaves(nd)
             op = undo_average(leaf)
-            k = canon_key(op, ctx)
+            k = _treatment_key(op, ctx, free_treatments, free_fp)
             k in seen && continue
-            kc = canon_key(adjoint(op), ctx)
+            kc = _treatment_key(adjoint(op), ctx, free_treatments, free_fp)
             if kc in seen && foldable(op)
                 push!(seen, k)
                 continue
