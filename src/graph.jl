@@ -57,6 +57,29 @@ end
 _drift_leaves(nd::NodeData) = nd.noise === nothing ? eachleaf(nd.drift) :
     vcat(eachleaf(nd.drift), eachleaf(nd.noise))
 
+function _derive_frontier_serial(keys::AbstractVector{NodeKey}, sys::SystemSpec, ctx::CanonCtx)
+    out = Vector{NodeData}(undef, length(keys))
+    @inbounds for i in eachindex(keys)
+        out[i] = derive(keys[i], sys, ctx)
+    end
+    return out
+end
+
+function _derive_frontier_polyester(keys::AbstractVector{NodeKey}, sys::SystemSpec, ctx::CanonCtx)
+    out = Vector{NodeData}(undef, length(keys))
+    Polyester.@batch per = thread for i in eachindex(keys)
+        @inbounds out[i] = derive(keys[i], sys, ctx)
+    end
+    return out
+end
+
+function _derive_frontier(keys::AbstractVector{NodeKey}, sys::SystemSpec, ctx::CanonCtx)
+    if Threads.nthreads() == 1 || length(keys) < 2
+        return _derive_frontier_serial(keys, sys, ctx)
+    end
+    return _derive_frontier_polyester(keys, sys, ctx)
+end
+
 """
 Close the cumulant hierarchy of `g`: starting from its seeded moments, repeatedly derive the
 equation of motion for every moment appearing on a right-hand side until the moment set is
@@ -81,49 +104,66 @@ function closure(
         g::MomentGraph; filter = _alltrue, get_adjoints::Bool = true,
         foldable = _alltrue, max_iter::Int = 100_000,
     )
+    return _closure(g, _derive_frontier; filter, get_adjoints, foldable, max_iter)
+end
+
+function _closure(
+        g::MomentGraph, derive_frontier;
+        filter = _alltrue, get_adjoints::Bool = true,
+        foldable = _alltrue, max_iter::Int = 100_000,
+    )
     ctx = g.ctx
     free_treatments = all_free_treatments(ctx)
     free_fp = treatment_fp(free_treatments)
     nodes = copy(g.nodes)   # shallow copy: NodeData values are shared (immutable), new moments appended here
     seen = Set(keys(nodes))
-    pending = collect(keys(nodes))
-    iters = 0
-    while !isempty(pending)
-        # `max_iter` is a runaway backstop, NOT a closure limiter. Hitting it means the
-        # hierarchy did not close; ERROR rather than silently return a truncated
-        # (non-closed) system, which the numerical-system build would mask (it would
-        # look closed but leak/drop moments).
-        iters >= max_iter && error(
-            "closure did not close the hierarchy within $max_iter iterations " *
-                "($(length(pending)) moments still pending); the system may not close.",
-        )
-        iters += 1
-        nd = nodes[popfirst!(pending)]
-        for leaf in _drift_leaves(nd)
-            op = undo_average(leaf)
-            k = _treatment_key(op, ctx, free_treatments, free_fp)
-            k in seen && continue
-            kc = _treatment_key(adjoint(op), ctx, free_treatments, free_fp)
-            if kc in seen && foldable(op)
-                push!(seen, k)
-                continue
-            end
-            filter(average(k)) || continue
-            # Genuinely new moment (its representative not seen yet).
-            nodes[k] = derive(k, g.sys, ctx)
-            push!(seen, k)
-            push!(pending, k)
-            if kc != k && !(kc in seen)
-                if get_adjoints
-                    nodes[kc] = derive(kc, g.sys, ctx)
-                    push!(seen, kc)
-                    push!(pending, kc)
-                elseif foldable(op)
-                    push!(seen, kc)  # ⟨O†⟩ = ⟨O⟩*, recovered by conjugation when the ODEs are built
+    frontier = collect(keys(nodes))
+    processed = 0
+
+    while !isempty(frontier)
+        newkeys = NodeKey[]
+        for key in frontier
+            # `max_iter` is a runaway backstop, NOT a closure limiter. Hitting it means the
+            # hierarchy did not close; ERROR rather than silently return a truncated
+            # (non-closed) system, which the numerical-system build would mask (it would
+            # look closed but leak/drop moments).
+            processed >= max_iter && error(
+                "closure did not close the hierarchy within $max_iter iterations " *
+                    "($(length(frontier)) moments still pending); the system may not close.",
+            )
+            processed += 1
+            nd = nodes[key]
+            for leaf in _drift_leaves(nd)
+                op = undo_average(leaf)
+                k = _treatment_key(op, ctx, free_treatments, free_fp)
+                k in seen && continue
+                kc = _treatment_key(adjoint(op), ctx, free_treatments, free_fp)
+                if kc in seen && foldable(op)
+                    push!(seen, k)
+                    continue
                 end
-                # otherwise ⟨O†⟩ cannot be obtained from ⟨O⟩: add its equation of motion only if the dynamics reach it
+                filter(average(k)) || continue
+                # Discovery, de-duplication, conjugate decisions and final insertion order
+                # remain serial. Only the independent symbolic derivations are batched.
+                push!(seen, k)
+                push!(newkeys, k)
+                if kc != k && !(kc in seen)
+                    if get_adjoints
+                        push!(seen, kc)
+                        push!(newkeys, kc)
+                    elseif foldable(op)
+                        push!(seen, kc)  # ⟨O†⟩ = ⟨O⟩*, recovered by conjugation when the ODEs are built
+                    end
+                    # otherwise ⟨O†⟩ cannot be obtained from ⟨O⟩: add its equation of motion only if the dynamics reach it
+                end
             end
         end
+
+        derived = derive_frontier(newkeys, g.sys, ctx)
+        @inbounds for i in eachindex(newkeys)
+            nodes[newkeys[i]] = derived[i]
+        end
+        frontier = newkeys
     end
     return MomentGraph(nodes, g.sys, ctx, g.treatments)
 end
