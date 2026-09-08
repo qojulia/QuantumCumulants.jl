@@ -5,7 +5,7 @@ on:
       - 'perf/closure-allocation-profile'
     paths:
       - '.github/workflows/ProfileClosureAllocations.yml'
-      - 'benchmark/profile_ground_skip_threaded.jl'
+      - 'benchmark/profile_ground_threadsafe.jl'
       - 'src/**'
       - 'Project.toml'
 
@@ -23,13 +23,13 @@ jobs:
           version: '1.12'
           arch: x64
       - uses: julia-actions/cache@v3
-      - name: Test threaded ground-fold skip
+      - name: Validate guarded ground reduction under threads
         run: |
           set -o pipefail
           julia --project --threads=4 --color=no -e '
             using Pkg;
             Pkg.instantiate();
-            include("benchmark/profile_ground_skip_threaded.jl")' | tee closure_profile.txt
+            include("benchmark/profile_ground_threadsafe.jl")' | tee closure_profile.txt
       - uses: actions/upload-artifact@v4
         if: always()
         with:
