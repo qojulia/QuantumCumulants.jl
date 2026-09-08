@@ -4,6 +4,10 @@ on:
     branches:
       - 'perf/ground-reduction-thread-safety'
 
+concurrency:
+  group: ground-reduction-thread-safety
+  cancel-in-progress: true
+
 jobs:
   validate:
     runs-on: ubuntu-latest
@@ -71,7 +75,7 @@ jobs:
               nnode = QC.derive(nk, neqs.graph.sys, neqs.graph.ctx)
               @test QC._may_need_ground_reduction(nnode.op_drift)
 
-              # Exercise the serialized wrapper concurrently on the same symbolic DAG.\n              # This is precisely the access pattern for which SymbolicUtils lazily materializes\n              # AddMul argument caches and which is unsafe without serialization.\n              d = nnode.drift
+              d = nnode.drift
               tasks = [Threads.@spawn QC._reduce_ground_in_drift_threadsafe(d) for _ in 1:16]
               vals = fetch.(tasks)
               @test all(x -> isequal(x, vals[1]), vals)
@@ -79,17 +83,15 @@ jobs:
           JL
       - name: Run focused semantic tests
         run: |
-          julia --project=test --threads=4 --color=yes -e '
-            using Pkg;
-            Pkg.develop(PackageSpec(path=pwd()));
-            Pkg.instantiate();
+          julia --project --threads=4 --color=yes -e '
+            using Pkg; Pkg.instantiate();
             include("test/completion/ground_reduction_thread_safety_test.jl");
             include("test/completion/completeness_invariant_test.jl");
             include("test/completion/parallel_closure_test.jl")'
       - name: Validate high-order threaded closure
         run: |
           julia --project --threads=4 --color=no -e '
-            using Pkg; Pkg.instantiate(); using QuantumCumulants, Symbolics;
+            using QuantumCumulants, Symbolics;
             const QC = QuantumCumulants;
             N=6; h=⊗([PauliSpace(Symbol(:spin,i)) for i in 1:N]...);
             sx(i)=Pauli(h,:σ,1,i); sy(i)=Pauli(h,:σ,2,i); sz(i)=Pauli(h,:σ,3,i);
