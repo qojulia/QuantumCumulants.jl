@@ -15,6 +15,7 @@ using OrderedCollections: OrderedCollections
 using Combinatorics: Combinatorics, partitions
 using TermInterface: TermInterface
 using LinearAlgebra: I
+import Polyester
 const MTK = ModelingToolkitBase
 
 export AbstractMeanfieldEquations, MeanfieldEquations, NoiseMeanfieldEquations
