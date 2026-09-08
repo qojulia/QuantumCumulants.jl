@@ -1,0 +1,33 @@
+name: Closure Bulk Average Experiment
+on:
+  push:
+    branches:
+      - 'perf/closure-bulk-average-experiment'
+    paths:
+      - '.github/workflows/ProfileBulkAverage.yml'
+      - 'benchmark/profile_bulk_average.jl'
+      - 'src/**'
+      - 'Project.toml'
+
+jobs:
+  profile:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: julia-actions/setup-julia@v3
+        with:
+          version: '1.12'
+          arch: x64
+      - uses: julia-actions/cache@v3
+      - name: Test bulk moment drift construction
+        run: |
+          set -o pipefail
+          julia --project --threads=1 --color=no -e '
+            using Pkg;
+            Pkg.instantiate();
+            include("benchmark/profile_bulk_average.jl")' | tee bulk_average.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: closure-bulk-average
+          path: bulk_average.txt
