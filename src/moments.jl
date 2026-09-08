@@ -199,6 +199,8 @@ function _reduce_ground_in_drift_threadsafe(x)
 end
 
 """Whether an operator expression can produce an N-level ground projector."""
+_may_need_ground_reduction(op::SQA.QSym) = SQA.is_transition(op)
+_may_need_ground_reduction(ops::AbstractVector) = any(_may_need_ground_reduction, ops)
 function _may_need_ground_reduction(q::QAdd)
     for (term, _) in q.arguments, op in term.ops
         SQA.is_transition(op) && return true
@@ -251,7 +253,7 @@ function derive(op::QAdd, sys, ctx::CanonCtx)
             sys.order === nothing ? noise_rhs :
                 cumulant_expansion(noise_rhs, sys.order; mix_choice = sys.mix_choice),
         )
-        if _may_need_ground_reduction(op) || any(_may_need_ground_reduction, sys.jumps)
+        if _may_need_ground_reduction(op) || _may_need_ground_reduction(sys.jumps)
             noise = _reduce_ground_in_drift_threadsafe(noise)
         end
     end
