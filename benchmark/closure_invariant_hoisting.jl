@@ -1,6 +1,6 @@
 using QuantumCumulants
 using Statistics: median
-using Symbolics: @variables
+using Symbolics: Symbolics, @variables
 
 const QC = QuantumCumulants
 const SQA = QuantumCumulants.SecondQuantizedAlgebra
