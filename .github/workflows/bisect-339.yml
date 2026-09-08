@@ -40,6 +40,8 @@ jobs:
           julia --project=. - <<'JULIA'
           using QuantumCumulants
           using SymbolicUtils: SymbolicUtils
+          using Symbolics: @variables
+          import Symbolics
           using Test
 
           if ENV["PATCH_MEMO"] == "true"
