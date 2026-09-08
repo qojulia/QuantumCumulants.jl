@@ -180,12 +180,12 @@ function closure_frontier(
 
         # The worker phase must not mint SQA names/ranges. SQA's intern tables allow
         # concurrent canonicalisation only after construction has populated them.
-        names_before = length(SQA.NAME_BY_ID)
-        ranges_before = length(SQA.RANGE_BY_ID)
+        names_before = length(SQA._NAME_BY_ID)
+        ranges_before = length(SQA._RANGE_BY_ID)
         derived = derive_frontier(newkeys, g.sys, ctx)
         if assert_intern_stable
-            @assert length(SQA.NAME_BY_ID) == names_before
-            @assert length(SQA.RANGE_BY_ID) == ranges_before
+            @assert length(SQA._NAME_BY_ID) == names_before
+            @assert length(SQA._RANGE_BY_ID) == ranges_before
         end
 
         @inbounds for i in eachindex(newkeys)
