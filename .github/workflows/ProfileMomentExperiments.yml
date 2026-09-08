@@ -1,0 +1,37 @@
+name: Closure Moment Experiments
+on:
+  push:
+    branches:
+      - 'perf/closure-moment-experiments'
+    paths:
+      - '.github/workflows/ProfileMomentExperiments.yml'
+      - 'benchmark/profile_moment_experiments.jl'
+      - 'src/**'
+      - 'Project.toml'
+
+concurrency:
+  group: closure-moment-experiments
+  cancel-in-progress: true
+
+jobs:
+  profile:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: julia-actions/setup-julia@v3
+        with:
+          version: '1.12'
+          arch: x64
+      - uses: julia-actions/cache@v3
+      - name: Test moment-boundary experiments
+        run: |
+          set -o pipefail
+          julia --project --threads=1 --color=no -e '
+            using Pkg;
+            Pkg.instantiate();
+            include("benchmark/profile_moment_experiments.jl")' | tee moment_profile.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: closure-moment-experiments
+          path: moment_profile.txt
