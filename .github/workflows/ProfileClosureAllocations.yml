@@ -1,0 +1,27 @@
+name: Closure Allocation Profile
+on:
+  push:
+    branches:
+      - 'perf/closure-allocation-profile'
+    paths:
+      - '.github/workflows/ProfileClosureAllocations.yml'
+      - 'benchmark/profile_closure_allocations.jl'
+      - 'src/**'
+      - 'Project.toml'
+
+jobs:
+  profile:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: julia-actions/setup-julia@v3
+        with:
+          version: '1.12'
+          arch: x64
+      - uses: julia-actions/cache@v3
+      - name: Profile closure allocations
+        run: |
+          julia --project --threads=1 --color=yes -e '
+            using Pkg;
+            Pkg.instantiate();
+            include("benchmark/profile_closure_allocations.jl")'
