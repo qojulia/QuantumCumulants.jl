@@ -12,6 +12,7 @@ jobs:
   validate:
     runs-on: ubuntu-latest
     permissions:
+      actions: write
       contents: write
     steps:
       - uses: actions/checkout@v7
@@ -81,13 +82,12 @@ jobs:
               @test all(x -> isequal(x, vals[1]), vals)
           end
           JL
-      - name: Run focused semantic tests
-        run: |
-          julia --project --threads=4 --color=yes -e '
-            using Pkg; Pkg.instantiate();
-            include("test/completion/ground_reduction_thread_safety_test.jl");
-            include("test/completion/completeness_invariant_test.jl");
-            include("test/completion/parallel_closure_test.jl")'
+      - name: Run focused ground-reduction test
+        run: julia --project --threads=4 --color=yes test/completion/ground_reduction_thread_safety_test.jl
+      - name: Run completeness invariant test
+        run: julia --project --threads=4 --color=yes test/completion/completeness_invariant_test.jl
+      - name: Run parallel closure regression test
+        run: julia --project --threads=4 --color=yes test/completion/parallel_closure_test.jl
       - name: Validate high-order threaded closure
         run: |
           julia --project --threads=4 --color=no -e '
