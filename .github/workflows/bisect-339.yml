@@ -1,4 +1,4 @@
-name: Bisect #339 SymbolicUtils commit
+name: Bisect #339 SymbolicUtils memo fix
 
 on:
   push:
@@ -6,53 +6,96 @@ on:
       - ci/bisect-339-dependencies
 
 jobs:
-  allocation-bisect:
-    name: SymbolicUtils bisect (${{ matrix.variant }})
+  memo-fix:
+    name: SymbolicUtils memo experiment (${{ matrix.variant }})
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
         include:
-          - variant: after-seed-fix-510356
-            rev: 510356e9e1f0d88327dbb96574aed44a2c2a02fb
-          - variant: before-equality-memo-7422fb
-            rev: 7422fb28a1ed60618bd8559d6b52a036b1d223bf
-          - variant: equality-memo-748075
-            rev: 748075182f48408d6159b1a6e077cbb55921d695
-          - variant: after-hash-revert-1acbc2
-            rev: 1acbc24dc8e26a8fb369be7efa71ed1b23ce23cc
+          - variant: upstream-master
+            patch: 'false'
+          - variant: reusable-task-memo
+            patch: 'true'
     steps:
       - uses: actions/checkout@v7
       - uses: julia-actions/setup-julia@v3
         with:
           version: '1.12'
-      - name: Resolve SymbolicUtils revision
+      - name: Resolve current SymbolicUtils master
         env:
-          SU_REV: ${{ matrix.rev }}
-          BISECT_VARIANT: ${{ matrix.variant }}
           JULIA_PKG_PRECOMPILE_AUTO: '0'
         run: |
           julia --project=. - <<'JULIA'
           using Pkg
           Pkg.instantiate()
-          Pkg.add(PackageSpec(url = "https://github.com/JuliaSymbolics/SymbolicUtils.jl", rev = ENV["SU_REV"]))
-
-          wanted = Set(["SymbolicUtils", "ModelingToolkitBase", "SciMLBase", "Symbolics"])
-          println("resolved dependency set for ", ENV["BISECT_VARIANT"])
-          for dep in sort!(collect(values(Pkg.dependencies())); by = x -> x.name)
-              dep.name in wanted || continue
-              println("  ", dep.name, " = ", dep.version, " tree=", dep.tree_hash)
-          end
+          Pkg.add(PackageSpec(url = "https://github.com/JuliaSymbolics/SymbolicUtils.jl", rev = "f5358a3c47b525ff7e686b7671e6b904964fbdc3"))
           JULIA
 
-      - name: Run allocation regression gate
+      - name: Run equality and allocation checks
         env:
+          PATCH_MEMO: ${{ matrix.patch }}
           BISECT_VARIANT: ${{ matrix.variant }}
         run: |
           julia --project=. - <<'JULIA'
           using QuantumCumulants
           using SymbolicUtils: SymbolicUtils
           using Test
+
+          if ENV["PATCH_MEMO"] == "true"
+              @eval SymbolicUtils begin
+                  # Diagnostic prototype: preserve #1052's memoized traversal, but reuse
+                  # one dictionary per task instead of allocating a new one for every
+                  # outer BasicSymbolic equality comparison.
+                  const REUSABLE_EQUALITY_MEMO =
+                      TaskLocalValue{Dict{Tuple{UInt, UInt, Bool}, Bool}}(
+                          Dict{Tuple{UInt, UInt, Bool}, Bool}
+                      )
+
+                  function Base.isequal(a::BSImpl.Type, b::BSImpl.Type)
+                      a === b && return true
+                      ida = a.id
+                      idb = b.id
+                      ida === idb && ida !== nothing && return true
+
+                      Ta = MData.variant_type(a)
+                      Tb = MData.variant_type(b)
+                      Ta === Tb || return false
+
+                      EQUALITY_MEMO[] === nothing ||
+                          return isequal_bsimpl(a, b, COMPARE_FULL[])
+
+                      memo = REUSABLE_EQUALITY_MEMO[]
+                      empty!(memo)
+                      EQUALITY_MEMO[] = memo
+                      try
+                          return isequal_bsimpl(a, b, COMPARE_FULL[])
+                      finally
+                          EQUALITY_MEMO[] = nothing
+                          empty!(memo)
+                      end
+                  end
+              end
+          end
+
+          # Exercise the exact pathological shape #1052 exists to protect: two
+          # structurally equal non-identical DAGs with each level sharing its child.
+          function shared_dag_pair(depth)
+              @variables z
+              left = SymbolicUtils.setmetadata(Symbolics.unwrap(z), Int, 1)
+              right = SymbolicUtils.setmetadata(Symbolics.unwrap(z), Int, 2)
+              T = typeof(left).parameters[1]
+              for _ in 1:depth
+                  left = SymbolicUtils.Term{T}(+, [left, left])
+                  right = SymbolicUtils.Term{T}(+, [right, right])
+              end
+              return left, right
+          end
+
+          dag_a, dag_b = shared_dag_pair(100)
+          @test isequal(dag_a, dag_b)
+          t = @elapsed @test isequal(dag_a, dag_b)
+          println("shared DAG depth=100 isequal time: ", t, " s")
 
           phase_invariant(x) = iszero(_net_phase(x))
           _net_phase(_) = 0
@@ -73,6 +116,6 @@ jobs:
               return _net_phase(undo_average(avg))
           end
 
-          println("allocation bisect variant: ", ENV["BISECT_VARIANT"])
+          println("memo experiment variant: ", ENV["BISECT_VARIANT"])
           include("test/allocations/allocation_test.jl")
           JULIA
