@@ -1,0 +1,118 @@
+name: Stage Ground Reduction Fast Path
+on:
+  push:
+    branches:
+      - 'perf/skip-impossible-ground-reduction'
+    paths:
+      - '.github/workflows/ApplyGroundReductionPatch.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: perf/skip-impossible-ground-reduction
+      - uses: julia-actions/setup-julia@v3
+        with:
+          version: '1.12'
+          arch: x64
+      - uses: julia-actions/cache@v3
+      - name: Apply narrow source and regression-test patch
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('src/moments.jl')
+          s = p.read_text()
+          needle = '''_reduce_ground_in_drift(x::Symbolics.Num) =
+              Symbolics.Num(_reduce_ground_in_drift(SymbolicUtils.unwrap(x)))
+          function _reduce_ground_in_drift(x)
+              return mapleaves(x) do leaf
+                  op = undo_average(leaf)
+                  op isa QAdd || return leaf
+                  expanded = SQA.expand_completeness(op)
+                  isequal(expanded, op) ? leaf : SymbolicUtils.unwrap(average(expanded))
+              end
+          end
+          '''
+          repl = needle + '''
+          """
+          Whether a post-cumulant drift can require ground-projector reduction. Cumulant
+          truncation only rearranges averages of operator products; it cannot introduce a
+          `Transition` operator when the operator drift contains none. In that case the
+          expensive symbolic-tree ground fold is provably a no-op.
+          """
+          function _may_need_ground_reduction(q::QAdd)
+              for (term, _) in q.arguments, op in term.ops
+                  SQA.is_transition(op) && return true
+              end
+              return false
+          end
+          '''
+          if needle not in s:
+              raise SystemExit('ground-reduction insertion point not found')
+          s = s.replace(needle, repl, 1)
+          old = '''    drift = Symbolics.Num(average_and_truncate(op_drift, sys.order, sys.mix_choice, ctx))
+              drift = _reduce_ground_in_drift(drift)
+          '''
+          new = '''    drift = Symbolics.Num(average_and_truncate(op_drift, sys.order, sys.mix_choice, ctx))
+              _may_need_ground_reduction(op_drift) && (drift = _reduce_ground_in_drift(drift))
+          '''
+          if old not in s:
+              raise SystemExit('derive replacement point not found')
+          p.write_text(s.replace(old, new, 1))
+          PY
+          cat > test/completion/ground_reduction_fastpath_test.jl <<'JL'
+          using QuantumCumulants
+          using Symbolics: @variables
+          using Test
+
+          const QC = QuantumCumulants
+          const SQA = QuantumCumulants.SecondQuantizedAlgebra
+
+          @testset "ground reduction capability gate" begin
+              @testset "Pauli drift cannot require N-level ground reduction" begin
+                  h = PauliSpace(:spin)
+                  sx = Pauli(h, :σ, 1)
+                  sz = Pauli(h, :σ, 3)
+                  @variables Ω γ
+                  eqs = meanfield([sz], Ω * sx, [(sx - 1im * Pauli(h, :σ, 2)) / 2]; rates = [γ], order = 2)
+                  k = first(keys(eqs.graph.nodes))
+                  node = QC.derive(k, eqs.graph.sys, eqs.graph.ctx)
+                  @test !QC._may_need_ground_reduction(node.op_drift)
+                  raw = Symbolics.Num(QC.average_and_truncate(
+                      node.op_drift, eqs.graph.sys.order, eqs.graph.sys.mix_choice, eqs.graph.ctx,
+                  ))
+                  @test isequal(node.drift, raw)
+              end
+
+              @testset "Transition drift retains the ground-fold path" begin
+                  h = NLevelSpace(:atom, 2)
+                  σ(i, j) = Transition(h, :σ, i, j)
+                  @variables Ω γ
+                  H = Ω * (σ(1, 2) + σ(2, 1))
+                  eqs = meanfield([σ(2, 2)], H, [σ(1, 2)]; rates = [γ], order = 2)
+                  k = first(keys(eqs.graph.nodes))
+                  node = QC.derive(k, eqs.graph.sys, eqs.graph.ctx)
+                  @test QC._may_need_ground_reduction(node.op_drift)
+              end
+          end
+          JL
+      - name: Run focused tests
+        run: |
+          julia --project=test --color=yes -e '
+            using Pkg;
+            Pkg.develop(PackageSpec(path=pwd()));
+            Pkg.instantiate();
+            include("test/completion/ground_reduction_fastpath_test.jl");
+            include("test/completion/completeness_invariant_test.jl")'
+      - name: Commit patch
+        run: |
+          git config user.name 'Orjan Ameye'
+          git config user.email 'orjan.ameye@hotmail.com'
+          git add src/moments.jl test/completion/ground_reduction_fastpath_test.jl
+          git commit -m 'perf: skip impossible ground-projector reductions'
+          git push origin HEAD:perf/skip-impossible-ground-reduction
