@@ -9,6 +9,10 @@ on:
       - 'src/**'
       - 'Project.toml'
 
+concurrency:
+  group: closure-allocation-profile
+  cancel-in-progress: true
+
 jobs:
   profile:
     runs-on: ubuntu-latest
