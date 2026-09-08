@@ -1,0 +1,31 @@
+name: Parallel closure after canonical plan
+
+on:
+  push:
+    branches:
+      - bench/parallel-closure-after-canonical-plan
+
+permissions:
+  contents: read
+
+jobs:
+  benchmark:
+    runs-on: ubuntu-latest
+    env:
+      JULIA_NUM_THREADS: 4
+      JULIA_PKG_PRECOMPILE_AUTO: 0
+    steps:
+      - uses: actions/checkout@v7
+      - uses: julia-actions/setup-julia@v3
+        with:
+          version: '1.12'
+      - name: Instantiate benchmark environment
+        run: |
+          julia --project=benchmark -e '
+            using Pkg
+            Pkg.develop(path=".")
+            Pkg.add("Polyester")
+            Pkg.instantiate()
+          '
+      - name: Run post-canonical-plan comparison
+        run: julia --project=benchmark benchmark/parallel_closure_after_canonical_plan.jl
