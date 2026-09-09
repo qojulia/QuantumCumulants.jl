@@ -185,6 +185,29 @@ function _reduce_ground_in_drift(x)
     end
 end
 
+# `SymbolicUtils.arguments(::AddMul)` lazily fills an internal argument cache.
+# Independent derived drifts can share symbolic subtrees, so the first traversal of
+# one such subtree is not safe to perform concurrently. Keep only this required
+# post-cumulant rewrite serialized; the expensive operator and cumulant work remains
+# parallel.
+const _GROUND_REDUCTION_LOCK = ReentrantLock()
+
+function _reduce_ground_in_drift_threadsafe(x)
+    return lock(_GROUND_REDUCTION_LOCK) do
+        _reduce_ground_in_drift(x)
+    end
+end
+
+"""Whether an operator expression can produce an N-level ground projector."""
+_may_need_ground_reduction(op::SQA.QSym) = SQA.is_transition(op)
+_may_need_ground_reduction(ops::AbstractVector) = any(_may_need_ground_reduction, ops)
+function _may_need_ground_reduction(q::QAdd)
+    for (term, _) in q.arguments, op in term.ops
+        SQA.is_transition(op) && return true
+    end
+    return false
+end
+
 struct NodeData
     drift::Symbolics.Num                      # faithful averaged-and-truncated RHS
     op_drift::QAdd                            # operator RHS (latex / inspection / re-truncation)
@@ -210,7 +233,9 @@ function derive(op::QAdd, sys, ctx::CanonCtx)
     # collapse and leak spurious higher-order cumulants.
     op_drift = _assume_distinct_atom_indices(op_drift, _distinct_atom_indices([op]))
     drift = Symbolics.Num(average_and_truncate(op_drift, sys.order, sys.mix_choice, ctx))
-    drift = _reduce_ground_in_drift(drift)
+    if _may_need_ground_reduction(op_drift)
+        drift = _reduce_ground_in_drift_threadsafe(drift)
+    end
 
     if sys.efficiencies === nothing
         op_noise = nothing
@@ -228,7 +253,9 @@ function derive(op::QAdd, sys, ctx::CanonCtx)
             sys.order === nothing ? noise_rhs :
                 cumulant_expansion(noise_rhs, sys.order; mix_choice = sys.mix_choice),
         )
-        noise = _reduce_ground_in_drift(noise)
+        if _may_need_ground_reduction(op) || _may_need_ground_reduction(sys.jumps)
+            noise = _reduce_ground_in_drift_threadsafe(noise)
+        end
     end
 
     return NodeData(drift, op_drift, noise, op_noise, get_order(op), SQA.acts_on(op))
