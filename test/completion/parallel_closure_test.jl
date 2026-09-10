@@ -66,10 +66,7 @@ _threaded(g; kwargs...) = QC._closure(g, QC._derive_frontier_polyester; kwargs..
         (; get_adjoints = true),
         (; get_adjoints = false),
         (; get_adjoints = false, foldable = _ -> false),
-        (;
-            get_adjoints = false,
-            filter = avg -> length(SQA.operators(SQA.undo_average(avg))) <= 1,
-        ),
+        (; get_adjoints = false, filter = avg -> QC.get_order(avg) <= 1),
     )
 
     for kwargs in cases
