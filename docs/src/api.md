@@ -82,8 +82,8 @@ SecondQuantizedAlgebra.OpKind
 ```
 
 ```@docs
-SecondQuantizedAlgebra.prefactor
-SecondQuantizedAlgebra.operators
+SecondQuantizedAlgebra.get_prefactor
+SecondQuantizedAlgebra.get_operators
 SecondQuantizedAlgebra.sorted_arguments
 SecondQuantizedAlgebra.constraint_pairs
 ```
@@ -212,6 +212,10 @@ get_order
 
 ```@docs
 states
+```
+
+```@docs
+operators
 ```
 
 ```@docs
@@ -344,8 +348,8 @@ complete!
 ```
 
 ```@docs
-unique_ops
-SecondQuantizedAlgebra.unique_ops!
+unique_up_to_adjoint
+SecondQuantizedAlgebra.unique_up_to_adjoint!
 ```
 
 ```@docs
