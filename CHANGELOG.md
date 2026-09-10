@@ -2,6 +2,12 @@
 
 All notable changes to QuantumCumulants.jl will be documented in this file.
 
+## [0.7.2]
+
+### Changed
+
+Moved to **SecondQuantizedAlgebra.jl v0.12**. QuantumCumulants now owns its public `operators(eqs)` mean-field accessor, while SQA expression introspection uses `get_prefactor`, `get_operators`, and `get_variables`. No user-facing QuantumCumulants call syntax changes.
+
 ## [0.7.1]
 
 Move to SecondQuantizedAlgebra v0.11
