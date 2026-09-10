@@ -45,7 +45,7 @@ jobs:
       matrix:
         version:
           - 'lts'
-          - '1'
+          - '1.13'
         os:
           - ubuntu-latest
         arch:
