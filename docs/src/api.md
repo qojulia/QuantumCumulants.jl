@@ -84,6 +84,7 @@ SecondQuantizedAlgebra.OpKind
 ```@docs
 SecondQuantizedAlgebra.get_prefactor
 SecondQuantizedAlgebra.get_operators
+SecondQuantizedAlgebra.get_variables
 SecondQuantizedAlgebra.sorted_arguments
 SecondQuantizedAlgebra.constraint_pairs
 ```
@@ -162,8 +163,11 @@ SecondQuantizedAlgebra.UnitaryTransform
 SecondQuantizedAlgebra.conjugate
 SecondQuantizedAlgebra.transform
 SecondQuantizedAlgebra.Displace
+SecondQuantizedAlgebra.DisplacementFrame
 SecondQuantizedAlgebra.Rotation
+SecondQuantizedAlgebra.RotatingFrame
 SecondQuantizedAlgebra.Squeeze
+SecondQuantizedAlgebra.Bogoliubov
 SecondQuantizedAlgebra.gauge_term
 SecondQuantizedAlgebra.generators
 ```
