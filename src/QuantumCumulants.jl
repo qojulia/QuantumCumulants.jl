@@ -4,7 +4,7 @@ using Reexport: @reexport
 @reexport using SecondQuantizedAlgebra
 
 using SecondQuantizedAlgebra: SecondQuantizedAlgebra, QField, QAdd,
-    average, commutator, undo_average, operators
+    average, commutator, undo_average
 import SecondQuantizedAlgebra as SQA
 using SymbolicUtils: SymbolicUtils
 using Symbolics: Symbolics, @variables
@@ -22,7 +22,7 @@ export AbstractMeanfieldEquations, MeanfieldEquations, NoiseMeanfieldEquations
 export EvolutionDirection, Forward, Backward
 export meanfield, cumulant_expansion, cumulant, get_order
 export complete, complete!, find_missing
-export states, moments, moment_variable_map, closure_report, noise_channels
+export states, operators, moments, moment_variable_map, closure_report, noise_channels
 export scale, scale!
 export evaluate
 export System, initial_values, get_solution, parameter_map

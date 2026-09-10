@@ -116,8 +116,14 @@ function _truncate_coeff(c, order, mix_choice)
             _truncate_coeff(imag(c), order, mix_choice) * im
     end
     u = c isa Symbolics.Num ? SymbolicUtils.unwrap(c) : c
-    (u isa SymbolicUtils.BasicSymbolic && _has_average(u)) || return c
-    return cumulant_expansion(c, order; mix_choice)
+    u isa SymbolicUtils.BasicSymbolic || return c
+    # SymbolicUtils.arguments(::AddMul) lazily populates a cache on the symbolic node.
+    # Coefficients are shared between independently derived drifts, so keep detection and
+    # any recursive coefficient expansion in the same narrow critical section.
+    return lock(_SYMBOLIC_TRAVERSAL_LOCK) do
+        _has_average(u) || return c
+        cumulant_expansion(c, order; mix_choice)
+    end
 end
 average_and_truncate(R::SQA.QField, order::TruncOrder, mix_choice, ::CanonCtx) =
     order === nothing ? average(R) : cumulant_expansion(average(R), order; mix_choice)
@@ -186,14 +192,14 @@ function _reduce_ground_in_drift(x)
 end
 
 # `SymbolicUtils.arguments(::AddMul)` lazily fills an internal argument cache.
-# Independent derived drifts can share symbolic subtrees, so the first traversal of
-# one such subtree is not safe to perform concurrently. Keep only this required
-# post-cumulant rewrite serialized; the expensive operator and cumulant work remains
+# Independently derived drifts can share symbolic subtrees, so first traversal of one
+# such subtree is not safe concurrently. Reuse one lock for every shared-DAG traversal
+# in the parallel derivation path; expensive operator and cumulant construction remains
 # parallel.
-const _GROUND_REDUCTION_LOCK = ReentrantLock()
+const _SYMBOLIC_TRAVERSAL_LOCK = ReentrantLock()
 
 function _reduce_ground_in_drift_threadsafe(x)
-    return lock(_GROUND_REDUCTION_LOCK) do
+    return lock(_SYMBOLIC_TRAVERSAL_LOCK) do
         _reduce_ground_in_drift(x)
     end
 end

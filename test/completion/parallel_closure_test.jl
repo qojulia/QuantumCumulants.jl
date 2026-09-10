@@ -66,10 +66,7 @@ _threaded(g; kwargs...) = QC._closure(g, QC._derive_frontier_polyester; kwargs..
         (; get_adjoints = true),
         (; get_adjoints = false),
         (; get_adjoints = false, foldable = _ -> false),
-        (;
-            get_adjoints = false,
-            filter = avg -> length(SQA.operators(SQA.undo_average(avg))) <= 1,
-        ),
+        (; get_adjoints = false, filter = avg -> QC.get_order(avg) <= 1),
     )
 
     for kwargs in cases
@@ -95,6 +92,22 @@ end
     for _ in 1:10
         candidate = _threaded(_indexed_collective_graph(); get_adjoints = false)
         _assert_same_graph(reference, candidate)
+    end
+end
+
+@testset "shared symbolic coefficient traversal is thread-safe" begin
+    h = FockSpace(:coefficient)
+    a = Destroy(h, :a)
+    @variables λ
+    m = average(a' * a)
+    for k in 1:10
+        coeff = (λ + k) * m + (k + 1) * m^2
+        tasks = [
+            Threads.@spawn(QC._truncate_coeff(coeff, 1, maximum))
+                for _ in 1:max(2, 2 * Threads.nthreads())
+        ]
+        results = fetch.(tasks)
+        @test all(r -> isequal(r, results[1]), results)
     end
 end
 

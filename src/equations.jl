@@ -53,7 +53,7 @@ states(eqs::AbstractMeanfieldEquations) = eqs.states
 The operator products on the left-hand sides, one per tracked moment. Paired with
 [`states`](@ref) by position (`states(eqs)[i] == average(operators(eqs)[i])`).
 """
-SQA.operators(eqs::AbstractMeanfieldEquations) = eqs.operators
+operators(eqs::AbstractMeanfieldEquations) = eqs.operators
 
 """
     moments(eqs::AbstractMeanfieldEquations)
