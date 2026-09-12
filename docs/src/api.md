@@ -444,6 +444,25 @@ Updates may be partial: unspecified parameters retain their current values. For 
 parameter sweeps, copy or remake the problem rather than mutating one shared problem from
 multiple tasks.
 
+For holomorphic closures, the direct backend can also provide its exact sparse analytic
+Jacobian to implicit solvers:
+
+```julia
+prob = ODEProblem(
+    closed,
+    u0,
+    (0.0, 10.0),
+    ps;
+    backend = KernelBackend(),
+    jac = true,
+)
+```
+
+`jac = :analytic` is equivalent to `jac = true`. Folded closures containing conjugated
+stored-state factors are intentionally rejected because a single complex Jacobian is not the
+full derivative of `f(u, conj(u))`; use an unfolded closure (`get_adjoints = true`) or omit
+the direct analytic Jacobian for those systems.
+
 ```@docs
 KernelBackend
 update_parameters!
