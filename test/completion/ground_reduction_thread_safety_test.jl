@@ -5,7 +5,7 @@ using Test
 
 const QC = QuantumCumulants
 
-@testset "ground reduction capability and serialized traversal" begin
+@testset "ground reduction capability and concurrent traversal" begin
     hp = PauliSpace(:spin)
     sx = Pauli(hp, :σ, 1)
     sy = Pauli(hp, :σ, 2)
@@ -40,7 +40,7 @@ const QC = QuantumCumulants
     ground = average(σ(1, 1))
     excited = average(σ(2, 2))
     shared = Symbolics.Num(ground + 2 * ground * excited + excited^2)
-    tasks = [Threads.@spawn QC._reduce_ground_in_drift_threadsafe(shared) for _ in 1:16]
+    tasks = [Threads.@spawn QC._reduce_ground_in_drift(shared) for _ in 1:16]
     vals = fetch.(tasks)
     expected = QC._reduce_ground_in_drift(shared)
     @test !isequal(expected, shared)
