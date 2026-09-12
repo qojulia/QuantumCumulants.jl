@@ -400,6 +400,55 @@ substitute!
 SecondQuantizedAlgebra.make_time_dependent
 ```
 
+## [Direct ODE backend](@id API: Direct ODE backend)
+
+For completed deterministic moment hierarchies, the direct backend bypasses construction and
+compilation of a ModelingToolkit `System`. The equations are lowered once to a structured
+polynomial representation and executed by a compact numerical kernel with a concrete
+parameter payload.
+
+A typical solve is:
+
+```julia
+using QuantumCumulants
+using SciMLBase: ODEProblem
+using OrdinaryDiffEqTsit5: Tsit5, solve
+
+closed = complete(eqs)
+u0 = zeros(ComplexF64, length(closed.states))
+ps = Dict(g => 1.0, κ => 0.2)
+
+prob = ODEProblem(
+    closed,
+    u0,
+    (0.0, 10.0),
+    ps;
+    backend = KernelBackend(),
+)
+sol = solve(prob, Tsit5())
+```
+
+The backend is explicitly opt-in. It accepts polynomial deterministic drift with
+state-independent coefficients. Time-dependent coefficients or unsupported state-dependent
+functions should continue through the general `System(eqs)` path.
+
+Parameter values can be changed without relowering the equations or rebuilding the numerical
+kernel:
+
+```julia
+update_parameters!(prob, Dict(g => 1.2))
+sol2 = solve(prob, Tsit5())
+```
+
+Updates may be partial: unspecified parameters retain their current values. For independent
+parameter sweeps, copy or remake the problem rather than mutating one shared problem from
+multiple tasks.
+
+```@docs
+KernelBackend
+update_parameters!
+```
+
 ## [Numeric backends](@id API: Numeric backends)
 
 Symbolic-to-numeric conversion ([`to_numeric`](@ref), [`numeric_average`](@ref),
