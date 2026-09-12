@@ -60,6 +60,12 @@ const _JET_MOMENT_IR = QuantumCumulants.MomentIR(
 const _JET_MOMENT_KERNEL = QuantumCumulants.MomentKernel(_JET_MOMENT_IR)
 const _JET_MOMENT_U = ComplexF64[0.25 + 0.1im]
 const _JET_MOMENT_COEFFS = ComplexF64[2.0 - 0.5im]
+const _JET_KERNEL_PLAN = QuantumCumulants.KernelParameterPlan(_JET_MOMENT_IR)
+const _JET_KERNEL_PARAMETERS = QuantumCumulants.KernelParameters(
+    ComplexF64[],
+    _JET_MOMENT_COEFFS,
+)
+const _JET_KERNEL_RHS = QuantumCumulants.KernelRHS(_JET_MOMENT_KERNEL, _JET_KERNEL_PLAN)
 
 function _jet_moment_kernel_rhs()
     du = similar(_JET_MOMENT_U)
@@ -67,7 +73,14 @@ function _jet_moment_kernel_rhs()
     return du
 end
 
+function _jet_kernel_rhs()
+    du = similar(_JET_MOMENT_U)
+    _JET_KERNEL_RHS(du, _JET_MOMENT_U, _JET_KERNEL_PARAMETERS, 0.0)
+    return du
+end
+
 push!(JET_OPT_THUNKS, "MomentKernel hot RHS" => _jet_moment_kernel_rhs)
+push!(JET_OPT_THUNKS, "KernelRHS hot call" => _jet_kernel_rhs)
 
 @testset "Type Stability (JET)" begin
     @static if isempty(VERSION.prerelease)
