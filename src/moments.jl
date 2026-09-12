@@ -117,13 +117,8 @@ function _truncate_coeff(c, order, mix_choice)
     end
     u = c isa Symbolics.Num ? SymbolicUtils.unwrap(c) : c
     u isa SymbolicUtils.BasicSymbolic || return c
-    # SymbolicUtils.arguments(::AddMul) lazily populates a cache on the symbolic node.
-    # Coefficients are shared between independently derived drifts, so keep detection and
-    # any recursive coefficient expansion in the same narrow critical section.
-    return lock(_SYMBOLIC_TRAVERSAL_LOCK) do
-        _has_average(u) || return c
-        cumulant_expansion(c, order; mix_choice)
-    end
+    _has_average(u) || return c
+    return cumulant_expansion(c, order; mix_choice)
 end
 average_and_truncate(R::SQA.QField, order::TruncOrder, mix_choice, ::CanonCtx) =
     order === nothing ? average(R) : cumulant_expansion(average(R), order; mix_choice)
@@ -191,19 +186,6 @@ function _reduce_ground_in_drift(x)
     end
 end
 
-# `SymbolicUtils.arguments(::AddMul)` lazily fills an internal argument cache.
-# Independently derived drifts can share symbolic subtrees, so first traversal of one
-# such subtree is not safe concurrently. Reuse one lock for every shared-DAG traversal
-# in the parallel derivation path; expensive operator and cumulant construction remains
-# parallel.
-const _SYMBOLIC_TRAVERSAL_LOCK = ReentrantLock()
-
-function _reduce_ground_in_drift_threadsafe(x)
-    return lock(_SYMBOLIC_TRAVERSAL_LOCK) do
-        _reduce_ground_in_drift(x)
-    end
-end
-
 """Whether an operator expression can produce an N-level ground projector."""
 _may_need_ground_reduction(op::SQA.QSym) = SQA.is_transition(op)
 _may_need_ground_reduction(ops::AbstractVector) = any(_may_need_ground_reduction, ops)
@@ -240,7 +222,7 @@ function derive(op::QAdd, sys, ctx::CanonCtx)
     op_drift = _assume_distinct_atom_indices(op_drift, _distinct_atom_indices([op]))
     drift = Symbolics.Num(average_and_truncate(op_drift, sys.order, sys.mix_choice, ctx))
     if _may_need_ground_reduction(op_drift)
-        drift = _reduce_ground_in_drift_threadsafe(drift)
+        drift = _reduce_ground_in_drift(drift)
     end
 
     if sys.efficiencies === nothing
@@ -260,7 +242,7 @@ function derive(op::QAdd, sys, ctx::CanonCtx)
                 cumulant_expansion(noise_rhs, sys.order; mix_choice = sys.mix_choice),
         )
         if _may_need_ground_reduction(op) || _may_need_ground_reduction(sys.jumps)
-            noise = _reduce_ground_in_drift_threadsafe(noise)
+            noise = _reduce_ground_in_drift(noise)
         end
     end
 
