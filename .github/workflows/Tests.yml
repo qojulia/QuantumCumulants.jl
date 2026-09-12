@@ -30,7 +30,7 @@ concurrency:
   cancel-in-progress: ${{ startsWith(github.ref, 'refs/pull/') }}
 
 env:
-  JULIA_NUM_THREADS: 11
+  JULIA_NUM_THREADS: 4
 
 jobs:
   test:
