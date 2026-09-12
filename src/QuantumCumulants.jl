@@ -51,9 +51,10 @@ include("scaling.jl")
 include("evaluate.jl")
 include("mtk.jl")
 
-# evaluator-independent structured numerical lowering
+# structured numerical representation and compact serial execution
 include("backends/moment_ir.jl")
 include("backends/moment_poly_lower.jl")
+include("backends/moment_kernel.jl")
 
 include("correlation.jl")
 include("spectrum.jl")

@@ -47,6 +47,27 @@ end
 
 push!(JET_CALL_THUNKS, "System(damped cavity)" => _jet_to_system_cavity)
 
+const _JET_MOMENT_IR = QuantumCumulants.MomentIR(
+    Any[:u],
+    Int32[0, 1],
+    Int32[0, 1],
+    Int32[1, 2],
+    Int32[2],
+    Int32[1],
+    Any[1],
+    Any[],
+)
+const _JET_MOMENT_KERNEL = QuantumCumulants.MomentKernel(_JET_MOMENT_IR)
+const _JET_MOMENT_U = ComplexF64[0.25 + 0.1im]
+const _JET_MOMENT_COEFFS = ComplexF64[2.0 - 0.5im]
+
+function _jet_moment_kernel_rhs()
+    du = similar(_JET_MOMENT_U)
+    _JET_MOMENT_KERNEL(du, _JET_MOMENT_U, _JET_MOMENT_COEFFS)
+    return du
+end
+
+push!(JET_OPT_THUNKS, "MomentKernel hot RHS" => _jet_moment_kernel_rhs)
 
 @testset "Type Stability (JET)" begin
     @static if isempty(VERSION.prerelease)
