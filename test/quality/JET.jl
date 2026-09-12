@@ -66,6 +66,8 @@ const _JET_KERNEL_PARAMETERS = QuantumCumulants.KernelParameters(
     _JET_MOMENT_COEFFS,
 )
 const _JET_KERNEL_RHS = QuantumCumulants.KernelRHS(_JET_MOMENT_KERNEL, _JET_KERNEL_PLAN)
+const _JET_MOMENT_JACOBIAN = QuantumCumulants.MomentJacobianKernel(_JET_MOMENT_IR)
+const _JET_JACOBIAN_MATRIX = copy(_JET_MOMENT_JACOBIAN.prototype)
 
 function _jet_moment_kernel_rhs()
     du = similar(_JET_MOMENT_U)
@@ -79,8 +81,19 @@ function _jet_kernel_rhs()
     return du
 end
 
+function _jet_moment_jacobian()
+    _JET_MOMENT_JACOBIAN(
+        _JET_JACOBIAN_MATRIX,
+        _JET_MOMENT_U,
+        _JET_KERNEL_PARAMETERS,
+        0.0,
+    )
+    return nothing
+end
+
 push!(JET_OPT_THUNKS, "MomentKernel hot RHS" => _jet_moment_kernel_rhs)
 push!(JET_OPT_THUNKS, "KernelRHS hot call" => _jet_kernel_rhs)
+push!(JET_OPT_THUNKS, "MomentJacobianKernel hot call" => _jet_moment_jacobian)
 
 @testset "Type Stability (JET)" begin
     @static if isempty(VERSION.prerelease)

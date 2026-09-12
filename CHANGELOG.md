@@ -2,6 +2,12 @@
 
 All notable changes to QuantumCumulants.jl will be documented in this file.
 
+## [Unreleased]
+
+### Added
+
+Added an opt-in direct numerical backend for completed deterministic `MeanfieldEquations`: `ODEProblem(eqs, u0, tspan, ps; backend = KernelBackend())` lowers the hierarchy into a compact structured evaluator without building a ModelingToolkit `System`. The backend keeps a concrete numeric parameter payload, supports partial `update_parameters!` calls without re-lowering, handles evaluated indexed parameter arrays, and provides an exact sparse analytic Jacobian for unfolded/holomorphic systems via `jac = true` (or `:analytic`).
+
 ## [0.7.2]
 
 ### Changed

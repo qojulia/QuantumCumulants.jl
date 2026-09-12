@@ -16,6 +16,7 @@ using Combinatorics: Combinatorics, partitions
 using TermInterface: TermInterface
 using LinearAlgebra: I
 using SciMLBase: SciMLBase
+using SparseArrays: SparseMatrixCSC, sparse
 import Polyester
 const MTK = ModelingToolkitBase
 
@@ -58,6 +59,7 @@ include("backends/moment_ir.jl")
 include("backends/moment_poly_lower.jl")
 include("backends/moment_kernel.jl")
 include("backends/kernel_sciml.jl")
+include("backends/kernel_jacobian.jl")
 
 include("correlation.jl")
 include("spectrum.jl")

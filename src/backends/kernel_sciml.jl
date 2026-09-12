@@ -29,10 +29,13 @@ end
 Base.copy(p::KernelParameters{T}) where {T} =
     KernelParameters{T}(copy(p.values), copy(p.coeffs))
 
-struct KernelRHS{K, P}
+struct KernelRHS{K, P, J}
     kernel::K
     plan::P
+    jacobian::J
 end
+
+KernelRHS(kernel, plan) = KernelRHS(kernel, plan, nothing)
 
 function (rhs::KernelRHS)(du, u, p::KernelParameters, t)
     rhs.kernel(du, u, p.coeffs)
@@ -180,13 +183,35 @@ end
 
 # ---- direct problem construction -----------------------------------------------------
 
-function _build_kernel_rhs(eqs::MeanfieldEquations, ps, ::KernelBackend)
+function _kernel_jacobian_flag(jac)
+    jac === false && return false
+    (jac === true || jac === :analytic) && return true
+    throw(
+        ArgumentError(
+            "KernelBackend provides only its exact analytic Jacobian; `jac` must be " *
+                "`false`, `true`, or `:analytic`, got $(repr(jac)).",
+        ),
+    )
+end
+
+function _build_kernel_rhs(eqs::MeanfieldEquations, ps, ::KernelBackend; jac = false)
+    dojac = _kernel_jacobian_flag(jac)
     ir = _lower_moment_ir(eqs)
     kernel = MomentKernel(ir, ComplexF64)
     plan = KernelParameterPlan(ir)
     values = parameter_map(eqs, ps)
     p = KernelParameters(plan, values)
-    return KernelRHS(kernel, plan), p
+    jacobian = dojac ? MomentJacobianKernel(ir, ComplexF64) : nothing
+    return KernelRHS(kernel, plan, jacobian), p
+end
+
+function _kernel_ode_function(rhs::KernelRHS)
+    rhs.jacobian === nothing && return SciMLBase.ODEFunction{true}(rhs)
+    return SciMLBase.ODEFunction{true}(
+        rhs;
+        jac = rhs.jacobian,
+        jac_prototype = copy(rhs.jacobian.prototype),
+    )
 end
 
 function _kernel_u0(eqs, u0::AbstractVector{<:Number})
@@ -210,10 +235,11 @@ end
 _kernel_u0(eqs, state) = initial_values(eqs, state)
 
 """
-    SciMLBase.ODEProblem(eqs, u0, tspan, ps; backend = KernelBackend(), kwargs...)
+    SciMLBase.ODEProblem(eqs, u0, tspan, ps; backend = KernelBackend(), jac = false, kwargs...)
 
 Construct a deterministic `ODEProblem` without converting `eqs` to a ModelingToolkit
 `System`. The `backend` keyword is intentionally required while this specialized path is new.
+Set `jac = true` (or `:analytic`) only for holomorphic/unfolded closures.
 """
 function SciMLBase.ODEProblem(
         eqs::MeanfieldEquations,
@@ -221,10 +247,11 @@ function SciMLBase.ODEProblem(
         tspan,
         ps;
         backend::KernelBackend,
+        jac = false,
         kwargs...,
     )
-    rhs, p = _build_kernel_rhs(eqs, ps, backend)
-    f = SciMLBase.ODEFunction{true}(rhs)
+    rhs, p = _build_kernel_rhs(eqs, ps, backend; jac)
+    f = _kernel_ode_function(rhs)
     return SciMLBase.ODEProblem(f, _kernel_u0(eqs, u0), tspan, p; kwargs...)
 end
 
