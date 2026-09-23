@@ -21,19 +21,19 @@ rates = [κ]</code></pre><p>We are specifically interested in the average number
 eqs = meanfield(ops, H, J; rates = rates, order = 2)</code></pre><p class="math-container">\[
 \begin{aligned}
 \partial_{t} \langle a^{\dagger}a \rangle &amp;=  - \langle a^{\dagger}a \rangle \kappa + E \langle a \rangle i - E \langle a^{\dagger} \rangle i \\\\[-0.0em]
-\partial_{t} \langle b^{\dagger}b \rangle &amp;= G \left( \langle a \rangle \langle a^{\dagger}b \rangle + \langle b \rangle \langle a^{\dagger}a \rangle + \langle ab \rangle \langle a^{\dagger} \rangle - 2 \langle a \rangle \langle a^{\dagger} \rangle \langle b \rangle \right) i - G \left( \langle a \rangle \langle a^{\dagger}b^{\dagger} \rangle + \langle a^{\dagger} \rangle \langle ab^{\dagger} \rangle + \langle b^{\dagger} \rangle \langle a^{\dagger}a \rangle - 2 \langle a \rangle \langle a^{\dagger} \rangle \langle b^{\dagger} \rangle \right) i
+\partial_{t} \langle b^{\dagger}b \rangle &amp;= G \left( \langle a \rangle \langle a^{\dagger}b \rangle + \langle a^{\dagger} \rangle \langle ab \rangle + \langle a^{\dagger}a \rangle \langle b \rangle - 2 \langle a^{\dagger} \rangle \langle a \rangle \langle b \rangle \right) i - G \left( \langle a \rangle \langle a^{\dagger}b^{\dagger} \rangle + \langle a^{\dagger} \rangle \langle ab^{\dagger} \rangle + \langle b^{\dagger} \rangle \langle a^{\dagger}a \rangle - 2 \langle a^{\dagger} \rangle \langle b^{\dagger} \rangle \langle a \rangle \right) i
 \end{aligned}
 
 \]</p><p>To get a closed set of equations we automatically complete the system.</p><pre><code class="language-julia hljs">eqs_completed = complete!(deepcopy(eqs)) # Complete equations</code></pre><p class="math-container">\[
 \begin{aligned}
 \partial_{t} \langle a^{\dagger}a \rangle &amp;=  - \langle a^{\dagger}a \rangle \kappa + E \langle a \rangle i - E \langle a^{\dagger} \rangle i \\\\[-0.0em]
-\partial_{t} \langle b^{\dagger}b \rangle &amp;= G \left( \langle a \rangle \langle a^{\dagger}b \rangle + \langle b \rangle \langle a^{\dagger}a \rangle + \langle ab \rangle \langle a^{\dagger} \rangle - 2 \langle a \rangle \langle a^{\dagger} \rangle \langle b \rangle \right) i - G \left( \langle a \rangle \langle a^{\dagger}b^{\dagger} \rangle + \langle a^{\dagger} \rangle \langle ab^{\dagger} \rangle + \langle b^{\dagger} \rangle \langle a^{\dagger}a \rangle - 2 \langle a \rangle \langle a^{\dagger} \rangle \langle b^{\dagger} \rangle \right) i \\\\[-0.0em]
-\partial_{t} \langle a \rangle &amp;=  - E i - G \langle ab \rangle i - G \langle ab^{\dagger} \rangle i + \langle a \rangle \left(  - \frac{1}{2} \kappa + i \Delta \right) \\\\[-0.0em]
-\partial_{t} \langle a^{\dagger}b^{\dagger} \rangle &amp;= E \langle b^{\dagger} \rangle i + G \langle a^{\dagger} \rangle i + \langle a^{\dagger}b^{\dagger} \rangle \left(  - \frac{1}{2} \kappa + i \left(  - \Delta + \mathtt{\omega_m} \right) \right) + G \left( \langle a \rangle \langle a^{\dagger}a^{\dagger} \rangle + 2 \langle a^{\dagger} \rangle \langle a^{\dagger}a \rangle - 2 \langle a^{\dagger} \rangle^{2} \langle a \rangle \right) i + G \left( \langle b^{\dagger}b^{\dagger} \rangle \langle a^{\dagger} \rangle + 2 \langle a^{\dagger}b^{\dagger} \rangle \langle b^{\dagger} \rangle - 2 \langle b^{\dagger} \rangle^{2} \langle a^{\dagger} \rangle \right) i + G \left( \langle a^{\dagger} \rangle \langle b^{\dagger}b \rangle + \langle b \rangle \langle a^{\dagger}b^{\dagger} \rangle + \langle a^{\dagger}b \rangle \langle b^{\dagger} \rangle - 2 \langle a^{\dagger} \rangle \langle b \rangle \langle b^{\dagger} \rangle \right) i \\\\[-0.0em]
-\partial_{t} \langle ab^{\dagger} \rangle &amp;=  - E \langle b^{\dagger} \rangle i + \langle ab^{\dagger} \rangle \left(  - \frac{1}{2} \kappa + i \left( \Delta + \mathtt{\omega_m} \right) \right) + G \left( \langle a^{\dagger} \rangle \langle aa \rangle + 2 \langle a \rangle \langle a^{\dagger}a \rangle - 2 \langle a \rangle^{2} \langle a^{\dagger} \rangle \right) i - G \left( \langle a \rangle \langle b^{\dagger}b^{\dagger} \rangle + 2 \langle b^{\dagger} \rangle \langle ab^{\dagger} \rangle - 2 \langle b^{\dagger} \rangle^{2} \langle a \rangle \right) i - G \left( \langle a \rangle \langle b^{\dagger}b \rangle + \langle b \rangle \langle ab^{\dagger} \rangle + \langle ab \rangle \langle b^{\dagger} \rangle - 2 \langle a \rangle \langle b \rangle \langle b^{\dagger} \rangle \right) i \\\\[-0.0em]
-\partial_{t} \langle b^{\dagger} \rangle &amp;= G \langle a^{\dagger}a \rangle i + \langle b^{\dagger} \rangle i \mathtt{\omega_m} \\\\[-0.0em]
-\partial_{t} \langle a^{\dagger}a^{\dagger} \rangle &amp;= 2 E \langle a^{\dagger} \rangle i + \langle a^{\dagger}a^{\dagger} \rangle \left(  - \kappa - 2 i \Delta \right) + 2 G \left( \langle b \rangle \langle a^{\dagger}a^{\dagger} \rangle + 2 \langle a^{\dagger} \rangle \langle a^{\dagger}b \rangle - 2 \langle a^{\dagger} \rangle^{2} \langle b \rangle \right) i + 2 G \left( \langle b^{\dagger} \rangle \langle a^{\dagger}a^{\dagger} \rangle + 2 \langle a^{\dagger} \rangle \langle a^{\dagger}b^{\dagger} \rangle - 2 \langle a^{\dagger} \rangle^{2} \langle b^{\dagger} \rangle \right) i \\\\[-0.0em]
-\partial_{t} \langle b^{\dagger}b^{\dagger} \rangle &amp;= 2 \langle b^{\dagger}b^{\dagger} \rangle i \mathtt{\omega_m} + 2 G \left( \langle a \rangle \langle a^{\dagger}b^{\dagger} \rangle + \langle a^{\dagger} \rangle \langle ab^{\dagger} \rangle + \langle b^{\dagger} \rangle \langle a^{\dagger}a \rangle - 2 \langle a \rangle \langle a^{\dagger} \rangle \langle b^{\dagger} \rangle \right) i
+\partial_{t} \langle b^{\dagger}b \rangle &amp;= G \left( \langle a \rangle \langle a^{\dagger}b \rangle + \langle a^{\dagger} \rangle \langle ab \rangle + \langle a^{\dagger}a \rangle \langle b \rangle - 2 \langle a^{\dagger} \rangle \langle a \rangle \langle b \rangle \right) i - G \left( \langle a \rangle \langle a^{\dagger}b^{\dagger} \rangle + \langle a^{\dagger} \rangle \langle ab^{\dagger} \rangle + \langle b^{\dagger} \rangle \langle a^{\dagger}a \rangle - 2 \langle a^{\dagger} \rangle \langle b^{\dagger} \rangle \langle a \rangle \right) i \\\\[-0.0em]
+\partial_{t} \langle a^{\dagger} \rangle &amp;= E i + G \langle a^{\dagger}b \rangle i + G \langle a^{\dagger}b^{\dagger} \rangle i + \langle a^{\dagger} \rangle \left(  - \frac{1}{2} \kappa - i \Delta \right) \\\\[-0.0em]
+\partial_{t} \langle a^{\dagger}b \rangle &amp;= E \langle b \rangle i + \langle a^{\dagger}b \rangle \left(  - \frac{1}{2} \kappa + i \left(  - \Delta - \mathtt{\omega_m} \right) \right) + G \left( \langle a^{\dagger} \rangle \langle bb \rangle + 2 \langle a^{\dagger}b \rangle \langle b \rangle - 2 \langle b \rangle^{2} \langle a^{\dagger} \rangle \right) i - G \left( \langle a \rangle \langle a^{\dagger}a^{\dagger} \rangle + 2 \langle a^{\dagger} \rangle \langle a^{\dagger}a \rangle - 2 \langle a^{\dagger} \rangle^{2} \langle a \rangle \right) i + G \left( \langle a^{\dagger} \rangle \langle b^{\dagger}b \rangle + \langle b \rangle \langle a^{\dagger}b^{\dagger} \rangle + \langle b^{\dagger} \rangle \langle a^{\dagger}b \rangle - 2 \langle a^{\dagger} \rangle \langle b^{\dagger} \rangle \langle b \rangle \right) i \\\\[-0.0em]
+\partial_{t} \langle b \rangle &amp;=  - G \langle a^{\dagger}a \rangle i - \langle b \rangle i \mathtt{\omega_m} \\\\[-0.0em]
+\partial_{t} \langle ab \rangle &amp;=  - E \langle b \rangle i - G \langle a \rangle i + \langle ab \rangle \left(  - \frac{1}{2} \kappa + i \left( \Delta - \mathtt{\omega_m} \right) \right) - G \left( \langle a \rangle \langle bb \rangle + 2 \langle ab \rangle \langle b \rangle - 2 \langle b \rangle^{2} \langle a \rangle \right) i - G \left( \langle a^{\dagger} \rangle \langle aa \rangle + 2 \langle a^{\dagger}a \rangle \langle a \rangle - 2 \langle a \rangle^{2} \langle a^{\dagger} \rangle \right) i - G \left( \langle ab \rangle \langle b^{\dagger} \rangle + \langle ab^{\dagger} \rangle \langle b \rangle + \langle b^{\dagger}b \rangle \langle a \rangle - 2 \langle b^{\dagger} \rangle \langle a \rangle \langle b \rangle \right) i \\\\[-0.0em]
+\partial_{t} \langle a^{\dagger}a^{\dagger} \rangle &amp;= 2 E \langle a^{\dagger} \rangle i + \langle a^{\dagger}a^{\dagger} \rangle \left(  - \kappa - 2 i \Delta \right) + 2 G \left( \langle b^{\dagger} \rangle \langle a^{\dagger}a^{\dagger} \rangle + 2 \langle a^{\dagger} \rangle \langle a^{\dagger}b^{\dagger} \rangle - 2 \langle a^{\dagger} \rangle^{2} \langle b^{\dagger} \rangle \right) i + 2 G \left( \langle a^{\dagger}a^{\dagger} \rangle \langle b \rangle + 2 \langle a^{\dagger} \rangle \langle a^{\dagger}b \rangle - 2 \langle a^{\dagger} \rangle^{2} \langle b \rangle \right) i \\\\[-0.0em]
+\partial_{t} \langle bb \rangle &amp;=  - 2 \langle bb \rangle i \mathtt{\omega_m} - 2 G \left( \langle a \rangle \langle a^{\dagger}b \rangle + \langle a^{\dagger} \rangle \langle ab \rangle + \langle a^{\dagger}a \rangle \langle b \rangle - 2 \langle a^{\dagger} \rangle \langle a \rangle \langle b \rangle \right) i
 \end{aligned}
 
 \]</p><p>To calculate the dynamics we create a system of ordinary differential equations, which can be used by <a href="https://diffeq.sciml.ai/stable/">DifferentialEquations.jl</a>.</p><pre><code class="language-julia hljs">sys = System(eqs_completed; name = :sys)
@@ -61,9 +61,9 @@ Build Info:
   Official https://julialang.org release
 Platform Info:
   OS: Linux (x86_64-linux-gnu)
-  CPU: 4 × INTEL(R) XEON(R) PLATINUM 8573C
+  CPU: 4 × AMD EPYC 7763 64-Core Processor
   WORD_SIZE: 64
-  LLVM: libLLVM-20.1.8 (ORCJIT, emeraldrapids)
+  LLVM: libLLVM-20.1.8 (ORCJIT, znver3)
   GC: Built with stock GC
 Threads: 1 default, 1 interactive, 1 GC (on 4 virtual cores)
 Environment:
@@ -72,8 +72,8 @@ Environment:
 <span class="sgr32"><span class="sgr1">Status</span></span> `~/work/QuantumCumulants.jl/QuantumCumulants.jl/docs/Manifest.toml`
   <span class="sgr90">[47edcb42] </span>ADTypes v1.24.0
   <span class="sgr90">[1520ce14] </span>AbstractTrees v0.4.5
-  <span class="sgr90">[4fba245c] </span>ArrayInterface v7.30.1
-  <span class="sgr90">[aae01518] </span>BandedMatrices v1.12.0
+  <span class="sgr90">[4fba245c] </span>ArrayInterface v7.30.2
+  <span class="sgr90">[aae01518] </span>BandedMatrices v1.13.0
   <span class="sgr90">[caf10ac8] </span>BipartiteGraphs v0.1.14
   <span class="sgr90">[8e7c35d0] </span>BlockArrays v1.10.0
 <span class="sgr33">⌅</span> <span class="sgr90">[861a8166] </span>Combinatorics v1.0.2
@@ -82,12 +82,12 @@ Environment:
   <span class="sgr90">[187b0558] </span>ConstructionBase v1.6.0
   <span class="sgr90">[d38c429a] </span>Contour v0.6.3
   <span class="sgr90">[864edb3b] </span>DataStructures v0.19.6
-  <span class="sgr90">[2b5f629d] </span>DiffEqBase v7.21.1
-  <span class="sgr90">[459566f4] </span>DiffEqCallbacks v4.19.3
+  <span class="sgr90">[2b5f629d] </span>DiffEqBase v7.21.2
+  <span class="sgr90">[459566f4] </span>DiffEqCallbacks v4.19.4
   <span class="sgr90">[b552c78f] </span>DiffRules v1.16.0
   <span class="sgr90">[a0c0ee7d] </span>DifferentiationInterface v0.7.21
   <span class="sgr90">[ffbed154] </span>DocStringExtensions v0.9.5
-  <span class="sgr90">[5b8099bc] </span>DomainSets v0.8.1
+  <span class="sgr90">[5b8099bc] </span>DomainSets v0.8.2
   <span class="sgr90">[4e289a0a] </span>EnumX v1.0.7
   <span class="sgr90">[f151be2c] </span>EnzymeCore v0.8.21
   <span class="sgr90">[e2ba6199] </span>ExprTools v0.1.11
@@ -103,22 +103,23 @@ Environment:
   <span class="sgr90">[3263718b] </span>ImplicitDiscreteSolve v2.3.0
   <span class="sgr90">[8197267c] </span>IntervalSets v0.7.14
   <span class="sgr90">[1019f520] </span>JLFzf v0.1.11
-  <span class="sgr90">[682c06a0] </span>JSON v1.8.0
-  <span class="sgr90">[ccbc3e58] </span>JumpProcesses v9.32.3
+  <span class="sgr90">[682c06a0] </span>JSON v1.9.0
+  <span class="sgr90">[ccbc3e58] </span>JumpProcesses v9.33.1
   <span class="sgr90">[b964fa9f] </span>LaTeXStrings v1.4.1
   <span class="sgr90">[23fbe1c1] </span>Latexify v0.16.12
   <span class="sgr90">[1914dd2f] </span>MacroTools v0.5.16
   <span class="sgr90">[442fdcdd] </span>Measures v0.3.3
-  <span class="sgr90">[7771a370] </span>ModelingToolkitBase v1.70.0
+  <span class="sgr90">[7771a370] </span>ModelingToolkitBase v1.76.0
 <span class="sgr33">⌅</span> <span class="sgr90">[2e0e35c7] </span>Moshi v0.3.9
   <span class="sgr90">[46d2c3a1] </span>MuladdMacro v0.2.7
   <span class="sgr90">[77ba4419] </span>NaNMath v1.1.4
+  <span class="sgr90">[be0214bd] </span>NonlinearSolveBase v2.53.0
   <span class="sgr90">[6fe1bfb0] </span>OffsetArrays v1.17.0
   <span class="sgr90">[bac558e1] </span>OrderedCollections v2.0.1
-  <span class="sgr90">[bbf590c4] </span>OrdinaryDiffEqCore v4.17.1
+  <span class="sgr90">[bbf590c4] </span>OrdinaryDiffEqCore v4.18.0
   <span class="sgr90">[1344f307] </span>OrdinaryDiffEqLowOrderRK v2.2.5
   <span class="sgr90">[ccf2f8ad] </span>PlotThemes v3.3.0
-  <span class="sgr90">[995b91a9] </span>PlotUtils v1.4.4
+  <span class="sgr90">[995b91a9] </span>PlotUtils v1.5.0
   <span class="sgr90">[91a5bcdd] </span>Plots v1.41.7
   <span class="sgr90">[f517fe37] </span>Polyester v0.7.19
   <span class="sgr90">[d236fae5] </span>PreallocationTools v1.7.1
@@ -133,22 +134,22 @@ Environment:
   <span class="sgr90">[ae029012] </span>Requires v1.3.1
   <span class="sgr90">[7e49a35a] </span>RuntimeGeneratedFunctions v0.5.26
   <span class="sgr90">[9dfe8606] </span>SCCNonlinearSolve v1.15.3
-  <span class="sgr90">[0bca4576] </span>SciMLBase v3.53.3
+  <span class="sgr90">[0bca4576] </span>SciMLBase v3.55.0
   <span class="sgr90">[431bcebd] </span>SciMLPublic v1.3.0
   <span class="sgr90">[53ae85a6] </span>SciMLStructures v1.10.5
   <span class="sgr90">[6c6a2e73] </span>Scratch v1.3.0
   <span class="sgr90">[f7aa4685] </span>SecondQuantizedAlgebra v0.12.0
   <span class="sgr90">[efcf1570] </span>Setfield v1.1.2
   <span class="sgr90">[992d4aef] </span>Showoff v1.1.1
-  <span class="sgr90">[727e6d20] </span>SimpleNonlinearSolve v2.14.3
+  <span class="sgr90">[727e6d20] </span>SimpleNonlinearSolve v2.14.5
   <span class="sgr90">[276daf66] </span>SpecialFunctions v2.9.0
-  <span class="sgr90">[90137ffa] </span>StaticArrays v1.9.20
+  <span class="sgr90">[90137ffa] </span>StaticArrays v1.9.22
   <span class="sgr90">[1e83bf80] </span>StaticArraysCore v1.4.4
   <span class="sgr90">[10745b16] </span>Statistics v1.11.5
   <span class="sgr90">[2913bbd2] </span>StatsBase v0.34.13
   <span class="sgr90">[2efcf032] </span>SymbolicIndexingInterface v0.3.55
-  <span class="sgr90">[d1185830] </span>SymbolicUtils v4.46.5
-  <span class="sgr90">[0c5d862f] </span>Symbolics v7.39.2
+  <span class="sgr90">[d1185830] </span>SymbolicUtils v4.47.0
+  <span class="sgr90">[0c5d862f] </span>Symbolics v7.40.1
   <span class="sgr90">[ed4db957] </span>TaskLocalValues v0.1.3
   <span class="sgr90">[8ea1fca8] </span>TermInterface v2.0.0
   <span class="sgr90">[3a884ed6] </span>UnPack v1.0.2
@@ -168,4 +169,4 @@ Environment:
   <span class="sgr90">[2f01184e] </span>SparseArrays v1.13.0
   <span class="sgr90">[fa267f1f] </span>TOML v1.0.3
   <span class="sgr90">[cf7118a7] </span>UUIDs v1.11.0
-<span class="sgr36"><span class="sgr1">Info</span></span> Packages marked with <span class="sgr33">⌅</span> have new versions available but compatibility constraints restrict them from upgrading. To see why use `status --outdated -m`</code></pre><hr/><p><em>This page was generated using <a href="https://github.com/fredrikekre/Literate.jl">Literate.jl</a>.</em></p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../many-atom-laser/">« Many-atom laser</a><a class="docs-footer-nextpage" href="../excitation-transport-chain/">Noisy excitation transport »</a><div class="flexbox-break"></div><p class="footer-message"><a href="https://github.com/qojulia/QuantumCumulants.jl"><strong>Back to GitHub</strong></a></p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.19.0 on <span class="colophon-date" title="Saturday 12 September 2026 14:09">Saturday 12 September 2026</span>. Using Julia version 1.13.0.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
+<span class="sgr36"><span class="sgr1">Info</span></span> Packages marked with <span class="sgr33">⌅</span> have new versions available but compatibility constraints restrict them from upgrading. To see why use `status --outdated -m`</code></pre><hr/><p><em>This page was generated using <a href="https://github.com/fredrikekre/Literate.jl">Literate.jl</a>.</em></p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../many-atom-laser/">« Many-atom laser</a><a class="docs-footer-nextpage" href="../excitation-transport-chain/">Noisy excitation transport »</a><div class="flexbox-break"></div><p class="footer-message"><a href="https://github.com/qojulia/QuantumCumulants.jl"><strong>Back to GitHub</strong></a></p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.19.0 on <span class="colophon-date" title="Wednesday 23 September 2026 05:47">Wednesday 23 September 2026</span>. Using Julia version 1.13.0.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
