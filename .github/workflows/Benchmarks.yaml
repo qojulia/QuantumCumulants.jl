@@ -59,7 +59,8 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           alert-threshold: "130%"
           fail-threshold: "170%"
-          comment-on-alert: true
+          # Fork PRs get a read-only token, so commenting would fail the job.
+          comment-on-alert: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
           fail-on-alert: true
           benchmark-data-dir-path: benchmark
           max-items-in-chart: 100
