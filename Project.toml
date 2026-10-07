@@ -1,6 +1,6 @@
 name = "QuantumCumulants"
 uuid = "35bcea6d-e19f-57db-af74-8011de6c7255"
-version = "0.7.2"
+version = "0.7.3"
 
 [deps]
 Combinatorics = "861a8166-3701-5b0c-9a16-15d98fcdc6aa"
@@ -31,7 +31,7 @@ Polyester = "0.7"
 Reexport = "1"
 SciMLBase = "3"
 SymbolicUtils = "4.46.5"
-SecondQuantizedAlgebra = "0.12"
+SecondQuantizedAlgebra = "0.12, 0.13"
 SparseArrays = "1.10"
 Symbolics = "7.27"
 TermInterface = "2"
