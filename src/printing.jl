@@ -70,6 +70,8 @@ function _postprocess_equation_latex(s::AbstractString, ivl::AbstractString)
         s,
         "\\begin{align}" => "\\begin{aligned}",
         "\\end{align}" => "\\end{aligned}",
+        # Newer Symbolics latexify a derivative as `\frac{d}{dt} ~ x`; drop the spacer.
+        "\\frac{\\mathrm{d}}{\\mathrm{d}$(ivl)} ~ " => "\\partial_{$(ivl)} ",
         "\\frac{\\mathrm{d}}{\\mathrm{d}$(ivl)}" => "\\partial_{$(ivl)}",
         _DWDT_RENDERED => _DWDT_LATEX,
         _IM_RENDERED => _IM_LATEX,
