@@ -28,3 +28,6 @@ QuantumOpticsBase = "0.5.1"
 StochasticDiffEq = "7"
 SymbolicUtils = "4"
 Symbolics = "7"
+
+[sources]
+QuantumCumulants = {path = ".."}

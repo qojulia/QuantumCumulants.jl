@@ -46,7 +46,6 @@ jobs:
           cd benchmark
           julia --project --threads=2 --color=yes -e '
             using Pkg;
-            Pkg.develop(PackageSpec(path=joinpath(pwd(), "..")));
             Pkg.instantiate();
             include("runbenchmarks.jl")'
 
