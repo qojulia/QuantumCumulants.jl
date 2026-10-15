@@ -203,7 +203,7 @@ function _assignment_ok(bound, tup, ne, idx_sub)
     end
     for (f, t) in idx_sub
         s = SQA.index_slot(SymbolicUtils.unwrap(SQA.index_sym(t)))
-        s === nothing || (pos[f] = s)
+        iszero(s) || (pos[f] = s)
     end
     for (a, b) in ne
         (haskey(pos, a) && haskey(pos, b) && pos[a] == pos[b]) && return false
@@ -309,10 +309,10 @@ function _collect_callable_uses!(uses, x)
         if op isa SymbolicUtils.BasicSymbolic && !SymbolicUtils.iscall(op) &&
                 _is_fntype(SymbolicUtils.symtype(op)) &&
                 all(a -> a isa SymbolicUtils.BasicSymbolic && !SymbolicUtils.iscall(a), args)
-            slots = [SQA.index_slot(a) for a in args]
-            if all(!isnothing, slots)
+            slots = Int[SQA.index_slot(a) for a in args]
+            if !any(iszero, slots)
                 bucket = get!(() -> Dict{Vector{Int}, Vector{SymbolicUtils.BasicSymbolic}}(), uses, Base.nameof(op))
-                push!(get!(bucket, Int[s for s in slots], SymbolicUtils.BasicSymbolic[]), n)
+                push!(get!(bucket, slots, SymbolicUtils.BasicSymbolic[]), n)
                 return false
             end
         end

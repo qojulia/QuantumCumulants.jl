@@ -349,7 +349,7 @@ function _param_slots(x::SymbolicUtils.BasicSymbolic)
     for a in SymbolicUtils.arguments(x)
         (a isa SymbolicUtils.BasicSymbolic && !SymbolicUtils.iscall(a)) || return nothing
         s = SQA.index_slot(a)
-        s === nothing && return nothing
+        iszero(s) && return nothing
         push!(slots, s)
     end
     return isempty(slots) ? nothing : slots

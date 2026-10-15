@@ -4,6 +4,12 @@ All notable changes to QuantumCumulants.jl will be documented in this file.
 
 ## [Unreleased]
 
+## [0.7.4]
+
+### Changed
+
+Moved to **SecondQuantizedAlgebra.jl v0.14**. QuantumCumulants reads concrete index slots through the new `index_slot` convention (`0` for an abstract index instead of `nothing`), so SQA v0.13 and earlier are no longer supported. No user-facing QuantumCumulants call syntax changes; the new SQA v0.14 exports, such as `Lindbladian`, `dissipator` and `hamiltonian_action`, are reexported.
+
 ## [0.7.3]
 
 ### Changed
