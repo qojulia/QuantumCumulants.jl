@@ -1,6 +1,6 @@
 # # Spectrum of a single-atom laser
 
-# In this example, we will compute the spectrum of the single-atom laser, which is also shown in the [Tutorial](@ref). The Hamiltonian of the system is
+# In this example, we will compute the spectrum of the single-atom laser, which is also used in [Getting started](@ref). The Hamiltonian of the system is
 
 # $H = \Delta a^\dagger a + g\left(a^\dagger \sigma^{ge} + a\sigma^{eg}\right),$
 

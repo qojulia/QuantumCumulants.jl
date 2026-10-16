@@ -1,5 +1,6 @@
 using Documenter
-using QuantumCumulants, SecondQuantizedAlgebra
+using DocumenterInterLinks
+using QuantumCumulants
 using SymbolicUtils, ModelingToolkitBase
 
 ENV["JULIA_DEBUG"] = "Documenter"
@@ -32,15 +33,21 @@ let src = normpath(@__FILE__, "../../README.md"),
 end
 
 pages = [
-    "index.md",
-    "theory.md",
-    "convergence.md",
-    "tutorial.md",
-    "implementation.md",
-    "symbolic_sums.md",
-    "correlation.md",
-    "noise.md",
-    "api.md",
+    "Home" => "index.md",
+    "Manual" => [
+        "Getting started" => "manual/getting_started.md",
+        "Cumulant expansion" => "manual/cumulant_expansion.md",
+        "Closing the hierarchy" => "manual/closure.md",
+        "Working with equations" => "manual/equations.md",
+        "Many-body systems" => "manual/many_body.md",
+        "Numerical solution" => "manual/numerics.md",
+        "Correlation functions and spectra" => "manual/correlation.md",
+        "Measurement backaction" => "manual/noise.md",
+    ],
+    "Theory" => [
+        "Theoretical background" => "theory.md",
+        "Convergence and validity" => "convergence.md",
+    ],
     "Examples" => [
         "examples/single-atom-laser-spectrum.md"
         "examples/mollow.md"
@@ -60,22 +67,17 @@ pages = [
         # "examples/retrodiction_homodyne.md"
 
     ],
-    "changelog.md",
-    "devdocs.md",
+    "Developer documentation" => "devdocs.md",
+    "Changelog" => "changelog.md",
 ]
 
-using Pkg
-status = sprint(io -> Pkg.status("SecondQuantizedAlgebra"; io = io))
-version = match(r"(v[0-9].[0-9]+.[0-9]+)", status)[1]
-gh_moi = Documenter.Remotes.GitHub("qojulia", "SecondQuantizedAlgebra.jl")
-remotes = Dict(pkgdir(SecondQuantizedAlgebra) => (gh_moi, version))
-
-DocMeta.setdocmeta!(
-    SecondQuantizedAlgebra,
-    :DocTestSetup,
-    :(using SecondQuantizedAlgebra);
-    recursive = true,
+# Names re-exported from SecondQuantizedAlgebra are documented there. Every `@ref` that does
+# not resolve locally falls back to SQA's inventory, so docstrings and pages keep plain refs.
+links = InterLinks(
+    "SecondQuantizedAlgebra" => "https://qojulia.github.io/SecondQuantizedAlgebra.jl/stable/",
 )
+fallbacks = ExternalFallbacks(; automatic = true)
+
 DocMeta.setdocmeta!(
     QuantumCumulants,
     :DocTestSetup,
@@ -85,13 +87,11 @@ DocMeta.setdocmeta!(
 
 makedocs(
     sitename = "QuantumCumulants.jl",
-    modules = [QuantumCumulants, SecondQuantizedAlgebra],
+    modules = [QuantumCumulants],
     pages = pages,
-    remotes = remotes,
+    plugins = [links, fallbacks],
     checkdocs = :exports,
     doctest = false,
-    # cross_references stay non-fatal: the only unresolved refs come from
-    # SecondQuantizedAlgebra docstrings (e.g. `(i::Index)(k)`) and must be fixed upstream.
     warnonly = [:cross_references],
     format = Documenter.HTML(
         mathengine = KaTeX(),

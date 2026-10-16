@@ -1,6 +1,6 @@
 # Internal architecture
 
-This page is for contributors and for users who want to understand what happens inside QuantumCumulants.jl between [`meanfield`](@ref) and a numerical solution. It explains the internal architecture and, more importantly, *why* it is built the way it is. For the user-facing walkthrough of the same pipeline see [The mean-field pipeline](@ref); for the cumulant-expansion mathematics see the [theory page](@ref theory).
+This page is for contributors and for users who want to understand what happens inside QuantumCumulants.jl between [`meanfield`](@ref) and a numerical solution. It explains the internal architecture and, more importantly, *why* it is built the way it is. For the user-facing walkthrough of the same pipeline see [Getting started](@ref); for the cumulant-expansion mathematics see the [theory page](@ref theory).
 
 ## Scope: the moment layer on top of the algebra
 
@@ -279,7 +279,7 @@ Note the honest subtlety from the default `get_adjoints=true`: the ``\langle a^\
 
 ### What changes for an indexed system
 
-For a permutation-symmetric many-body system built from [`Index`](@ref) and [`Σ`](@ref) (see [Indexed and scaled systems](@ref)), the same graph carries indexed moments. A single-atom moment ``\langle\sigma_i\rangle`` keys to one `Free` representative regardless of the bound index. [`scale`](@ref) then marks the atom subspace `Scaled`, folds the permutation-equivalent moments onto one representative, and multiplies each by the ``(\text{range} - \#\text{ne})`` prefactor that counts how many atoms the fold stands for. [`evaluate`](@ref) instead pins the atoms to `Concrete` sites ``\sigma_1\ldots\sigma_M`` and arrayizes the per-site couplings. Treatments are per-subspace and independent, so a filter-cavity subspace can stay `Concrete` while the atoms are `Scaled` in the same system.
+For a permutation-symmetric many-body system built from [`Index`](@ref) and [`Σ`](@ref) (see [Many-body systems](@ref)), the same graph carries indexed moments. A single-atom moment ``\langle\sigma_i\rangle`` keys to one `Free` representative regardless of the bound index. [`scale`](@ref) then marks the atom subspace `Scaled`, folds the permutation-equivalent moments onto one representative, and multiplies each by the ``(\text{range} - \#\text{ne})`` prefactor that counts how many atoms the fold stands for. [`evaluate`](@ref) instead pins the atoms to `Concrete` sites ``\sigma_1\ldots\sigma_M`` and arrayizes the per-site couplings. Treatments are per-subspace and independent, so a filter-cavity subspace can stay `Concrete` while the atoms are `Scaled` in the same system.
 
 ## Design invariants and pitfalls
 

@@ -1,6 +1,15 @@
 ![QuantumCumulants.jl logo](assets/logo.png)
 
 # QuantumCumulants.jl
+
+[![](https://img.shields.io/badge/docs-dev-blue.svg)](https://qojulia.github.io/QuantumCumulants.jl/dev/)
+[![](https://img.shields.io/badge/docs-stable-blue.svg)](https://qojulia.github.io/QuantumCumulants.jl/stable/)
+[![Codecov](https://codecov.io/gh/qojulia/QuantumCumulants.jl/branch/master/graph/badge.svg)](https://codecov.io/gh/qojulia/QuantumCumulants.jl/branch/master/)
+[![Benchmarks](https://github.com/qojulia/QuantumCumulants.jl/actions/workflows/Benchmarks.yaml/badge.svg?branch=main)](https://qojulia.github.io/QuantumCumulants.jl/benchmark/)
+
+[![Aqua QA](https://raw.githubusercontent.com/JuliaTesting/Aqua.jl/master/badge.svg)](https://github.com/JuliaTesting/Aqua.jl)
+[![jet](https://img.shields.io/badge/%F0%9F%9B%A9%EF%B8%8F_tested_with-JET.jl-233f9a)](https://github.com/aviatesk/JET.jl)
+
 **QuantumCumulants.jl** is a package for the symbolic derivation of mean-field equations for quantum mechanical operators in Julia. The equations are derived using fundamental commutation relations of operators. When averaging these equations they can be automatically expanded in terms of cumulants to an arbitrary order (generalized mean-field approximation). This results in a closed set of symbolic differential equations, which can also be solved numerically.
 
 For the application of commutation relations **QuantumCumulants.jl** implements a simple noncommutative algebra, where any commutation relations are applied immediately. All other symbolic simplification and rewriting is done using the [Symbolics.jl](https://github.com/JuliaSymbolics/Symbolics.jl) package.
@@ -17,9 +26,6 @@ The basic working principle boils down to the following steps:
 
 If you only need the second quantized algebra, you can depend on [SecondQuantizedAlgebra.jl](https://github.com/qojulia/SecondQuantizedAlgebra.jl) directly.
 
-## Development status
-
-![CI](https://github.com/qojulia/QuantumCumulants.jl/workflows/CI/badge.svg) [![Codecov][codecov-img]][codecov-url] [![Documentation][docs-stable-img]][docs-stable-url] [![Documentation][docs-dev-img]][docs-dev-url]
 
 ## Relationship to SecondQuantizedAlgebra.jl
 
@@ -33,7 +39,7 @@ QuantumCumulants is the *cumulant* layer. The operator algebra it builds on (Hil
 pkg> add QuantumCumulants
 ```
 
-For a full list of functions, see the [API documentation](https://qojulia.github.io/QuantumCumulants.jl/stable/api/).
+The [manual](https://qojulia.github.io/QuantumCumulants.jl/stable/manual/getting_started/) walks through the full workflow, with the docstrings of every function next to the text that uses it.
 
 ## Short example
 
@@ -94,9 +100,3 @@ If you find **QuantumCumulants.jl** useful in your research, please consider cit
   year = {2022}
 }
 ```
-
-[codecov-url]: https://codecov.io/gh/qojulia/QuantumCumulants.jl/branch/master/ [codecov-img]: https://codecov.io/gh/qojulia/QuantumCumulants.jl/branch/master/graph/badge.svg
-
-[docs-dev-url]: https://qojulia.github.io/QuantumCumulants.jl/dev/ [docs-dev-img]: https://img.shields.io/badge/docs-dev-blue.svg
-
-[docs-stable-url]: https://qojulia.github.io/QuantumCumulants.jl/stable/ [docs-stable-img]: https://img.shields.io/badge/docs-stable-blue.svg
