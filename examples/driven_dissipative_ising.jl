@@ -31,7 +31,6 @@
 
 using QuantumCumulants
 using ModelingToolkitBase
-using ModelingToolkitBase: unknowns
 using OrdinaryDiffEqLowOrderRK
 using QuantumOptics
 using Plots
@@ -84,7 +83,7 @@ p = Dict(J => 1.0, hₓ => 1.0, γ => 0.2)
 function solve_cumulant(eqs; tend = 20.0)
     sys = mtkcompile(System(eqs; name = :sys))
     u0 = initial_values(eqs, ψ0)
-    dict = parameter_map(sys, merge(Dict(unknowns(sys) .=> u0), p))
+    dict = parameter_map(sys, merge(u0, p))
     ## `eval_expression = true` compiles the right-hand side via `eval` instead of a
     ## RuntimeGeneratedFunction, which is noticeably faster to compile for the larger
     ## higher-order systems; `build_initializeprob = false` skips the (here redundant)

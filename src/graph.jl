@@ -1,3 +1,14 @@
+"""
+A drift rewrite `f(key, expr)` recorded on a `SystemSpec`.
+`derive` replays it on every moment derived after the rewrite, so a moment added later by
+closure carries the same modification as the moments that existed when it was applied.
+`noise` selects whether the noise drift is rewritten too.
+"""
+struct DriftMap{F}
+    f::F
+    noise::Bool
+end
+
 struct SystemSpec{H, Jt, Jdt, R, E, MC, D <: EvolutionDirection}
     hamiltonian::H
     jumps::Jt
@@ -8,6 +19,34 @@ struct SystemSpec{H, Jt, Jdt, R, E, MC, D <: EvolutionDirection}
     order::TruncOrder
     mix_choice::MC
     direction::D
+    # Replayed in order by `derive`. Not a type parameter: the in-place rewrites (`modify_equations!`,
+    # `substitute!`) swap the graph of a wrapper whose type fixes the `SystemSpec` type.
+    drift_maps::Vector{DriftMap}
+end
+
+SystemSpec(H, J, Jd, rates, eff, iv, order, mix_choice, direction) =
+    SystemSpec(H, J, Jd, rates, eff, iv, order, mix_choice, direction, DriftMap[])
+
+"""Copy of `sys` with the given fields replaced, keeping every other field."""
+function respec(
+        sys::SystemSpec; efficiencies = sys.efficiencies, order = sys.order,
+        drift_maps = sys.drift_maps,
+    )
+    return SystemSpec(
+        sys.hamiltonian, sys.jumps, sys.jumps_dagger, sys.rates, efficiencies,
+        sys.iv, order, sys.mix_choice, sys.direction, drift_maps,
+    )
+end
+
+"""Apply the recorded drift rewrites of `sys` to the freshly derived drift and noise of `op`."""
+function replay_drift_maps(sys::SystemSpec, op, drift, noise)
+    for m in sys.drift_maps
+        drift = Symbolics.Num(SymbolicUtils.unwrap(m.f(op, drift)))
+        if m.noise && noise !== nothing
+            noise = Symbolics.Num(SymbolicUtils.unwrap(m.f(op, noise)))
+        end
+    end
+    return drift, noise
 end
 
 const NodeKey = QAdd
@@ -192,6 +231,17 @@ function map_drifts(g::MomentGraph, f; noise::Bool = true)
         nodes[k] = NodeData(new_drift, nd.op_drift, new_noise, nd.op_noise, nd.order, nd.aon)
     end
     return MomentGraph(nodes, g.sys, g.ctx, g.treatments)
+end
+
+"""
+Rewrite every drift of `g` with `f(key, expr)` like `map_drifts`,
+and record `f` on the system so that moments derived later (by closure) receive it as well.
+Backs the user-facing rewrites (`modify_equations!`, `substitute!`, `translate_W_to_Y`).
+"""
+function rewrite_drifts(g::MomentGraph, f; noise::Bool = true)
+    mapped = map_drifts(g, f; noise)
+    sys = respec(g.sys; drift_maps = DriftMap[g.sys.drift_maps; DriftMap(f, noise)])
+    return MomentGraph(mapped.nodes, sys, g.ctx, g.treatments)
 end
 
 """

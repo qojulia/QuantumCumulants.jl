@@ -232,7 +232,7 @@ function _kernel_u0(eqs, u0::AbstractDict)
     ]
 end
 
-_kernel_u0(eqs, state) = initial_values(eqs, state)
+_kernel_u0(eqs, state) = _kernel_u0(eqs, initial_values(eqs, state))
 
 """
     SciMLBase.ODEProblem(eqs, u0, tspan, ps; backend = KernelBackend(), jac = false, kwargs...)
