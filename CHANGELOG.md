@@ -4,6 +4,14 @@ All notable changes to QuantumCumulants.jl will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+**Breaking:** `initial_values(eqs, state)` for a numeric quantum state now returns the same `u(t) => value` map as every other `initial_values` method, instead of a vector aligned with `eqs.states`. The map goes straight into a ModelingToolkit `ODEProblem` (`merge(initial_values(eqs, ψ), ps)`) and into `ODEProblem(eqs, u0, tspan, ps; backend = KernelBackend())`. Code that zipped the old vector with `unknowns(sys)` relied on the compiled unknowns keeping the order of `eqs.states`, which ModelingToolkit does not guarantee.
+
+### Fixed
+
+`modify_equations`, `substitute` and `translate_W_to_Y` now also apply to the equations that a later `complete` derives. Before, closure derived the new moments from the Hamiltonian and the jumps alone, so e.g. a drive added with `modify_equations` was silently missing from the equation of ⟨a⟩ that the drive itself introduced.
+
 ## [0.7.4]
 
 ### Changed

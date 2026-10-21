@@ -235,3 +235,32 @@ end
     # `complete` is idempotent on its own output.
     @test length(complete(eqs_c).equations) == 9
 end
+
+@testset "complete: drift rewrites reach moments added by closure" begin
+    hc = FockSpace(:cavity); ha = NLevelSpace(:atom, 2); h = hc ⊗ ha
+    @qnumbers a::Destroy(h, 1)
+    σ(i, j) = Transition(h, :σ, i, j, 2)
+    @variables Δ::Real g::Real κ::Real γ::Real ν::Real η::Real
+    H = Δ * a' * a + g * (a' * σ(1, 2) + a * σ(2, 1))
+    J = [a, σ(1, 2), σ(2, 1)]
+    rates = [κ, γ, ν]
+    eqs = meanfield([a' * a], H, J; rates, order = 2)
+
+    # A coherent drive added by hand must give the same closed system as the drive in H,
+    # including the equations `complete` derives for ⟨a⟩ and friends after the rewrite.
+    Hd = η * (a + a')
+    drive(lhs, rhs) = rhs + cumulant_expansion(average(1im * commutator(Hd, lhs)), 2)
+    by_hand = complete(modify_equations(eqs, drive))
+    in_H = complete(meanfield([a' * a], H + Hd, J; rates, order = 2))
+    @test Set(repr.(by_hand.states)) == Set(repr.(in_H.states))
+    rhs_by_hand = Dict(repr(eq.lhs) => eq.rhs for eq in by_hand.equations)
+    for eq in in_H.equations
+        diff = SymbolicUtils.simplify(SymbolicUtils.expand(rhs_by_hand[repr(eq.lhs)] - eq.rhs))
+        @test SymbolicUtils._iszero(SymbolicUtils.unwrap(diff))
+    end
+
+    # A substitution also holds for the moments closure adds afterwards.
+    on_resonance = complete(substitute(eqs, Dict(Δ => 0)))
+    @test length(on_resonance.equations) > length(eqs.equations)
+    @test !any(eq -> occursin("Δ", repr(eq.rhs)), on_resonance.equations)
+end

@@ -246,5 +246,6 @@ function derive(op::QAdd, sys, ctx::CanonCtx)
         end
     end
 
+    drift, noise = replay_drift_maps(sys, op, drift, noise)
     return NodeData(drift, op_drift, noise, op_noise, get_order(op), SQA.acts_on(op))
 end

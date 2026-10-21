@@ -8,7 +8,10 @@ using Test
 
 Random.seed!(0)
 
-@testset "initial_values: Fock + 2-level state to u0 vector (integer levels)" begin
+# Values of an `initial_values` map in the order of `eqs.states`.
+u0_vector(eqs, u0) = [u0[v] for v in values(moment_variable_map(eqs))]
+
+@testset "initial_values: Fock + 2-level state to u0 map (integer levels)" begin
     h = FockSpace(:cavity) ⊗ NLevelSpace(:atom, 2)
     a = Destroy(h, :a)
     s(i, j) = Transition(h, :σ, i, j)
@@ -23,7 +26,7 @@ Random.seed!(0)
     b = bcav ⊗ batom
     ψ0 = randstate(b)
 
-    u0 = initial_values(eqs, ψ0)
+    u0 = u0_vector(eqs, initial_values(eqs, ψ0))
 
     @test u0[1] ≈ expect(destroy(bcav) ⊗ one(batom), ψ0)
     @test u0[2] ≈ expect(one(bcav) ⊗ QuantumOpticsBase.transition(batom, 1, 2), ψ0)
@@ -95,10 +98,33 @@ end
         ψlazy = LazyKet(b, (randstate(bcav), randstate(batom)))
         ψfull = Ket(ψlazy)
 
-        u0_lazy = initial_values(eqs, ψlazy)
-        u0_full = initial_values(eqs, ψfull)
+        u0_lazy = u0_vector(eqs, initial_values(eqs, ψlazy))
+        u0_full = u0_vector(eqs, initial_values(eqs, ψfull))
         @test u0_lazy ≈ u0_full
     else
         @info "QuantumOpticsBase.LazyKet not available; skipping"
+    end
+end
+
+@testset "initial_values from a state feeds ModelingToolkit and the kernel alike" begin
+    h = FockSpace(:cavity) ⊗ NLevelSpace(:atom, 2)
+    a = Destroy(h, :a)
+    s(i, j) = Transition(h, :σ, i, j)
+    @variables Δ::Real g::Real κ::Real
+    H = Δ * a' * a + g * (a' * s(1, 2) + a * s(2, 1))
+    eqs = complete(meanfield([a], H, [a]; rates = [κ], order = 2))
+    ψ0 = coherentstate(FockBasis(8), 0.3) ⊗ nlevelstate(NLevelBasis(2), 2)
+    ps = Dict(Δ => 0.1, g => 0.7, κ => 0.4)
+
+    u0 = initial_values(eqs, ψ0)
+    @test u0 isa AbstractDict
+    @test u0_vector(eqs, u0) ≈ u0_vector(eqs, initial_values(eqs, u0_vector(eqs, u0)))
+
+    sys = mtkcompile(System(eqs; name = :sys))
+    sol_mtk = solve(ODEProblem(sys, merge(u0, ps), (0.0, 2.0)), Tsit5(); abstol = 1.0e-10, reltol = 1.0e-10)
+    for u0_kernel in (ψ0, u0)
+        prob = ODEProblem(eqs, u0_kernel, (0.0, 2.0), ps; backend = KernelBackend())
+        sol = solve(prob, Tsit5(); abstol = 1.0e-10, reltol = 1.0e-10)
+        @test get_solution(sol, a, eqs)(2.0) ≈ get_solution(sol_mtk, a, eqs)(2.0) rtol = 1.0e-6
     end
 end
