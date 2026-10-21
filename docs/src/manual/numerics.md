@@ -52,7 +52,7 @@ moment_variable_map
 
 ### Initial values
 
-ModelingToolkit takes initial values as a map from unknowns to numbers. [`initial_values`](@ref) builds it from a vector aligned with [`states`](@ref), or from a numerical quantum state through SecondQuantizedAlgebra's [numeric conversion](https://qojulia.github.io/SecondQuantizedAlgebra.jl/stable/manual/averages_numerics/). Here the cavity starts in a coherent state and the atom in its ground state.
+ModelingToolkit takes initial values as a map from unknowns to numbers. [`initial_values`](@ref) builds it from a vector aligned with [`states`](@ref), or from a numerical quantum state through SecondQuantizedAlgebra's [numeric conversion](@extref SecondQuantizedAlgebra manual/averages_numerics). Here the cavity starts in a coherent state and the atom in its ground state.
 
 ```@example numerics
 using QuantumOpticsBase

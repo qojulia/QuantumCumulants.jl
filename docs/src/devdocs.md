@@ -4,7 +4,7 @@ This page is for contributors and for users who want to understand what happens 
 
 ## Scope: the moment layer on top of the algebra
 
-QuantumCumulants is a thin **moment layer**. The operator algebra it manipulates (`QSym`/`QAdd` atoms and sums, normal ordering, indices, symbolic sums, the diagonal split, projector completeness, sum metadata) lives in [SecondQuantizedAlgebra.jl](https://github.com/qojulia/SecondQuantizedAlgebra.jl) (SQA), which QuantumCumulants re-exports. Read SQA's [developer documentation](https://qojulia.github.io/SecondQuantizedAlgebra.jl/stable/devdocs/) for that layer; this page does not re-derive it.
+QuantumCumulants is a thin **moment layer**. The operator algebra it manipulates (`QSym`/`QAdd` atoms and sums, normal ordering, indices, symbolic sums, the diagonal split, projector completeness, sum metadata) lives in [SecondQuantizedAlgebra.jl](https://github.com/qojulia/SecondQuantizedAlgebra.jl) (SQA), which QuantumCumulants re-exports. Read SQA's developer manual, starting with its [architecture](@extref SecondQuantizedAlgebra dev/architecture) and [internals](@extref SecondQuantizedAlgebra dev/internals) pages, for that layer; this page does not re-derive it.
 
 The contract between the two is sharp and worth stating once:
 

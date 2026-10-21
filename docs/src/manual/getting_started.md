@@ -12,6 +12,14 @@ H = \Delta a^\dagger a + g \left(a^\dagger \sigma^{ge} + \sigma^{eg} a\right),
 
 with cavity loss ``\kappa``, atomic decay ``\gamma`` and pumping ``\nu``. The later pages of the manual take up each step in detail.
 
+!!! info "Where the operator algebra is documented"
+    QuantumCumulants re-exports [SecondQuantizedAlgebra.jl](@extref SecondQuantizedAlgebra index), and its names are documented there. Links to them in this manual lead to its pages.
+    - Hilbert spaces, operators and `@qnumbers`: [Hilbert spaces and operators](@extref SecondQuantizedAlgebra manual/spaces_and_operators)
+    - Commutation relations and normal ordering: [Algebra and ordering](@extref SecondQuantizedAlgebra manual/algebra)
+    - Symbolic parameters: [Parameters and coefficients](@extref SecondQuantizedAlgebra manual/coefficients)
+    - Indices and symbolic sums: [Many-body systems](@extref SecondQuantizedAlgebra manual/many_body)
+    - Averages and conversion to numerical operators: [Averages and numerics](@extref SecondQuantizedAlgebra manual/averages_numerics)
+
 ```@contents
 Pages = ["getting_started.md"]
 Depth = 2:3
@@ -19,7 +27,7 @@ Depth = 2:3
 
 ## The model
 
-The Hilbert spaces, operators and symbolic parameters come from [SecondQuantizedAlgebra.jl](https://qojulia.github.io/SecondQuantizedAlgebra.jl/stable/), which QuantumCumulants re-exports. Its manual on [Hilbert spaces and operators](https://qojulia.github.io/SecondQuantizedAlgebra.jl/stable/manual/spaces_and_operators/) covers everything used here.
+The Hilbert spaces, operators and symbolic parameters come from [SecondQuantizedAlgebra.jl](@extref SecondQuantizedAlgebra index), which QuantumCumulants re-exports. Its manual on [Hilbert spaces and operators](@extref SecondQuantizedAlgebra manual/spaces_and_operators) covers everything used here.
 
 ```@example laser
 using Latexify # hide

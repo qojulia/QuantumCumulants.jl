@@ -4,7 +4,7 @@ CurrentModule = QuantumCumulants
 
 # Many-body systems
 
-An ensemble of ``N`` emitters would naively need ``N`` copies of every equation. With indexed operators the Hamiltonian is written once as a symbolic sum, the equations are derived for a running index, and ``N`` stays a symbol until the numerical stage. Building indexed operators and sums is covered by the [many-body manual](https://qojulia.github.io/SecondQuantizedAlgebra.jl/stable/manual/many_body/) of SecondQuantizedAlgebra. This page covers the two ways QuantumCumulants turns the resulting symbolic system into a finite one.
+An ensemble of ``N`` emitters would naively need ``N`` copies of every equation. With indexed operators the Hamiltonian is written once as a symbolic sum, the equations are derived for a running index, and ``N`` stays a symbol until the numerical stage. Building indexed operators and sums is covered by the [many-body manual](@extref SecondQuantizedAlgebra manual/many_body) of SecondQuantizedAlgebra. This page covers the two ways QuantumCumulants turns the resulting symbolic system into a finite one.
 
 ```@contents
 Pages = ["many_body.md"]

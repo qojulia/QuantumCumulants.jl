@@ -1,12 +1,17 @@
 using Documenter
+using DocumenterCodeBlocks
 using DocumenterInterLinks
+using DocumenterLandingPage
 using QuantumCumulants
 using SymbolicUtils, ModelingToolkitBase
 
 ENV["JULIA_DEBUG"] = "Documenter"
 ENV["GKSwstype"] = "100" # enable headless mode for GR to suppress warnings when plotting
 
-include("make_md_examples.jl")
+# DOCS_DRAFT=true skips the Literate examples and code execution for fast local previews.
+DRAFT = get(ENV, "DOCS_DRAFT", "") == "true"
+
+DRAFT || include("make_md_examples.jl")
 
 # The repo-root CHANGELOG.md is the single source of truth; expose it in the docs as the
 # migration guide / changelog page. Write only when the content changed so a LiveServer
@@ -20,56 +25,13 @@ let src = normpath(@__FILE__, "../../CHANGELOG.md"),
     end
 end
 
-# The repo-root README.md is the single source of truth for the landing page; expose it as
-# the docs index. Same write-only-on-change guard as the changelog above.
-let src = normpath(@__FILE__, "../../README.md"),
-        dst = normpath(@__FILE__, "../src/index.md"),
-        # Rewrite repository-relative asset paths for the copied docs source.
-        new = replace(read(src, String), "docs/src/assets/" => "assets/")
+include("pages.jl")
 
-    if !isfile(dst) || read(dst, String) != new
-        write(dst, new)
-    end
-end
-
-pages = [
-    "Home" => "index.md",
-    "Manual" => [
-        "Getting started" => "manual/getting_started.md",
-        "Cumulant expansion" => "manual/cumulant_expansion.md",
-        "Closing the hierarchy" => "manual/closure.md",
-        "Working with equations" => "manual/equations.md",
-        "Many-body systems" => "manual/many_body.md",
-        "Numerical solution" => "manual/numerics.md",
-        "Correlation functions and spectra" => "manual/correlation.md",
-        "Measurement backaction" => "manual/noise.md",
-    ],
-    "Theory" => [
-        "Theoretical background" => "theory.md",
-        "Convergence and validity" => "convergence.md",
-    ],
-    "Examples" => [
-        "examples/single-atom-laser-spectrum.md"
-        "examples/mollow.md"
-        "examples/pulsed_mollow_spectrum.md"
-        "examples/many-atom-laser.md"
-        "examples/optomechanical-cooling.md"
-        "examples/excitation-transport-chain.md"
-        "examples/driven_dissipative_ising.md"
-        "examples/ramsey_spectroscopy.md"
-        "examples/superradiant_laser_indexed.md"
-        "examples/weighted_phase_invariance.md"
-        "examples/cavity_antiresonance_indexed.md"
-        "examples/filter-cavity_indexed.md"
-        "examples/unique_squeezing.md"
-        "examples/waveguide.md"
-        "examples/heterodyne_detection.md"
-        # "examples/retrodiction_homodyne.md"
-
-    ],
-    "Developer documentation" => "devdocs.md",
-    "Changelog" => "changelog.md",
-]
+existing_pages(page::Pair) = page.second isa AbstractVector ?
+    page.first => filter(!isnothing, map(existing_pages, page.second)) :
+    (isfile(joinpath(@__DIR__, "src", page.second)) ? page : nothing)
+existing_pages(page::AbstractString) = isfile(joinpath(@__DIR__, "src", page)) ? page : nothing
+DRAFT && (pages = filter(!isnothing, map(existing_pages, pages)))
 
 # Names re-exported from SecondQuantizedAlgebra are documented there. Every `@ref` that does
 # not resolve locally falls back to SQA's inventory, so docstrings and pages keep plain refs.
@@ -89,10 +51,10 @@ makedocs(
     sitename = "QuantumCumulants.jl",
     modules = [QuantumCumulants],
     pages = pages,
-    plugins = [links, fallbacks],
+    plugins = [CodeBlocks(), LandingPage(), links, fallbacks],
     checkdocs = :exports,
     doctest = false,
-    warnonly = [:cross_references],
+    draft = DRAFT,
     format = Documenter.HTML(
         mathengine = KaTeX(),
         assets = ["assets/favicon.ico"],
