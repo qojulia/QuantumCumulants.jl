@@ -39,7 +39,7 @@ QuantumCumulants is the *cumulant* layer. The operator algebra it builds on (Hil
 pkg> add QuantumCumulants
 ```
 
-For a full list of functions, see the [API documentation](https://qojulia.github.io/QuantumCumulants.jl/stable/api/).
+The [manual](https://qojulia.github.io/QuantumCumulants.jl/stable/manual/getting_started/) walks through the full workflow, with the docstrings of every function next to the text that uses it.
 
 ## Short example
 

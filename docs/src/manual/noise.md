@@ -1,6 +1,10 @@
-# Noise & measurement backaction
+```@meta
+CurrentModule = QuantumCumulants
+```
 
-The [mean-field pipeline](@ref "The mean-field pipeline") derives the *unconditional* dynamics: the Lindblad master equation averaged over all measurement outcomes, where the white-noise term drops out (see the [theory section](@ref theory)). When a decay channel is *continuously monitored*, that is no longer the whole story. The measurement record feeds back on the state (*measurement backaction*), and the conditional evolution is a stochastic master equation driven by the measurement noise.
+# Measurement backaction
+
+[`meanfield`](@ref) on its own derives the *unconditional* dynamics: the Lindblad master equation averaged over all measurement outcomes, where the white-noise term drops out (see the [theory section](@ref theory)). When a decay channel is *continuously monitored*, that is no longer the whole story. The measurement record feeds back on the state (*measurement backaction*), and the conditional evolution is a stochastic master equation driven by the measurement noise.
 
 QuantumCumulants derives the cumulant-expanded equations for this conditional evolution directly. The result is a [`NoiseMeanfieldEquations`](@ref): each equation carries a deterministic drift *and* a noise drift proportional to a Wiener increment ``dW``.
 
@@ -26,6 +30,11 @@ d\langle \mathcal{O}\rangle = \underbrace{(\dots)}_{\text{drift}}\,dt + \underbr
 ```
 
 where the noise drift is the measurement-conditioned term. The choice of jump operator sets the measurement: for example a cavity output ``\hat a\, e^{i\omega_l t}`` realises heterodyne detection at local-oscillator frequency ``\omega_l``.
+
+```@docs
+NoiseMeanfieldEquations
+noise_channels
+```
 
 ## Closing, scaling, evaluating
 
@@ -63,6 +72,12 @@ sol_traj = solve(SDEProblem(sys_st, dict_st, (0.0, T); noise=noise), EM(); dt=T/
 
 Averaging many conditional trajectories (via an `EnsembleProblem`) reproduces the deterministic result, while individual trajectories show the backaction. [`get_solution`](@ref) extracts averages from either kind of solution.
 
+[`translate_W_to_Y`](@ref) rewrites the equations in terms of the measurement record ``dY`` instead of the Wiener increment ``dW``, which is the form needed to filter an actual record.
+
+```@docs
+translate_W_to_Y
+```
+
 A complete, runnable walkthrough, including the ensemble averaging and plots, is the [heterodyne detection example](@ref "Heterodyne detection of emission from atomic ensemble").
 
 ## Retrodiction
@@ -75,3 +90,9 @@ eqs_backward = meanfield(ops, H, J; rates=rates, efficiencies=efficiencies,
 ```
 
 `Backward()` flips the sign of the commutator and uses the adjoint Lindblad recycling with the trace-preserving term, producing the backward (effect-operator) equations. The [`EvolutionDirection`](@ref) tag is stored on the equations and threaded through `System`, so the rest of the workflow (complete, scale, solve) is unchanged. Combining a forward filter with a backward filter yields the smoothed estimate.
+
+```@docs
+EvolutionDirection
+Forward
+Backward
+```
