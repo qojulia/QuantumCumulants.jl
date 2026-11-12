@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1794505019318,
+  "lastUpdate": 1794505495168,
   "repoUrl": "https://github.com/qojulia/QuantumCumulants.jl",
   "entries": {
     "Benchmark Results": [
@@ -5952,6 +5952,198 @@ window.BENCHMARK_DATA = {
             "value": 802763,
             "unit": "ns",
             "extra": "gctime=0\nmemory=384448\nallocs=5999\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":30,\"time_tolerance\":0.05}"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "orjan.ameye@hotmail.com",
+            "name": "Orjan Ameye",
+            "username": "oameye"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "a03064f397e4863b8295e6a0fcc3c6c791e8e244",
+          "message": "build: tag v0.8 (#371)",
+          "timestamp": "2026-11-12T18:21:20+01:00",
+          "tree_id": "2c77659d02f0713d9d696f6df9c38c3a94a2e8ae",
+          "url": "https://github.com/qojulia/QuantumCumulants.jl/commit/a03064f397e4863b8295e6a0fcc3c6c791e8e244"
+        },
+        "date": 1794505487126,
+        "tool": "julia",
+        "benches": [
+          {
+            "name": "complete/dicke/order 2",
+            "value": 4890840,
+            "unit": "ns",
+            "extra": "gctime=0\nmemory=2847832\nallocs=47084\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":30,\"time_tolerance\":0.05}"
+          },
+          {
+            "name": "complete/dicke/order 3",
+            "value": 18284188,
+            "unit": "ns",
+            "extra": "gctime=0\nmemory=9476992\nallocs=150677\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":30,\"time_tolerance\":0.05}"
+          },
+          {
+            "name": "complete/jc/order 2",
+            "value": 1639676,
+            "unit": "ns",
+            "extra": "gctime=0\nmemory=756928\nallocs=11615\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":30,\"time_tolerance\":0.05}"
+          },
+          {
+            "name": "complete/jc/order 3",
+            "value": 4942585,
+            "unit": "ns",
+            "extra": "gctime=0\nmemory=2582568\nallocs=36493\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":30,\"time_tolerance\":0.05}"
+          },
+          {
+            "name": "complete/manyatom/order 2",
+            "value": 29790081,
+            "unit": "ns",
+            "extra": "gctime=0\nmemory=18835776\nallocs=279904\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":30,\"time_tolerance\":0.05}"
+          },
+          {
+            "name": "complete/multilevel/order 2",
+            "value": 5012750.5,
+            "unit": "ns",
+            "extra": "gctime=0\nmemory=2700720\nallocs=44295\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":30,\"time_tolerance\":0.05}"
+          },
+          {
+            "name": "complete/multilevel/order 3",
+            "value": 12129254,
+            "unit": "ns",
+            "extra": "gctime=0\nmemory=7008984\nallocs=106141\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":30,\"time_tolerance\":0.05}"
+          },
+          {
+            "name": "complete/superradiant/order 2",
+            "value": 2232710.5,
+            "unit": "ns",
+            "extra": "gctime=0\nmemory=1014400\nallocs=13867\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":30,\"time_tolerance\":0.05}"
+          },
+          {
+            "name": "complete/superradiant/order 3",
+            "value": 12461107,
+            "unit": "ns",
+            "extra": "gctime=0\nmemory=8963744\nallocs=112495\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":30,\"time_tolerance\":0.05}"
+          },
+          {
+            "name": "correlation/cavity/order 2",
+            "value": 186438.5,
+            "unit": "ns",
+            "extra": "gctime=0\nmemory=64600\nallocs=1023\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":30,\"time_tolerance\":0.05}"
+          },
+          {
+            "name": "correlation/superradiant/order 2",
+            "value": 1146625,
+            "unit": "ns",
+            "extra": "gctime=0\nmemory=539472\nallocs=7120\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":30,\"time_tolerance\":0.05}"
+          },
+          {
+            "name": "cumulant_expansion/dicke/order 2",
+            "value": 434417.5,
+            "unit": "ns",
+            "extra": "gctime=0\nmemory=141664\nallocs=2376\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":30,\"time_tolerance\":0.05}"
+          },
+          {
+            "name": "cumulant_expansion/jc/order 2",
+            "value": 161897.5,
+            "unit": "ns",
+            "extra": "gctime=0\nmemory=50752\nallocs=828\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":30,\"time_tolerance\":0.05}"
+          },
+          {
+            "name": "cumulant_expansion/manyatom/order 2",
+            "value": 32109.5,
+            "unit": "ns",
+            "extra": "gctime=0\nmemory=18176\nallocs=281\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":30,\"time_tolerance\":0.05}"
+          },
+          {
+            "name": "cumulant_expansion/multilevel/order 2",
+            "value": 11591,
+            "unit": "ns",
+            "extra": "gctime=0\nmemory=7408\nallocs=125\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":30,\"time_tolerance\":0.05}"
+          },
+          {
+            "name": "cumulant_expansion/superradiant/order 2",
+            "value": 20679,
+            "unit": "ns",
+            "extra": "gctime=0\nmemory=9936\nallocs=176\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":30,\"time_tolerance\":0.05}"
+          },
+          {
+            "name": "find_missing/dicke/order 2",
+            "value": 96816,
+            "unit": "ns",
+            "extra": "gctime=0\nmemory=63872\nallocs=699\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":30,\"time_tolerance\":0.05}"
+          },
+          {
+            "name": "find_missing/jc/order 2",
+            "value": 26139.5,
+            "unit": "ns",
+            "extra": "gctime=0\nmemory=18880\nallocs=206\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":30,\"time_tolerance\":0.05}"
+          },
+          {
+            "name": "find_missing/manyatom/order 2",
+            "value": 28473,
+            "unit": "ns",
+            "extra": "gctime=0\nmemory=17792\nallocs=219\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":30,\"time_tolerance\":0.05}"
+          },
+          {
+            "name": "find_missing/multilevel/order 2",
+            "value": 7584,
+            "unit": "ns",
+            "extra": "gctime=0\nmemory=5312\nallocs=71\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":30,\"time_tolerance\":0.05}"
+          },
+          {
+            "name": "find_missing/superradiant/order 2",
+            "value": 9808,
+            "unit": "ns",
+            "extra": "gctime=0\nmemory=7232\nallocs=99\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":30,\"time_tolerance\":0.05}"
+          },
+          {
+            "name": "meanfield/dicke/order 2",
+            "value": 936703,
+            "unit": "ns",
+            "extra": "gctime=0\nmemory=319600\nallocs=5549\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":30,\"time_tolerance\":0.05}"
+          },
+          {
+            "name": "meanfield/jc/order 2",
+            "value": 1089328,
+            "unit": "ns",
+            "extra": "gctime=0\nmemory=404552\nallocs=6386\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":30,\"time_tolerance\":0.05}"
+          },
+          {
+            "name": "meanfield/manyatom/order 2",
+            "value": 997226,
+            "unit": "ns",
+            "extra": "gctime=0\nmemory=408256\nallocs=6810\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":30,\"time_tolerance\":0.05}"
+          },
+          {
+            "name": "meanfield/multilevel/order 2",
+            "value": 242162.5,
+            "unit": "ns",
+            "extra": "gctime=0\nmemory=94752\nallocs=1564\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":30,\"time_tolerance\":0.05}"
+          },
+          {
+            "name": "meanfield/superradiant/order 2",
+            "value": 762526.5,
+            "unit": "ns",
+            "extra": "gctime=0\nmemory=366632\nallocs=5236\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":30,\"time_tolerance\":0.05}"
+          },
+          {
+            "name": "scale/superradiant/order 2",
+            "value": 382536,
+            "unit": "ns",
+            "extra": "gctime=0\nmemory=125904\nallocs=1940\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":30,\"time_tolerance\":0.05}"
+          },
+          {
+            "name": "scale/superradiant/order 3",
+            "value": 1218589,
+            "unit": "ns",
+            "extra": "gctime=0\nmemory=384576\nallocs=5997\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":30,\"time_tolerance\":0.05}"
           }
         ]
       }
