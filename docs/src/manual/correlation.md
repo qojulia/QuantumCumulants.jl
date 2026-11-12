@@ -1,3 +1,7 @@
+```@meta
+CurrentModule = QuantumCumulants
+```
+
 # Correlation functions and spectra
 
 Two quantities that are often of interest in a system are two-time correlation functions and spectral densities. Consider, for example, two operators ``a`` and ``b``. Their two-time correlation function is given by
@@ -9,6 +13,11 @@ As we can see, we need to take some care here since ``g`` depends on two differe
 S(\omega) = 2\text{Re}\left\{\int d\tau e^{-i\omega\tau}g(t,\tau)\right\}.
 ```
 So in any case, we need to treat the two-time correlation function before we can obtain the spectrum.
+
+```@contents
+Pages = ["correlation.md"]
+Depth = 2:3
+```
 
 ## Correlation function
 
@@ -45,6 +54,11 @@ me = meanfield(a'*a, H, [a]; rates=[κ])
 c = CorrelationFunction(a', a, me; steady_state=false)
 nothing # hide
 ```
+
+```@docs
+CorrelationFunction
+```
+
 When the [`CorrelationFunction`](@ref) is constructed, an additional Hilbert space is added internally which represents the system at the time ``t``. In our case, this means that another [`FockSpace`](@ref) is added. The τ-equations live on the extended product space and are stored in `c.eqs`.
 
 To solve the original system numerically, build its MTK system via `System` and feed it into OrdinaryDiffEq. The ⟨a'a⟩ equation depends only on `κ`; `ωc` only enters once we evolve the correlation function (which carries a `⟨a†⟩` factor whose phase rotates at `ωc`):
@@ -73,6 +87,12 @@ Finally, let's check our numerical solution against the analytic one obtained ab
 using Test # hide
 g_analytic(τ) = @. sol.u[end][1] * exp((im*ωc_val - 0.5*κ_val)*τ)
 @test isapprox(sol_c.u, g_analytic(sol_c.t), rtol=1e-4)
+```
+
+```@docs
+correlation_u0
+correlation_p0
+ModelingToolkitBase.System(::CorrelationFunction)
 ```
 
 Note that this was a very simple case. Usually the system of equations describing the correlation function is much more complex and depends on multiple other correlation functions (see for example [Spectrum of a single-atom laser](@ref)).
@@ -186,8 +206,8 @@ s = S(ω, sol.u[end], [ωc_val, κ_val])
 nothing # hide
 ```
 
-## Examples:
+```@docs
+Spectrum
+```
 
-* [Mollow Triplet](@ref)
-
-* [Spectrum of a single-atom laser](@ref)
+The examples [Mollow Triplet](@ref) and [Spectrum of a single-atom laser](@ref) apply both methods to driven emitters.

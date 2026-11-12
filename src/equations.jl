@@ -26,10 +26,18 @@ dispatch the noise/retrodiction code path at compile time.
 """
 abstract type EvolutionDirection end
 
-"""Forward Heisenberg evolution (positive sign on `i[H, ·]`)."""
+"""
+    Forward()
+
+Forward Heisenberg evolution (positive sign on `i[H, ·]`).
+"""
 struct Forward <: EvolutionDirection end
 
-"""Backward Heisenberg evolution (negative sign), used for retrodiction."""
+"""
+    Backward()
+
+Backward Heisenberg evolution (negative sign), used for retrodiction.
+"""
 struct Backward <: EvolutionDirection end
 
 Base.length(eqs::AbstractMeanfieldEquations) = length(eqs.equations)

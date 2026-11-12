@@ -100,7 +100,7 @@ eqs = meanfield(ops, H, J; rates = rates, order = 2) # derive equations
 meanfield(Sz(1), H, J; rates = rates, order = 2)
 ````
 
-We define the numerical system Parameters and the initial state. For spin operators the initial state is unfortunately not fully trivial with all zeros. Therefore, we use the [numeric conversion](https://qojulia.github.io/QuantumCumulants.jl/stable/implementation/#Numeric-averages-and-conversion) which allows us to define the quantum state in [QuantumOptics.jl](https://docs.qojulia.org/quantumobjects/states/) and convert it to the correct initial average values.
+We define the numerical system Parameters and the initial state. For spin operators the initial state is unfortunately not fully trivial with all zeros. Therefore, we use the [numeric conversion](@ref "Initial values") which allows us to define the quantum state in [QuantumOptics.jl](https://docs.qojulia.org/quantumobjects/states/) and convert it to the correct initial average values.
 
 ````@example waveguide
 Γ_ = 1.0  # Γ1D # System Parameters

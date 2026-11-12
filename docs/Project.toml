@@ -2,6 +2,9 @@
 DiffEqBase = "2b5f629d-d688-5b77-993f-72d75c75574e"
 DiffEqNoiseProcess = "77a26b50-5914-5dd7-bc55-306e6241c503"
 Documenter = "e30172f5-a6a5-5a46-863b-614d45cd2de4"
+DocumenterCodeBlocks = "b6400b83-267f-4b55-9fd8-bffc853bdfd8"
+DocumenterInterLinks = "d12716ef-a0f6-4df4-a9f1-a5a34e75c656"
+DocumenterLandingPage = "1c52b33b-3e2f-4e99-b3b5-a6ad63f0d6d2"
 InteractiveUtils = "b77e0a4c-d291-57a0-90e8-8db25a27a240"
 Latexify = "23fbe1c1-3f47-55db-b15f-69d7ec21a316"
 Literate = "98b081ad-f1c9-55d3-8b20-4c87d4299306"
@@ -18,15 +21,21 @@ StochasticDiffEqLowOrder = "d15fe365-ce7f-450a-828a-7985bd5b681b"
 SymbolicUtils = "d1185830-fcd6-423d-90d6-eec64667417b"
 Symbolics = "0c5d862f-8b57-4792-8d23-62f2024744c7"
 
+[sources]
+QuantumCumulants = {path = ".."}
+
 [compat]
 DiffEqBase = "7"
+DiffEqNoiseProcess = "5"
 Documenter = "1"
+DocumenterCodeBlocks = "1"
+DocumenterInterLinks = "1.1"
+DocumenterLandingPage = "0.2"
 Latexify = "0.13, 0.14, 0.15, 0.16"
 MacroTools = "0.5"
 Plots = "1"
 QuantumOptics = "1"
 QuantumOpticsBase = "0.5"
-DiffEqNoiseProcess = "5"
 StochasticDiffEqLowOrder = "2"
 SymbolicUtils = "4"
 Symbolics = "7"

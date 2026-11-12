@@ -12,6 +12,10 @@ All notable changes to QuantumCumulants.jl will be documented in this file.
 
 `modify_equations`, `substitute` and `translate_W_to_Y` now also apply to the equations that a later `complete` derives. Before, closure derived the new moments from the Hamiltonian and the jumps alone, so e.g. a drive added with `modify_equations` was silently missing from the equation of ⟨a⟩ that the drive itself introduced.
 
+### Documentation
+
+The API page is replaced by a manual in the style of SecondQuantizedAlgebra.jl. Each manual page tells the workflow step by step and places the docstrings of its functions next to the text that uses them. Names re-exported from SecondQuantizedAlgebra are no longer documented here; references to them link to the SecondQuantizedAlgebra documentation.
+
 ## [0.7.4]
 
 ### Changed
