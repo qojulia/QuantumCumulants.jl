@@ -205,7 +205,7 @@ Re-attach non-equal index pairs to a folded QAdd, restricting each to terms whos
 its indices, and set the kept bound indices as the new sum scope.
 """
 function _reattach_non_equal(folded::QAdd, kept_non_equal, keep_idx)
-    out = SQA.QTermDict()
+    out = Dict{SQA.QTerm, SQA.CNum}()
     for (term, c) in folded.arguments
         present = Set{SQA.Index}()
         for o in term.ops

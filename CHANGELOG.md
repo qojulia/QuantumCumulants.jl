@@ -4,6 +4,14 @@ All notable changes to QuantumCumulants.jl will be documented in this file.
 
 ## [Unreleased]
 
+## [0.7.4]
+
+### Changed
+
+Moved to **SecondQuantizedAlgebra.jl v0.15**. QuantumCumulants reads concrete index slots through the new `index_slot` convention (`0` for an abstract index instead of `nothing`), so SQA v0.14 and earlier are no longer supported. QuantumCumulants call syntax is unchanged; the SQA v0.14 additions, such as `Lindbladian`, `dissipator` and `hamiltonian_action`, are reexported.
+
+SQA v0.15 no longer exports the operator-kind predicates (`optype`, `is_destroy`, `is_create`, `is_transition`, ...), `is_indexed_sum` or the numeric backend interface (`NumericBackend`, `EagerOperator`, `numeric_backend` and the `numeric_*` hooks), so QuantumCumulants no longer reexports them either. They remain public; import them explicitly, e.g. `using SecondQuantizedAlgebra: is_destroy`. `Base.isless` is no longer defined on operators; sort with `sort(v; lt = SecondQuantizedAlgebra.canonical_isless)`. Internally, QuantumCumulants now chooses moment representatives through the public `canonical_isless` instead of the internal `qadd_order_key`; the chosen representatives are unchanged.
+
 ## [0.7.3]
 
 ### Changed

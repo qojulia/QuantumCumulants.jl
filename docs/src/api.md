@@ -70,10 +70,6 @@ SecondQuantizedAlgebra.QTerm
 ```
 
 ```@docs
-SecondQuantizedAlgebra.QTermDict
-```
-
-```@docs
 SecondQuantizedAlgebra.Op
 ```
 
@@ -475,22 +471,24 @@ Symbolic-to-numeric conversion ([`to_numeric`](@ref), [`numeric_average`](@ref),
 interface. Loading a backend (`using QuantumOpticsBase` or `using QuantumToolbox`) selects
 the concrete implementation; the conversion details are documented in SQA's
 [numeric conversion section](https://qojulia.github.io/SecondQuantizedAlgebra.jl/stable/implementation/#Numeric-conversion).
-The re-exported types and hooks below are the interface for selecting and implementing a
-backend.
+The backends are re-exported. The interface types and hooks below are public in
+SecondQuantizedAlgebra but not exported, so a custom backend imports them explicitly, e.g.
+`using SecondQuantizedAlgebra: numeric_operator`.
 
 ```@docs
-NumericBackend
+SecondQuantizedAlgebra.NumericBackend
+SecondQuantizedAlgebra.EagerOperator
 QuantumOpticsBackend
 QuantumToolboxBackend
-numeric_backend
-numeric_basis
-numeric_subbasis
-numeric_operator
-numeric_identity
-numeric_embed
-numeric_num_subsystems
-numeric_assemble
-numeric_assemble_td
-numeric_materialize
-numeric_expect
+SecondQuantizedAlgebra.numeric_backend
+SecondQuantizedAlgebra.numeric_basis
+SecondQuantizedAlgebra.numeric_subbasis
+SecondQuantizedAlgebra.numeric_operator
+SecondQuantizedAlgebra.numeric_identity
+SecondQuantizedAlgebra.numeric_embed
+SecondQuantizedAlgebra.numeric_num_subsystems
+SecondQuantizedAlgebra.numeric_assemble
+SecondQuantizedAlgebra.numeric_assemble_td
+SecondQuantizedAlgebra.numeric_materialize
+SecondQuantizedAlgebra.numeric_expect
 ```
