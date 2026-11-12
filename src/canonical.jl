@@ -299,7 +299,7 @@ them would let a later relabelling collapse the index onto its partner and
 annihilate the term. Operator-internal non-equal index pairs are preserved.
 """
 function _drop_scope_non_equal(q::QAdd)
-    out = SQA.QTermDict()
+    out = Dict{SQA.QTerm, SQA.CNum}()
     changed = false
     for (term, c) in q.arguments
         opidx = Set{SQA.Index}()
@@ -319,7 +319,7 @@ Strip every non-equal constraint from `q`, merging any terms that become identic
 once the constraints are gone.
 """
 function _drop_all_non_equal(q::QAdd)
-    out = SQA.QTermDict()
+    out = Dict{SQA.QTerm, SQA.CNum}()
     for (term, c) in q.arguments
         new_term = isempty(term.ne) ? term : SQA.QTerm(copy(term.ops), Tuple{SQA.Index, SQA.Index}[])
         # Accumulate: terms collapsing to the same ops must add their coefficients.
@@ -368,7 +368,6 @@ function symmetric_min(op::QAdd, ctx::CanonCtx, selected)
     isempty(spaces) && return op
     perms_per_space = [collect(Combinatorics.permutations(free[sp])) for sp in spaces]
     best_op = nothing
-    best_key = nothing
     for combo in Iterators.product(perms_per_space...)
         sub = Dict{SQA.Index, SQA.Index}()
         for (n, sp) in enumerate(spaces)
@@ -382,9 +381,7 @@ function symmetric_min(op::QAdd, ctx::CanonCtx, selected)
         end
         cand = isempty(sub) ? op : SQA.change_index(op, sub)
         cand = _reorder_then_drop_non_equal(cand, spaces)
-        key = SQA.qadd_order_key(cand)
-        if best_key === nothing || key < best_key
-            best_key = key
+        if best_op === nothing || SQA.canonical_isless(cand, best_op)
             best_op = cand
         end
     end
@@ -422,14 +419,14 @@ end
 """
 Conjugation-aware representative shared by `canonical_rep` and `concrete_rep`. Given a
 `basekey` labelling of ⟨op⟩ (per-treatment or concrete), returns `(key, is_conjugate)`
-from the smaller of the labels of ⟨`op`⟩ and ⟨`op`†⟩ under SQA's `qadd_order_key`, so an
+from the smaller of the labels of ⟨`op`⟩ and ⟨`op`†⟩ under SQA's `canonical_isless`, so an
 average and its conjugate ⟨A†⟩ = ⟨A⟩* collapse to one representative. The structural
-order lives in SQA (`qadd_order_key`); QC only chooses which conjugation side wins.
+order lives in SQA (`canonical_isless`); QC only chooses which conjugation side wins.
 """
 function _conjugation_rep(op::QAdd, basekey)
     k = basekey(op)
     kc = basekey(adjoint(op))
-    return SQA.qadd_order_key(kc) < SQA.qadd_order_key(k) ? (kc, true) : (k, false)
+    return SQA.canonical_isless(kc, k) ? (kc, true) : (k, false)
 end
 
 """

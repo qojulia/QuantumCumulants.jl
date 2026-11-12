@@ -17,6 +17,7 @@ end
 # code across test workers without polluting the test list.
 init_code = quote
     using QuantumCumulants
+    using SecondQuantizedAlgebra: is_destroy, is_create, is_transition
     using SymbolicUtils: SymbolicUtils
     using Symbolics: Symbolics
     using Test

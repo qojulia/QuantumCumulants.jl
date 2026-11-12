@@ -33,14 +33,14 @@ end
 @testset "structural signature total order" begin
     h = FockSpace(:c)
     a = Destroy(h, :a)
-    s1 = SQA.qadd_order_key(a * 1)
-    s2 = SQA.qadd_order_key(a' * 1)
-    s3 = SQA.qadd_order_key((a' * a) * 1)
-    sigs = [s1, s2, s3]
-    @test allunique(sigs)                                  # distinct operators -> distinct keys
-    @test issorted(sort(sigs))                             # comparable / total order
-    @test SQA.qadd_order_key(a * 1) == SQA.qadd_order_key(a * 1)  # deterministic
-    @test (s1 < s2) || (s2 < s1)                           # any two are strictly ordered
+    lt = SQA.canonical_isless
+    ops = [a * 1, a' * 1, (a' * a) * 1]
+    sorted = sort(ops; lt)
+    @test issorted(sorted; lt)                             # comparable / total order
+    @test !lt(a * 1, a * 1)                                # irreflexive, deterministic
+    for x in ops, y in ops                                 # distinct operators strictly ordered
+        isequal(x, y) || @test lt(x, y) != lt(y, x)
+    end
 end
 
 @testset "walkers see lifted averages as leaves" begin

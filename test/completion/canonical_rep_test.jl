@@ -16,11 +16,11 @@ const SQA = QuantumCumulants.SecondQuantizedAlgebra
     op = (σ(2, 1, i) * a) * 1
     # canonical_rep ADDS the conjugation fold on top of canon_key, so under All-Free
     # treatment it equals the conjugation-min of canon_key over {op, op†}. Which side
-    # wins is SQA's qadd_order_key convention, so derive it rather than hard-coding op.
+    # wins is SQA's canonical_isless convention, so derive it rather than hard-coding op.
     free = QuantumCumulants.all_free_treatments(ctx)
     ck = QuantumCumulants.canon_key(op, ctx)
     cka = QuantumCumulants.canon_key(adjoint(op), ctx)
-    expected = SQA.qadd_order_key(cka) < SQA.qadd_order_key(ck) ? cka : ck
+    expected = SQA.canonical_isless(cka, ck) ? cka : ck
     @test isequal(QuantumCumulants.canonical_rep(op, ctx; treatments = free)[1], expected)
     # idempotence
     rep1 = QuantumCumulants.canonical_rep(op, ctx; treatments = free)[1]
@@ -47,7 +47,7 @@ end
     # so it equals the conjugation-min of scaled_key over {op, op†}.
     ok = QuantumCumulants.scaled_key(op, ctx)
     oka = QuantumCumulants.scaled_key(adjoint(op), ctx)
-    expected = SQA.qadd_order_key(oka) < SQA.qadd_order_key(ok) ? oka : ok
+    expected = SQA.canonical_isless(oka, ok) ? oka : ok
     @test isequal(QuantumCumulants.canonical_rep(op, ctx; treatments)[1], expected)
     # The non-conjugate-folded config (scaled_key) is reproduced by _treatment_key.
     @test isequal(QuantumCumulants._treatment_key(op, ctx, treatments), ok)

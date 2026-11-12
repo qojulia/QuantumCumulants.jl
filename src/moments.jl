@@ -163,7 +163,7 @@ function _carry_non_equal(block::QAdd, non_equal, scope)
         p for p in non_equal if p[1] in present || p[2] in present
     ]
     isempty(kept) && return block
-    out = SQA.QTermDict()
+    out = Dict{SQA.QTerm, SQA.CNum}()
     for (term, c) in block.arguments
         out[SQA.QTerm(copy(term.ops), vcat(term.ne, kept))] = c
     end
