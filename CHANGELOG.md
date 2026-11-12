@@ -2,7 +2,7 @@
 
 All notable changes to QuantumCumulants.jl will be documented in this file.
 
-## [Unreleased]
+## [0.8.0]
 
 ### Changed
 
