@@ -239,10 +239,7 @@ function MeanfieldEquations(eqs::NoiseMeanfieldEquations)
     # Strip the stochastic part: efficiencies -> nothing, drop each node's noise drift. The
     # deterministic drift, operator drift, treatments, ctx and `mix_choice` carry over from
     # the source graph verbatim (no view round-trip, so `op_drift` stays a faithful QAdd).
-    det_sys = SystemSpec(
-        sys.hamiltonian, sys.jumps, sys.jumps_dagger, sys.rates, nothing,
-        sys.iv, sys.order, sys.mix_choice, sys.direction,
-    )
+    det_sys = respec(sys; efficiencies = nothing)
     nodes = OrderedCollections.OrderedDict{NodeKey, NodeData}()
     for (k, nd) in g.nodes
         nodes[k] = NodeData(nd.drift, nd.op_drift, nothing, nothing, nd.order, nd.aon)

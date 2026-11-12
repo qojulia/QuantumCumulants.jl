@@ -445,10 +445,7 @@ function cumulant_expansion(eqs::MeanfieldEquations, order)
         eqs.graph, (_, d) -> cumulant_expansion(d, order_vec; mix_choice = sys.mix_choice);
         noise = false,
     )
-    new_sys = SystemSpec(
-        sys.hamiltonian, sys.jumps, sys.jumps_dagger, sys.rates, sys.efficiencies,
-        sys.iv, order_vec, sys.mix_choice, sys.direction,
-    )
+    new_sys = respec(sys; order = order_vec)
     return MeanfieldEquations(MomentGraph(g.nodes, new_sys, g.ctx, g.treatments))
 end
 

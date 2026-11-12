@@ -144,7 +144,7 @@ Since `ps`/`p0` carry diagonal entries `Ω_i_i`/`Γ_i_i` that the Hamiltonian ne
 ````@example waveguide
 sys = System(eqs; name = :sys)
 sys = mtkcompile(sys)
-dict = parameter_map(sys, merge(Dict(unknowns(sys) .=> u0), Dict(ps .=> p0)))
+dict = parameter_map(sys, merge(u0, Dict(ps .=> p0)))
 prob = ODEProblem(sys, dict, (0.0, 8.0e-3))
 sol = solve(prob, Tsit5(), abstol = 1.0e-6, reltol = 1.0e-6)
 nothing # hide
