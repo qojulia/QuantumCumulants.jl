@@ -252,11 +252,15 @@ function initial_values(eqs::AbstractMeanfieldEquations; defaults::AbstractDict 
 end
 
 """
-    initial_values(eqs, state)            # from a numeric quantum state
+    initial_values(eqs, state)               # from a numeric quantum state
     initial_values(eqs, u0::AbstractVector)  # from a value vector aligned with eqs.states
+
+Map every state's `u(t)` variable to its initial value, taken from the expectation values
+of a numeric quantum state (a ket or density operator, see `numeric_average`) or from a
+vector aligned with [`states`](@ref).
 """
 function initial_values(eqs::AbstractMeanfieldEquations, state)
-    return ComplexF64[ComplexF64(SQA.numeric_average(v, state)) for v in eqs.states]
+    return initial_values(eqs, ComplexF64[SQA.numeric_average(v, state) for v in eqs.states])
 end
 
 function initial_values(eqs::AbstractMeanfieldEquations, u0::AbstractVector{<:Number}; kwargs...)

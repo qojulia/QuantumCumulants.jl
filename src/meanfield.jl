@@ -154,7 +154,7 @@ function translate_W_to_Y(
         order !== nothing && (term = cumulant_expansion(term, order; mix_choice))
         return d + term
     end
-    g = map_drifts(eqs.graph, augment; noise = false)
+    g = rewrite_drifts(eqs.graph, augment; noise = false)
     return assemble_equations(g)
 end
 
@@ -166,6 +166,8 @@ end
 Return a copy of `eqs` whose RHS for each equation has been rewritten by `f`.
 The function is called as `f(lhs_op, rhs)`, receiving the *operator* form of
 the LHS (`undo_average(eq.lhs)`) and the symbolic RHS, and returning a new RHS.
+The rewrite is recorded on the system, so the equations a later [`complete`](@ref) derives
+receive it as well.
 
 ```julia
 f(lhs, rhs) = rhs + cumulant_expansion(average(commutator(1im * Hadd, lhs)), 2)
@@ -184,7 +186,7 @@ In-place version of [`modify_equations`](@ref). Rewrites each drift in `eqs.grap
 `f(lhs_op, rhs)`, where `lhs_op` is the node key (the operator form of the LHS).
 """
 function modify_equations!(eqs::AbstractMeanfieldEquations, f::Function)
-    eqs.graph = map_drifts(eqs.graph, (k, d) -> f(k, d); noise = false)
+    eqs.graph = rewrite_drifts(eqs.graph, f; noise = false)
     resync!(eqs; moments_unchanged = true)
     return eqs
 end
@@ -199,6 +201,7 @@ Substitute `dict` into every RHS of `eqs` (and into the noise drift RHSs of a
 `NoiseMeanfieldEquations`). Keys of `dict` are symbolic expressions to replace: parameters,
 or averages known to vanish (e.g. by symmetry), so that zeroing them closes the hierarchy
 onto the remaining moments. `substitute!` mutates `eqs`; `substitute` returns a fresh struct.
+The substitution also applies to the equations a later [`complete`](@ref) derives.
 
 Only the drifts are rewritten; the moment set (the LHS states and operators) is unchanged. To
 also drop the substituted moments as unknowns, complete onto the reduced subset (e.g. with a
@@ -216,7 +219,7 @@ function substitute!(eqs::AbstractMeanfieldEquations, dict::AbstractDict)
     # the whole expression and strips the scalar shape off every `⟨…⟩`, which then
     # no longer matches the (scalar) LHS averages and breaks downstream simplify.
     sub = Dict(SymbolicUtils.unwrap(k) => SymbolicUtils.unwrap(v) for (k, v) in dict)
-    eqs.graph = map_drifts(eqs.graph, (_, d) -> _subtree_substitute(SymbolicUtils.unwrap(d), sub))
+    eqs.graph = rewrite_drifts(eqs.graph, (_, d) -> _subtree_substitute(SymbolicUtils.unwrap(d), sub))
     resync!(eqs; moments_unchanged = true)
     return eqs
 end
